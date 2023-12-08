@@ -120,7 +120,10 @@ pub const AbiParamenter = struct {
 };
 
 test "ParamType" {
-    const a = try typeToUnion("string[][5]");
+    const param = try typeToUnion("string[][5]");
 
-    try testing.expect(a.fixedArray.size == 5);
+    try testing.expect(param.fixedArray.size == 5);
+    // std.debug.print("Fooo: {}\n", .{param.fixedArray.array[0]});
+    // try testing.expectEqual(ParamType{ .string = {} }, param.fixedArray.array[0]);
+    try testing.expectEqualSlices(ParamType, &[_]ParamType{.{ .string = {} }}, param.fixedArray.array[0].array);
 }

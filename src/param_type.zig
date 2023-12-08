@@ -1,6 +1,5 @@
 const std = @import("std");
 const testing = std.testing;
-const builtin = @import("builtin");
 const Alloc = std.mem.Allocator;
 const ParserOptions = std.json.ParseOptions;
 const Scanner = std.json.Scanner;
@@ -113,17 +112,58 @@ fn typeToUnion(abitype: []const u8) !ParamType {
     return @unionInit(ParamType, "enum", 8);
 }
 
-pub const AbiParamenter = struct {
-    name: []const u8,
-    type: ParamType,
-    internal_type: ?[]const u8 = null,
-};
+test "ParamType address" {
+    const param = try typeToUnion("address");
 
-test "ParamType" {
+    try testing.expectEqual(ParamType{ .address = {} }, param);
+}
+test "ParamType bool" {
+    const param = try typeToUnion("bool");
+
+    try testing.expectEqual(ParamType{ .bool = {} }, param);
+}
+test "ParamType tuple" {
+    const param = try typeToUnion("tuple");
+
+    try testing.expectEqual(ParamType{ .tuple = {} }, param);
+}
+test "ParamType bytes" {
+    const param = try typeToUnion("bytes");
+
+    try testing.expectEqual(ParamType{ .bytes = {} }, param);
+}
+test "ParamType string" {
+    const param = try typeToUnion("string");
+
+    try testing.expectEqual(ParamType{ .string = {} }, param);
+}
+
+test "ParamType int" {
+    const param = try typeToUnion("int");
+    try testing.expectEqual(ParamType{ .int = 256 }, param);
+
+    try testing.expectEqual(ParamType{ .int = 120 }, try typeToUnion("int120"));
+    try testing.expectEqual(ParamType{ .int = 248 }, try typeToUnion("int248"));
+    try testing.expectEqual(ParamType{ .int = 64 }, try typeToUnion("int64"));
+    try testing.expectEqual(ParamType{ .int = 72 }, try typeToUnion("int72"));
+    try testing.expectEqual(ParamType{ .int = 240 }, try typeToUnion("int240"));
+}
+
+test "ParamType uint" {
+    const param = try typeToUnion("uint");
+
+    try testing.expectEqual(ParamType{ .uint = 256 }, param);
+
+    try testing.expectEqual(ParamType{ .uint = 120 }, try typeToUnion("uint120"));
+    try testing.expectEqual(ParamType{ .uint = 248 }, try typeToUnion("uint248"));
+    try testing.expectEqual(ParamType{ .uint = 64 }, try typeToUnion("uint64"));
+    try testing.expectEqual(ParamType{ .uint = 72 }, try typeToUnion("uint72"));
+    try testing.expectEqual(ParamType{ .uint = 240 }, try typeToUnion("uint240"));
+}
+
+test "ParamType fixed array" {
     const param = try typeToUnion("string[][5]");
 
     try testing.expect(param.fixedArray.size == 5);
-    // std.debug.print("Fooo: {}\n", .{param.fixedArray.array[0]});
-    // try testing.expectEqual(ParamType{ .string = {} }, param.fixedArray.array[0]);
     try testing.expectEqualSlices(ParamType, &[_]ParamType{.{ .string = {} }}, param.fixedArray.array[0].array);
 }

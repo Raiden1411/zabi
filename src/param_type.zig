@@ -76,21 +76,29 @@ pub const ParamType = union(enum) {
 };
 
 fn typeToUnion(abitype: []const u8, alloc: Alloc) !ParamType {
-    const array_len = abitype.len - 1;
-    if (abitype[array_len] == ']') {
-        // Check if the array is dynamic
-        if (abitype[array_len - 1] == '[') {
-            const p = try alloc.create(ParamType);
-            p.* = try typeToUnion(abitype[0 .. array_len - 1], alloc);
-            return @unionInit(ParamType, "dynamicArray", p);
-        }
+    if (abitype.len == 0) return error.EmptyParamType;
 
-        var counter: u8 = 1;
-        if (std.ascii.isDigit(abitype[array_len - counter])) {
-            while (std.ascii.isDigit(abitype[array_len - counter])) : (counter += 1) {}
-            const p = try alloc.create(ParamType);
-            p.* = try typeToUnion(abitype[0 .. array_len - counter], alloc);
-            return @unionInit(ParamType, "fixedArray", FixedArray{ .child = p, .size = try std.fmt.parseInt(usize, abitype[array_len - counter + 1 .. array_len], 10) });
+    if (abitype[abitype.len - 1] == ']') {
+        const end = abitype.len - 1;
+        for (2..abitype.len) |i| {
+            const start = abitype.len - i;
+            if (abitype[start] == '[') {
+                const inside = abitype[start + 1 .. end];
+                const child = try alloc.create(ParamType);
+                errdefer alloc.destroy(child);
+                child.* = try typeToUnion(abitype[0..start], alloc);
+
+                if (inside.len == 0) {
+                    return .{
+                        .dynamicArray = child,
+                    };
+                } else {
+                    return .{ .fixedArray = .{
+                        .size = try std.fmt.parseInt(usize, inside, 10),
+                        .child = child,
+                    } };
+                }
+            }
         }
 
         return error.InvalidArrayType;
@@ -111,12 +119,12 @@ fn typeToUnion(abitype: []const u8, alloc: Alloc) !ParamType {
 
     if (std.mem.startsWith(u8, abitype, "int")) {
         const len = abitype[3..];
-        return @unionInit(ParamType, "int", try std.fmt.parseInt(usize, len, 10));
+        return .{ .int = try std.fmt.parseInt(usize, len, 10) };
     }
 
     if (std.mem.startsWith(u8, abitype, "uint")) {
         const len = abitype[4..];
-        return @unionInit(ParamType, "uint", try std.fmt.parseInt(usize, len, 10));
+        return .{ .uint = try std.fmt.parseInt(usize, len, 10) };
     }
 
     if (std.mem.startsWith(u8, abitype, "bytes")) {
@@ -125,10 +133,11 @@ fn typeToUnion(abitype: []const u8, alloc: Alloc) !ParamType {
 
         if (alignment > 32) return error.InvalidBytesAligment;
 
-        return @unionInit(ParamType, "fixedBytes", alignment);
+        return .{ .fixedBytes = try std.fmt.parseInt(usize, len, 10) };
     }
 
-    return @unionInit(ParamType, "enum", 8);
+    // Default into a enum type. Enums in solidity are u8 typed;
+    return .{ .@"enum" = 8 };
 }
 
 test "ParamType common" {

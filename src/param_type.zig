@@ -23,6 +23,8 @@ pub const ParamType = union(enum) {
     fixedArray: FixedArray,
     dynamicArray: *const ParamType,
 
+    /// User must call this if the union type contains a fixedArray or dynamicArray field.
+    /// They create pointers so they must be destroyed after.
     pub fn freeArrayParamType(param: ParamType, alloc: Alloc) void {
         switch (param) {
             .dynamicArray => |val| {
@@ -36,19 +38,29 @@ pub const ParamType = union(enum) {
             inline else => return,
         }
     }
+
+    /// Overrides the `jsonParse` from `std.json`.
+    ///
+    /// We do this because a union is treated as expecting a object string in Zig.
+    ///
+    /// But since we are expecting a string that contains the type value
+    /// we override this so we handle the parsing properly and still leverage the union type.
     pub fn jsonParse(alloc: Alloc, source: *Scanner, opts: ParserOptions) !ParamType {
         const name_token: ?Token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
         const field_name = switch (name_token.?) {
             inline .string, .allocated_string => |slice| slice,
-            else => {
-                return error.UnexpectedToken;
-            },
+            else => return error.UnexpectedToken,
         };
 
         return typeToUnion(field_name, alloc);
     }
 };
 
+/// Helper function that is used to convert solidity types into zig unions,
+/// the function will allocate if a array or a fixed array is used.
+///
+/// Consider using `freeArrayParamType` to destroy the pointers
+/// or call the destroy method on your allocator manually
 fn typeToUnion(abitype: []const u8, alloc: Alloc) !ParamType {
     if (abitype.len == 0) return error.EmptyParamType;
 
@@ -201,6 +213,25 @@ test "ParamType 2d dynamic/fixed array" {
     const two_ff = try typeToUnion("int[6][9]", testing.allocator);
     defer ParamType.freeArrayParamType(two_ff, testing.allocator);
     try expectEqualParamType(ParamType{ .fixedArray = FixedArray{ .child = &.{ .fixedArray = FixedArray{ .child = &.{ .int = 256 }, .size = 6 } }, .size = 9 } }, two_ff);
+}
+
+test "ParamType errors" {
+    // Invalid alignment
+    try testing.expectError(error.InvalidBytesAligment, typeToUnion("int13", testing.allocator));
+    try testing.expectError(error.InvalidBytesAligment, typeToUnion("int135", testing.allocator));
+    try testing.expectError(error.InvalidBytesAligment, typeToUnion("uint7", testing.allocator));
+    try testing.expectError(error.InvalidBytesAligment, typeToUnion("uint29", testing.allocator));
+    try testing.expectError(error.InvalidBytesAligment, typeToUnion("bytes40", testing.allocator));
+
+    //Invalid array
+    try testing.expectError(error.InvalidCharacter, typeToUnion("int[n]", testing.allocator));
+    try testing.expectError(error.InvalidCharacter, typeToUnion("int[1n]", testing.allocator));
+    try testing.expectError(error.InvalidCharacter, typeToUnion("int[n1]", testing.allocator));
+    try testing.expectError(error.InvalidArrayType, typeToUnion("[]", testing.allocator));
+    try testing.expectError(error.InvalidArrayType, typeToUnion("[][]", testing.allocator));
+
+    //Empty type
+    try testing.expectError(error.EmptyParamType, typeToUnion("", testing.allocator));
 }
 
 fn expectEqualParamType(comptime expected: ParamType, actual: ParamType) !void {

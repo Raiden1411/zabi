@@ -37,7 +37,7 @@ pub const ParamType = union(enum) {
         }
     }
     pub fn jsonParse(alloc: Alloc, source: *Scanner, opts: ParserOptions) !ParamType {
-        var name_token: ?Token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
+        const name_token: ?Token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
         const field_name = switch (name_token.?) {
             inline .string, .allocated_string => |slice| slice,
             else => {
@@ -45,33 +45,7 @@ pub const ParamType = union(enum) {
             },
         };
 
-        const info = @typeInfo(ParamType);
-
-        var result: ?ParamType = null;
-        inline for (info.Union.fields) |union_field| {
-            if (std.mem.eql(u8, union_field.name, field_name)) {
-                name_token = null;
-                if (union_field.type == void) {
-                    result = @unionInit(ParamType, union_field.name, {});
-                    break;
-                }
-                if (union_field.type == usize) {
-                    result = @unionInit(ParamType, union_field.name, 256);
-                    break;
-                }
-            }
-
-            const array_len = field_name.len - 1;
-            if (field_name[array_len] == ']') {
-                // Check if the array is dynamic
-                if (field_name[array_len - 1] == '[') {
-                    result = @unionInit(ParamType, "array", &.{.{ .int = 256 }});
-                    break;
-                }
-            }
-        }
-
-        return result.?;
+        return typeToUnion(field_name, alloc);
     }
 };
 
@@ -119,12 +93,18 @@ fn typeToUnion(abitype: []const u8, alloc: Alloc) !ParamType {
 
     if (std.mem.startsWith(u8, abitype, "int")) {
         const len = abitype[3..];
-        return .{ .int = try std.fmt.parseInt(usize, len, 10) };
+        const alignment = try std.fmt.parseInt(usize, len, 10);
+
+        if (alignment % 8 != 0) return error.InvalidBytesAligment;
+        return .{ .int = alignment };
     }
 
     if (std.mem.startsWith(u8, abitype, "uint")) {
         const len = abitype[4..];
-        return .{ .uint = try std.fmt.parseInt(usize, len, 10) };
+        const alignment = try std.fmt.parseInt(usize, len, 10);
+
+        if (alignment % 8 != 0) return error.InvalidBytesAligment;
+        return .{ .uint = alignment };
     }
 
     if (std.mem.startsWith(u8, abitype, "bytes")) {

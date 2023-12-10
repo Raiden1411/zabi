@@ -62,7 +62,7 @@ pub const ParamType = union(enum) {
 /// Consider using `freeArrayParamType` to destroy the pointers
 /// or call the destroy method on your allocator manually
 fn typeToUnion(abitype: []const u8, alloc: Alloc) !ParamType {
-    if (abitype.len == 0) return error.EmptyParamType;
+    if (abitype.len == 0) return error.InvalidEnumTag;
 
     if (abitype[abitype.len - 1] == ']') {
         const end = abitype.len - 1;
@@ -87,7 +87,7 @@ fn typeToUnion(abitype: []const u8, alloc: Alloc) !ParamType {
             }
         }
 
-        return error.InvalidArrayType;
+        return error.InvalidCharacter;
     }
 
     const info = @typeInfo(ParamType);
@@ -107,7 +107,7 @@ fn typeToUnion(abitype: []const u8, alloc: Alloc) !ParamType {
         const len = abitype[3..];
         const alignment = try std.fmt.parseInt(usize, len, 10);
 
-        if (alignment % 8 != 0) return error.InvalidBytesAligment;
+        if (alignment % 8 != 0) return error.LengthMismatch;
         return .{ .int = alignment };
     }
 
@@ -115,7 +115,7 @@ fn typeToUnion(abitype: []const u8, alloc: Alloc) !ParamType {
         const len = abitype[4..];
         const alignment = try std.fmt.parseInt(usize, len, 10);
 
-        if (alignment % 8 != 0) return error.InvalidBytesAligment;
+        if (alignment % 8 != 0) return error.LengthMismatch;
         return .{ .uint = alignment };
     }
 
@@ -123,13 +123,12 @@ fn typeToUnion(abitype: []const u8, alloc: Alloc) !ParamType {
         const len = abitype[5..];
         const alignment = try std.fmt.parseInt(usize, len, 10);
 
-        if (alignment > 32) return error.InvalidBytesAligment;
+        if (alignment > 32) return error.LengthMismatch;
 
         return .{ .fixedBytes = try std.fmt.parseInt(usize, len, 10) };
     }
 
-    // Default into a enum type. Enums in solidity are u8 typed;
-    return .{ .@"enum" = 8 };
+    return error.InvalidEnumTag;
 }
 
 test "ParamType common" {
@@ -217,21 +216,21 @@ test "ParamType 2d dynamic/fixed array" {
 
 test "ParamType errors" {
     // Invalid alignment
-    try testing.expectError(error.InvalidBytesAligment, typeToUnion("int13", testing.allocator));
-    try testing.expectError(error.InvalidBytesAligment, typeToUnion("int135", testing.allocator));
-    try testing.expectError(error.InvalidBytesAligment, typeToUnion("uint7", testing.allocator));
-    try testing.expectError(error.InvalidBytesAligment, typeToUnion("uint29", testing.allocator));
-    try testing.expectError(error.InvalidBytesAligment, typeToUnion("bytes40", testing.allocator));
+    try testing.expectError(error.LengthMismatch, typeToUnion("int13", testing.allocator));
+    try testing.expectError(error.LengthMismatch, typeToUnion("int135", testing.allocator));
+    try testing.expectError(error.LengthMismatch, typeToUnion("uint7", testing.allocator));
+    try testing.expectError(error.LengthMismatch, typeToUnion("uint29", testing.allocator));
+    try testing.expectError(error.LengthMismatch, typeToUnion("bytes40", testing.allocator));
 
     //Invalid array
     try testing.expectError(error.InvalidCharacter, typeToUnion("int[n]", testing.allocator));
     try testing.expectError(error.InvalidCharacter, typeToUnion("int[1n]", testing.allocator));
     try testing.expectError(error.InvalidCharacter, typeToUnion("int[n1]", testing.allocator));
-    try testing.expectError(error.InvalidArrayType, typeToUnion("[]", testing.allocator));
-    try testing.expectError(error.InvalidArrayType, typeToUnion("[][]", testing.allocator));
+    try testing.expectError(error.InvalidCharacter, typeToUnion("[]", testing.allocator));
+    try testing.expectError(error.InvalidCharacter, typeToUnion("[][]", testing.allocator));
 
     //Empty type
-    try testing.expectError(error.EmptyParamType, typeToUnion("", testing.allocator));
+    try testing.expectError(error.InvalidEnumTag, typeToUnion("", testing.allocator));
 }
 
 fn expectEqualParamType(comptime expected: ParamType, actual: ParamType) !void {

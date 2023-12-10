@@ -18,4 +18,5 @@ pub fn main() !void {
 
 test {
     _ = @import("param_type.zig");
+    _ = @import("abi_parameter.zig");
 }

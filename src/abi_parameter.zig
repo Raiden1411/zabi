@@ -15,7 +15,7 @@ pub const AbiEventParameter = struct {
     type: ParamType,
     internal_type: ?[]const u8 = null,
     indexed: bool,
-    components: ?[]const AbiParameter,
+    components: ?[]const AbiParameter = null,
 };
 
 test "Json parse simple paramter" {
@@ -33,6 +33,25 @@ test "Json parse simple paramter" {
     try testing.expect(null == parsed.value.components);
     try testing.expectEqual(ParamType{ .address = {} }, parsed.value.type);
     try testing.expectEqualStrings("foo", parsed.value.name);
+}
+
+test "Json parse simple event paramter" {
+    const sliceIndexed =
+        \\ {
+        \\  "name": "foo",
+        \\  "type": "address",
+        \\  "indexed": true
+        \\ }
+    ;
+
+    const parsedEvent = try std.json.parseFromSlice(AbiEventParameter, testing.allocator, sliceIndexed, .{});
+    defer parsedEvent.deinit();
+
+    try testing.expect(null == parsedEvent.value.internal_type);
+    try testing.expect(null == parsedEvent.value.components);
+    try testing.expect(parsedEvent.value.indexed);
+    try testing.expectEqual(ParamType{ .address = {} }, parsedEvent.value.type);
+    try testing.expectEqualStrings("foo", parsedEvent.value.name);
 }
 
 test "Json parse with components" {
@@ -58,6 +77,7 @@ test "Json parse with components" {
     try testing.expectEqualStrings("foo", parsed.value.name);
     try testing.expectEqualStrings("bar", parsed.value.components.?[0].name);
 }
+
 test "Json parse with multiple components" {
     const slice =
         \\ {
@@ -124,4 +144,31 @@ test "Json parse with nested components" {
     try testing.expectEqualStrings("bar", parsed.value.components.?[0].name);
     try testing.expectEqualStrings("foo", parsed.value.components.?[1].name);
     try testing.expectEqualStrings("bar", parsed.value.components.?[1].components.?[0].name);
+}
+
+test "Json parse error" {
+    const slice =
+        \\ {
+        \\  "name": "foo",
+        \\  "type": "adress"
+        \\ }
+    ;
+
+    try testing.expectError(error.InvalidEnumTag, std.json.parseFromSlice(AbiParameter, testing.allocator, slice, .{}));
+
+    const sslice =
+        \\ {
+        \\  "name": "foo",
+        \\  "type": "tuple[]",
+        \\  "components": [
+        \\       {
+        \\          "type": "address",
+        \\          "name": "bar",
+        \\          "indexed": false
+        \\       }
+        \\   ]
+        \\ }
+    ;
+
+    try testing.expectError(error.UnknownField, std.json.parseFromSlice(AbiParameter, testing.allocator, sslice, .{}));
 }

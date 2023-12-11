@@ -1,83 +1,39 @@
-/// State mutability https://docs.soliditylang.org/en/latest/contracts.html#state-mutability
-pub const AbiStateMutability = union(enum) { NonPayable, Payable, View, Pure };
+const std = @import("std");
+const Abitype = @import("abi.zig").Abitype;
 
-/// Solidity Abi Parameter (https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-pub const AbiParameter = struct {
-    type: []const u8,
-    name: ?[]const u8,
-    internalType: ?[]const u8,
-    components: ?[]const AbiParameter,
-};
+pub fn FromAbitypeToEnum(comptime T: Abitype) type {
+    comptime {
+        switch (T) {
+            inline else => {
+                const enumField: [1]std.builtin.Type.EnumField = [_]std.builtin.Type.EnumField{.{ .name = @tagName(T), .value = 0 }};
+                return @Type(.{ .Enum = .{ .tag_type = std.math.IntFittingRange(0, 1), .fields = &enumField, .decls = &.{}, .is_exhaustive = true } });
+            },
+        }
+    }
+}
 
-/// Solidity Abi Event Parameter (https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-pub const AbiEventParameter = struct {
-    type: []const u8,
-    name: ?[]const u8,
-    internalType: ?[]const u8,
-    indexed: bool,
-    components: ?[]const AbiParameter,
-};
+/// UnionParser used by `zls`. Usefull to use in `AbiItem`
+/// https://github.com/zigtools/zls/blob/d1ad449a24ea77bacbeccd81d607fa0c11f87dd6/src/lsp.zig#L77
+pub fn UnionParser(comptime T: type) type {
+    return struct {
+        pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!T {
+            const json_value = try std.json.Value.jsonParse(allocator, source, options);
+            return try jsonParseFromValue(allocator, json_value, options);
+        }
 
-/// Solidity Abi Function (https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-pub const AbiFunction = struct {
-    type: []const u8,
-    /// Solidity used to use this in the json abi. Deprecated in favor of view and pure
-    constant: ?bool,
-    /// Viper used to provide gas estimates. Currently deprecated.
-    gas: ?i64,
-    inputs: []AbiParameter,
-    name: []const u8,
-    outputs: []AbiParameter,
-    /// Solidity used to use this in the json abi. Deprecated in favor of payable and nonpayable
-    payable: ?bool,
-    stateMutability: AbiStateMutability,
-};
+        pub fn jsonParseFromValue(allocator: std.mem.Allocator, source: std.json.Value, options: std.json.ParseOptions) std.json.ParseFromValueError!T {
+            inline for (std.meta.fields(T)) |field| {
+                if (std.json.parseFromValueLeaky(field.type, allocator, source, options)) |result| {
+                    return @unionInit(T, field.name, result);
+                } else |_| {}
+            }
+            return error.UnexpectedToken;
+        }
 
-/// Solidity Abi Event (https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-pub const AbiEvent = struct {
-    type: []const u8,
-    name: []const u8,
-    inputs: []AbiEventParameter,
-    anonymous: bool,
-};
-
-/// Solidity Abi Error (https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-pub const AbiError = struct {
-    type: []const u8,
-    name: []const u8,
-    inputs: []AbiParameter,
-};
-
-/// Solidity Abi Constructor (https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-pub const AbiConstructor = struct {
-    type: []const u8,
-    inputs: []AbiParameter,
-    /// Solidity used to use this in the json abi. Deprecated in favor of payable and nonpayable
-    payable: ?bool,
-    stateMutability: AbiStateMutability,
-};
-
-/// Solidity Abi Receive (https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-pub const AbiReceive = struct {
-    type: []const u8,
-    stateMutability: .Payable,
-};
-
-/// Solidity Abi Fallback (https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-pub const AbiFallback = struct {
-    type: []const u8,
-    stateMutability: union(enum) { Payable, NonPayable },
-};
-
-/// Union of all posible abi entries.
-pub const AbiItem = union {
-    AbiFunction: AbiFunction,
-    AbiEvent: AbiEvent,
-    AbiError: AbiError,
-    AbiConstructor: AbiConstructor,
-    AbiReceive: AbiReceive,
-    AbiFallback: AbiFallback,
-};
-
-/// Abi spec
-pub const Abi = []const AbiItem;
+        pub fn jsonStringify(self: T, stream: anytype) @TypeOf(stream.*).Error!void {
+            switch (self) {
+                inline else => |value| try stream.write(value),
+            }
+        }
+    };
+}

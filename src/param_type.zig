@@ -54,6 +54,12 @@ pub const ParamType = union(enum) {
 
         return typeToUnion(field_name, alloc);
     }
+
+    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
+        switch (self) {
+            inline else => |value| try stream.write(value),
+        }
+    }
 };
 
 /// Helper function that is used to convert solidity types into zig unions,

@@ -2,12 +2,8 @@ const std = @import("std");
 const testing = std.testing;
 const AbiParameter = @import("abi_parameter.zig").AbiParameter;
 const AbiEventParameter = @import("abi_parameter.zig").AbiEventParameter;
-const Alloc = std.mem.Allocator;
-const FromAbitypeToEnum = @import("types.zig").FromAbitypeToEnum;
-const ParserOptions = std.json.ParseOptions;
-const Scanner = std.json.Scanner;
+const Extract = @import("types.zig").Extract;
 const StateMutability = @import("state_mutability.zig").StateMutability;
-const Token = std.json.Token;
 const UnionParser = @import("types.zig").UnionParser;
 
 pub const Abitype = enum { function, @"error", event, constructor, fallback, receive };
@@ -15,7 +11,7 @@ pub const Abitype = enum { function, @"error", event, constructor, fallback, rec
 /// Solidity Abi function representation.
 /// Reference: ["function"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
 const Function = struct {
-    type: FromAbitypeToEnum(.function),
+    type: Extract(Abitype, "function"),
     /// Deprecated. Use either 'pure' or 'view'.
     ///
     /// https://github.com/ethereum/solidity/issues/992
@@ -37,7 +33,7 @@ const Function = struct {
 /// Solidity Abi function representation.
 /// Reference: ["event"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
 const Event = struct {
-    type: FromAbitypeToEnum(.event),
+    type: Extract(Abitype, "event"),
     name: []const u8,
     inputs: []const AbiEventParameter,
     anonymous: ?bool = null,
@@ -46,7 +42,7 @@ const Event = struct {
 /// Solidity Abi function representation.
 /// Reference: ["error"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
 const Error = struct {
-    type: FromAbitypeToEnum(.@"error"),
+    type: Extract(Abitype, "error"),
     name: []const u8,
     inputs: []const AbiParameter,
 };
@@ -54,33 +50,31 @@ const Error = struct {
 /// Solidity Abi function representation.
 /// Reference: ["constructor"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
 const Constructor = struct {
-    type: FromAbitypeToEnum(.constructor),
+    type: Extract(Abitype, "constructor"),
     inputs: []const AbiParameter,
     /// Deprecated. Use 'nonpayable' or 'payable'. Consider using `StateMutability`.
     ///
     /// https://github.com/ethereum/solidity/issues/992
     payable: ?bool = null,
-    stateMutability: StateMutability,
+    stateMutability: Extract(StateMutability, "payable,nonpayable"),
 };
 
 /// Solidity Abi function representation.
 /// Reference: ["fallback"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
 const Fallback = struct {
-    type: FromAbitypeToEnum(.fallback),
+    type: Extract(Abitype, "fallback"),
     /// Deprecated. Use 'nonpayable' or 'payable'. Consider using `StateMutability`.
     ///
     /// https://github.com/ethereum/solidity/issues/992
     payable: ?bool = null,
-    stateMutability: StateMutability,
+    stateMutability: Extract(StateMutability, "payable,nonpayable"),
 };
 
 /// Solidity Abi function representation.
 /// Reference: ["receive"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-const Receive = struct {
-    type: FromAbitypeToEnum(.receive),
-    stateMutability: enum { payable },
-};
+const Receive = struct { type: Extract(Abitype, "receive"), stateMutability: Extract(StateMutability, "payable") };
 
+/// Union representing all of the possible Abi members.
 pub const AbiItem = union(enum) {
     abiFunction: Function,
     abiEvent: Event,

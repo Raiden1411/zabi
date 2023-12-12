@@ -1,6 +1,5 @@
 const std = @import("std");
 const testing = std.testing;
-const Token = std.json.Token;
 const ParamType = @import("param_type.zig").ParamType;
 
 pub const AbiParameter = struct {

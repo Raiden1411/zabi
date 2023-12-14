@@ -10,7 +10,7 @@ pub const Abitype = enum { function, @"error", event, constructor, fallback, rec
 
 /// Solidity Abi function representation.
 /// Reference: ["function"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-const Function = struct {
+pub const Function = struct {
     type: Extract(Abitype, "function"),
     /// Deprecated. Use either 'pure' or 'view'.
     ///
@@ -32,7 +32,7 @@ const Function = struct {
 
 /// Solidity Abi function representation.
 /// Reference: ["event"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-const Event = struct {
+pub const Event = struct {
     type: Extract(Abitype, "event"),
     name: []const u8,
     inputs: []const AbiEventParameter,
@@ -41,7 +41,7 @@ const Event = struct {
 
 /// Solidity Abi function representation.
 /// Reference: ["error"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-const Error = struct {
+pub const Error = struct {
     type: Extract(Abitype, "error"),
     name: []const u8,
     inputs: []const AbiParameter,
@@ -49,7 +49,7 @@ const Error = struct {
 
 /// Solidity Abi function representation.
 /// Reference: ["constructor"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-const Constructor = struct {
+pub const Constructor = struct {
     type: Extract(Abitype, "constructor"),
     inputs: []const AbiParameter,
     /// Deprecated. Use 'nonpayable' or 'payable'. Consider using `StateMutability`.
@@ -61,7 +61,7 @@ const Constructor = struct {
 
 /// Solidity Abi function representation.
 /// Reference: ["fallback"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-const Fallback = struct {
+pub const Fallback = struct {
     type: Extract(Abitype, "fallback"),
     /// Deprecated. Use 'nonpayable' or 'payable'. Consider using `StateMutability`.
     ///
@@ -72,7 +72,7 @@ const Fallback = struct {
 
 /// Solidity Abi function representation.
 /// Reference: ["receive"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-const Receive = struct { type: Extract(Abitype, "receive"), stateMutability: Extract(StateMutability, "payable") };
+pub const Receive = struct { type: Extract(Abitype, "receive"), stateMutability: Extract(StateMutability, "payable") };
 
 /// Union representing all of the possible Abi members.
 pub const AbiItem = union(enum) {

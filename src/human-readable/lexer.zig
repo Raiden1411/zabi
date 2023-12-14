@@ -30,6 +30,10 @@ pub const Lexer = struct {
         self.position = pos orelse 0;
     }
 
+    pub fn tokenSlice(self: *Lexer, start: usize, end: usize) []const u8 {
+        return self.currentText[start..end];
+    }
+
     pub fn scan(self: *Lexer) Token {
         var result = Token{ .syntax = .EndOfFileToken, .location = .{
             .start = self.position,

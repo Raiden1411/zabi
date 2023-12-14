@@ -23,4 +23,5 @@ test {
     _ = @import("abi.zig");
     _ = @import("state_mutability.zig");
     _ = @import("human-readable/lexer.zig");
+    _ = @import("human-readable/parser.zig");
 }

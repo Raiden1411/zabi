@@ -1,9 +1,11 @@
 const std = @import("std");
 const testing = std.testing;
+const abi = @import("../abi.zig");
 const AbiParameter = @import("../abi_parameter.zig").AbiParameter;
 const AbiEventParameter = @import("../abi_parameter.zig").AbiEventParameter;
 const Alloc = std.mem.Allocator;
 const Lexer = @import("lexer.zig").Lexer;
+const StateMutability = @import("../state_mutability.zig").StateMutability;
 const ParamErrors = @import("../param_type.zig").ParamErrors;
 const ParamType = @import("../param_type.zig").ParamType;
 const Tokens = @import("tokens.zig").Tag.SoliditySyntax;
@@ -15,7 +17,7 @@ const TokenList = std.MultiArrayList(struct {
     end: u32,
 });
 
-const ParseError = error{ InvalidDataLocation, UnexceptedToken, ExpectedCommaAfterParam } || ParamErrors;
+const ParseError = error{ InvalidDataLocation, UnexceptedToken, ExpectedCommaAfterParam, EmptyReturnParams } || ParamErrors;
 
 alloc: Alloc,
 tokens: []const Tokens,
@@ -24,14 +26,148 @@ tokens_end: []const u32,
 token_index: u32,
 source: []const u8,
 
+fn parseFunctionFnProto(p: *Parser) !abi.Function {
+    _ = try p.expectToken(.Function);
+    const name = p.parseIdentifier().?;
+
+    _ = try p.expectToken(.OpenParen);
+
+    const inputs: []const AbiParameter = if (p.tokens[p.token_index] == .ClosingParen) &.{} else try p.parseFuncParamsDecl();
+    errdefer p.alloc.free(inputs);
+
+    _ = try p.expectToken(.ClosingParen);
+
+    try p.parseVisibility();
+
+    const state: StateMutability = switch (p.tokens[p.token_index]) {
+        .Payable => .payable,
+        .View => .view,
+        .Pure => .pure,
+        inline else => .nonpayable,
+    };
+
+    if (state != .nonpayable) _ = p.nextToken();
+
+    if (p.consumeToken(.Returns)) |_| {
+        _ = try p.expectToken(.OpenParen);
+
+        const outputs: []const AbiParameter = if (p.tokens[p.token_index] == .ClosingParen) return error.EmptyReturnParams else try p.parseFuncParamsDecl();
+        errdefer p.alloc.free(outputs);
+
+        _ = try p.expectToken(.ClosingParen);
+
+        _ = try p.expectToken(.EndOfFileToken);
+
+        return .{ .type = .function, .name = name, .inputs = inputs, .outputs = outputs, .stateMutability = state };
+    }
+
+    _ = try p.expectToken(.EndOfFileToken);
+    return .{ .type = .function, .name = name, .inputs = inputs, .outputs = &.{}, .stateMutability = state };
+}
+
+fn parseEventFnProto(p: *Parser) !abi.Event {
+    _ = try p.expectToken(.Event);
+    const name = p.parseIdentifier().?;
+
+    _ = try p.expectToken(.OpenParen);
+
+    const inputs: []const AbiEventParameter = if (p.tokens[p.token_index] == .ClosingParen) &.{} else try p.parseEventParamsDecl();
+    errdefer p.alloc.free(inputs);
+
+    _ = try p.expectToken(.ClosingParen);
+
+    _ = try p.expectToken(.EndOfFileToken);
+
+    return .{ .type = .event, .inputs = inputs, .name = name };
+}
+
+fn parseErrorFnProto(p: *Parser) !abi.Error {
+    _ = try p.expectToken(.Error);
+    const name = p.parseIdentifier().?;
+
+    _ = try p.expectToken(.OpenParen);
+
+    const inputs: []const AbiParameter = if (p.tokens[p.token_index] == .ClosingParen) &.{} else try p.parseErrorParamsDecl();
+    errdefer p.alloc.free(inputs);
+
+    _ = try p.expectToken(.ClosingParen);
+
+    _ = try p.expectToken(.EndOfFileToken);
+
+    return .{ .type = .@"error", .inputs = inputs, .name = name };
+}
+
+fn parseConstructorFnProto(p: *Parser) !abi.Constructor {
+    _ = try p.expectToken(.Constructor);
+
+    _ = try p.expectToken(.OpenParen);
+
+    const inputs: []const AbiParameter = if (p.tokens[p.token_index] == .ClosingParen) &.{} else try p.parseFuncParamsDecl();
+    errdefer p.alloc.free(inputs);
+
+    _ = try p.expectToken(.ClosingParen);
+
+    switch (p.tokens[p.token_index]) {
+        .Payable => {
+            if (p.tokens[p.token_index + 1] != .EndOfFileToken) return error.UnexceptedToken;
+
+            return .{ .type = .constructor, .stateMutability = .payable, .inputs = inputs };
+        },
+        .EndOfFileToken => return .{ .type = .constructor, .stateMutability = .nonpayble, .inputs = inputs },
+
+        inline else => return error.UnexceptedToken,
+    }
+}
+
+fn parseFallbackFnProto(p: *Parser) !abi.Fallback {
+    _ = try p.expectToken(.Fallback);
+    _ = try p.expectToken(.OpenParen);
+    _ = try p.expectToken(.ClosingParen);
+
+    switch (p.tokens[p.token_index]) {
+        .Payable => {
+            if (p.tokens[p.token_index + 1] != .EndOfFileToken) return error.UnexceptedToken;
+
+            return .{ .type = .fallback, .stateMutability = .payable };
+        },
+        .EndOfFileToken => return .{ .type = .receive, .stateMutability = .nonpayble },
+        inline else => return error.UnexceptedToken,
+    }
+}
+
+fn parseReceiveFnProto(p: *Parser) !abi.Receive {
+    _ = try p.expectToken(.Receive);
+    _ = try p.expectToken(.OpenParen);
+    _ = try p.expectToken(.ClosingParen);
+    _ = try p.expectToken(.External);
+    _ = try p.expectToken(.Payable);
+
+    return .{ .type = .receive, .stateMutability = .payable };
+}
+
 fn parseFuncParamsDecl(p: *Parser) ![]const AbiParameter {
     var param_list = std.ArrayList(AbiParameter).init(p.alloc);
     errdefer param_list.deinit();
 
     while (true) {
-        const abitype: ParamType = if (p.consumeToken(.OpenParen)) |_| ParamType{ .tuple = {} } else try p.parseTypeExpr();
-        const location = p.parseDataLocation();
+        const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple() else null;
+        if (tuple_param != null) {
+            try param_list.append(tuple_param.?);
 
+            switch (p.tokens[p.token_index]) {
+                .Comma => p.token_index += 1,
+                .ClosingParen => break,
+                .EndOfFileToken => break,
+                inline else => return error.ExpectedCommaAfterParam,
+            }
+
+            continue;
+        }
+
+        const abitype = try p.parseTypeExpr();
+        errdefer ParamType.freeArrayParamType(abitype, p.alloc);
+
+        const location = p.parseDataLocation();
         if (location) |tok| {
             _ = p.consumeToken(tok);
             switch (tok) {
@@ -70,9 +206,24 @@ fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
     errdefer param_list.deinit();
 
     while (true) {
-        const abitype: ParamType = if (p.consumeToken(.OpenParen)) |_| ParamType{ .tuple = {} } else try p.parseTypeExpr();
-        const location = p.parseDataLocation();
+        const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple() else null;
+        if (tuple_param != null) {
+            try param_list.append(tuple_param.?);
 
+            switch (p.tokens[p.token_index]) {
+                .Comma => p.token_index += 1,
+                .ClosingParen => break,
+                .EndOfFileToken => break,
+                inline else => return error.ExpectedCommaAfterParam,
+            }
+
+            continue;
+        }
+
+        const abitype = try p.parseTypeExpr();
+        errdefer ParamType.freeArrayParamType(abitype, p.alloc);
+
+        const location = p.parseDataLocation();
         const indexed = if (location) |tok| {
             switch (tok) {
                 .Indexed => true,
@@ -231,7 +382,7 @@ fn nextToken(p: *Parser) u32 {
 }
 
 test "Simple" {
-    var lex = Lexer.init("(address foo, (bool baz))[] bar");
+    var lex = Lexer.init("function Foo(address bar) view returns(address baz)");
     var list = Parser.TokenList{};
     defer list.deinit(testing.allocator);
 
@@ -251,9 +402,7 @@ test "Simple" {
         .source = lex.currentText,
     };
 
-    const params = try parser.parseErrorParamsDecl();
-    defer testing.allocator.free(params);
-    defer testing.allocator.free(params[0].components.?);
+    const params = try parser.parseFunctionFnProto();
 
-    std.debug.print("FOOO: {any}\n", .{params[0].components.?[1].components.?});
+    std.debug.print("FOOO: {any}\n", .{params});
 }

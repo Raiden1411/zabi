@@ -5,6 +5,8 @@ const ParserOptions = std.json.ParseOptions;
 const Scanner = std.json.Scanner;
 const Token = std.json.Token;
 
+pub const ParamErrors = error{ InvalidEnumTag, InvalidCharacter, LengthMismatch, Overflow } || Alloc.Error;
+
 pub const FixedArray = struct {
     child: *const ParamType,
     size: usize,

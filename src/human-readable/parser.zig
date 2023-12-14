@@ -4,6 +4,7 @@ const AbiParameter = @import("../abi_parameter.zig").AbiParameter;
 const AbiEventParameter = @import("../abi_parameter.zig").AbiEventParameter;
 const Alloc = std.mem.Allocator;
 const Lexer = @import("lexer.zig").Lexer;
+const ParamErrors = @import("../param_type.zig").ParamErrors;
 const ParamType = @import("../param_type.zig").ParamType;
 const Tokens = @import("tokens.zig").Tag.SoliditySyntax;
 
@@ -13,6 +14,8 @@ const TokenList = std.MultiArrayList(struct {
     start: u32,
     end: u32,
 });
+
+const ParseError = error{ InvalidDataLocation, UnexceptedToken, ExpectedCommaAfterParam } || ParamErrors;
 
 alloc: Alloc,
 tokens: []const Tokens,
@@ -92,29 +95,65 @@ fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
     return try param_list.toOwnedSlice();
 }
 
-fn parseErrorParamsDecl(p: *Parser) ![]const AbiParameter {
+fn parseErrorParamsDecl(p: *Parser) ParseError![]const AbiParameter {
     var param_list = std.ArrayList(AbiParameter).init(p.alloc);
     errdefer param_list.deinit();
 
     while (true) {
-        const abitype: ParamType = if (p.consumeToken(.OpenParen)) |_| ParamType{ .tuple = {} } else try p.parseTypeExpr();
-        const location = p.parseDataLocation();
+        const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple() else null;
+        if (tuple_param != null) {
+            try param_list.append(tuple_param.?);
 
+            switch (p.tokens[p.token_index]) {
+                .Comma => p.token_index += 1,
+                .ClosingParen => break,
+                .EndOfFileToken => break,
+                inline else => return error.ExpectedCommaAfterParam,
+            }
+
+            continue;
+        }
+
+        const abitype = try p.parseTypeExpr();
+        errdefer ParamType.freeArrayParamType(abitype, p.alloc);
+
+        const location = p.parseDataLocation();
         if (location != null) return error.InvalidDataLocation;
 
         const name = p.parseIdentifier() orelse "";
-        const param = .{ .type = abitype, .name = name, .internal_type = null, .components = null };
+        const param: AbiParameter = .{ .type = abitype, .name = name, .internal_type = null, .components = null };
 
         try param_list.append(param);
 
         switch (p.tokens[p.token_index]) {
             .Comma => p.token_index += 1,
             .ClosingParen => break,
+            .EndOfFileToken => break,
             inline else => return error.ExpectedCommaAfterParam,
         }
     }
 
     return try param_list.toOwnedSlice();
+}
+
+fn parseTuple(p: *Parser) ParseError!AbiParameter {
+    const components = try p.parseErrorParamsDecl();
+    errdefer p.alloc.free(components);
+
+    _ = try p.expectToken(.ClosingParen);
+    const start = p.token_index;
+    const end = try p.parseArrayType();
+    const array_slice = if (end) |arr| p.source[p.tokens_start[start]..p.tokens_end[arr]] else null;
+
+    const type_name = try std.fmt.allocPrintZ(p.alloc, "tuple{s}", .{array_slice orelse ""});
+    defer p.alloc.free(type_name);
+
+    const abitype = try ParamType.typeToUnion(type_name, p.alloc);
+    errdefer ParamType.freeArrayParamType(abitype, p.alloc);
+
+    const name = p.parseIdentifier() orelse "";
+
+    return .{ .type = abitype, .name = name, .internal_type = null, .components = components };
 }
 
 fn parseTypeExpr(p: *Parser) !ParamType {
@@ -133,6 +172,7 @@ fn parseTypeExpr(p: *Parser) !ParamType {
 fn parseArrayType(p: *Parser) !?u32 {
     while (true) {
         const token = p.nextToken();
+
         switch (p.tokens[token]) {
             .OpenBracket => continue,
             .Number => {
@@ -191,7 +231,7 @@ fn nextToken(p: *Parser) u32 {
 }
 
 test "Simple" {
-    var lex = Lexer.init("address foo)");
+    var lex = Lexer.init("(address foo, (bool baz))[] bar");
     var list = Parser.TokenList{};
     defer list.deinit(testing.allocator);
 
@@ -211,8 +251,9 @@ test "Simple" {
         .source = lex.currentText,
     };
 
-    const params = try parser.parseFuncParamsDecl();
+    const params = try parser.parseErrorParamsDecl();
     defer testing.allocator.free(params);
+    defer testing.allocator.free(params[0].components.?);
 
-    std.debug.print("FOOO: {any}\n", .{params});
+    std.debug.print("FOOO: {any}\n", .{params[0].components.?[1].components.?});
 }

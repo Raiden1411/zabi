@@ -1,6 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
 const AbiParameter = @import("../abi_parameter.zig").AbiParameter;
+const AbiEventParameter = @import("../abi_parameter.zig").AbiEventParameter;
 const Alloc = std.mem.Allocator;
 const Lexer = @import("lexer.zig").Lexer;
 const ParamType = @import("../param_type.zig").ParamType;
@@ -45,6 +46,61 @@ fn parseFuncParamsDecl(p: *Parser) ![]const AbiParameter {
                 inline else => {},
             }
         }
+
+        const name = p.parseIdentifier() orelse "";
+        const param = .{ .type = abitype, .name = name, .internal_type = null, .components = null };
+
+        try param_list.append(param);
+
+        switch (p.tokens[p.token_index]) {
+            .Comma => p.token_index += 1,
+            .ClosingParen => break,
+            inline else => return error.ExpectedCommaAfterParam,
+        }
+    }
+
+    return try param_list.toOwnedSlice();
+}
+
+fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
+    var param_list = std.ArrayList(AbiEventParameter).init(p.alloc);
+    errdefer param_list.deinit();
+
+    while (true) {
+        const abitype: ParamType = if (p.consumeToken(.OpenParen)) |_| ParamType{ .tuple = {} } else try p.parseTypeExpr();
+        const location = p.parseDataLocation();
+
+        const indexed = if (location) |tok| {
+            switch (tok) {
+                .Indexed => true,
+                inline else => return error.InvalidDataLocation,
+            }
+        } else false;
+
+        const name = p.parseIdentifier() orelse "";
+        const param = .{ .type = abitype, .name = name, .indexed = indexed, .internal_type = null, .components = null };
+
+        try param_list.append(param);
+
+        switch (p.tokens[p.token_index]) {
+            .Comma => p.token_index += 1,
+            .ClosingParen => break,
+            inline else => return error.ExpectedCommaAfterParam,
+        }
+    }
+
+    return try param_list.toOwnedSlice();
+}
+
+fn parseErrorParamsDecl(p: *Parser) ![]const AbiParameter {
+    var param_list = std.ArrayList(AbiParameter).init(p.alloc);
+    errdefer param_list.deinit();
+
+    while (true) {
+        const abitype: ParamType = if (p.consumeToken(.OpenParen)) |_| ParamType{ .tuple = {} } else try p.parseTypeExpr();
+        const location = p.parseDataLocation();
+
+        if (location != null) return error.InvalidDataLocation;
 
         const name = p.parseIdentifier() orelse "";
         const param = .{ .type = abitype, .name = name, .internal_type = null, .components = null };

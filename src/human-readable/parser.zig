@@ -17,7 +17,7 @@ const TokenList = std.MultiArrayList(struct {
     end: u32,
 });
 
-const ParseError = error{ InvalidDataLocation, UnexceptedToken, ExpectedCommaAfterParam, EmptyReturnParams } || ParamErrors;
+const ParseError = error{ InvalidDataLocation, UnexceptedToken, InvalidType, ExpectedCommaAfterParam, EmptyReturnParams } || ParamErrors;
 
 alloc: Alloc,
 tokens: []const Tokens,
@@ -25,6 +25,31 @@ tokens_start: []const u32,
 tokens_end: []const u32,
 token_index: u32,
 source: []const u8,
+
+fn parseAbiProto(p: *Parser) !abi.Abi {
+    var abi_list = std.ArrayList(abi.AbiItem).init(p.alloc);
+    errdefer abi_list.deinit();
+
+    while (true) {
+        try abi_list.append(try p.parseAbiItemProto());
+
+        if (p.tokens[p.token_index - 1] == .EndOfFileToken) break;
+    }
+
+    return abi_list.toOwnedSlice();
+}
+
+fn parseAbiItemProto(p: *Parser) !abi.AbiItem {
+    return switch (p.tokens[p.token_index]) {
+        .Function => .{ .abiFunction = try p.parseFunctionFnProto() },
+        .Event => .{ .abiEvent = try p.parseEventFnProto() },
+        .Error => .{ .abiError = try p.parseErrorFnProto() },
+        .Constructor => .{ .abiConstructor = try p.parseConstructorFnProto() },
+        .Fallback => .{ .abiFallback = try p.parseFallbackFnProto() },
+        .Receive => .{ .abiReceive = try p.parseReceiveFnProto() },
+        inline else => error.UnexceptedToken,
+    };
+}
 
 fn parseFunctionFnProto(p: *Parser) !abi.Function {
     _ = try p.expectToken(.Function);
@@ -61,7 +86,6 @@ fn parseFunctionFnProto(p: *Parser) !abi.Function {
         return .{ .type = .function, .name = name, .inputs = inputs, .outputs = outputs, .stateMutability = state };
     }
 
-    _ = try p.expectToken(.EndOfFileToken);
     return .{ .type = .function, .name = name, .inputs = inputs, .outputs = &.{}, .stateMutability = state };
 }
 
@@ -76,8 +100,6 @@ fn parseEventFnProto(p: *Parser) !abi.Event {
 
     _ = try p.expectToken(.ClosingParen);
 
-    _ = try p.expectToken(.EndOfFileToken);
-
     return .{ .type = .event, .inputs = inputs, .name = name };
 }
 
@@ -91,8 +113,6 @@ fn parseErrorFnProto(p: *Parser) !abi.Error {
     errdefer p.alloc.free(inputs);
 
     _ = try p.expectToken(.ClosingParen);
-
-    _ = try p.expectToken(.EndOfFileToken);
 
     return .{ .type = .@"error", .inputs = inputs, .name = name };
 }
@@ -113,7 +133,7 @@ fn parseConstructorFnProto(p: *Parser) !abi.Constructor {
 
             return .{ .type = .constructor, .stateMutability = .payable, .inputs = inputs };
         },
-        .EndOfFileToken => return .{ .type = .constructor, .stateMutability = .nonpayble, .inputs = inputs },
+        .EndOfFileToken => return .{ .type = .constructor, .stateMutability = .nonpayable, .inputs = inputs },
 
         inline else => return error.UnexceptedToken,
     }
@@ -130,7 +150,7 @@ fn parseFallbackFnProto(p: *Parser) !abi.Fallback {
 
             return .{ .type = .fallback, .stateMutability = .payable };
         },
-        .EndOfFileToken => return .{ .type = .receive, .stateMutability = .nonpayble },
+        .EndOfFileToken => return .{ .type = .fallback, .stateMutability = .nonpayable },
         inline else => return error.UnexceptedToken,
     }
 }
@@ -150,7 +170,7 @@ fn parseFuncParamsDecl(p: *Parser) ![]const AbiParameter {
     errdefer param_list.deinit();
 
     while (true) {
-        const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple() else null;
+        const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple(AbiParameter) else null;
         if (tuple_param != null) {
             try param_list.append(tuple_param.?);
 
@@ -206,7 +226,7 @@ fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
     errdefer param_list.deinit();
 
     while (true) {
-        const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple() else null;
+        const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple(AbiEventParameter) else null;
         if (tuple_param != null) {
             try param_list.append(tuple_param.?);
 
@@ -224,12 +244,14 @@ fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
         errdefer ParamType.freeArrayParamType(abitype, p.alloc);
 
         const location = p.parseDataLocation();
-        const indexed = if (location) |tok| {
-            switch (tok) {
-                .Indexed => true,
-                inline else => return error.InvalidDataLocation,
-            }
-        } else false;
+        const indexed = indexed: {
+            if (location) |tok| {
+                switch (tok) {
+                    .Indexed => break :indexed true,
+                    inline else => return error.InvalidDataLocation,
+                }
+            } else break :indexed false;
+        };
 
         const name = p.parseIdentifier() orelse "";
         const param = .{ .type = abitype, .name = name, .indexed = indexed, .internal_type = null, .components = null };
@@ -251,7 +273,7 @@ fn parseErrorParamsDecl(p: *Parser) ParseError![]const AbiParameter {
     errdefer param_list.deinit();
 
     while (true) {
-        const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple() else null;
+        const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple(AbiParameter) else null;
         if (tuple_param != null) {
             try param_list.append(tuple_param.?);
 
@@ -287,7 +309,7 @@ fn parseErrorParamsDecl(p: *Parser) ParseError![]const AbiParameter {
     return try param_list.toOwnedSlice();
 }
 
-fn parseTuple(p: *Parser) ParseError!AbiParameter {
+fn parseTuple(p: *Parser, comptime T: type) ParseError!T {
     const components = try p.parseErrorParamsDecl();
     errdefer p.alloc.free(components);
 
@@ -302,9 +324,17 @@ fn parseTuple(p: *Parser) ParseError!AbiParameter {
     const abitype = try ParamType.typeToUnion(type_name, p.alloc);
     errdefer ParamType.freeArrayParamType(abitype, p.alloc);
 
+    const location = p.parseDataLocation();
     const name = p.parseIdentifier() orelse "";
 
-    return .{ .type = abitype, .name = name, .internal_type = null, .components = components };
+    return switch (T) {
+        AbiParameter => {
+            if (location != null) return error.InvalidDataLocation;
+            return .{ .type = abitype, .name = name, .internal_type = null, .components = components };
+        },
+        AbiEventParameter => .{ .type = abitype, .name = name, .internal_type = null, .indexed = location == .Indexed, .components = components },
+        inline else => error.InvalidType,
+    };
 }
 
 fn parseTypeExpr(p: *Parser) !ParamType {
@@ -402,7 +432,8 @@ test "Simple" {
         .source = lex.currentText,
     };
 
-    const params = try parser.parseFunctionFnProto();
+    const params = try parser.parseAbiProto();
 
+    std.debug.print("\nParsing signature: {s}\n", .{parser.source});
     std.debug.print("FOOO: {any}\n", .{params});
 }

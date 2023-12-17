@@ -18,8 +18,23 @@ pub fn AbiParsed(comptime T: type) type {
 
         pub fn deinit(self: @This()) void {
             const allocator = self.arena.child_allocator;
+
+            const info = @typeInfo(T);
+            switch (info) {
+                .Pointer => {
+                    if (info.Pointer.size != .Slice) @compileError("Unexpected pointer size");
+                    for (self.value) |val| {
+                        if (@hasDecl(info.Pointer.child, "deinit")) val.deinit(allocator);
+                    }
+                    allocator.free(self.value);
+                },
+                .Struct,
+                .Union,
+                => if (@hasDecl(T, "deinit")) self.value.deinit(allocator),
+                inline else => @compileError("Unsupported tag"),
+            }
+
             self.arena.deinit();
-            if (@hasDecl(T, "deinit")) self.value.deinit(allocator);
             allocator.destroy(self.arena);
         }
     };
@@ -76,7 +91,12 @@ fn innerParse(comptime T: type, parser: *Parser) !T {
 }
 
 test "Simple" {
-    const params = try parseHumanReadable(abi.Function, testing.allocator, "function Foo(address bar) view returns(address baz)");
+    const slice =
+        \\ function Foo(address baz)
+        \\ event Bar(address foo)
+    ;
+
+    const params = try parseHumanReadable(abi.Abi, testing.allocator, slice);
     defer params.deinit();
 
     std.debug.print("FOOO: {any}\n", .{params.value});

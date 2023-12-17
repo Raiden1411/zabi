@@ -30,7 +30,14 @@ pub const Function = struct {
     stateMutability: StateMutability,
 
     pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
+        for (self.inputs) |input| {
+            input.deinit(alloc);
+        }
         alloc.free(self.inputs);
+
+        for (self.outputs) |output| {
+            output.deinit(alloc);
+        }
         alloc.free(self.outputs);
     }
 };
@@ -42,6 +49,13 @@ pub const Event = struct {
     name: []const u8,
     inputs: []const AbiEventParameter,
     anonymous: ?bool = null,
+
+    pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
+        for (self.inputs) |input| {
+            input.deinit(alloc);
+        }
+        alloc.free(self.inputs);
+    }
 };
 
 /// Solidity Abi function representation.
@@ -50,6 +64,13 @@ pub const Error = struct {
     type: Extract(Abitype, "error"),
     name: []const u8,
     inputs: []const AbiParameter,
+
+    pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
+        for (self.inputs) |input| {
+            input.deinit(alloc);
+        }
+        alloc.free(self.inputs);
+    }
 };
 
 /// Solidity Abi function representation.
@@ -62,6 +83,13 @@ pub const Constructor = struct {
     /// https://github.com/ethereum/solidity/issues/992
     payable: ?bool = null,
     stateMutability: Extract(StateMutability, "payable,nonpayable"),
+
+    pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
+        for (self.inputs) |input| {
+            input.deinit(alloc);
+        }
+        alloc.free(self.inputs);
+    }
 };
 
 /// Solidity Abi function representation.
@@ -89,9 +117,16 @@ pub const AbiItem = union(enum) {
     abiReceive: Receive,
 
     pub usingnamespace UnionParser(@This());
+
+    pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
+        switch (self) {
+            inline else => |item| if (@hasDecl(@TypeOf(item), "deinit")) item.deinit(alloc),
+        }
+    }
 };
 
 pub const Abi = []const AbiItem;
+
 test "Json parse simple" {
     const slice =
         \\ [{

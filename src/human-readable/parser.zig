@@ -34,7 +34,7 @@ pub fn parseAbiProto(p: *Parser) !abi.Abi {
     while (true) {
         try abi_list.append(try p.parseAbiItemProto());
 
-        if (p.tokens[p.token_index - 1] == .EndOfFileToken) break;
+        if (p.tokens[p.token_index] == .EndOfFileToken) break;
     }
 
     return abi_list.toOwnedSlice();
@@ -215,6 +215,7 @@ pub fn parseFuncParamsDecl(p: *Parser) ![]const AbiParameter {
         switch (p.tokens[p.token_index]) {
             .Comma => p.token_index += 1,
             .ClosingParen => break,
+            .EndOfFileToken => break,
             inline else => return error.ExpectedCommaAfterParam,
         }
     }

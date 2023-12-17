@@ -7,6 +7,15 @@ pub const AbiParameter = struct {
     type: ParamType,
     internal_type: ?[]const u8 = null,
     components: ?[]const AbiParameter = null,
+
+    pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
+        if (self.components) |components| {
+            for (components) |component| {
+                component.deinit(alloc);
+            }
+            alloc.free(components);
+        }
+    }
 };
 
 pub const AbiEventParameter = struct {
@@ -15,6 +24,15 @@ pub const AbiEventParameter = struct {
     internal_type: ?[]const u8 = null,
     indexed: bool,
     components: ?[]const AbiParameter = null,
+
+    pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
+        if (self.components) |components| {
+            for (components) |component| {
+                component.deinit(alloc);
+            }
+            alloc.free(components);
+        }
+    }
 };
 
 test "Json parse simple paramter" {

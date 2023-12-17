@@ -28,6 +28,11 @@ pub const Function = struct {
     /// https://github.com/ethereum/solidity/issues/992
     payable: ?bool = null,
     stateMutability: StateMutability,
+
+    pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
+        alloc.free(self.inputs);
+        alloc.free(self.outputs);
+    }
 };
 
 /// Solidity Abi function representation.

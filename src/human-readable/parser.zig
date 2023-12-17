@@ -10,14 +10,15 @@ const ParamErrors = @import("../param_type.zig").ParamErrors;
 const ParamType = @import("../param_type.zig").ParamType;
 const Tokens = @import("tokens.zig").Tag.SoliditySyntax;
 
-const Parser = @This();
-const TokenList = std.MultiArrayList(struct {
+pub const TokenList = std.MultiArrayList(struct {
     token_type: Tokens,
     start: u32,
     end: u32,
 });
 
-const ParseError = error{ InvalidDataLocation, UnexceptedToken, InvalidType, ExpectedCommaAfterParam, EmptyReturnParams } || ParamErrors;
+pub const ParseError = error{ InvalidDataLocation, UnexceptedToken, InvalidType, ExpectedCommaAfterParam, EmptyReturnParams } || ParamErrors;
+
+const Parser = @This();
 
 alloc: Alloc,
 tokens: []const Tokens,
@@ -26,7 +27,7 @@ tokens_end: []const u32,
 token_index: u32,
 source: []const u8,
 
-fn parseAbiProto(p: *Parser) !abi.Abi {
+pub fn parseAbiProto(p: *Parser) !abi.Abi {
     var abi_list = std.ArrayList(abi.AbiItem).init(p.alloc);
     errdefer abi_list.deinit();
 
@@ -39,7 +40,7 @@ fn parseAbiProto(p: *Parser) !abi.Abi {
     return abi_list.toOwnedSlice();
 }
 
-fn parseAbiItemProto(p: *Parser) !abi.AbiItem {
+pub fn parseAbiItemProto(p: *Parser) !abi.AbiItem {
     return switch (p.tokens[p.token_index]) {
         .Function => .{ .abiFunction = try p.parseFunctionFnProto() },
         .Event => .{ .abiEvent = try p.parseEventFnProto() },
@@ -51,7 +52,7 @@ fn parseAbiItemProto(p: *Parser) !abi.AbiItem {
     };
 }
 
-fn parseFunctionFnProto(p: *Parser) !abi.Function {
+pub fn parseFunctionFnProto(p: *Parser) !abi.Function {
     _ = try p.expectToken(.Function);
     const name = p.parseIdentifier().?;
 
@@ -89,7 +90,7 @@ fn parseFunctionFnProto(p: *Parser) !abi.Function {
     return .{ .type = .function, .name = name, .inputs = inputs, .outputs = &.{}, .stateMutability = state };
 }
 
-fn parseEventFnProto(p: *Parser) !abi.Event {
+pub fn parseEventFnProto(p: *Parser) !abi.Event {
     _ = try p.expectToken(.Event);
     const name = p.parseIdentifier().?;
 
@@ -103,7 +104,7 @@ fn parseEventFnProto(p: *Parser) !abi.Event {
     return .{ .type = .event, .inputs = inputs, .name = name };
 }
 
-fn parseErrorFnProto(p: *Parser) !abi.Error {
+pub fn parseErrorFnProto(p: *Parser) !abi.Error {
     _ = try p.expectToken(.Error);
     const name = p.parseIdentifier().?;
 
@@ -117,7 +118,7 @@ fn parseErrorFnProto(p: *Parser) !abi.Error {
     return .{ .type = .@"error", .inputs = inputs, .name = name };
 }
 
-fn parseConstructorFnProto(p: *Parser) !abi.Constructor {
+pub fn parseConstructorFnProto(p: *Parser) !abi.Constructor {
     _ = try p.expectToken(.Constructor);
 
     _ = try p.expectToken(.OpenParen);
@@ -139,7 +140,7 @@ fn parseConstructorFnProto(p: *Parser) !abi.Constructor {
     }
 }
 
-fn parseFallbackFnProto(p: *Parser) !abi.Fallback {
+pub fn parseFallbackFnProto(p: *Parser) !abi.Fallback {
     _ = try p.expectToken(.Fallback);
     _ = try p.expectToken(.OpenParen);
     _ = try p.expectToken(.ClosingParen);
@@ -155,7 +156,7 @@ fn parseFallbackFnProto(p: *Parser) !abi.Fallback {
     }
 }
 
-fn parseReceiveFnProto(p: *Parser) !abi.Receive {
+pub fn parseReceiveFnProto(p: *Parser) !abi.Receive {
     _ = try p.expectToken(.Receive);
     _ = try p.expectToken(.OpenParen);
     _ = try p.expectToken(.ClosingParen);
@@ -165,7 +166,7 @@ fn parseReceiveFnProto(p: *Parser) !abi.Receive {
     return .{ .type = .receive, .stateMutability = .payable };
 }
 
-fn parseFuncParamsDecl(p: *Parser) ![]const AbiParameter {
+pub fn parseFuncParamsDecl(p: *Parser) ![]const AbiParameter {
     var param_list = std.ArrayList(AbiParameter).init(p.alloc);
     errdefer param_list.deinit();
 
@@ -221,7 +222,7 @@ fn parseFuncParamsDecl(p: *Parser) ![]const AbiParameter {
     return try param_list.toOwnedSlice();
 }
 
-fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
+pub fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
     var param_list = std.ArrayList(AbiEventParameter).init(p.alloc);
     errdefer param_list.deinit();
 
@@ -411,29 +412,29 @@ fn nextToken(p: *Parser) u32 {
     return index;
 }
 
-test "Simple" {
-    var lex = Lexer.init("function Foo(address bar) view returns(address baz)");
-    var list = Parser.TokenList{};
-    defer list.deinit(testing.allocator);
-
-    while (true) {
-        const tok = lex.scan();
-        try list.append(testing.allocator, .{ .token_type = tok.syntax, .start = tok.location.start, .end = tok.location.end });
-
-        if (tok.syntax == .EndOfFileToken) break;
-    }
-
-    var parser: Parser = .{
-        .alloc = testing.allocator,
-        .tokens = list.items(.token_type),
-        .tokens_start = list.items(.start),
-        .tokens_end = list.items(.end),
-        .token_index = 0,
-        .source = lex.currentText,
-    };
-
-    const params = try parser.parseAbiProto();
-
-    std.debug.print("\nParsing signature: {s}\n", .{parser.source});
-    std.debug.print("FOOO: {any}\n", .{params});
-}
+// test "Simple" {
+//     var lex = Lexer.init("function Foo(address bar) view returns(address baz)");
+//     var list = Parser.TokenList{};
+//     defer list.deinit(testing.allocator);
+//
+//     while (true) {
+//         const tok = lex.scan();
+//         try list.append(testing.allocator, .{ .token_type = tok.syntax, .start = tok.location.start, .end = tok.location.end });
+//
+//         if (tok.syntax == .EndOfFileToken) break;
+//     }
+//
+//     var parser: Parser = .{
+//         .alloc = testing.allocator,
+//         .tokens = list.items(.token_type),
+//         .tokens_start = list.items(.start),
+//         .tokens_end = list.items(.end),
+//         .token_index = 0,
+//         .source = lex.currentText,
+//     };
+//
+//     const params = try parser.parseAbiProto();
+//
+//     std.debug.print("\nParsing signature: {s}\n", .{parser.source});
+//     std.debug.print("FOOO: {any}\n", .{params});
+// }

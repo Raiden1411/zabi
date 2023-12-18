@@ -208,7 +208,7 @@ pub fn parseFuncParamsDecl(p: *Parser) ![]const AbiParameter {
         }
 
         const name = p.parseIdentifier() orelse "";
-        const param = .{ .type = abitype, .name = name, .internal_type = null, .components = null };
+        const param = .{ .type = abitype, .name = name, .internalType = null, .components = null };
 
         try param_list.append(param);
 
@@ -256,7 +256,7 @@ pub fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
         };
 
         const name = p.parseIdentifier() orelse "";
-        const param = .{ .type = abitype, .name = name, .indexed = indexed, .internal_type = null, .components = null };
+        const param = .{ .type = abitype, .name = name, .indexed = indexed, .internalType = null, .components = null };
 
         try param_list.append(param);
 
@@ -296,7 +296,7 @@ fn parseErrorParamsDecl(p: *Parser) ParseError![]const AbiParameter {
         if (location != null) return error.InvalidDataLocation;
 
         const name = p.parseIdentifier() orelse "";
-        const param: AbiParameter = .{ .type = abitype, .name = name, .internal_type = null, .components = null };
+        const param: AbiParameter = .{ .type = abitype, .name = name, .internalType = null, .components = null };
 
         try param_list.append(param);
 
@@ -332,9 +332,9 @@ fn parseTuple(p: *Parser, comptime T: type) ParseError!T {
     return switch (T) {
         AbiParameter => {
             if (location != null) return error.InvalidDataLocation;
-            return .{ .type = abitype, .name = name, .internal_type = null, .components = components };
+            return .{ .type = abitype, .name = name, .internalType = null, .components = components };
         },
-        AbiEventParameter => .{ .type = abitype, .name = name, .internal_type = null, .indexed = location == .Indexed, .components = components },
+        AbiEventParameter => .{ .type = abitype, .name = name, .internalType = null, .indexed = location == .Indexed, .components = components },
         inline else => error.InvalidType,
     };
 }

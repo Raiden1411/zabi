@@ -42,25 +42,25 @@ pub const Function = struct {
     }
 
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
-        try writer.print("{s}", .{@tagName(self.type)});
+        try writer.print("\x1b[34m{s}\x1b[39m", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
 
-        try writer.print("(", .{});
+        try writer.print("\x1b[38;5;33m(\x1b[39m", .{});
         for (self.inputs, 0..) |input, i| {
             try input.format(layout, opts, writer);
             if (i != self.inputs.len - 1) try writer.print(", ", .{});
         }
-        try writer.print(")", .{});
+        try writer.print("\x1b[38;5;33m)\x1b[39m", .{});
 
-        if (self.stateMutability != .nonpayable) try writer.print("{s}", .{@tagName(self.stateMutability)});
+        if (self.stateMutability != .nonpayable) try writer.print(" \x1b[38;5;114m{s}\x1b[39m", .{@tagName(self.stateMutability)});
 
         if (self.outputs.len > 0) {
-            try writer.print("returns(", .{});
+            try writer.print(" \x1b[38;5;34mreturns\x1b[39m \x1b[38;5;33m(\x1b[39m", .{});
             for (self.outputs, 0..) |output, i| {
                 try output.format(layout, opts, writer);
                 if (i != self.inputs.len - 1) try writer.print(", ", .{});
             }
-            try writer.print(")", .{});
+            try writer.print("\x1b[38;5;33m)\x1b[39m", .{});
         }
     }
 };
@@ -80,15 +80,15 @@ pub const Event = struct {
         alloc.free(self.inputs);
     }
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
-        try writer.print("{s}", .{@tagName(self.type)});
+        try writer.print("\x1b[34m{s}\x1b[39m", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
 
-        try writer.print("(", .{});
+        try writer.print("\x1b[38;5;33m(\x1b[39m", .{});
         for (self.inputs, 0..) |input, i| {
             try input.format(layout, opts, writer);
             if (i != self.inputs.len - 1) try writer.print(", ", .{});
         }
-        try writer.print(")", .{});
+        try writer.print("\x1b[38;5;33m)\x1b[39m", .{});
     }
 };
 
@@ -107,15 +107,15 @@ pub const Error = struct {
     }
 
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
-        try writer.print("{s}", .{@tagName(self.type)});
+        try writer.print("\x1b[34m{s}\x1b[39m", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
 
-        try writer.print("(", .{});
+        try writer.print("\x1b[38;5;33m(\x1b[39m", .{});
         for (self.inputs, 0..) |input, i| {
             try input.format(layout, opts, writer);
             if (i != self.inputs.len - 1) try writer.print(", ", .{});
         }
-        try writer.print(")", .{});
+        try writer.print("\x1b[38;5;33m)\x1b[39m", .{});
     }
 };
 
@@ -137,16 +137,16 @@ pub const Constructor = struct {
         alloc.free(self.inputs);
     }
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
-        try writer.print("{s}", .{@tagName(self.type)});
+        try writer.print("\x1b[38;5;176m{s}\x1b[39m", .{@tagName(self.type)});
 
-        try writer.print("(", .{});
+        try writer.print("\x1b[38;5;33m(\x1b[39m", .{});
         for (self.inputs, 0..) |input, i| {
             try input.format(layout, opts, writer);
             if (i != self.inputs.len - 1) try writer.print(", ", .{});
         }
-        try writer.print(")", .{});
+        try writer.print("\x1b[38;5;33m)\x1b[39m", .{});
 
-        if (self.stateMutability != .nonpayable) try writer.print("{s}", .{@tagName(self.stateMutability)});
+        if (self.stateMutability != .nonpayable) try writer.print(" \x1b[38;5;114m{s}\x1b[39m", .{@tagName(self.stateMutability)});
     }
 };
 
@@ -164,10 +164,10 @@ pub const Fallback = struct {
         _ = opts;
         _ = layout;
 
-        try writer.print("{s}", .{@tagName(self.type)});
-        try writer.print("()", .{});
+        try writer.print("\x1b[38;5;176m{s}\x1b[39m", .{@tagName(self.type)});
+        try writer.print("\x1b[38;5;33m()\x1b[39m", .{});
 
-        if (self.stateMutability != .nonpayable) try writer.print("{s}", .{@tagName(self.stateMutability)});
+        if (self.stateMutability != .nonpayable) try writer.print(" \x1b[38;5;114m{s}\x1b[39m", .{@tagName(self.stateMutability)});
     }
 };
 
@@ -180,8 +180,8 @@ pub const Receive = struct {
         _ = opts;
         _ = layout;
 
-        try writer.print("{s}", .{@tagName(self.type)});
-        try writer.print("() external ", .{});
+        try writer.print("\x1b[38;5;176m{s}\x1b[39m", .{@tagName(self.type)});
+        try writer.print("\x1b[38;5;33m()\x1b[39m \x1b[38;5;114mexternal ", .{});
 
         try writer.print("{s}", .{@tagName(self.stateMutability)});
     }
@@ -215,12 +215,20 @@ pub const Abi = []const AbiItem;
 
 test "Json parse simple" {
     const slice =
-        \\ [{
-        \\  "type": "receive",
-        \\  "stateMutability": "payable"
-        \\ }]
+        \\{
+        \\  "inputs": [
+        \\    {
+        \\      "internalType": "bytes32",
+        \\      "name": "node",
+        \\      "type": "bytes32",
+        \\      "indexed": false
+        \\    }
+        \\  ],
+        \\  "name": "owner",
+        \\  "type": "event"
+        \\}
     ;
 
-    const parsed = try std.json.parseFromSlice(Abi, testing.allocator, slice, .{});
+    const parsed = try std.json.parseFromSlice(AbiItem, testing.allocator, slice, .{});
     defer parsed.deinit();
 }

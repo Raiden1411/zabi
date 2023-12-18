@@ -57,6 +57,13 @@ pub const ParamType = union(enum) {
         return typeToUnion(field_name, alloc);
     }
 
+    pub fn jsonParseFromValue(alloc: Alloc, source: std.json.Value, opts: ParserOptions) !ParamType {
+        _ = opts;
+
+        const field_name = source.string;
+        return typeToUnion(field_name, alloc);
+    }
+
     pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
         try self.typeToString(stream);
     }
@@ -67,18 +74,18 @@ pub const ParamType = union(enum) {
             .bytes,
             .bool,
             .address,
-            => try writer.print("{s}", .{@tagName(self)}),
+            => try writer.print("\x1b[34m{s}\x1b[39m", .{@tagName(self)}),
             .int,
             .uint,
             .fixedBytes,
-            => |val| try writer.print("{s}{d}", .{ @tagName(self), val }),
+            => |val| try writer.print("\x1b[34m{s}{d}\x1b[39m", .{ @tagName(self), val }),
             .dynamicArray => |val| {
                 try val.typeToString(writer);
-                try writer.print("[]", .{});
+                try writer.print("\x1b[33m[]\x1b[39m", .{});
             },
             .fixedArray => |val| {
                 try val.child.typeToString(writer);
-                try writer.print("[{d}]", .{val.size});
+                try writer.print("\x1b[33m[{d}]\x1b[39m", .{val.size});
             },
             inline else => try writer.print("", .{}),
         }

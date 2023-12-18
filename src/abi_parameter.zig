@@ -5,7 +5,7 @@ const ParamType = @import("param_type.zig").ParamType;
 pub const AbiParameter = struct {
     name: []const u8,
     type: ParamType,
-    internal_type: ?[]const u8 = null,
+    internalType: ?[]const u8 = null,
     components: ?[]const AbiParameter = null,
 
     pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
@@ -19,12 +19,12 @@ pub const AbiParameter = struct {
 
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
         if (self.components) |components| {
-            try writer.print("(", .{});
+            try writer.print("\x1b[38;5;33m(\x1b[39m", .{});
             for (components, 0..) |component, i| {
                 try component.format(layout, opts, writer);
                 if (i != components.len - 1) try writer.print(", ", .{});
             }
-            try writer.print(")", .{});
+            try writer.print("\x1b[38;5;33m)\x1b[39m", .{});
         }
 
         try self.type.typeToString(writer);
@@ -35,7 +35,7 @@ pub const AbiParameter = struct {
 pub const AbiEventParameter = struct {
     name: []const u8,
     type: ParamType,
-    internal_type: ?[]const u8 = null,
+    internalType: ?[]const u8 = null,
     indexed: bool,
     components: ?[]const AbiParameter = null,
 
@@ -50,12 +50,12 @@ pub const AbiEventParameter = struct {
 
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
         if (self.components) |components| {
-            try writer.print("(", .{});
+            try writer.print("\x1b[38;5;33m(\x1b[39m", .{});
             for (components, 0..) |component, i| {
                 try component.format(layout, opts, writer);
                 if (i != components.len - 1) try writer.print(", ", .{});
             }
-            try writer.print(")", .{});
+            try writer.print("\x1b[38;5;33m)\x1b[39m", .{});
         }
 
         try self.type.typeToString(writer);
@@ -75,7 +75,7 @@ test "Json parse simple paramter" {
     const parsed = try std.json.parseFromSlice(AbiParameter, testing.allocator, slice, .{});
     defer parsed.deinit();
 
-    try testing.expect(null == parsed.value.internal_type);
+    try testing.expect(null == parsed.value.internalType);
     try testing.expect(null == parsed.value.components);
     try testing.expectEqual(ParamType{ .address = {} }, parsed.value.type);
     try testing.expectEqualStrings("foo", parsed.value.name);
@@ -93,7 +93,7 @@ test "Json parse simple event paramter" {
     const parsedEvent = try std.json.parseFromSlice(AbiEventParameter, testing.allocator, sliceIndexed, .{});
     defer parsedEvent.deinit();
 
-    try testing.expect(null == parsedEvent.value.internal_type);
+    try testing.expect(null == parsedEvent.value.internalType);
     try testing.expect(null == parsedEvent.value.components);
     try testing.expect(parsedEvent.value.indexed);
     try testing.expectEqual(ParamType{ .address = {} }, parsedEvent.value.type);
@@ -117,7 +117,7 @@ test "Json parse with components" {
     const parsed = try std.json.parseFromSlice(AbiParameter, testing.allocator, slice, .{});
     defer parsed.deinit();
 
-    try testing.expect(null == parsed.value.internal_type);
+    try testing.expect(null == parsed.value.internalType);
     try testing.expectEqual(ParamType{ .tuple = {} }, parsed.value.type);
     try testing.expectEqual(ParamType{ .address = {} }, parsed.value.components.?[0].type);
     try testing.expectEqualStrings("foo", parsed.value.name);
@@ -145,7 +145,7 @@ test "Json parse with multiple components" {
     const parsed = try std.json.parseFromSlice(AbiParameter, testing.allocator, slice, .{});
     defer parsed.deinit();
 
-    try testing.expect(null == parsed.value.internal_type);
+    try testing.expect(null == parsed.value.internalType);
     try testing.expectEqual(ParamType{ .tuple = {} }, parsed.value.type);
     try testing.expectEqual(ParamType{ .address = {} }, parsed.value.components.?[0].type);
     try testing.expectEqual(ParamType{ .int = 256 }, parsed.value.components.?[1].type);
@@ -181,7 +181,7 @@ test "Json parse with nested components" {
     const parsed = try std.json.parseFromSlice(AbiParameter, testing.allocator, slice, .{});
     defer parsed.deinit();
 
-    try testing.expect(null == parsed.value.internal_type);
+    try testing.expect(null == parsed.value.internalType);
     try testing.expectEqual(ParamType{ .tuple = {} }, parsed.value.type);
     try testing.expectEqual(ParamType{ .address = {} }, parsed.value.components.?[0].type);
     try testing.expectEqual(ParamType{ .tuple = {} }, parsed.value.components.?[1].type);

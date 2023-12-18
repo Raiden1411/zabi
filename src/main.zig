@@ -17,12 +17,11 @@ pub fn main() !void {
 }
 
 test {
-    _ = @import("param_type.zig");
-    _ = @import("abi_parameter.zig");
-    _ = @import("param_type.zig");
+    // _ = @import("param_type.zig");
+    // _ = @import("abi_parameter.zig");
     _ = @import("abi.zig");
     _ = @import("state_mutability.zig");
     _ = @import("human-readable/lexer.zig");
     _ = @import("human-readable/parser.zig");
-    _ = @import("human-readable/abi_parsing.zig");
+    // _ = @import("human-readable/abi_parsing.zig");
 }

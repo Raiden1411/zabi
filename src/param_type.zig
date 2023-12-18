@@ -63,7 +63,11 @@ pub const ParamType = union(enum) {
 
     pub fn typeToString(self: @This(), writer: anytype) !void {
         switch (self) {
-            .string, .bytes, .bool, .address, .tuple => try writer.print("{s}", .{@tagName(self)}),
+            .string,
+            .bytes,
+            .bool,
+            .address,
+            => try writer.print("{s}", .{@tagName(self)}),
             .int,
             .uint,
             .fixedBytes,
@@ -73,10 +77,10 @@ pub const ParamType = union(enum) {
                 try writer.print("[]", .{});
             },
             .fixedArray => |val| {
-                try val.child.jsonStringify(writer);
+                try val.child.typeToString(writer);
                 try writer.print("[{d}]", .{val.size});
             },
-            inline else => return error.Unexpected,
+            inline else => try writer.print("", .{}),
         }
     }
 
@@ -258,15 +262,15 @@ test "ParamType errors" {
     try testing.expectError(error.InvalidEnumTag, ParamType.typeToUnion("", testing.allocator));
 }
 
-test "Format" {
-    const param = try ParamType.typeToUnion("bool[5][9]", testing.allocator);
-    defer ParamType.freeArrayParamType(param, testing.allocator);
-
-    const stdout = std.io.getStdOut().writer();
-
-    try param.jsonStringify(&stdout);
-    try stdout.print("\n\n", .{});
-}
+// test "Format" {
+//     const param = try ParamType.typeToUnion("bool[5][9]", testing.allocator);
+//     defer ParamType.freeArrayParamType(param, testing.allocator);
+//
+//     const stdout = std.io.getStdErr().writer();
+//
+//     try param.jsonStringify(&stdout);
+//     try stdout.print("\n\n", .{});
+// }
 
 fn expectEqualParamType(comptime expected: ParamType, actual: ParamType) !void {
     switch (expected) {

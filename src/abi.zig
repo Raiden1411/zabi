@@ -40,6 +40,29 @@ pub const Function = struct {
         }
         alloc.free(self.outputs);
     }
+
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+        try writer.print("{s}", .{@tagName(self.type)});
+        try writer.print(" {s}", .{self.name});
+
+        try writer.print("(", .{});
+        for (self.inputs, 0..) |input, i| {
+            try input.format(layout, opts, writer);
+            if (i != self.inputs.len - 1) try writer.print(", ", .{});
+        }
+        try writer.print(")", .{});
+
+        if (self.stateMutability != .nonpayable) try writer.print("{s}", .{@tagName(self.stateMutability)});
+
+        if (self.outputs.len > 0) {
+            try writer.print("returns(", .{});
+            for (self.outputs, 0..) |output, i| {
+                try output.format(layout, opts, writer);
+                if (i != self.inputs.len - 1) try writer.print(", ", .{});
+            }
+            try writer.print(")", .{});
+        }
+    }
 };
 
 /// Solidity Abi function representation.
@@ -56,6 +79,17 @@ pub const Event = struct {
         }
         alloc.free(self.inputs);
     }
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+        try writer.print("{s}", .{@tagName(self.type)});
+        try writer.print(" {s}", .{self.name});
+
+        try writer.print("(", .{});
+        for (self.inputs, 0..) |input, i| {
+            try input.format(layout, opts, writer);
+            if (i != self.inputs.len - 1) try writer.print(", ", .{});
+        }
+        try writer.print(")", .{});
+    }
 };
 
 /// Solidity Abi function representation.
@@ -70,6 +104,18 @@ pub const Error = struct {
             input.deinit(alloc);
         }
         alloc.free(self.inputs);
+    }
+
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+        try writer.print("{s}", .{@tagName(self.type)});
+        try writer.print(" {s}", .{self.name});
+
+        try writer.print("(", .{});
+        for (self.inputs, 0..) |input, i| {
+            try input.format(layout, opts, writer);
+            if (i != self.inputs.len - 1) try writer.print(", ", .{});
+        }
+        try writer.print(")", .{});
     }
 };
 
@@ -90,6 +136,18 @@ pub const Constructor = struct {
         }
         alloc.free(self.inputs);
     }
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+        try writer.print("{s}", .{@tagName(self.type)});
+
+        try writer.print("(", .{});
+        for (self.inputs, 0..) |input, i| {
+            try input.format(layout, opts, writer);
+            if (i != self.inputs.len - 1) try writer.print(", ", .{});
+        }
+        try writer.print(")", .{});
+
+        if (self.stateMutability != .nonpayable) try writer.print("{s}", .{@tagName(self.stateMutability)});
+    }
 };
 
 /// Solidity Abi function representation.
@@ -101,11 +159,33 @@ pub const Fallback = struct {
     /// https://github.com/ethereum/solidity/issues/992
     payable: ?bool = null,
     stateMutability: Extract(StateMutability, "payable,nonpayable"),
+
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = opts;
+        _ = layout;
+
+        try writer.print("{s}", .{@tagName(self.type)});
+        try writer.print("()", .{});
+
+        if (self.stateMutability != .nonpayable) try writer.print("{s}", .{@tagName(self.stateMutability)});
+    }
 };
 
 /// Solidity Abi function representation.
 /// Reference: ["receive"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-pub const Receive = struct { type: Extract(Abitype, "receive"), stateMutability: Extract(StateMutability, "payable") };
+pub const Receive = struct {
+    type: Extract(Abitype, "receive"),
+    stateMutability: Extract(StateMutability, "payable"),
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = opts;
+        _ = layout;
+
+        try writer.print("{s}", .{@tagName(self.type)});
+        try writer.print("() external ", .{});
+
+        try writer.print("{s}", .{@tagName(self.stateMutability)});
+    }
+};
 
 /// Union representing all of the possible Abi members.
 pub const AbiItem = union(enum) {
@@ -121,6 +201,12 @@ pub const AbiItem = union(enum) {
     pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
         switch (self) {
             inline else => |item| if (@hasDecl(@TypeOf(item), "deinit")) item.deinit(alloc),
+        }
+    }
+
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+        switch (self) {
+            inline else => |value| try value.format(layout, opts, writer),
         }
     }
 };

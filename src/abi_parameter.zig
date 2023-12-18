@@ -16,6 +16,20 @@ pub const AbiParameter = struct {
             alloc.free(components);
         }
     }
+
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+        if (self.components) |components| {
+            try writer.print("(", .{});
+            for (components, 0..) |component, i| {
+                try component.format(layout, opts, writer);
+                if (i != components.len - 1) try writer.print(", ", .{});
+            }
+            try writer.print(")", .{});
+        }
+
+        try self.type.typeToString(writer);
+        if (self.name.len != 0) try writer.print(" {s}", .{self.name});
+    }
 };
 
 pub const AbiEventParameter = struct {
@@ -32,6 +46,21 @@ pub const AbiEventParameter = struct {
             }
             alloc.free(components);
         }
+    }
+
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+        if (self.components) |components| {
+            try writer.print("(", .{});
+            for (components, 0..) |component, i| {
+                try component.format(layout, opts, writer);
+                if (i != components.len - 1) try writer.print(", ", .{});
+            }
+            try writer.print(")", .{});
+        }
+
+        try self.type.typeToString(writer);
+        if (self.indexed) try writer.print(" indexed", .{});
+        if (self.name.len != 0) try writer.print(" {s}", .{self.name});
     }
 };
 

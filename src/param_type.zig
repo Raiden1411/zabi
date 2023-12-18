@@ -27,17 +27,17 @@ pub const ParamType = union(enum) {
 
     /// User must call this if the union type contains a fixedArray or dynamicArray field.
     /// They create pointers so they must be destroyed after.
-    pub fn freeArrayParamType(param: ParamType, alloc: Alloc) void {
-        switch (param) {
+    pub fn freeArrayParamType(self: @This(), alloc: Alloc) void {
+        switch (self) {
             .dynamicArray => |val| {
-                freeArrayParamType(val.*, alloc);
+                val.freeArrayParamType(alloc);
                 alloc.destroy(val);
             },
             .fixedArray => |val| {
-                freeArrayParamType(val.child.*, alloc);
+                val.child.freeArrayParamType(alloc);
                 alloc.destroy(val.child);
             },
-            inline else => return,
+            inline else => {},
         }
     }
 
@@ -178,11 +178,11 @@ test "ParamType common" {
     try expectEqualParamType(ParamType{ .fixedBytes = 32 }, try ParamType.typeToUnion("bytes32", testing.allocator));
 
     const dynamic = try ParamType.typeToUnion("int[]", testing.allocator);
-    defer ParamType.freeArrayParamType(dynamic, testing.allocator);
+    defer dynamic.freeArrayParamType(testing.allocator);
     try expectEqualParamType(ParamType{ .dynamicArray = &.{ .int = 256 } }, dynamic);
 
     const fixed = try ParamType.typeToUnion("int[5]", testing.allocator);
-    defer ParamType.freeArrayParamType(fixed, testing.allocator);
+    defer fixed.freeArrayParamType(testing.allocator);
     try expectEqualParamType(ParamType{ .fixedArray = FixedArray{ .child = &.{ .int = 256 }, .size = 5 } }, fixed);
 }
 
@@ -194,11 +194,11 @@ test "ParamType int variants" {
     try expectEqualParamType(ParamType{ .int = 240 }, try ParamType.typeToUnion("int240", testing.allocator));
 
     const dynamic = try ParamType.typeToUnion("int120[]", testing.allocator);
-    defer ParamType.freeArrayParamType(dynamic, testing.allocator);
+    defer dynamic.freeArrayParamType(testing.allocator);
     try expectEqualParamType(ParamType{ .dynamicArray = &.{ .int = 120 } }, dynamic);
 
     const fixed = try ParamType.typeToUnion("int24[5]", testing.allocator);
-    defer ParamType.freeArrayParamType(fixed, testing.allocator);
+    defer fixed.freeArrayParamType(testing.allocator);
     try expectEqualParamType(ParamType{ .fixedArray = FixedArray{ .child = &.{ .int = 24 }, .size = 5 } }, fixed);
 }
 
@@ -210,11 +210,11 @@ test "ParamType uint variants" {
     try expectEqualParamType(ParamType{ .uint = 240 }, try ParamType.typeToUnion("uint240", testing.allocator));
 
     const dynamic = try ParamType.typeToUnion("uint120[]", testing.allocator);
-    defer ParamType.freeArrayParamType(dynamic, testing.allocator);
+    defer dynamic.freeArrayParamType(testing.allocator);
     try expectEqualParamType(ParamType{ .dynamicArray = &.{ .uint = 120 } }, dynamic);
 
     const fixed = try ParamType.typeToUnion("uint24[5]", testing.allocator);
-    defer ParamType.freeArrayParamType(fixed, testing.allocator);
+    defer fixed.freeArrayParamType(testing.allocator);
     try expectEqualParamType(ParamType{ .fixedArray = FixedArray{ .child = &.{ .uint = 24 }, .size = 5 } }, fixed);
 }
 
@@ -224,29 +224,29 @@ test "ParamType bytes variants" {
     try expectEqualParamType(ParamType{ .fixedBytes = 31 }, try ParamType.typeToUnion("bytes31", testing.allocator));
 
     const dynamic = try ParamType.typeToUnion("bytes3[]", testing.allocator);
-    defer ParamType.freeArrayParamType(dynamic, testing.allocator);
+    defer dynamic.freeArrayParamType(testing.allocator);
     try expectEqualParamType(ParamType{ .dynamicArray = &.{ .fixedBytes = 3 } }, dynamic);
 
     const fixed = try ParamType.typeToUnion("bytes24[5]", testing.allocator);
-    defer ParamType.freeArrayParamType(fixed, testing.allocator);
+    defer fixed.freeArrayParamType(testing.allocator);
     try expectEqualParamType(ParamType{ .fixedArray = FixedArray{ .child = &.{ .fixedBytes = 24 }, .size = 5 } }, fixed);
 }
 
 test "ParamType 2d dynamic/fixed array" {
     const two_dd = try ParamType.typeToUnion("int[][]", testing.allocator);
-    defer ParamType.freeArrayParamType(two_dd, testing.allocator);
+    defer two_dd.freeArrayParamType(testing.allocator);
     try expectEqualParamType(ParamType{ .dynamicArray = &.{ .dynamicArray = &.{ .int = 256 } } }, two_dd);
 
     const two_fd = try ParamType.typeToUnion("int[5][]", testing.allocator);
-    defer ParamType.freeArrayParamType(two_fd, testing.allocator);
+    defer two_fd.freeArrayParamType(testing.allocator);
     try expectEqualParamType(ParamType{ .dynamicArray = &.{ .fixedArray = FixedArray{ .child = &.{ .int = 256 }, .size = 5 } } }, two_fd);
 
     const two_df = try ParamType.typeToUnion("int[][9]", testing.allocator);
-    defer ParamType.freeArrayParamType(two_df, testing.allocator);
+    defer two_df.freeArrayParamType(testing.allocator);
     try expectEqualParamType(ParamType{ .fixedArray = FixedArray{ .child = &.{ .dynamicArray = &.{ .int = 256 } }, .size = 9 } }, two_df);
 
     const two_ff = try ParamType.typeToUnion("int[6][9]", testing.allocator);
-    defer ParamType.freeArrayParamType(two_ff, testing.allocator);
+    defer two_ff.freeArrayParamType(testing.allocator);
     try expectEqualParamType(ParamType{ .fixedArray = FixedArray{ .child = &.{ .fixedArray = FixedArray{ .child = &.{ .int = 256 }, .size = 6 } }, .size = 9 } }, two_ff);
 }
 

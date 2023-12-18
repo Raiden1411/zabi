@@ -59,7 +59,12 @@ pub fn parseFunctionFnProto(p: *Parser) !abi.Function {
     _ = try p.expectToken(.OpenParen);
 
     const inputs: []const AbiParameter = if (p.tokens[p.token_index] == .ClosingParen) &.{} else try p.parseFuncParamsDecl();
-    errdefer p.alloc.free(inputs);
+    errdefer {
+        for (inputs) |input| {
+            input.deinit(p.alloc);
+        }
+        p.alloc.free(inputs);
+    }
 
     _ = try p.expectToken(.ClosingParen);
 
@@ -78,7 +83,12 @@ pub fn parseFunctionFnProto(p: *Parser) !abi.Function {
         _ = try p.expectToken(.OpenParen);
 
         const outputs: []const AbiParameter = if (p.tokens[p.token_index] == .ClosingParen) return error.EmptyReturnParams else try p.parseFuncParamsDecl();
-        errdefer p.alloc.free(outputs);
+        errdefer {
+            for (outputs) |output| {
+                output.deinit(p.alloc);
+            }
+            p.alloc.free(inputs);
+        }
 
         _ = try p.expectToken(.ClosingParen);
 
@@ -97,7 +107,12 @@ pub fn parseEventFnProto(p: *Parser) !abi.Event {
     _ = try p.expectToken(.OpenParen);
 
     const inputs: []const AbiEventParameter = if (p.tokens[p.token_index] == .ClosingParen) &.{} else try p.parseEventParamsDecl();
-    errdefer p.alloc.free(inputs);
+    errdefer {
+        for (inputs) |input| {
+            input.deinit(p.alloc);
+        }
+        p.alloc.free(inputs);
+    }
 
     _ = try p.expectToken(.ClosingParen);
 
@@ -111,7 +126,12 @@ pub fn parseErrorFnProto(p: *Parser) !abi.Error {
     _ = try p.expectToken(.OpenParen);
 
     const inputs: []const AbiParameter = if (p.tokens[p.token_index] == .ClosingParen) &.{} else try p.parseErrorParamsDecl();
-    errdefer p.alloc.free(inputs);
+    errdefer {
+        for (inputs) |input| {
+            input.deinit(p.alloc);
+        }
+        p.alloc.free(inputs);
+    }
 
     _ = try p.expectToken(.ClosingParen);
 
@@ -124,7 +144,12 @@ pub fn parseConstructorFnProto(p: *Parser) !abi.Constructor {
     _ = try p.expectToken(.OpenParen);
 
     const inputs: []const AbiParameter = if (p.tokens[p.token_index] == .ClosingParen) &.{} else try p.parseFuncParamsDecl();
-    errdefer p.alloc.free(inputs);
+    errdefer {
+        for (inputs) |input| {
+            input.deinit(p.alloc);
+        }
+        p.alloc.free(inputs);
+    }
 
     _ = try p.expectToken(.ClosingParen);
 
@@ -172,6 +197,8 @@ pub fn parseFuncParamsDecl(p: *Parser) ![]const AbiParameter {
 
     while (true) {
         const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple(AbiParameter) else null;
+        errdefer tuple_param.?.deinit(p.alloc);
+
         if (tuple_param != null) {
             try param_list.append(tuple_param.?);
 
@@ -186,7 +213,7 @@ pub fn parseFuncParamsDecl(p: *Parser) ![]const AbiParameter {
         }
 
         const abitype = try p.parseTypeExpr();
-        errdefer ParamType.freeArrayParamType(abitype, p.alloc);
+        errdefer abitype.freeArrayParamType(p.alloc);
 
         const location = p.parseDataLocation();
         if (location) |tok| {
@@ -229,6 +256,8 @@ pub fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
 
     while (true) {
         const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple(AbiEventParameter) else null;
+        errdefer tuple_param.?.deinit(p.alloc);
+
         if (tuple_param != null) {
             try param_list.append(tuple_param.?);
 
@@ -243,7 +272,7 @@ pub fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
         }
 
         const abitype = try p.parseTypeExpr();
-        errdefer ParamType.freeArrayParamType(abitype, p.alloc);
+        errdefer abitype.freeArrayParamType(p.alloc);
 
         const location = p.parseDataLocation();
         const indexed = indexed: {
@@ -276,6 +305,8 @@ fn parseErrorParamsDecl(p: *Parser) ParseError![]const AbiParameter {
 
     while (true) {
         const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple(AbiParameter) else null;
+        errdefer tuple_param.?.deinit(p.alloc);
+
         if (tuple_param != null) {
             try param_list.append(tuple_param.?);
 
@@ -290,7 +321,7 @@ fn parseErrorParamsDecl(p: *Parser) ParseError![]const AbiParameter {
         }
 
         const abitype = try p.parseTypeExpr();
-        errdefer ParamType.freeArrayParamType(abitype, p.alloc);
+        errdefer abitype.freeArrayParamType(testing.allocator);
 
         const location = p.parseDataLocation();
         if (location != null) return error.InvalidDataLocation;
@@ -324,7 +355,7 @@ fn parseTuple(p: *Parser, comptime T: type) ParseError!T {
     defer p.alloc.free(type_name);
 
     const abitype = try ParamType.typeToUnion(type_name, p.alloc);
-    errdefer ParamType.freeArrayParamType(abitype, p.alloc);
+    errdefer abitype.freeArrayParamType(p.alloc);
 
     const location = p.parseDataLocation();
     const name = p.parseIdentifier() orelse "";

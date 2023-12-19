@@ -269,16 +269,6 @@ test "ParamType errors" {
     try testing.expectError(error.InvalidEnumTag, ParamType.typeToUnion("", testing.allocator));
 }
 
-// test "Format" {
-//     const param = try ParamType.typeToUnion("bool[5][9]", testing.allocator);
-//     defer ParamType.freeArrayParamType(param, testing.allocator);
-//
-//     const stdout = std.io.getStdErr().writer();
-//
-//     try param.jsonStringify(&stdout);
-//     try stdout.print("\n\n", .{});
-// }
-
 fn expectEqualParamType(comptime expected: ParamType, actual: ParamType) !void {
     switch (expected) {
         .string, .address, .tuple, .bytes, .bool => |val| try testing.expectEqual(val, @field(actual, @tagName(expected))),

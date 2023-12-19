@@ -43,11 +43,11 @@ pub fn AbiParsed(comptime T: type) type {
 pub fn parseHumanReadable(comptime T: type, alloc: Allocator, source: [:0]const u8) !AbiParsed(T) {
     var lex = Lexer.init(source);
     var list = Parser.TokenList{};
-    defer list.deinit(testing.allocator);
+    defer list.deinit(alloc);
 
     while (true) {
         const tok = lex.scan();
-        try list.append(testing.allocator, .{ .token_type = tok.syntax, .start = tok.location.start, .end = tok.location.end });
+        try list.append(alloc, .{ .token_type = tok.syntax, .start = tok.location.start, .end = tok.location.end });
 
         if (tok.syntax == .EndOfFileToken) break;
     }
@@ -92,12 +92,10 @@ fn innerParse(comptime T: type, parser: *Parser) !T {
 
 test "Simple" {
     const slice =
-        \\ function Foo(address baz)
-        \\ event Bar(address foo)
+        \\ function Foo((((((address bar))))))
+        \\ event Bar((((((bool baz))))))
     ;
 
     const params = try parseHumanReadable(abi.Abi, testing.allocator, slice);
     defer params.deinit();
-
-    // std.debug.print("FOOO: {any}\n", .{params.value});
 }

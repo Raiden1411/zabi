@@ -4,7 +4,42 @@ const ParamType = @import("param_type.zig").ParamType;
 const PreEncodedParam = struct {
     dynamic: bool,
     encoded: []u8,
+
+    pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
+        alloc.free(self.encoded);
+    }
 };
+
+pub fn preEncodeParam(param: ParamType, alloc: std.mem.Allocator, value: anytype) !PreEncodedParam {
+    const info = @typeInfo(@TypeOf(value));
+
+    switch (info) {
+        .Pointer => {
+            if (info.Pointer.size != .Slice and info.Pointer.size != .One) @compileError("Invalid Pointer size. Expected Slice or comptime know string");
+
+            return switch (param) {
+                .string, .bytes => try encodeString(value, alloc),
+                .fixedBytes => |val| try encodeFixedBytes(val, value, alloc),
+                .address => try encodeAddress(value, alloc),
+                inline else => return error.InvalidParamType,
+            };
+        },
+        .Bool => {
+            return switch (param) {
+                .bool => try encodeBool(value, alloc),
+                inline else => return error.InvalidParamType,
+            };
+        },
+        .Int, .ComptimeInt => {
+            return switch (param) {
+                .int => try encodeNumber(i256, value, alloc),
+                .uint => try encodeNumber(u256, value, alloc),
+                inline else => return error.InvalidParamType,
+            };
+        },
+        inline else => @compileError(@typeName(@TypeOf(value)) ++ " type is not supported"),
+    }
+}
 
 pub fn encodeNumber(comptime T: type, num: T, alloc: std.mem.Allocator) !PreEncodedParam {
     const info = @typeInfo(T);
@@ -61,7 +96,7 @@ pub fn encodeString(str: []const u8, alloc: std.mem.Allocator) !PreEncodedParam 
     return .{ .dynamic = true, .encoded = try concat(try list.toOwnedSlice(), alloc) };
 }
 
-pub fn encodeFixedBytes(size: u32, bytes: []const u8, alloc: std.mem.Allocator) !PreEncodedParam {
+pub fn encodeFixedBytes(size: usize, bytes: []const u8, alloc: std.mem.Allocator) !PreEncodedParam {
     if (size > 32) return error.InvalidBits;
     if (bytes.len > size) return error.Overflow;
 
@@ -100,26 +135,8 @@ fn zeroPad(buf: []const u8) ![32]u8 {
 }
 
 test "fooo" {
-    const a = try encodeNumber(i256, std.math.maxInt(i256), std.testing.allocator);
-    const b = try encodeAddress("0xDAFEA492D9c6733ae3d56b7Ed1ADB60692c98Bc5", std.testing.allocator);
-    const d = try encodeNumber(u256, std.math.maxInt(u256), std.testing.allocator);
-    const c = try encodeBool(true, std.testing.allocator);
-    const f = try encodeString("wagmi", std.testing.allocator);
-    const g = try encodeFixedBytes(26, "wagmi", std.testing.allocator);
+    const pre_encoded = try preEncodeParam(.{ .int = 256 }, std.testing.allocator, 1.01011);
+    defer pre_encoded.deinit(std.testing.allocator);
 
-    defer {
-        std.testing.allocator.free(d.encoded);
-        std.testing.allocator.free(c.encoded);
-        std.testing.allocator.free(b.encoded);
-        std.testing.allocator.free(a.encoded);
-        std.testing.allocator.free(f.encoded);
-        std.testing.allocator.free(g.encoded);
-    }
-
-    std.debug.print("\nEncoded Uint: {s}\n", .{std.fmt.fmtSliceHexLower(d.encoded)});
-    std.debug.print("Encoded Int: {s}\n", .{std.fmt.fmtSliceHexLower(a.encoded)});
-    std.debug.print("Encoded Address: {s}\n", .{std.fmt.fmtSliceHexLower(b.encoded)});
-    std.debug.print("Encoded bool: {s}\n", .{std.fmt.fmtSliceHexLower(c.encoded)});
-    std.debug.print("Encoded fixed bytes: {s}\n", .{std.fmt.fmtSliceHexLower(g.encoded)});
-    std.debug.print("Encoded string: {s}\n", .{std.fmt.fmtSliceHexLower(f.encoded)});
+    std.debug.print("Foo: {s}\n", .{std.fmt.fmtSliceHexLower(pre_encoded.encoded)});
 }

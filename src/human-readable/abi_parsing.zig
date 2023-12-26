@@ -19,20 +19,20 @@ pub fn AbiParsed(comptime T: type) type {
         pub fn deinit(self: @This()) void {
             const allocator = self.arena.child_allocator;
 
-            const info = @typeInfo(T);
-            switch (info) {
-                .Pointer => {
-                    if (info.Pointer.size != .Slice) @compileError("Unexpected pointer size");
-                    for (self.value) |val| {
-                        if (@hasDecl(info.Pointer.child, "deinit")) val.deinit(allocator);
-                    }
-                    allocator.free(self.value);
-                },
-                .Struct,
-                .Union,
-                => if (@hasDecl(T, "deinit")) self.value.deinit(allocator),
-                inline else => @compileError("Unsupported tag"),
-            }
+            // const info = @typeInfo(T);
+            // switch (info) {
+            //     .Pointer => {
+            //         if (info.Pointer.size != .Slice) @compileError("Unexpected pointer size");
+            //         for (self.value) |val| {
+            //             if (@hasDecl(info.Pointer.child, "deinit")) val.deinit(allocator);
+            //         }
+            //         allocator.free(self.value);
+            //     },
+            //     .Struct,
+            //     .Union,
+            //     => if (@hasDecl(T, "deinit")) self.value.deinit(allocator),
+            //     inline else => @compileError("Unsupported tag"),
+            // }
 
             self.arena.deinit();
             allocator.destroy(self.arena);
@@ -41,19 +41,24 @@ pub fn AbiParsed(comptime T: type) type {
 }
 
 pub fn parseHumanReadable(comptime T: type, alloc: Allocator, source: [:0]const u8) !AbiParsed(T) {
+    var abi_parsed = AbiParsed(T){ .arena = try alloc.create(ArenaAllocator), .value = undefined };
+    errdefer alloc.destroy(abi_parsed.arena);
+    abi_parsed.arena.* = ArenaAllocator.init(alloc);
+    const allocator = abi_parsed.arena.allocator();
+
     var lex = Lexer.init(source);
     var list = Parser.TokenList{};
-    defer list.deinit(alloc);
+    defer list.deinit(allocator);
 
     while (true) {
         const tok = lex.scan();
-        try list.append(alloc, .{ .token_type = tok.syntax, .start = tok.location.start, .end = tok.location.end });
+        try list.append(allocator, .{ .token_type = tok.syntax, .start = tok.location.start, .end = tok.location.end });
 
         if (tok.syntax == .EndOfFileToken) break;
     }
 
     var parser: Parser = .{
-        .alloc = alloc,
+        .alloc = allocator,
         .tokens = list.items(.token_type),
         .tokens_start = list.items(.start),
         .tokens_end = list.items(.end),
@@ -61,15 +66,7 @@ pub fn parseHumanReadable(comptime T: type, alloc: Allocator, source: [:0]const 
         .source = source,
     };
 
-    return parseHumanReadableFromTokenSource(T, alloc, &parser);
-}
-
-pub fn parseHumanReadableFromTokenSource(comptime T: type, alloc: Allocator, parser: *Parser) !AbiParsed(T) {
-    var abi_parsed = AbiParsed(T){ .arena = try alloc.create(ArenaAllocator), .value = undefined };
-    errdefer alloc.destroy(abi_parsed.arena);
-    abi_parsed.arena.* = ArenaAllocator.init(alloc);
-
-    abi_parsed.value = try innerParse(T, parser);
+    abi_parsed.value = try innerParse(T, &parser);
 
     return abi_parsed;
 }

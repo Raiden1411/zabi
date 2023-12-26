@@ -176,9 +176,27 @@ pub fn encodeArray(param_type: *ParamType, alloc: std.mem.Allocator, values: any
         try list.append(pre);
     }
 
-    if (dynamic or has_dynamic) {}
+    if (dynamic or has_dynamic) {
+        const slices = try list.toOwnedSlice();
+        const hex = try encodeParameters(slices, alloc);
 
-    return .{ .dynamic = false, .encoded = try concat(try list.toOwnedSlice(), alloc) };
+        if (dynamic) {
+            const len = try encodeNumber(u256, slices.len, alloc);
+            errdefer size.deinit(alloc);
+
+            const enc = if (slices.len > 0) try std.mem.concat(alloc, u8, &.{ len.encoded, hex }) else hex;
+            errdefer alloc.free(enc);
+
+            return .{ .dynamic = true, .encoded = enc };
+        }
+
+        if (has_dynamic) return .{ .dynamic = true, .encoded = hex };
+    }
+
+    const concated = try concat(try list.toOwnedSlice(), alloc);
+    errdefer alloc.free(concated);
+
+    return .{ .dynamic = false, .encoded = concated };
 }
 
 fn concat(slices: anytype, alloc: std.mem.Allocator) ![]u8 {

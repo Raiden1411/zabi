@@ -78,19 +78,23 @@ pub fn encodeString(str: []const u8, alloc: std.mem.Allocator) !PreEncodedParam 
     const hex = std.fmt.fmtSliceHexLower(str);
     const ceil: usize = @intFromFloat(@ceil(@as(f32, @floatFromInt(hex.data.len))) / 32);
 
-    var list = std.ArrayList([32]u8).init(alloc);
+    var list = std.ArrayList([]u8).init(alloc);
     errdefer list.deinit();
 
-    var buffer: [32]u8 = undefined;
-    std.mem.writeInt(u256, &buffer, str.len, .big);
+    const size = try encodeNumber(u256, str.len, alloc);
+    errdefer size.deinit(alloc);
 
-    try list.append(buffer);
+    try list.append(size.encoded);
 
     var i: usize = 0;
     while (ceil >= i) : (i += 1) {
         const start = i * 32;
         const end = (i + 1) * 32;
-        try list.append(try zeroPad(hex.data[start..if (end > hex.data.len) hex.data.len else end]));
+
+        const buf = try zeroPad(alloc, hex.data[start..if (end > hex.data.len) hex.data.len else end]);
+        errdefer alloc.free(buf);
+
+        try list.append(buf);
     }
 
     return .{ .dynamic = true, .encoded = try concat(try list.toOwnedSlice(), alloc) };
@@ -100,42 +104,75 @@ pub fn encodeFixedBytes(size: usize, bytes: []const u8, alloc: std.mem.Allocator
     if (size > 32) return error.InvalidBits;
     if (bytes.len > size) return error.Overflow;
 
-    const padded = try alloc.alloc(u8, 32);
-    errdefer alloc.free(padded);
-
-    @memset(padded, 0);
-    std.mem.copyBackwards(u8, padded, bytes);
-
-    return .{ .dynamic = false, .encoded = padded };
+    return .{ .dynamic = false, .encoded = try zeroPad(alloc, bytes) };
 }
 
-// pub fn encodeArray(params: anytype, size: ?usize) ![]u8 {
-//     const dynamic = size != null;
-// }
+pub fn encodeArray(param_type: *ParamType, alloc: std.mem.Allocator, values: anytype, size: ?usize) !PreEncodedParam {
+    const dynamic = size != null;
 
-fn concat(slices: [][32]u8, alloc: std.mem.Allocator) ![]u8 {
-    var buffer = try alloc.alloc(u8, slices.len * 32);
+    var list = std.ArrayList(PreEncodedParam).init(alloc);
+    errdefer list.deinit();
+
+    var has_dynamic = false;
+    for (values) |value| {
+        const pre = try preEncodeParam(param_type, alloc, value);
+        if (pre.dynamic) has_dynamic = true;
+        try list.append(pre);
+    }
+
+    if (dynamic or has_dynamic) {}
+
+    return .{ .dynamic = false, .encoded = try concat(try list.toOwnedSlice(), alloc) };
+}
+
+fn concat(slices: anytype, alloc: std.mem.Allocator) ![]u8 {
+    var len: usize = 0;
+    for (slices) |slice| {
+        switch (@typeInfo(@TypeOf(slice))) {
+            .Pointer => len += slice.len,
+            .Struct => len += slice.encoded.len,
+            inline else => return error.InvalidSliceType,
+        }
+    }
+
     defer alloc.free(slices);
+
+    var buffer = try alloc.alloc(u8, len);
     errdefer alloc.free(buffer);
 
-    for (slices, 0..) |*slice, i| {
-        std.mem.copyForwards(u8, buffer[i * 32 .. (i + 1) * 32], slice);
+    len = 0;
+    for (slices) |slice| {
+        switch (@typeInfo(@TypeOf(slice))) {
+            .Pointer => {
+                @memcpy(buffer[len .. slice.len + len], slice);
+                len = slice.len;
+                alloc.free(slice);
+            },
+            .Struct => {
+                @memcpy(buffer[len .. slice.encoded.len + len], slice.encoded);
+                len = slice.encoded.len;
+                alloc.free(slice.encoded);
+            },
+            inline else => return error.InvalidSliceType,
+        }
     }
 
     return buffer;
 }
 
-fn zeroPad(buf: []const u8) ![32]u8 {
+fn zeroPad(alloc: std.mem.Allocator, buf: []const u8) ![]u8 {
     if (buf.len > 32) return error.BufferExceedsMaxSize;
-    var padded: [32]u8 = [_]u8{0} ** 32;
+    const padded = try alloc.alloc(u8, 32);
+    errdefer alloc.free(padded);
 
-    std.mem.copyBackwards(u8, &padded, buf);
+    @memset(padded, 0);
+    std.mem.copyBackwards(u8, padded, buf);
 
     return padded;
 }
 
 test "fooo" {
-    const pre_encoded = try preEncodeParam(.{ .int = 256 }, std.testing.allocator, 1.01011);
+    const pre_encoded = try preEncodeParam(.{ .string = {} }, std.testing.allocator, "foobarbaz");
     defer pre_encoded.deinit(std.testing.allocator);
 
     std.debug.print("Foo: {s}\n", .{std.fmt.fmtSliceHexLower(pre_encoded.encoded)});

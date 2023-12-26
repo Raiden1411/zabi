@@ -10,6 +10,62 @@ const PreEncodedParam = struct {
     }
 };
 
+pub fn encodeParameters(params: []PreEncodedParam, alloc: std.mem.Allocator) ![]u8 {
+    var s_size = 0;
+
+    for (params) |param| {
+        if (param.dynamic) s_size += 32 else s_size += param.encoded.len;
+    }
+
+    var static_list = std.ArrayList([]u8).init(alloc);
+    errdefer static_list.deinit();
+
+    var dynamic_list = std.ArrayList([]u8).init(alloc);
+    errdefer dynamic_list.deinit();
+
+    var d_size = 0;
+    for (params) |param| {
+        if (param.dynamic) {
+            const size = try encodeNumber(u256, s_size + d_size, alloc);
+            errdefer size.deinit(alloc);
+
+            try static_list.append(size.encoded);
+            try dynamic_list.append(param.encoded);
+
+            d_size += param.encoded.len;
+        } else {
+            try static_list.append(param.encoded);
+        }
+    }
+
+    const static = try concat(try static_list.toOwnedSlice(), alloc);
+    errdefer alloc.free(static);
+
+    const dynamic = try concat(try dynamic_list.toOwnedSlice(), alloc);
+    errdefer alloc.free(dynamic);
+
+    const concated = try std.mem.concat(alloc, u8, &.{ static, dynamic });
+    errdefer alloc.free(concated);
+
+    return concated;
+}
+
+pub fn preEncodeParams(params: []const ParamType, alloc: std.mem.Allocator, values: anytype) ![]PreEncodedParam {
+    std.debug.assert(values.len > 0);
+
+    var list = std.ArrayList(PreEncodedParam).init(alloc);
+    errdefer list.deinit();
+
+    for (values, params) |value, param| {
+        const pre_encoded = try preEncodeParam(param, alloc, value);
+        errdefer pre_encoded.deinit(alloc);
+
+        try list.append(pre_encoded);
+    }
+
+    return list.toOwnedSlice();
+}
+
 pub fn preEncodeParam(param: ParamType, alloc: std.mem.Allocator, value: anytype) !PreEncodedParam {
     const info = @typeInfo(@TypeOf(value));
 

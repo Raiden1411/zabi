@@ -18,22 +18,6 @@ pub fn AbiParsed(comptime T: type) type {
 
         pub fn deinit(self: @This()) void {
             const allocator = self.arena.child_allocator;
-
-            // const info = @typeInfo(T);
-            // switch (info) {
-            //     .Pointer => {
-            //         if (info.Pointer.size != .Slice) @compileError("Unexpected pointer size");
-            //         for (self.value) |val| {
-            //             if (@hasDecl(info.Pointer.child, "deinit")) val.deinit(allocator);
-            //         }
-            //         allocator.free(self.value);
-            //     },
-            //     .Struct,
-            //     .Union,
-            //     => if (@hasDecl(T, "deinit")) self.value.deinit(allocator),
-            //     inline else => @compileError("Unsupported tag"),
-            // }
-
             self.arena.deinit();
             allocator.destroy(self.arena);
         }
@@ -43,12 +27,15 @@ pub fn AbiParsed(comptime T: type) type {
 pub fn parseHumanReadable(comptime T: type, alloc: Allocator, source: [:0]const u8) !AbiParsed(T) {
     var abi_parsed = AbiParsed(T){ .arena = try alloc.create(ArenaAllocator), .value = undefined };
     errdefer alloc.destroy(abi_parsed.arena);
+
     abi_parsed.arena.* = ArenaAllocator.init(alloc);
+    errdefer abi_parsed.arena.deinit();
+
     const allocator = abi_parsed.arena.allocator();
 
     var lex = Lexer.init(source);
     var list = Parser.TokenList{};
-    defer list.deinit(allocator);
+    errdefer list.deinit(allocator);
 
     while (true) {
         const tok = lex.scan();

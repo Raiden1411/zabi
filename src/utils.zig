@@ -1,4 +1,5 @@
 const std = @import("std");
+const abi = @import("abi_parameter.zig");
 const ParamType = @import("param_type.zig").ParamType;
 
 const PreEncodedParam = struct {
@@ -8,6 +9,76 @@ const PreEncodedParam = struct {
     pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
         alloc.free(self.encoded);
     }
+};
+
+fn ParamTypeToPrimativeType(comptime param_type: ParamType) type {
+    return switch (param_type) {
+        .string, .bytes, .address => []const u8,
+        .bool => bool,
+        .fixedBytes => []const u8,
+        .int => i256,
+        .uint => u256,
+        .dynamicArray => []const ParamTypeToPrimativeType(param_type.dynamicArray.*),
+        .fixedArray => [param_type.fixedArray.size]ParamTypeToPrimativeType(param_type.fixedArray.child.*),
+        inline else => void,
+    };
+}
+pub fn AbiParameterToPrimative(comptime param: abi.AbiParameter) type {
+    const PrimativeType = ParamTypeToPrimativeType(param.type);
+
+    if (PrimativeType == void) {
+        if (param.components) |components| {
+            var fields: [components.len]std.builtin.Type.StructField = undefined;
+            for (components, 0..) |component, i| {
+                const FieldType = AbiParameterToPrimative(component);
+                fields[i] = .{
+                    .name = std.fmt.comptimePrint("{d}", .{i}),
+                    .type = FieldType,
+                    .default_value = null,
+                    .is_comptime = false,
+                    .alignment = if (@sizeOf(FieldType) > 0) @alignOf(FieldType) else 0,
+                };
+            }
+
+            return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+        } else @compileError("Expected components to not be null");
+    }
+    return PrimativeType;
+}
+
+pub fn AbiParametersToPrimative(comptime paramters: []const abi.AbiParameter) type {
+    var fields: [paramters.len]std.builtin.Type.StructField = undefined;
+
+    for (paramters, 0..) |paramter, i| {
+        const FieldType = AbiParameterToPrimative(paramter);
+
+        fields[i] = .{
+            .name = std.fmt.comptimePrint("{d}", .{i}),
+            .type = FieldType,
+            .default_value = null,
+            .is_comptime = false,
+            .alignment = if (@sizeOf(FieldType) > 0) @alignOf(FieldType) else 0,
+        };
+    }
+    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+}
+
+const EncodeErrors = std.mem.Allocator.Error || error{ InvalidIntType, Overflow, BufferExceedsMaxSize, InvalidBits, InvalidLength, NoSpaceLeft, InvalidCharacter };
+
+const Params = union(enum) {
+    bool: bool,
+    uint: u256,
+    int: i256,
+    fixedBytes: struct {
+        size: usize,
+        data: []const u8,
+    },
+    bytes: []const u8,
+    address: []const u8,
+    string: []const u8,
+    tuple: []const Params,
+    fixedArray: struct { size: usize, child: []const Params },
+    dynamicArray: []const Params,
 };
 
 pub const AbiEncoded = struct {
@@ -22,7 +93,7 @@ pub const AbiEncoded = struct {
     }
 };
 
-pub fn encodeAbiParameters(alloc: std.mem.Allocator, params: []const ParamType, values: anytype) !AbiEncoded {
+pub fn encodeAbiParameters(alloc: std.mem.Allocator, comptime parameters: []const abi.AbiParameter, values: AbiParametersToPrimative(parameters)) !AbiEncoded {
     var abi_encoded = AbiEncoded{ .arena = try alloc.create(std.heap.ArenaAllocator), .data = undefined };
     errdefer alloc.destroy(abi_encoded.arena);
 
@@ -30,15 +101,15 @@ pub fn encodeAbiParameters(alloc: std.mem.Allocator, params: []const ParamType, 
     errdefer abi_encoded.arena.deinit();
 
     const allocator = abi_encoded.arena.allocator();
-    abi_encoded.data = try encodeAbiParametersLeaky(allocator, params, values);
+    abi_encoded.data = try encodeAbiParametersLeaky(allocator, parameters, values);
 
     return abi_encoded;
 }
 
-pub fn encodeAbiParametersLeaky(alloc: std.mem.Allocator, params: []const ParamType, values: anytype) ![]u8 {
-    if (params.len != values.len) return error.LengthMismatch;
+pub fn encodeAbiParametersLeaky(alloc: std.mem.Allocator, comptime params: []const abi.AbiParameter, values: AbiParametersToPrimative(params)) ![]u8 {
+    if (params.len == 0) return "";
 
-    const prepared = try preEncodeParams(params, alloc, values);
+    const prepared = try preEncodeParams(params, values, alloc);
     const data = try encodeParameters(prepared, alloc);
 
     return data;
@@ -77,20 +148,31 @@ fn encodeParameters(params: []PreEncodedParam, alloc: std.mem.Allocator) ![]u8 {
     return concated;
 }
 
-fn preEncodeParams(params: []const ParamType, alloc: std.mem.Allocator, values: anytype) ![]PreEncodedParam {
-    std.debug.assert(values.len > 0);
+fn preEncodeParams(comptime params: []const abi.AbiParameter, values: AbiParametersToPrimative(params), alloc: std.mem.Allocator) ![]PreEncodedParam {
+    std.debug.assert(params.len > 0);
 
     var list = std.ArrayList(PreEncodedParam).init(alloc);
 
-    for (values, params) |value, param| {
-        const pre_encoded = try preEncodeParam(param, alloc, value);
+    inline for (params, values) |param, value| {
+        const pre_encoded = try preEncodeParam(param, value, alloc);
         try list.append(pre_encoded);
     }
 
     return list.toOwnedSlice();
 }
 
-fn preEncodeParam(param: ParamType, alloc: std.mem.Allocator, value: anytype) !PreEncodedParam {
+fn preEncodeParam(comptime param: abi.AbiParameter, value: anytype, alloc: std.mem.Allocator) !PreEncodedParam {
+    // return switch (param.type) {
+    //     .string, .bytes => try encodeString(value, alloc),
+    //     .address => try encodeAddress(value, alloc),
+    //     .fixedBytes => |val| try encodeFixedBytes(val, value, alloc),
+    //     .int => try encodeNumber(i256, value, alloc),
+    //     .uint => try encodeNumber(u256, value, alloc),
+    //     .bool => try encodeBool(value, alloc),
+    //     .dynamicArray => try encodeArray(alloc, param, value,  null),
+    //     .fixedArray => |val| try encodeArray(alloc, val.child, val.size),
+    //     .tuple => |val| try encodeTuples(alloc, val),
+    // };
     const info = @typeInfo(@TypeOf(value));
 
     switch (info) {
@@ -98,30 +180,43 @@ fn preEncodeParam(param: ParamType, alloc: std.mem.Allocator, value: anytype) !P
             if (info.Pointer.size != .Slice and info.Pointer.size != .One) @compileError("Invalid Pointer size. Expected Slice or comptime know string");
 
             switch (info.Pointer.child) {
-                u8 => return switch (param) {
+                u8 => return switch (param.type) {
                     .string, .bytes => try encodeString(value, alloc),
                     .fixedBytes => |val| try encodeFixedBytes(val, value, alloc),
+                    .address => try encodeAddress(value, alloc),
                     inline else => return error.InvalidParamType,
                 },
-                inline else => return switch (param) {
-                    .dynamicArray => |val| try encodeArray(val, alloc, value, null),
-                    .fixedArray => |val| try encodeArray(val.child, alloc, value, val.size),
+                inline else => return switch (param.type) {
+                    .dynamicArray => |val| try encodeArray(alloc, .{ .type = val.*, .name = param.name, .internalType = param.internalType, .components = param.components }, value, null),
                     inline else => return error.InvalidParamType,
                 },
             }
         },
         .Bool => {
-            return switch (param) {
+            return switch (param.type) {
                 .bool => try encodeBool(value, alloc),
                 inline else => return error.InvalidParamType,
             };
         },
-        .Int, .ComptimeInt => {
+        .Int => {
             return switch (info.Int.signedness) {
                 .signed => try encodeNumber(i256, value, alloc),
                 .unsigned => try encodeNumber(u256, value, alloc),
             };
         },
+        .Struct => {
+            return switch (param.type) {
+                .tuple => try encodeTuples(alloc, param, value),
+                inline else => error.InvalidParamType,
+            };
+        },
+        .Array => {
+            return switch (param.type) {
+                .fixedArray => |val| try encodeArray(alloc, .{ .type = val.child.*, .name = param.name, .internalType = param.internalType, .components = param.components }, value, val.size),
+                inline else => error.InvalidParamType,
+            };
+        },
+
         inline else => @compileError(@typeName(@TypeOf(value)) ++ " type is not supported"),
     }
 }
@@ -178,23 +273,22 @@ fn encodeString(str: []const u8, alloc: std.mem.Allocator) !PreEncodedParam {
     return .{ .dynamic = true, .encoded = try std.mem.concat(alloc, u8, try list.toOwnedSlice()) };
 }
 
-pub fn encodeFixedBytes(size: usize, bytes: []const u8, alloc: std.mem.Allocator) !PreEncodedParam {
+fn encodeFixedBytes(size: usize, bytes: []const u8, alloc: std.mem.Allocator) !PreEncodedParam {
     if (size > 32) return error.InvalidBits;
     if (bytes.len > size) return error.Overflow;
 
     return .{ .dynamic = false, .encoded = try zeroPad(alloc, bytes) };
 }
 
-pub fn encodeArray(param_type: *const ParamType, alloc: std.mem.Allocator, values: anytype, size: ?usize) !PreEncodedParam {
+fn encodeArray(alloc: std.mem.Allocator, comptime param: abi.AbiParameter, values: anytype, size: ?usize) !PreEncodedParam {
     const dynamic = size == null;
 
     var list = std.ArrayList(PreEncodedParam).init(alloc);
 
     var has_dynamic = false;
-    const param = param_type.*;
 
     for (values) |value| {
-        const pre = try preEncodeParam(param, alloc, value);
+        const pre = try preEncodeParam(param, value, alloc);
 
         if (pre.dynamic) has_dynamic = true;
         try list.append(pre);
@@ -219,18 +313,41 @@ pub fn encodeArray(param_type: *const ParamType, alloc: std.mem.Allocator, value
     return .{ .dynamic = false, .encoded = concated };
 }
 
+fn encodeTuples(alloc: std.mem.Allocator, comptime param: abi.AbiParameter, values: AbiParameterToPrimative(param)) !PreEncodedParam {
+    std.debug.assert(values.len > 0);
+
+    var list = std.ArrayList(PreEncodedParam).init(alloc);
+
+    var has_dynamic = false;
+
+    if (param.components) |components| {
+        inline for (components, values) |component, value| {
+            const pre = try preEncodeParam(component, value, alloc);
+
+            if (pre.dynamic) has_dynamic = true;
+            try list.append(pre);
+        }
+    } else return error.InvalidParamType;
+
+    return .{ .dynamic = has_dynamic, .encoded = if (has_dynamic) try encodeParameters(try list.toOwnedSlice(), alloc) else try concatPreEncodedStruct(try list.toOwnedSlice(), alloc) };
+}
+
 fn concatPreEncodedStruct(slices: []PreEncodedParam, alloc: std.mem.Allocator) ![]u8 {
-    var len: usize = 0;
-    for (slices) |slice| {
-        len += slice.encoded.len;
-    }
+    const len = sum: {
+        var sum: usize = 0;
+        for (slices) |slice| {
+            sum += slice.encoded.len;
+        }
+
+        break :sum sum;
+    };
 
     var buffer = try alloc.alloc(u8, len);
-    len = 0;
 
+    var index: usize = 0;
     for (slices) |slice| {
-        @memcpy(buffer[len .. slice.encoded.len + len], slice.encoded);
-        len = slice.encoded.len;
+        @memcpy(buffer[index .. index + slice.encoded.len], slice.encoded);
+        index += slice.encoded.len;
     }
 
     return buffer;
@@ -247,9 +364,7 @@ fn zeroPad(alloc: std.mem.Allocator, buf: []const u8) ![]u8 {
 }
 
 test "fooo" {
-    const val = &[_][]const []const u256{&[_][]const u256{&[_]u256{ 123456789, 987654321 }}};
-
-    const pre_encoded = try encodeAbiParameters(std.testing.allocator, &[_]ParamType{ParamType{ .dynamicArray = &.{ .dynamicArray = &.{ .uint = 256 } } }}, val);
+    const pre_encoded = try encodeAbiParameters(std.testing.allocator, &.{.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{ .{ .type = .{ .uint = 256 }, .name = "bar" }, .{ .type = .{ .bool = {} }, .name = "baz" }, .{ .type = .{ .address = {} }, .name = "boo" } } }}, .{.{ 420, true, "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC" }});
     defer pre_encoded.deinit();
 
     std.debug.print("Foo: {s}\n", .{std.fmt.fmtSliceHexLower(pre_encoded.data)});

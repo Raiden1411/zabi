@@ -5,6 +5,8 @@ const AbiParameterToPrimative = @import("types.zig").AbiParameterToPrimative;
 const AbiParametersToPrimative = @import("types.zig").AbiParametersToPrimative;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
+const Keccak256 = std.crypto.hash.sha3.Keccak256;
+const Function = @import("abi.zig").Function;
 const ParamType = @import("param_type.zig").ParamType;
 
 pub const EncodeErrors = std.mem.Allocator.Error || error{ InvalidIntType, Overflow, BufferExceedsMaxSize, InvalidBits, InvalidLength, NoSpaceLeft, InvalidCharacter, InvalidParamType };
@@ -29,6 +31,29 @@ pub const AbiEncoded = struct {
         allocator.destroy(self.arena);
     }
 };
+
+pub fn encodeAbiFunctionComptime(alloc: Allocator, comptime function: Function, values: AbiParametersToPrimative(function.inputs)) EncodeErrors![]u8 {
+    const prep_signature = try function.allocPrepare(alloc);
+    defer alloc.free(prep_signature);
+
+    var hashed: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(prep_signature, &hashed, .{});
+
+    const hash_hex = std.fmt.bytesToHex(hashed, .lower);
+
+    const encoded_params = try encodeAbiParametersComptime(alloc, function.inputs, values);
+    defer encoded_params.deinit();
+
+    const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
+    defer alloc.free(hexed);
+
+    const buffer = try alloc.alloc(u8, 8 + hexed.len);
+
+    @memcpy(buffer[0..8], hash_hex[0..8]);
+    @memcpy(buffer[8..], hexed);
+
+    return buffer;
+}
 
 pub fn encodeAbiParameters(alloc: Allocator, parameters: []const abi.AbiParameter, values: anytype) EncodeErrors!AbiEncoded {
     var abi_encoded = AbiEncoded{ .arena = try alloc.create(ArenaAllocator), .data = undefined };
@@ -310,8 +335,14 @@ fn zeroPad(alloc: Allocator, buf: []const u8) ![]u8 {
 }
 
 test "fooo" {
-    const pre_encoded = try encodeAbiParametersComptime(std.testing.allocator, &.{.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{ .{ .type = .{ .uint = 256 }, .name = "bar" }, .{ .type = .{ .bool = {} }, .name = "baz" }, .{ .type = .{ .address = {} }, .name = "boo" } } }}, .{.{ 420, true, "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC" }});
-    defer pre_encoded.deinit();
+    // const pre_encoded = try encodeAbiParameters(std.testing.allocator, &.{.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{ .{ .type = .{ .uint = 256 }, .name = "bar" }, .{ .type = .{ .bool = {} }, .name = "baz" }, .{ .type = .{ .address = {} }, .name = "boo" } } }}, .{.{ 420, true, "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC" }});
+    // defer pre_encoded.deinit();
+    //
+    // std.debug.print("Foo: {s}\n", .{std.fmt.fmtSliceHexLower(pre_encoded.data)});
 
-    std.debug.print("Foo: {s}\n", .{std.fmt.fmtSliceHexLower(pre_encoded.data)});
+    const function: Function = .{ .type = .function, .name = "bar", .stateMutability = .nonpayable, .inputs = &.{.{ .name = "a", .type = .{ .uint = 256 } }}, .outputs = &.{} };
+
+    const encoded = try encodeAbiFunctionComptime(std.testing.allocator, function, .{1});
+    defer std.testing.allocator.free(encoded);
+    std.debug.print("FOOO: {s}\n", .{encoded});
 }

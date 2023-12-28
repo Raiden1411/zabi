@@ -283,12 +283,6 @@ pub const AbiItem = union(enum) {
             inline else => |item| if (@hasDecl(@TypeOf(item), "deinit")) item.deinit(alloc),
         }
     }
-
-    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
-        switch (self) {
-            inline else => |value| try value.format(layout, opts, writer),
-        }
-    }
 };
 
 pub const Abi = []const AbiItem;
@@ -299,16 +293,15 @@ test "Json parse simple" {
         \\  "inputs": [
         \\    {
         \\      "name": "a",
-        \\      "type": "uint256"
+        \\      "type": "uint256",
+        \\      "indexed": false
         \\    }
         \\  ],
         \\  "name": "bar",
-        \\  "type": "function",
-        \\  "stateMutability": "nonpayable",
-        \\  "outputs": []
+        \\  "type": "event"
         \\}
     ;
 
-    const parsed = try std.json.parseFromSlice(Function, testing.allocator, slice, .{});
+    const parsed = try std.json.parseFromSlice(AbiItem, testing.allocator, slice, .{});
     defer parsed.deinit();
 }

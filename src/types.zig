@@ -1,6 +1,8 @@
-const abi = @import("abi_parameter.zig");
+const abi = @import("abi.zig");
+const params = @import("abi_parameter.zig");
 const std = @import("std");
 const Abitype = @import("abi.zig").Abitype;
+const Allocator = std.mem.Allocator;
 const ParamType = @import("param_type.zig").ParamType;
 
 /// UnionParser used by `zls`. Usefull to use in `AbiItem`
@@ -24,6 +26,12 @@ pub fn UnionParser(comptime T: type) type {
         pub fn jsonStringify(self: T, stream: anytype) @TypeOf(stream.*).Error!void {
             switch (self) {
                 inline else => |value| try stream.write(value),
+            }
+        }
+
+        pub fn format(self: T, comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+            switch (self) {
+                inline else => |value| try value.format(layout, opts, writer),
             }
         }
     };
@@ -80,7 +88,7 @@ fn ParamTypeToPrimativeType(comptime param_type: ParamType) type {
     };
 }
 
-pub fn AbiParameterToPrimative(comptime param: abi.AbiParameter) type {
+pub fn AbiParameterToPrimative(comptime param: params.AbiParameter) type {
     const PrimativeType = ParamTypeToPrimativeType(param.type);
 
     if (PrimativeType == void) {
@@ -103,7 +111,7 @@ pub fn AbiParameterToPrimative(comptime param: abi.AbiParameter) type {
     return PrimativeType;
 }
 
-pub fn AbiParametersToPrimative(comptime paramters: []const abi.AbiParameter) type {
+pub fn AbiParametersToPrimative(comptime paramters: []const params.AbiParameter) type {
     var fields: [paramters.len]std.builtin.Type.StructField = undefined;
 
     for (paramters, 0..) |paramter, i| {

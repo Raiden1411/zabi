@@ -5,6 +5,8 @@ const AbiParameterToPrimative = @import("types.zig").AbiParameterToPrimative;
 const AbiParametersToPrimative = @import("types.zig").AbiParametersToPrimative;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
+const Constructor = @import("abi.zig").Constructor;
+const Error = @import("abi.zig").Error;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Function = @import("abi.zig").Function;
 const ParamType = @import("param_type.zig").ParamType;
@@ -31,6 +33,39 @@ pub const AbiEncoded = struct {
         allocator.destroy(self.arena);
     }
 };
+
+pub fn encodeAbiConstructorComptime(alloc: Allocator, comptime constructor: Constructor, values: AbiParametersToPrimative(constructor.inputs)) EncodeErrors![]u8 {
+    const encoded_params = try encodeAbiParametersComptime(alloc, constructor.inputs, values);
+    defer encoded_params.deinit();
+
+    const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
+    defer alloc.free(hexed);
+
+    return hexed;
+}
+
+pub fn encodeAbiErrorComptime(alloc: Allocator, comptime err: Error, values: AbiParametersToPrimative(err.inputs)) EncodeErrors![]u8 {
+    const prep_signature = try err.allocPrepare(alloc);
+    defer alloc.free(prep_signature);
+
+    var hashed: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(prep_signature, &hashed, .{});
+
+    const hash_hex = std.fmt.bytesToHex(hashed, .lower);
+
+    const encoded_params = try encodeAbiParametersComptime(alloc, err.inputs, values);
+    defer encoded_params.deinit();
+
+    const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
+    defer alloc.free(hexed);
+
+    const buffer = try alloc.alloc(u8, 8 + hexed.len);
+
+    @memcpy(buffer[0..8], hash_hex[0..8]);
+    @memcpy(buffer[8..], hexed);
+
+    return buffer;
+}
 
 pub fn encodeAbiFunctionComptime(alloc: Allocator, comptime function: Function, values: AbiParametersToPrimative(function.inputs)) EncodeErrors![]u8 {
     const prep_signature = try function.allocPrepare(alloc);

@@ -218,9 +218,9 @@ test "Json parse simple" {
         \\{
         \\  "inputs": [
         \\    {
-        \\      "internalType": "bytes32[]",
+        \\      "internalType": "bytes32",
         \\      "name": "node",
-        \\      "type": "bytes32[]",
+        \\      "type": "bytes32",
         \\      "indexed": false
         \\    }
         \\  ],

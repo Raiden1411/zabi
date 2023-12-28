@@ -19,16 +19,29 @@ pub const AbiParameter = struct {
 
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
         if (self.components) |components| {
-            try writer.print("\x1b[38;5;33m(\x1b[39m", .{});
+            try writer.print("(", .{});
             for (components, 0..) |component, i| {
                 try component.format(layout, opts, writer);
                 if (i != components.len - 1) try writer.print(", ", .{});
             }
-            try writer.print("\x1b[38;5;33m)\x1b[39m", .{});
+            try writer.print(")", .{});
         }
 
         try self.type.typeToString(writer);
         if (self.name.len != 0) try writer.print(" {s}", .{self.name});
+    }
+
+    pub fn prepare(self: @This(), writer: anytype) !void {
+        if (self.components) |components| {
+            try writer.print("(", .{});
+            for (components, 0..) |component, i| {
+                try component.prepare(writer);
+                if (i != components.len - 1) try writer.print(",", .{});
+            }
+            try writer.print(")", .{});
+        }
+
+        try self.type.typeToString(writer);
     }
 };
 
@@ -50,17 +63,30 @@ pub const AbiEventParameter = struct {
 
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
         if (self.components) |components| {
-            try writer.print("\x1b[38;5;33m(\x1b[39m", .{});
+            try writer.print("(", .{});
             for (components, 0..) |component, i| {
                 try component.format(layout, opts, writer);
                 if (i != components.len - 1) try writer.print(", ", .{});
             }
-            try writer.print("\x1b[38;5;33m)\x1b[39m", .{});
+            try writer.print(")", .{});
         }
 
         try self.type.typeToString(writer);
         if (self.indexed) try writer.print(" indexed", .{});
         if (self.name.len != 0) try writer.print(" {s}", .{self.name});
+    }
+
+    pub fn prepare(self: @This(), writer: anytype) !void {
+        if (self.components) |components| {
+            try writer.print("(", .{});
+            for (components, 0..) |component, i| {
+                try component.prepare(writer);
+                if (i != components.len - 1) try writer.print(",", .{});
+            }
+            try writer.print(")", .{});
+        }
+
+        try self.type.typeToString(writer);
     }
 };
 

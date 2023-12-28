@@ -74,18 +74,18 @@ pub const ParamType = union(enum) {
             .bytes,
             .bool,
             .address,
-            => try writer.print("\x1b[34m{s}\x1b[39m", .{@tagName(self)}),
+            => try writer.print("{s}", .{@tagName(self)}),
             .int,
             .uint,
-            .fixedBytes,
-            => |val| try writer.print("\x1b[34m{s}{d}\x1b[39m", .{ @tagName(self), val }),
+            => |val| try writer.print("{s}{d}", .{ @tagName(self), val }),
+            .fixedBytes => |val| try writer.print("bytes{d}", .{val}),
             .dynamicArray => |val| {
                 try val.typeToString(writer);
-                try writer.print("\x1b[33m[]\x1b[39m", .{});
+                try writer.print("[]", .{});
             },
             .fixedArray => |val| {
                 try val.child.typeToString(writer);
-                try writer.print("\x1b[33m[{d}]\x1b[39m", .{val.size});
+                try writer.print("[{d}]", .{val.size});
             },
             inline else => try writer.print("", .{}),
         }

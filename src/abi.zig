@@ -144,6 +144,56 @@ pub const Event = struct {
         }
         try writer.print(")", .{});
     }
+};
+
+/// Solidity Abi function representation.
+/// Reference: ["error"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
+pub const Error = struct {
+    type: Extract(Abitype, "error"),
+    name: []const u8,
+    inputs: []const AbiParameter,
+
+    pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
+        for (self.inputs) |input| {
+            input.deinit(alloc);
+        }
+        alloc.free(self.inputs);
+    }
+
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+        try writer.print("{s}", .{@tagName(self.type)});
+        try writer.print(" {s}", .{self.name});
+
+        try writer.print("(", .{});
+        for (self.inputs, 0..) |input, i| {
+            try input.format(layout, opts, writer);
+            if (i != self.inputs.len - 1) try writer.print(", ", .{});
+        }
+        try writer.print(")", .{});
+    }
+
+    pub fn encode(self: @This(), alloc: Allocator, values: anytype) ![]u8 {
+        const prep_signature = try self.allocPrepare(alloc);
+        defer alloc.free(prep_signature);
+
+        var hashed: [Keccak256.digest_length]u8 = undefined;
+        Keccak256.hash(prep_signature, &hashed, .{});
+
+        const hash_hex = std.fmt.bytesToHex(hashed, .lower);
+
+        const encoded_params = try encoder.encodeAbiParameters(alloc, self.inputs, values);
+        defer encoded_params.deinit();
+
+        const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
+        defer alloc.free(hexed);
+
+        const buffer = try alloc.alloc(u8, 8 + hexed.len);
+
+        @memcpy(buffer[0..8], hash_hex[0..8]);
+        @memcpy(buffer[8..], hexed);
+
+        return buffer;
+    }
 
     pub fn allocPrepare(self: @This(), alloc: Allocator) ![]u8 {
         var c_writter = std.io.countingWriter(std.io.null_writer);
@@ -173,33 +223,6 @@ pub const Event = struct {
 };
 
 /// Solidity Abi function representation.
-/// Reference: ["error"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
-pub const Error = struct {
-    type: Extract(Abitype, "error"),
-    name: []const u8,
-    inputs: []const AbiParameter,
-
-    pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
-        for (self.inputs) |input| {
-            input.deinit(alloc);
-        }
-        alloc.free(self.inputs);
-    }
-
-    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
-        try writer.print("{s}", .{@tagName(self.type)});
-        try writer.print(" {s}", .{self.name});
-
-        try writer.print("(", .{});
-        for (self.inputs, 0..) |input, i| {
-            try input.format(layout, opts, writer);
-            if (i != self.inputs.len - 1) try writer.print(", ", .{});
-        }
-        try writer.print(")", .{});
-    }
-};
-
-/// Solidity Abi function representation.
 /// Reference: ["constructor"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
 pub const Constructor = struct {
     type: Extract(Abitype, "constructor"),
@@ -216,6 +239,7 @@ pub const Constructor = struct {
         }
         alloc.free(self.inputs);
     }
+
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
         try writer.print("{s}", .{@tagName(self.type)});
 
@@ -227,6 +251,15 @@ pub const Constructor = struct {
         try writer.print(")", .{});
 
         if (self.stateMutability != .nonpayable) try writer.print(" {s}", .{@tagName(self.stateMutability)});
+    }
+
+    pub fn encode(self: @This(), alloc: Allocator, values: anytype) ![]u8 {
+        const encoded_params = try encoder.encodeAbiParameters(alloc, self.inputs, values);
+        defer encoded_params.deinit();
+
+        const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
+
+        return hexed;
     }
 };
 
@@ -293,15 +326,19 @@ test "Json parse simple" {
         \\  "inputs": [
         \\    {
         \\      "name": "a",
-        \\      "type": "uint256",
-        \\      "indexed": false
+        \\      "type": "uint256"
         \\    }
         \\  ],
         \\  "name": "bar",
-        \\  "type": "event"
+        \\  "type": "error"
         \\}
     ;
 
-    const parsed = try std.json.parseFromSlice(AbiItem, testing.allocator, slice, .{});
+    const parsed = try std.json.parseFromSlice(Error, testing.allocator, slice, .{});
     defer parsed.deinit();
+
+    const a = try parsed.value.encode(std.testing.allocator, .{1});
+    defer std.testing.allocator.free(a);
+
+    std.debug.print("FOO: {s}\n", .{a});
 }

@@ -112,7 +112,7 @@ pub const Function = struct {
         try writer.print("(", .{});
         for (self.inputs, 0..) |input, i| {
             try input.prepare(writer);
-            if (i != self.inputs.len - 1) try writer.print(", ", .{});
+            if (i != self.inputs.len - 1) try writer.print(",", .{});
         }
         try writer.print(")", .{});
     }
@@ -140,7 +140,43 @@ pub const Event = struct {
         try writer.print("(", .{});
         for (self.inputs, 0..) |input, i| {
             try input.format(layout, opts, writer);
-            if (i != self.inputs.len - 1) try writer.print(", ", .{});
+            if (i != self.inputs.len - 1) try writer.print(",", .{});
+        }
+        try writer.print(")", .{});
+    }
+
+    pub fn encode(self: @This(), alloc: Allocator) ![]u8 {
+        const prep_signature = try self.allocPrepare(alloc);
+        defer alloc.free(prep_signature);
+
+        var hashed: [Keccak256.digest_length]u8 = undefined;
+        Keccak256.hash(prep_signature, &hashed, .{});
+
+        return try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.bytesToHex(hashed, .lower)});
+    }
+
+    pub fn allocPrepare(self: @This(), alloc: Allocator) ![]u8 {
+        var c_writter = std.io.countingWriter(std.io.null_writer);
+        try self.prepare(c_writter.writer());
+
+        const bytes = c_writter.bytes_written;
+        const size = std.math.cast(usize, bytes) orelse return error.OutOfMemory;
+
+        const buffer = try alloc.alloc(u8, size);
+
+        var buf_writter = std.io.fixedBufferStream(buffer);
+        try self.prepare(buf_writter.writer());
+
+        return buf_writter.getWritten();
+    }
+
+    pub fn prepare(self: @This(), writer: anytype) !void {
+        try writer.print("{s}", .{self.name});
+
+        try writer.print("(", .{});
+        for (self.inputs, 0..) |input, i| {
+            try input.prepare(writer);
+            if (i != self.inputs.len - 1) try writer.print(",", .{});
         }
         try writer.print(")", .{});
     }
@@ -323,21 +359,32 @@ pub const Abi = []const AbiItem;
 test "Json parse simple" {
     const slice =
         \\{
-        \\  "inputs": [
+        \\            "inputs": [
+        \\   {
+        \\    "indexed": true,
+        \\   "name": "from",
+        \\  "type": "address"
+        \\ },
+        \\   {
+        \\     "indexed": true,
+        \\   "name": "to",
+        \\    "type": "address"
+        \\    },
         \\    {
-        \\      "name": "a",
-        \\      "type": "uint256"
-        \\    }
-        \\  ],
-        \\  "name": "bar",
-        \\  "type": "error"
+        \\      "indexed": false,
+        \\       "name": "tokenId",
+        \\     "type": "uint256"
+        \\   }
+        \\ ],
+        \\ "name": "Transfer",
+        \\ "type": "event"
         \\}
     ;
 
-    const parsed = try std.json.parseFromSlice(Error, testing.allocator, slice, .{});
+    const parsed = try std.json.parseFromSlice(Event, testing.allocator, slice, .{});
     defer parsed.deinit();
 
-    const a = try parsed.value.encode(std.testing.allocator, .{1});
+    const a = try parsed.value.encode(std.testing.allocator, null);
     defer std.testing.allocator.free(a);
 
     std.debug.print("FOO: {s}\n", .{a});

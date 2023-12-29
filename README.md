@@ -2,7 +2,7 @@
 
 ## TODO
 
-- [ ] Json Abi parsing
+- [x] Json Abi parsing
   - [x] Abitypes
   - [x] Param Types
 
@@ -27,19 +27,19 @@
   - [x] Abi Parameters
   - [x] Tuples
 
-- [ ] Abi encoding
+- [x] Abi encoding
   - [x] Strings
   - [x] Bytes
   - [x] FixedBytes
   - [x] Int/Uint
   - [x] Bool
-  - [ ] Arrays
-  - [ ] Tuples
-  - [ ] AbiParameters
-  - [ ] Functions
-  - [ ] Events
-  - [ ] Errors
-  - [ ] Deploy/Constructor
+  - [x] Arrays
+  - [x] Tuples
+  - [x] AbiParameters
+  - [x] Functions
+  - [x] Events
+  - [x] Errors
+  - [x] Deploy/Constructor
 
 - [ ] Abi Decoding
   - [ ] Strings

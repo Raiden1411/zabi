@@ -1,5 +1,4 @@
 const encoder = @import("encoder.zig");
-const hash = @import("hash.zig");
 const std = @import("std");
 const testing = std.testing;
 const AbiParameter = @import("abi_parameter.zig").AbiParameter;

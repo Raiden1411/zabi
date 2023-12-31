@@ -97,7 +97,7 @@ pub fn AbiParameterToPrimative(comptime param: params.AbiParameter) type {
             for (components, 0..) |component, i| {
                 const FieldType = AbiParameterToPrimative(component);
                 fields[i] = .{
-                    .name = std.fmt.comptimePrint("{d}", .{i}),
+                    .name = component.name,
                     .type = FieldType,
                     .default_value = null,
                     .is_comptime = false,
@@ -105,7 +105,7 @@ pub fn AbiParameterToPrimative(comptime param: params.AbiParameter) type {
                 };
             }
 
-            return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+            return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
         } else @compileError("Expected components to not be null");
     }
     return PrimativeType;

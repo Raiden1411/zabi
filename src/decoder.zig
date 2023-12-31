@@ -2,11 +2,46 @@ const std = @import("std");
 const AbiParameter = @import("abi_parameter.zig").AbiParameter;
 const AbiParameterToPrimative = @import("types.zig").AbiParameterToPrimative;
 const AbiParametersToPrimative = @import("types.zig").AbiParametersToPrimative;
+const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
 const ParamType = @import("param_type.zig").ParamType;
 
 fn Decoded(comptime T: type) type {
     return struct { consumed: usize, data: T };
+}
+
+pub fn AbiDecoded(comptime params: []const AbiParameter) type {
+    return struct {
+        arena: *ArenaAllocator,
+        values: AbiParametersToPrimative(params),
+
+        pub fn deinit(self: @This()) void {
+            const allocator = self.arena.child_allocator;
+            self.arena.deinit();
+
+            allocator.destroy(self.arena);
+        }
+    };
+}
+
+pub fn decodeAbiParameters(alloc: Allocator, comptime params: []const AbiParameter, hex: []const u8) !AbiDecoded(params) {
+    var decoded: AbiDecoded(params) = .{ .arena = try alloc.create(ArenaAllocator), .values = undefined };
+    errdefer alloc.destroy(decoded.arena);
+
+    decoded.arena.* = ArenaAllocator.init(alloc);
+    errdefer decoded.arena.deinit();
+
+    const allocator = decoded.arena.allocator();
+    decoded.values = try decodeAbiParametersLeaky(allocator, params, hex);
+
+    return decoded;
+}
+
+pub fn decodeAbiParametersLeaky(alloc: Allocator, comptime params: []const AbiParameter, hex: []const u8) !AbiParametersToPrimative(params) {
+    const buffer = try alloc.alloc(u8, hex.len / 2);
+    const bytes = try std.fmt.hexToBytes(buffer, hex);
+
+    return decodeParameters(alloc, params, bytes);
 }
 
 fn decodeParameters(alloc: Allocator, comptime params: []const AbiParameter, hex: []u8) !AbiParametersToPrimative(params) {
@@ -26,14 +61,23 @@ fn decodeParameter(alloc: Allocator, comptime param: AbiParameter, hex: []u8, po
     return switch (param.type) {
         .string => try decodeString(alloc, hex, position),
         .bytes => try decodeBytes(alloc, hex, position),
+        .address => try decodeAddress(alloc, hex, position),
         .fixedBytes => |val| try decodeFixedBytes(alloc, val, hex, position),
         .int => try decodeNumber(alloc, i256, hex, position),
         .uint => try decodeNumber(alloc, u256, hex, position),
         .bool => try decodeBool(alloc, hex, position),
         .dynamicArray => |val| try decodeArray(alloc, .{ .type = val.*, .name = param.name, .internalType = param.internalType, .components = param.components }, hex, position),
         .fixedArray => |val| try decodeFixedArray(alloc, .{ .type = val.child.*, .name = param.name, .internalType = param.internalType, .components = param.components }, val.size, hex, position),
-        inline else => @compileError("Not implemented yet"),
+        .tuple => try decodeTuple(alloc, param, hex, position),
+        inline else => @compileLog("Not implemented"),
     };
+}
+
+fn decodeAddress(alloc: Allocator, hex: []u8, position: usize) !Decoded([]const u8) {
+    const slice = hex[position + 12 .. position + 32];
+
+    // TODO: Checksum address
+    return .{ .consumed = 32, .data = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(slice)}) };
 }
 
 fn decodeNumber(alloc: Allocator, comptime T: type, hex: []u8, position: usize) !Decoded(T) {
@@ -124,28 +168,49 @@ fn decodeFixedArray(alloc: Allocator, comptime param: AbiParameter, comptime siz
     return .{ .consumed = 32, .data = result };
 }
 
+fn decodeTuple(alloc: Allocator, comptime param: AbiParameter, hex: []u8, position: usize) !Decoded(AbiParameterToPrimative(param)) {
+    var result: AbiParameterToPrimative(param) = undefined;
+
+    if (param.components) |components| {
+        if (isDynamicType(param)) {
+            var pos: usize = 0;
+            const offset = try decodeNumber(alloc, usize, hex, position);
+
+            inline for (components) |component| {
+                const decoded = try decodeParameter(alloc, component, hex[offset.data..], pos);
+                pos += decoded.consumed;
+                @field(result, component.name) = decoded.data;
+            }
+
+            return .{ .consumed = 32, .data = result };
+        }
+
+        var pos: usize = 0;
+        inline for (components) |component| {
+            const decoded = try decodeParameter(alloc, component, hex, position + pos);
+            pos += decoded.consumed;
+            @field(result, component.name) = decoded.data;
+        }
+
+        return .{ .consumed = 32, .data = result };
+    } else @compileError("Expected components to not be null");
+}
+
 inline fn isDynamicType(comptime param: AbiParameter) bool {
     return switch (param.type) {
         .string,
         .bytes,
         .dynamicArray,
         => true,
-        .tuple => for (param.components.?) |component| isDynamicType(component),
+        .tuple => inline for (param.components.?) |component| return isDynamicType(component),
         .fixedArray => |val| isDynamicType(.{ .type = val.child.*, .name = param.name, .internalType = param.internalType, .components = param.components }),
         inline else => false,
     };
 }
 
 test "FOOO" {
-    // const buffer = try std.testing.allocator.alloc(u8, 32);
-    // std.testing.allocator.free(buffer);
-    //
-    // std.mem.writeInt(u256, buffer[0..32], 0, .big);
-    // const a = std.fmt.bytesToHex(buffer[0..32], .lower);
-
-    var buffer: [1024]u8 = undefined;
-    const a = try std.fmt.hexToBytes(&buffer, "");
-    const b = try decodeParameters(std.testing.allocator, &.{.{ .type = .{ .fixedArray = .{ .child = &.{ .fixedArray = .{ .child = &.{ .dynamicArray = &.{ .uint = 256 } }, .size = 2 } }, .size = 2 } }, .name = "" }}, a);
-    std.debug.print("FOOO: {any}\n", .{b[0]});
+    const b = try decodeAbiParameters(std.testing.allocator, &.{.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .bool = {} }, .name = "bar" }} }}, "0000000000000000000000000000000000000000000000000000000000000001");
+    defer b.deinit();
+    std.debug.print("Bar: {}\n", .{b.values[0]});
     // std.debug.print("FOOO: {d}\n", .{try decodeNumber(u256, &a)});
 }

@@ -42,15 +42,15 @@
   - [x] Deploy/Constructor
 
 - [ ] Abi Decoding
-  - [ ] Strings
-  - [ ] Bytes
-  - [ ] FixedBytes
-  - [ ] Int/Uint
-  - [ ] Bool
-  - [ ] Arrays
-  - [ ] Tuples
-  - [ ] AbiParameters
-  - [ ] Functions
-  - [ ] Events
-  - [ ] Errors
-  - [ ] Deploy/Constructor
+  - [x] Strings
+  - [x] Bytes
+  - [x] FixedBytes
+  - [x] Int/Uint
+  - [x] Bool
+  - [x] Arrays
+  - [x] Tuples
+  - [x] AbiParameters
+  - [x] Functions
+  - [] Events
+  - [x] Errors
+  - [x] Deploy/Constructor

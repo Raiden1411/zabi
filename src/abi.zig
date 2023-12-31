@@ -383,7 +383,7 @@ test "Json parse simple" {
     const parsed = try std.json.parseFromSlice(Event, testing.allocator, slice, .{});
     defer parsed.deinit();
 
-    const a = try parsed.value.encode(std.testing.allocator, null);
+    const a = try parsed.value.encode(std.testing.allocator);
     defer std.testing.allocator.free(a);
 
     std.debug.print("FOO: {s}\n", .{a});

@@ -1,9 +1,11 @@
+const abi = @import("abi.zig");
 const std = @import("std");
 const AbiParameter = @import("abi_parameter.zig").AbiParameter;
 const AbiParameterToPrimative = @import("types.zig").AbiParameterToPrimative;
 const AbiParametersToPrimative = @import("types.zig").AbiParametersToPrimative;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
+const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const ParamType = @import("param_type.zig").ParamType;
 
 fn Decoded(comptime T: type) type {
@@ -22,6 +24,71 @@ pub fn AbiDecoded(comptime params: []const AbiParameter) type {
             allocator.destroy(self.arena);
         }
     };
+}
+
+pub fn AbiSignatureDecoded(comptime params: []const AbiParameter) type {
+    return struct { name: []const u8, values: AbiParametersToPrimative(params) };
+}
+
+pub fn decodeAbiFunction(alloc: Allocator, comptime function: abi.Function, hex: []const u8) !AbiSignatureDecoded(function.inputs) {
+    const hashed_func_name = hex[0..8];
+    const prepare = try function.allocPrepare(alloc);
+    defer alloc.free(prepare);
+
+    var hashed: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(prepare, &hashed, .{});
+
+    const hash_hex = std.fmt.bytesToHex(hashed, .lower);
+
+    if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8])) return error.InvalidAbiSignature;
+
+    const params = try decodeAbiParameters(alloc, function.inputs, hex[8..]);
+    defer params.deinit();
+
+    return .{ .name = hashed_func_name, .values = params.values };
+}
+
+pub fn decodeAbiFunctionOutputs(alloc: Allocator, comptime function: abi.Function, hex: []const u8) !AbiSignatureDecoded(function.outputs) {
+    const hashed_func_name = hex[0..8];
+    const prepare = try function.allocPrepare(alloc);
+    defer alloc.free(prepare);
+
+    var hashed: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(prepare, &hashed, .{});
+
+    const hash_hex = std.fmt.bytesToHex(hashed, .lower);
+
+    if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8])) return error.InvalidAbiSignature;
+
+    const params = try decodeAbiParameters(alloc, function.outputs, hex[8..]);
+    defer params.deinit();
+
+    return .{ .name = hashed_func_name, .values = params.values };
+}
+
+pub fn decodeAbiError(alloc: Allocator, comptime err: abi.Error, hex: []const u8) !AbiSignatureDecoded(err.inputs) {
+    const hashed_func_name = hex[0..8];
+    const prepare = try err.allocPrepare(alloc);
+    defer alloc.free(prepare);
+
+    var hashed: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(prepare, &hashed, .{});
+
+    const hash_hex = std.fmt.bytesToHex(hashed, .lower);
+
+    if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8])) return error.InvalidAbiSignature;
+
+    const params = try decodeAbiParameters(alloc, err.inputs, hex[8..]);
+    defer params.deinit();
+
+    return .{ .name = hashed_func_name, .values = params.values };
+}
+
+pub fn decodeAbiConstructor(alloc: Allocator, comptime constructor: abi.Constructor, hex: []const u8) !AbiSignatureDecoded(constructor.inputs) {
+    const params = try decodeAbiParameters(alloc, constructor.inputs, hex[8..]);
+    defer params.deinit();
+
+    return .{ .name = "", .values = params.values };
 }
 
 pub fn decodeAbiParameters(alloc: Allocator, comptime params: []const AbiParameter, hex: []const u8) !AbiDecoded(params) {
@@ -209,8 +276,10 @@ inline fn isDynamicType(comptime param: AbiParameter) bool {
 }
 
 test "FOOO" {
-    const b = try decodeAbiParameters(std.testing.allocator, &.{.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .bool = {} }, .name = "bar" }} }}, "0000000000000000000000000000000000000000000000000000000000000001");
-    defer b.deinit();
-    std.debug.print("Bar: {}\n", .{b.values[0]});
+    const a = try decodeAbiFunction(std.testing.allocator, .{ .type = .function, .name = "bar", .stateMutability = .nonpayable, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "a" }}, .outputs = &.{} }, "0423a1320000000000000000000000000000000000000000000000000000000000000001");
+    std.debug.print("Bar: {}\n", .{a});
+    // const b = try decodeAbiParameters(std.testing.allocator, &.{.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .bool = {} }, .name = "bar" }} }}, "0000000000000000000000000000000000000000000000000000000000000001");
+    // defer b.deinit();
+    // std.debug.print("Bar: {}\n", .{b.values[0]});
     // std.debug.print("FOOO: {d}\n", .{try decodeNumber(u256, &a)});
 }

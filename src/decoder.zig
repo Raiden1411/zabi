@@ -31,6 +31,8 @@ pub fn AbiSignatureDecoded(comptime params: []const AbiParameter) type {
 }
 
 pub fn decodeAbiFunction(alloc: Allocator, comptime function: abi.Function, hex: []const u8) !AbiSignatureDecoded(function.inputs) {
+    std.debug.assert(hex.len > 8);
+
     const hashed_func_name = hex[0..8];
     const prepare = try function.allocPrepare(alloc);
     defer alloc.free(prepare);
@@ -49,6 +51,8 @@ pub fn decodeAbiFunction(alloc: Allocator, comptime function: abi.Function, hex:
 }
 
 pub fn decodeAbiFunctionOutputs(alloc: Allocator, comptime function: abi.Function, hex: []const u8) !AbiSignatureDecoded(function.outputs) {
+    std.debug.assert(hex.len > 8);
+
     const hashed_func_name = hex[0..8];
     const prepare = try function.allocPrepare(alloc);
     defer alloc.free(prepare);
@@ -67,6 +71,8 @@ pub fn decodeAbiFunctionOutputs(alloc: Allocator, comptime function: abi.Functio
 }
 
 pub fn decodeAbiError(alloc: Allocator, comptime err: abi.Error, hex: []const u8) !AbiSignatureDecoded(err.inputs) {
+    std.debug.assert(hex.len > 8);
+
     const hashed_func_name = hex[0..8];
     const prepare = try err.allocPrepare(alloc);
     defer alloc.free(prepare);
@@ -85,6 +91,8 @@ pub fn decodeAbiError(alloc: Allocator, comptime err: abi.Error, hex: []const u8
 }
 
 pub fn decodeAbiConstructor(alloc: Allocator, comptime constructor: abi.Constructor, hex: []const u8) !AbiSignatureDecoded(constructor.inputs) {
+    std.debug.assert(hex.len > 0);
+
     const params = try decodeAbiParameters(alloc, constructor.inputs, hex[8..]);
     defer params.deinit();
 
@@ -105,7 +113,9 @@ pub fn decodeAbiParameters(alloc: Allocator, comptime params: []const AbiParamet
 }
 
 pub fn decodeAbiParametersLeaky(alloc: Allocator, comptime params: []const AbiParameter, hex: []const u8) !AbiParametersToPrimative(params) {
-    const buffer = try alloc.alloc(u8, hex.len / 2);
+    std.debug.assert(hex.len > 0);
+
+    const buffer = try alloc.alloc(u8, @divExact(hex.len, 2));
     const bytes = try std.fmt.hexToBytes(buffer, hex);
 
     return decodeParameters(alloc, params, bytes);

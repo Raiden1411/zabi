@@ -6,7 +6,7 @@
   - [x] Abitypes
   - [x] Param Types
 
-- [ ] Human readable parsing
+- [x] Human readable parsing
   - [x] Functions
   - [x] Events
   - [x] Errors
@@ -15,7 +15,7 @@
   - [x] Receive
   - [x] Abi Parameters
   - [x] Tuples
-  - [ ] Structs
+  - [x] Structs
 
 - [x] Zig struct formating to human readable.
   - [x] Functions
@@ -51,6 +51,6 @@
   - [x] Tuples
   - [x] AbiParameters
   - [x] Functions
-  - [] Events
+  - [ ] Events
   - [x] Errors
   - [x] Deploy/Constructor

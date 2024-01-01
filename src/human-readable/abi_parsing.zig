@@ -44,14 +44,7 @@ pub fn parseHumanReadable(comptime T: type, alloc: Allocator, source: [:0]const 
         if (tok.syntax == .EndOfFileToken) break;
     }
 
-    var parser: Parser = .{
-        .alloc = allocator,
-        .tokens = list.items(.token_type),
-        .tokens_start = list.items(.start),
-        .tokens_end = list.items(.end),
-        .token_index = 0,
-        .source = source,
-    };
+    var parser: Parser = .{ .alloc = allocator, .tokens = list.items(.token_type), .tokens_start = list.items(.start), .tokens_end = list.items(.end), .token_index = 0, .source = source, .structs = .{} };
 
     abi_parsed.value = try innerParse(T, &parser);
 

@@ -94,12 +94,6 @@ pub fn parseEventFnProto(p: *Parser) !abi.Event {
     _ = try p.expectToken(.OpenParen);
 
     const inputs: []const AbiEventParameter = if (p.tokens[p.token_index] == .ClosingParen) &.{} else try p.parseEventParamsDecl();
-    errdefer {
-        for (inputs) |input| {
-            input.deinit(p.alloc);
-        }
-        p.alloc.free(inputs);
-    }
 
     _ = try p.expectToken(.ClosingParen);
 
@@ -113,12 +107,6 @@ pub fn parseErrorFnProto(p: *Parser) !abi.Error {
     _ = try p.expectToken(.OpenParen);
 
     const inputs: []const AbiParameter = if (p.tokens[p.token_index] == .ClosingParen) &.{} else try p.parseErrorParamsDecl();
-    errdefer {
-        for (inputs) |input| {
-            input.deinit(p.alloc);
-        }
-        p.alloc.free(inputs);
-    }
 
     _ = try p.expectToken(.ClosingParen);
 
@@ -131,12 +119,6 @@ pub fn parseConstructorFnProto(p: *Parser) !abi.Constructor {
     _ = try p.expectToken(.OpenParen);
 
     const inputs: []const AbiParameter = if (p.tokens[p.token_index] == .ClosingParen) &.{} else try p.parseFuncParamsDecl();
-    errdefer {
-        for (inputs) |input| {
-            input.deinit(p.alloc);
-        }
-        p.alloc.free(inputs);
-    }
 
     _ = try p.expectToken(.ClosingParen);
 
@@ -194,11 +176,9 @@ pub fn parseReceiveFnProto(p: *Parser) !abi.Receive {
 
 pub fn parseFuncParamsDecl(p: *Parser) ![]const AbiParameter {
     var param_list = std.ArrayList(AbiParameter).init(p.alloc);
-    errdefer param_list.deinit();
 
     while (true) {
         const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple(AbiParameter) else null;
-        errdefer tuple_param.?.deinit(p.alloc);
 
         if (tuple_param != null) {
             try param_list.append(tuple_param.?);
@@ -273,14 +253,12 @@ pub fn parseFuncParamsDecl(p: *Parser) ![]const AbiParameter {
 
 pub fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
     var param_list = std.ArrayList(AbiEventParameter).init(p.alloc);
-    errdefer param_list.deinit();
 
     while (true) {
         const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple(AbiEventParameter) else null;
-        errdefer tuple_param.?.deinit(p.alloc);
 
-        if (tuple_param != null) {
-            try param_list.append(tuple_param.?);
+        if (tuple_param) |t_param| {
+            try param_list.append(t_param);
 
             switch (p.tokens[p.token_index]) {
                 .Comma => p.token_index += 1,
@@ -318,6 +296,7 @@ pub fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
         const location = p.parseDataLocation();
         const indexed = indexed: {
             if (location) |tok| {
+                _ = p.consumeToken(tok);
                 switch (tok) {
                     .Indexed => break :indexed true,
                     inline else => return error.InvalidDataLocation,
@@ -333,6 +312,7 @@ pub fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
         switch (p.tokens[p.token_index]) {
             .Comma => p.token_index += 1,
             .ClosingParen => break,
+            .EndOfFileToken => break,
             inline else => return error.ExpectedCommaAfterParam,
         }
     }
@@ -345,7 +325,6 @@ fn parseErrorParamsDecl(p: *Parser) ParseError![]const AbiParameter {
 
     while (true) {
         const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple(AbiParameter) else null;
-        errdefer tuple_param.?.deinit(p.alloc);
 
         if (tuple_param != null) {
             try param_list.append(tuple_param.?);

@@ -94,6 +94,81 @@ test "AbiParameters" {
     try testing.expectEqual(params.value.len, 2);
 }
 
+test "AbiParameters dynamic array" {
+    const slice = "address[] foo, int120 bar";
+
+    const params = try parseHumanReadable([]const param.AbiParameter, testing.allocator, slice);
+    defer params.deinit();
+
+    try testing.expectEqual(ParamType{ .address = {} }, params.value[0].type.dynamicArray.*);
+    try testing.expectEqual(ParamType{ .int = 120 }, params.value[1].type);
+
+    try testing.expectEqualStrings("foo", params.value[0].name);
+    try testing.expectEqualStrings("bar", params.value[1].name);
+
+    try testing.expectEqual(params.value.len, 2);
+}
+
+test "AbiParameters 2d dynamic array" {
+    const slice = "address[][] foo, int120 bar";
+
+    const params = try parseHumanReadable([]const param.AbiParameter, testing.allocator, slice);
+    defer params.deinit();
+
+    try testing.expectEqual(ParamType{ .address = {} }, params.value[0].type.dynamicArray.dynamicArray.*);
+    try testing.expectEqual(ParamType{ .int = 120 }, params.value[1].type);
+
+    try testing.expectEqualStrings("foo", params.value[0].name);
+    try testing.expectEqualStrings("bar", params.value[1].name);
+
+    try testing.expectEqual(params.value.len, 2);
+}
+
+test "AbiParameters mixed 2d array" {
+    const slice = "address[5][] foo, int120 bar";
+
+    const params = try parseHumanReadable([]const param.AbiParameter, testing.allocator, slice);
+    defer params.deinit();
+
+    try testing.expectEqual(ParamType{ .address = {} }, params.value[0].type.dynamicArray.fixedArray.child.*);
+    try testing.expectEqual(ParamType{ .int = 120 }, params.value[1].type);
+
+    try testing.expectEqualStrings("foo", params.value[0].name);
+    try testing.expectEqualStrings("bar", params.value[1].name);
+
+    try testing.expectEqual(params.value.len, 2);
+}
+
+test "AbiParameters with fixed array" {
+    const slice = "address[5] foo, int120 bar";
+
+    const params = try parseHumanReadable([]const param.AbiParameter, testing.allocator, slice);
+    defer params.deinit();
+
+    try testing.expectEqual(ParamType{ .address = {} }, params.value[0].type.fixedArray.child.*);
+    try testing.expectEqual(ParamType{ .int = 120 }, params.value[1].type);
+
+    try testing.expectEqualStrings("foo", params.value[0].name);
+    try testing.expectEqualStrings("bar", params.value[1].name);
+
+    try testing.expectEqual(params.value.len, 2);
+}
+
+test "AbiParameters with data location" {
+    const slice = "string calldata foo, int120 bar";
+
+    const params = try parseHumanReadable([]const param.AbiParameter, testing.allocator, slice);
+    defer params.deinit();
+
+    try testing.expectEqual(ParamType{ .string = {} }, params.value[0].type);
+    try testing.expectEqual(ParamType{ .int = 120 }, params.value[1].type);
+
+    try testing.expectEqualStrings("foo", params.value[0].name);
+    try testing.expectEqualStrings("bar", params.value[1].name);
+
+    try testing.expectEqual(params.value.len, 2);
+}
+
 test "AbiParameters with tuple" {
     const slice = "address foo, (bytes32 baz) bar";
 
@@ -129,4 +204,77 @@ test "AbiParameters with nested tuple" {
     try testing.expectEqual(ParamType{ .fixedBytes = 32 }, params.value[0].components.?[0].components.?[0].type);
     try testing.expectEqualStrings("fizz", params.value[0].components.?[0].name);
     try testing.expectEqualStrings("baz", params.value[0].components.?[0].components.?[0].name);
+}
+
+test "Receive signature" {
+    const slice = "receive() external payable";
+    const signature = try parseHumanReadable(abi.Receive, testing.allocator, slice);
+    defer signature.deinit();
+
+    try testing.expectEqual(signature.value.type, .receive);
+    try testing.expectEqual(signature.value.stateMutability, .payable);
+}
+
+test "Fallback signature" {
+    const slice = "fallback()";
+    const signature = try parseHumanReadable(abi.Fallback, testing.allocator, slice);
+    defer signature.deinit();
+
+    try testing.expectEqual(signature.value.type, .fallback);
+    try testing.expectEqual(signature.value.stateMutability, .nonpayable);
+}
+
+test "Fallback signature payable" {
+    const slice = "fallback() payable";
+    const signature = try parseHumanReadable(abi.Fallback, testing.allocator, slice);
+    defer signature.deinit();
+
+    try testing.expectEqual(signature.value.type, .fallback);
+    try testing.expectEqual(signature.value.stateMutability, .payable);
+}
+
+test "Constructor signature" {
+    const slice = "constructor(bool foo)";
+    const signature = try parseHumanReadable(abi.Constructor, testing.allocator, slice);
+    defer signature.deinit();
+
+    try testing.expectEqual(signature.value.type, .constructor);
+    try testing.expectEqual(ParamType{ .bool = {} }, signature.value.inputs[0].type);
+    try testing.expectEqual(signature.value.stateMutability, .nonpayable);
+    try testing.expectEqualStrings("foo", signature.value.inputs[0].name);
+}
+
+test "Constructor signature payable" {
+    const slice = "constructor(bool foo) payable";
+    const signature = try parseHumanReadable(abi.Constructor, testing.allocator, slice);
+    defer signature.deinit();
+
+    try testing.expectEqual(signature.value.type, .constructor);
+    try testing.expectEqual(ParamType{ .bool = {} }, signature.value.inputs[0].type);
+    try testing.expectEqual(signature.value.stateMutability, .payable);
+    try testing.expectEqualStrings("foo", signature.value.inputs[0].name);
+}
+
+test "Error signature" {
+    const slice = "error Foo(bytes foo)";
+    const signature = try parseHumanReadable(abi.Error, testing.allocator, slice);
+    defer signature.deinit();
+
+    try testing.expectEqual(signature.value.type, .@"error");
+    try testing.expectEqual(ParamType{ .bytes = {} }, signature.value.inputs[0].type);
+    try testing.expectEqualStrings("foo", signature.value.inputs[0].name);
+}
+
+test "Event signature" {
+    const slice = "event Foo(bytes foo, address indexed bar)";
+    const signature = try parseHumanReadable(abi.Event, testing.allocator, slice);
+    defer signature.deinit();
+
+    try testing.expectEqual(signature.value.type, .event);
+    try testing.expectEqual(ParamType{ .bytes = {} }, signature.value.inputs[0].type);
+    try testing.expectEqualStrings("foo", signature.value.inputs[0].name);
+    try testing.expect(!signature.value.inputs[0].indexed);
+    try testing.expectEqual(ParamType{ .address = {} }, signature.value.inputs[1].type);
+    try testing.expectEqualStrings("bar", signature.value.inputs[1].name);
+    try testing.expect(signature.value.inputs[1].indexed);
 }

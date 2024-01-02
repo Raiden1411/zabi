@@ -67,12 +67,66 @@ fn innerParse(comptime T: type, parser: *Parser) !T {
     };
 }
 
-test "Simple" {
-    const slice =
-        \\ function Foo((((((address bar))))))
-        \\ event Bar((((((bool baz))))))
-    ;
+test "AbiParameter" {
+    const slice = "address foo";
 
-    const params = try parseHumanReadable(abi.Abi, testing.allocator, slice);
+    const params = try parseHumanReadable([]const param.AbiParameter, testing.allocator, slice);
     defer params.deinit();
+
+    for (params.value) |val| {
+        try testing.expectEqual(val.type, ParamType{ .address = {} });
+        try testing.expectEqualStrings(val.name, "foo");
+    }
+}
+
+test "AbiParameters" {
+    const slice = "address foo, int120 bar";
+
+    const params = try parseHumanReadable([]const param.AbiParameter, testing.allocator, slice);
+    defer params.deinit();
+
+    try testing.expectEqual(ParamType{ .address = {} }, params.value[0].type);
+    try testing.expectEqual(ParamType{ .int = 120 }, params.value[1].type);
+
+    try testing.expectEqualStrings("foo", params.value[0].name);
+    try testing.expectEqualStrings("bar", params.value[1].name);
+
+    try testing.expectEqual(params.value.len, 2);
+}
+
+test "AbiParameters with tuple" {
+    const slice = "address foo, (bytes32 baz) bar";
+
+    const params = try parseHumanReadable([]const param.AbiParameter, testing.allocator, slice);
+    defer params.deinit();
+
+    try testing.expectEqual(ParamType{ .address = {} }, params.value[0].type);
+    try testing.expectEqual(ParamType{ .tuple = {} }, params.value[1].type);
+
+    try testing.expectEqualStrings("foo", params.value[0].name);
+    try testing.expectEqualStrings("bar", params.value[1].name);
+
+    try testing.expectEqual(params.value.len, 2);
+
+    try testing.expect(params.value[1].components != null);
+    try testing.expectEqual(ParamType{ .fixedBytes = 32 }, params.value[1].components.?[0].type);
+    try testing.expectEqualStrings("baz", params.value[1].components.?[0].name);
+}
+
+test "AbiParameters with nested tuple" {
+    const slice = "((bytes32 baz)[] fizz) bar";
+
+    const params = try parseHumanReadable([]const param.AbiParameter, testing.allocator, slice);
+    defer params.deinit();
+
+    try testing.expectEqual(ParamType{ .tuple = {} }, params.value[0].type);
+    try testing.expectEqualStrings("bar", params.value[0].name);
+    try testing.expectEqual(params.value.len, 1);
+
+    try testing.expect(params.value[0].components != null);
+    try testing.expect(params.value[0].components.?[0].components != null);
+    try testing.expectEqual(ParamType{ .tuple = {} }, params.value[0].components.?[0].type.dynamicArray.*);
+    try testing.expectEqual(ParamType{ .fixedBytes = 32 }, params.value[0].components.?[0].components.?[0].type);
+    try testing.expectEqualStrings("fizz", params.value[0].components.?[0].name);
+    try testing.expectEqualStrings("baz", params.value[0].components.?[0].components.?[0].name);
 }

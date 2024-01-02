@@ -376,9 +376,9 @@ test "fooo" {
     //
     // std.debug.print("Foo: {s}\n", .{std.fmt.fmtSliceHexLower(pre_encoded.data)});
 
-    const function: Function = .{ .type = .function, .name = "bar", .stateMutability = .nonpayable, .inputs = &.{.{ .name = "a", .type = .{ .uint = 256 } }}, .outputs = &.{} };
-
-    const encoded = try encodeAbiFunctionComptime(std.testing.allocator, function, .{1});
-    defer std.testing.allocator.free(encoded);
-    std.debug.print("FOOO: {s}\n", .{encoded});
+    // const function: Function = .{ .type = .function, .name = "bar", .stateMutability = .nonpayable, .inputs = &.{.{ .name = "a", .type = .{ .uint = 256 } }}, .outputs = &.{} };
+    //
+    // const encoded = try encodeAbiFunctionComptime(std.testing.allocator, function, .{1});
+    // defer std.testing.allocator.free(encoded);
+    // std.debug.print("FOOO: {s}\n", .{encoded});
 }

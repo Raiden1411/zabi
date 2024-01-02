@@ -1,9 +1,9 @@
-const abi = @import("abi.zig");
-const params = @import("abi_parameter.zig");
+const abi = @import("../abi.zig");
+const params = @import("../abi_parameter.zig");
 const std = @import("std");
-const Abitype = @import("abi.zig").Abitype;
+const Abitype = abi.Abitype;
 const Allocator = std.mem.Allocator;
-const ParamType = @import("param_type.zig").ParamType;
+const ParamType = @import("../param_type.zig").ParamType;
 
 /// UnionParser used by `zls`. Usefull to use in `AbiItem`
 /// https://github.com/zigtools/zls/blob/d1ad449a24ea77bacbeccd81d607fa0c11f87dd6/src/lsp.zig#L77
@@ -75,19 +75,6 @@ pub fn Extract(comptime T: type, comptime needle: []const u8) type {
     return @Type(.{ .Enum = .{ .tag_type = info.tag_type, .fields = &enumFields, .decls = &.{}, .is_exhaustive = true } });
 }
 
-fn ParamTypeToPrimativeType(comptime param_type: ParamType) type {
-    return switch (param_type) {
-        .string, .bytes, .address => []const u8,
-        .bool => bool,
-        .fixedBytes => []const u8,
-        .int => i256,
-        .uint => u256,
-        .dynamicArray => []const ParamTypeToPrimativeType(param_type.dynamicArray.*),
-        .fixedArray => [param_type.fixedArray.size]ParamTypeToPrimativeType(param_type.fixedArray.child.*),
-        inline else => void,
-    };
-}
-
 pub fn AbiParameterToPrimative(comptime param: params.AbiParameter) type {
     const PrimativeType = ParamTypeToPrimativeType(param.type);
 
@@ -127,4 +114,24 @@ pub fn AbiParametersToPrimative(comptime paramters: []const params.AbiParameter)
     }
 
     return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+}
+
+pub fn DecodedTopic(comptime param: ParamType) type {
+    return switch (param) {
+        .string, .bytes, .tuple, .dynamicArray, .fixedArray => []const u8,
+        inline else => ParamTypeToPrimativeType(param),
+    };
+}
+
+fn ParamTypeToPrimativeType(comptime param_type: ParamType) type {
+    return switch (param_type) {
+        .string, .bytes, .address => []const u8,
+        .bool => bool,
+        .fixedBytes => []const u8,
+        .int => i256,
+        .uint => u256,
+        .dynamicArray => []const ParamTypeToPrimativeType(param_type.dynamicArray.*),
+        .fixedArray => [param_type.fixedArray.size]ParamTypeToPrimativeType(param_type.fixedArray.child.*),
+        inline else => void,
+    };
 }

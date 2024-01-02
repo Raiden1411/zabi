@@ -1,12 +1,13 @@
 const encoder = @import("encoder.zig");
+const meta = @import("meta/meta.zig");
 const std = @import("std");
 const testing = std.testing;
 const AbiParameter = @import("abi_parameter.zig").AbiParameter;
 const AbiEventParameter = @import("abi_parameter.zig").AbiEventParameter;
 const Allocator = std.mem.Allocator;
-const Extract = @import("types.zig").Extract;
+const Extract = meta.Extract;
 const StateMutability = @import("state_mutability.zig").StateMutability;
-const UnionParser = @import("types.zig").UnionParser;
+const UnionParser = meta.UnionParser;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
 pub const Abitype = enum { function, @"error", event, constructor, fallback, receive };

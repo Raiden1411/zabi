@@ -538,26 +538,3 @@ fn nextToken(p: *Parser) u32 {
 
     return index;
 }
-
-// test "Simple" {
-//     var lex = Lexer.init(
-//         \\struct Baz {bool boo; bool fizz;}
-//         \\function Foo(Baz bar) view returns(address buzz)
-//     );
-//     var list = Parser.TokenList{};
-//     defer list.deinit(testing.allocator);
-//
-//     while (true) {
-//         const tok = lex.scan();
-//         try list.append(testing.allocator, .{ .token_type = tok.syntax, .start = tok.location.start, .end = tok.location.end });
-//
-//         if (tok.syntax == .EndOfFileToken) break;
-//     }
-//
-//     var parser: Parser = .{ .alloc = testing.allocator, .tokens = list.items(.token_type), .tokens_start = list.items(.start), .tokens_end = list.items(.end), .token_index = 0, .source = lex.currentText, .structs = .{} };
-//
-//     const params = try parser.parseAbiProto();
-//
-//     std.debug.print("\nParsing signature: {s}\n", .{parser.source});
-//     std.debug.print("FOOO: {any}\n", .{params});
-// }

@@ -501,4 +501,59 @@ test "Seaport" {
     try testing.expectEqual(last.type, .@"error");
     try testing.expectEqualSlices(param.AbiParameter, &.{}, last.inputs);
     try testing.expectEqualStrings("UnusedItemParameters", last.name);
+
+    // try std.json.stringify(parsed.value, .{ .whitespace = .indent_2, .emit_null_optional_fields = false }, std.io.getStdErr().writer());
+}
+
+test "Parsing errors parameters" {
+    try testing.expectError(error.UnexceptedToken, parseHumanReadable([]const param.AbiParameter, testing.allocator, "adddress foo"));
+    try testing.expectError(error.UnexceptedToken, parseHumanReadable([]const param.AbiParameter, testing.allocator, "address foo,"));
+    try testing.expectError(error.InvalidDataLocation, parseHumanReadable([]const param.AbiParameter, testing.allocator, "(address calldata foo)"));
+    try testing.expectError(error.InvalidDataLocation, parseHumanReadable([]const param.AbiParameter, testing.allocator, "address indexed foo"));
+    try testing.expectError(error.InvalidDataLocation, parseHumanReadable([]const param.AbiParameter, testing.allocator, "address calldata foo"));
+    try testing.expectError(error.InvalidDataLocation, parseHumanReadable([]const param.AbiParameter, testing.allocator, "address storage foo"));
+    try testing.expectError(error.InvalidDataLocation, parseHumanReadable([]const param.AbiParameter, testing.allocator, "address memory foo"));
+    try testing.expectError(error.InvalidDataLocation, parseHumanReadable([]const param.AbiEventParameter, testing.allocator, "address[] storage foo"));
+    try testing.expectError(error.ExpectedCommaAfterParam, parseHumanReadable([]const param.AbiParameter, testing.allocator, "address foo."));
+    try testing.expectError(error.UnexceptedToken, parseHumanReadable([]const param.AbiParameter, testing.allocator, "(((address))"));
+}
+
+test "Parsing errors signatures" {
+    try testing.expectError(error.UnexceptedToken, parseHumanReadable(abi.Constructor, testing.allocator, "function foo()"));
+    try testing.expectError(error.UnexceptedToken, parseHumanReadable(abi.Abi, testing.allocator, "function foo(address)) view"));
+    try testing.expectError(error.UnexceptedToken, parseHumanReadable(abi.Abi, testing.allocator, "function foo(address) nonpayable"));
+    try testing.expectError(error.InvalidDataLocation, parseHumanReadable(abi.Abi, testing.allocator, "function foo(((((address indexed foo))))) view return(bool)"));
+    try testing.expectError(error.EmptyReturnParams, parseHumanReadable(abi.Abi, testing.allocator, "function foo(((((address foo))))) view returns()"));
+}
+
+test "Match snapshot" {
+    const expected =
+        \\{
+        \\  "type": "function",
+        \\  "inputs": [
+        \\    {
+        \\      "name": "bar",
+        \\      "type": "address[]"
+        \\    }
+        \\  ],
+        \\  "name": "foo",
+        \\  "outputs": [],
+        \\  "stateMutability": "nonpayable"
+        \\}
+    ;
+
+    try testSnapshot(abi.Function, expected, "function foo(address[] bar)");
+}
+
+fn testSnapshot(comptime T: type, expected: []const u8, source: [:0]const u8) !void {
+    const value = try parseHumanReadable(T, testing.allocator, source);
+    defer value.deinit();
+
+    var out_buf: [1024]u8 = undefined;
+    var slice_stream = std.io.fixedBufferStream(&out_buf);
+    const out = slice_stream.writer();
+
+    try std.json.stringify(value.value, .{ .whitespace = .indent_2, .emit_null_optional_fields = false }, out);
+
+    try testing.expectEqualStrings(expected, slice_stream.getWritten());
 }

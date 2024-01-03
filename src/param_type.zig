@@ -65,7 +65,37 @@ pub const ParamType = union(enum) {
     }
 
     pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
-        try self.typeToString(stream);
+        // Cursed hack. There should be a better way
+        var out_buf: [256]u8 = undefined;
+        var slice_stream = std.io.fixedBufferStream(&out_buf);
+        const out = slice_stream.writer();
+        try self.typeToJsonStringify(out);
+
+        try stream.write(slice_stream.getWritten());
+    }
+
+    pub fn typeToJsonStringify(self: @This(), writer: anytype) !void {
+        switch (self) {
+            .string,
+            .bytes,
+            .bool,
+            .address,
+            .tuple,
+            => try writer.print("{s}", .{@tagName(self)}),
+            .int,
+            .uint,
+            => |val| try writer.print("{s}{d}", .{ @tagName(self), val }),
+            .fixedBytes => |val| try writer.print("bytes{d}", .{val}),
+            .dynamicArray => |val| {
+                try val.typeToString(writer);
+                try writer.print("[]", .{});
+            },
+            .fixedArray => |val| {
+                try val.child.typeToString(writer);
+                try writer.print("[{d}]", .{val.size});
+            },
+            inline else => try writer.print("", .{}),
+        }
     }
 
     pub fn typeToString(self: @This(), writer: anytype) !void {
@@ -107,6 +137,7 @@ pub const ParamType = union(enum) {
                     const inside = abitype[start + 1 .. end];
                     const child = try alloc.create(ParamType);
                     errdefer alloc.destroy(child);
+
                     child.* = try typeToUnion(abitype[0..start], alloc);
 
                     if (inside.len == 0) {

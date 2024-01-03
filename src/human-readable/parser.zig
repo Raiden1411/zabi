@@ -32,7 +32,11 @@ pub fn parseAbiProto(p: *Parser) !abi.Abi {
     var abi_list = std.ArrayList(abi.AbiItem).init(p.alloc);
 
     while (true) {
-        if (p.tokens[p.token_index] == .Struct) try p.parseStructProto();
+        if (p.tokens[p.token_index] == .Struct) {
+            try p.parseStructProto();
+            continue;
+        }
+
         try abi_list.append(try p.parseAbiItemProto());
 
         if (p.tokens[p.token_index] == .EndOfFileToken) break;
@@ -122,16 +126,10 @@ pub fn parseConstructorFnProto(p: *Parser) !abi.Constructor {
 
     _ = try p.expectToken(.ClosingParen);
 
-    switch (p.tokens[p.token_index]) {
-        .Payable => {
-            if (p.tokens[p.token_index + 1] != .EndOfFileToken) return error.UnexceptedToken;
-
-            return .{ .type = .constructor, .stateMutability = .payable, .inputs = inputs };
-        },
-        .EndOfFileToken => return .{ .type = .constructor, .stateMutability = .nonpayable, .inputs = inputs },
-
-        inline else => return error.UnexceptedToken,
-    }
+    return switch (p.tokens[p.token_index]) {
+        .Payable => .{ .type = .constructor, .stateMutability = .payable, .inputs = inputs },
+        inline else => .{ .type = .constructor, .stateMutability = .nonpayable, .inputs = inputs },
+    };
 }
 
 pub fn parseStructProto(p: *Parser) !void {

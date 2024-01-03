@@ -1,6 +1,7 @@
 const std = @import("std");
 const abi = @import("abi_parameter.zig");
 const meta = @import("meta/meta.zig");
+const testing = std.testing;
 const assert = std.debug.assert;
 const AbiParameterToPrimative = meta.AbiParameterToPrimative;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
@@ -184,13 +185,18 @@ fn preEncodeParam(alloc: Allocator, param: abi.AbiParameter, value: anytype) !Pr
         .Pointer => {
             if (info.Pointer.size != .Slice and info.Pointer.size != .One) @compileError("Invalid Pointer size. Expected Slice or comptime know string");
 
-            return switch (param.type) {
-                .string, .bytes => try encodeString(alloc, value),
-                .fixedBytes => |val| try encodeFixedBytes(alloc, val, value),
-                .address => try encodeAddress(alloc, value),
-                .dynamicArray => |val| try encodeArray(alloc, .{ .type = val.*, .name = param.name, .internalType = param.internalType, .components = param.components }, value, null),
-                inline else => return error.InvalidParamType,
-            };
+            switch (info.Pointer.child) {
+                u8 => return switch (param.type) {
+                    .string, .bytes => try encodeString(alloc, value),
+                    .fixedBytes => |val| try encodeFixedBytes(alloc, val, value),
+                    .address => try encodeAddress(alloc, value),
+                    inline else => return error.InvalidParamType,
+                },
+                inline else => return switch (param.type) {
+                    .dynamicArray => |val| try encodeArray(alloc, .{ .type = val.*, .name = param.name, .internalType = param.internalType, .components = param.components }, value, null),
+                    inline else => return error.InvalidParamType,
+                },
+            }
         },
         .Bool => {
             return switch (param.type) {
@@ -281,13 +287,17 @@ fn encodeString(alloc: Allocator, str: []const u8) !PreEncodedParam {
 }
 
 fn encodeFixedBytes(alloc: Allocator, size: usize, bytes: []const u8) !PreEncodedParam {
-    if (size > 32) return error.InvalidBits;
-    if (bytes.len > size) return error.Overflow;
+    var buffer: [32]u8 = undefined;
+    const byts = try std.fmt.hexToBytes(&buffer, bytes);
 
-    return .{ .dynamic = false, .encoded = try zeroPad(alloc, bytes) };
+    if (byts.len > 32) return error.InvalidBits;
+    if (byts.len > size) return error.Overflow;
+
+    return .{ .dynamic = false, .encoded = try zeroPad(alloc, byts) };
 }
 
 fn encodeArray(alloc: Allocator, param: abi.AbiParameter, values: anytype, size: ?usize) !PreEncodedParam {
+    assert(values.len > 0);
     const dynamic = size == null;
 
     var list = std.ArrayList(PreEncodedParam).init(alloc);
@@ -321,18 +331,22 @@ fn encodeArray(alloc: Allocator, param: abi.AbiParameter, values: anytype, size:
 }
 
 fn encodeTuples(alloc: std.mem.Allocator, param: abi.AbiParameter, values: anytype) !PreEncodedParam {
-    std.debug.assert(values.len > 0);
+    const fields = @typeInfo(@TypeOf(values)).Struct.fields;
+    assert(fields.len > 0);
 
     var list = std.ArrayList(PreEncodedParam).init(alloc);
 
     var has_dynamic = false;
 
     if (param.components) |components| {
-        inline for (components, values) |component, value| {
-            const pre = try preEncodeParam(alloc, component, value);
-
-            if (pre.dynamic) has_dynamic = true;
-            try list.append(pre);
+        for (components) |component| {
+            inline for (fields) |field| {
+                if (std.mem.eql(u8, component.name, field.name)) {
+                    const pre = try preEncodeParam(alloc, component, @field(values, field.name));
+                    if (pre.dynamic) has_dynamic = true;
+                    try list.append(pre);
+                }
+            }
         }
     } else return error.InvalidParamType;
 
@@ -370,15 +384,53 @@ fn zeroPad(alloc: Allocator, buf: []const u8) ![]u8 {
     return padded;
 }
 
-test "fooo" {
-    // const pre_encoded = try encodeAbiParameters(std.testing.allocator, &.{.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{ .{ .type = .{ .uint = 256 }, .name = "bar" }, .{ .type = .{ .bool = {} }, .name = "baz" }, .{ .type = .{ .address = {} }, .name = "boo" } } }}, .{.{ 420, true, "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC" }});
-    // defer pre_encoded.deinit();
-    //
-    // std.debug.print("Foo: {s}\n", .{std.fmt.fmtSliceHexLower(pre_encoded.data)});
+test "Bool" {
+    try testEncode("0000000000000000000000000000000000000000000000000000000000000001", &.{.{ .type = .{ .bool = {} }, .name = "foo" }}, .{true});
+    try testEncode("0000000000000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .bool = {} }, .name = "foo" }}, .{false});
+}
 
-    // const function: Function = .{ .type = .function, .name = "bar", .stateMutability = .nonpayable, .inputs = &.{.{ .name = "a", .type = .{ .uint = 256 } }}, .outputs = &.{} };
-    //
-    // const encoded = try encodeAbiFunctionComptime(std.testing.allocator, function, .{1});
-    // defer std.testing.allocator.free(encoded);
-    // std.debug.print("FOOO: {s}\n", .{encoded});
+test "Uint/Int" {
+    try testEncode("0000000000000000000000000000000000000000000000000000000000000005", &.{.{ .type = .{ .uint = 8 }, .name = "foo" }}, .{5});
+    try testEncode("0000000000000000000000000000000000000000000000000000000000010f2c", &.{.{ .type = .{ .uint = 256 }, .name = "foo" }}, .{69420});
+    try testEncode("fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffb", &.{.{ .type = .{ .int = 256 }, .name = "foo" }}, .{-5});
+    try testEncode("fffffffffffffffffffffffffffffffffffffffffffffffffffffffff8a432eb", &.{.{ .type = .{ .int = 64 }, .name = "foo" }}, .{-123456789});
+}
+
+test "Address" {
+    try testEncode("0000000000000000000000004648451b5f87ff8f0f7d622bd40574bb97e25980", &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{"0x4648451b5F87FF8F0F7D622bD40574bb97E25980"});
+    try testEncode("000000000000000000000000388c818ca8b9251b393131c08a736a67ccb19297", &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{"0x388C818CA8B9251b393131C08a736A67ccB19297"});
+}
+
+test "Fixed Bytes" {
+    try testEncode("0123456789000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .fixedBytes = 5 }, .name = "foo" }}, .{"0123456789"});
+    try testEncode("0123456789000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .fixedBytes = 10 }, .name = "foo" }}, .{"0123456789"});
+}
+
+test "Bytes/String" {
+    try testEncode("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .{"foo"});
+    try testEncode("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .bytes = {} }, .name = "foo" }}, .{"foo"});
+}
+
+test "Arrays" {
+    try testEncode("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .dynamicArray = &ParamType{ .int = 256 } }, .name = "foo" }}, .{&[_]i256{ 4, 2, 0 }});
+    try testEncode("00000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000002", &.{.{ .type = .{ .fixedArray = .{ .child = &.{ .int = 256 }, .size = 2 } }, .name = "foo" }}, .{[2]i256{ 4, 2 }});
+    try testEncode("0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000003666f6f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000036261720000000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .fixedArray = .{ .child = &.{ .string = {} }, .size = 2 } }, .name = "foo" }}, .{[2][]const u8{ "foo", "bar" }});
+    try testEncode("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000003666f6f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000036261720000000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .dynamicArray = &.{ .string = {} } }, .name = "foo" }}, .{&[_][]const u8{ "foo", "bar" }});
+    try testEncode("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000001e0000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000003666f6f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003626172000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000362617a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003626f6f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000466697a7a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000462757a7a00000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .fixedArray = .{ .child = &.{ .fixedArray = .{ .child = &.{ .string = {} }, .size = 2 } }, .size = 3 } }, .name = "foo" }}, .{[3][2][]const u8{ .{ "foo", "bar" }, .{ "baz", "boo" }, .{ "fizz", "buzz" } }});
+    try testEncode("0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000001e00000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001400000000000000000000000000000000000000000000000000000000000000003666f6f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000036261720000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000666697a7a7a7a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000362757a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000466697a7a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000462757a7a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000662757a7a7a7a0000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .fixedArray = .{ .child = &.{ .dynamicArray = &.{ .string = {} } }, .size = 2 } }, .name = "foo" }}, .{[2][]const []const u8{ &.{ "foo", "bar", "fizzzz", "buz" }, &.{ "fizz", "buzz", "buzzzz" } }});
+}
+
+test "Tuples" {
+    try testEncode("0000000000000000000000000000000000000000000000000000000000000001", &.{.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .bool = {} }, .name = "bar" }} }}, .{.{ .bar = true }});
+    try testEncode("0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000450000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000462757a7a00000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{ .{ .type = .{ .bool = {} }, .name = "bar" }, .{ .type = .{ .uint = 256 }, .name = "baz" }, .{ .type = .{ .string = {} }, .name = "fizz" } } }}, .{.{ .bar = true, .baz = 69, .fizz = "buzz" }});
+}
+
+fn testEncode(expected: []const u8, comptime params: []const abi.AbiParameter, values: AbiParametersToPrimative(params)) !void {
+    const encoded = try encodeAbiParametersComptime(testing.allocator, params, values);
+    defer encoded.deinit();
+
+    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded.data)});
+    defer testing.allocator.free(hex);
+
+    try testing.expectEqualStrings(expected, hex);
 }

@@ -24,4 +24,5 @@ test {
     _ = @import("human-readable/lexer.zig");
     _ = @import("human-readable/parser.zig");
     _ = @import("human-readable/abi_parsing.zig");
+    _ = @import("encoder.zig");
 }

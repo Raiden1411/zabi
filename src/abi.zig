@@ -355,37 +355,3 @@ pub const AbiItem = union(enum) {
 };
 
 pub const Abi = []const AbiItem;
-
-test "Json parse simple" {
-    const slice =
-        \\{
-        \\            "inputs": [
-        \\   {
-        \\    "indexed": true,
-        \\   "name": "from",
-        \\  "type": "address"
-        \\ },
-        \\   {
-        \\     "indexed": true,
-        \\   "name": "to",
-        \\    "type": "address"
-        \\    },
-        \\    {
-        \\      "indexed": false,
-        \\       "name": "tokenId",
-        \\     "type": "uint256"
-        \\   }
-        \\ ],
-        \\ "name": "Transfer",
-        \\ "type": "event"
-        \\}
-    ;
-
-    const parsed = try std.json.parseFromSlice(Event, testing.allocator, slice, .{});
-    defer parsed.deinit();
-
-    const a = try parsed.value.encode(std.testing.allocator);
-    defer std.testing.allocator.free(a);
-
-    std.debug.print("FOO: {s}\n", .{a});
-}

@@ -11,7 +11,7 @@ const Allocator = std.mem.Allocator;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const ParamType = @import("param_type.zig").ParamType;
 
-fn Decoded(comptime T: type) type {
+pub fn Decoded(comptime T: type) type {
     return struct { consumed: usize, data: T };
 }
 
@@ -47,6 +47,9 @@ pub fn decodeAbiFunction(alloc: Allocator, comptime function: abi.Function, hex:
 
     if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8])) return error.InvalidAbiSignature;
 
+    const data = hex[8..];
+    if (data.len == 0) return .{ .name = hashed_func_name, .values = {} };
+
     const params = try decodeAbiParameters(alloc, function.inputs, hex[8..]);
     defer params.deinit();
 
@@ -67,6 +70,9 @@ pub fn decodeAbiFunctionOutputs(alloc: Allocator, comptime function: abi.Functio
 
     if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8])) return error.InvalidAbiSignature;
 
+    const data = hex[8..];
+    if (data.len == 0) return .{ .name = hashed_func_name, .values = {} };
+
     const params = try decodeAbiParameters(alloc, function.outputs, hex[8..]);
     defer params.deinit();
 
@@ -86,6 +92,9 @@ pub fn decodeAbiError(alloc: Allocator, comptime err: abi.Error, hex: []const u8
     const hash_hex = std.fmt.bytesToHex(hashed, .lower);
 
     if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8])) return error.InvalidAbiSignature;
+
+    const data = hex[8..];
+    if (data.len == 0) return .{ .name = hashed_func_name, .values = {} };
 
     const params = try decodeAbiParameters(alloc, err.inputs, hex[8..]);
     defer params.deinit();

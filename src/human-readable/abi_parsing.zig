@@ -25,6 +25,8 @@ pub fn AbiParsed(comptime T: type) type {
 }
 
 pub fn parseHumanReadable(comptime T: type, alloc: Allocator, source: [:0]const u8) !AbiParsed(T) {
+    std.debug.assert(source.len > 0);
+
     var abi_parsed = AbiParsed(T){ .arena = try alloc.create(ArenaAllocator), .value = undefined };
     errdefer alloc.destroy(abi_parsed.arena);
 

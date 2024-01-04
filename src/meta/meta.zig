@@ -77,6 +77,7 @@ pub fn Extract(comptime T: type, comptime needle: []const u8) type {
 }
 
 pub fn AbiParametersToPrimative(comptime paramters: []const params.AbiParameter) type {
+    if (paramters.len == 0) return void;
     var fields: [paramters.len]std.builtin.Type.StructField = undefined;
 
     for (paramters, 0..) |paramter, i| {
@@ -132,6 +133,7 @@ pub fn AbiParameterToPrimative(comptime param: params.AbiParameter) type {
 // }
 
 test "Meta" {
+    try testing.expectEqual(AbiParametersToPrimative(&.{}), void);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .string = {} }, .name = "foo" }), []const u8);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .fixedBytes = 31 }, .name = "foo" }), []const u8);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .uint = 120 }, .name = "foo" }), u120);

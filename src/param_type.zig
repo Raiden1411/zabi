@@ -87,11 +87,11 @@ pub const ParamType = union(enum) {
             => |val| try writer.print("{s}{d}", .{ @tagName(self), val }),
             .fixedBytes => |val| try writer.print("bytes{d}", .{val}),
             .dynamicArray => |val| {
-                try val.typeToString(writer);
+                try val.typeToJsonStringify(writer);
                 try writer.print("[]", .{});
             },
             .fixedArray => |val| {
-                try val.child.typeToString(writer);
+                try val.child.typeToJsonStringify(writer);
                 try writer.print("[{d}]", .{val.size});
             },
             inline else => try writer.print("", .{}),
@@ -173,7 +173,7 @@ pub const ParamType = union(enum) {
             const len = abitype[3..];
             const alignment = try std.fmt.parseInt(usize, len, 10);
 
-            if (alignment % 8 != 0) return error.LengthMismatch;
+            if (alignment % 8 != 0 or alignment > 256) return error.LengthMismatch;
             return .{ .int = alignment };
         }
 
@@ -181,7 +181,7 @@ pub const ParamType = union(enum) {
             const len = abitype[4..];
             const alignment = try std.fmt.parseInt(usize, len, 10);
 
-            if (alignment % 8 != 0) return error.LengthMismatch;
+            if (alignment % 8 != 0 or alignment > 256) return error.LengthMismatch;
             return .{ .uint = alignment };
         }
 

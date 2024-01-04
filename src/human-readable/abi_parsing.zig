@@ -204,12 +204,6 @@ test "AbiParameters with nested tuple" {
     try testing.expectEqual(ParamType{ .fixedBytes = 32 }, params.value[0].components.?[0].components.?[0].type);
     try testing.expectEqualStrings("fizz", params.value[0].components.?[0].name);
     try testing.expectEqualStrings("baz", params.value[0].components.?[0].components.?[0].name);
-
-    const sliced = "(((uint120[] fizzbuzz, bool buzz, string[] fizz) blue)[] baz, uint256 bar, string[] foo) boo";
-    const parsed = try parseHumanReadable([]const param.AbiParameter, testing.allocator, sliced);
-    defer parsed.deinit();
-
-    try std.json.stringify(parsed.value, .{ .whitespace = .indent_2, .emit_null_optional_fields = false }, std.io.getStdErr().writer());
 }
 
 test "Receive signature" {

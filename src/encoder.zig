@@ -185,6 +185,15 @@ fn preEncodeParam(alloc: Allocator, param: abi.AbiParameter, value: anytype) !Pr
         .Pointer => {
             if (info.Pointer.size != .Slice and info.Pointer.size != .One) @compileError("Invalid Pointer size. Expected Slice or comptime know string");
 
+            if (info.Pointer.size == .One) {
+                return switch (param.type) {
+                    .string, .bytes => try encodeString(alloc, value),
+                    .fixedBytes => |val| try encodeFixedBytes(alloc, val, value),
+                    .address => try encodeAddress(alloc, value),
+                    inline else => return error.InvalidParamType,
+                };
+            }
+
             switch (info.Pointer.child) {
                 u8 => return switch (param.type) {
                     .string, .bytes => try encodeString(alloc, value),

@@ -1,6 +1,7 @@
 const abi = @import("../abi.zig");
 const params = @import("../abi_parameter.zig");
 const std = @import("std");
+const testing = std.testing;
 const Abitype = abi.Abitype;
 const Allocator = std.mem.Allocator;
 const ParamType = @import("../param_type.zig").ParamType;
@@ -129,3 +130,35 @@ pub fn AbiParameterToPrimative(comptime param: params.AbiParameter) type {
 //         inline else => ParamTypeToPrimativeType(param),
 //     };
 // }
+
+test "Meta" {
+    try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .string = {} }, .name = "foo" }), []const u8);
+    try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .fixedBytes = 31 }, .name = "foo" }), []const u8);
+    try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .uint = 120 }, .name = "foo" }), u120);
+    try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .int = 48 }, .name = "foo" }), i48);
+    try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .bytes = {} }, .name = "foo" }), []const u8);
+    try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .address = {} }, .name = "foo" }), []const u8);
+    try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .bool = {} }, .name = "foo" }), bool);
+    try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .dynamicArray = &.{ .bool = {} } }, .name = "foo" }), []const bool);
+    try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .fixedArray = .{ .child = &.{ .bool = {} }, .size = 2 } }, .name = "foo" }), [2]bool);
+
+    try expectEqualStructs(AbiParameterToPrimative(.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .bool = {} }, .name = "bar" }} }), struct { bar: bool });
+    try expectEqualStructs(AbiParameterToPrimative(.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .tuple = {} }, .name = "bar", .components = &.{.{ .type = .{ .bool = {} }, .name = "baz" }} }} }), struct { bar: struct { baz: bool } });
+}
+
+fn expectEqualStructs(comptime expected: type, comptime actual: type) !void {
+    const expectInfo = @typeInfo(expected).Struct;
+    const actualInfo = @typeInfo(actual).Struct;
+
+    try testing.expectEqual(expectInfo.layout, actualInfo.layout);
+    try testing.expectEqual(expectInfo.decls.len, actualInfo.decls.len);
+    try testing.expectEqual(expectInfo.fields.len, actualInfo.fields.len);
+    try testing.expectEqual(expectInfo.is_tuple, actualInfo.is_tuple);
+
+    inline for (expectInfo.fields, actualInfo.fields) |e, a| {
+        try testing.expectEqualStrings(e.name, a.name);
+        if (@typeInfo(e.type) == .Struct) return try expectEqualStructs(e.type, a.type);
+        try testing.expectEqual(e.type, a.type);
+        try testing.expectEqual(e.alignment, a.alignment);
+    }
+}

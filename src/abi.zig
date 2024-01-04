@@ -68,6 +68,29 @@ pub const Function = struct {
         return buffer;
     }
 
+    pub fn encodeOutputs(self: @This(), alloc: Allocator, values: anytype) ![]u8 {
+        const prep_signature = try self.allocPrepare(alloc);
+        defer alloc.free(prep_signature);
+
+        var hashed: [Keccak256.digest_length]u8 = undefined;
+        Keccak256.hash(prep_signature, &hashed, .{});
+
+        const hash_hex = std.fmt.bytesToHex(hashed, .lower);
+
+        const encoded_params = try encoder.encodeAbiParameters(alloc, self.outputs, values);
+        defer encoded_params.deinit();
+
+        const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
+        defer alloc.free(hexed);
+
+        const buffer = try alloc.alloc(u8, 8 + hexed.len);
+
+        @memcpy(buffer[0..8], hash_hex[0..8]);
+        @memcpy(buffer[8..], hexed);
+
+        return buffer;
+    }
+
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
@@ -252,7 +275,7 @@ pub const Error = struct {
         try writer.print("(", .{});
         for (self.inputs, 0..) |input, i| {
             try input.prepare(writer);
-            if (i != self.inputs.len - 1) try writer.print(", ", .{});
+            if (i != self.inputs.len - 1) try writer.print(",", .{});
         }
         try writer.print(")", .{});
     }

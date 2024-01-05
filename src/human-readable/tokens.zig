@@ -1,5 +1,6 @@
 const std = @import("std");
 
+/// Tokens tags consumedd by the Lexer
 pub const Tag = struct {
     syntax: SoliditySyntax,
     location: Location,

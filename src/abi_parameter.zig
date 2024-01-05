@@ -2,6 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 const ParamType = @import("param_type.zig").ParamType;
 
+/// Struct to represent solidity Abi Paramters
 pub const AbiParameter = struct {
     name: []const u8,
     type: ParamType,
@@ -17,6 +18,7 @@ pub const AbiParameter = struct {
         }
     }
 
+    /// Format the struct into a human readable string.
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
         if (self.components) |components| {
             try writer.print("(", .{});
@@ -31,6 +33,8 @@ pub const AbiParameter = struct {
         if (self.name.len != 0) try writer.print(" {s}", .{self.name});
     }
 
+    /// Format the struct into a human readable string.
+    /// Intended to use for hashing purposes.
     pub fn prepare(self: @This(), writer: anytype) !void {
         if (self.components) |components| {
             try writer.print("(", .{});
@@ -45,6 +49,7 @@ pub const AbiParameter = struct {
     }
 };
 
+/// Struct to represent solidity Abi Event Paramters
 pub const AbiEventParameter = struct {
     name: []const u8,
     type: ParamType,
@@ -61,6 +66,7 @@ pub const AbiEventParameter = struct {
         }
     }
 
+    /// Format the struct into a human readable string.
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
         if (self.components) |components| {
             try writer.print("(", .{});
@@ -76,6 +82,8 @@ pub const AbiEventParameter = struct {
         if (self.name.len != 0) try writer.print(" {s}", .{self.name});
     }
 
+    /// Format the struct into a human readable string.
+    /// Intended to use for hashing purposes.
     pub fn prepare(self: @This(), writer: anytype) !void {
         if (self.components) |components| {
             try writer.print("(", .{});

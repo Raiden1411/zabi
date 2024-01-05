@@ -45,6 +45,14 @@ pub const Function = struct {
         alloc.free(self.outputs);
     }
 
+    /// Encode the struct signature based on the values provided.
+    /// Runtime reflection based on the provided values will occur to determine
+    /// what is the correct method to use to encode the values
+    ///
+    /// Caller owns the memory.
+    ///
+    /// Consider using `EncodeAbiFunctionComptime` if the struct is
+    /// comptime know and you want better typesafety from the compiler
     pub fn encode(self: @This(), alloc: Allocator, values: anytype) ![]u8 {
         const prep_signature = try self.allocPrepare(alloc);
         defer alloc.free(prep_signature);
@@ -68,6 +76,15 @@ pub const Function = struct {
         return buffer;
     }
 
+    /// Encode the struct signature based on the values provided.
+    /// Runtime reflection based on the provided values will occur to determine
+    /// what is the correct method to use to encode the values.
+    /// This methods will run the values against the `outputs` proprety.
+    ///
+    /// Caller owns the memory.
+    ///
+    /// Consider using `EncodeAbiFunctionComptime` if the struct is
+    /// comptime know and you want better typesafety from the compiler
     pub fn encodeOutputs(self: @This(), alloc: Allocator, values: anytype) ![]u8 {
         const prep_signature = try self.allocPrepare(alloc);
         defer alloc.free(prep_signature);
@@ -91,6 +108,7 @@ pub const Function = struct {
         return buffer;
     }
 
+    /// Format the struct into a human readable string.
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
@@ -114,6 +132,10 @@ pub const Function = struct {
         }
     }
 
+    /// Format the struct into a human readable string.
+    /// Intended to use for hashing purposes.
+    ///
+    /// Caller owns the memory.
     pub fn allocPrepare(self: @This(), alloc: Allocator) ![]u8 {
         var c_writter = std.io.countingWriter(std.io.null_writer);
         try self.prepare(c_writter.writer());
@@ -129,6 +151,8 @@ pub const Function = struct {
         return buf_writter.getWritten();
     }
 
+    /// Format the struct into a human readable string.
+    /// Intended to use for hashing purposes.
     pub fn prepare(self: @This(), writer: anytype) !void {
         try writer.print("{s}", .{self.name});
 
@@ -156,6 +180,7 @@ pub const Event = struct {
         alloc.free(self.inputs);
     }
 
+    /// Format the struct into a human readable string.
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
@@ -168,6 +193,14 @@ pub const Event = struct {
         try writer.print(")", .{});
     }
 
+    /// Encode the struct signature based on the values provided.
+    /// Runtime reflection based on the provided values will occur to determine
+    /// what is the correct method to use to encode the values
+    ///
+    /// Caller owns the memory.
+    ///
+    /// Consider using `EncodeAbiEventComptime` if the struct is
+    /// comptime know and you want better typesafety from the compiler
     pub fn encode(self: @This(), alloc: Allocator) ![]u8 {
         const prep_signature = try self.allocPrepare(alloc);
         defer alloc.free(prep_signature);
@@ -178,6 +211,10 @@ pub const Event = struct {
         return try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.bytesToHex(hashed, .lower)});
     }
 
+    /// Format the struct into a human readable string.
+    /// Intended to use for hashing purposes.
+    ///
+    /// Caller owns the memory.
     pub fn allocPrepare(self: @This(), alloc: Allocator) ![]u8 {
         var c_writter = std.io.countingWriter(std.io.null_writer);
         try self.prepare(c_writter.writer());
@@ -193,6 +230,8 @@ pub const Event = struct {
         return buf_writter.getWritten();
     }
 
+    /// Format the struct into a human readable string.
+    /// Intended to use for hashing purposes.
     pub fn prepare(self: @This(), writer: anytype) !void {
         try writer.print("{s}", .{self.name});
 
@@ -219,6 +258,7 @@ pub const Error = struct {
         alloc.free(self.inputs);
     }
 
+    /// Format the struct into a human readable string.
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
@@ -231,6 +271,14 @@ pub const Error = struct {
         try writer.print(")", .{});
     }
 
+    /// Encode the struct signature based on the values provided.
+    /// Runtime reflection based on the provided values will occur to determine
+    /// what is the correct method to use to encode the values
+    ///
+    /// Caller owns the memory.
+    ///
+    /// Consider using `EncodeAbiErrorComptime` if the struct is
+    /// comptime know and you want better typesafety from the compiler
     pub fn encode(self: @This(), alloc: Allocator, values: anytype) ![]u8 {
         const prep_signature = try self.allocPrepare(alloc);
         defer alloc.free(prep_signature);
@@ -254,6 +302,10 @@ pub const Error = struct {
         return buffer;
     }
 
+    /// Format the struct into a human readable string.
+    /// Intended to use for hashing purposes.
+    ///
+    /// Caller owns the memory.
     pub fn allocPrepare(self: @This(), alloc: Allocator) ![]u8 {
         var c_writter = std.io.countingWriter(std.io.null_writer);
         try self.prepare(c_writter.writer());
@@ -269,6 +321,8 @@ pub const Error = struct {
         return buf_writter.getWritten();
     }
 
+    /// Format the struct into a human readable string.
+    /// Intended to use for hashing purposes.
     pub fn prepare(self: @This(), writer: anytype) !void {
         try writer.print("{s}", .{self.name});
 
@@ -299,6 +353,7 @@ pub const Constructor = struct {
         alloc.free(self.inputs);
     }
 
+    /// Format the struct into a human readable string.
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
         try writer.print("{s}", .{@tagName(self.type)});
 
@@ -312,6 +367,14 @@ pub const Constructor = struct {
         if (self.stateMutability != .nonpayable) try writer.print(" {s}", .{@tagName(self.stateMutability)});
     }
 
+    /// Encode the struct signature based on the values provided.
+    /// Runtime reflection based on the provided values will occur to determine
+    /// what is the correct method to use to encode the values
+    ///
+    /// Caller owns the memory.
+    ///
+    /// Consider using `EncodeAbiConstructorComptime` if the struct is
+    /// comptime know and you want better typesafety from the compiler
     pub fn encode(self: @This(), alloc: Allocator, values: anytype) ![]u8 {
         const encoded_params = try encoder.encodeAbiParameters(alloc, self.inputs, values);
         defer encoded_params.deinit();
@@ -332,6 +395,7 @@ pub const Fallback = struct {
     payable: ?bool = null,
     stateMutability: Extract(StateMutability, "payable,nonpayable"),
 
+    /// Format the struct into a human readable string.
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
         _ = opts;
         _ = layout;
@@ -348,6 +412,8 @@ pub const Fallback = struct {
 pub const Receive = struct {
     type: Extract(Abitype, "receive"),
     stateMutability: Extract(StateMutability, "payable"),
+
+    /// Format the struct into a human readable string.
     pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
         _ = opts;
         _ = layout;

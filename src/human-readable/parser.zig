@@ -28,6 +28,10 @@ token_index: u32,
 source: []const u8,
 structs: std.StringHashMapUnmanaged([]const AbiParameter),
 
+/// Parse a string or a multi line string with solidity signatures.
+/// This will return all signatures as a slice of `AbiItem`.
+/// This supports parsing struct signatures if its intended to use
+/// The struct signatures must be defined top down.
 pub fn parseAbiProto(p: *Parser) !abi.Abi {
     var abi_list = std.ArrayList(abi.AbiItem).init(p.alloc);
 
@@ -45,6 +49,8 @@ pub fn parseAbiProto(p: *Parser) !abi.Abi {
     return abi_list.toOwnedSlice();
 }
 
+// Parse a single solidity signature based on expected tokens.
+// Will return an error if the token is not expected.
 pub fn parseAbiItemProto(p: *Parser) !abi.AbiItem {
     return switch (p.tokens[p.token_index]) {
         .Function => .{ .abiFunction = try p.parseFunctionFnProto() },
@@ -57,6 +63,8 @@ pub fn parseAbiItemProto(p: *Parser) !abi.AbiItem {
     };
 }
 
+// Parse single solidity function signature
+// FunctionProto -> Function KEYWORD, Identifier, OpenParen, ParamDecls?, ClosingParen, Visibility?, StateMutability?, Returns?
 pub fn parseFunctionFnProto(p: *Parser) !abi.Function {
     _ = try p.expectToken(.Function);
     const name = p.parseIdentifier().?;
@@ -91,6 +99,8 @@ pub fn parseFunctionFnProto(p: *Parser) !abi.Function {
     return .{ .type = .function, .name = name, .inputs = inputs, .outputs = &.{}, .stateMutability = state };
 }
 
+// Parse single solidity event signature
+// EventProto -> Event KEYWORD, Identifier, OpenParen, ParamDecls?, ClosingParen
 pub fn parseEventFnProto(p: *Parser) !abi.Event {
     _ = try p.expectToken(.Event);
     const name = p.parseIdentifier().?;
@@ -104,6 +114,8 @@ pub fn parseEventFnProto(p: *Parser) !abi.Event {
     return .{ .type = .event, .inputs = inputs, .name = name };
 }
 
+// Parse single solidity error signature
+// ErrorProto -> Error KEYWORD, Identifier, OpenParen, ParamDecls?, ClosingParen
 pub fn parseErrorFnProto(p: *Parser) !abi.Error {
     _ = try p.expectToken(.Error);
     const name = p.parseIdentifier().?;
@@ -117,6 +129,8 @@ pub fn parseErrorFnProto(p: *Parser) !abi.Error {
     return .{ .type = .@"error", .inputs = inputs, .name = name };
 }
 
+// Parse single solidity constructor signature
+// ConstructorProto -> Constructor KEYWORD, OpenParen, ParamDecls?, ClosingParen, StateMutability?
 pub fn parseConstructorFnProto(p: *Parser) !abi.Constructor {
     _ = try p.expectToken(.Constructor);
 
@@ -132,6 +146,8 @@ pub fn parseConstructorFnProto(p: *Parser) !abi.Constructor {
     };
 }
 
+// Parse single solidity struct signature
+// StructProto -> Struct KEYWORD, Identifier, OpenBrace, ParamDecls, ClosingBrace
 pub fn parseStructProto(p: *Parser) !void {
     _ = try p.expectToken(.Struct);
 
@@ -146,6 +162,8 @@ pub fn parseStructProto(p: *Parser) !void {
     try p.structs.put(p.alloc, name, params);
 }
 
+// Parse single solidity fallback signature
+// FallbackProto -> Fallback KEYWORD, OpenParen, ClosingParen, StateMutability?
 pub fn parseFallbackFnProto(p: *Parser) !abi.Fallback {
     _ = try p.expectToken(.Fallback);
     _ = try p.expectToken(.OpenParen);
@@ -162,6 +180,8 @@ pub fn parseFallbackFnProto(p: *Parser) !abi.Fallback {
     }
 }
 
+// Parse single solidity receive signature
+// ReceiveProto -> Receive KEYWORD, OpenParen, ClosingParen, External, Payable
 pub fn parseReceiveFnProto(p: *Parser) !abi.Receive {
     _ = try p.expectToken(.Receive);
     _ = try p.expectToken(.OpenParen);
@@ -172,6 +192,8 @@ pub fn parseReceiveFnProto(p: *Parser) !abi.Receive {
     return .{ .type = .receive, .stateMutability = .payable };
 }
 
+// Parse solidity function params
+// TypeExpr, DataLocation?, Identifier?, Comma?
 pub fn parseFuncParamsDecl(p: *Parser) ![]const AbiParameter {
     var param_list = std.ArrayList(AbiParameter).init(p.alloc);
 
@@ -194,6 +216,8 @@ pub fn parseFuncParamsDecl(p: *Parser) ![]const AbiParameter {
         var components: ?[]const AbiParameter = null;
         const abitype = param_type: {
             if (p.parseTypeExpr()) |result| break :param_type result else |err| {
+                // Before failing we check if he have an Identifier token
+                // And see it was defined as a struct.
                 const last = p.token_index - 1;
 
                 if (p.tokens[last] == .Identifier) {
@@ -249,6 +273,8 @@ pub fn parseFuncParamsDecl(p: *Parser) ![]const AbiParameter {
     return try param_list.toOwnedSlice();
 }
 
+// Parse solidity event params
+// TypeExpr, DataLocation?, Identifier?, Comma?
 pub fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
     var param_list = std.ArrayList(AbiEventParameter).init(p.alloc);
 
@@ -271,6 +297,8 @@ pub fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
         var components: ?[]const AbiParameter = null;
         const abitype = param_type: {
             if (p.parseTypeExpr()) |result| break :param_type result else |err| {
+                // Before failing we check if he have an Identifier token
+                // And see it was defined as a struct.
                 const last = p.token_index - 1;
 
                 if (p.tokens[last] == .Identifier) {
@@ -318,6 +346,8 @@ pub fn parseEventParamsDecl(p: *Parser) ![]const AbiEventParameter {
     return try param_list.toOwnedSlice();
 }
 
+// Parse solidity error params
+// TypeExpr, DataLocation?, Identifier?, Comma?
 fn parseErrorParamsDecl(p: *Parser) ParseError![]const AbiParameter {
     var param_list = std.ArrayList(AbiParameter).init(p.alloc);
 
@@ -379,6 +409,8 @@ fn parseErrorParamsDecl(p: *Parser) ParseError![]const AbiParameter {
     return try param_list.toOwnedSlice();
 }
 
+// Parse solidity struct params
+// TypeExpr, Identifier?, SemiColon
 fn parseStructParamDecls(p: *Parser) ParseError![]const AbiParameter {
     var param_list = std.ArrayList(AbiParameter).init(p.alloc);
 
@@ -440,6 +472,8 @@ fn parseStructParamDecls(p: *Parser) ParseError![]const AbiParameter {
     return try param_list.toOwnedSlice();
 }
 
+// Parse solidity tuple params
+// OpenParen, TypeExpr, Identifier?, Comma?, ClosingParen
 fn parseTuple(p: *Parser, comptime T: type) ParseError!T {
     const components = try p.parseErrorParamsDecl();
 

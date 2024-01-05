@@ -24,7 +24,7 @@ branches and tags that will work with the previous two (2) stable Zig releases.
 In the `build.zig.zon` file, add the following to the dependencies object.
 
 ```zig
-.ziglyph = .{
+.zabi = .{
     .url = "https://github.com/Raiden1411/zabi/archive/VERSION_NUMBER.tar.gz",
 }
 ```
@@ -35,12 +35,12 @@ with the hash the compiler tells you it found.
 Then in your `build.zig` file add the following to the `exe` section for the executable where you wish to have ZAbi available.
 
 ```zig
-const ziglyph = b.dependency("zabi", .{
+const zabi = b.dependency("zabi", .{
     .optimize = optimize,
     .target = target,
 });
 // for exe, lib, tests, etc.
-exe.addModule("zabi", ziglyph.module("zabi"));
+exe.addModule("zabi", zabi.module("zabi"));
 ```
 
 Now in the code, you can import components like this:

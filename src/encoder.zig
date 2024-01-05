@@ -141,7 +141,7 @@ pub fn encodeAbiParametersComptime(alloc: Allocator, comptime parameters: []cons
 }
 
 /// Subset function used for encoding. Its highly recommend to use an ArenaAllocator
-/// or a FixedBufferAllocator to manage memory since allocation will not be free when done,
+/// or a FixedBufferAllocator to manage memory since allocations will not be freed when done,
 /// and with those all of the memory can be freed at once.
 ///
 /// Caller owns the memory.
@@ -175,7 +175,7 @@ pub fn encodeAbiParameters(alloc: Allocator, parameters: []const abi.AbiParamete
 }
 
 /// Subset function used for encoding. Its highly recommend to use an ArenaAllocator
-/// or a FixedBufferAllocator to manage memory since allocation will not be free when done,
+/// or a FixedBufferAllocator to manage memory since allocations will not be freed when done,
 /// and with those all of the memory can be freed at once.
 ///
 /// Caller owns the memory.
@@ -185,6 +185,10 @@ pub fn encodeAbiParameters(alloc: Allocator, parameters: []const abi.AbiParamete
 /// However runtime reflection will happen to best determine what values should be used based
 /// on the parameters passed in.
 pub fn encodeAbiParametersLeaky(alloc: Allocator, params: []const abi.AbiParameter, values: anytype) EncodeErrors![]u8 {
+    const fields = @typeInfo(@TypeOf(values));
+    if (fields != .Struct) @compileError("Expected " ++ @typeName(@TypeOf(values)) ++ " to be a tuple value instead");
+    if (!fields.Struct.is_tuple) @compileError("Expected " ++ @typeName(@TypeOf(values)) ++ " to be a tuple value instead");
+
     const prepared = try preEncodeParams(alloc, params, values);
     const data = try encodeParameters(alloc, prepared);
 
@@ -225,7 +229,7 @@ fn encodeParameters(alloc: Allocator, params: []PreEncodedParam) ![]u8 {
 }
 
 fn preEncodeParams(alloc: Allocator, params: []const abi.AbiParameter, values: anytype) ![]PreEncodedParam {
-    assert(params.len > 0);
+    assert(params.len == values.len);
 
     var list = std.ArrayList(PreEncodedParam).init(alloc);
 
@@ -303,8 +307,6 @@ fn preEncodeParam(alloc: Allocator, param: abi.AbiParameter, value: anytype) !Pr
 }
 
 fn encodeNumber(alloc: Allocator, comptime T: type, num: T) !PreEncodedParam {
-    const info = @typeInfo(T);
-    if (info != .Int) return error.InvalidIntType;
     if (num > std.math.maxInt(T)) return error.Overflow;
 
     var buffer = try alloc.alloc(u8, 32);
@@ -443,7 +445,6 @@ fn concatPreEncodedStruct(alloc: Allocator, slices: []PreEncodedParam) ![]u8 {
 }
 
 fn zeroPad(alloc: Allocator, buf: []const u8) ![]u8 {
-    if (buf.len > 32) return error.BufferExceedsMaxSize;
     const padded = try alloc.alloc(u8, 32);
 
     @memset(padded, 0);
@@ -501,6 +502,20 @@ test "Multiple" {
     const params: []const abi.AbiParameter = &.{.{ .type = .{ .tuple = {} }, .name = "fizzbuzz", .components = &.{ .{ .type = .{ .dynamicArray = &.{ .string = {} } }, .name = "foo" }, .{ .type = .{ .uint = 256 }, .name = "bar" }, .{ .type = .{ .dynamicArray = &.{ .tuple = {} } }, .name = "baz", .components = &.{ .{ .type = .{ .dynamicArray = &.{ .bytes = {} } }, .name = "fizz" }, .{ .type = .{ .bool = {} }, .name = "buzz" }, .{ .type = .{ .dynamicArray = &.{ .int = 256 } }, .name = "jazz" } } } } }};
 
     try testEncode("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000a45500000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001c666f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f00000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000018424f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f00000000000000000000000000000000000000000000000000000000000000000000000000000009000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000009", params, .{.{ .foo = &[_][]const u8{"fooooooooooooooooooooooooooo"}, .bar = 42069, .baz = &.{.{ .fizz = &.{"BOOOOOOOOOOOOOOOOOOOOOOO"}, .buzz = true, .jazz = &.{ 1, 2, 3, 4, 5, 6, 7, 8, 9 } }} }});
+
+    const none = try encodeAbiParameters(testing.allocator, &.{}, .{});
+    defer none.deinit();
+
+    try testing.expectEqualStrings("", none.data);
+}
+
+test "Errors" {
+    try testing.expectError(error.InvalidParamType, encodeAbiParameters(testing.allocator, &.{.{ .type = .{ .fixedBytes = 5 }, .name = "foo" }}, .{true}));
+    try testing.expectError(error.InvalidParamType, encodeAbiParameters(testing.allocator, &.{.{ .type = .{ .int = 5 }, .name = "foo" }}, .{true}));
+    try testing.expectError(error.InvalidParamType, encodeAbiParameters(testing.allocator, &.{.{ .type = .{ .tuple = {} }, .name = "foo" }}, .{.{ .bar = "foo" }}));
+    try testing.expectError(error.InvalidParamType, encodeAbiParameters(testing.allocator, &.{.{ .type = .{ .uint = 5 }, .name = "foo" }}, .{"foo"}));
+    try testing.expectError(error.InvalidParamType, encodeAbiParameters(testing.allocator, &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .{[_][]const u8{"foo"}}));
+    try testing.expectError(error.InvalidLength, encodeAbiParameters(testing.allocator, &.{.{ .type = .{ .fixedBytes = 55 }, .name = "foo" }}, .{"foo"}));
 }
 
 test "Selectors" {

@@ -154,7 +154,7 @@ pub fn decodeAbiParameters(alloc: Allocator, comptime params: []const AbiParamet
 }
 
 /// Subset function used for decoding. Its highly recommend to use an ArenaAllocator
-/// or a FixedBufferAllocator to manage memory since allocation will not be free when done,
+/// or a FixedBufferAllocator to manage memory since allocations will not be freed when done,
 /// and with those all of the memory can be freed at once.
 ///
 /// Caller owns the memory.

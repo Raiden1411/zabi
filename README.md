@@ -126,8 +126,8 @@ test "Abi with nested struct" {
 }
 ```
 
-ZAbi human readable parsing fully supports all feature that you would expect it to. From tuple to structs to even parsing the Seaport Opensea contract.
-Slice must be defined as either a single string or a multi line string.
+ZAbi human readable parsing fully supports all feature that you would expect it to. From tuple to structs to even parsing the Seaport Opensea contract. \
+Slices must be defined as either a single string or a multi line string.
 Struct parsing is only supported currently if you are passing the `Abi` type to the `parseHumanReadable` method.
 
 ### Encoding
@@ -146,7 +146,7 @@ defer testing.allocator.free(encoded);
 try testing.expectEqualStrings("65c9c0c100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", encoded);
 ```
 
-You can use the encoder in two ways. If the struct is either comptime know or not. The example above show you how you can use it if the signature is not comptime know. However you can use the comptime methods defined if the you the struct in advance and you will gain access to type safe parameters.
+You can use the encoder in two ways. If the struct is either comptime know or not. The example above show you how you can use it if the signature is not comptime know. However you can use the comptime methods if you know the struct format in advance. By using those methods you will gain access to type safe parameters.
 
 ### Decoding
 
@@ -160,7 +160,7 @@ try testInnerValues(.{"foo"}, decoded.values);
 try testing.expectEqualStrings("0x4ec7c7ae", decoded.name);
 ```
 
-These are just some of the things that zabi can do. We also have some meta programing functions for you to use as well as some other utilites functions that might be usefull for you.
+These are just some of the things that zabi can do. We also have some meta programing functions for you to use as well as some other utilites functions that might be usefull for your development journey.
 
 ### Sponsors
 

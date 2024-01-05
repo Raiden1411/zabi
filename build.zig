@@ -27,7 +27,6 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    // addDeps(b, lib);
     b.installArtifact(lib);
 
     // Creates a step for unit testing. This only builds the test executable

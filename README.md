@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  Handle, generate, encode and decode Solidity ABI's using the Zig. 
+  Handle, generate, encode and decode Solidity ABI's using Zig. 
 <p>
 
 ## Status

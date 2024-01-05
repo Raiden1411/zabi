@@ -1,5 +1,15 @@
-# ZAbi
-Handle, generate, encode and decode Solidity ABI's using the Zig. 
+<br/>
+
+<p align="center">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Raiden1411/zabi/main/.github/zabi.svg">
+      <img alt="ZAbi logo" src="https://raw.githubusercontent.com/Raiden1411/zabi/main/.github/zabi.svg" width="auto" height="45">
+    </picture>
+</p>
+
+<p align="center">
+  Handle, generate, encode and decode Solidity ABI's using the Zig. 
+<p>
 
 ## Status
 This is pre-1.0 software. Although breaking changes are less frequent with each minor version release,

@@ -36,6 +36,8 @@ pub const AbiEncoded = struct {
     }
 };
 
+/// Encode the struct signature based on the values provided.
+/// Caller owns the memory.
 pub fn encodeAbiConstructorComptime(alloc: Allocator, comptime constructor: Constructor, values: AbiParametersToPrimative(constructor.inputs)) EncodeErrors![]u8 {
     const encoded_params = try encodeAbiParametersComptime(alloc, constructor.inputs, values);
     defer encoded_params.deinit();
@@ -46,6 +48,8 @@ pub fn encodeAbiConstructorComptime(alloc: Allocator, comptime constructor: Cons
     return hexed;
 }
 
+/// Encode the struct signature based on the values provided.
+/// Caller owns the memory.
 pub fn encodeAbiErrorComptime(alloc: Allocator, comptime err: Error, values: AbiParametersToPrimative(err.inputs)) EncodeErrors![]u8 {
     const prep_signature = try err.allocPrepare(alloc);
     defer alloc.free(prep_signature);
@@ -69,6 +73,8 @@ pub fn encodeAbiErrorComptime(alloc: Allocator, comptime err: Error, values: Abi
     return buffer;
 }
 
+/// Encode the struct signature based on the values provided.
+/// Caller owns the memory.
 pub fn encodeAbiFunctionComptime(alloc: Allocator, comptime function: Function, values: AbiParametersToPrimative(function.inputs)) EncodeErrors![]u8 {
     const prep_signature = try function.allocPrepare(alloc);
     defer alloc.free(prep_signature);
@@ -92,26 +98,35 @@ pub fn encodeAbiFunctionComptime(alloc: Allocator, comptime function: Function, 
     return buffer;
 }
 
-pub fn encodeAbiParameters(alloc: Allocator, parameters: []const abi.AbiParameter, values: anytype) EncodeErrors!AbiEncoded {
-    var abi_encoded = AbiEncoded{ .arena = try alloc.create(ArenaAllocator), .data = undefined };
-    errdefer alloc.destroy(abi_encoded.arena);
+/// Encode the struct signature based on the values provided.
+/// Caller owns the memory.
+pub fn encodeAbiFunctionOutputsComptime(alloc: Allocator, comptime function: Function, values: AbiParametersToPrimative(function.outputs)) EncodeErrors![]u8 {
+    const prep_signature = try function.allocPrepare(alloc);
+    defer alloc.free(prep_signature);
 
-    abi_encoded.arena.* = ArenaAllocator.init(alloc);
-    errdefer abi_encoded.arena.deinit();
+    var hashed: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(prep_signature, &hashed, .{});
 
-    const allocator = abi_encoded.arena.allocator();
-    abi_encoded.data = try encodeAbiParametersLeaky(allocator, parameters, values);
+    const hash_hex = std.fmt.bytesToHex(hashed, .lower);
 
-    return abi_encoded;
+    const encoded_params = try encodeAbiParametersComptime(alloc, function.inputs, values);
+    defer encoded_params.deinit();
+
+    const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
+    defer alloc.free(hexed);
+
+    const buffer = try alloc.alloc(u8, 8 + hexed.len);
+
+    @memcpy(buffer[0..8], hash_hex[0..8]);
+    @memcpy(buffer[8..], hexed);
+
+    return buffer;
 }
 
-pub fn encodeAbiParametersLeaky(alloc: Allocator, params: []const abi.AbiParameter, values: anytype) EncodeErrors![]u8 {
-    const prepared = try preEncodeParams(alloc, params, values);
-    const data = try encodeParameters(alloc, prepared);
-
-    return data;
-}
-
+/// Main function that will be used to encode abi paramters.
+/// This will allocate and a ArenaAllocator will be used to manage the memory.
+///
+/// Caller owns the memory.
 pub fn encodeAbiParametersComptime(alloc: Allocator, comptime parameters: []const abi.AbiParameter, values: AbiParametersToPrimative(parameters)) EncodeErrors!AbiEncoded {
     var abi_encoded = AbiEncoded{ .arena = try alloc.create(ArenaAllocator), .data = undefined };
     errdefer alloc.destroy(abi_encoded.arena);
@@ -125,7 +140,51 @@ pub fn encodeAbiParametersComptime(alloc: Allocator, comptime parameters: []cons
     return abi_encoded;
 }
 
+/// Subset function used for encoding. Its highly recommend to use an ArenaAllocator
+/// or a FixedBufferAllocator to manage memory since allocation will not be free when done,
+/// and with those all of the memory can be freed at once.
+///
+/// Caller owns the memory.
 pub fn encodeAbiParametersLeakyComptime(alloc: Allocator, comptime params: []const abi.AbiParameter, values: AbiParametersToPrimative(params)) EncodeErrors![]u8 {
+    const prepared = try preEncodeParams(alloc, params, values);
+    const data = try encodeParameters(alloc, prepared);
+
+    return data;
+}
+
+/// Main function that will be used to encode abi paramters.
+/// This will allocate and a ArenaAllocator will be used to manage the memory.
+///
+/// Caller owns the memory.
+///
+/// If the parameters are comptime know consider using `encodeAbiParametersComptime`
+/// This will provided type safe values to be passed into the function.
+/// However runtime reflection will happen to best determine what values should be used based
+/// on the parameters passed in.
+pub fn encodeAbiParameters(alloc: Allocator, parameters: []const abi.AbiParameter, values: anytype) EncodeErrors!AbiEncoded {
+    var abi_encoded = AbiEncoded{ .arena = try alloc.create(ArenaAllocator), .data = undefined };
+    errdefer alloc.destroy(abi_encoded.arena);
+
+    abi_encoded.arena.* = ArenaAllocator.init(alloc);
+    errdefer abi_encoded.arena.deinit();
+
+    const allocator = abi_encoded.arena.allocator();
+    abi_encoded.data = try encodeAbiParametersLeaky(allocator, parameters, values);
+
+    return abi_encoded;
+}
+
+/// Subset function used for encoding. Its highly recommend to use an ArenaAllocator
+/// or a FixedBufferAllocator to manage memory since allocation will not be free when done,
+/// and with those all of the memory can be freed at once.
+///
+/// Caller owns the memory.
+///
+/// If the parameters are comptime know consider using `encodeAbiParametersComptimeLeaky`
+/// This will provided type safe values to be passed into the function.
+/// However runtime reflection will happen to best determine what values should be used based
+/// on the parameters passed in.
+pub fn encodeAbiParametersLeaky(alloc: Allocator, params: []const abi.AbiParameter, values: anytype) EncodeErrors![]u8 {
     const prepared = try preEncodeParams(alloc, params, values);
     const data = try encodeParameters(alloc, prepared);
 

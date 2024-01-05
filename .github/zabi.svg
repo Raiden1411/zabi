@@ -35,12 +35,9 @@
      id="defs1" /><g
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
-     id="layer1"><path
-       id="rect1"
-       style="fill:#ffffff;stroke-width:0.238915"
-       d="M 0.26049123,1.786095 H 299.69454 V 124.13959 H 0.26049123 Z" /><text
+     id="layer1"><text
        xml:space="preserve"
-       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:22.5778px;font-family:'Cascadia Code';-inkscape-font-specification:'Cascadia Code, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;white-space:pre;inline-size:123.588;fill:#f7a41d;fill-opacity:1;stroke-width:0.264583"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:22.5778px;font-family:'Cascadia Code';-inkscape-font-specification:'Cascadia Code, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;white-space:pre;inline-size:123.588;display:inline;fill:#f7a41d;fill-opacity:1;stroke-width:0.264583"
        x="114.97717"
        y="123.27025"
        id="text1"

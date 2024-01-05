@@ -47,6 +47,8 @@ pub fn AbiSignatureDecoded(comptime params: []const AbiParameter) type {
 
 pub const DecodedErrors = error{ InvalidAbiSignature, InvalidLength, NoSpaceLeft, InvalidDecodeDataSize } || Allocator.Error || std.fmt.ParseIntError;
 
+/// Decode the hex values based on the struct signature
+/// Caller owns the memory.
 pub fn decodeAbiFunction(alloc: Allocator, comptime function: abi.Function, hex: []const u8) DecodedErrors!AbiSignatureDecoded(function.inputs) {
     std.debug.assert(hex.len > 7);
 
@@ -72,6 +74,8 @@ pub fn decodeAbiFunction(alloc: Allocator, comptime function: abi.Function, hex:
     return .{ .arena = decoded.arena, .name = func_name, .values = decoded.values };
 }
 
+/// Decode the hex values based on the struct signature
+/// Caller owns the memory.
 pub fn decodeAbiFunctionOutputs(alloc: Allocator, comptime function: abi.Function, hex: []const u8) DecodedErrors!AbiSignatureDecoded(function.outputs) {
     std.debug.assert(hex.len > 7);
 
@@ -97,6 +101,8 @@ pub fn decodeAbiFunctionOutputs(alloc: Allocator, comptime function: abi.Functio
     return .{ .arena = decoded.arena, .name = func_name, .values = decoded.values };
 }
 
+/// Decode the hex values based on the struct signature
+/// Caller owns the memory.
 pub fn decodeAbiError(alloc: Allocator, comptime err: abi.Error, hex: []const u8) DecodedErrors!AbiSignatureDecoded(err.inputs) {
     std.debug.assert(hex.len > 7);
 
@@ -122,12 +128,18 @@ pub fn decodeAbiError(alloc: Allocator, comptime err: abi.Error, hex: []const u8
     return .{ .arena = decoded.arena, .name = func_name, .values = decoded.values };
 }
 
+/// Decode the hex values based on the struct signature
+/// Caller owns the memory.
 pub fn decodeAbiConstructor(alloc: Allocator, comptime constructor: abi.Constructor, hex: []const u8) DecodedErrors!AbiSignatureDecoded(constructor.inputs) {
     const decoded = try decodeAbiParameters(alloc, constructor.inputs, hex);
 
     return .{ .arena = decoded.arena, .name = "", .values = decoded.values };
 }
 
+/// Main function that will be used to decode the hex values based on the abi paramters.
+/// This will allocate and a ArenaAllocator will be used to manage the memory.
+///
+/// Caller owns the memory.
 pub fn decodeAbiParameters(alloc: Allocator, comptime params: []const AbiParameter, hex: []const u8) !AbiDecoded(params) {
     var decoded: AbiDecoded(params) = .{ .arena = try alloc.create(ArenaAllocator), .values = undefined };
     errdefer alloc.destroy(decoded.arena);
@@ -141,6 +153,11 @@ pub fn decodeAbiParameters(alloc: Allocator, comptime params: []const AbiParamet
     return decoded;
 }
 
+/// Subset function used for decoding. Its highly recommend to use an ArenaAllocator
+/// or a FixedBufferAllocator to manage memory since allocation will not be free when done,
+/// and with those all of the memory can be freed at once.
+///
+/// Caller owns the memory.
 pub fn decodeAbiParametersLeaky(alloc: Allocator, comptime params: []const AbiParameter, hex: []const u8) !AbiParametersToPrimative(params) {
     if (params.len == 0) return;
     std.debug.assert(hex.len > 63 and hex.len % 2 == 0);

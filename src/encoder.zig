@@ -109,7 +109,7 @@ pub fn encodeAbiFunctionOutputsComptime(alloc: Allocator, comptime function: Fun
 
     const hash_hex = std.fmt.bytesToHex(hashed, .lower);
 
-    const encoded_params = try encodeAbiParametersComptime(alloc, function.inputs, values);
+    const encoded_params = try encodeAbiParametersComptime(alloc, function.outputs, values);
     defer encoded_params.deinit();
 
     const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});

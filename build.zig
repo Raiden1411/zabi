@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const min_zig_string = "0.12.0-dev.1767+1e42a3de89";
+const min_zig_string = "0.12.0-dev.2043+6ebeb85ab";
 
 pub fn build(b: *std.Build) void {
     comptime {
@@ -15,7 +15,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    _ = b.addModule("zabi", .{ .source_file = .{ .path = "src/root.zig" } });
+    _ = b.addModule("zabi", .{ .root_source_file = .{ .path = "src/root.zig" } });
 
     const coverage = b.option(bool, "generate_coverage", "Generate coverage data with kcov") orelse false;
     const coverage_output_dir = b.option([]const u8, "coverage_output_dir", "Output directory for coverage data") orelse b.pathJoin(&.{ b.install_prefix, "kcov" });
@@ -50,13 +50,13 @@ pub fn build(b: *std.Build) void {
     // Coverage build option with kcov
     if (coverage) {
         const include = b.fmt("--include-pattern=/src", .{});
-        const args = &[_]std.build.RunStep.Arg{ .{ .bytes = b.dupe("kcov") }, .{ .bytes = b.dupe("--collect-only") }, .{ .bytes = b.dupe(include) }, .{ .bytes = b.dupe(coverage_output_dir) } };
+        const args = &[_]std.Build.Step.Run.Arg{ .{ .bytes = b.dupe("kcov") }, .{ .bytes = b.dupe("--collect-only") }, .{ .bytes = b.dupe(include) }, .{ .bytes = b.dupe(coverage_output_dir) } };
 
         var tests_run = b.addRunArtifact(lib_unit_tests);
         tests_run.has_side_effects = true;
         tests_run.argv.insertSlice(0, args) catch @panic("OutOfMemory");
 
-        var merge = std.build.RunStep.create(b, "merge kcov");
+        var merge = std.Build.Step.Run.create(b, "merge kcov");
         merge.has_side_effects = true;
         merge.addArgs(&.{
             "kcov",

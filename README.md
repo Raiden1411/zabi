@@ -35,12 +35,9 @@ with the hash the compiler tells you it found.
 Then in your `build.zig` file add the following to the `exe` section for the executable where you wish to have ZAbi available.
 
 ```zig
-const zabi = b.dependency("zabi", .{
-    .optimize = optimize,
-    .target = target,
-});
+const zabi_module = b.dependency("zabi", .{}).module("zabi");
 // for exe, lib, tests, etc.
-exe.addModule("zabi", zabi.module("zabi"));
+exe.root_module.addImport("zabi", zabi_module);
 ```
 
 Now in the code, you can import components like this:

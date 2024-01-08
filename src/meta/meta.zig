@@ -208,7 +208,7 @@ pub fn AbiParameterToPrimative(comptime param: params.AbiParameter) type {
                 for (components, 0..) |component, i| {
                     const FieldType = AbiParameterToPrimative(component);
                     fields[i] = .{
-                        .name = component.name,
+                        .name = component.name ++ "",
                         .type = FieldType,
                         .default_value = null,
                         .is_comptime = false,

@@ -1,4 +1,5 @@
 const std = @import("std");
+const testing = std.testing;
 const Allocator = std.mem.Allocator;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
@@ -26,13 +27,15 @@ pub fn toChecksum(alloc: Allocator, address: []const u8) ![]u8 {
 }
 
 /// Checks if the given address is a valid ethereum address.
-pub fn isAddress(alloc: Allocator, addr: []const u8) bool {
+pub fn isAddress(alloc: Allocator, addr: []const u8) !bool {
     if (!std.mem.startsWith(u8, addr, "0x")) return false;
     const address = addr[2..];
 
     if (address.len != 40) return false;
+    const checksumed = try toChecksum(alloc, address);
+    defer alloc.free(checksumed);
 
-    return std.mem.eql(u8, address, toChecksum(alloc, address));
+    return std.mem.eql(u8, address, checksumed);
 }
 
 /// Checks if the given hash is a valid 32 bytes hash
@@ -52,4 +55,14 @@ pub fn isHash(hash: []const u8) bool {
     }
 
     return true;
+}
+
+pub fn parseEth(value: u256) f64 {
+    return @floatFromInt(value / std.math.pow(u256, 10, 18));
+}
+
+test "Checksum" {
+    const address = "0x407d73d8a49eeb85d32cf465507dd71d507100c1";
+
+    try testing.expect(!try isAddress(testing.allocator, address));
 }

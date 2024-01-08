@@ -11,6 +11,10 @@
   Handle, generate, encode and decode Solidity ABI's using Zig. 
 <p>
 
+<p align="center">
+  [![codecov](https://codecov.io/github/Raiden1411/zabi/graph/badge.svg)]
+<p>
+
 ## Status
 This is pre-1.0 software. Although breaking changes are less frequent with each minor version release,
 they will still occur until we reach 1.0.

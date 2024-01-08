@@ -23,15 +23,24 @@ pub fn EthereumResponse(comptime T: type) type {
     };
 }
 
+/// Set of public rpc actions.
 pub const EthereumRpcMethods = enum {
+    eth_chainId,
+    eth_gasPrice,
+    eth_accounts,
     eth_getBlockByNumber,
     eth_getBlockByHash,
 };
 
+/// This allocator will get set by the arena.
 alloc: Allocator,
+/// The arena where all allocations will leave.
 arena: *ArenaAllocator,
+/// The set of predifined headers use for the rpc calls.
 headers: *http.Headers,
+/// The underlaying http client used to manage all the calls.
 client: *http.Client,
+/// The uri of the provided init string.
 uri: Uri,
 
 const PubClient = @This();
@@ -106,7 +115,7 @@ pub fn getBlockByHash(self: PubClient, opts: block.BlockHashRequest) !block.Bloc
 //     const pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545");
 //     defer pub_client.deinit();
 //
-//     const block_req = try pub_client.getBlockByHash(.{ .block_hash = "0x51aaff67227f095aa9b6f4da5287a739f66107a42b7cb9aaf72911ea081674bd" });
+//     const block_req = try pub_client.getAccounts();
 //
-//     std.debug.print("Foooo: {any}\n\n\n", .{block_req});
+//     std.debug.print("Foooo: {s}\n\n\n", .{block_req[0]});
 // }

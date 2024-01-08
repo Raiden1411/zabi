@@ -80,12 +80,3 @@ pub fn getBlockByNumber(self: PubClient, opts: block.BlockRequest) !block.Block 
 
     return parsed.result;
 }
-
-test "GetBlock" {
-    const pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545");
-    defer pub_client.deinit();
-
-    const b = try pub_client.getBlockByNumber(.{});
-
-    std.debug.print("FOOO: {any}\n\n\n", .{b});
-}

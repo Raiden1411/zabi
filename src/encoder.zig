@@ -506,7 +506,7 @@ test "Multiple" {
     const none = try encodeAbiParameters(testing.allocator, &.{}, .{});
     defer none.deinit();
 
-    testing.expectEqualStrings("", none.data);
+    try testing.expectEqualStrings("", none.data);
 }
 
 test "Errors" {

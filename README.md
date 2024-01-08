@@ -16,7 +16,7 @@
     <source media="(prefers-color-scheme: dark)" srcset="https://codecov.io/github/Raiden1411/zabi/graph/badge.svg">
     <img alt="ZAbi logo" src="https://codecov.io/github/Raiden1411/zabi/graph/badge.svg" width="auto" height="25">
   </picture>
-<div align="center">
+<p>
 
 ## Status
 This is pre-1.0 software. Although breaking changes are less frequent with each minor version release,

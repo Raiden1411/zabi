@@ -35,6 +35,7 @@ pub const EthereumRpcMethods = enum {
     eth_getBlockByNumber,
     eth_getBlockByHash,
     eth_blockNumber,
+    eth_getTransactionCount,
 };
 
 /// This allocator will get set by the arena.
@@ -145,9 +146,27 @@ pub fn getAddressBalance(self: PubClient, opts: block.BalanceRequest) !f64 {
 
     if (req.status != .ok) return error.InvalidRequest;
 
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse([]const u8), self.alloc, req.body.?, .{});
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(u256), self.alloc, req.body.?, .{});
 
-    return utils.parseEth(try std.fmt.parseInt(u256, parsed.result, 0));
+    return utils.parseEth(parsed.result);
+}
+
+pub fn getAddressTransactionCount(self: PubClient, opts: block.BalanceRequest) !usize {
+    if (!try utils.isAddress(self.alloc, opts.address)) return error.InvalidAddress;
+    const tag: block.BalanceBlockTag = opts.tag orelse .latest;
+    const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
+
+    const Params = std.meta.Tuple(&[_]type{ []const u8, []const u8 });
+    const request: EthereumRequest(Params) = .{ .params = .{ opts.address, block_number }, .method = .eth_getTransactionCount };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
+
+    return parsed.result;
 }
 
 pub fn getBlockByNumber(self: PubClient, opts: block.BlockNumberRequest) !block.Block {
@@ -194,7 +213,7 @@ pub fn getBlockByHash(self: PubClient, opts: block.BlockHashRequest) !block.Bloc
 //     const pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545");
 //     defer pub_client.deinit();
 //
-//     const block_req = try pub_client.getAddressBalance(.{ .address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" });
+//     const block_req = try pub_client.getAddressTransactionCount(.{ .address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" });
 //
 //     std.debug.print("Foooo: {d}\n\n\n", .{block_req});
 // }

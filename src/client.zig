@@ -28,8 +28,10 @@ pub const EthereumRpcMethods = enum {
     eth_chainId,
     eth_gasPrice,
     eth_accounts,
+    eth_getBalance,
     eth_getBlockByNumber,
     eth_getBlockByHash,
+    eth_blockNumber,
 };
 
 /// This allocator will get set by the arena.
@@ -113,6 +115,38 @@ pub fn getAccounts(self: PubClient) ![]const []const u8 {
     return parsed.result;
 }
 
+pub fn getBlockNumber(self: PubClient) !usize {
+    const Params = std.meta.Tuple(&[_]type{});
+    const request: EthereumRequest(Params) = .{ .params = .{}, .method = .eth_blockNumber };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse([]const u8), self.alloc, req.body.?, .{});
+
+    return try std.fmt.parseInt(usize, parsed.result, 0);
+}
+
+pub fn getAddressBalance(self: PubClient, opts: block.BalanceRequest) !f64 {
+    if (!try utils.isAddress(self.alloc, opts.address)) return error.InvalidAddress;
+    const tag: block.BalanceBlockTag = opts.tag orelse .latest;
+    const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
+
+    const Params = std.meta.Tuple(&[_]type{ []const u8, []const u8 });
+    const request: EthereumRequest(Params) = .{ .params = .{ opts.address, block_number }, .method = .eth_getBalance };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse([]const u8), self.alloc, req.body.?, .{});
+
+    return utils.parseEth(try std.fmt.parseInt(u256, parsed.result, 0));
+}
+
 pub fn getBlockByNumber(self: PubClient, opts: block.BlockNumberRequest) !block.Block {
     const tag: block.BlockTag = opts.tag orelse .latest;
     const include = opts.include_transaction_objects orelse false;
@@ -135,11 +169,11 @@ pub fn getBlockByNumber(self: PubClient, opts: block.BlockNumberRequest) !block.
 }
 
 pub fn getBlockByHash(self: PubClient, opts: block.BlockHashRequest) !block.Block {
-    const hash = if (utils.isHash(opts.block_hash)) opts.block_hash else return error.InvalidHash;
+    if (!utils.isHash(opts.block_hash)) return error.InvalidHash;
     const include = opts.include_transaction_objects orelse false;
 
     const Params = std.meta.Tuple(&[_]type{ []const u8, bool });
-    const params: Params = .{ hash, include };
+    const params: Params = .{ opts.block_hash, include };
 
     const request: EthereumRequest(Params) = .{ .params = params, .method = .eth_getBlockByHash };
 
@@ -157,7 +191,7 @@ pub fn getBlockByHash(self: PubClient, opts: block.BlockHashRequest) !block.Bloc
 //     const pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545");
 //     defer pub_client.deinit();
 //
-//     const block_req = try pub_client.getAccounts();
+//     const block_req = try pub_client.getAddressBalance(.{ .address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" });
 //
-//     std.debug.print("Foooo: {s}\n\n\n", .{block_req[0]});
+//     std.debug.print("Foooo: {d}\n\n\n", .{block_req});
 // }

@@ -29,12 +29,6 @@ pub fn UnionParser(comptime T: type) type {
                 inline else => |value| try stream.write(value),
             }
         }
-
-        pub fn format(self: T, comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
-            switch (self) {
-                inline else => |value| try value.format(layout, opts, writer),
-            }
-        }
     };
 }
 

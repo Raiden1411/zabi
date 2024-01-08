@@ -11,12 +11,12 @@
   Handle, generate, encode and decode Solidity ABI's using Zig. 
 <p>
 
-<div align="center">
+<p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://codecov.io/github/Raiden1411/zabi/graph/badge.svg">
-    <img alt="ZAbi logo" src="https://codecov.io/github/Raiden1411/zabi/graph/badge.svg" width="auto" height="150" height="25">
+    <img alt="ZAbi logo" src="https://codecov.io/github/Raiden1411/zabi/graph/badge.svg" width="auto" height="25">
   </picture>
-<p>
+<div align="center">
 
 ## Status
 This is pre-1.0 software. Although breaking changes are less frequent with each minor version release,

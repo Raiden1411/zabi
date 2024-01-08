@@ -441,6 +441,12 @@ pub const AbiItem = union(enum) {
             inline else => |item| if (@hasDecl(@TypeOf(item), "deinit")) item.deinit(alloc),
         }
     }
+
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+        switch (self) {
+            inline else => |value| try value.format(layout, opts, writer),
+        }
+    }
 };
 
 pub const Abi = []const AbiItem;

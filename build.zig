@@ -54,5 +54,6 @@ pub fn build(b: *std.Build) void {
         var tests_run = b.addRunArtifact(lib_unit_tests);
         tests_run.has_side_effects = true;
         tests_run.argv.insertSlice(0, args) catch @panic("OutOfMemory");
+        test_step.dependOn(&tests_run.step);
     }
 }

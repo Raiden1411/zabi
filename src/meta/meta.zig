@@ -32,6 +32,89 @@ pub fn UnionParser(comptime T: type) type {
     };
 }
 
+pub fn RequestParser(comptime T: type) type {
+    return struct {
+        pub fn jsonParse(alloc: Allocator, source: anytype, opts: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!T {
+            const info = @typeInfo(T);
+            if (.object_begin != try source.next()) return error.UnexpectedToken;
+
+            var result: T = undefined;
+
+            while (true) {
+                var name_token: ?std.json.Token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
+                const field_name = switch (name_token.?) {
+                    inline .string, .allocated_string => |slice| slice,
+                    .object_end => { // No more fields.
+                        break;
+                    },
+                    else => {
+                        return error.UnexpectedToken;
+                    },
+                };
+
+                inline for (info.Struct.fields) |field| {
+                    if (std.mem.eql(u8, field.name, field_name)) {
+                        name_token = null;
+                        @field(result, field.name) = try innerParseRequest(field.type, alloc, source, opts);
+                        break;
+                    }
+                } else {
+                    if (opts.ignore_unknown_fields) {
+                        try source.skipValue();
+                    } else {
+                        return error.UnknownField;
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        fn innerParseRequest(comptime TT: type, alloc: Allocator, source: anytype, opts: std.json.ParseOptions) !TT {
+            const info = @typeInfo(TT);
+
+            switch (info) {
+                .Int => {
+                    const token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
+                    const slice = switch (token) {
+                        inline .number, .allocated_number, .string, .allocated_string => |slice| slice,
+                        else => return error.UnexpectedToken,
+                    };
+
+                    return try std.fmt.parseInt(TT, slice, 0);
+                },
+
+                .Pointer => |ptrInfo| {
+                    switch (ptrInfo.size) {
+                        .Slice => {
+                            switch (try source.peekNextTokenType()) {
+                                .string => {
+                                    if (ptrInfo.child != u8) return error.UnexpectedToken;
+                                    if (ptrInfo.is_const) {
+                                        switch (try source.nextAllocMax(alloc, opts.allocate.?, opts.max_value_len.?)) {
+                                            inline .string, .allocated_string => |slice| return slice,
+                                            else => unreachable,
+                                        }
+                                    } else {
+                                        // Have to allocate to get a mutable copy.
+                                        switch (try source.nextAllocMax(alloc, .alloc_always, alloc.max_value_len.?)) {
+                                            .allocated_string => |slice| return slice,
+                                            else => unreachable,
+                                        }
+                                    }
+                                },
+                                else => return error.UnexpectedToken,
+                            }
+                        },
+                        else => @compileError("Unable to parse type " ++ @typeName(TT)),
+                    }
+                },
+                else => @compileError("Unable to parse type " ++ @typeName(TT)),
+            }
+        }
+    };
+}
+
 /// Type function use to extract enum members from any enum.
 ///
 /// The needle can be just the tagName of a single member or a comma seperated value.

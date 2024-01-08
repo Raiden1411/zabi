@@ -1,5 +1,6 @@
 const block = @import("block.zig");
 const http = std.http;
+const meta = @import("meta/meta.zig");
 const std = @import("std");
 const utils = @import("utils.zig");
 const Allocator = std.mem.Allocator;
@@ -20,6 +21,8 @@ pub fn EthereumResponse(comptime T: type) type {
         jsonrpc: []const u8,
         id: usize,
         result: T,
+
+        pub usingnamespace if (@typeInfo(T) == .Int) meta.RequestParser(@This()) else {};
     };
 }
 
@@ -82,9 +85,9 @@ pub fn getChainId(self: PubClient) !usize {
 
     if (req.status != .ok) return error.InvalidRequest;
 
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse([]const u8), self.alloc, req.body.?, .{});
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
 
-    return try std.fmt.parseInt(usize, parsed.result, 0);
+    return parsed.result;
 }
 
 pub fn getGasPrice(self: PubClient) !usize {
@@ -96,9 +99,9 @@ pub fn getGasPrice(self: PubClient) !usize {
 
     if (req.status != .ok) return error.InvalidRequest;
 
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse([]const u8), self.alloc, req.body.?, .{});
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
 
-    return try std.fmt.parseInt(usize, parsed.result, 0);
+    return parsed.value;
 }
 
 pub fn getAccounts(self: PubClient) ![]const []const u8 {
@@ -124,9 +127,9 @@ pub fn getBlockNumber(self: PubClient) !usize {
 
     if (req.status != .ok) return error.InvalidRequest;
 
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse([]const u8), self.alloc, req.body.?, .{});
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
 
-    return try std.fmt.parseInt(usize, parsed.result, 0);
+    return parsed.result;
 }
 
 pub fn getAddressBalance(self: PubClient, opts: block.BalanceRequest) !f64 {

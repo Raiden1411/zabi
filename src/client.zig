@@ -71,6 +71,48 @@ pub fn deinit(self: @This()) void {
     allocator.destroy(self.client);
 }
 
+pub fn getChainId(self: PubClient) !usize {
+    const Params = std.meta.Tuple(&[_]type{});
+    const request: EthereumRequest(Params) = .{ .params = .{}, .method = .eth_chainId };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse([]const u8), self.alloc, req.body.?, .{});
+
+    return try std.fmt.parseInt(usize, parsed.result, 0);
+}
+
+pub fn getGasPrice(self: PubClient) !usize {
+    const Params = std.meta.Tuple(&[_]type{});
+    const request: EthereumRequest(Params) = .{ .params = .{}, .method = .eth_gasPrice };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse([]const u8), self.alloc, req.body.?, .{});
+
+    return try std.fmt.parseInt(usize, parsed.result, 0);
+}
+
+pub fn getAccounts(self: PubClient) ![]const []const u8 {
+    const Params = std.meta.Tuple(&[_]type{});
+    const request: EthereumRequest(Params) = .{ .params = .{}, .method = .eth_accounts };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse([]const []const u8), self.alloc, req.body.?, .{});
+
+    return parsed.result;
+}
+
 pub fn getBlockByNumber(self: PubClient, opts: block.BlockNumberRequest) !block.Block {
     const tag: block.BlockTag = opts.tag orelse .latest;
     const include = opts.include_transaction_objects orelse false;

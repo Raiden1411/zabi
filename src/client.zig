@@ -23,15 +23,24 @@ pub fn EthereumResponse(comptime T: type) type {
     };
 }
 
+/// Set of public rpc actions.
 pub const EthereumRpcMethods = enum {
+    eth_chainId,
+    eth_gasPrice,
+    eth_accounts,
     eth_getBlockByNumber,
     eth_getBlockByHash,
 };
 
+/// This allocator will get set by the arena.
 alloc: Allocator,
+/// The arena where all allocations will leave.
 arena: *ArenaAllocator,
+/// The set of predifined headers use for the rpc calls.
 headers: *http.Headers,
+/// The underlaying http client used to manage all the calls.
 client: *http.Client,
+/// The uri of the provided init string.
 uri: Uri,
 
 const PubClient = @This();
@@ -60,6 +69,48 @@ pub fn deinit(self: @This()) void {
     allocator.destroy(self.arena);
     allocator.destroy(self.headers);
     allocator.destroy(self.client);
+}
+
+pub fn getChainId(self: PubClient) !usize {
+    const Params = std.meta.Tuple(&[_]type{});
+    const request: EthereumRequest(Params) = .{ .params = .{}, .method = .eth_chainId };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse([]const u8), self.alloc, req.body.?, .{});
+
+    return try std.fmt.parseInt(usize, parsed.result, 0);
+}
+
+pub fn getGasPrice(self: PubClient) !usize {
+    const Params = std.meta.Tuple(&[_]type{});
+    const request: EthereumRequest(Params) = .{ .params = .{}, .method = .eth_gasPrice };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse([]const u8), self.alloc, req.body.?, .{});
+
+    return try std.fmt.parseInt(usize, parsed.result, 0);
+}
+
+pub fn getAccounts(self: PubClient) ![]const []const u8 {
+    const Params = std.meta.Tuple(&[_]type{});
+    const request: EthereumRequest(Params) = .{ .params = .{}, .method = .eth_accounts };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse([]const []const u8), self.alloc, req.body.?, .{});
+
+    return parsed.result;
 }
 
 pub fn getBlockByNumber(self: PubClient, opts: block.BlockNumberRequest) !block.Block {
@@ -106,7 +157,7 @@ pub fn getBlockByHash(self: PubClient, opts: block.BlockHashRequest) !block.Bloc
 //     const pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545");
 //     defer pub_client.deinit();
 //
-//     const block_req = try pub_client.getBlockByHash(.{ .block_hash = "0x51aaff67227f095aa9b6f4da5287a739f66107a42b7cb9aaf72911ea081674bd" });
+//     const block_req = try pub_client.getAccounts();
 //
-//     std.debug.print("Foooo: {any}\n\n\n", .{block_req});
+//     std.debug.print("Foooo: {s}\n\n\n", .{block_req[0]});
 // }

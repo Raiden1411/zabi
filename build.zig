@@ -49,22 +49,10 @@ pub fn build(b: *std.Build) void {
     // Coverage build option with kcov
     if (coverage) {
         const include = b.fmt("--include-pattern=/src", .{});
-        const args = &[_]std.Build.Step.Run.Arg{ .{ .bytes = b.dupe("kcov") }, .{ .bytes = b.dupe("--collect-only") }, .{ .bytes = b.dupe(include) }, .{ .bytes = b.dupe(coverage_output_dir) } };
+        const args = &[_]std.Build.Step.Run.Arg{ .{ .bytes = b.dupe("kcov") }, .{ .bytes = b.dupe(include) }, .{ .bytes = b.dupe(coverage_output_dir) } };
 
         var tests_run = b.addRunArtifact(lib_unit_tests);
         tests_run.has_side_effects = true;
         tests_run.argv.insertSlice(0, args) catch @panic("OutOfMemory");
-
-        var merge = std.Build.Step.Run.create(b, "merge kcov");
-        merge.has_side_effects = true;
-        merge.addArgs(&.{
-            "kcov",
-            "--merge",
-            coverage_output_dir,
-            b.pathJoin(&.{ coverage_output_dir, "test" }),
-        });
-        merge.step.dependOn(&b.addRemoveDirTree(coverage_output_dir).step);
-        merge.step.dependOn(&tests_run.step);
-        test_step.dependOn(&merge.step);
     }
 }

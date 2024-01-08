@@ -8,7 +8,8 @@ const UnionParser = @import("meta/meta.zig").UnionParser;
 
 pub const BlockTag = enum { latest, earliest, pending, safe, finalized };
 
-pub const BlockRequest = struct { block_number: ?usize = null, tag: ?BlockTag = .latest, include_transaction_objects: ?bool = false };
+pub const BlockNumberRequest = struct { block_number: ?usize = null, tag: ?BlockTag = .latest, include_transaction_objects: ?bool = false };
+pub const BlockHashRequest = struct { block_hash: []const u8, include_transaction_objects: ?bool = false };
 
 pub const Withdrawal = struct {
     index: []const u8,

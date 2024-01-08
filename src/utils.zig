@@ -24,3 +24,32 @@ pub fn toChecksum(alloc: Allocator, address: []const u8) ![]u8 {
 
     return checksum;
 }
+
+/// Checks if the given address is a valid ethereum address.
+pub fn isAddress(alloc: Allocator, addr: []const u8) bool {
+    if (!std.mem.startsWith(u8, addr, "0x")) return false;
+    const address = addr[2..];
+
+    if (address.len != 40) return false;
+
+    return std.mem.eql(u8, address, toChecksum(alloc, address));
+}
+
+/// Checks if the given hash is a valid 32 bytes hash
+pub fn isHash(hash: []const u8) bool {
+    if (!std.mem.startsWith(u8, hash, "0x")) return false;
+    const hash_slice = hash[2..];
+
+    if (hash_slice.len != 64) return false;
+
+    for (0..hash_slice.len) |i| {
+        const char = hash_slice[i];
+
+        switch (char) {
+            '0'...'9', 'a'...'f' => continue,
+            else => return false,
+        }
+    }
+
+    return true;
+}

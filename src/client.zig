@@ -36,6 +36,8 @@ pub const EthereumRpcMethods = enum {
     eth_getBlockByHash,
     eth_blockNumber,
     eth_getTransactionCount,
+    eth_getBlockTransactionCountByHash,
+    eth_getBlockTransactionCountByNumber,
 };
 
 /// This allocator will get set by the arena.
@@ -158,6 +160,40 @@ pub fn getAddressTransactionCount(self: PubClient, opts: block.BalanceRequest) !
 
     const Params = std.meta.Tuple(&[_]type{ []const u8, []const u8 });
     const request: EthereumRequest(Params) = .{ .params = .{ opts.address, block_number }, .method = .eth_getTransactionCount };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
+
+    return parsed.result;
+}
+
+pub fn getBlockTransactionCountByHash(self: PubClient, block_hash: []const u8) !block.Block {
+    if (!utils.isHash(block_hash)) return error.InvalidHash;
+
+    const Params = std.meta.Tuple(&[_]type{[]const u8});
+    const params: Params = .{block_hash};
+
+    const request: EthereumRequest(Params) = .{ .params = params, .method = .eth_getBlockTransactionCountByHash };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
+
+    return parsed.result;
+}
+
+pub fn getBlockTransactionCountByNumber(self: PubClient, block_number: usize) !block.Block {
+    const Params = std.meta.Tuple(&[_]type{usize});
+    const params: Params = .{block_number};
+
+    const request: EthereumRequest(Params) = .{ .params = params, .method = .eth_getBlockTransactionCountByNumber };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });

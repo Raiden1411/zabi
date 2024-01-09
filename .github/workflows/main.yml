@@ -41,5 +41,13 @@ jobs:
       - name: Build
         run: zig build
 
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Run Anvil
+        run: anvil --fork-url "https://ethereum.publicnode.com"
+
       - name: Run Tests
         run: zig build test

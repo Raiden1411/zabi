@@ -21,4 +21,5 @@ test {
     _ = @import("human-readable/abi_parsing.zig");
     _ = @import("encoder.zig");
     _ = @import("decoder.zig");
+    _ = @import("client.zig");
 }

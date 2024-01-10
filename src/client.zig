@@ -1,9 +1,10 @@
-const block = @import("block.zig");
+const block = @import("meta/block.zig");
 const http = std.http;
+const log = @import("meta/log.zig");
 const meta = @import("meta/meta.zig");
 const std = @import("std");
-const transaction = @import("transaction.zig");
-const types = @import("meta/types.zig");
+const transaction = @import("meta/transaction.zig");
+const types = @import("meta/ethereum.zig");
 const utils = @import("utils.zig");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
@@ -168,6 +169,24 @@ pub fn getTransactionByHash(self: PubClient, transaction_hash: types.Hex) !trans
     return parsed.result;
 }
 
+pub fn getTransactionReceipt(self: PubClient, transaction_hash: types.Hex) !transaction.TransactionReceipt {
+    if (!utils.isHash(transaction_hash)) return error.InvalidHash;
+
+    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{transaction_hash}, .method = .eth_getTransactionReceipt, .id = self.chain_id };
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(transaction.TransactionReceipt), self.alloc, req.body.?, .{}) catch {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+            @panic(result.@"error".message);
+        } else |_| return error.RpcNullResponse;
+    };
+
+    return parsed.result;
+}
+
 pub fn getTransactionByBlockHashAndIndex(self: PubClient, block_hash: types.Hex, index: usize) !transaction.Transaction {
     if (!utils.isHash(block_hash)) return error.InvalidHash;
 
@@ -216,6 +235,45 @@ pub fn uninstalllFilter(self: PubClient, id: usize) !bool {
     if (req.status != .ok) return error.InvalidRequest;
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(bool), self.alloc, req.body.?, .{}) catch {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+            @panic(result.@"error".message);
+        } else |_| return error.RpcNullResponse;
+    };
+
+    return parsed.result;
+}
+
+pub fn getFilterOrLogChanges(self: PubClient, filter_id: usize, method: meta.Extract(types.EthereumRpcMethods, "eth_getFilterChanges,eth_FilterLogs")) !log.Logs {
+    const filter = try std.fmt.allocPrint(self.alloc, "0x{x}", .{filter_id});
+
+    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{filter}, .method = method, .id = self.chain_id };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(log.Logs), self.alloc, req.body.?, .{}) catch {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+            @panic(result.@"error".message);
+        } else |_| return error.RpcNullResponse;
+    };
+
+    return parsed.result;
+}
+
+pub fn getLogs(self: PubClient, opts: log.LogRequestParams) !log.Logs {
+    const from_block = if (opts.tag) |tag| @tagName(tag) else if (opts.fromBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
+    const to_block = if (opts.tag) |tag| @tagName(tag) else if (opts.toBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
+
+    const request: types.EthereumRequest([]const log.LogRequest) = .{ .params = &.{.{ .fromBlock = from_block, .toBlock = to_block, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_getLogs, .id = self.chain_id };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(log.Logs), self.alloc, req.body.?, .{}) catch {
         if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
             @panic(result.@"error".message);
         } else |_| return error.RpcNullResponse;
@@ -321,7 +379,7 @@ fn fetchBlock(self: PubClient, request: anytype) !block.Block {
 //     const pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
 //     defer pub_client.deinit();
 //
-//     const block_req = try pub_client.getTransactionByHash("0x84ea9218866a33cac46673308427ddfe3c7819e9f4353a5a4b8557332ab76cf6");
+//     const block_req = try pub_client.getTransactionReceipt("0x84ea9218866a33cac46673308427ddfe3c7819e9f4353a5a4b8557332ab76cf6");
 //
-//     std.debug.print("Foooo: {}\n\n\n", .{block_req});
+//     std.debug.print("Foooo: {any}\n\n\n", .{block_req});
 // }

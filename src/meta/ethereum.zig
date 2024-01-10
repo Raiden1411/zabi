@@ -24,7 +24,7 @@ pub const EthereumRpcMethods = enum {
     eth_getTransactionByHash,
     eth_getTransactionByBlockHashAndIndex,
     eth_getTransactionByBlockNumberAndIndex,
-    eth_getTransactionReceit,
+    eth_getTransactionReceipt,
     eth_getUncleByBlockHashAndIndex,
     eth_getUncleByBlockNumberAndIndex,
     eth_newFilter,

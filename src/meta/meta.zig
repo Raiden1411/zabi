@@ -99,6 +99,7 @@ pub fn RequestParser(comptime T: type) type {
                 .Bool => {
                     switch (source) {
                         .bool => |val| return val,
+                        .string => |val| return try std.fmt.parseInt(u1, val, 0) != 0,
                         else => return error.UnexpectedToken,
                     }
                 },
@@ -156,6 +157,7 @@ pub fn RequestParser(comptime T: type) type {
                     return switch (try source.next()) {
                         .true => true,
                         .false => false,
+                        .string => |slice| try std.fmt.parseInt(u1, slice, 0) != 0,
                         else => error.UnexpectedToken,
                     };
                 },
@@ -167,6 +169,16 @@ pub fn RequestParser(comptime T: type) type {
                     };
 
                     return try std.fmt.parseInt(TT, slice, 0);
+                },
+
+                .Optional => |opt_info| {
+                    switch (try source.peekNextTokenType()) {
+                        .null => {
+                            _ = try source.next();
+                            return null;
+                        },
+                        else => return try innerParseRequest(opt_info.child, alloc, source, opts),
+                    }
                 },
 
                 .Pointer => |ptrInfo| {

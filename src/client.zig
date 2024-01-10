@@ -222,7 +222,11 @@ pub fn getTransactionByHash(self: PubClient, transaction_hash: types.Hex) !trans
 
     if (req.status != .ok) return error.InvalidRequest;
 
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(transaction.Transaction), self.alloc, req.body.?, .{});
+    const parsed = std.json.parseFromSliceLeaky(EthereumResponse(transaction.Transaction), self.alloc, req.body.?, .{}) catch {
+        if (std.json.parseFromSliceLeaky(EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+            @panic(result.@"error".message);
+        } else |_| return error.RpcNullResponse;
+    };
 
     return parsed.result;
 }
@@ -239,7 +243,11 @@ pub fn getTransactionByBlockHashAndIndex(self: PubClient, block_hash: types.Hex,
 
     if (req.status != .ok) return error.InvalidRequest;
 
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(transaction.Transaction), self.alloc, req.body.?, .{});
+    const parsed = std.json.parseFromSliceLeaky(EthereumResponse(transaction.Transaction), self.alloc, req.body.?, .{}) catch {
+        if (std.json.parseFromSliceLeaky(EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+            @panic(result.@"error".message);
+        } else |_| return error.RpcNullResponse;
+    };
 
     return parsed.result;
 }
@@ -257,7 +265,33 @@ pub fn getTransactionByBlockNumberAndIndex(self: PubClient, opts: block.BlockNum
 
     if (req.status != .ok) return error.InvalidRequest;
 
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(transaction.Transaction), self.alloc, req.body.?, .{});
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(transaction.Transaction), self.alloc, req.body.?, .{}) catch {
+        if (std.json.parseFromSliceLeaky(EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+            @panic(result.@"error".message);
+        } else |_| return error.RpcNullResponse;
+    };
+
+    return parsed.result;
+}
+
+pub fn uninstalllFilter(self: PubClient, id: usize) !bool {
+    const filter_id = try std.fmt.allocPrint(self.alloc, "0x{x}", .{id});
+
+    const Params = std.meta.Tuple(&[_]type{types.Hex});
+    const params: Params = .{filter_id};
+
+    const request: EthereumRequest(Params) = .{ .params = params, .method = .eth_uninstallFilter };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = std.json.parseFromSliceLeaky(EthereumResponse(bool), self.alloc, req.body.?, .{}) catch {
+        if (std.json.parseFromSliceLeaky(EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+            @panic(result.@"error".message);
+        } else |_| return error.RpcNullResponse;
+    };
 
     return parsed.result;
 }
@@ -276,7 +310,11 @@ fn fetchByBlockNumber(self: PubClient, opts: block.BlockNumberRequest, method: E
 
     if (req.status != .ok) return error.InvalidRequest;
 
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
+    const parsed = std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{}) catch {
+        if (std.json.parseFromSliceLeaky(EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+            @panic(result.@"error".message);
+        } else |_| return error.RpcNullResponse;
+    };
 
     return parsed.result;
 }
@@ -294,7 +332,11 @@ fn fetchByBlockHash(self: PubClient, block_hash: []const u8, method: EthereumRpc
 
     if (req.status != .ok) return error.InvalidRequest;
 
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
+    const parsed = std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{}) catch {
+        if (std.json.parseFromSliceLeaky(EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+            @panic(result.@"error".message);
+        } else |_| return error.RpcNullResponse;
+    };
 
     return parsed.result;
 }
@@ -312,7 +354,11 @@ fn fetchByAddress(self: PubClient, comptime T: type, opts: block.BalanceRequest,
 
     if (req.status != .ok) return error.InvalidRequest;
 
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(T), self.alloc, req.body.?, .{});
+    const parsed = std.json.parseFromSliceLeaky(EthereumResponse(T), self.alloc, req.body.?, .{}) catch {
+        if (std.json.parseFromSliceLeaky(EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+            @panic(result.@"error".message);
+        } else |_| return error.RpcNullResponse;
+    };
 
     return parsed.result;
 }
@@ -326,7 +372,11 @@ fn fetchWithEmptyArgs(self: PubClient, comptime T: type, method: EthereumRpcMeth
 
     if (req.status != .ok) return error.InvalidRequest;
 
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(T), self.alloc, req.body.?, .{});
+    const parsed = std.json.parseFromSliceLeaky(EthereumResponse(T), self.alloc, req.body.?, .{}) catch {
+        if (std.json.parseFromSliceLeaky(EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+            @panic(result.@"error".message);
+        } else |_| return error.RpcNullResponse;
+    };
 
     return parsed.value;
 }
@@ -337,7 +387,11 @@ fn fetchBlock(self: PubClient, request: anytype) !block.Block {
 
     if (req.status != .ok) return error.InvalidRequest;
 
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(block.Block), self.alloc, req.body.?, .{});
+    const parsed = std.json.parseFromSliceLeaky(EthereumResponse(block.Block), self.alloc, req.body.?, .{}) catch {
+        if (std.json.parseFromSliceLeaky(EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+            @panic(result.@"error".message);
+        } else |_| return error.RpcNullResponse;
+    };
 
     return parsed.result;
 }
@@ -346,7 +400,7 @@ fn fetchBlock(self: PubClient, request: anytype) !block.Block {
 //     const pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545");
 //     defer pub_client.deinit();
 //
-//     const block_req = try pub_client.getTransactionByHash("0x84ea9218866a33cac46673308427ddfe3c7819e9f4353a5a4b8557332ab76cf6");
+//     const block_req = try pub_client.getTransactionByHash("0x84ea9218876a33cac46673308427ddfe3c7819e9f4353a5a4b8557332ab76cf6");
 //
 //     std.debug.print("Foooo: {}\n\n\n", .{block_req});
 // }

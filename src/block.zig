@@ -1,84 +1,88 @@
 const meta = @import("meta/meta.zig");
 const std = @import("std");
+const types = @import("meta/types.zig");
 const Allocator = std.mem.Allocator;
 const Scanner = std.json.Scanner;
 const ParserError = std.json.ParseError;
 const ParserOptions = std.json.ParseOptions;
 const Token = std.json.Token;
-const UnionParser = @import("meta/meta.zig").UnionParser;
 
 pub const BlockTag = enum { latest, earliest, pending, safe, finalized };
 pub const BalanceBlockTag = meta.Extract(BlockTag, "latest,pending,earliest");
 
-pub const BlockRequest = struct { block_number: ?usize = null, tag: ?BlockTag = .latest, include_transaction_objects: ?bool = false };
-pub const BlockHashRequest = struct { block_hash: []const u8, include_transaction_objects: ?bool = false };
-pub const BalanceRequest = struct { address: []const u8, block_number: ?usize = null, tag: ?BalanceBlockTag = .latest };
-pub const BlockNumberRequest = struct { block_number: ?usize = null, tag: ?BalanceBlockTag = .latest };
+pub const BlockRequest = struct { block_number: ?u64 = null, tag: ?BlockTag = .latest, include_transaction_objects: ?bool = false };
+pub const BlockHashRequest = struct { block_hash: types.Hex, include_transaction_objects: ?bool = false };
+pub const BalanceRequest = struct { address: types.Hex, block_number: ?u64 = null, tag: ?BalanceBlockTag = .latest };
+pub const BlockNumberRequest = struct { block_number: ?u64 = null, tag: ?BalanceBlockTag = .latest };
 
 pub const Withdrawal = struct {
-    index: []const u8,
-    validatorIndex: []const u8,
-    address: []const u8,
-    amount: []const u8,
+    index: usize,
+    validatorIndex: usize,
+    address: types.Hex,
+    amount: types.Wei,
+
+    pub usingnamespace meta.RequestParser(@This());
 };
 
-pub const Hex = []const u8;
-
 pub const BlockBeforeMerge = struct {
-    hash: ?[]const u8,
-    parentHash: []const u8,
-    sha3Uncles: []const u8,
-    miner: []const u8,
-    stateRoot: []const u8,
-    transactionsRoot: []const u8,
-    receiptsRoot: []const u8,
-    number: ?Hex,
-    gasUsed: []const u8,
-    gasLimit: []const u8,
-    extraData: []const u8,
-    logsBloom: ?[]const u8,
-    timestamp: []const u8,
-    difficulty: []const u8,
-    totalDifficulty: ?[]const u8,
-    sealFields: []const []const u8,
-    uncles: []const []const u8,
-    transactions: []const []const u8,
-    size: []const u8,
-    mixHash: []const u8,
-    nonce: ?[]const u8,
-    baseFeePerGas: ?[]const u8,
+    hash: ?types.Hex,
+    parentHash: types.Hex,
+    sha3Uncles: types.Hex,
+    miner: types.Hex,
+    stateRoot: types.Hex,
+    transactionsRoot: types.Hex,
+    receiptsRoot: types.Hex,
+    number: ?types.Hex,
+    gasUsed: types.Gwei,
+    gasLimit: types.Gwei,
+    extraData: types.Hex,
+    logsBloom: ?types.Hex,
+    timestamp: u64,
+    difficulty: usize,
+    totalDifficulty: ?usize,
+    sealFields: []const types.Hex,
+    uncles: []const types.Hex,
+    transactions: []const types.Hex,
+    size: usize,
+    mixHash: types.Hex,
+    nonce: ?usize,
+    baseFeePerGas: ?types.Gwei,
+
+    pub usingnamespace meta.RequestParser(@This());
 };
 
 pub const BlockAfterMerge = struct {
-    hash: ?[]const u8,
-    parentHash: []const u8,
-    sha3Uncles: []const u8,
-    miner: []const u8,
-    stateRoot: []const u8,
-    transactionsRoot: []const u8,
-    receiptsRoot: []const u8,
-    number: ?Hex,
-    gasUsed: []const u8,
-    gasLimit: []const u8,
-    extraData: []const u8,
-    logsBloom: ?[]const u8,
-    timestamp: []const u8,
-    difficulty: []const u8,
-    totalDifficulty: ?[]const u8,
-    sealFields: []const []const u8,
-    uncles: []const []const u8,
-    transactions: []const []const u8,
-    size: []const u8,
-    mixHash: []const u8,
-    nonce: ?[]const u8,
-    baseFeePerGas: ?[]const u8,
-    withdrawalsRoot: []const u8,
+    hash: ?types.Hex,
+    parentHash: types.Hex,
+    sha3Uncles: types.Hex,
+    miner: types.Hex,
+    stateRoot: types.Hex,
+    transactionsRoot: types.Hex,
+    receiptsRoot: types.Hex,
+    number: ?types.Hex,
+    gasUsed: types.Gwei,
+    gasLimit: types.Gwei,
+    extraData: types.Hex,
+    logsBloom: ?types.Hex,
+    timestamp: u64,
+    difficulty: usize,
+    totalDifficulty: ?usize,
+    sealFields: []const types.Hex,
+    uncles: []const types.Hex,
+    transactions: []const types.Hex,
+    size: usize,
+    mixHash: types.Hex,
+    nonce: ?usize,
+    baseFeePerGas: ?types.Gwei,
+    withdrawalsRoot: types.Hex,
     withdrawals: []const Withdrawal,
+
+    pub usingnamespace meta.RequestParser(@This());
 };
 
 pub const Block = union(enum) {
     blockMerge: BlockAfterMerge,
     block: BlockBeforeMerge,
 
-    pub usingnamespace UnionParser(@This());
+    pub usingnamespace meta.UnionParser(@This());
 };

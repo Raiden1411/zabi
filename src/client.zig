@@ -38,6 +38,9 @@ pub const EthereumRpcMethods = enum {
     eth_getTransactionCount,
     eth_getBlockTransactionCountByHash,
     eth_getBlockTransactionCountByNumber,
+    eth_getUncleCountByBlockHash,
+    eth_getUncleCountByBlockNumber,
+    eth_getCode,
 };
 
 /// This allocator will get set by the arena.
@@ -80,132 +83,50 @@ pub fn deinit(self: @This()) void {
 }
 
 pub fn getChainId(self: PubClient) !usize {
-    const Params = std.meta.Tuple(&[_]type{});
-    const request: EthereumRequest(Params) = .{ .params = .{}, .method = .eth_chainId };
-
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
-
-    if (req.status != .ok) return error.InvalidRequest;
-
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
-
-    return parsed.result;
+    return self.fetchWithEmptyArgs(usize, .eth_chainId);
 }
 
 pub fn getGasPrice(self: PubClient) !usize {
-    const Params = std.meta.Tuple(&[_]type{});
-    const request: EthereumRequest(Params) = .{ .params = .{}, .method = .eth_gasPrice };
-
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
-
-    if (req.status != .ok) return error.InvalidRequest;
-
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
-
-    return parsed.value;
+    return self.fetchWithEmptyArgs(usize, .eth_gasPrice);
 }
 
 pub fn getAccounts(self: PubClient) ![]const []const u8 {
-    const Params = std.meta.Tuple(&[_]type{});
-    const request: EthereumRequest(Params) = .{ .params = .{}, .method = .eth_accounts };
-
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
-
-    if (req.status != .ok) return error.InvalidRequest;
-
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse([]const []const u8), self.alloc, req.body.?, .{});
-
-    return parsed.result;
+    return self.fetchWithEmptyArgs([]const []const u8, .eth_accounts);
 }
 
 pub fn getBlockNumber(self: PubClient) !usize {
-    const Params = std.meta.Tuple(&[_]type{});
-    const request: EthereumRequest(Params) = .{ .params = .{}, .method = .eth_blockNumber };
-
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
-
-    if (req.status != .ok) return error.InvalidRequest;
-
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
-
-    return parsed.result;
+    return self.fetchWithEmptyArgs(usize, .eth_blockNumber);
 }
 
-pub fn getAddressBalance(self: PubClient, opts: block.BalanceRequest) !f64 {
-    if (!try utils.isAddress(self.alloc, opts.address)) return error.InvalidAddress;
-    const tag: block.BalanceBlockTag = opts.tag orelse .latest;
-    const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
+pub fn getBlockTransactionCountByHash(self: PubClient, block_hash: []const u8) !usize {
+    return self.fetchByBlockHash(block_hash, .eth_getBlockTransactionCountByHash);
+}
 
-    const Params = std.meta.Tuple(&[_]type{ []const u8, []const u8 });
-    const request: EthereumRequest(Params) = .{ .params = .{ opts.address, block_number }, .method = .eth_getBalance };
+pub fn getBlockTransactionCountByNumber(self: PubClient, opts: block.BlockNumberRequest) !usize {
+    return self.fetchByBlockNumber(opts, .eth_getBlockTransactionCountByNumber);
+}
 
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+pub fn getUncleCountByBlockHash(self: PubClient, block_hash: []const u8) !usize {
+    return self.fetchByBlockHash(block_hash, .eth_getUncleCountByBlockHash);
+}
 
-    if (req.status != .ok) return error.InvalidRequest;
+pub fn getUncleCountByBlockNumber(self: PubClient, opts: block.BlockNumberRequest) !usize {
+    return self.fetchByBlockNumber(opts, .eth_getUncleCountByBlockNumber);
+}
 
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(u256), self.alloc, req.body.?, .{});
-
-    return utils.parseEth(parsed.result);
+pub fn getAddressBalance(self: PubClient, opts: block.BalanceRequest) !u256 {
+    return self.fetchByAddress(u256, opts, .eth_getBalance);
 }
 
 pub fn getAddressTransactionCount(self: PubClient, opts: block.BalanceRequest) !usize {
-    if (!try utils.isAddress(self.alloc, opts.address)) return error.InvalidAddress;
-    const tag: block.BalanceBlockTag = opts.tag orelse .latest;
-    const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
-
-    const Params = std.meta.Tuple(&[_]type{ []const u8, []const u8 });
-    const request: EthereumRequest(Params) = .{ .params = .{ opts.address, block_number }, .method = .eth_getTransactionCount };
-
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
-
-    if (req.status != .ok) return error.InvalidRequest;
-
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
-
-    return parsed.result;
+    return self.fetchByAddress(usize, opts, .eth_getTransactionCount);
 }
 
-pub fn getBlockTransactionCountByHash(self: PubClient, block_hash: []const u8) !block.Block {
-    if (!utils.isHash(block_hash)) return error.InvalidHash;
-
-    const Params = std.meta.Tuple(&[_]type{[]const u8});
-    const params: Params = .{block_hash};
-
-    const request: EthereumRequest(Params) = .{ .params = params, .method = .eth_getBlockTransactionCountByHash };
-
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
-
-    if (req.status != .ok) return error.InvalidRequest;
-
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
-
-    return parsed.result;
+pub fn getContractCode(self: PubClient, opts: block.BalanceRequest) ![]const u8 {
+    return self.fetchByAddress([]const u8, opts, .eth_getCode);
 }
 
-pub fn getBlockTransactionCountByNumber(self: PubClient, block_number: usize) !block.Block {
-    const Params = std.meta.Tuple(&[_]type{usize});
-    const params: Params = .{block_number};
-
-    const request: EthereumRequest(Params) = .{ .params = params, .method = .eth_getBlockTransactionCountByNumber };
-
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
-
-    if (req.status != .ok) return error.InvalidRequest;
-
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
-
-    return parsed.result;
-}
-
-pub fn getBlockByNumber(self: PubClient, opts: block.BlockNumberRequest) !block.Block {
+pub fn getBlockByNumber(self: PubClient, opts: block.BlockRequest) !block.Block {
     const tag: block.BlockTag = opts.tag orelse .latest;
     const include = opts.include_transaction_objects orelse false;
 
@@ -213,17 +134,9 @@ pub fn getBlockByNumber(self: PubClient, opts: block.BlockNumberRequest) !block.
 
     const Params = std.meta.Tuple(&[_]type{ []const u8, bool });
     const params: Params = .{ block_number, include };
-
     const request: EthereumRequest(Params) = .{ .params = params, .method = .eth_getBlockByNumber };
 
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
-
-    if (req.status != .ok) return error.InvalidRequest;
-
-    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(block.Block), self.alloc, req.body.?, .{});
-
-    return parsed.result;
+    return self.fetchBlock(request);
 }
 
 pub fn getBlockByHash(self: PubClient, opts: block.BlockHashRequest) !block.Block {
@@ -235,6 +148,79 @@ pub fn getBlockByHash(self: PubClient, opts: block.BlockHashRequest) !block.Bloc
 
     const request: EthereumRequest(Params) = .{ .params = params, .method = .eth_getBlockByHash };
 
+    return self.fetchBlock(request);
+}
+
+fn fetchByBlockNumber(self: PubClient, opts: block.BlockNumberRequest, method: EthereumRpcMethods) !usize {
+    const tag: block.BalanceRequest = opts.tag orelse .latest;
+    const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
+
+    const Params = std.meta.Tuple(&[_]type{[]const u8});
+    const params: Params = .{block_number};
+
+    const request: EthereumRequest(Params) = .{ .params = params, .method = method };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
+
+    return parsed.result;
+}
+
+fn fetchByBlockHash(self: PubClient, block_hash: []const u8, method: EthereumRpcMethods) !usize {
+    if (!utils.isHash(block_hash)) return error.InvalidHash;
+
+    const Params = std.meta.Tuple(&[_]type{[]const u8});
+    const params: Params = .{block_hash};
+
+    const request: EthereumRequest(Params) = .{ .params = params, .method = method };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(usize), self.alloc, req.body.?, .{});
+
+    return parsed.result;
+}
+
+fn fetchByAddress(self: PubClient, comptime T: type, opts: block.BalanceRequest, method: EthereumRpcMethods) !T {
+    if (!try utils.isAddress(self.alloc, opts.address)) return error.InvalidAddress;
+    const tag: block.BalanceBlockTag = opts.tag orelse .latest;
+    const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
+
+    const Params = std.meta.Tuple(&[_]type{ []const u8, []const u8 });
+    const request: EthereumRequest(Params) = .{ .params = .{ opts.address, block_number }, .method = method };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(T), self.alloc, req.body.?, .{});
+
+    return parsed.result;
+}
+
+fn fetchWithEmptyArgs(self: PubClient, comptime T: type, method: EthereumRpcMethods) !T {
+    const Params = std.meta.Tuple(&[_]type{});
+    const request: EthereumRequest(Params) = .{ .params = .{}, .method = method };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = try std.json.parseFromSliceLeaky(EthereumResponse(T), self.alloc, req.body.?, .{});
+
+    return parsed.value;
+}
+
+fn fetchBlock(self: PubClient, request: anytype) !block.Block {
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 

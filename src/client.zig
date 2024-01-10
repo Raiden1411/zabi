@@ -317,11 +317,11 @@ fn fetchBlock(self: PubClient, request: anytype) !block.Block {
     return parsed.result;
 }
 
-test "Placeholder" {
-    const pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
-    defer pub_client.deinit();
-
-    const block_req = try pub_client.getTransactionByHash("0x84ea9218866a33cac46673308427ddfe3c7819e9f4353a5a4b8557332ab76cf6");
-
-    std.debug.print("Foooo: {}\n\n\n", .{block_req});
-}
+// test "Placeholder" {
+//     const pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+//     defer pub_client.deinit();
+//
+//     const block_req = try pub_client.getTransactionByHash("0x84ea9218866a33cac46673308427ddfe3c7819e9f4353a5a4b8557332ab76cf6");
+//
+//     std.debug.print("Foooo: {}\n\n\n", .{block_req});
+// }

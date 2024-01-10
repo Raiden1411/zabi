@@ -231,11 +231,11 @@ fn fetchBlock(self: PubClient, request: anytype) !block.Block {
     return parsed.result;
 }
 
-test "Placeholder" {
-    const pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545");
-    defer pub_client.deinit();
-
-    const block_req = try pub_client.getAddressTransactionCount(.{ .address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" });
-
-    std.debug.print("Foooo: {d}\n\n\n", .{block_req});
-}
+// test "Placeholder" {
+//     const pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545");
+//     defer pub_client.deinit();
+//
+//     const block_req = try pub_client.getAddressTransactionCount(.{ .address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" });
+//
+//     std.debug.print("Foooo: {d}\n\n\n", .{block_req});
+// }

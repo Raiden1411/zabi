@@ -70,10 +70,95 @@ pub fn RequestParser(comptime T: type) type {
             return result;
         }
 
-        fn innerParseRequest(comptime TT: type, alloc: Allocator, source: anytype, opts: std.json.ParseOptions) !TT {
+        pub fn jsonParseFromValue(alloc: Allocator, source: std.json.Value, opts: std.json.ParseOptions) std.json.ParseFromValueError!T {
+            const info = @typeInfo(T);
+            if (source != .object) return error.UnexpectedToken;
+
+            var result: T = undefined;
+
+            var iter = source.object.iterator();
+
+            while (iter.next()) |token| {
+                const field_name = token.key_ptr.*;
+
+                inline for (info.Struct.fields) |field| {
+                    if (std.mem.eql(u8, field.name, field_name)) {
+                        @field(result, field.name) = try innerParseValueRequest(field.type, alloc, token.value_ptr.*, opts);
+                        break;
+                    }
+                } else {
+                    if (!opts.ignore_unknown_fields) return error.UnknownField;
+                }
+            }
+
+            return result;
+        }
+
+        fn innerParseValueRequest(comptime TT: type, alloc: Allocator, source: anytype, opts: std.json.ParseOptions) std.json.ParseFromValueError!TT {
+            switch (@typeInfo(TT)) {
+                .Bool => {
+                    switch (source) {
+                        .bool => |val| return val,
+                        else => return error.UnexpectedToken,
+                    }
+                },
+                .Int => {
+                    switch (source) {
+                        .number_string, .string => |str| return try std.fmt.parseInt(TT, str, 0),
+                        else => return error.UnexpectedToken,
+                    }
+                },
+                .Optional => |opt_info| {
+                    switch (source) {
+                        .null => return null,
+                        else => return try innerParseValueRequest(opt_info.child, alloc, source, opts),
+                    }
+                },
+                .Pointer => |ptr_info| {
+                    switch (ptr_info.size) {
+                        .Slice => {
+                            switch (source) {
+                                .array => |array| {
+                                    const arr = try alloc.alloc(ptr_info.child, array.items.len);
+                                    for (array.items, arr) |item, *res| {
+                                        res.* = try innerParseValueRequest(ptr_info.child, alloc, item, opts);
+                                    }
+
+                                    return arr;
+                                },
+                                .string => |str| {
+                                    if (ptr_info.child != u8) return error.UnexpectedToken;
+
+                                    const result = try alloc.alloc(ptr_info.child, str.len);
+                                    @memcpy(result[0..], str);
+
+                                    return result;
+                                },
+                                else => return error.UnexpectedToken,
+                            }
+                        },
+                        else => @compileError("Unable to parse type " ++ @typeName(TT)),
+                    }
+                },
+                .Struct => {
+                    if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(alloc, source, opts) else @compileError("Unable to parse structs with jsonParse custom declaration");
+                },
+
+                else => @compileError("Unable to parse type " ++ @typeName(TT)),
+            }
+        }
+
+        fn innerParseRequest(comptime TT: type, alloc: Allocator, source: anytype, opts: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!TT {
             const info = @typeInfo(TT);
 
             switch (info) {
+                .Bool => {
+                    return switch (try source.next()) {
+                        .true => true,
+                        .false => false,
+                        else => error.UnexpectedToken,
+                    };
+                },
                 .Int => {
                     const token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
                     const slice = switch (token) {
@@ -88,6 +173,26 @@ pub fn RequestParser(comptime T: type) type {
                     switch (ptrInfo.size) {
                         .Slice => {
                             switch (try source.peekNextTokenType()) {
+                                .array_begin => {
+                                    _ = try source.next();
+
+                                    // Typical array.
+                                    var arraylist = std.ArrayList(ptrInfo.child).init(alloc);
+                                    while (true) {
+                                        switch (try source.peekNextTokenType()) {
+                                            .array_end => {
+                                                _ = try source.next();
+                                                break;
+                                            },
+                                            else => {},
+                                        }
+
+                                        try arraylist.ensureUnusedCapacity(1);
+                                        arraylist.appendAssumeCapacity(try innerParseRequest(ptrInfo.child, alloc, source, opts));
+                                    }
+
+                                    return try arraylist.toOwnedSlice();
+                                },
                                 .string => {
                                     if (ptrInfo.child != u8) return error.UnexpectedToken;
                                     if (ptrInfo.is_const) {
@@ -108,6 +213,9 @@ pub fn RequestParser(comptime T: type) type {
                         },
                         else => @compileError("Unable to parse type " ++ @typeName(TT)),
                     }
+                },
+                .Struct => {
+                    if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(alloc, source, opts) else return error.UnexpectedToken;
                 },
                 else => @compileError("Unable to parse type " ++ @typeName(TT)),
             }

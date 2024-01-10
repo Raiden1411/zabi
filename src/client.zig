@@ -28,6 +28,13 @@ pub fn EthereumResponse(comptime T: type) type {
     };
 }
 
+pub const ErrorResponse = struct {
+    code: isize,
+    message: []const u8,
+};
+
+pub const EthereumErrorResponse = struct { jsonrpc: []const u8, id: usize, @"error": ErrorResponse };
+
 /// Set of public rpc actions.
 pub const EthereumRpcMethods = enum {
     eth_chainId,
@@ -119,6 +126,14 @@ pub fn getBlockNumber(self: PubClient) !u64 {
     return self.fetchWithEmptyArgs(u64, .eth_blockNumber);
 }
 
+pub fn newBlockFilter(self: PubClient) !usize {
+    return self.fetchWithEmptyArgs(usize, .eth_newBlockFilter);
+}
+
+pub fn newPendingTransactionFilter(self: PubClient) !usize {
+    return self.fetchWithEmptyArgs(usize, .eth_newPendingTransactionFilter);
+}
+
 pub fn getBlockTransactionCountByHash(self: PubClient, block_hash: types.Hex) !usize {
     return self.fetchByBlockHash(block_hash, .eth_getBlockTransactionCountByHash);
 }
@@ -168,6 +183,29 @@ pub fn getBlockByHash(self: PubClient, opts: block.BlockHashRequest) !block.Bloc
     const params: Params = .{ opts.block_hash, include };
 
     const request: EthereumRequest(Params) = .{ .params = params, .method = .eth_getBlockByHash };
+
+    return self.fetchBlock(request);
+}
+
+pub fn getUncleByBlockHashAndIndex(self: PubClient, block_hash: types.Hex, index: usize) !block.Block {
+    if (!utils.isHash(block_hash)) return error.InvalidHash;
+
+    const Params = std.meta.Tuple(&[_]type{ types.Hex, types.Hex });
+    const params: Params = .{ block_hash, try std.fmt.allocPrint(self.alloc, "0x{x}", .{index}) };
+
+    const request: EthereumRequest(Params) = .{ .params = params, .method = .eth_getUncleByBlockHashAndIndex };
+
+    return self.fetchBlock(request);
+}
+
+pub fn getUncleByBlockNumberAndIndex(self: PubClient, opts: block.BlockNumberRequest, index: usize) !block.Block {
+    const tag: block.BalanceBlockTag = opts.tag orelse .latest;
+    const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
+
+    const Params = std.meta.Tuple(&[_]type{ types.Hex, types.Hex });
+    const params: Params = .{ block_number, try std.fmt.allocPrint(self.alloc, "0x{x}", .{index}) };
+
+    const request: EthereumRequest(Params) = .{ .params = params, .method = .eth_getTransactionByBlockHashAndIndex };
 
     return self.fetchBlock(request);
 }

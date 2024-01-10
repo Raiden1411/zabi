@@ -46,6 +46,22 @@ pub const EthereumRpcMethods = enum {
     eth_getTransactionByHash,
     eth_getTransactionByBlockHashAndIndex,
     eth_getTransactionByBlockNumberAndIndex,
+    eth_getTransactionReceit,
+    eth_getUncleByBlockHashAndIndex,
+    eth_getUncleByBlockNumberAndIndex,
+    eth_newFilter,
+    eth_newBlockFilter,
+    eth_newPendingTransactionFilter,
+    eth_uninstallFilter,
+    eth_getFilterChanges,
+    eth_getFilterLogs,
+    eth_getLogs,
+    eth_sign,
+    eth_signTransaction,
+    eth_sendTransaction,
+    eth_sendRawTransaction,
+    eth_call,
+    eth_estimateGas,
 };
 
 /// This allocator will get set by the arena.

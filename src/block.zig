@@ -10,9 +10,10 @@ const UnionParser = @import("meta/meta.zig").UnionParser;
 pub const BlockTag = enum { latest, earliest, pending, safe, finalized };
 pub const BalanceBlockTag = meta.Extract(BlockTag, "latest,pending,earliest");
 
-pub const BlockNumberRequest = struct { block_number: ?usize = null, tag: ?BlockTag = .latest, include_transaction_objects: ?bool = false };
+pub const BlockRequest = struct { block_number: ?usize = null, tag: ?BlockTag = .latest, include_transaction_objects: ?bool = false };
 pub const BlockHashRequest = struct { block_hash: []const u8, include_transaction_objects: ?bool = false };
 pub const BalanceRequest = struct { address: []const u8, block_number: ?usize = null, tag: ?BalanceBlockTag = .latest };
+pub const BlockNumberRequest = struct { block_number: ?usize = null, tag: ?BalanceBlockTag = .latest };
 
 pub const Withdrawal = struct {
     index: []const u8,

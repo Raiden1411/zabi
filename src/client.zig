@@ -26,12 +26,16 @@ uri: Uri,
 const PubClient = @This();
 
 pub fn init(alloc: Allocator, url: []const u8, chain_id: ?usize) !PubClient {
-    var pub_client: PubClient = .{ .alloc = undefined, .arena = try alloc.create(ArenaAllocator), .client = try alloc.create(http.Client), .headers = try alloc.create(http.Headers), .uri = try Uri.parse(url), .chain_id = chain_id orelse 1 };
-    errdefer {
-        alloc.destroy(pub_client.arena);
-        alloc.destroy(pub_client.client);
-        alloc.destroy(pub_client.headers);
-    }
+    var pub_client: PubClient = undefined;
+
+    pub_client.arena = try alloc.create(ArenaAllocator);
+    errdefer alloc.destroy(pub_client.arena);
+
+    pub_client.client = try alloc.create(http.Client);
+    errdefer alloc.destroy(pub_client.client);
+
+    pub_client.headers = try alloc.create(http.Headers);
+    errdefer alloc.destroy(pub_client.arena);
 
     pub_client.arena.* = ArenaAllocator.init(std.testing.allocator);
     pub_client.alloc = pub_client.arena.allocator();
@@ -39,6 +43,9 @@ pub fn init(alloc: Allocator, url: []const u8, chain_id: ?usize) !PubClient {
 
     pub_client.headers.* = try http.Headers.initList(pub_client.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
     pub_client.client.* = http.Client{ .allocator = pub_client.alloc };
+
+    pub_client.uri = try Uri.parse(url);
+    pub_client.chain_id = chain_id orelse 1;
 
     return pub_client;
 }
@@ -155,54 +162,24 @@ pub fn getTransactionByHash(self: PubClient, transaction_hash: types.Hex) !trans
     if (!utils.isHash(transaction_hash)) return error.InvalidHash;
 
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{transaction_hash}, .method = .eth_getTransactionByHash, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 
-    if (req.status != .ok) return error.InvalidRequest;
-
-    const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(transaction.Transaction), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
-            @panic(result.@"error".message);
-        } else |_| return error.RpcNullResponse;
-    };
-
-    return parsed.result;
+    return self.fetchTransaction(transaction.Transaction, request);
 }
 
 pub fn getTransactionReceipt(self: PubClient, transaction_hash: types.Hex) !transaction.TransactionReceipt {
     if (!utils.isHash(transaction_hash)) return error.InvalidHash;
 
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{transaction_hash}, .method = .eth_getTransactionReceipt, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 
-    if (req.status != .ok) return error.InvalidRequest;
-
-    const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(transaction.TransactionReceipt), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
-            @panic(result.@"error".message);
-        } else |_| return error.RpcNullResponse;
-    };
-
-    return parsed.result;
+    return self.fetchTransaction(transaction.TransactionReceipt, request);
 }
 
 pub fn getTransactionByBlockHashAndIndex(self: PubClient, block_hash: types.Hex, index: usize) !transaction.Transaction {
     if (!utils.isHash(block_hash)) return error.InvalidHash;
 
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{ block_hash, try std.fmt.allocPrint(self.alloc, "0x{x}", .{index}) }, .method = .eth_getTransactionByBlockHashAndIndex, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 
-    if (req.status != .ok) return error.InvalidRequest;
-
-    const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(transaction.Transaction), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
-            @panic(result.@"error".message);
-        } else |_| return error.RpcNullResponse;
-    };
-
-    return parsed.result;
+    return self.fetchTransaction(transaction.Transaction, request);
 }
 
 pub fn getTransactionByBlockNumberAndIndex(self: PubClient, opts: block.BlockNumberRequest, index: usize) !transaction.Transaction {
@@ -210,18 +187,25 @@ pub fn getTransactionByBlockNumberAndIndex(self: PubClient, opts: block.BlockNum
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
 
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{ block_number, try std.fmt.allocPrint(self.alloc, "0x{x}", .{index}) }, .method = .eth_getTransactionByBlockHashAndIndex, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 
-    if (req.status != .ok) return error.InvalidRequest;
+    return self.fetchTransaction(transaction.Transaction, request);
+}
 
-    const parsed = try std.json.parseFromSliceLeaky(types.EthereumResponse(transaction.Transaction), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
-            @panic(result.@"error".message);
-        } else |_| return error.RpcNullResponse;
-    };
+pub fn getFilterOrLogChanges(self: PubClient, filter_id: usize, method: meta.Extract(types.EthereumRpcMethods, "eth_getFilterChanges,eth_FilterLogs")) !log.Logs {
+    const filter = try std.fmt.allocPrint(self.alloc, "0x{x}", .{filter_id});
 
-    return parsed.result;
+    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{filter}, .method = method, .id = self.chain_id };
+
+    return self.fetchLogs(types.HexRequestParameters, request);
+}
+
+pub fn getLogs(self: PubClient, opts: log.LogRequestParams) !log.Logs {
+    const from_block = if (opts.tag) |tag| @tagName(tag) else if (opts.fromBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
+    const to_block = if (opts.tag) |tag| @tagName(tag) else if (opts.toBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
+
+    const request: types.EthereumRequest([]const log.LogRequest) = .{ .params = &.{.{ .fromBlock = from_block, .toBlock = to_block, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_getLogs, .id = self.chain_id };
+
+    return self.fetchLogs([]const log.LogRequest, request);
 }
 
 pub fn uninstalllFilter(self: PubClient, id: usize) !bool {
@@ -235,45 +219,6 @@ pub fn uninstalllFilter(self: PubClient, id: usize) !bool {
     if (req.status != .ok) return error.InvalidRequest;
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(bool), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
-            @panic(result.@"error".message);
-        } else |_| return error.RpcNullResponse;
-    };
-
-    return parsed.result;
-}
-
-pub fn getFilterOrLogChanges(self: PubClient, filter_id: usize, method: meta.Extract(types.EthereumRpcMethods, "eth_getFilterChanges,eth_FilterLogs")) !log.Logs {
-    const filter = try std.fmt.allocPrint(self.alloc, "0x{x}", .{filter_id});
-
-    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{filter}, .method = method, .id = self.chain_id };
-
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
-
-    if (req.status != .ok) return error.InvalidRequest;
-
-    const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(log.Logs), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
-            @panic(result.@"error".message);
-        } else |_| return error.RpcNullResponse;
-    };
-
-    return parsed.result;
-}
-
-pub fn getLogs(self: PubClient, opts: log.LogRequestParams) !log.Logs {
-    const from_block = if (opts.tag) |tag| @tagName(tag) else if (opts.fromBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
-    const to_block = if (opts.tag) |tag| @tagName(tag) else if (opts.toBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
-
-    const request: types.EthereumRequest([]const log.LogRequest) = .{ .params = &.{.{ .fromBlock = from_block, .toBlock = to_block, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_getLogs, .id = self.chain_id };
-
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
-
-    if (req.status != .ok) return error.InvalidRequest;
-
-    const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(log.Logs), self.alloc, req.body.?, .{}) catch {
         if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
             @panic(result.@"error".message);
         } else |_| return error.RpcNullResponse;
@@ -367,6 +312,36 @@ fn fetchBlock(self: PubClient, request: anytype) !block.Block {
     if (req.status != .ok) return error.InvalidRequest;
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(block.Block), self.alloc, req.body.?, .{}) catch {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+            @panic(result.@"error".message);
+        } else |_| return error.RpcNullResponse;
+    };
+
+    return parsed.result;
+}
+
+fn fetchTransaction(self: PubClient, comptime T: type, request: types.EthereumRequest(types.HexRequestParameters)) !T {
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(T), self.alloc, req.body.?, .{}) catch {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+            @panic(result.@"error".message);
+        } else |_| return error.RpcNullResponse;
+    };
+
+    return parsed.result;
+}
+
+fn fetchLogs(self: PubClient, comptime T: type, request: types.EthereumRequest(T)) !log.Logs {
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(log.Logs), self.alloc, req.body.?, .{}) catch {
         if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
             @panic(result.@"error".message);
         } else |_| return error.RpcNullResponse;

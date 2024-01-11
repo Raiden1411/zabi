@@ -26,12 +26,16 @@ uri: Uri,
 const PubClient = @This();
 
 pub fn init(alloc: Allocator, url: []const u8, chain_id: ?usize) !PubClient {
-    var pub_client: PubClient = .{ .alloc = undefined, .arena = try alloc.create(ArenaAllocator), .client = try alloc.create(http.Client), .headers = try alloc.create(http.Headers), .uri = try Uri.parse(url), .chain_id = chain_id orelse 1 };
-    errdefer {
-        alloc.destroy(pub_client.arena);
-        alloc.destroy(pub_client.client);
-        alloc.destroy(pub_client.headers);
-    }
+    var pub_client: PubClient = undefined;
+
+    pub_client.arena = try alloc.create(ArenaAllocator);
+    errdefer alloc.destroy(pub_client.arena);
+
+    pub_client.client = try alloc.create(http.Client);
+    errdefer alloc.destroy(pub_client.client);
+
+    pub_client.headers = try alloc.create(http.Headers);
+    errdefer alloc.destroy(pub_client.arena);
 
     pub_client.arena.* = ArenaAllocator.init(std.testing.allocator);
     pub_client.alloc = pub_client.arena.allocator();
@@ -39,6 +43,9 @@ pub fn init(alloc: Allocator, url: []const u8, chain_id: ?usize) !PubClient {
 
     pub_client.headers.* = try http.Headers.initList(pub_client.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
     pub_client.client.* = http.Client{ .allocator = pub_client.alloc };
+
+    pub_client.uri = try Uri.parse(url);
+    pub_client.chain_id = chain_id orelse 1;
 
     return pub_client;
 }

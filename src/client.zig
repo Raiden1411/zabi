@@ -191,6 +191,26 @@ pub fn getTransactionByBlockNumberAndIndex(self: PubClient, opts: block.BlockNum
     return self.fetchTransaction(transaction.Transaction, request);
 }
 
+fn newLogFilter(self: PubClient, opts: log.LogFilterRequestParams) !usize {
+    const from_block = if (opts.tag) |tag| @tagName(tag) else if (opts.fromBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
+    const to_block = if (opts.tag) |tag| @tagName(tag) else if (opts.toBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
+
+    const request: types.EthereumRequest([]const log.LogRequest) = .{ .params = &.{.{ .fromBlock = from_block, .toBlock = to_block, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_newFilter, .id = self.chain_id };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
+    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+
+    if (req.status != .ok) return error.InvalidRequest;
+
+    const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(usize), self.alloc, req.body.?, .{}) catch {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+            @panic(result.@"error".message);
+        } else |_| return error.RpcNullResponse;
+    };
+
+    return parsed.result;
+}
+
 pub fn getFilterOrLogChanges(self: PubClient, filter_id: usize, method: meta.Extract(types.EthereumRpcMethods, "eth_getFilterChanges,eth_FilterLogs")) !log.Logs {
     const filter = try std.fmt.allocPrint(self.alloc, "0x{x}", .{filter_id});
 
@@ -357,4 +377,5 @@ fn fetchLogs(self: PubClient, comptime T: type, request: types.EthereumRequest(T
 //     const block_req = try pub_client.getTransactionReceipt("0x84ea9218866a33cac46673308427ddfe3c7819e9f4353a5a4b8557332ab76cf6");
 //
 //     std.debug.print("Foooo: {any}\n\n\n", .{block_req});
+//     // std.debug.print("Foooo: {d}\n\n\n", .{pub_client.arena.queryCapacity()});
 // }

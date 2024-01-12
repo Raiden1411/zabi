@@ -34,3 +34,11 @@ pub const LogRequestParams = struct {
     topics: ?[]const types.Hex = null,
     blockHash: ?types.Hex = null,
 };
+
+pub const LogFilterRequestParams = struct {
+    fromBlock: ?u64 = null,
+    toBlock: ?u64 = null,
+    tag: ?block.BalanceBlockTag = null,
+    address: ?types.Hex = null,
+    topics: ?[]const types.Hex = null,
+};

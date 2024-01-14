@@ -37,7 +37,7 @@ pub fn init(alloc: Allocator, url: []const u8, chain_id: ?usize) !PubClient {
     pub_client.headers = try alloc.create(http.Headers);
     errdefer alloc.destroy(pub_client.arena);
 
-    pub_client.arena.* = ArenaAllocator.init(std.testing.allocator);
+    pub_client.arena.* = ArenaAllocator.init(alloc);
     pub_client.alloc = pub_client.arena.allocator();
     errdefer pub_client.arena.deinit();
 

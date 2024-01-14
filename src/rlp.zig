@@ -20,17 +20,16 @@ fn encodeItem(payload: anytype, writer: anytype) !void {
         .Int => {
             if (payload < 0) return error.NegativeNumber;
 
-            if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(payload) else {
-                const size = @divExact(@TypeOf(payload).Int.bits, 8);
+            if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intCast(payload)) else {
+                const size = @divExact(@typeInfo(@TypeOf(payload)).Int.bits, 8);
                 try writer.writeByte(0x80 + size);
-
                 try writer.writeInt(@TypeOf(payload), payload, .big);
             }
         },
         .ComptimeInt => {
             if (payload < 0) return error.NegativeNumber;
 
-            if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(payload) else {
+            if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intCast(payload)) else {
                 const size = comptime computeSize(payload);
                 try writer.writeByte(0x80 + size);
                 try writer.writeInt(@Type(.{ .Int = .{ .signedness = .unsigned, .bits = size * 8 } }), payload, .big);
@@ -120,7 +119,7 @@ fn encodeItem(payload: anytype, writer: anytype) !void {
         .Struct => |struct_info| {
             if (struct_info.is_tuple) {
                 if (payload.len == 0) try writer.writeByte(0xc0) else {
-                    const nested_size = comptime computeNestedTupleSize(payload);
+                    const nested_size = computeNestedTupleSize(payload);
                     if (nested_size > std.math.maxInt(u64)) return error.Overflow;
                     if (nested_size < 56) {
                         try writer.writeByte(@intCast(0xc0 + nested_size));
@@ -128,9 +127,10 @@ fn encodeItem(payload: anytype, writer: anytype) !void {
                             try encodeItem(item, writer);
                         }
                     } else {
-                        const size = comptime computeSize(nested_size);
+                        var buffer: [8]u8 = undefined;
+                        const size = formatInt(payload.len, &buffer);
                         try writer.writeByte(0x7b + size);
-                        try writer.writeInt(@Type(.{ .Int = .{ .signedness = .unsigned, .bits = size * 8 } }), payload.len, .big);
+                        try writer.writeAll(buffer[8 - size ..]);
                         inline for (payload) |item| {
                             try encodeItem(item, writer);
                         }
@@ -158,6 +158,7 @@ fn computeNestedTupleSize(payload: anytype) u64 {
                 .Slice => {
                     if (ptr_info.child == u8) return 0;
                 },
+                else => {},
             }
         },
         else => {},
@@ -167,7 +168,7 @@ fn computeNestedTupleSize(payload: anytype) u64 {
         const info = @typeInfo(@TypeOf(item));
         switch (info) {
             .Array => |arr_info| {
-                if (arr_info.child != u8) size += computeNestedTupleSize(item);
+                if (arr_info.child != u8) size += computeNestedSize(item);
             },
             .Pointer => |ptr_info| {
                 switch (ptr_info.size) {
@@ -175,7 +176,7 @@ fn computeNestedTupleSize(payload: anytype) u64 {
                         size += computeNestedTupleSize(item.*);
                     },
                     .Slice => {
-                        if (ptr_info.child != u8) size += computeNestedTupleSize(item);
+                        if (ptr_info.child != u8) size += computeNestedSize(item);
                     },
                     else => continue,
                 }

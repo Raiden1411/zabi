@@ -49,23 +49,25 @@ fn encodeItem(payload: anytype, writer: anytype) !void {
                     try writer.writeAll(&payload);
                 } else {
                     if (payload.len > std.math.maxInt(u64)) return error.Overflow;
-                    const size = comptime computeSize(payload.len);
+                    var buffer: [8]u8 = undefined;
+                    const size = formatInt(payload.len, &buffer);
                     try writer.writeByte(0xb7 + size);
-                    try writer.writeInt(@Type(.{ .Int = .{ .signedness = .unsigned, .bits = size * 8 } }), payload.len, .big);
+                    try writer.writeAll(buffer[8 - size ..]);
                     try writer.writeAll(&payload);
                 }
             } else {
                 if (payload.len == 0) try writer.writeByte(0xc0) else {
-                    const nested_size = comptime computeNestedSize(payload);
+                    const nested_size = computeNestedSize(payload);
                     if (nested_size < 56) {
                         try writer.writeByte(@intCast(0xc0 + nested_size));
                         for (payload) |item| {
                             try encodeItem(item, writer);
                         }
                     } else {
-                        const size = comptime computeSize(nested_size);
+                        var buffer: [8]u8 = undefined;
+                        const size = formatInt(payload.len, &buffer);
                         try writer.writeByte(0x7b + size);
-                        try writer.writeInt(@Type(.{ .Int = .{ .signedness = .unsigned, .bits = size * 8 } }), payload.len, .big);
+                        try writer.writeAll(buffer[8 - size ..]);
                         for (payload) |item| {
                             try encodeItem(item, writer);
                         }
@@ -173,7 +175,6 @@ fn computeNestedTupleSize(payload: anytype) u64 {
                         size += computeNestedTupleSize(item.*);
                     },
                     .Slice => {
-                        @compileLog(info);
                         if (ptr_info.child != u8) size += computeNestedTupleSize(item);
                     },
                     else => continue,
@@ -181,7 +182,6 @@ fn computeNestedTupleSize(payload: anytype) u64 {
             },
             .Struct => |struct_info| {
                 if (!struct_info.is_tuple) @compileError("Only tuple types are supported for struct types");
-                @compileLog(info);
 
                 size += computeNestedTupleSize(item);
             },
@@ -204,6 +204,7 @@ fn computeNestedSize(payload: anytype) u64 {
                 .Slice => {
                     if (ptr_info.child == u8) return 0;
                 },
+                else => {},
             }
         },
         else => {},
@@ -322,6 +323,11 @@ test "Int" {
     defer testing.allocator.free(medium);
 
     try testing.expectEqualSlices(u8, medium, &[_]u8{ 0x83, 0x01, 0x0F, 0x2c });
+
+    const big = try encodeRlp(testing.allocator, .{std.math.maxInt(u64)});
+    defer testing.allocator.free(big);
+
+    try testing.expectEqualSlices(u8, big, &[_]u8{0x88} ++ &[_]u8{0xFF} ** 8);
 }
 
 test "Strings < 56" {
@@ -352,4 +358,31 @@ test "Strings > 56" {
     const encoded = try encodeRlp(testing.allocator, .{big});
     defer testing.allocator.free(encoded);
     try testing.expectEqualSlices(u8, encoded, &[_]u8{ 0xB9, 0x03, 0x7F } ++ big);
+}
+
+test "Arrays" {
+    const one: [2]bool = [_]bool{ true, true };
+
+    const encoded = try encodeRlp(testing.allocator, .{one});
+    defer testing.allocator.free(encoded);
+
+    try testing.expectEqualSlices(u8, encoded, &[_]u8{ 0xc2, 0x01, 0x01 });
+
+    const nested: [2][]const bool = [2][]const bool{ &[_]bool{ true, false, true }, &[_]bool{true} };
+
+    const enc_nested = try encodeRlp(testing.allocator, .{nested});
+    defer testing.allocator.free(enc_nested);
+
+    try testing.expectEqualSlices(u8, enc_nested, &[_]u8{ 0xc6, 0xc3, 0x01, 0x80, 0x01, 0xc1, 0x01 });
+
+    const set_theoretical_representation = try encodeRlp(testing.allocator, .{&.{ &.{}, &.{&.{}}, &.{ &.{}, &.{&.{}} } }});
+    defer testing.allocator.free(set_theoretical_representation);
+
+    try testing.expectEqualSlices(u8, set_theoretical_representation, &[_]u8{ 0xc7, 0xc0, 0xc1, 0xc0, 0xc3, 0xc0, 0xc1, 0xc0 });
+
+    const big: [255]bool = [_]bool{true} ** 255;
+    const enc_big = try encodeRlp(testing.allocator, .{big});
+    defer testing.allocator.free(enc_big);
+
+    try testing.expectEqualSlices(u8, enc_big, &[_]u8{ 0x7c, 0xFF } ++ &[_]u8{0x01} ** 255);
 }

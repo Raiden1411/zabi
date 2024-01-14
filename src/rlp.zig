@@ -387,3 +387,89 @@ test "Arrays" {
 
     try testing.expectEqualSlices(u8, enc_big, &[_]u8{ 0x7c, 0xFF } ++ &[_]u8{0x01} ** 255);
 }
+
+test "Slices" {
+    const one: []const bool = &[_]bool{ true, true };
+
+    const encoded = try encodeRlp(testing.allocator, .{one});
+    defer testing.allocator.free(encoded);
+
+    try testing.expectEqualSlices(u8, encoded, &[_]u8{ 0xc2, 0x01, 0x01 });
+
+    const nested: []const [2]bool = &[_][2]bool{ [2]bool{ true, false }, [2]bool{ true, true }, [2]bool{ false, false } };
+
+    const enc_nested = try encodeRlp(testing.allocator, .{nested});
+    defer testing.allocator.free(enc_nested);
+
+    try testing.expectEqualSlices(u8, enc_nested, &[_]u8{ 0xc9, 0xc2, 0x01, 0x80, 0xc2, 0x01, 0x01, 0xc2, 0x80, 0x80 });
+
+    const big: []const bool = &[_]bool{true} ** 256;
+    const enc_big = try encodeRlp(testing.allocator, .{big});
+    defer testing.allocator.free(enc_big);
+
+    try testing.expectEqualSlices(u8, enc_big, &[_]u8{ 0x7d, 0x01, 0x00 } ++ &[_]u8{0x01} ** 256);
+}
+
+test "Tuples" {
+    const one: std.meta.Tuple(&[_]type{i8}) = .{127};
+    const encoded = try encodeRlp(testing.allocator, .{one});
+    defer testing.allocator.free(encoded);
+
+    try testing.expectEqualSlices(u8, encoded, &[_]u8{ 0xc1, 0x7f });
+
+    const multi: std.meta.Tuple(&[_]type{ i8, bool, []const u8 }) = .{ 127, false, "foobar" };
+    const enc_multi = try encodeRlp(testing.allocator, .{multi});
+    defer testing.allocator.free(enc_multi);
+
+    try testing.expectEqualSlices(u8, enc_multi, &[_]u8{ 0xc3, 0x7f, 0x80, 0x86 } ++ "foobar");
+
+    const nested: std.meta.Tuple(&[_]type{[]const u64}) = .{&[_]u64{ 69, 420 }};
+    const nested_enc = try encodeRlp(testing.allocator, .{nested});
+    defer testing.allocator.free(nested_enc);
+
+    try testing.expectEqualSlices(u8, nested_enc, &[_]u8{ 0xc3, 0xc2, 0x45, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xa4 });
+}
+
+test "Structs" {
+    const Simple = struct { one: bool = true, two: i8 = 69, three: []const u8 = "foobar" };
+    const ex: Simple = .{};
+    const encoded = try encodeRlp(testing.allocator, .{ex});
+    defer testing.allocator.free(encoded);
+
+    try testing.expectEqualSlices(u8, encoded, &[_]u8{ 0x01, 0x45, 0x86 } ++ "foobar");
+
+    const Nested = struct { one: bool = true, two: i8 = 69, three: []const u8 = "foobar", four: struct { five: u8 = 14 } = .{} };
+    const nested_ex: Nested = .{};
+    const encoded_nest = try encodeRlp(testing.allocator, .{nested_ex});
+    defer testing.allocator.free(encoded_nest);
+
+    try testing.expectEqualSlices(u8, encoded_nest, &[_]u8{ 0x01, 0x45, 0x86 } ++ "foobar" ++ &[_]u8{0x0E});
+}
+
+test "Enums" {
+    const Enum = enum {
+        foo,
+        bar,
+        baz,
+    };
+    const tuple: std.meta.Tuple(&[_]type{Enum}) = .{.foo};
+
+    const encoded = try encodeRlp(testing.allocator, tuple);
+    defer testing.allocator.free(encoded);
+
+    try testing.expectEqualSlices(u8, encoded, &[_]u8{0x83} ++ "foo");
+}
+
+test "Optionals" {
+    const Enum = enum {
+        foo,
+        bar,
+        baz,
+    };
+    const tuple: std.meta.Tuple(&[_]type{ Enum, ?Enum }) = .{ .foo, null };
+
+    const encoded = try encodeRlp(testing.allocator, tuple);
+    defer testing.allocator.free(encoded);
+
+    try testing.expectEqualSlices(u8, encoded, &[_]u8{0x83} ++ "foo" ++ &[_]u8{0x80});
+}

@@ -2,7 +2,11 @@ const std = @import("std");
 const testing = std.testing;
 const Allocator = std.mem.Allocator;
 
-fn encodeRlp(alloc: Allocator, items: anytype) ![]u8 {
+pub const RlpEncodeErrors = error{ NegativeNumber, Overflow } || Allocator.Error;
+
+pub const RlpDecodeErrors = error{ UnexpectedValue, InvalidEnumTag } || Allocator.Error || std.fmt.ParseIntError;
+
+pub fn encodeRlp(alloc: Allocator, items: anytype) ![]u8 {
     const info = @typeInfo(@TypeOf(items));
 
     if (info != .Struct) @compileError("Expected tuple type instead found " ++ @typeName(@TypeOf(items)));
@@ -221,13 +225,13 @@ fn computeNestedSize(payload: anytype) u64 {
         const info = @typeInfo(@TypeOf(item));
         switch (info) {
             .Array => |arr_info| {
-                if (arr_info.child != u8) size += computeNestedSize(item) else size -= item.len;
+                if (arr_info.child != u8) size += computeNestedSize(item);
             },
             .Pointer => |ptr_info| {
                 switch (ptr_info.size) {
                     .One => size += computeNestedSize(item.*),
                     .Slice => {
-                        if (ptr_info.child != u8) size += computeNestedSize(item) else size -= item.len;
+                        if (ptr_info.child != u8) size += computeNestedSize(item);
                     },
                     else => continue,
                 }
@@ -243,6 +247,7 @@ fn computeNestedSize(payload: anytype) u64 {
 
     return size;
 }
+
 fn formatInt(int: u64, buffer: *[8]u8) u8 {
     if (int < (1 << 8)) {
         buffer.* = @bitCast(@byteSwap(int));

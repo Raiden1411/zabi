@@ -22,11 +22,14 @@ client: *http.Client,
 headers: *http.Headers,
 /// The uri of the provided init string.
 uri: Uri,
+/// Tracked errors picked up by the requests
+errors: std.ArrayListUnmanaged(types.ErrorResponse) = .{},
 
 const PubClient = @This();
 
-pub fn init(alloc: Allocator, url: []const u8, chain_id: ?usize) !PubClient {
-    var pub_client: PubClient = undefined;
+pub fn init(alloc: Allocator, url: []const u8, chain_id: ?usize) !*PubClient {
+    var pub_client = try alloc.create(PubClient);
+    errdefer alloc.destroy(pub_client);
 
     pub_client.arena = try alloc.create(ArenaAllocator);
     errdefer alloc.destroy(pub_client.arena);

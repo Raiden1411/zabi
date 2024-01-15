@@ -49,84 +49,86 @@ pub fn init(alloc: Allocator, url: []const u8, chain_id: ?usize) !*PubClient {
 
     pub_client.uri = try Uri.parse(url);
     pub_client.chain_id = chain_id orelse 1;
+    pub_client.errors = .{};
 
     return pub_client;
 }
 
-pub fn deinit(self: @This()) void {
+pub fn deinit(self: *PubClient) void {
     const allocator = self.arena.child_allocator;
     self.arena.deinit();
     allocator.destroy(self.arena);
     allocator.destroy(self.headers);
     allocator.destroy(self.client);
+    allocator.destroy(self);
 }
 
-pub fn getChainId(self: PubClient) !usize {
+pub fn getChainId(self: *PubClient) !usize {
     return self.fetchWithEmptyArgs(usize, .eth_chainId);
 }
 
-pub fn getGasPrice(self: PubClient) !types.Gwei {
+pub fn getGasPrice(self: *PubClient) !types.Gwei {
     return self.fetchWithEmptyArgs(u64, .eth_gasPrice);
 }
 
-pub fn getAccounts(self: PubClient) ![]const types.Hex {
+pub fn getAccounts(self: *PubClient) ![]const types.Hex {
     return self.fetchWithEmptyArgs([]const types.Hex, .eth_accounts);
 }
 
-pub fn getBlockNumber(self: PubClient) !u64 {
+pub fn getBlockNumber(self: *PubClient) !u64 {
     return self.fetchWithEmptyArgs(u64, .eth_blockNumber);
 }
 
-pub fn newBlockFilter(self: PubClient) !usize {
+pub fn newBlockFilter(self: *PubClient) !usize {
     return self.fetchWithEmptyArgs(usize, .eth_newBlockFilter);
 }
 
-pub fn newPendingTransactionFilter(self: PubClient) !usize {
+pub fn newPendingTransactionFilter(self: *PubClient) !usize {
     return self.fetchWithEmptyArgs(usize, .eth_newPendingTransactionFilter);
 }
 
-pub fn getBlockTransactionCountByHash(self: PubClient, block_hash: types.Hex) !usize {
+pub fn getBlockTransactionCountByHash(self: *PubClient, block_hash: types.Hex) !usize {
     return self.fetchByBlockHash(block_hash, .eth_getBlockTransactionCountByHash);
 }
 
-pub fn getBlockTransactionCountByNumber(self: PubClient, opts: block.BlockNumberRequest) !usize {
+pub fn getBlockTransactionCountByNumber(self: *PubClient, opts: block.BlockNumberRequest) !usize {
     return self.fetchByBlockNumber(opts, .eth_getBlockTransactionCountByNumber);
 }
 
-pub fn getUncleCountByBlockHash(self: PubClient, block_hash: types.Hex) !usize {
+pub fn getUncleCountByBlockHash(self: *PubClient, block_hash: types.Hex) !usize {
     return self.fetchByBlockHash(block_hash, .eth_getUncleCountByBlockHash);
 }
 
-pub fn getUncleCountByBlockNumber(self: PubClient, opts: block.BlockNumberRequest) !usize {
+pub fn getUncleCountByBlockNumber(self: *PubClient, opts: block.BlockNumberRequest) !usize {
     return self.fetchByBlockNumber(opts, .eth_getUncleCountByBlockNumber);
 }
 
-pub fn getAddressBalance(self: PubClient, opts: block.BalanceRequest) !types.Wei {
+pub fn getAddressBalance(self: *PubClient, opts: block.BalanceRequest) !types.Wei {
     return self.fetchByAddress(types.Wei, opts, .eth_getBalance);
 }
 
-pub fn getAddressTransactionCount(self: PubClient, opts: block.BalanceRequest) !usize {
+pub fn getAddressTransactionCount(self: *PubClient, opts: block.BalanceRequest) !usize {
     return self.fetchByAddress(usize, opts, .eth_getTransactionCount);
 }
 
-pub fn getContractCode(self: PubClient, opts: block.BalanceRequest) !types.Hex {
+pub fn getContractCode(self: *PubClient, opts: block.BalanceRequest) !types.Hex {
     return self.fetchByAddress(types.Hex, opts, .eth_getCode);
 }
 
-pub fn getBlockByNumber(self: PubClient, opts: block.BlockRequest) !block.Block {
+pub fn getBlockByNumber(self: *PubClient, opts: block.BlockRequest) !block.Block {
     const tag: block.BlockTag = opts.tag orelse .latest;
     const include = opts.include_transaction_objects orelse false;
 
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
 
-    const Params = std.meta.Tuple(&[_]type{ []const u8, bool });
+    const Params = std.meta.Tuple(&[_]type{ types.Hex, bool });
     const params: Params = .{ block_number, include };
     const request: types.EthereumRequest(Params) = .{ .params = params, .method = .eth_getBlockByNumber, .id = self.chain_id };
 
     return self.fetchBlock(request);
 }
 
-pub fn getBlockByHash(self: PubClient, opts: block.BlockHashRequest) !block.Block {
+pub fn getBlockByHash(self: *PubClient, opts: block.BlockHashRequest) !block.Block {
     if (!utils.isHash(opts.block_hash)) return error.InvalidHash;
     const include = opts.include_transaction_objects orelse false;
 
@@ -138,7 +140,7 @@ pub fn getBlockByHash(self: PubClient, opts: block.BlockHashRequest) !block.Bloc
     return self.fetchBlock(request);
 }
 
-pub fn getUncleByBlockHashAndIndex(self: PubClient, block_hash: types.Hex, index: usize) !block.Block {
+pub fn getUncleByBlockHashAndIndex(self: *PubClient, block_hash: types.Hex, index: usize) !block.Block {
     if (!utils.isHash(block_hash)) return error.InvalidHash;
 
     const Params = std.meta.Tuple(&[_]type{ types.Hex, types.Hex });
@@ -149,7 +151,7 @@ pub fn getUncleByBlockHashAndIndex(self: PubClient, block_hash: types.Hex, index
     return self.fetchBlock(request);
 }
 
-pub fn getUncleByBlockNumberAndIndex(self: PubClient, opts: block.BlockNumberRequest, index: usize) !block.Block {
+pub fn getUncleByBlockNumberAndIndex(self: *PubClient, opts: block.BlockNumberRequest, index: usize) !block.Block {
     const tag: block.BalanceBlockTag = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
 
@@ -161,7 +163,7 @@ pub fn getUncleByBlockNumberAndIndex(self: PubClient, opts: block.BlockNumberReq
     return self.fetchBlock(request);
 }
 
-pub fn getTransactionByHash(self: PubClient, transaction_hash: types.Hex) !transaction.Transaction {
+pub fn getTransactionByHash(self: *PubClient, transaction_hash: types.Hex) !transaction.Transaction {
     if (!utils.isHash(transaction_hash)) return error.InvalidHash;
 
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{transaction_hash}, .method = .eth_getTransactionByHash, .id = self.chain_id };
@@ -169,7 +171,7 @@ pub fn getTransactionByHash(self: PubClient, transaction_hash: types.Hex) !trans
     return self.fetchTransaction(transaction.Transaction, request);
 }
 
-pub fn getTransactionReceipt(self: PubClient, transaction_hash: types.Hex) !transaction.TransactionReceipt {
+pub fn getTransactionReceipt(self: *PubClient, transaction_hash: types.Hex) !transaction.TransactionReceipt {
     if (!utils.isHash(transaction_hash)) return error.InvalidHash;
 
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{transaction_hash}, .method = .eth_getTransactionReceipt, .id = self.chain_id };
@@ -177,7 +179,7 @@ pub fn getTransactionReceipt(self: PubClient, transaction_hash: types.Hex) !tran
     return self.fetchTransaction(transaction.TransactionReceipt, request);
 }
 
-pub fn getTransactionByBlockHashAndIndex(self: PubClient, block_hash: types.Hex, index: usize) !transaction.Transaction {
+pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: types.Hex, index: usize) !transaction.Transaction {
     if (!utils.isHash(block_hash)) return error.InvalidHash;
 
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{ block_hash, try std.fmt.allocPrint(self.alloc, "0x{x}", .{index}) }, .method = .eth_getTransactionByBlockHashAndIndex, .id = self.chain_id };
@@ -185,7 +187,7 @@ pub fn getTransactionByBlockHashAndIndex(self: PubClient, block_hash: types.Hex,
     return self.fetchTransaction(transaction.Transaction, request);
 }
 
-pub fn getTransactionByBlockNumberAndIndex(self: PubClient, opts: block.BlockNumberRequest, index: usize) !transaction.Transaction {
+pub fn getTransactionByBlockNumberAndIndex(self: *PubClient, opts: block.BlockNumberRequest, index: usize) !transaction.Transaction {
     const tag: block.BalanceBlockTag = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
 
@@ -194,7 +196,7 @@ pub fn getTransactionByBlockNumberAndIndex(self: PubClient, opts: block.BlockNum
     return self.fetchTransaction(transaction.Transaction, request);
 }
 
-fn newLogFilter(self: PubClient, opts: log.LogFilterRequestParams) !usize {
+fn newLogFilter(self: *PubClient, opts: log.LogFilterRequestParams) !usize {
     const from_block = if (opts.tag) |tag| @tagName(tag) else if (opts.fromBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
     const to_block = if (opts.tag) |tag| @tagName(tag) else if (opts.toBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
 
@@ -207,14 +209,15 @@ fn newLogFilter(self: PubClient, opts: log.LogFilterRequestParams) !usize {
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(usize), self.alloc, req.body.?, .{}) catch {
         if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
-            @panic(result.@"error".message);
+            try self.errors.append(self.alloc, result.@"error");
+            return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
     };
 
     return parsed.result;
 }
 
-pub fn getFilterOrLogChanges(self: PubClient, filter_id: usize, method: meta.Extract(types.EthereumRpcMethods, "eth_getFilterChanges,eth_FilterLogs")) !log.Logs {
+pub fn getFilterOrLogChanges(self: *PubClient, filter_id: usize, method: meta.Extract(types.EthereumRpcMethods, "eth_getFilterChanges,eth_FilterLogs")) !log.Logs {
     const filter = try std.fmt.allocPrint(self.alloc, "0x{x}", .{filter_id});
 
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{filter}, .method = method, .id = self.chain_id };
@@ -222,7 +225,7 @@ pub fn getFilterOrLogChanges(self: PubClient, filter_id: usize, method: meta.Ext
     return self.fetchLogs(types.HexRequestParameters, request);
 }
 
-pub fn getLogs(self: PubClient, opts: log.LogRequestParams) !log.Logs {
+pub fn getLogs(self: *PubClient, opts: log.LogRequestParams) !log.Logs {
     const from_block = if (opts.tag) |tag| @tagName(tag) else if (opts.fromBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
     const to_block = if (opts.tag) |tag| @tagName(tag) else if (opts.toBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
 
@@ -231,7 +234,7 @@ pub fn getLogs(self: PubClient, opts: log.LogRequestParams) !log.Logs {
     return self.fetchLogs([]const log.LogRequest, request);
 }
 
-pub fn uninstalllFilter(self: PubClient, id: usize) !bool {
+pub fn uninstalllFilter(self: *PubClient, id: usize) !bool {
     const filter_id = try std.fmt.allocPrint(self.alloc, "0x{x}", .{id});
 
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{filter_id}, .method = .eth_uninstallFilter, .id = self.chain_id };
@@ -243,14 +246,15 @@ pub fn uninstalllFilter(self: PubClient, id: usize) !bool {
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(bool), self.alloc, req.body.?, .{}) catch {
         if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
-            @panic(result.@"error".message);
+            try self.errors.append(self.alloc, result.@"error");
+            return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
     };
 
     return parsed.result;
 }
 
-fn fetchByBlockNumber(self: PubClient, opts: block.BlockNumberRequest, method: types.EthereumRpcMethods) !usize {
+fn fetchByBlockNumber(self: *PubClient, opts: block.BlockNumberRequest, method: types.EthereumRpcMethods) !usize {
     const tag: block.BalanceRequest = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
 
@@ -263,14 +267,15 @@ fn fetchByBlockNumber(self: PubClient, opts: block.BlockNumberRequest, method: t
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(usize), self.alloc, req.body.?, .{}) catch {
         if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
-            @panic(result.@"error".message);
+            try self.errors.append(self.alloc, result.@"error");
+            return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
     };
 
     return parsed.result;
 }
 
-fn fetchByBlockHash(self: PubClient, block_hash: []const u8, method: types.EthereumRpcMethods) !usize {
+fn fetchByBlockHash(self: *PubClient, block_hash: []const u8, method: types.EthereumRpcMethods) !usize {
     if (!utils.isHash(block_hash)) return error.InvalidHash;
 
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{block_hash}, .method = method, .id = self.chain_id };
@@ -282,14 +287,15 @@ fn fetchByBlockHash(self: PubClient, block_hash: []const u8, method: types.Ether
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(usize), self.alloc, req.body.?, .{}) catch {
         if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
-            @panic(result.@"error".message);
+            try self.errors.append(self.alloc, result.@"error");
+            return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
     };
 
     return parsed.result;
 }
 
-fn fetchByAddress(self: PubClient, comptime T: type, opts: block.BalanceRequest, method: types.EthereumRpcMethods) !T {
+fn fetchByAddress(self: *PubClient, comptime T: type, opts: block.BalanceRequest, method: types.EthereumRpcMethods) !T {
     if (!try utils.isAddress(self.alloc, opts.address)) return error.InvalidAddress;
     const tag: block.BalanceBlockTag = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
@@ -303,14 +309,15 @@ fn fetchByAddress(self: PubClient, comptime T: type, opts: block.BalanceRequest,
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(T), self.alloc, req.body.?, .{}) catch {
         if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
-            @panic(result.@"error".message);
+            try self.errors.append(self.alloc, result.@"error");
+            return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
     };
 
     return parsed.result;
 }
 
-fn fetchWithEmptyArgs(self: PubClient, comptime T: type, method: types.EthereumRpcMethods) !T {
+fn fetchWithEmptyArgs(self: *PubClient, comptime T: type, method: types.EthereumRpcMethods) !T {
     const Params = std.meta.Tuple(&[_]type{});
     const request: types.EthereumRequest(Params) = .{ .params = .{}, .method = method, .id = self.chain_id };
 
@@ -321,14 +328,15 @@ fn fetchWithEmptyArgs(self: PubClient, comptime T: type, method: types.EthereumR
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(T), self.alloc, req.body.?, .{}) catch {
         if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
-            @panic(result.@"error".message);
+            try self.errors.append(self.alloc, result.@"error");
+            return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
     };
 
     return parsed.value;
 }
 
-fn fetchBlock(self: PubClient, request: anytype) !block.Block {
+fn fetchBlock(self: *PubClient, request: anytype) !block.Block {
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 
@@ -336,14 +344,15 @@ fn fetchBlock(self: PubClient, request: anytype) !block.Block {
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(block.Block), self.alloc, req.body.?, .{}) catch {
         if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
-            @panic(result.@"error".message);
+            try self.errors.append(self.alloc, result.@"error");
+            return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
     };
 
     return parsed.result;
 }
 
-fn fetchTransaction(self: PubClient, comptime T: type, request: types.EthereumRequest(types.HexRequestParameters)) !T {
+fn fetchTransaction(self: *PubClient, comptime T: type, request: types.EthereumRequest(types.HexRequestParameters)) !T {
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 
@@ -351,14 +360,15 @@ fn fetchTransaction(self: PubClient, comptime T: type, request: types.EthereumRe
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(T), self.alloc, req.body.?, .{}) catch {
         if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
-            @panic(result.@"error".message);
+            try self.errors.append(self.alloc, result.@"error");
+            return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
     };
 
     return parsed.result;
 }
 
-fn fetchLogs(self: PubClient, comptime T: type, request: types.EthereumRequest(T)) !log.Logs {
+fn fetchLogs(self: *PubClient, comptime T: type, request: types.EthereumRequest(T)) !log.Logs {
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
     const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 
@@ -366,7 +376,8 @@ fn fetchLogs(self: PubClient, comptime T: type, request: types.EthereumRequest(T
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(log.Logs), self.alloc, req.body.?, .{}) catch {
         if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
-            @panic(result.@"error".message);
+            try self.errors.append(self.alloc, result.@"error");
+            return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
     };
 
@@ -374,10 +385,10 @@ fn fetchLogs(self: PubClient, comptime T: type, request: types.EthereumRequest(T
 }
 
 // test "Placeholder" {
-//     const pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+//     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
 //     defer pub_client.deinit();
 //
-//     const block_req = try pub_client.getTransactionReceipt("0x84ea9218866a33cac46673308427ddfe3c7819e9f4353a5a4b8557332ab76cf6");
+//     const block_req = try pub_client.getTransactionReceipt("0x4ea9218866a33cac46673308427ddfe3c7819e9f4353a5a4b8557332ab76cf6");
 //
 //     std.debug.print("Foooo: {any}\n\n\n", .{block_req});
 //     // std.debug.print("Foooo: {d}\n\n\n", .{pub_client.arena.queryCapacity()});

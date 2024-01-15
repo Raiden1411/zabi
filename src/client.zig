@@ -254,6 +254,13 @@ pub fn uninstalllFilter(self: *PubClient, id: usize) !bool {
     return parsed.result;
 }
 
+pub fn switchChainId(self: *PubClient, new_chain_id: usize, new_url: []const u8) void {
+    self.chain_id = new_chain_id;
+
+    const uri = try Uri.parse(new_url);
+    self.uri = uri;
+}
+
 fn fetchByBlockNumber(self: *PubClient, opts: block.BlockNumberRequest, method: types.EthereumRpcMethods) !usize {
     const tag: block.BalanceRequest = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);

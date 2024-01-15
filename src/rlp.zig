@@ -3,6 +3,11 @@ const testing = std.testing;
 const Allocator = std.mem.Allocator;
 
 fn encodeRlp(alloc: Allocator, items: anytype) ![]u8 {
+    const info = @typeInfo(@TypeOf(items));
+
+    if (info != .Struct) @compileError("Expected tuple type instead found " ++ @typeName(@TypeOf(items)));
+    if (!info.Struct.is_tuple) @compileError("Expected tuple type instead found " ++ @typeName(@TypeOf(items)));
+
     var list = std.ArrayList(u8).init(alloc);
     var writer = list.writer();
 
@@ -12,6 +17,7 @@ fn encodeRlp(alloc: Allocator, items: anytype) ![]u8 {
 
     return list.toOwnedSlice();
 }
+
 fn encodeItem(payload: anytype, writer: anytype) !void {
     const info = @typeInfo(@TypeOf(payload));
 
@@ -65,7 +71,7 @@ fn encodeItem(payload: anytype, writer: anytype) !void {
                     } else {
                         var buffer: [8]u8 = undefined;
                         const size = formatInt(payload.len, &buffer);
-                        try writer.writeByte(0x7b + size);
+                        try writer.writeByte(0xf7 + size);
                         try writer.writeAll(buffer[8 - size ..]);
                         for (payload) |item| {
                             try encodeItem(item, writer);
@@ -104,7 +110,7 @@ fn encodeItem(payload: anytype, writer: anytype) !void {
                             } else {
                                 var buffer: [8]u8 = undefined;
                                 const size = formatInt(payload.len, &buffer);
-                                try writer.writeByte(0x7b + size);
+                                try writer.writeByte(0xf7 + size);
                                 try writer.writeAll(buffer[8 - size ..]);
                                 for (payload) |item| {
                                     try encodeItem(item, writer);
@@ -129,7 +135,7 @@ fn encodeItem(payload: anytype, writer: anytype) !void {
                     } else {
                         var buffer: [8]u8 = undefined;
                         const size = formatInt(payload.len, &buffer);
-                        try writer.writeByte(0x7b + size);
+                        try writer.writeByte(0xf7 + size);
                         try writer.writeAll(buffer[8 - size ..]);
                         inline for (payload) |item| {
                             try encodeItem(item, writer);
@@ -385,7 +391,13 @@ test "Arrays" {
     const enc_big = try encodeRlp(testing.allocator, .{big});
     defer testing.allocator.free(enc_big);
 
-    try testing.expectEqualSlices(u8, enc_big, &[_]u8{ 0x7c, 0xFF } ++ &[_]u8{0x01} ** 255);
+    try testing.expectEqualSlices(u8, enc_big, &[_]u8{ 0xf8, 0xFF } ++ &[_]u8{0x01} ** 255);
+
+    const bigs: [255]u16 = [_]u16{0xf8} ** 255;
+    const enc_bigs = try encodeRlp(testing.allocator, .{bigs});
+    defer testing.allocator.free(enc_bigs);
+
+    try testing.expectEqualSlices(u8, enc_bigs, &[_]u8{ 0xf8, 0xFF } ++ &[_]u8{ 0x82, 0x00, 0xf8 } ** 255);
 }
 
 test "Slices" {
@@ -407,7 +419,7 @@ test "Slices" {
     const enc_big = try encodeRlp(testing.allocator, .{big});
     defer testing.allocator.free(enc_big);
 
-    try testing.expectEqualSlices(u8, enc_big, &[_]u8{ 0x7d, 0x01, 0x00 } ++ &[_]u8{0x01} ** 256);
+    try testing.expectEqualSlices(u8, enc_big, &[_]u8{ 0xf9, 0x01, 0x00 } ++ &[_]u8{0x01} ** 256);
 }
 
 test "Tuples" {

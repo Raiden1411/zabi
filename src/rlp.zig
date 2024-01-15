@@ -529,19 +529,20 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                         error.Overflow => {
                             const parsedUnsigned = try std.fmt.parseInt(u256, slice, 16);
                             const negative = std.math.cast(T, (std.math.maxInt(u256) - parsedUnsigned) + 1) orelse return err;
-                            return .{ .consumed = len, .data = -negative };
+                            return .{ .consumed = len + 1, .data = -negative };
                         },
                         inline else => return err,
                     }
                 };
-                return .{ .consumed = len, .data = parsed };
+                return .{ .consumed = len + 1, .data = parsed };
             }
-            return .{ .consumed = len, .data = try std.fmt.parseInt(T, slice, 16) };
+            return .{ .consumed = len + 1, .data = try std.fmt.parseInt(T, slice, 16) };
         },
         .Optional => |opt_info| {
             if (encoded[position] == 0x80) return .{ .consumed = 1, .data = null };
 
-            return try decodeItem(alloc, opt_info.child, encoded, position);
+            const opt = try decodeItem(alloc, opt_info.child, encoded, position);
+            return .{ .consumed = opt.consumed, .data = opt.data };
         },
         .Enum => {
             const size = encoded[position];
@@ -551,7 +552,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                 const slice = encoded[position + 1 .. position + str_len + 1];
                 const e = std.meta.stringToEnum(T, slice) orelse return error.InvalidEnumTag;
 
-                return .{ .consumed = str_len, .data = e };
+                return .{ .consumed = str_len + 1, .data = e };
             }
             const len_size = size - 0xb7;
             const len = encoded[position + 1 .. position + len_size + 1];
@@ -560,9 +561,9 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
             defer alloc.free(len_slice);
 
             const parsed = try std.fmt.parseInt(usize, len_slice, 16);
-            const e = std.meta.stringToEnum(T, encoded[position + 2 .. position + parsed + 1]) orelse return error.InvalidEnumTag;
+            const e = std.meta.stringToEnum(T, encoded[position + len_size + 1 .. position + parsed + 1 + len_size]) orelse return error.InvalidEnumTag;
 
-            return .{ .consumed = 2 + parsed, .data = e };
+            return .{ .consumed = 2 + len_size + parsed, .data = e };
         },
         .Array => |arr_info| {
             if (arr_info.child == u8) {
@@ -572,7 +573,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                     const str_len = size - 0x80;
                     const slice = encoded[position + 1 .. position + str_len + 1];
 
-                    return .{ .consumed = str_len, .data = slice };
+                    return .{ .consumed = str_len + 1, .data = slice };
                 }
                 const len_size = size - 0xb7;
                 const len = encoded[position + 1 .. position + len_size + 1];
@@ -582,42 +583,35 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
                 const parsed = try std.fmt.parseInt(usize, len_slice, 16);
 
-                return .{ .consumed = 2 + parsed, .data = encoded[position + 2 .. position + parsed + 1] };
+                return .{ .consumed = 2 + len_size + parsed, .data = encoded[position + 1 + len_size .. position + parsed + 1 + len_size] };
             }
 
             const arr_size = encoded[position];
 
             if (arr_size <= 0xf7) {
-                const arr_len = arr_size - 0xC0;
                 var result: T = undefined;
 
                 var cur_pos = position + 1;
-                for (0..arr_len) |i| {
+                for (0..arr_info.len) |i| {
                     const decoded = try decodeItem(alloc, arr_info.child, encoded, cur_pos);
                     result[i] = decoded.data;
-                    cur_pos += decoded.consumed + 1;
+                    cur_pos += decoded.consumed;
                 }
 
-                return .{ .consumed = cur_pos, .data = result };
+                return .{ .consumed = arr_info.len + 1, .data = result };
             }
 
             const arr_len = arr_size - 0xf7;
-            const len = encoded[position + 1 .. position + arr_len + 1];
-            const hexed = std.fmt.fmtSliceHexLower(len);
-            const len_slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
-            defer alloc.free(len_slice);
-
-            const parsed_len = try std.fmt.parseInt(usize, len_slice, 16);
             var result: T = undefined;
 
             var cur_pos = position + arr_len + 1;
-            for (0..parsed_len) |i| {
+            for (0..arr_info.len) |i| {
                 const decoded = try decodeItem(alloc, arr_info.child, encoded, cur_pos);
                 result[i] = decoded.data;
-                cur_pos += decoded.consumed + 1;
+                cur_pos += decoded.consumed;
             }
 
-            return .{ .consumed = cur_pos, .data = result };
+            return .{ .consumed = arr_info.len + 1, .data = result };
         },
         .Pointer => |ptr_info| {
             switch (ptr_info.size) {
@@ -636,7 +630,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                             const str_len = size - 0x80;
                             const slice = encoded[position + 1 .. position + str_len + 1];
 
-                            return .{ .consumed = str_len, .data = slice };
+                            return .{ .consumed = str_len + 1, .data = slice };
                         }
                         const len_size = size - 0xb7;
                         const len = encoded[position + 1 .. position + len_size + 1];
@@ -646,7 +640,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
                         const parsed = try std.fmt.parseInt(usize, len_slice, 16);
 
-                        return .{ .consumed = 1 + len_size + parsed, .data = encoded[position + 1 + len_size .. position + parsed + 1 + len_size] };
+                        return .{ .consumed = 2 + len_size + parsed, .data = encoded[position + 1 + len_size .. position + parsed + 1 + len_size] };
                     }
                     const arr_size = encoded[position];
 
@@ -659,10 +653,11 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                         for (0..arr_len) |_| {
                             const decoded = try decodeItem(alloc, ptr_info.child, encoded, cur_pos);
                             try result.append(decoded.data);
-                            cur_pos += decoded.consumed + 1;
+                            cur_pos += decoded.consumed;
+                            if (cur_pos == encoded.len) break;
                         }
 
-                        return .{ .consumed = cur_pos, .data = try result.toOwnedSlice() };
+                        return .{ .consumed = arr_len + 1, .data = try result.toOwnedSlice() };
                     }
 
                     const arr_len = arr_size - 0xf7;
@@ -679,7 +674,8 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                     for (0..parsed_len) |_| {
                         const decoded = try decodeItem(alloc, ptr_info.child, encoded, cur_pos);
                         try result.append(decoded.data);
-                        cur_pos += decoded.consumed + 1;
+                        cur_pos += decoded.consumed;
+                        if (cur_pos == encoded.len) break;
                     }
 
                     return .{ .consumed = cur_pos, .data = try result.toOwnedSlice() };
@@ -691,37 +687,26 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
             if (struct_info.is_tuple) {
                 const arr_size = encoded[position];
                 if (arr_size <= 0xf7) {
-                    const arr_len = arr_size - 0xC0;
                     var result: T = undefined;
-
-                    if (arr_len != struct_info.fields.len) return error.InvalidTupleSize;
 
                     var cur_pos = position + 1;
                     inline for (struct_info.fields, 0..) |field, i| {
                         const decoded = try decodeItem(alloc, field.type, encoded, cur_pos);
                         result[i] = decoded.data;
-                        cur_pos += decoded.consumed + 1;
+                        cur_pos += decoded.consumed;
                     }
 
                     return .{ .consumed = cur_pos, .data = result };
                 }
 
                 const arr_len = arr_size - 0xf7;
-                const len = encoded[position + 1 .. position + arr_len + 1];
-                const hexed = std.fmt.fmtSliceHexLower(len);
-                const len_slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
-                defer alloc.free(len_slice);
-
-                const parsed_len = try std.fmt.parseInt(usize, len_slice, 16);
                 var result: T = undefined;
-
-                if (parsed_len != struct_info.fields.len) return error.InvalidTupleSize;
 
                 var cur_pos = position + arr_len + 1;
                 inline for (struct_info.fields, 0..) |field, i| {
                     const decoded = try decodeItem(alloc, field.type, encoded, cur_pos);
                     result[i] = decoded.data;
-                    cur_pos += decoded.consumed + 1;
+                    cur_pos += decoded.consumed;
                 }
 
                 return .{ .consumed = cur_pos, .data = result };
@@ -736,7 +721,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                 cur_pos += decoded.consumed;
             }
 
-            return result;
+            return .{ .consumed = cur_pos, .data = result };
         },
         else => @compileError("Unable to parse type " ++ @typeName(T)),
     }

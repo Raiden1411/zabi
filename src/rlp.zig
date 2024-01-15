@@ -946,3 +946,12 @@ test "Decoded Tuples" {
 
     try testing.expectEqualSlices(u64, nested[0], decoded_nested[0]);
 }
+
+test "Decoded Pointer" {
+    const big = try encodeRlp(testing.allocator, .{&std.math.maxInt(u64)});
+    defer testing.allocator.free(big);
+    const decoded_big = try decodeRlp(testing.allocator, *u64, big);
+    defer testing.allocator.destroy(decoded_big);
+
+    try testing.expectEqual(std.math.maxInt(u64), decoded_big.*);
+}

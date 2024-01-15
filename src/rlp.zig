@@ -473,3 +473,312 @@ test "Optionals" {
 
     try testing.expectEqualSlices(u8, encoded, &[_]u8{0x83} ++ "foo" ++ &[_]u8{0x80});
 }
+
+// Decode RLP
+
+pub fn decodeRlp(alloc: Allocator, comptime T: type, encoded: []const u8) !T {
+    const decoded = try decodeItem(alloc, T, encoded, 0);
+
+    return decoded.data;
+}
+
+fn DecodedResult(comptime T: type) type {
+    return struct { consumed: u64, data: T };
+}
+
+fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position: u64) !DecodedResult(T) {
+    const info = @typeInfo(T);
+
+    switch (info) {
+        .Bool => {
+            switch (encoded[position]) {
+                0x80 => return .{ .consumed = 1, .data = false },
+                0x01 => return .{ .consumed = 1, .data = true },
+                else => return error.UnexpectedValue,
+            }
+        },
+        .Int => {
+            if (encoded[position] < 0x80) return .{ .consumed = 1, .data = @intCast(encoded[position]) };
+            const len = encoded[position] - 0x80;
+            const hex_number = encoded[position + 1 .. position + len + 1];
+
+            const hexed = std.fmt.fmtSliceHexLower(hex_number);
+            const slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
+            defer alloc.free(slice);
+
+            if (info.Int.signedness == .signed) {
+                const parsed = std.fmt.parseInt(T, slice, 16) catch |err| {
+                    switch (err) {
+                        error.Overflow => {
+                            const parsedUnsigned = try std.fmt.parseInt(u256, slice, 16);
+                            const negative = std.math.cast(T, (std.math.maxInt(u256) - parsedUnsigned) + 1) orelse return err;
+                            return .{ .consumed = len, .data = -negative };
+                        },
+                        inline else => return err,
+                    }
+                };
+                return .{ .consumed = len, .data = parsed };
+            }
+            return .{ .consumed = len, .data = try std.fmt.parseInt(T, slice, 16) };
+        },
+        .Optional => |opt_info| {
+            if (encoded[position] == 0x80) return .{ .consumed = 1, .data = null };
+
+            return try decodeItem(alloc, opt_info.child, encoded, position);
+        },
+        .Enum => {
+            const size = encoded[position];
+
+            if (size <= 0xb7) {
+                const str_len = size - 0x80;
+                const slice = encoded[position + 1 .. position + str_len + 1];
+                const e = std.meta.stringToEnum(T, slice) orelse return error.InvalidEnumTag;
+
+                return .{ .consumed = str_len, .data = e };
+            }
+            const len_size = size - 0xb7;
+            const len = encoded[position + 1 .. position + len_size + 1];
+            const hexed = std.fmt.fmtSliceHexLower(len);
+            const len_slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
+            defer alloc.free(len_slice);
+
+            const parsed = try std.fmt.parseInt(usize, len_slice, 16);
+            const e = std.meta.stringToEnum(T, encoded[position + 2 .. position + parsed + 1]) orelse return error.InvalidEnumTag;
+
+            return .{ .consumed = 2 + parsed, .data = e };
+        },
+        .Array => |arr_info| {
+            if (arr_info.child == u8) {
+                const size = encoded[position];
+
+                if (size <= 0xb7) {
+                    const str_len = size - 0x80;
+                    const slice = encoded[position + 1 .. position + str_len + 1];
+
+                    return .{ .consumed = str_len, .data = slice };
+                }
+                const len_size = size - 0xb7;
+                const len = encoded[position + 1 .. position + len_size + 1];
+                const hexed = std.fmt.fmtSliceHexLower(len);
+                const len_slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
+                defer alloc.free(len_slice);
+
+                const parsed = try std.fmt.parseInt(usize, len_slice, 16);
+
+                return .{ .consumed = 2 + parsed, .data = encoded[position + 2 .. position + parsed + 1] };
+            }
+
+            const arr_size = encoded[position];
+
+            if (arr_size <= 0xf7) {
+                const arr_len = arr_size - 0xC0;
+                var result: T = undefined;
+
+                var cur_pos = position + 1;
+                for (0..arr_len) |i| {
+                    const decoded = try decodeItem(alloc, arr_info.child, encoded, cur_pos);
+                    result[i] = decoded.data;
+                    cur_pos += decoded.consumed + 1;
+                }
+
+                return .{ .consumed = cur_pos, .data = result };
+            }
+
+            const arr_len = arr_size - 0xf7;
+            const len = encoded[position + 1 .. position + arr_len + 1];
+            const hexed = std.fmt.fmtSliceHexLower(len);
+            const len_slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
+            defer alloc.free(len_slice);
+
+            const parsed_len = try std.fmt.parseInt(usize, len_slice, 16);
+            var result: T = undefined;
+
+            var cur_pos = position + arr_len + 1;
+            for (0..parsed_len) |i| {
+                const decoded = try decodeItem(alloc, arr_info.child, encoded, cur_pos);
+                result[i] = decoded.data;
+                cur_pos += decoded.consumed + 1;
+            }
+
+            return .{ .consumed = cur_pos, .data = result };
+        },
+        .Pointer => |ptr_info| {
+            switch (ptr_info.size) {
+                .One => {
+                    const res: *ptr_info.child = try alloc.create(ptr_info.child);
+                    const decoded = try decodeItem(alloc, ptr_info.child, encoded, position);
+                    res.* = decoded.data;
+
+                    return .{ .consumed = decoded.consumed, .data = res };
+                },
+                .Slice => {
+                    if (ptr_info.child == u8) {
+                        const size = encoded[position];
+
+                        if (size <= 0xb7) {
+                            const str_len = size - 0x80;
+                            const slice = encoded[position + 1 .. position + str_len + 1];
+
+                            return .{ .consumed = str_len, .data = slice };
+                        }
+                        const len_size = size - 0xb7;
+                        const len = encoded[position + 1 .. position + len_size + 1];
+                        const hexed = std.fmt.fmtSliceHexLower(len);
+                        const len_slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
+                        defer alloc.free(len_slice);
+
+                        const parsed = try std.fmt.parseInt(usize, len_slice, 16);
+
+                        return .{ .consumed = 1 + len_size + parsed, .data = encoded[position + 1 + len_size .. position + parsed + 1 + len_size] };
+                    }
+                    const arr_size = encoded[position];
+
+                    if (arr_size <= 0xf7) {
+                        const arr_len = arr_size - 0xC0;
+                        var result = std.ArrayList(ptr_info.child).init(alloc);
+                        errdefer result.deinit();
+
+                        var cur_pos = position + 1;
+                        for (0..arr_len) |_| {
+                            const decoded = try decodeItem(alloc, ptr_info.child, encoded, cur_pos);
+                            try result.append(decoded.data);
+                            cur_pos += decoded.consumed + 1;
+                        }
+
+                        return .{ .consumed = cur_pos, .data = try result.toOwnedSlice() };
+                    }
+
+                    const arr_len = arr_size - 0xf7;
+                    const len = encoded[position + 1 .. position + arr_len + 1];
+                    const hexed = std.fmt.fmtSliceHexLower(len);
+                    const len_slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
+                    defer alloc.free(len_slice);
+
+                    const parsed_len = try std.fmt.parseInt(usize, len_slice, 16);
+                    var result = std.ArrayList(ptr_info.child).init(alloc);
+                    errdefer result.deinit();
+
+                    var cur_pos = position + arr_len + 1;
+                    for (0..parsed_len) |_| {
+                        const decoded = try decodeItem(alloc, ptr_info.child, encoded, cur_pos);
+                        try result.append(decoded.data);
+                        cur_pos += decoded.consumed + 1;
+                    }
+
+                    return .{ .consumed = cur_pos, .data = try result.toOwnedSlice() };
+                },
+                else => @compileError("Unable to parse type " ++ @typeName(T)),
+            }
+        },
+        .Struct => |struct_info| {
+            if (struct_info.is_tuple) {
+                const arr_size = encoded[position];
+                if (arr_size <= 0xf7) {
+                    const arr_len = arr_size - 0xC0;
+                    var result: T = undefined;
+
+                    if (arr_len != struct_info.fields.len) return error.InvalidTupleSize;
+
+                    var cur_pos = position + 1;
+                    inline for (struct_info.fields, 0..) |field, i| {
+                        const decoded = try decodeItem(alloc, field.type, encoded, cur_pos);
+                        result[i] = decoded.data;
+                        cur_pos += decoded.consumed + 1;
+                    }
+
+                    return .{ .consumed = cur_pos, .data = result };
+                }
+
+                const arr_len = arr_size - 0xf7;
+                const len = encoded[position + 1 .. position + arr_len + 1];
+                const hexed = std.fmt.fmtSliceHexLower(len);
+                const len_slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
+                defer alloc.free(len_slice);
+
+                const parsed_len = try std.fmt.parseInt(usize, len_slice, 16);
+                var result: T = undefined;
+
+                if (parsed_len != struct_info.fields.len) return error.InvalidTupleSize;
+
+                var cur_pos = position + arr_len + 1;
+                inline for (struct_info.fields, 0..) |field, i| {
+                    const decoded = try decodeItem(alloc, field.type, encoded, cur_pos);
+                    result[i] = decoded.data;
+                    cur_pos += decoded.consumed + 1;
+                }
+
+                return .{ .consumed = cur_pos, .data = result };
+            }
+
+            var result: T = undefined;
+
+            var cur_pos = position;
+            inline for (struct_info.fields) |field| {
+                const decoded = try decodeItem(alloc, field.type, encoded, cur_pos);
+                @field(result, field.name) = decoded.data;
+                cur_pos += decoded.consumed;
+            }
+
+            return result;
+        },
+        else => @compileError("Unable to parse type " ++ @typeName(T)),
+    }
+}
+
+test "Decoded bool" {
+    const t = try decodeRlp(testing.allocator, bool, &[_]u8{0x01});
+    try testing.expect(t);
+
+    const f = try decodeRlp(testing.allocator, bool, &[_]u8{0x80});
+    try testing.expect(!f);
+}
+
+test "Decoded Int" {
+    const low = try encodeRlp(testing.allocator, .{127});
+    defer testing.allocator.free(low);
+    const decoded_low = try decodeRlp(testing.allocator, i8, low);
+
+    try testing.expectEqual(127, decoded_low);
+
+    const medium = try encodeRlp(testing.allocator, .{69420});
+    defer testing.allocator.free(medium);
+    const decoded_medium = try decodeRlp(testing.allocator, u24, medium);
+
+    try testing.expectEqual(69420, decoded_medium);
+
+    const big = try encodeRlp(testing.allocator, .{std.math.maxInt(u64)});
+    defer testing.allocator.free(big);
+    const decoded_big = try decodeRlp(testing.allocator, u64, big);
+
+    try testing.expectEqual(std.math.maxInt(u64), decoded_big);
+}
+
+test "Decoded Strings < 56" {
+    const str = try encodeRlp(testing.allocator, .{"dog"});
+    defer testing.allocator.free(str);
+    const decoded_str = try decodeRlp(testing.allocator, []const u8, str);
+
+    try testing.expectEqualStrings("dog", decoded_str);
+
+    const lorem = try encodeRlp(testing.allocator, .{"Lorem ipsum dolor sit amet, consectetur adipisicing eli"});
+    defer testing.allocator.free(lorem);
+    const decoded_lorem = try decodeRlp(testing.allocator, []const u8, lorem);
+
+    try testing.expectEqualStrings("Lorem ipsum dolor sit amet, consectetur adipisicing eli", decoded_lorem);
+}
+
+test "Decoded Strings > 56" {
+    const lorem = try encodeRlp(testing.allocator, .{"Lorem ipsum dolor sit amet, consectetur adipisicing elit"});
+    defer testing.allocator.free(lorem);
+    const decoded_lorem = try decodeRlp(testing.allocator, []const u8, lorem);
+
+    try testing.expectEqualStrings("Lorem ipsum dolor sit amet, consectetur adipisicing elit", decoded_lorem);
+
+    const big: []const u8 = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas vitae nibh fermentum, pretium urna sit amet, eleifend nunc. Integer pulvinar metus turpis, id euismod felis ullamcorper eu. Etiam at diam vel massa cursus venenatis eget quis lectus. Nullam commodo enim ut ex facilisis mattis. Donec convallis arcu molestie metus vestibulum, et laoreet neque vestibulum. Mauris felis velit, convallis vel pulvinar eget, ultrices eget sapien. Curabitur ut ultrices lectus. Maecenas condimentum erat lorem, dictum finibus orci commodo a. In pretium velit in sem lobortis condimentum quis a turpis. Suspendisse dignissim ullamcorper semper. Etiam lobortis nibh ac nibh porttitor imperdiet. Donec erat nisi, ullamcorper non metus fringilla, vehicula convallis tortor. Nullam egestas arcu ac nisl scelerisque molestie. Phasellus facilisis augue sit amet pretium congue. Etiam a erat maximus, mattis ex";
+
+    const encoded = try encodeRlp(testing.allocator, .{big});
+    defer testing.allocator.free(encoded);
+    const decoded_big = try decodeRlp(testing.allocator, []const u8, encoded);
+
+    try testing.expectEqualStrings(big, decoded_big);
+}

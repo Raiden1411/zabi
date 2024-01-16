@@ -57,8 +57,20 @@ pub fn isHash(hash: []const u8) bool {
     return true;
 }
 
-pub fn parseEth(value: u256) f64 {
-    return @floatFromInt(value / std.math.pow(u256, 10, 18));
+pub fn parseEth(value: usize) !u256 {
+    const size = value * std.math.pow(u256, 10, 18);
+
+    if (size > std.math.maxInt(u256)) return error.Overflow;
+
+    return size;
+}
+
+pub fn parseGwei(value: usize) !u64 {
+    const size = value * std.math.pow(u64, 10, 9);
+
+    if (size > std.math.maxInt(u64)) return error.Overflow;
+
+    return size;
 }
 
 test "Checksum" {

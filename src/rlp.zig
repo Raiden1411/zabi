@@ -16,13 +16,13 @@ pub fn encodeRlp(alloc: Allocator, items: anytype) ![]u8 {
     var writer = list.writer();
 
     inline for (items) |payload| {
-        try encodeItem(payload, &writer);
+        try encodeItem(alloc, payload, &writer);
     }
 
     return list.toOwnedSlice();
 }
 
-fn encodeItem(payload: anytype, writer: anytype) !void {
+fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
     const info = @typeInfo(@TypeOf(payload));
 
     switch (info) {
@@ -31,9 +31,10 @@ fn encodeItem(payload: anytype, writer: anytype) !void {
             if (payload < 0) return error.NegativeNumber;
 
             if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intCast(payload)) else {
-                const size = @divExact(@typeInfo(@TypeOf(payload)).Int.bits, 8);
-                try writer.writeByte(0x80 + size);
-                try writer.writeInt(@TypeOf(payload), payload, .big);
+                var buffer: [32]u8 = undefined;
+                const size_slice = formatInt(payload, &buffer);
+                try writer.writeByte(0x80 + size_slice);
+                try writer.writeAll(buffer[32 - size_slice ..]);
             }
         },
         .ComptimeInt => {
@@ -42,44 +43,68 @@ fn encodeItem(payload: anytype, writer: anytype) !void {
             if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intCast(payload)) else {
                 const size = comptime computeSize(payload);
                 try writer.writeByte(0x80 + size);
-                try writer.writeInt(@Type(.{ .Int = .{ .signedness = .unsigned, .bits = size * 8 } }), payload, .big);
+                var buffer: [32]u8 = undefined;
+                const size_slice = formatInt(payload, &buffer);
+                try writer.writeAll(buffer[32 - size_slice ..]);
             }
         },
         .Optional => {
-            if (payload) |item| try encodeItem(item, writer) else try writer.writeByte(0x80);
+            if (payload) |item| try encodeItem(alloc, item, writer) else try writer.writeByte(0x80);
         },
         .Enum => {
-            try encodeItem(@tagName(payload), writer);
+            try encodeItem(alloc, @tagName(payload), writer);
         },
         .Array => |arr_info| {
             if (arr_info.child == u8) {
-                if (payload.len == 0) try writer.writeByte(0x80) else if (payload.len < 56) {
-                    try writer.writeByte(@intCast(0x80 + payload.len));
-                    try writer.writeAll(&payload);
+                const slice = slice: {
+                    if (payload.len == 0) break :slice payload[0..];
+
+                    if (std.mem.startsWith(u8, payload[0..], "0x")) {
+                        break :slice payload[2..];
+                    }
+
+                    break :slice payload[0..];
+                };
+                const buf = try alloc.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
+                defer alloc.free(buf);
+
+                const bytes = if (std.fmt.hexToBytes(buf, slice)) |result| result else |_| slice;
+
+                if (bytes.len == 0) try writer.writeByte(0x80) else if (bytes.len < 56) {
+                    try writer.writeByte(@intCast(0x80 + bytes.len));
+                    try writer.writeAll(bytes);
                 } else {
-                    if (payload.len > std.math.maxInt(u64)) return error.Overflow;
-                    var buffer: [8]u8 = undefined;
-                    const size = formatInt(payload.len, &buffer);
+                    if (bytes.len > std.math.maxInt(u64)) return error.Overflow;
+                    var buffer: [32]u8 = undefined;
+                    const size = formatInt(bytes.len, &buffer);
                     try writer.writeByte(0xb7 + size);
-                    try writer.writeAll(buffer[8 - size ..]);
-                    try writer.writeAll(&payload);
+                    try writer.writeAll(buffer[32 - size ..]);
+                    try writer.writeAll(bytes);
                 }
             } else {
                 if (payload.len == 0) try writer.writeByte(0xc0) else {
-                    const nested_size = computeNestedSize(payload);
-                    if (nested_size < 56) {
-                        try writer.writeByte(@intCast(0xc0 + nested_size));
-                        for (payload) |item| {
-                            try encodeItem(item, writer);
-                        }
+                    var arr = std.ArrayList(u8).init(alloc);
+                    errdefer arr.deinit();
+                    const arr_writer = arr.writer();
+
+                    for (payload) |item| {
+                        try encodeItem(alloc, item, &arr_writer);
+                    }
+
+                    const bytes = try arr.toOwnedSlice();
+                    defer alloc.free(bytes);
+
+                    if (bytes.len > std.math.maxInt(u64)) return error.Overflow;
+
+                    if (bytes.len < 56) {
+                        try writer.writeByte(@intCast(0xc0 + bytes.len));
+                        try writer.writeAll(bytes);
                     } else {
-                        var buffer: [8]u8 = undefined;
-                        const size = formatInt(payload.len, &buffer);
+                        var buffer: [32]u8 = undefined;
+                        const size = formatInt(bytes.len, &buffer);
                         try writer.writeByte(0xf7 + size);
-                        try writer.writeAll(buffer[8 - size ..]);
-                        for (payload) |item| {
-                            try encodeItem(item, writer);
-                        }
+                        try writer.writeAll(buffer[32 - size ..]);
+                        try writer.writeAll(bytes);
                     }
                 }
             }
@@ -87,38 +112,60 @@ fn encodeItem(payload: anytype, writer: anytype) !void {
         .Pointer => |ptr_info| {
             switch (ptr_info.size) {
                 .One => {
-                    try encodeItem(payload.*, writer);
+                    try encodeItem(alloc, payload.*, writer);
                 },
                 .Slice => {
                     if (ptr_info.child == u8) {
-                        if (payload.len == 0) try writer.writeByte(0x80) else if (payload.len < 56) {
-                            try writer.writeByte(@intCast(0x80 + payload.len));
-                            try writer.writeAll(payload);
+                        const slice = slice: {
+                            if (payload.len == 0) break :slice payload;
+
+                            if (std.mem.startsWith(u8, payload, "0x")) {
+                                break :slice payload[2..];
+                            }
+
+                            break :slice payload;
+                        };
+
+                        const buf = try alloc.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
+                        defer alloc.free(buf);
+
+                        const bytes = if (std.fmt.hexToBytes(buf, slice)) |result| result else |_| slice;
+
+                        if (bytes.len == 0) try writer.writeByte(0x80) else if (bytes.len < 56) {
+                            try writer.writeByte(@intCast(0x80 + bytes.len));
+                            try writer.writeAll(bytes);
                         } else {
-                            if (payload.len > std.math.maxInt(u64)) return error.Overflow;
-                            var buffer: [8]u8 = undefined;
-                            const size = formatInt(payload.len, &buffer);
+                            if (bytes.len > std.math.maxInt(u64)) return error.Overflow;
+                            var buffer: [32]u8 = undefined;
+                            const size = formatInt(bytes.len, &buffer);
                             try writer.writeByte(0xb7 + size);
-                            try writer.writeAll(buffer[8 - size ..]);
-                            try writer.writeAll(payload);
+                            try writer.writeAll(buffer[32 - size ..]);
+                            try writer.writeAll(bytes);
                         }
                     } else {
                         if (payload.len == 0) try writer.writeByte(0xc0) else {
-                            const nested_size = computeNestedSize(payload);
-                            if (nested_size > std.math.maxInt(u64)) return error.Overflow;
-                            if (nested_size < 56) {
-                                try writer.writeByte(@intCast(0xc0 + nested_size));
-                                for (payload) |item| {
-                                    try encodeItem(item, writer);
-                                }
+                            var slice = std.ArrayList(u8).init(alloc);
+                            errdefer slice.deinit();
+                            const slice_writer = slice.writer();
+
+                            for (payload) |item| {
+                                try encodeItem(alloc, item, &slice_writer);
+                            }
+
+                            const bytes = try slice.toOwnedSlice();
+                            defer alloc.free(bytes);
+
+                            if (bytes.len > std.math.maxInt(u64)) return error.Overflow;
+
+                            if (bytes.len < 56) {
+                                try writer.writeByte(@intCast(0xc0 + bytes.len));
+                                try writer.writeAll(bytes);
                             } else {
-                                var buffer: [8]u8 = undefined;
-                                const size = formatInt(payload.len, &buffer);
+                                var buffer: [32]u8 = undefined;
+                                const size = formatInt(bytes.len, &buffer);
                                 try writer.writeByte(0xf7 + size);
-                                try writer.writeAll(buffer[8 - size ..]);
-                                for (payload) |item| {
-                                    try encodeItem(item, writer);
-                                }
+                                try writer.writeAll(buffer[32 - size ..]);
+                                try writer.writeAll(bytes);
                             }
                         }
                     }
@@ -129,26 +176,33 @@ fn encodeItem(payload: anytype, writer: anytype) !void {
         .Struct => |struct_info| {
             if (struct_info.is_tuple) {
                 if (payload.len == 0) try writer.writeByte(0xc0) else {
-                    const nested_size = computeNestedTupleSize(payload);
-                    if (nested_size > std.math.maxInt(u64)) return error.Overflow;
-                    if (nested_size < 56) {
-                        try writer.writeByte(@intCast(0xc0 + nested_size));
-                        inline for (payload) |item| {
-                            try encodeItem(item, writer);
-                        }
+                    var tuple = std.ArrayList(u8).init(alloc);
+                    errdefer tuple.deinit();
+                    const tuple_writer = tuple.writer();
+
+                    inline for (payload) |item| {
+                        try encodeItem(alloc, item, &tuple_writer);
+                    }
+
+                    const bytes = try tuple.toOwnedSlice();
+                    defer alloc.free(bytes);
+
+                    if (bytes.len > std.math.maxInt(u64)) return error.Overflow;
+
+                    if (bytes.len < 56) {
+                        try writer.writeByte(@intCast(0xc0 + bytes.len));
+                        try writer.writeAll(bytes);
                     } else {
-                        var buffer: [8]u8 = undefined;
-                        const size = formatInt(payload.len, &buffer);
+                        var buffer: [32]u8 = undefined;
+                        const size = formatInt(bytes.len, &buffer);
                         try writer.writeByte(0xf7 + size);
-                        try writer.writeAll(buffer[8 - size ..]);
-                        inline for (payload) |item| {
-                            try encodeItem(item, writer);
-                        }
+                        try writer.writeAll(buffer[32 - size ..]);
+                        try writer.writeAll(bytes);
                     }
                 }
             } else {
                 inline for (struct_info.fields) |field| {
-                    try encodeItem(@field(payload, field.name), writer);
+                    try encodeItem(alloc, @field(payload, field.name), writer);
                 }
             }
         },
@@ -156,99 +210,47 @@ fn encodeItem(payload: anytype, writer: anytype) !void {
     }
 }
 
-fn computeNestedTupleSize(payload: anytype) u64 {
-    var size: u64 = payload.len;
+fn computePayloadSize(payload: anytype) u64 {
+    var size: u64 = 0;
+    const info = @typeInfo(@TypeOf(payload));
 
-    switch (@typeInfo(@TypeOf(payload))) {
-        .Array => |arr_info| {
-            if (arr_info.child == u8) return 0;
+    switch (info) {
+        .Array => {
+            size += payload.len;
+            for (payload) |item| {
+                size += computePayloadSize(item);
+            }
         },
         .Pointer => |ptr_info| {
             switch (ptr_info.size) {
+                .One => size += computePayloadSize(payload.*),
                 .Slice => {
-                    if (ptr_info.child == u8) return 0;
+                    size += payload.len;
+                    for (payload) |item| {
+                        size += computePayloadSize(item);
+                    }
                 },
                 else => {},
+            }
+        },
+        .Optional => {
+            size += if (payload) |item| computePayloadSize(item) else 0;
+        },
+        .Struct => |struct_info| {
+            if (!struct_info.is_tuple) @compileError("Only tuple types are supported for struct types");
+            size += payload.len;
+
+            inline for (payload) |item| {
+                size += computePayloadSize(item);
             }
         },
         else => {},
     }
 
-    inline for (payload) |item| {
-        const info = @typeInfo(@TypeOf(item));
-        switch (info) {
-            .Array => |arr_info| {
-                if (arr_info.child != u8) size += computeNestedSize(item);
-            },
-            .Pointer => |ptr_info| {
-                switch (ptr_info.size) {
-                    .One => {
-                        size += computeNestedTupleSize(item.*);
-                    },
-                    .Slice => {
-                        if (ptr_info.child != u8) size += computeNestedSize(item);
-                    },
-                    else => continue,
-                }
-            },
-            .Struct => |struct_info| {
-                if (!struct_info.is_tuple) @compileError("Only tuple types are supported for struct types");
-
-                size += computeNestedTupleSize(item);
-            },
-            else => continue,
-        }
-    }
-
     return size;
 }
 
-fn computeNestedSize(payload: anytype) u64 {
-    var size: u64 = payload.len;
-
-    switch (@typeInfo(@TypeOf(payload))) {
-        .Array => |arr_info| {
-            if (arr_info.child == u8) return 0;
-        },
-        .Pointer => |ptr_info| {
-            switch (ptr_info.size) {
-                .Slice => {
-                    if (ptr_info.child == u8) return 0;
-                },
-                else => {},
-            }
-        },
-        else => {},
-    }
-
-    for (payload) |item| {
-        const info = @typeInfo(@TypeOf(item));
-        switch (info) {
-            .Array => |arr_info| {
-                if (arr_info.child != u8) size += computeNestedSize(item);
-            },
-            .Pointer => |ptr_info| {
-                switch (ptr_info.size) {
-                    .One => size += computeNestedSize(item.*),
-                    .Slice => {
-                        if (ptr_info.child != u8) size += computeNestedSize(item);
-                    },
-                    else => continue,
-                }
-            },
-            .Struct => |struct_info| {
-                if (!struct_info.is_tuple) @compileError("Only tuple types are supported for struct types");
-
-                size += computeNestedTupleSize(item);
-            },
-            else => continue,
-        }
-    }
-
-    return size;
-}
-
-fn formatInt(int: u64, buffer: *[8]u8) u8 {
+fn formatInt(int: u256, buffer: *[32]u8) u8 {
     if (int < (1 << 8)) {
         buffer.* = @bitCast(@byteSwap(int));
         return 1;
@@ -277,9 +279,127 @@ fn formatInt(int: u64, buffer: *[8]u8) u8 {
         buffer.* = @bitCast(@byteSwap(int));
         return 7;
     }
+    if (int < (1 << 64)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 8;
+    }
+    if (int < (1 << 72)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 9;
+    }
+
+    if (int < (1 << 80)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 10;
+    }
+
+    if (int < (1 << 88)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 11;
+    }
+
+    if (int < (1 << 96)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 12;
+    }
+
+    if (int < (1 << 104)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 13;
+    }
+
+    if (int < (1 << 112)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 14;
+    }
+
+    if (int < (1 << 120)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 15;
+    }
+
+    if (int < (1 << 128)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 16;
+    }
+
+    if (int < (1 << 136)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 17;
+    }
+
+    if (int < (1 << 144)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 18;
+    }
+
+    if (int < (1 << 152)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 19;
+    }
+
+    if (int < (1 << 160)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 20;
+    }
+
+    if (int < (1 << 168)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 21;
+    }
+
+    if (int < (1 << 176)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 22;
+    }
+
+    if (int < (1 << 184)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 23;
+    }
+
+    if (int < (1 << 192)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 24;
+    }
+
+    if (int < (1 << 200)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 25;
+    }
+
+    if (int < (1 << 208)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 26;
+    }
+
+    if (int < (1 << 216)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 27;
+    }
+
+    if (int < (1 << 224)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 28;
+    }
+
+    if (int < (1 << 232)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 29;
+    }
+
+    if (int < (1 << 240)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 30;
+    }
+
+    if (int < (1 << 248)) {
+        buffer.* = @bitCast(@byteSwap(int));
+        return 31;
+    }
 
     buffer.* = @bitCast(@byteSwap(int));
-    return 8;
+    return 32;
 }
 
 fn computeSize(int: u256) u8 {
@@ -402,7 +522,7 @@ test "Arrays" {
     const enc_bigs = try encodeRlp(testing.allocator, .{bigs});
     defer testing.allocator.free(enc_bigs);
 
-    try testing.expectEqualSlices(u8, enc_bigs, &[_]u8{ 0xf8, 0xFF } ++ &[_]u8{ 0x82, 0x00, 0xf8 } ** 255);
+    try testing.expectEqualSlices(u8, enc_bigs, &[_]u8{ 0xf9, 0x01, 0xFE } ++ &[_]u8{ 0x81, 0xf8 } ** 255);
 }
 
 test "Slices" {
@@ -438,13 +558,13 @@ test "Tuples" {
     const enc_multi = try encodeRlp(testing.allocator, .{multi});
     defer testing.allocator.free(enc_multi);
 
-    try testing.expectEqualSlices(u8, enc_multi, &[_]u8{ 0xc3, 0x7f, 0x80, 0x86 } ++ "foobar");
+    try testing.expectEqualSlices(u8, enc_multi, &[_]u8{ 0xc9, 0x7f, 0x80, 0x86 } ++ "foobar");
 
     const nested: std.meta.Tuple(&[_]type{[]const u64}) = .{&[_]u64{ 69, 420 }};
     const nested_enc = try encodeRlp(testing.allocator, .{nested});
     defer testing.allocator.free(nested_enc);
 
-    try testing.expectEqualSlices(u8, nested_enc, &[_]u8{ 0xc3, 0xc2, 0x45, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xa4 });
+    try testing.expectEqualSlices(u8, nested_enc, &[_]u8{ 0xc5, 0xc4, 0x45, 0x82, 0x01, 0xa4 });
 }
 
 test "Structs" {

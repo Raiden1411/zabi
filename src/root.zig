@@ -23,4 +23,5 @@ test {
     _ = @import("decoder.zig");
     _ = @import("client.zig");
     _ = @import("rlp.zig");
+    _ = @import("serialize.zig");
 }

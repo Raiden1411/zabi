@@ -2,6 +2,52 @@ const log = @import("log.zig");
 const meta = @import("meta.zig");
 const types = @import("ethereum.zig");
 
+pub const TransactionEnvelope = union(enum) {
+    eip1559: TransactionEnvelopeEip1559,
+    eip2930: TransactionEnvelopeEip2930,
+    legacy: TransactionEnvelopeLegacy,
+};
+
+pub const TransactionEnvelopeEip1559 = struct {
+    type: u2 = 2,
+    chainId: usize,
+    nonce: u64,
+    maxPriorityFeePerGas: types.Gwei,
+    maxFeePerGas: types.Gwei,
+    gas: types.Gwei,
+    to: ?types.Hex,
+    value: types.Wei,
+    data: ?types.Hex,
+    accessList: []const AccessList,
+};
+
+pub const TransactionEnvelopeEip2930 = struct {
+    type: u2 = 1,
+    chainId: usize,
+    nonce: u64,
+    gas: types.Gwei,
+    gasPrice: types.Gwei,
+    to: ?types.Hex,
+    value: types.Wei,
+    data: ?types.Hex,
+    accessList: []const AccessList,
+};
+
+pub const TransactionEnvelopeLegacy = struct {
+    type: u2 = 0,
+    nonce: u64,
+    gas: types.Gwei,
+    gasPrice: types.Gwei,
+    to: ?types.Hex,
+    value: types.Wei,
+    data: ?types.Hex,
+};
+
+pub const AccessList = struct {
+    address: types.Hex,
+    storage: []const types.Hex,
+};
+
 pub const TransactionObjectEip1559 = struct {
     blockHash: ?types.Hex,
     blockNumber: ?u64,
@@ -19,11 +65,11 @@ pub const TransactionObjectEip1559 = struct {
     s: types.Hex,
     isSystemTx: bool,
     type: u2,
-    accessList: []const types.Hex,
+    accessList: []const AccessList,
     sourceHash: types.Hex,
     maxPriorityFeePerGas: types.Gwei,
     maxFeePerGas: types.Gwei,
-    chainId: usize,
+    chainid: usize,
     yParity: u1,
 
     pub usingnamespace meta.RequestParser(@This());
@@ -65,7 +111,7 @@ pub const TransactionObjectEip2930 = struct {
     r: types.Hex,
     s: types.Hex,
     type: u2,
-    accessList: []const types.Hex,
+    accessList: []const AccessList,
     chainId: usize,
     yParity: u1,
 

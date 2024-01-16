@@ -56,16 +56,30 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
         },
         .Array => |arr_info| {
             if (arr_info.child == u8) {
-                if (payload.len == 0) try writer.writeByte(0x80) else if (payload.len < 56) {
-                    try writer.writeByte(@intCast(0x80 + payload.len));
-                    try writer.writeAll(&payload);
+                const slice = slice: {
+                    if (payload.len == 0) break :slice payload[0..];
+
+                    if (std.mem.startsWith(u8, payload[0..], "0x")) {
+                        break :slice payload[2..];
+                    }
+
+                    break :slice payload[0..];
+                };
+                const buf = try alloc.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
+                defer alloc.free(buf);
+
+                const bytes = if (std.fmt.hexToBytes(buf, slice)) |result| result else |_| slice;
+
+                if (bytes.len == 0) try writer.writeByte(0x80) else if (bytes.len < 56) {
+                    try writer.writeByte(@intCast(0x80 + bytes.len));
+                    try writer.writeAll(bytes);
                 } else {
-                    if (payload.len > std.math.maxInt(u64)) return error.Overflow;
+                    if (bytes.len > std.math.maxInt(u64)) return error.Overflow;
                     var buffer: [32]u8 = undefined;
-                    const size = formatInt(payload.len, &buffer);
+                    const size = formatInt(bytes.len, &buffer);
                     try writer.writeByte(0xb7 + size);
                     try writer.writeAll(buffer[32 - size ..]);
-                    try writer.writeAll(&payload);
+                    try writer.writeAll(bytes);
                 }
             } else {
                 if (payload.len == 0) try writer.writeByte(0xc0) else {
@@ -102,16 +116,31 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 },
                 .Slice => {
                     if (ptr_info.child == u8) {
-                        if (payload.len == 0) try writer.writeByte(0x80) else if (payload.len < 56) {
-                            try writer.writeByte(@intCast(0x80 + payload.len));
-                            try writer.writeAll(payload);
+                        const slice = slice: {
+                            if (payload.len == 0) break :slice payload;
+
+                            if (std.mem.startsWith(u8, payload, "0x")) {
+                                break :slice payload[2..];
+                            }
+
+                            break :slice payload;
+                        };
+
+                        const buf = try alloc.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
+                        defer alloc.free(buf);
+
+                        const bytes = if (std.fmt.hexToBytes(buf, slice)) |result| result else |_| slice;
+
+                        if (bytes.len == 0) try writer.writeByte(0x80) else if (bytes.len < 56) {
+                            try writer.writeByte(@intCast(0x80 + bytes.len));
+                            try writer.writeAll(bytes);
                         } else {
-                            if (payload.len > std.math.maxInt(u64)) return error.Overflow;
+                            if (bytes.len > std.math.maxInt(u64)) return error.Overflow;
                             var buffer: [32]u8 = undefined;
-                            const size = formatInt(payload.len, &buffer);
+                            const size = formatInt(bytes.len, &buffer);
                             try writer.writeByte(0xb7 + size);
                             try writer.writeAll(buffer[32 - size ..]);
-                            try writer.writeAll(payload);
+                            try writer.writeAll(bytes);
                         }
                     } else {
                         if (payload.len == 0) try writer.writeByte(0xc0) else {

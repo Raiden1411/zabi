@@ -92,21 +92,6 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                         try writer.writeAll(buffer[32 - size ..]);
                         try writer.writeAll(bytes);
                     }
-                    // const nested_size = computePayloadSize(payload);
-                    // if (nested_size < 56) {
-                    //     try writer.writeByte(@intCast(0xc0 + nested_size));
-                    //     for (payload) |item| {
-                    //         try encodeItem(item, writer);
-                    //     }
-                    // } else {
-                    //     var buffer: [32]u8 = undefined;
-                    //     const size = formatInt(payload.len, &buffer);
-                    //     try writer.writeByte(0xf7 + size);
-                    //     try writer.writeAll(buffer[32 - size ..]);
-                    //     for (payload) |item| {
-                    //         try encodeItem(item, writer);
-                    //     }
-                    // }
                 }
             }
         },
@@ -508,7 +493,7 @@ test "Arrays" {
     const enc_bigs = try encodeRlp(testing.allocator, .{bigs});
     defer testing.allocator.free(enc_bigs);
 
-    try testing.expectEqualSlices(u8, enc_bigs, &[_]u8{ 0xf8, 0xFF } ++ &[_]u8{ 0x82, 0x00, 0xf8 } ** 255);
+    try testing.expectEqualSlices(u8, enc_bigs, &[_]u8{ 0xf9, 0x01, 0xFE } ++ &[_]u8{ 0x81, 0xf8 } ** 255);
 }
 
 test "Slices" {
@@ -544,13 +529,13 @@ test "Tuples" {
     const enc_multi = try encodeRlp(testing.allocator, .{multi});
     defer testing.allocator.free(enc_multi);
 
-    try testing.expectEqualSlices(u8, enc_multi, &[_]u8{ 0xc3, 0x7f, 0x80, 0x86 } ++ "foobar");
+    try testing.expectEqualSlices(u8, enc_multi, &[_]u8{ 0xc9, 0x7f, 0x80, 0x86 } ++ "foobar");
 
     const nested: std.meta.Tuple(&[_]type{[]const u64}) = .{&[_]u64{ 69, 420 }};
     const nested_enc = try encodeRlp(testing.allocator, .{nested});
     defer testing.allocator.free(nested_enc);
 
-    try testing.expectEqualSlices(u8, nested_enc, &[_]u8{ 0xc3, 0xc2, 0x45, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xa4 });
+    try testing.expectEqualSlices(u8, nested_enc, &[_]u8{ 0xc5, 0xc4, 0x45, 0x82, 0x01, 0xa4 });
 }
 
 test "Structs" {

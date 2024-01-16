@@ -45,7 +45,7 @@ pub const TransactionEnvelopeLegacy = struct {
 
 pub const AccessList = struct {
     address: types.Hex,
-    storage: []const types.Hex,
+    storageKeys: []const types.Hex,
 };
 
 pub const TransactionObjectEip1559 = struct {

@@ -21,8 +21,7 @@ pub fn serializeTransactionEIP1559(alloc: Allocator, tx: transaction.Transaction
     const prep_access = try prepareAccessList(alloc, tx.accessList);
     defer alloc.free(prep_access);
 
-    const Envelope = Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const Tuple(&[_]type{ types.Hex, []const types.Hex }) });
-    const envelope: Envelope = .{ tx.chainId, tx.nonce, tx.maxPriorityFeePerGas, tx.maxFeePerGas, tx.gas, tx.to, tx.value, tx.data, prep_access };
+    const envelope: transaction.EnvelopeEip1559 = .{ tx.chainId, tx.nonce, tx.maxPriorityFeePerGas, tx.maxFeePerGas, tx.gas, tx.to, tx.value, tx.data, prep_access };
 
     const encoded = try rlp.encodeRlp(alloc, .{envelope});
     defer alloc.free(encoded);
@@ -30,14 +29,13 @@ pub fn serializeTransactionEIP1559(alloc: Allocator, tx: transaction.Transaction
     return try std.mem.concat(alloc, u8, &.{ &.{tx.type}, encoded });
 }
 
-pub fn serializeTransactionEIP2930(alloc: Allocator, tx: transaction.TransactionObjectEip2930) ![]u8 {
+pub fn serializeTransactionEIP2930(alloc: Allocator, tx: transaction.TransactionEnvelopeEip2930) ![]u8 {
     if (tx.type != 1) return error.InvalidTransactionType;
 
     const prep_access = try prepareAccessList(alloc, tx.accessList);
     defer alloc.free(prep_access);
 
-    const Envelope = Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const Tuple(&[_]type{ types.Hex, []const types.Hex }) });
-    const envelope: Envelope = .{ tx.chainId, tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data, tx.accessList };
+    const envelope: transaction.EnvelopeEip2930 = .{ tx.chainId, tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data, prep_access };
 
     const encoded = try rlp.encodeRlp(alloc, .{envelope});
     defer alloc.free(encoded);
@@ -48,8 +46,7 @@ pub fn serializeTransactionEIP2930(alloc: Allocator, tx: transaction.Transaction
 pub fn serializeTransactionLegacy(alloc: Allocator, tx: transaction.TransactionEnvelopeLegacy) ![]u8 {
     if (tx.type != 0) return error.InvalidTransactionType;
 
-    const Envelope = Tuple(&[_]type{ u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex });
-    const envelope: Envelope = .{ tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data };
+    const envelope: transaction.EnvelopeLegacy = .{ tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data };
 
     const encoded = try rlp.encodeRlp(alloc, .{envelope});
 

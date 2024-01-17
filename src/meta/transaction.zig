@@ -1,6 +1,13 @@
 const log = @import("log.zig");
 const meta = @import("meta.zig");
+const std = @import("std");
 const types = @import("ethereum.zig");
+
+pub const EnvelopeEip1559 = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const std.meta.Tuple(&[_]type{ types.Hex, []const types.Hex }) });
+
+pub const EnvelopeEip2930 = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const std.meta.Tuple(&[_]type{ types.Hex, []const types.Hex }) });
+
+pub const EnvelopeLegacy = std.meta.Tuple(&[_]type{ u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex });
 
 pub const TransactionEnvelope = union(enum) {
     eip1559: TransactionEnvelopeEip1559,

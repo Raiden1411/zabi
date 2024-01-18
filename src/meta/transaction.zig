@@ -5,6 +5,8 @@ const types = @import("ethereum.zig");
 
 pub const EnvelopeEip1559 = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const std.meta.Tuple(&[_]type{ types.Hex, []const types.Hex }) });
 
+pub const EnvelopeEip1559Signed = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const std.meta.Tuple(&[_]type{ types.Hex, []const types.Hex }), u1, types.Hex, types.Hex });
+
 pub const EnvelopeEip2930 = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const std.meta.Tuple(&[_]type{ types.Hex, []const types.Hex }) });
 
 pub const EnvelopeLegacy = std.meta.Tuple(&[_]type{ u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex });

@@ -1,3 +1,4 @@
+const signer = @import("secp256k1");
 const std = @import("std");
 const rlp = @import("rlp.zig");
 const transaction = @import("meta/transaction.zig");
@@ -263,3 +264,18 @@ test "Serialize Transaction Base" {
 
     try testing.expectEqualStrings("02ed0145847735940084773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080c0", hex);
 }
+
+// test "Test simple sign" {
+//     const wallet = try signer.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+//     var buffer: [51]u8 = undefined;
+//
+//     _ = try std.fmt.hexToBytes(buffer[0..], "02f1827a6980847735940084773594008252099470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a764000080c0");
+//
+//     var hash: [32]u8 = undefined;
+//     std.crypto.hash.sha3.Keccak256.hash(buffer[0..], &hash, .{});
+//     const sig = try wallet.sign(hash);
+//
+//     std.debug.print("\n{s}\n", .{std.fmt.fmtSliceHexLower(sig.r[0..])});
+//     std.debug.print("\n{s}\n", .{std.fmt.fmtSliceHexLower(sig.s[0..])});
+//     std.debug.print("\n{d}\n", .{sig.v});
+// }

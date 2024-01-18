@@ -9,6 +9,7 @@ pub const param_type = @import("param_type.zig");
 pub const state = @import("state_mutability.zig");
 pub const tokens = @import("human-readable/tokens.zig");
 pub const utils = @import("utils.zig");
+pub const wallet = @import("secp256k");
 
 pub const Parser = @import("human-readable/parser.zig");
 

@@ -1,0 +1,11 @@
+.{
+    .name = "secp256k1",
+    .version = "0.4.1",
+    .paths = .{""},
+    .dependencies = .{
+        .secp256k1 = .{
+            .url = "https://github.com/bitcoin-core/secp256k1/archive/refs/tags/v0.4.1.tar.gz",
+            .hash = "12207f73fd80d1a2461d1e3a7f9322d905219dc305bc302e99c617d56a1799006032",
+        },
+    },
+}

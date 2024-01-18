@@ -26,6 +26,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    addDependencies(b, lib);
 
     b.installArtifact(lib);
 
@@ -38,6 +39,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    addDependencies(b, lib_unit_tests);
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
     // Similar to creating the run step earlier, this exposes a `test` step to
@@ -56,4 +58,18 @@ pub fn build(b: *std.Build) void {
         tests_run.argv.insertSlice(0, args) catch @panic("OutOfMemory");
         test_step.dependOn(&tests_run.step);
     }
+}
+
+fn addDependencies(b: *std.Build, step: *std.Build.Step.Compile) void {
+    const target = step.root_module.resolved_target.?;
+    const optimize = step.root_module.optimize.?;
+
+    const secp256k1_dep = b.dependency("secp256k1", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    step.root_module.addImport("secp256k1", secp256k1_dep.module("secp256k1"));
+    step.linkLibrary(secp256k1_dep.artifact("secp256k1"));
+    step.linkLibC();
 }

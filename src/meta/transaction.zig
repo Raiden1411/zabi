@@ -5,11 +5,15 @@ const types = @import("ethereum.zig");
 
 pub const EnvelopeEip1559 = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const std.meta.Tuple(&[_]type{ types.Hex, []const types.Hex }) });
 
-pub const EnvelopeEip1559Signed = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const std.meta.Tuple(&[_]type{ types.Hex, []const types.Hex }), u1, types.Hex, types.Hex });
+pub const EnvelopeEip1559Signed = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const std.meta.Tuple(&[_]type{ types.Hex, []const types.Hex }), u2, types.Hex, types.Hex });
 
 pub const EnvelopeEip2930 = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const std.meta.Tuple(&[_]type{ types.Hex, []const types.Hex }) });
 
+pub const EnvelopeEip2930Signed = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const std.meta.Tuple(&[_]type{ types.Hex, []const types.Hex }), u2, types.Hex, types.Hex });
+
 pub const EnvelopeLegacy = std.meta.Tuple(&[_]type{ u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex });
+
+pub const EnvelopeLegacySigned = std.meta.Tuple(&[_]type{ u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, usize, types.Hex, types.Hex });
 
 pub const TransactionEnvelope = union(enum) {
     eip1559: TransactionEnvelopeEip1559,
@@ -44,6 +48,7 @@ pub const TransactionEnvelopeEip2930 = struct {
 
 pub const TransactionEnvelopeLegacy = struct {
     type: u2 = 0,
+    chainId: usize = 0,
     nonce: u64,
     gas: types.Gwei,
     gasPrice: types.Gwei,

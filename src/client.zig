@@ -282,6 +282,24 @@ pub fn switchChainId(self: *PubClient, new_chain_id: usize, new_url: []const u8)
     self.uri = uri;
 }
 
+pub fn printLastRpcError(self: *PubClient) void {
+    const writer = std.io.getStdErr().writer();
+    const last = self.errors.getLast();
+
+    _ = try writer.print("Error code: {d}\n", .{last.code});
+    _ = try writer.print("Error message: {d}\n", .{last.code});
+}
+
+pub fn printAllRpcErrors(self: *PubClient) void {
+    const writer = std.io.getStdErr().writer();
+    const errors = self.errors.items;
+
+    for (errors) |err| {
+        _ = try writer.print("Error code: {d}\n", .{err.code});
+        _ = try writer.print("Error message: {d}\n", .{err.code});
+    }
+}
+
 fn fetchByBlockNumber(self: *PubClient, opts: block.BlockNumberRequest, method: types.EthereumRpcMethods) !usize {
     const tag: block.BalanceRequest = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);

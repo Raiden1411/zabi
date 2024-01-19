@@ -14,7 +14,7 @@ private_key: [Secp256k1.scalar.encoded_length]u8,
 // Public key in bytes
 public_key: [PublicKeyLength]u8,
 
-const Signer = @This();
+pub const Signer = @This();
 
 pub fn init(key: []const u8) !Signer {
     const context = c.secp256k1_context_create(c.SECP256K1_CONTEXT_SIGN | c.SECP256K1_CONTEXT_VERIFY) orelse return error.FailedToInitializeContext;

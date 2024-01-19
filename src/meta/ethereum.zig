@@ -42,6 +42,27 @@ pub const EthereumRpcMethods = enum {
     eth_estimateGas,
 };
 
+pub const PublicChains = enum(usize) {
+    ethereum = 1,
+    goerli = 5,
+    op_mainnet = 10,
+    cronos = 25,
+    bnb = 56,
+    ethereum_classic = 61,
+    op_kovan = 69,
+    gnosis = 100,
+    polygon = 137,
+    fantom = 250,
+    boba = 288,
+    op_goerli = 420,
+    base = 8543,
+    anvil = 31337,
+    arbitrum = 42161,
+    arbitrum_nova = 42170,
+    celo = 42220,
+    avalanche = 43114,
+};
+
 pub fn EthereumRequest(comptime T: type) type {
     return struct {
         jsonrpc: []const u8 = "2.0",

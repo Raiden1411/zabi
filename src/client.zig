@@ -6,6 +6,7 @@ const std = @import("std");
 const transaction = @import("meta/transaction.zig");
 const types = @import("meta/ethereum.zig");
 const utils = @import("utils.zig");
+const Chains = types.PublicChains;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Uri = std.Uri;
@@ -27,7 +28,7 @@ errors: std.ArrayListUnmanaged(types.ErrorResponse) = .{},
 
 const PubClient = @This();
 
-pub fn init(alloc: Allocator, url: []const u8, chain_id: ?usize) !*PubClient {
+pub fn init(alloc: Allocator, url: []const u8, chain_id: ?Chains) !*PubClient {
     var pub_client = try alloc.create(PubClient);
     errdefer alloc.destroy(pub_client);
 
@@ -48,7 +49,13 @@ pub fn init(alloc: Allocator, url: []const u8, chain_id: ?usize) !*PubClient {
     pub_client.client.* = http.Client{ .allocator = pub_client.alloc };
 
     pub_client.uri = try Uri.parse(url);
-    pub_client.chain_id = chain_id orelse 1;
+
+    const chain: Chains = chain_id orelse .ethereum;
+    const id = switch (chain) {
+        inline else => |id| @intFromEnum(id),
+    };
+
+    pub_client.chain_id = id;
     pub_client.errors = .{};
 
     return pub_client;

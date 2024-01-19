@@ -9,8 +9,8 @@ const Allocator = std.mem.Allocator;
 const Chains = types.PublicChains;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const PubClient = @import("client.zig");
-const Signature = Signer.Signature;
 const Signer = @import("secp256k1").Signer;
+const Signature = @import("secp256k1").Signature;
 
 const Wallet = @This();
 
@@ -64,6 +64,7 @@ pub fn deinit(self: *Wallet) void {
     self.pub_client.deinit();
 
     const allocator = self.arena.child_allocator;
+    self.signer.deinit();
     self.arena.deinit();
     allocator.destroy(self.arena);
     allocator.destroy(self);
@@ -73,22 +74,20 @@ pub fn signEthereumMessage(self: *Wallet, message: []const u8) !Signature {
     return try self.signer.signMessage(message);
 }
 
-pub fn verifyMessage(self: *Wallet, sig: Signature, message: []const u8) bool {
-    var hash_buffer: [Keccak256.digest_length]u8 = undefined;
-    Keccak256.hash(message, &hash_buffer, .{});
-    return self.signer.verifyMessage(sig, hash_buffer);
-}
-
 pub fn getWalletAddress(self: *Wallet) ![]u8 {
     const address = try self.signer.getAddressFromPublicKey();
 
     const hex_address_lower = std.fmt.bytesToHex(address, .lower);
 
+    var hashed: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(hex_address_lower[0..], &hashed, .{});
+    const hex = std.fmt.bytesToHex(hashed, .lower);
+
     const checksum = try self.alloc.alloc(u8, 42);
     for (checksum[2..], 0..) |*c, i| {
         const char = hex_address_lower[i];
 
-        if (try std.fmt.charToDigit(hex_address_lower[i], 16) > 7) {
+        if (try std.fmt.charToDigit(hex[i], 16) > 7) {
             c.* = std.ascii.toUpper(char);
         } else {
             c.* = char;
@@ -98,6 +97,12 @@ pub fn getWalletAddress(self: *Wallet) ![]u8 {
     @memcpy(checksum[0..2], "0x");
 
     return checksum;
+}
+
+pub fn verifyMessage(self: *Wallet, sig: Signature, message: []const u8) bool {
+    var hash_buffer: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(message, &hash_buffer, .{});
+    return self.signer.verifyMessage(sig, hash_buffer);
 }
 
 // pub fn prepareTransaction(self: *Wallet) !transaction.TransactionEnvelope {
@@ -129,3 +134,21 @@ pub fn sendSignedTransaction(self: *Wallet, tx: transaction.TransactionEnvelope)
 //
 //     std.debug.print("HASH: {s}\n", .{tx_hash});
 // }
+
+test "Address match" {
+    var wallet = try Wallet.init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .anvil);
+    defer wallet.deinit();
+
+    try testing.expectEqualStrings(try wallet.getWalletAddress(), "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+}
+
+test "verifyMessage" {
+    var wallet = try Wallet.init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .anvil);
+    defer wallet.deinit();
+
+    var hash_buffer: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash("02f1827a6980847735940084773594008252099470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a764000080c0", &hash_buffer, .{});
+    const sign = try wallet.signer.sign(hash_buffer);
+
+    try testing.expect(wallet.signer.verifyMessage(sign, hash_buffer));
+}

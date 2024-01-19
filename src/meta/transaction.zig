@@ -62,6 +62,16 @@ pub const AccessList = struct {
     storageKeys: []const types.Hex,
 };
 
+pub const PrepareEnvelope = union(enum) {
+    eip1559: PrepareEnvelopeEip1559,
+    eip2930: PrepareEnvelopeEip2930,
+    legacy: PrepareEnvelopeLegacy,
+};
+
+pub const PrepareEnvelopeEip1559 = meta.ToOptionalStructAndUnionMembers(TransactionObjectEip1559);
+pub const PrepareEnvelopeEip2930 = meta.ToOptionalStructAndUnionMembers(TransactionObjectEip2930);
+pub const PrepareEnvelopeLegacy = meta.ToOptionalStructAndUnionMembers(TransactionEnvelopeLegacy);
+
 pub const TransactionObjectEip1559 = struct {
     blockHash: ?types.Hex,
     blockNumber: ?u64,
@@ -202,6 +212,36 @@ pub const TransactionReceipt = union(enum) {
     merge: TransactionReceiptMerge,
     until_merge: TransactionReceiptUntilMerge,
     pre_byzantium: TransactionReceiptPreByzantium,
+
+    pub usingnamespace meta.UnionParser(@This());
+};
+
+pub const EthCallEip1559 = struct {
+    from: ?types.Hex,
+    maxPriorityFeePerGas: ?types.Gwei,
+    maxFeePerGas: ?types.Gwei,
+    gas: ?types.Gwei,
+    to: ?types.Hex,
+    value: ?types.Wei,
+    data: ?types.Hex,
+
+    pub usingnamespace meta.RequestParser(@This());
+};
+
+pub const EthCallLegacy = struct {
+    from: ?types.Hex,
+    gasPrice: ?types.Gwei,
+    gas: ?types.Gwei,
+    to: ?types.Hex,
+    value: ?types.Wei,
+    data: ?types.Hex,
+
+    pub usingnamespace meta.RequestParser(@This());
+};
+
+pub const EthCall = struct {
+    eip1559: EthCallEip1559,
+    legacy: EthCallLegacy,
 
     pub usingnamespace meta.UnionParser(@This());
 };

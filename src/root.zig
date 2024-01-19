@@ -1,5 +1,5 @@
 pub const abi = @import("abi.zig");
-pub const block = @import("meta/meta.zig");
+pub const block = @import("meta/block.zig");
 pub const decoder = @import("decoder.zig");
 pub const encoder = @import("encoder.zig");
 pub const human = @import("human-readable/abi_parsing.zig");

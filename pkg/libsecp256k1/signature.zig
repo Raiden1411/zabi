@@ -25,6 +25,12 @@ pub const Signature = struct {
         return signed;
     }
 
+    pub fn toHex(alloc: std.mem.Allocator, sig: Signature) ![]u8 {
+        const bytes = sig.toBytes();
+
+        return std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});
+    }
+
     pub fn fromHex(hex: []const u8) Signature {
         const signature = if (std.mem.startsWith(u8, hex, "0x")) hex[2..] else hex;
 
@@ -60,11 +66,30 @@ pub const CompactSignature = struct {
         return compact;
     }
 
-    pub fn toBytes(sig: CompactSignature) [65]u8 {
+    pub fn toBytes(sig: CompactSignature) [Secp256k1.scalar.encoded_length * 2]u8 {
         var signed: [64]u8 = undefined;
         @memcpy(signed[0..32], sig.r[0..]);
         @memcpy(signed[32..64], sig.yParityWithS[0..]);
 
         return signed;
+    }
+
+    pub fn toHex(alloc: std.mem.Allocator, sig: CompactSignature) ![]u8 {
+        const bytes = sig.toBytes();
+
+        return std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});
+    }
+
+    pub fn fromHex(hex: []const u8) CompactSignature {
+        const signature = if (std.mem.startsWith(u8, hex, "0x")) hex[2..] else hex;
+
+        if (signature.len != 128) return error.InvalidSignature;
+        var signed: [64]u8 = undefined;
+        _ = try std.fmt.hexToBytes(signed[0..], signature);
+
+        return .{
+            .r = signed[0..32],
+            .yParityWithS = signed[32..64],
+        };
     }
 };

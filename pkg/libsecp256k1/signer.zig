@@ -102,7 +102,7 @@ pub fn recoverPublicKey(message_hash: [32]u8, signature: Signature) ![PublicKeyL
     errdefer c.secp256k1_context_destroy(context);
 
     var public_key: [PublicKeyLength]u8 = undefined;
-    var sig_bytes = signature.signatureToBytes();
+    var sig_bytes = signature.toBytes();
 
     var struct_pub: c.secp256k1_pubkey = undefined;
     var sig_rec: c.secp256k1_ecdsa_recoverable_signature = undefined;
@@ -147,6 +147,13 @@ pub fn recoverEthereumAddress(message_hash: [32]u8, signature: Signature) ![40]u
     return checksum;
 }
 
+pub fn recoverMessageAddress(message: []const u8, signature: Signature) ![40]u8 {
+    var hashed: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(message, &hashed, .{});
+
+    return recoverEthereumAddress(hashed, signature);
+}
+
 pub fn signMessage(alloc: Allocator, self: Signer, message: []const u8) !Signature {
     const start = "\x19Ethereum Signed Message:\n";
     const len = try std.fmt.allocPrint(alloc, "{d}", .{message.len});
@@ -162,7 +169,7 @@ pub fn signMessage(alloc: Allocator, self: Signer, message: []const u8) !Signatu
 }
 
 pub fn verifyMessage(self: Signer, sig: Signature, message_hash: [32]u8) bool {
-    var sig_bytes = sig.signatureToBytes();
+    var sig_bytes = sig.toBytes();
 
     var struct_pub: c.secp256k1_pubkey = undefined;
     var sig_rec: c.secp256k1_ecdsa_signature = undefined;

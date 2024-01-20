@@ -25,7 +25,7 @@ pub const Signature = struct {
         return signed;
     }
 
-    pub fn toHex(alloc: std.mem.Allocator, sig: Signature) ![]u8 {
+    pub fn toHex(sig: Signature, alloc: std.mem.Allocator) ![]u8 {
         const bytes = sig.toBytes();
 
         return std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});
@@ -74,7 +74,7 @@ pub const CompactSignature = struct {
         return signed;
     }
 
-    pub fn toHex(alloc: std.mem.Allocator, sig: CompactSignature) ![]u8 {
+    pub fn toHex(sig: CompactSignature, alloc: std.mem.Allocator) ![]u8 {
         const bytes = sig.toBytes();
 
         return std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});

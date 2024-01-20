@@ -70,8 +70,8 @@ pub fn deinit(self: *Wallet) void {
     allocator.destroy(self);
 }
 
-pub fn signEthereumMessage(self: *Wallet, message: []const u8) !Signature {
-    return try self.signer.signMessage(message);
+pub fn signEthereumMessage(self: *Wallet, alloc: Allocator, message: []const u8) !Signature {
+    return try self.signer.signMessage(alloc, message);
 }
 
 pub fn getWalletAddress(self: *Wallet) ![]u8 {
@@ -151,4 +151,15 @@ test "verifyMessage" {
     const sign = try wallet.signer.sign(hash_buffer);
 
     try testing.expect(wallet.signer.verifyMessage(sign, hash_buffer));
+}
+
+test "signMessage" {
+    var wallet = try Wallet.init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .anvil);
+    defer wallet.deinit();
+
+    const sig = try wallet.signEthereumMessage(testing.allocator, "hello world");
+    const hex = try sig.toHex(testing.allocator);
+    defer testing.allocator.free(hex);
+
+    try testing.expectEqualStrings("a461f509887bd19e312c0c58467ce8ff8e300d3c1a90b608a760c5b80318eaf15fe57c96f9175d6cd4daad4663763baa7e78836e067d0163e9a2ccf2ff753f5b00", hex);
 }

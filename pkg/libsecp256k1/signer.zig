@@ -154,7 +154,7 @@ pub fn recoverMessageAddress(message: []const u8, signature: Signature) ![40]u8 
     return recoverEthereumAddress(hashed, signature);
 }
 
-pub fn signMessage(alloc: Allocator, self: Signer, message: []const u8) !Signature {
+pub fn signMessage(self: Signer, alloc: Allocator, message: []const u8) !Signature {
     const start = "\x19Ethereum Signed Message:\n";
     const len = try std.fmt.allocPrint(alloc, "{d}", .{message.len});
     defer alloc.free(len);

@@ -70,8 +70,55 @@ pub fn deinit(self: *PubClient) void {
     allocator.destroy(self);
 }
 
+pub fn estimateFeesPerGas(self: *PubClient, call_object: transaction.EthCall) !transaction.EstimateFeeReturn {
+    const current_block = try self.getBlockByNumber(.{});
+
+    switch (current_block) {
+        inline else => |block_info| {
+            switch (call_object) {
+                .eip1559 => |tx| {
+                    const base_fee = block_info.baseFeePerGas orelse return error.UnableToFetchFeeInfoFromBlock;
+                    const max_priority = if (tx.maxPriorityFeePerGas) |max| max else try self.estimateMaxFeePerGasManual(current_block);
+                    const max_fee = if (tx.maxFeePerGas) |max| max else base_fee + max_priority;
+
+                    return .{ .eip1559 = .{ .max_fee = max_fee, .max_priority = max_priority } };
+                },
+                .legacy => |tx| {
+                    const gas_price = if (tx.gasPrice) |price| price else try self.getGasPrice() * std.math.pow(u64, 10, 9);
+                    const price = @divExact(gas_price * std.math.ceil(1.2 * std.math.pow(u64, 10, 1)), std.math.pow(u64, 10, 1));
+
+                    return .{ .legacy = .{ .gas_price = price } };
+                },
+            }
+        },
+    }
+}
+
 pub fn estimateGas(self: *PubClient, call_object: transaction.EthCall, opts: block.BlockNumberRequest) !types.Gwei {
-    return self.fetchCall(types.Gwei, call_object, opts);
+    return self.fetchCall(types.Gwei, call_object, opts, .eth_estimateGas);
+}
+
+pub fn estimateMaxFeePerGasManual(self: *PubClient, know_block: ?block.Block) !types.Gwei {
+    const current_block = know_block orelse try self.getBlockByNumber(.{});
+    const gas_price = try self.getGasPrice();
+
+    switch (current_block) {
+        inline else => |block_info| {
+            const base_fee = block_info.baseFeePerGas orelse return error.UnableToFetchFeeInfoFromBlock;
+
+            const estimated = fee: {
+                if (base_fee > gas_price) break :fee 0;
+
+                break :fee gas_price - base_fee;
+            };
+
+            return estimated;
+        },
+    }
+}
+
+pub fn estimateMaxFeePerGas(self: *PubClient) !types.Gwei {
+    return self.fetchWithEmptyArgs(types.Gwei, .eth_maxPriorityFeePerGas);
 }
 
 pub fn getAccounts(self: *PubClient) ![]const types.Hex {
@@ -430,12 +477,12 @@ fn fetchLogs(self: *PubClient, comptime T: type, request: types.EthereumRequest(
     return parsed.result;
 }
 
-fn fetchCall(self: PubClient, comptime T: type, call_object: transaction.EthCall, opts: block.BlockNumberRequest) !T {
+fn fetchCall(self: PubClient, comptime T: type, call_object: transaction.EthCall, opts: block.BlockNumberRequest, method: types.EthereumRpcMethods) !T {
     const tag: block.BalanceRequest = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
 
     const Params = std.meta.Tuple(&[_]type{ transaction.EthCall, types.Hex });
-    const request: types.EthereumRequest(Params) = .{ .params = &.{ call_object, block_number }, .method = .eth_call, .id = self.chain_id };
+    const request: types.EthereumRequest(Params) = .{ .params = &.{ call_object, block_number }, .method = method, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
     const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });

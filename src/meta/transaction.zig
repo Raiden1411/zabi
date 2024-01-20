@@ -245,3 +245,10 @@ pub const EthCall = struct {
 
     pub usingnamespace meta.UnionParser(@This());
 };
+
+pub const EstimateFeeReturn = union(enum) { eip1559: struct {
+    max_priority_fee: types.Gwei,
+    max_fee_gas: types.Gwei,
+}, legacy: struct {
+    gas_price: types.Gwei,
+} };

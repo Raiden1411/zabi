@@ -174,6 +174,24 @@ pub fn prepareTransaction(self: *Wallet, unprepared_envelope: transaction.Prepar
     }
 }
 
+pub fn assertTransaction(self: *Wallet, tx: transaction.TransactionEnvelope) !void {
+    switch (tx) {
+        .eip1559 => |tx_eip1559| {
+            if (tx_eip1559.chainId != self.pub_client.chain_id) return error.InvalidChainId;
+            if (tx_eip1559.maxPriorityFeePerGas > tx_eip1559.maxFeePerGas) return error.TransactionTipToHigh;
+            if (tx_eip1559.to) |addr| if (!try utils.isAddress(self.alloc, addr)) return error.InvalidAddress;
+        },
+        .eip2930 => |tx_eip2930| {
+            if (tx_eip2930.chaindId != self.pub_client.chain_id) return error.InvalidChainId;
+            if (tx_eip2930.to) |addr| if (!try utils.isAddress(self.alloc, addr)) return error.InvalidAddress;
+        },
+        else => |tx_legacy| {
+            if (tx_legacy.chainId != 0 and tx_legacy.chainId != self.pub_client.chain_id) return error.InvalidChainId;
+            if (tx_legacy.to) |addr| if (!try utils.isAddress(self.alloc, addr)) return error.InvalidAddress;
+        },
+    }
+}
+
 pub fn sendSignedTransaction(self: *Wallet, tx: transaction.TransactionEnvelope) !types.Hex {
     const serialized = try serialize.serializeTransaction(self.alloc, tx, null);
 

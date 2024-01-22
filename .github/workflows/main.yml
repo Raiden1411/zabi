@@ -22,8 +22,8 @@ jobs:
       - name: Install Anvil
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Run Anvil
-        run: anvil --fork-url https://ethereum.publicnode.com --fork-block-number 19062632 &
+      # - name: Run Anvil
+      #   run: anvil --fork-url https://ethereum.publicnode.com --fork-block-number 19062632 &
 
       - uses: actions/checkout@v3
         with:

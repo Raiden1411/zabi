@@ -18,7 +18,7 @@ pub fn deinit(self: *Anvil) void {
 }
 
 pub fn start(self: *Anvil) !void {
-    var result = std.ChildProcess.init(&.{ "anvil", "-f", "https://ethereum.publicnode.com", "--fork-block-number", "19062632" }, self.alloc);
+    var result = std.ChildProcess.init(&.{ "anvil", "-f", "https://eth-mainnet.alchemyapi.io/v2/C3JEvfW6VgtqZQa-Qp1E-2srEiIc02sD", "--fork-block-number", "19062632" }, self.alloc);
     result.stdin_behavior = .Pipe;
     result.stdout_behavior = .Pipe;
     result.stderr_behavior = .Pipe;

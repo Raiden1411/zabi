@@ -24,11 +24,14 @@ pub const Wallet = @import("wallet.zig");
 
 test {
     // TODO: Add this again later.
-    // const std = @import("std");
-    // var anvil: Anvil = undefined;
-    // try anvil.init(std.testing.allocator);
-    // defer anvil.deinit();
-    // std.time.sleep(2 * std.time.ns_per_s);
+    const std = @import("std");
+    var anvil: Anvil = undefined;
+    try anvil.init(std.testing.allocator);
+    defer anvil.deinit();
+    while (true) {
+        if (anvil.result.id != 0) break;
+        // std.time.sleep(2 * std.time.ns_per_s);
+    }
 
     _ = @import("param_type.zig");
     _ = @import("abi_parameter.zig");

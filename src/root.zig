@@ -23,6 +23,11 @@ pub const PubClient = @import("client.zig");
 pub const Wallet = @import("wallet.zig");
 
 test {
+    const std = @import("std");
+    var anvil: Anvil = undefined;
+    try anvil.init(std.testing.allocator);
+    defer anvil.deinit();
+
     _ = @import("param_type.zig");
     _ = @import("abi_parameter.zig");
     _ = @import("abi.zig");

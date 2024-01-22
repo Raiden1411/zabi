@@ -42,7 +42,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Run Anvil
-        run: anvil --fork-url "https://ethereum.publicnode.com" --fork-block-number 19062632 &
+        run: anvil --fork-url https://ethereum.publicnode.com --fork-block-number 19062632 &
 
       - name: Run Tests
         run: zig build test

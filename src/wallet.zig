@@ -206,6 +206,14 @@ pub fn sendSignedTransaction(self: *Wallet, tx: transaction.TransactionEnvelope)
     return self.pub_client.sendRawTransaction(hex);
 }
 
+pub fn sendTransaction(self: *Wallet, unprepared_envelope: transaction.PrepareEnvelope) !types.Hex {
+    const prepared = self.prepareTransaction(unprepared_envelope);
+
+    try self.assertTransaction(prepared);
+
+    return try self.sendSignedTransaction(prepared);
+}
+
 // test "Placeholder" {
 //     var wallet = try Wallet.init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .anvil);
 //     defer wallet.deinit();

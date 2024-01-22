@@ -1,19 +1,19 @@
 const std = @import("std");
 
-pub const Anvil = struct {
-    id: i32,
-    result: std.ChildProcess,
+pub const Anvil = @This();
 
-    pub fn init(alloc: std.mem.Allocator) !Anvil {
-        var result = std.ChildProcess.init(&.{ "anvil", "-f", "https://ethereum.publicnode.com", "--fork-block-number", "19062632" }, alloc);
-        try result.spawn();
+id: i32,
+result: std.ChildProcess,
 
-        std.time.sleep(10_000);
+pub fn init(self: *Anvil, alloc: std.mem.Allocator) !void {
+    var result = std.ChildProcess.init(&.{ "anvil", "-f", "https://ethereum.publicnode.com", "--fork-block-number", "19062632" }, alloc);
+    try result.spawn();
+    self.result = result;
+    self.id = result.id;
+    std.time.sleep(2 * std.time.ns_per_s);
+}
 
-        return .{ .result = result, .id = result.id };
-    }
-
-    pub fn deinit(self: *Anvil) !void {
-        _ = try self.result.kill();
-    }
-};
+pub fn deinit(self: *Anvil) void {
+    std.time.sleep(2 * std.time.ns_per_s);
+    _ = self.result.kill() catch {};
+}

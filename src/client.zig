@@ -502,6 +502,10 @@ fn fetchCall(self: PubClient, comptime T: type, call_object: transaction.EthCall
 }
 
 test "GetBlockNumber" {
+    var anvil: Anvil = undefined;
+    try anvil.init(testing.allocator);
+    defer anvil.deinit();
+
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 

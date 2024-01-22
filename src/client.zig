@@ -3,6 +3,7 @@ const http = std.http;
 const log = @import("meta/log.zig");
 const meta = @import("meta/meta.zig");
 const std = @import("std");
+const testing = std.testing;
 const transaction = @import("meta/transaction.zig");
 const types = @import("meta/ethereum.zig");
 const utils = @import("utils.zig");
@@ -426,7 +427,7 @@ fn fetchWithEmptyArgs(self: *PubClient, comptime T: type, method: types.Ethereum
         } else |_| return error.RpcNullResponse;
     };
 
-    return parsed.value;
+    return parsed.result;
 }
 
 fn fetchBlock(self: *PubClient, request: anytype) !block.Block {
@@ -499,12 +500,11 @@ fn fetchCall(self: PubClient, comptime T: type, call_object: transaction.EthCall
     return parsed.result;
 }
 
-// test "Placeholder" {
-//     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
-//     defer pub_client.deinit();
-//
-//     const block_req = try pub_client.getTransactionReceipt("0x4ea9218866a33cac46673308427ddfe3c7819e9f4353a5a4b8557332ab76cf6");
-//
-//     std.debug.print("Foooo: {any}\n\n\n", .{block_req});
-//     // std.debug.print("Foooo: {d}\n\n\n", .{pub_client.arena.queryCapacity()});
-// }
+test "Placeholder" {
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const block_req = try pub_client.getBlockNumber();
+
+    try testing.expectEqual(19062632, block_req);
+}

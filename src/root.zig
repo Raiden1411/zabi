@@ -17,11 +17,14 @@ pub const tokens = @import("human-readable/tokens.zig");
 pub const types = @import("meta/ethereum.zig");
 pub const utils = @import("utils.zig");
 
+pub const Anvil = @import("tests/anvil.zig").Anvil;
 pub const Parser = @import("human-readable/parser.zig");
 pub const PubClient = @import("client.zig");
 pub const Wallet = @import("wallet.zig");
 
 test {
+    _ = @import("client.zig");
+    _ = @import("wallet.zig");
     _ = @import("param_type.zig");
     _ = @import("abi_parameter.zig");
     _ = @import("abi.zig");
@@ -33,6 +36,4 @@ test {
     _ = @import("client.zig");
     _ = @import("rlp.zig");
     _ = @import("serialize.zig");
-    _ = @import("wallet.zig");
-    _ = @import("client.zig");
 }

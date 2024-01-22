@@ -60,6 +60,8 @@ pub const TransactionEnvelopeLegacy = struct {
 pub const AccessList = struct {
     address: types.Hex,
     storageKeys: []const types.Hex,
+
+    pub usingnamespace meta.RequestParser(@This());
 };
 
 pub const PrepareEnvelope = union(enum) {
@@ -73,27 +75,27 @@ pub const PrepareEnvelopeEip2930 = meta.ToOptionalStructAndUnionMembers(Transact
 pub const PrepareEnvelopeLegacy = meta.ToOptionalStructAndUnionMembers(TransactionEnvelopeLegacy);
 
 pub const TransactionObjectEip1559 = struct {
+    hash: types.Hex,
+    nonce: u64,
     blockHash: ?types.Hex,
     blockNumber: ?u64,
-    from: types.Hex,
-    gas: types.Gwei,
-    gasPrice: types.Gwei,
-    hash: types.Hex,
-    input: types.Hex,
-    nonce: u64,
-    to: types.Hex,
     transactionIndex: ?u64,
+    from: types.Hex,
+    to: types.Hex,
     value: types.Wei,
+    gasPrice: types.Gwei,
+    gas: types.Gwei,
+    input: types.Hex,
     v: u8,
     r: types.Hex,
     s: types.Hex,
     isSystemTx: bool,
+    sourceHash: types.Hex,
     type: u2,
     accessList: []const AccessList,
-    sourceHash: types.Hex,
     maxPriorityFeePerGas: types.Gwei,
     maxFeePerGas: types.Gwei,
-    chainid: usize,
+    chainId: usize,
     yParity: u1,
 
     pub usingnamespace meta.RequestParser(@This());

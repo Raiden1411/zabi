@@ -213,7 +213,7 @@ pub fn getTransactionByBlockNumberAndIndex(self: *PubClient, opts: block.BlockNu
     const tag: block.BalanceBlockTag = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
 
-    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{ block_number, try std.fmt.allocPrint(self.alloc, "0x{x}", .{index}) }, .method = .eth_getTransactionByBlockHashAndIndex, .id = self.chain_id };
+    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{ block_number, try std.fmt.allocPrint(self.alloc, "0x{x}", .{index}) }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
 
     return self.fetchTransaction(transaction.Transaction, request);
 }
@@ -331,21 +331,21 @@ pub fn switchChainId(self: *PubClient, new_chain_id: usize, new_url: []const u8)
     self.uri = uri;
 }
 
-pub fn printLastRpcError(self: *PubClient) void {
+pub fn printLastRpcError(self: *PubClient) !void {
     const writer = std.io.getStdErr().writer();
     const last = self.errors.getLast();
 
     try writer.print("Error code: {d}\n", .{last.code});
-    try writer.print("Error message: {d}\n", .{last.message});
+    try writer.print("Error message: {s}\n", .{last.message});
 }
 
-pub fn printAllRpcErrors(self: *PubClient) void {
+pub fn printAllRpcErrors(self: *PubClient) !void {
     const writer = std.io.getStdErr().writer();
     const errors = self.errors.items;
 
     for (errors) |err| {
         try writer.print("Error code: {d}\n", .{err.code});
-        try writer.print("Error message: {d}\n", .{err.message});
+        try writer.print("Error message: {s}\n", .{err.message});
     }
 }
 
@@ -597,10 +597,55 @@ test "getCode" {
 }
 
 test "getAddressBalance" {
-    // if (true) return error.SkipZigTest;
+    if (true) return error.SkipZigTest;
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
     const address = try pub_client.getAddressBalance(.{ .address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" });
     try testing.expectEqual(address, try utils.parseEth(10000));
+}
+
+test "getUncleCountByBlockHash" {
+    if (true) return error.SkipZigTest;
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const uncle = try pub_client.getUncleCountByBlockHash("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
+    try testing.expectEqual(uncle, 0);
+}
+
+test "getUncleCountByBlockNumber" {
+    if (true) return error.SkipZigTest;
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const uncle = try pub_client.getUncleCountByBlockNumber(.{});
+    try testing.expectEqual(uncle, 0);
+}
+
+test "getLogs" {
+    if (true) return error.SkipZigTest;
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const logs = try pub_client.getLogs(.{ .blockHash = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8" });
+    try testing.expect(logs.len != 0);
+}
+
+test "getTransactionByBlockNumberAndIndex" {
+    if (true) return error.SkipZigTest;
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const tx = try pub_client.getTransactionByBlockNumberAndIndex(.{ .block_number = 16777215 }, 0);
+    try testing.expect(tx == .eip1559);
+}
+
+test "getTransactionByBlockHashAndIndex" {
+    if (true) return error.SkipZigTest;
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const tx = try pub_client.getTransactionByBlockHashAndIndex("0xf34c3c11b35466e5595e077239e6b25a7c3ec07a214b2492d42ba6d73d503a1b", 0);
+    try testing.expect(tx == .eip1559);
 }

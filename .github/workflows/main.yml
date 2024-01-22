@@ -26,6 +26,12 @@ jobs:
         with:
           version: master
 
+      - name: Install Anvil
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Run Anvil
+        run: anvil --fork-url https://ethereum.publicnode.com --fork-block-number 19062632 &
+
       - name: Get Zig version
         id: zig_version
         run: echo "zig_version=$(zig version)" >> $GITHUB_OUTPUT
@@ -37,9 +43,6 @@ jobs:
 
       - name: Build
         run: zig build
-
-      - name: Install Anvil
-        uses: foundry-rs/foundry-toolchain@v1
 
       - name: Run Tests
         run: zig build test

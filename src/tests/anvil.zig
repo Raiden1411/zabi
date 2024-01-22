@@ -26,5 +26,4 @@ pub fn start(self: *Anvil) !void {
     try result.spawn();
     self.result = result;
     self.id = result.id;
-    std.time.sleep(10 * std.time.ns_per_s);
 }

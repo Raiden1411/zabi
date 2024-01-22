@@ -36,6 +36,8 @@ test {
     _ = @import("human-readable/abi_parsing.zig");
     _ = @import("encoder.zig");
     _ = @import("decoder.zig");
+
+    std.time.sleep(2 * std.time.ns_per_s);
     _ = @import("client.zig");
     _ = @import("rlp.zig");
     _ = @import("serialize.zig");

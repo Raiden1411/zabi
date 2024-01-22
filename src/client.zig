@@ -502,14 +502,29 @@ fn fetchCall(self: PubClient, comptime T: type, call_object: transaction.EthCall
 }
 
 test "GetBlockNumber" {
-    // var anvil: Anvil = undefined;
-    // try anvil.init(testing.allocator);
-    // defer anvil.deinit();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
     const block_req = try pub_client.getBlockNumber();
 
     try testing.expectEqual(19062632, block_req);
+}
+
+test "GetChainId" {
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const chain = try pub_client.getChainId();
+
+    try testing.expectEqual(1, chain);
+}
+
+test "GetBlock" {
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const block_info = try pub_client.getBlockByNumber(.{});
+    try testing.expect(block_info == .blockMerge);
+    try testing.expectEqual(block_info.blockMerge.number.?, 19062632);
+    try testing.expectEqualStrings(block_info.blockMerge.hash.?, "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
 }

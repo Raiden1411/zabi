@@ -528,3 +528,12 @@ test "GetBlock" {
     try testing.expectEqual(block_info.blockMerge.number.?, 19062632);
     try testing.expectEqualStrings(block_info.blockMerge.hash.?, "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
 }
+
+test "GetBlockByHash" {
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const block_info = try pub_client.getBlockByHash(.{ .block_hash = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8" });
+    try testing.expect(block_info == .blockMerge);
+    try testing.expectEqual(block_info.blockMerge.number.?, 19062632);
+}

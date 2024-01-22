@@ -105,12 +105,74 @@ pub fn verifyMessage(self: *Wallet, sig: Signature, message: []const u8) bool {
     return self.signer.verifyMessage(sig, hash_buffer);
 }
 
-// pub fn prepareTransaction(self: *Wallet) !transaction.TransactionEnvelope {
-//     const address = try self.getWalletAddress();
-//     const nonce = try self.pub_client.getAddressTransactionCount(.{.address = address});
-//     const chain_id = self.pub_client.chain_id;
-//
-// }
+pub fn prepareTransaction(self: *Wallet, unprepared_envelope: transaction.PrepareEnvelope) !transaction.TransactionEnvelope {
+    const address = try self.getWalletAddress();
+
+    switch (unprepared_envelope) {
+        .eip1559 => |tx| {
+            if (tx.type.? != 2) return error.InvalidTransactionType;
+            var request: transaction.EthCallEip1559 = .{ .from = address, .to = tx.to, .nonce = null, .data = tx.data, .value = null, .maxFeePerGas = null, .maxPriorityFeePerGas = null, .gas = null };
+
+            const curr_block = try self.pub_client.getBlockByNumber(.{});
+            const chain_id = tx.chainId orelse self.pub_client.chain_id;
+            const accessList: []const transaction.AccessList = tx.accessList orelse &.{};
+
+            request.nonce = tx.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+
+            const fees = try self.pub_client.estimateFeesPerGas(.{ .eip1559 = request }, curr_block);
+            request.maxPriorityFeePerGas = fees.eip1559.max_priority_fee;
+            request.maxFeePerGas = fees.eip1559.max_fee_gas;
+
+            if (tx.maxFeePerGas) |fee| {
+                if (fee < fees.eip1559.max_priority_fee) return error.MaxFeePerGasUnderflow;
+            }
+
+            const gas = tx.gas orelse try self.pub_client.estimateGas(.{ .eip1559 = request }, .{});
+            request.gas = gas;
+
+            request.value = tx.value orelse 0;
+
+            return .{ .eip1559 = .{ .chainId = chain_id, .nonce = request.nonce.?, .gas = request.gas.?, .maxFeePerGas = fees.eip1559.max_fee_gas, .maxPriorityFeePerGas = fees.eip1559.max_priority_fee, .data = tx.data, .to = tx.to, .value = request.value.?, .accessList = accessList } };
+        },
+        .eip2930 => |tx| {
+            var request: transaction.EthCallLegacy = .{ .from = address, .to = tx.to, .nonce = null, .data = tx.data, .value = null, .gasPrice = null, .gas = null };
+
+            const curr_block = try self.pub_client.getBlockByNumber(.{});
+            const chain_id = tx.chainId orelse self.pub_client.chain_id;
+            const accessList: []const transaction.AccessList = tx.accessList orelse &.{};
+
+            request.nonce = tx.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+
+            const fees = try self.pub_client.estimateFeesPerGas(.{ .legacy = request }, curr_block);
+            request.gasPrice = fees.legacy.gas_price;
+
+            const gas = tx.gas orelse try self.pub_client.estimateGas(.{ .legacy = request }, .{});
+            request.gas = gas;
+
+            request.value = tx.value orelse 0;
+
+            return .{ .eip2930 = .{ .chainId = chain_id, .nonce = request.nonce.?, .gas = request.gas.?, .gasPrice = fees.legacy.gas_price, .data = tx.data, .to = tx.to, .value = request.value.?, .accessList = accessList } };
+        },
+        .legacy => |tx| {
+            var request: transaction.EthCallLegacy = .{ .from = address, .to = tx.to, .nonce = null, .data = tx.data, .value = null, .gasPrice = null, .gas = null };
+
+            const curr_block = try self.pub_client.getBlockByNumber(.{});
+            const chain_id = tx.chainId orelse self.pub_client.chain_id;
+
+            request.nonce = tx.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+
+            const fees = try self.pub_client.estimateFeesPerGas(.{ .legacy = request }, curr_block);
+            request.gasPrice = fees.legacy.gas_price;
+
+            const gas = tx.gas orelse try self.pub_client.estimateGas(.{ .legacy = request }, .{});
+            request.gas = gas;
+
+            request.value = tx.value orelse 0;
+
+            return .{ .legacy = .{ .chainId = chain_id, .nonce = request.nonce.?, .gas = request.gas.?, .gasPrice = fees.legacy.gas_price, .data = tx.data, .to = tx.to, .value = request.value.? } };
+        },
+    }
+}
 
 pub fn sendSignedTransaction(self: *Wallet, tx: transaction.TransactionEnvelope) !types.Hex {
     const serialized = try serialize.serializeTransaction(self.alloc, tx, null);

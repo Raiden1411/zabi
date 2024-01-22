@@ -70,8 +70,8 @@ pub fn deinit(self: *PubClient) void {
     allocator.destroy(self);
 }
 
-pub fn estimateFeesPerGas(self: *PubClient, call_object: transaction.EthCall) !transaction.EstimateFeeReturn {
-    const current_block = try self.getBlockByNumber(.{});
+pub fn estimateFeesPerGas(self: *PubClient, call_object: transaction.EthCall, know_block: ?block.Block) !transaction.EstimateFeeReturn {
+    const current_block = know_block orelse try self.getBlockByNumber(.{});
 
     switch (current_block) {
         inline else => |block_info| {

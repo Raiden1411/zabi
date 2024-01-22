@@ -335,8 +335,8 @@ pub fn printLastRpcError(self: *PubClient) void {
     const writer = std.io.getStdErr().writer();
     const last = self.errors.getLast();
 
-    _ = try writer.print("Error code: {d}\n", .{last.code});
-    _ = try writer.print("Error message: {d}\n", .{last.code});
+    try writer.print("Error code: {d}\n", .{last.code});
+    try writer.print("Error message: {d}\n", .{last.message});
 }
 
 pub fn printAllRpcErrors(self: *PubClient) void {
@@ -344,13 +344,13 @@ pub fn printAllRpcErrors(self: *PubClient) void {
     const errors = self.errors.items;
 
     for (errors) |err| {
-        _ = try writer.print("Error code: {d}\n", .{err.code});
-        _ = try writer.print("Error message: {d}\n", .{err.code});
+        try writer.print("Error code: {d}\n", .{err.code});
+        try writer.print("Error message: {d}\n", .{err.message});
     }
 }
 
 fn fetchByBlockNumber(self: *PubClient, opts: block.BlockNumberRequest, method: types.EthereumRpcMethods) !usize {
-    const tag: block.BalanceRequest = opts.tag orelse .latest;
+    const tag: block.BalanceBlockTag = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
 
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{block_number}, .method = method, .id = self.chain_id };
@@ -536,4 +536,20 @@ test "GetBlockByHash" {
     const block_info = try pub_client.getBlockByHash(.{ .block_hash = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8" });
     try testing.expect(block_info == .blockMerge);
     try testing.expectEqual(block_info.blockMerge.number.?, 19062632);
+}
+
+test "GetBlockTransactionCountByHash" {
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const block_info = try pub_client.getBlockTransactionCountByHash("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
+    try testing.expect(block_info != 0);
+}
+
+test "getBlockTransactionCountByNumber" {
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const block_info = try pub_client.getBlockTransactionCountByNumber(.{});
+    try testing.expect(block_info != 0);
 }

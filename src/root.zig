@@ -23,8 +23,6 @@ pub const PubClient = @import("client.zig");
 pub const Wallet = @import("wallet.zig");
 
 test {
-    _ = @import("client.zig");
-    _ = @import("wallet.zig");
     _ = @import("param_type.zig");
     _ = @import("abi_parameter.zig");
     _ = @import("abi.zig");
@@ -36,4 +34,6 @@ test {
     _ = @import("client.zig");
     _ = @import("rlp.zig");
     _ = @import("serialize.zig");
+    _ = @import("client.zig");
+    _ = @import("wallet.zig");
 }

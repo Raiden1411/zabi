@@ -249,12 +249,6 @@ test "signMessage" {
 
 test "sendTransaction" {
     // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var wallet = try Wallet.init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .ethereum);
     defer wallet.deinit();
 

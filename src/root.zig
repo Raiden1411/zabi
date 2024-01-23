@@ -23,6 +23,9 @@ pub const PubClient = @import("client.zig");
 pub const Wallet = @import("wallet.zig");
 
 test {
+    const std = @import("std");
+    try Anvil.waitUntilReady(std.testing.allocator, 2_000);
+
     _ = @import("client.zig");
     _ = @import("param_type.zig");
     _ = @import("abi_parameter.zig");

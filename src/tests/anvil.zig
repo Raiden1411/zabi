@@ -40,12 +40,13 @@ pub fn start(self: *Anvil) !void {
     self.result = result;
 }
 
-pub fn waitUntilReady(self: *Anvil) !void {
+pub fn waitUntilReady(alloc: std.mem.Allocator, pooling_interval: u64) !void {
     var retry: u32 = 0;
+    var stream: std.net.Stream = undefined;
     while (true) {
         if (retry > 20) break;
-        self.stream = std.net.tcpConnectToHost(self.alloc, "127.0.0.1", 8545) catch {
-            std.time.sleep(self.pooling_interval * std.time.ns_per_ms);
+        stream = std.net.tcpConnectToHost(alloc, "127.0.0.1", 8545) catch {
+            std.time.sleep(pooling_interval * std.time.ns_per_ms);
             retry += 1;
             continue;
         };
@@ -53,6 +54,6 @@ pub fn waitUntilReady(self: *Anvil) !void {
         break;
     }
 
-    _ = try self.stream.write("PONG");
-    self.stream.close();
+    _ = try stream.write("PONG");
+    stream.close();
 }

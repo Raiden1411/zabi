@@ -6,6 +6,12 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
+      - name: Install Anvil
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Run Anvil
+        run: anvil --fork-url https://eth-mainnet.alchemyapi.io/v2/C3JEvfW6VgtqZQa-Qp1E-2srEiIc02sD --fork-block-number 19062632 &
+
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0

@@ -530,13 +530,6 @@ fn fetchCall(self: *PubClient, comptime T: type, call_object: transaction.EthCal
 }
 
 test "GetBlockNumber" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -546,13 +539,6 @@ test "GetBlockNumber" {
 }
 
 test "GetChainId" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -562,13 +548,6 @@ test "GetChainId" {
 }
 
 test "GetBlock" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -579,13 +558,6 @@ test "GetBlock" {
 }
 
 test "GetBlockByHash" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -595,13 +567,6 @@ test "GetBlockByHash" {
 }
 
 test "GetBlockTransactionCountByHash" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -610,13 +575,6 @@ test "GetBlockTransactionCountByHash" {
 }
 
 test "getBlockTransactionCountByNumber" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -625,13 +583,6 @@ test "getBlockTransactionCountByNumber" {
 }
 
 test "getBlockTransactionCountByHash" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -640,13 +591,6 @@ test "getBlockTransactionCountByHash" {
 }
 
 test "getAccounts" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -655,13 +599,6 @@ test "getAccounts" {
 }
 
 test "gasPrice" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -670,13 +607,6 @@ test "gasPrice" {
 }
 
 test "getCode" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -685,13 +615,6 @@ test "getCode" {
 }
 
 test "getAddressBalance" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -700,13 +623,6 @@ test "getAddressBalance" {
 }
 
 test "getUncleCountByBlockHash" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -715,13 +631,6 @@ test "getUncleCountByBlockHash" {
 }
 
 test "getUncleCountByBlockNumber" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -730,13 +639,6 @@ test "getUncleCountByBlockNumber" {
 }
 
 test "getLogs" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -745,13 +647,6 @@ test "getLogs" {
 }
 
 test "getTransactionByBlockNumberAndIndex" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -760,13 +655,6 @@ test "getTransactionByBlockNumberAndIndex" {
 }
 
 test "getTransactionByBlockHashAndIndex" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -775,13 +663,6 @@ test "getTransactionByBlockHashAndIndex" {
 }
 
 test "getAddressTransactionCount" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -790,13 +671,6 @@ test "getAddressTransactionCount" {
 }
 
 test "estimateGas" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -805,13 +679,6 @@ test "estimateGas" {
 }
 
 test "estimateFeesPerGas" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 
@@ -821,13 +688,6 @@ test "estimateFeesPerGas" {
 }
 
 test "estimateMaxFeePerGasManual" {
-    // if (true) return error.SkipZigTest;
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    try anvil.init(std.testing.allocator, 2_000);
-    try anvil.waitUntilReady();
-
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 

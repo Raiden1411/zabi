@@ -7,7 +7,7 @@ const testing = std.testing;
 const transaction = @import("meta/transaction.zig");
 const types = @import("meta/ethereum.zig");
 const utils = @import("utils.zig");
-const Anvil = @import("tests/anvil.zig").Anvil;
+const Anvil = @import("tests/anvil.zig");
 const Chains = types.PublicChains;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
@@ -679,7 +679,13 @@ test "getTransactionByBlockHashAndIndex" {
 }
 
 test "getAddressTransactionCount" {
-    if (true) return error.SkipZigTest;
+    // if (true) return error.SkipZigTest;
+    var anvil: Anvil = undefined;
+    defer anvil.deinit();
+
+    try anvil.init(std.testing.allocator, 2_000);
+    try anvil.waitUntilReady();
+
     var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
     defer pub_client.deinit();
 

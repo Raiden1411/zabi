@@ -1,32 +1,58 @@
 const std = @import("std");
 
-pub const Anvil = @This();
+const Anvil = @This();
 
-id: i32,
+fork_url: []const u8,
 alloc: std.mem.Allocator,
 result: std.ChildProcess,
 thread: std.Thread,
+localhost: std.Uri,
+pooling_interval: u64,
+stream: std.net.Stream,
 
-pub fn init(self: *Anvil, alloc: std.mem.Allocator) !void {
-    self.alloc = alloc;
-    self.thread = try std.Thread.spawn(.{}, start, .{self});
+pub fn init(self: *Anvil, alloc: std.mem.Allocator, pooling_interval: u64) !void {
+    self.* = .{
+        .alloc = alloc,
+        .localhost = try std.Uri.parse("http://localhost:8545/"),
+        .thread = try std.Thread.spawn(.{}, start, .{self}),
+        .pooling_interval = pooling_interval,
+        .fork_url = "https://eth-mainnet.alchemyapi.io/v2/C3JEvfW6VgtqZQa-Qp1E-2srEiIc02sD",
+        .stream = undefined,
+        .result = undefined,
+    };
 }
 
-// pub fn deinit(self: *Anvil) void {
-//     _ = self.result.kill() catch |err| {
-//         std.io.getStdErr().writer().writeAll(@errorName(err)) catch {};
-//     };
-//     self.thread.detach();
-// }
+pub fn deinit(self: *Anvil) void {
+    _ = self.result.kill() catch |err| {
+        std.io.getStdErr().writer().writeAll(@errorName(err)) catch {};
+    };
+    self.thread.detach();
+}
 
 pub fn start(self: *Anvil) !void {
-    var result = std.ChildProcess.init(&.{ "anvil", "-f", "https://eth-mainnet.alchemyapi.io/v2/C3JEvfW6VgtqZQa-Qp1E-2srEiIc02sD", "--fork-block-number", "19062632", "--port", "8545" }, self.alloc);
+    var result = std.ChildProcess.init(&.{ "anvil", "-f", self.fork_url, "--fork-block-number", "19062632", "--port", "8545" }, self.alloc);
     result.stdin_behavior = .Close;
     result.stdout_behavior = .Close;
-    result.stderr_behavior = .Inherit;
+    result.stderr_behavior = .Close;
 
     try result.spawn();
 
     self.result = result;
-    self.id = result.id;
+}
+
+pub fn waitUntilReady(self: *Anvil) !void {
+    var retry: u32 = 0;
+    while (true) {
+        if (retry > 5) break;
+        self.stream = std.net.tcpConnectToHost(self.alloc, "127.0.0.1", 8545) catch {
+            std.time.sleep(self.pooling_interval * std.time.ns_per_ms);
+            retry += 1;
+            continue;
+        };
+
+        break;
+    }
+
+    _ = try self.stream.write("PONG");
+    self.stream.close();
 }

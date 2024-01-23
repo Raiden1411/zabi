@@ -43,7 +43,7 @@ pub fn start(self: *Anvil) !void {
 pub fn waitUntilReady(self: *Anvil) !void {
     var retry: u32 = 0;
     while (true) {
-        if (retry > 5) break;
+        if (retry > 20) break;
         self.stream = std.net.tcpConnectToHost(self.alloc, "127.0.0.1", 8545) catch {
             std.time.sleep(self.pooling_interval * std.time.ns_per_ms);
             retry += 1;

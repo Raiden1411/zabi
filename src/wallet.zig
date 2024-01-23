@@ -111,65 +111,68 @@ pub fn prepareTransaction(self: *Wallet, unprepared_envelope: transaction.Prepar
     switch (unprepared_envelope) {
         .eip1559 => |tx| {
             if (tx.type.? != 2) return error.InvalidTransactionType;
-            var request: transaction.EthCallEip1559 = .{ .from = address, .to = tx.to, .nonce = null, .data = tx.data, .value = null, .maxFeePerGas = null, .maxPriorityFeePerGas = null, .gas = null };
+            var request: transaction.EthCallEip1559 = .{ .from = address, .to = tx.to, .gas = tx.gas, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .data = tx.data, .value = tx.value orelse 0 };
 
             const curr_block = try self.pub_client.getBlockByNumber(.{});
             const chain_id = tx.chainId orelse self.pub_client.chain_id;
             const accessList: []const transaction.AccessList = tx.accessList orelse &.{};
 
-            request.nonce = tx.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+            const nonce: u64 = tx.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
 
-            const fees = try self.pub_client.estimateFeesPerGas(.{ .eip1559 = request }, curr_block);
-            request.maxPriorityFeePerGas = fees.eip1559.max_priority_fee;
-            request.maxFeePerGas = fees.eip1559.max_fee_gas;
+            if (tx.maxFeePerGas == null or tx.maxPriorityFeePerGas == null) {
+                const fees = try self.pub_client.estimateFeesPerGas(.{ .eip1559 = request }, curr_block);
+                request.maxPriorityFeePerGas = tx.maxPriorityFeePerGas orelse fees.eip1559.max_priority_fee;
+                request.maxFeePerGas = tx.maxFeePerGas orelse fees.eip1559.max_fee_gas;
 
-            if (tx.maxFeePerGas) |fee| {
-                if (fee < fees.eip1559.max_priority_fee) return error.MaxFeePerGasUnderflow;
+                if (tx.maxFeePerGas) |fee| {
+                    if (fee < fees.eip1559.max_priority_fee) return error.MaxFeePerGasUnderflow;
+                }
             }
 
-            const gas = tx.gas orelse try self.pub_client.estimateGas(.{ .eip1559 = request }, .{});
-            request.gas = gas;
+            if (tx.gas == null) {
+                request.gas = try self.pub_client.estimateGas(.{ .legacy = request }, .{});
+            }
 
-            request.value = tx.value orelse 0;
-
-            return .{ .eip1559 = .{ .chainId = chain_id, .nonce = request.nonce.?, .gas = request.gas.?, .maxFeePerGas = fees.eip1559.max_fee_gas, .maxPriorityFeePerGas = fees.eip1559.max_priority_fee, .data = tx.data, .to = tx.to, .value = request.value.?, .accessList = accessList } };
+            return .{ .eip1559 = .{ .chainId = chain_id, .nonce = nonce, .gas = request.gas.?, .maxFeePerGas = request.maxFeePerGas.?, .maxPriorityFeePerGas = request.maxPriorityFeePerGas.?, .data = request.data, .to = request.to, .value = request.value.?, .accessList = accessList } };
         },
         .eip2930 => |tx| {
-            var request: transaction.EthCallLegacy = .{ .from = address, .to = tx.to, .nonce = null, .data = tx.data, .value = null, .gasPrice = null, .gas = null };
+            var request: transaction.EthCallLegacy = .{ .from = address, .to = tx.to, .gas = tx.gas, .gasPrice = tx.gasPrice, .data = tx.data, .value = tx.value orelse 0 };
 
             const curr_block = try self.pub_client.getBlockByNumber(.{});
             const chain_id = tx.chainId orelse self.pub_client.chain_id;
             const accessList: []const transaction.AccessList = tx.accessList orelse &.{};
 
-            request.nonce = tx.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+            const nonce: u64 = tx.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
 
-            const fees = try self.pub_client.estimateFeesPerGas(.{ .legacy = request }, curr_block);
-            request.gasPrice = fees.legacy.gas_price;
+            if (tx.gasPrice == null) {
+                const fees = try self.pub_client.estimateFeesPerGas(.{ .legacy = request }, curr_block);
+                request.gasPrice = fees.legacy.gas_price;
+            }
 
-            const gas = tx.gas orelse try self.pub_client.estimateGas(.{ .legacy = request }, .{});
-            request.gas = gas;
+            if (tx.gas == null) {
+                request.gas = try self.pub_client.estimateGas(.{ .legacy = request }, .{});
+            }
 
-            request.value = tx.value orelse 0;
-
-            return .{ .eip2930 = .{ .chainId = chain_id, .nonce = request.nonce.?, .gas = request.gas.?, .gasPrice = fees.legacy.gas_price, .data = tx.data, .to = tx.to, .value = request.value.?, .accessList = accessList } };
+            return .{ .eip2930 = .{ .chainId = chain_id, .nonce = nonce, .gas = request.gas.?, .gasPrice = request.gasPrice.?, .data = request.data, .to = request.to, .value = request.value.?, .accessList = accessList } };
         },
         .legacy => |tx| {
-            var request: transaction.EthCallLegacy = .{ .from = address, .to = tx.to, .nonce = null, .data = tx.data, .value = null, .gasPrice = null, .gas = null };
+            var request: transaction.EthCallLegacy = .{ .from = address, .to = tx.to, .gas = tx.gas, .gasPrice = tx.gasPrice, .data = tx.data, .value = tx.value orelse 0 };
 
             const curr_block = try self.pub_client.getBlockByNumber(.{});
             const chain_id = tx.chainId orelse self.pub_client.chain_id;
 
-            request.nonce = tx.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+            const nonce: u64 = tx.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
 
-            const fees = try self.pub_client.estimateFeesPerGas(.{ .legacy = request }, curr_block);
-            request.gasPrice = fees.legacy.gas_price;
+            if (tx.gasPrice == null) {
+                const fees = try self.pub_client.estimateFeesPerGas(.{ .legacy = request }, curr_block);
+                request.gasPrice = fees.legacy.gas_price;
+            }
 
-            const gas = tx.gas orelse try self.pub_client.estimateGas(.{ .legacy = request }, .{});
-            request.gas = gas;
+            if (tx.gas == null) {
+                request.gas = try self.pub_client.estimateGas(.{ .legacy = request }, .{});
+            }
 
-            request.value = tx.value orelse 0;
-
-            return .{ .legacy = .{ .chainId = chain_id, .nonce = request.nonce.?, .gas = request.gas.?, .gasPrice = fees.legacy.gas_price, .data = tx.data, .to = tx.to, .value = request.value.? } };
+            return .{ .legacy = .{ .chainId = chain_id, .nonce = nonce, .gas = request.gas.?, .gasPrice = request.gasPrice.?, .data = request.data, .to = request.to, .value = request.value.? } };
         },
     }
 }
@@ -182,10 +185,10 @@ pub fn assertTransaction(self: *Wallet, tx: transaction.TransactionEnvelope) !vo
             if (tx_eip1559.to) |addr| if (!try utils.isAddress(self.alloc, addr)) return error.InvalidAddress;
         },
         .eip2930 => |tx_eip2930| {
-            if (tx_eip2930.chaindId != self.pub_client.chain_id) return error.InvalidChainId;
+            if (tx_eip2930.chainId != self.pub_client.chain_id) return error.InvalidChainId;
             if (tx_eip2930.to) |addr| if (!try utils.isAddress(self.alloc, addr)) return error.InvalidAddress;
         },
-        else => |tx_legacy| {
+        .legacy => |tx_legacy| {
             if (tx_legacy.chainId != 0 and tx_legacy.chainId != self.pub_client.chain_id) return error.InvalidChainId;
             if (tx_legacy.to) |addr| if (!try utils.isAddress(self.alloc, addr)) return error.InvalidAddress;
         },
@@ -207,21 +210,12 @@ pub fn sendSignedTransaction(self: *Wallet, tx: transaction.TransactionEnvelope)
 }
 
 pub fn sendTransaction(self: *Wallet, unprepared_envelope: transaction.PrepareEnvelope) !types.Hex {
-    const prepared = self.prepareTransaction(unprepared_envelope);
+    const prepared = try self.prepareTransaction(unprepared_envelope);
 
     try self.assertTransaction(prepared);
 
     return try self.sendSignedTransaction(prepared);
 }
-
-// test "Placeholder" {
-//     var wallet = try Wallet.init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .anvil);
-//     defer wallet.deinit();
-//
-//     const tx_hash = try wallet.sendSignedTransaction(.{ .eip1559 = .{ .chainId = 31337, .nonce = 0, .maxFeePerGas = try utils.parseGwei(2), .data = null, .maxPriorityFeePerGas = try utils.parseGwei(2), .gas = 21001, .value = try utils.parseEth(1), .accessList = &.{}, .to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" } });
-//
-//     std.debug.print("HASH: {s}\n", .{tx_hash});
-// }
 
 test "Address match" {
     var wallet = try Wallet.init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .anvil);
@@ -250,4 +244,93 @@ test "signMessage" {
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("a461f509887bd19e312c0c58467ce8ff8e300d3c1a90b608a760c5b80318eaf15fe57c96f9175d6cd4daad4663763baa7e78836e067d0163e9a2ccf2ff753f5b00", hex);
+}
+
+test "sendTransaction" {
+    if (true) return error.SkipZigTest;
+    var wallet = try Wallet.init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .ethereum);
+    defer wallet.deinit();
+
+    var tx: transaction.PrepareEnvelope = .{ .eip1559 = undefined };
+    tx.eip1559.type = 2;
+    tx.eip1559.value = try utils.parseEth(1);
+    tx.eip1559.to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+    const tx_hash = try wallet.sendTransaction(tx);
+
+    try testing.expect(tx_hash.len != 0);
+}
+
+test "assertTransaction" {
+    var tx: transaction.TransactionEnvelope = undefined;
+
+    var wallet = try Wallet.init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .ethereum);
+    defer wallet.deinit();
+
+    tx = .{ .eip1559 = .{
+        .nonce = 0,
+        .gas = 21001,
+        .maxPriorityFeePerGas = 2,
+        .maxFeePerGas = 2,
+        .chainId = 1,
+        .accessList = &.{},
+        .value = 0,
+        .to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        .data = null,
+    } };
+    try wallet.assertTransaction(tx);
+
+    tx.eip1559.chainId = 2;
+    try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
+
+    tx.eip1559.chainId = 1;
+    tx.eip1559.to = "";
+    try testing.expectError(error.InvalidAddress, wallet.assertTransaction(tx));
+
+    tx.eip1559.maxPriorityFeePerGas = 69;
+    tx.eip1559.to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+    try testing.expectError(error.TransactionTipToHigh, wallet.assertTransaction(tx));
+}
+
+test "assertTransactionLegacy" {
+    var tx: transaction.TransactionEnvelope = undefined;
+
+    var wallet = try Wallet.init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .ethereum);
+    defer wallet.deinit();
+
+    tx = .{ .eip2930 = .{
+        .nonce = 0,
+        .gas = 21001,
+        .gasPrice = 2,
+        .chainId = 1,
+        .accessList = &.{},
+        .value = 0,
+        .to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        .data = null,
+    } };
+    try wallet.assertTransaction(tx);
+
+    tx.eip2930.chainId = 2;
+    try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
+
+    tx.eip2930.chainId = 1;
+    tx.eip2930.to = "";
+    try testing.expectError(error.InvalidAddress, wallet.assertTransaction(tx));
+
+    tx = .{ .legacy = .{
+        .nonce = 0,
+        .gas = 21001,
+        .gasPrice = 2,
+        .chainId = 1,
+        .value = 0,
+        .to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        .data = null,
+    } };
+    try wallet.assertTransaction(tx);
+
+    tx.legacy.chainId = 2;
+    try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
+
+    tx.legacy.chainId = 1;
+    tx.legacy.to = "";
+    try testing.expectError(error.InvalidAddress, wallet.assertTransaction(tx));
 }

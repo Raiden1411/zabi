@@ -142,7 +142,7 @@ pub fn RequestParser(comptime T: type) type {
                     }
                 },
                 .Struct => {
-                    if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(alloc, source, opts) else @compileError("Unable to parse structs with jsonParse custom declaration");
+                    if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(alloc, source, opts) else @compileError("Unable to parse structs without jsonParse custom declaration");
                 },
 
                 else => @compileError("Unable to parse type " ++ @typeName(TT)),
@@ -227,7 +227,7 @@ pub fn RequestParser(comptime T: type) type {
                     }
                 },
                 .Struct => {
-                    if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(alloc, source, opts) else return error.UnexpectedToken;
+                    if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(alloc, source, opts) else @compileError("Unable to parse structs without jsonParse custom declaration");
                 },
                 else => @compileError("Unable to parse type " ++ @typeName(TT)),
             }
@@ -325,13 +325,13 @@ pub fn ToOptionalStructAndUnionMembers(comptime T: type) type {
                 fields[i] = .{
                     .name = field.name,
                     .type = if (@typeInfo(field.type) == .Optional) field.type else ?field.type,
-                    .default_value = field.default_value,
+                    .default_value = null,
                     .is_comptime = field.is_comptime,
                     .alignment = field.alignment,
                 };
             }
 
-            return @Type(.{ .Struct = .{ .layout = struct_info.layout, .fields = &fields, .decls = &.{}, .is_tuple = false } });
+            return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
         },
         .Union => |union_info| {
             var fields: [union_info.fields.len]std.builtin.Type.UnionField = undefined;

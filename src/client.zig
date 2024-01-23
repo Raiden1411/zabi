@@ -83,12 +83,11 @@ pub fn estimateFeesPerGas(self: *PubClient, call_object: transaction.EthCall, kn
                     const max_priority = if (tx.maxPriorityFeePerGas) |max| max else try self.estimateMaxFeePerGasManual(current_block);
                     const max_fee = if (tx.maxFeePerGas) |max| max else base_fee + max_priority;
 
-                    return .{ .eip1559 = .{ .max_fee = max_fee, .max_priority = max_priority } };
+                    return .{ .eip1559 = .{ .max_fee_gas = max_fee, .max_priority_fee = max_priority } };
                 },
                 .legacy => |tx| {
                     const gas_price = if (tx.gasPrice) |price| price else try self.getGasPrice() * std.math.pow(u64, 10, 9);
-                    const price = @divExact(gas_price * std.math.ceil(1.2 * std.math.pow(u64, 10, 1)), std.math.pow(u64, 10, 1));
-
+                    const price = @divExact(gas_price * @as(u64, @intFromFloat(std.math.ceil(1.2 * std.math.pow(f64, 10, 1)))), std.math.pow(u64, 10, 1));
                     return .{ .legacy = .{ .gas_price = price } };
                 },
             }
@@ -131,8 +130,8 @@ pub fn getAddressBalance(self: *PubClient, opts: block.BalanceRequest) !types.We
     return self.fetchByAddress(types.Wei, opts, .eth_getBalance);
 }
 
-pub fn getAddressTransactionCount(self: *PubClient, opts: block.BalanceRequest) !usize {
-    return self.fetchByAddress(usize, opts, .eth_getTransactionCount);
+pub fn getAddressTransactionCount(self: *PubClient, opts: block.BalanceRequest) !u64 {
+    return self.fetchByAddress(u64, opts, .eth_getTransactionCount);
 }
 
 pub fn getBlockByHash(self: *PubClient, opts: block.BlockHashRequest) !block.Block {
@@ -479,12 +478,41 @@ fn fetchLogs(self: *PubClient, comptime T: type, request: types.EthereumRequest(
     return parsed.result;
 }
 
-fn fetchCall(self: PubClient, comptime T: type, call_object: transaction.EthCall, opts: block.BlockNumberRequest, method: types.EthereumRpcMethods) !T {
-    const tag: block.BalanceRequest = opts.tag orelse .latest;
+fn fetchCall(self: *PubClient, comptime T: type, call_object: transaction.EthCall, opts: block.BlockNumberRequest, method: types.EthereumRpcMethods) !T {
+    const tag: block.BalanceBlockTag = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
+    const call: transaction.EthCallHexed = call: {
+        switch (call_object) {
+            .eip1559 => |tx| {
+                const eip1559_call: transaction.EthCallEip1559Hexed = .{
+                    .value = if (tx.value) |value| try std.fmt.allocPrint(self.alloc, "0x{x}", .{value}) else null,
+                    .gas = if (tx.gas) |gas| try std.fmt.allocPrint(self.alloc, "0x{x}", .{gas}) else null,
+                    .maxFeePerGas = if (tx.maxFeePerGas) |fees| try std.fmt.allocPrint(self.alloc, "0x{x}", .{fees}) else null,
+                    .maxPriorityFeePerGas = if (tx.maxPriorityFeePerGas) |max_fees| try std.fmt.allocPrint(self.alloc, "0x{x}", .{max_fees}) else null,
+                    .from = tx.from,
+                    .to = tx.to,
+                    .data = tx.data,
+                };
 
-    const Params = std.meta.Tuple(&[_]type{ transaction.EthCall, types.Hex });
-    const request: types.EthereumRequest(Params) = .{ .params = &.{ call_object, block_number }, .method = method, .id = self.chain_id };
+                break :call .{ .eip1559 = eip1559_call };
+            },
+            .legacy => |tx| {
+                const legacy_call: transaction.EthCallLegacyHexed = .{
+                    .value = if (tx.value) |value| try std.fmt.allocPrint(self.alloc, "0x{x}", .{value}) else null,
+                    .gasPrice = if (tx.gasPrice) |gas_price| try std.fmt.allocPrint(self.alloc, "0x{x}", .{gas_price}) else null,
+                    .gas = if (tx.gas) |gas| try std.fmt.allocPrint(self.alloc, "0x{x}", .{gas}) else null,
+                    .from = tx.from,
+                    .to = tx.to,
+                    .data = tx.data,
+                };
+
+                break :call .{ .legacy = legacy_call };
+            },
+        }
+    };
+
+    const Params = std.meta.Tuple(&[_]type{ transaction.EthCallHexed, types.Hex });
+    const request: types.EthereumRequest(Params) = .{ .params = .{ call, block_number }, .method = method, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
     const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
@@ -648,4 +676,41 @@ test "getTransactionByBlockHashAndIndex" {
 
     const tx = try pub_client.getTransactionByBlockHashAndIndex("0xf34c3c11b35466e5595e077239e6b25a7c3ec07a214b2492d42ba6d73d503a1b", 0);
     try testing.expect(tx == .eip1559);
+}
+
+test "getAddressTransactionCount" {
+    if (true) return error.SkipZigTest;
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const nonce = try pub_client.getAddressTransactionCount(.{ .address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" });
+    try testing.expectEqual(nonce, 605);
+}
+
+test "estimateGas" {
+    if (true) return error.SkipZigTest;
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const gas = try pub_client.estimateGas(.{ .eip1559 = .{ .from = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1) } }, .{});
+    try testing.expect(gas != 0);
+}
+
+test "estimateFeesPerGas" {
+    if (true) return error.SkipZigTest;
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const gas = try pub_client.estimateFeesPerGas(.{ .eip1559 = .{ .from = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1) } }, null);
+    try testing.expect(gas.eip1559.max_fee_gas != 0);
+    try testing.expect(gas.eip1559.max_priority_fee != 0);
+}
+
+test "estimateMaxFeePerGasManual" {
+    if (true) return error.SkipZigTest;
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const gas = try pub_client.estimateMaxFeePerGasManual(null);
+    try testing.expect(gas != 0);
 }

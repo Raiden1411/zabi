@@ -70,8 +70,8 @@ pub const PrepareEnvelope = union(enum) {
     legacy: PrepareEnvelopeLegacy,
 };
 
-pub const PrepareEnvelopeEip1559 = meta.ToOptionalStructAndUnionMembers(TransactionObjectEip1559);
-pub const PrepareEnvelopeEip2930 = meta.ToOptionalStructAndUnionMembers(TransactionObjectEip2930);
+pub const PrepareEnvelopeEip1559 = meta.ToOptionalStructAndUnionMembers(TransactionEnvelopeEip1559);
+pub const PrepareEnvelopeEip2930 = meta.ToOptionalStructAndUnionMembers(TransactionEnvelopeEip2930);
 pub const PrepareEnvelopeLegacy = meta.ToOptionalStructAndUnionMembers(TransactionEnvelopeLegacy);
 
 pub const TransactionObjectEip1559 = struct {
@@ -219,31 +219,61 @@ pub const TransactionReceipt = union(enum) {
 };
 
 pub const EthCallEip1559 = struct {
-    from: ?types.Hex,
-    maxPriorityFeePerGas: ?types.Gwei,
-    maxFeePerGas: ?types.Gwei,
-    gas: ?types.Gwei,
-    to: ?types.Hex,
-    value: ?types.Wei,
-    data: ?types.Hex,
+    from: ?types.Hex = null,
+    maxPriorityFeePerGas: ?types.Gwei = null,
+    maxFeePerGas: ?types.Gwei = null,
+    gas: ?types.Gwei = null,
+    to: ?types.Hex = null,
+    value: ?types.Wei = null,
+    data: ?types.Hex = null,
 
     pub usingnamespace meta.RequestParser(@This());
 };
 
 pub const EthCallLegacy = struct {
-    from: ?types.Hex,
-    gasPrice: ?types.Gwei,
-    gas: ?types.Gwei,
-    to: ?types.Hex,
-    value: ?types.Wei,
-    data: ?types.Hex,
+    from: ?types.Hex = null,
+    gasPrice: ?types.Gwei = null,
+    gas: ?types.Gwei = null,
+    to: ?types.Hex = null,
+    value: ?types.Wei = null,
+    data: ?types.Hex = null,
 
     pub usingnamespace meta.RequestParser(@This());
 };
 
-pub const EthCall = struct {
+pub const EthCall = union(enum) {
     eip1559: EthCallEip1559,
     legacy: EthCallLegacy,
+
+    pub usingnamespace meta.UnionParser(@This());
+};
+
+pub const EthCallEip1559Hexed = struct {
+    from: ?types.Hex = null,
+    maxPriorityFeePerGas: ?types.Hex = null,
+    maxFeePerGas: ?types.Hex = null,
+    gas: ?types.Hex = null,
+    to: ?types.Hex = null,
+    value: ?types.Hex = null,
+    data: ?types.Hex = null,
+
+    pub usingnamespace meta.RequestParser(@This());
+};
+
+pub const EthCallLegacyHexed = struct {
+    from: ?types.Hex = null,
+    gasPrice: ?types.Hex = null,
+    gas: ?types.Hex = null,
+    to: ?types.Hex = null,
+    value: ?types.Hex = null,
+    data: ?types.Hex = null,
+
+    pub usingnamespace meta.RequestParser(@This());
+};
+
+pub const EthCallHexed = union(enum) {
+    eip1559: EthCallEip1559Hexed,
+    legacy: EthCallLegacyHexed,
 
     pub usingnamespace meta.UnionParser(@This());
 };

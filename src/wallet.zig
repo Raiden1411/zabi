@@ -4,8 +4,9 @@ const testing = std.testing;
 const transaction = @import("meta/transaction.zig");
 const types = @import("meta/ethereum.zig");
 const utils = @import("utils.zig");
-const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
+const Anvil = @import("tests/anvil.zig");
+const ArenaAllocator = std.heap.ArenaAllocator;
 const Chains = types.PublicChains;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const PubClient = @import("client.zig");
@@ -130,7 +131,7 @@ pub fn prepareTransaction(self: *Wallet, unprepared_envelope: transaction.Prepar
             }
 
             if (tx.gas == null) {
-                request.gas = try self.pub_client.estimateGas(.{ .legacy = request }, .{});
+                request.gas = try self.pub_client.estimateGas(.{ .eip1559 = request }, .{});
             }
 
             return .{ .eip1559 = .{ .chainId = chain_id, .nonce = nonce, .gas = request.gas.?, .maxFeePerGas = request.maxFeePerGas.?, .maxPriorityFeePerGas = request.maxPriorityFeePerGas.?, .data = request.data, .to = request.to, .value = request.value.?, .accessList = accessList } };
@@ -247,7 +248,13 @@ test "signMessage" {
 }
 
 test "sendTransaction" {
-    if (true) return error.SkipZigTest;
+    // if (true) return error.SkipZigTest;
+    var anvil: Anvil = undefined;
+    defer anvil.deinit();
+
+    try anvil.init(std.testing.allocator, 2_000);
+    try anvil.waitUntilReady();
+
     var wallet = try Wallet.init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .ethereum);
     defer wallet.deinit();
 

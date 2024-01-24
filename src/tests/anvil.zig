@@ -73,22 +73,6 @@ pub fn start(self: *Anvil) !void {
     self.result = result;
 }
 
-/// Use this to connect to the spawned anvil instance.
-pub fn connectToAnvil(self: *Anvil) !void {
-    var retry: u32 = 0;
-    while (true) {
-        if (retry > self.retry_count) break;
-
-        self.stream = std.net.tcpConnectToHost(self.alloc, "wss://eth-mainnet.g.alchemy.com/v2/EYebpRd8FEJ0WYXQ3Afl6O85T8vo6XvO", 36596) catch {
-            std.time.sleep(self.pooling_interval * std.time.ns_per_ms);
-            retry += 1;
-            continue;
-        };
-
-        return;
-    }
-}
-
 /// Connects and disconnets on success. Usefull for the test runner so that we block the main thread until we are ready.
 pub fn waitUntilReady(alloc: std.mem.Allocator, pooling_interval: u64) !void {
     var retry: u32 = 0;

@@ -36,7 +36,7 @@ result: std.ChildProcess,
 /// Retry count for failed connections to anvil. The process takes some ms to start so this is necessary
 retry_count: u8,
 /// The theared that gets spawn on init for the ChildProcess so that we don't block the main thread.
-// thread: std.Thread,
+thread: std.Thread,
 
 pub fn init(self: *Anvil, opts: StartUpOptions) !void {
     self.* = .{

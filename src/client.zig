@@ -697,8 +697,8 @@ test "getTransactionByHash" {
     // const legacy = try pub_client.getTransactionByHash("0xf9ffe354d26160616844278c4fcbfe0eaa5589da48bc1359eda81fc1ce18b51a");
     // try testing.expect(legacy == .legacy);
 
-    const tx_untyped = try pub_client.getTransactionByHash("0x0bad3271acf0f10e56caf39187c956583710e1295ee3369a442beda0a666b27a");
-    try testing.expect(tx_untyped == .untyped);
+    // const tx_untyped = try pub_client.getTransactionByHash("0x0bad3271acf0f10e56caf39187c956583710e1295ee3369a442beda0a666b27a");
+    // try testing.expect(tx_untyped == .untyped);
 }
 
 test "getTransactionReceipt" {

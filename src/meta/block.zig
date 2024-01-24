@@ -81,8 +81,8 @@ pub const BlockAfterMerge = struct {
 };
 
 pub const Block = union(enum) {
-    blockMerge: BlockAfterMerge,
     block: BlockBeforeMerge,
+    blockMerge: BlockAfterMerge,
 
     pub usingnamespace meta.UnionParser(@This());
 };

@@ -555,6 +555,9 @@ test "GetBlock" {
     try testing.expect(block_info == .blockMerge);
     try testing.expectEqual(block_info.blockMerge.number.?, 19062632);
     try testing.expectEqualStrings(block_info.blockMerge.hash.?, "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
+
+    const block_old = try pub_client.getBlockByNumber(.{ .block_number = 696969 });
+    try testing.expect(block_old == .block);
 }
 
 test "GetBlockByHash" {
@@ -668,6 +671,32 @@ test "getAddressTransactionCount" {
 
     const nonce = try pub_client.getAddressTransactionCount(.{ .address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" });
     try testing.expectEqual(nonce, 605);
+}
+
+test "getTransactionByHash" {
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const eip1559 = try pub_client.getTransactionByHash("0x72c2a1a82c48da81fac7b434cdb5662b5c92b76f85565e062196ca8a84f43ee5");
+    try testing.expect(eip1559 == .eip1559);
+
+    const legacy = try pub_client.getTransactionByHash("0xf9ffe354d26160616844278c4fcbfe0eaa5589da48bc1359eda81fc1ce18b51a");
+    try testing.expect(legacy == .legacy);
+
+    const tx_untyped = try pub_client.getTransactionByHash("0x0bad3271acf0f10e56caf39187c956583710e1295ee3369a442beda0a666b27a");
+    try testing.expect(tx_untyped == .untyped);
+}
+
+test "getTransactionReceipt" {
+    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    defer pub_client.deinit();
+
+    const receipt = try pub_client.getTransactionReceipt("0x72c2a1a82c48da81fac7b434cdb5662b5c92b76f85565e062196ca8a84f43ee5");
+    try testing.expect(receipt.status != null);
+
+    // Pre-Byzantium
+    const legacy = try pub_client.getTransactionReceipt("0x4dadc87da2b7c47125fb7e4102d95457830e44d2fbcd45537d91f8be1e5f6130");
+    try testing.expect(legacy.root != null);
 }
 
 test "estimateGas" {

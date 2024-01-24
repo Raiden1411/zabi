@@ -15,14 +15,16 @@ const Signature = @import("secp256k1").Signature;
 
 const Wallet = @This();
 
+/// Allocator used by the wallet implementation
 alloc: Allocator,
-
+/// Arena used to manage allocated memory
 arena: *ArenaAllocator,
-
+/// Http client used to make request. Supports almost all rpc methods.
 pub_client: *PubClient,
-
+/// Signer that will sign transactions or ethereum messages.
 signer: Signer,
 
+/// Init wallet instance. Must call `deinit` to clean up.
 pub fn init(alloc: Allocator, private_key: []const u8, url: []const u8, chain_id: ?Chains) !*Wallet {
     var wallet = try alloc.create(Wallet);
     errdefer alloc.destroy(wallet);
@@ -42,6 +44,7 @@ pub fn init(alloc: Allocator, private_key: []const u8, url: []const u8, chain_id
     return wallet;
 }
 
+/// Inits wallet from a random generated priv key. Must call `deinit` after.
 pub fn initFromRandomKey(alloc: Allocator, url: []const u8, chain_id: ?Chains) !*Wallet {
     var wallet = try alloc.create(Wallet);
     errdefer alloc.destroy(wallet);
@@ -71,10 +74,13 @@ pub fn deinit(self: *Wallet) void {
     allocator.destroy(self);
 }
 
+/// Signs a ethereum message with the specified prefix.
 pub fn signEthereumMessage(self: *Wallet, alloc: Allocator, message: []const u8) !Signature {
     return try self.signer.signMessage(alloc, message);
 }
 
+/// Get the wallet address.
+/// By calling `deinit` memory will be cleaned.
 pub fn getWalletAddress(self: *Wallet) ![]u8 {
     const address = try self.signer.getAddressFromPublicKey();
 
@@ -100,12 +106,14 @@ pub fn getWalletAddress(self: *Wallet) ![]u8 {
     return checksum;
 }
 
+/// Verifies if a given signature was signed by the current wallet.
 pub fn verifyMessage(self: *Wallet, sig: Signature, message: []const u8) bool {
     var hash_buffer: [Keccak256.digest_length]u8 = undefined;
     Keccak256.hash(message, &hash_buffer, .{});
     return self.signer.verifyMessage(sig, hash_buffer);
 }
 
+/// Prepares a transaction so that it can be sent through the network.
 pub fn prepareTransaction(self: *Wallet, unprepared_envelope: transaction.PrepareEnvelope) !transaction.TransactionEnvelope {
     const address = try self.getWalletAddress();
 
@@ -178,6 +186,7 @@ pub fn prepareTransaction(self: *Wallet, unprepared_envelope: transaction.Prepar
     }
 }
 
+/// Asserts that the transactions is ready to be sent.
 pub fn assertTransaction(self: *Wallet, tx: transaction.TransactionEnvelope) !void {
     switch (tx) {
         .eip1559 => |tx_eip1559| {
@@ -196,6 +205,7 @@ pub fn assertTransaction(self: *Wallet, tx: transaction.TransactionEnvelope) !vo
     }
 }
 
+/// Signs, serializes and send the transaction via `eth_sendRawTransaction`.
 pub fn sendSignedTransaction(self: *Wallet, tx: transaction.TransactionEnvelope) !types.Hex {
     const serialized = try serialize.serializeTransaction(self.alloc, tx, null);
 
@@ -210,6 +220,7 @@ pub fn sendSignedTransaction(self: *Wallet, tx: transaction.TransactionEnvelope)
     return self.pub_client.sendRawTransaction(hex);
 }
 
+/// Prepares, asserts, signs and send the transaction via `eth_sendRawTransaction`.
 pub fn sendTransaction(self: *Wallet, unprepared_envelope: transaction.PrepareEnvelope) !types.Hex {
     const prepared = try self.prepareTransaction(unprepared_envelope);
 

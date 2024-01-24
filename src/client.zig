@@ -30,6 +30,8 @@ errors: std.ArrayListUnmanaged(types.ErrorResponse) = .{},
 
 const PubClient = @This();
 
+/// Init the client instance. Caller must call `deinit` to free the memory.
+/// Most of the client method are replicas of the JSON RPC methods name with the `eth_` start.
 pub fn init(alloc: Allocator, url: []const u8, chain_id: ?Chains) !*PubClient {
     var pub_client = try alloc.create(PubClient);
     errdefer alloc.destroy(pub_client);
@@ -72,6 +74,7 @@ pub fn deinit(self: *PubClient) void {
     allocator.destroy(self);
 }
 
+/// Estimate maxPriorityFeePerGas and maxFeePerGas. Will make more than one network request.
 pub fn estimateFeesPerGas(self: *PubClient, call_object: transaction.EthCall, know_block: ?block.Block) !transaction.EstimateFeeReturn {
     const current_block = know_block orelse try self.getBlockByNumber(.{});
 
@@ -95,10 +98,13 @@ pub fn estimateFeesPerGas(self: *PubClient, call_object: transaction.EthCall, kn
     }
 }
 
+/// Calls `eth_estimateGas` with the call object.
 pub fn estimateGas(self: *PubClient, call_object: transaction.EthCall, opts: block.BlockNumberRequest) !types.Gwei {
     return self.fetchCall(types.Gwei, call_object, opts, .eth_estimateGas);
 }
 
+/// Estimates maxPriorityFeePerGas manually. If the node you are currently using
+/// supports `eth_maxPriorityFeePerGas` consider using `estimateMaxFeePerGas`.
 pub fn estimateMaxFeePerGasManual(self: *PubClient, know_block: ?block.Block) !types.Gwei {
     const current_block = know_block orelse try self.getBlockByNumber(.{});
     const gas_price = try self.getGasPrice();
@@ -118,6 +124,7 @@ pub fn estimateMaxFeePerGasManual(self: *PubClient, know_block: ?block.Block) !t
     }
 }
 
+/// Only use this if the node you are currently using supports `eth_maxPriorityFeePerGas`.
 pub fn estimateMaxFeePerGas(self: *PubClient) !types.Gwei {
     return self.fetchWithEmptyArgs(types.Gwei, .eth_maxPriorityFeePerGas);
 }
@@ -293,10 +300,13 @@ pub fn newPendingTransactionFilter(self: *PubClient) !usize {
     return self.fetchWithEmptyArgs(usize, .eth_newPendingTransactionFilter);
 }
 
+/// Call object must be prefilled before hand. Including the data field.
+/// This will just the request to the network.
 pub fn sendEthCall(self: *PubClient, call_object: transaction.EthCall, opts: block.BlockNumberRequest) !types.Hex {
     return self.fetchCall(types.Hex, call_object, opts);
 }
 
+/// Transaction must be serialized and signed before hand.
 pub fn sendRawTransaction(self: *PubClient, serialized_hex_tx: types.Hex) !types.Hex {
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{serialized_hex_tx}, .method = .eth_sendRawTransaction, .id = self.chain_id };
 
@@ -323,13 +333,15 @@ pub fn uninstalllFilter(self: *PubClient, id: usize) !bool {
     return parsed.result;
 }
 
-pub fn switchChainId(self: *PubClient, new_chain_id: usize, new_url: []const u8) void {
-    self.chain_id = new_chain_id;
+/// Switch the client network and chainId.
+pub fn switchNetwork(self: *PubClient, new_chain_id: Chains, new_url: []const u8) void {
+    self.chain_id = @intFromEnum(new_chain_id);
 
     const uri = try Uri.parse(new_url);
     self.uri = uri;
 }
 
+/// Prints the last error message that was tracked.
 pub fn printLastRpcError(self: *PubClient) !void {
     const writer = std.io.getStdErr().writer();
     const last = self.errors.getLast();
@@ -338,6 +350,7 @@ pub fn printLastRpcError(self: *PubClient) !void {
     try writer.print("Error message: {s}\n", .{last.message});
 }
 
+/// Prints all tracked error messages.
 pub fn printAllRpcErrors(self: *PubClient) !void {
     const writer = std.io.getStdErr().writer();
     const errors = self.errors.items;

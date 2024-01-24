@@ -8,6 +8,9 @@ const utils = @import("utils.zig");
 const Allocator = std.mem.Allocator;
 const Tuple = std.meta.Tuple;
 
+/// Main function to serialize transactions.
+/// Support all 3 main transaction envelopes.
+/// Caller ownes the memory
 pub fn serializeTransaction(alloc: Allocator, tx: transaction.TransactionEnvelope, sig: ?signer.Signature) ![]u8 {
     return switch (tx) {
         .eip1559 => |val| try serializeTransactionEIP1559(alloc, val, sig),
@@ -16,6 +19,8 @@ pub fn serializeTransaction(alloc: Allocator, tx: transaction.TransactionEnvelop
     };
 }
 
+/// Function to serialize eip1559 transactions.
+/// Caller ownes the memory
 pub fn serializeTransactionEIP1559(alloc: Allocator, tx: transaction.TransactionEnvelopeEip1559, sig: ?signer.Signature) ![]u8 {
     if (tx.type != 2) return error.InvalidTransactionType;
 
@@ -39,6 +44,8 @@ pub fn serializeTransactionEIP1559(alloc: Allocator, tx: transaction.Transaction
     return try std.mem.concat(alloc, u8, &.{ &.{tx.type}, encoded });
 }
 
+/// Function to serialize eip2930 transactions.
+/// Caller ownes the memory
 pub fn serializeTransactionEIP2930(alloc: Allocator, tx: transaction.TransactionEnvelopeEip2930, sig: ?signer.Signature) ![]u8 {
     if (tx.type != 1) return error.InvalidTransactionType;
 
@@ -62,6 +69,8 @@ pub fn serializeTransactionEIP2930(alloc: Allocator, tx: transaction.Transaction
     return try std.mem.concat(alloc, u8, &.{ &.{tx.type}, encoded });
 }
 
+/// Function to serialize legacy transactions.
+/// Caller ownes the memory
 pub fn serializeTransactionLegacy(alloc: Allocator, tx: transaction.TransactionEnvelopeLegacy, sig: ?signer.Signature) ![]u8 {
     if (tx.type != 0) return error.InvalidTransactionType;
 

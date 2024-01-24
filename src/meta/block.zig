@@ -16,8 +16,8 @@ pub const BalanceRequest = struct { address: types.Hex, block_number: ?u64 = nul
 pub const BlockNumberRequest = struct { block_number: ?u64 = null, tag: ?BalanceBlockTag = .latest };
 
 pub const Withdrawal = struct {
-    index: usize,
-    validatorIndex: usize,
+    index: u64,
+    validatorIndex: u64,
     address: types.Hex,
     amount: types.Wei,
 
@@ -32,20 +32,20 @@ pub const BlockBeforeMerge = struct {
     stateRoot: types.Hex,
     transactionsRoot: types.Hex,
     receiptsRoot: types.Hex,
-    number: ?types.Hex,
+    number: ?types.Gwei,
     gasUsed: types.Gwei,
     gasLimit: types.Gwei,
     extraData: types.Hex,
     logsBloom: ?types.Hex,
     timestamp: u64,
-    difficulty: usize,
-    totalDifficulty: ?usize,
+    difficulty: u64,
+    totalDifficulty: ?types.Wei,
     sealFields: []const types.Hex,
     uncles: []const types.Hex,
     transactions: []const types.Hex,
-    size: usize,
+    size: u64,
     mixHash: types.Hex,
-    nonce: ?usize,
+    nonce: ?types.Gwei,
     baseFeePerGas: ?types.Gwei,
 
     pub usingnamespace meta.RequestParser(@This());
@@ -59,20 +59,20 @@ pub const BlockAfterMerge = struct {
     stateRoot: types.Hex,
     transactionsRoot: types.Hex,
     receiptsRoot: types.Hex,
-    number: ?types.Hex,
+    number: ?types.Gwei,
     gasUsed: types.Gwei,
     gasLimit: types.Gwei,
     extraData: types.Hex,
     logsBloom: ?types.Hex,
     timestamp: u64,
-    difficulty: usize,
-    totalDifficulty: ?usize,
+    difficulty: u64,
+    totalDifficulty: ?types.Wei,
     sealFields: []const types.Hex,
     uncles: []const types.Hex,
     transactions: []const types.Hex,
-    size: usize,
+    size: u64,
     mixHash: types.Hex,
-    nonce: ?usize,
+    nonce: ?types.Gwei,
     baseFeePerGas: ?types.Gwei,
     withdrawalsRoot: types.Hex,
     withdrawals: []const Withdrawal,
@@ -81,8 +81,8 @@ pub const BlockAfterMerge = struct {
 };
 
 pub const Block = union(enum) {
-    blockMerge: BlockAfterMerge,
     block: BlockBeforeMerge,
+    blockMerge: BlockAfterMerge,
 
     pub usingnamespace meta.UnionParser(@This());
 };

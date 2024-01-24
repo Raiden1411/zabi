@@ -6,6 +6,9 @@ pub const RlpEncodeErrors = error{ NegativeNumber, Overflow } || Allocator.Error
 
 pub const RlpDecodeErrors = error{ UnexpectedValue, InvalidEnumTag } || Allocator.Error || std.fmt.ParseIntError;
 
+/// RLP Encoding. Items is expected to be a tuple of values.
+/// Compilation will fail if you pass in any other type.
+/// Caller owns the memory so it must be freed.
 pub fn encodeRlp(alloc: Allocator, items: anytype) ![]u8 {
     const info = @typeInfo(@TypeOf(items));
 
@@ -613,6 +616,7 @@ test "Optionals" {
 
 // Decode RLP
 
+/// RLP decoding. Encoded string must follow the RLP specs.
 pub fn decodeRlp(alloc: Allocator, comptime T: type, encoded: []const u8) !T {
     const decoded = try decodeItem(alloc, T, encoded, 0);
 
@@ -643,19 +647,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
             const slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
             defer alloc.free(slice);
 
-            if (info.Int.signedness == .signed) {
-                const parsed = std.fmt.parseInt(T, slice, 16) catch |err| {
-                    switch (err) {
-                        error.Overflow => {
-                            const parsedUnsigned = try std.fmt.parseInt(u256, slice, 16);
-                            const negative = std.math.cast(T, (std.math.maxInt(u256) - parsedUnsigned) + 1) orelse return err;
-                            return .{ .consumed = len + 1, .data = -negative };
-                        },
-                        inline else => return err,
-                    }
-                };
-                return .{ .consumed = len + 1, .data = parsed };
-            }
+            if (info.Int.signedness == .signed) @compileError("Signed integers are not supported for RLP decoding");
             return .{ .consumed = len + 1, .data = try std.fmt.parseInt(T, slice, 16) };
         },
         .Optional => |opt_info| {
@@ -858,7 +850,7 @@ test "Decoded bool" {
 test "Decoded Int" {
     const low = try encodeRlp(testing.allocator, .{127});
     defer testing.allocator.free(low);
-    const decoded_low = try decodeRlp(testing.allocator, i8, low);
+    const decoded_low = try decodeRlp(testing.allocator, u8, low);
 
     try testing.expectEqual(127, decoded_low);
 
@@ -1019,7 +1011,7 @@ test "Decoded Optionals" {
 }
 
 test "Decoded Structs" {
-    const Simple = struct { one: bool = true, two: i8 = 69, three: []const u8 = "foobar" };
+    const Simple = struct { one: bool = true, two: u8 = 69, three: []const u8 = "foobar" };
     const ex: Simple = .{};
     const encoded = try encodeRlp(testing.allocator, .{ex});
     defer testing.allocator.free(encoded);
@@ -1029,7 +1021,7 @@ test "Decoded Structs" {
     try testing.expectEqual(ex.two, decoded.two);
     try testing.expectEqualStrings(ex.three, decoded.three);
 
-    const Nested = struct { one: bool = true, two: i8 = 69, three: []const u8 = "foobar", four: struct { five: u8 = 14 } = .{} };
+    const Nested = struct { one: bool = true, two: u8 = 69, three: []const u8 = "foobar", four: struct { five: u8 = 14 } = .{} };
     const nested_ex: Nested = .{};
     const encoded_nest = try encodeRlp(testing.allocator, .{nested_ex});
     defer testing.allocator.free(encoded_nest);
@@ -1042,17 +1034,17 @@ test "Decoded Structs" {
 }
 
 test "Decoded Tuples" {
-    const one: std.meta.Tuple(&[_]type{i8}) = .{127};
+    const one: std.meta.Tuple(&[_]type{u8}) = .{127};
     const encoded = try encodeRlp(testing.allocator, .{one});
     defer testing.allocator.free(encoded);
-    const decoded = try decodeRlp(testing.allocator, std.meta.Tuple(&[_]type{i8}), encoded);
+    const decoded = try decodeRlp(testing.allocator, std.meta.Tuple(&[_]type{u8}), encoded);
 
     try testing.expectEqual(one, decoded);
 
-    const multi: std.meta.Tuple(&[_]type{ i8, bool, []const u8 }) = .{ 127, false, "foobar" };
+    const multi: std.meta.Tuple(&[_]type{ u8, bool, []const u8 }) = .{ 127, false, "foobar" };
     const enc_multi = try encodeRlp(testing.allocator, .{multi});
     defer testing.allocator.free(enc_multi);
-    const decoded_multi = try decodeRlp(testing.allocator, std.meta.Tuple(&[_]type{ i8, bool, []const u8 }), enc_multi);
+    const decoded_multi = try decodeRlp(testing.allocator, std.meta.Tuple(&[_]type{ u8, bool, []const u8 }), enc_multi);
 
     try testing.expectEqual(multi[0], decoded_multi[0]);
     try testing.expectEqual(multi[1], decoded_multi[1]);

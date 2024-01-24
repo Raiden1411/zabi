@@ -14,7 +14,7 @@ private_key: [Secp256k1.scalar.encoded_length]u8,
 // Public key in bytes
 public_key: [PublicKeyLength]u8,
 
-const Signer = @This();
+pub const Signer = @This();
 
 pub fn init(key: []const u8) !Signer {
     const context = c.secp256k1_context_create(c.SECP256K1_CONTEXT_SIGN | c.SECP256K1_CONTEXT_VERIFY) orelse return error.FailedToInitializeContext;
@@ -94,27 +94,67 @@ pub fn sign(self: Signer, message_hash: [32]u8) !Signature {
     return .{ .r = sig[0..32].*, .s = sig[32..64].*, .v = @intCast(rec_id) };
 }
 
-pub fn recoverPublicKey(self: Signer, message_hash: [32]u8, signature: Signature) ![PublicKeyLength]u8 {
+pub fn recoverPublicKey(message_hash: [32]u8, signature: Signature) ![PublicKeyLength]u8 {
     if (signature.v >= 4)
         return error.InvalidRecoveryId;
 
+    const context = c.secp256k1_context_create(c.SECP256K1_CONTEXT_SIGN | c.SECP256K1_CONTEXT_VERIFY) orelse return error.FailedToInitializeContext;
+    errdefer c.secp256k1_context_destroy(context);
+
     var public_key: [PublicKeyLength]u8 = undefined;
-    var signed: [65]u8 = undefined;
-    @memcpy(signed[0..32], signature.r[0..]);
-    @memcpy(signed[32..64], signature.s[0..]);
-    signed[64] = signature.v;
+    var sig_bytes = signature.toBytes();
 
-    var struct_pub: c.secp256k1_pubkey = .{ .data = public_key[1..].* };
+    var struct_pub: c.secp256k1_pubkey = undefined;
+    var sig_rec: c.secp256k1_ecdsa_recoverable_signature = undefined;
 
-    if (c.secp256k1_ecdsa_recover(self.context, &struct_pub, &.{ .data = signed }, &message_hash) == 0)
+    if (c.secp256k1_ecdsa_recoverable_signature_parse_compact(context, &sig_rec, sig_bytes[0..64], sig_bytes[64]) == 0)
+        return error.FailedToRecoverSignature;
+
+    if (c.secp256k1_ecdsa_recover(context, &struct_pub, &sig_rec, &message_hash) == 0)
         return error.FailedToRecoverPublicKey;
+
+    if (c.secp256k1_ec_pubkey_serialize(context, &public_key, 65, &struct_pub, c.SECP256K1_EC_UNCOMPRESSED) == 0)
+        return error.FailedToSerializePubKey;
 
     public_key[0] = 4;
 
     return public_key;
 }
 
-pub fn signMessage(alloc: Allocator, self: Signer, message: []const u8) !Signature {
+pub fn recoverEthereumAddress(message_hash: [32]u8, signature: Signature) ![40]u8 {
+    const pub_key = recoverPublicKey(message_hash, signature);
+
+    var hash: [32]u8 = undefined;
+    std.crypto.hash.sha3.Keccak256.hash(pub_key, &hash, .{});
+
+    const hex_address_lower = std.fmt.bytesToHex(hash[12..].*, .lower);
+
+    var hashed: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(hex_address_lower[0..], &hashed, .{});
+    const hex = std.fmt.bytesToHex(hashed, .lower);
+
+    const checksum: [40]u8 = undefined;
+    for (checksum, 0..) |*ch, i| {
+        const char = hex_address_lower[i];
+
+        if (try std.fmt.charToDigit(hex[i], 16) > 7) {
+            ch.* = std.ascii.toUpper(char);
+        } else {
+            ch.* = char;
+        }
+    }
+
+    return checksum;
+}
+
+pub fn recoverMessageAddress(message: []const u8, signature: Signature) ![40]u8 {
+    var hashed: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(message, &hashed, .{});
+
+    return recoverEthereumAddress(hashed, signature);
+}
+
+pub fn signMessage(self: Signer, alloc: Allocator, message: []const u8) !Signature {
     const start = "\x19Ethereum Signed Message:\n";
     const len = try std.fmt.allocPrint(alloc, "{d}", .{message.len});
     defer alloc.free(len);
@@ -129,7 +169,16 @@ pub fn signMessage(alloc: Allocator, self: Signer, message: []const u8) !Signatu
 }
 
 pub fn verifyMessage(self: Signer, sig: Signature, message_hash: [32]u8) bool {
-    var sig_bytes = sig.signatureToBytes();
+    var sig_bytes = sig.toBytes();
 
-    return c.secp256k1_ecdsa_verify(self.context, &.{ .data = sig_bytes[0..64].* }, &message_hash, &.{ .data = self.public_key[1..].* }) == 1;
+    var struct_pub: c.secp256k1_pubkey = undefined;
+    var sig_rec: c.secp256k1_ecdsa_signature = undefined;
+
+    if (c.secp256k1_ecdsa_signature_parse_compact(self.context, &sig_rec, sig_bytes[0..64]) == 0)
+        return false;
+
+    if (c.secp256k1_ec_pubkey_parse(self.context, &struct_pub, &self.public_key, 65) == 0)
+        return false;
+
+    return c.secp256k1_ecdsa_verify(self.context, &sig_rec, &message_hash, &struct_pub) == 1;
 }

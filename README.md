@@ -174,7 +174,86 @@ try testInnerValues(.{"foo"}, decoded.values);
 try testing.expectEqualStrings("0x4ec7c7ae", decoded.name);
 ```
 
-These are just some of the things that zabi can do. We also have some meta programing functions for you to use as well as some other utilites functions that might be usefull for your development journey.
+### RLP Encoding and Decoding
+
+Zabi now support RLP encoding and decoding. Bellow are examples on how to encode or decode.
+
+#### RLP ENCODE:
+```zig
+const one: std.meta.Tuple(&[_]type{i8}) = .{127};
+const encoded = try encodeRlp(testing.allocator, .{one});
+defer testing.allocator.free(encoded);
+
+try testing.expectEqualSlices(u8, encoded, &[_]u8{ 0xc1, 0x7f });
+
+const multi: std.meta.Tuple(&[_]type{ i8, bool, []const u8 }) = .{ 127, false, "foobar" };
+const enc_multi = try encodeRlp(testing.allocator, .{multi});
+defer testing.allocator.free(enc_multi);
+
+try testing.expectEqualSlices(u8, enc_multi, &[_]u8{ 0xc9, 0x7f, 0x80, 0x86 } ++ "foobar");
+
+const nested: std.meta.Tuple(&[_]type{[]const u64}) = .{&[_]u64{ 69, 420 }};
+const nested_enc = try encodeRlp(testing.allocator, .{nested});
+defer testing.allocator.free(nested_enc);
+
+try testing.expectEqualSlices(u8, nested_enc, &[_]u8{ 0xc5, 0xc4, 0x45, 0x82, 0x01, 0xa4 });
+```
+
+#### RLP DECODE:
+```zig
+const one: std.meta.Tuple(&[_]type{i8}) = .{127};
+const encoded = try encodeRlp(testing.allocator, .{one});
+defer testing.allocator.free(encoded);
+const decoded = try decodeRlp(testing.allocator, std.meta.Tuple(&[_]type{i8}), encoded);
+
+try testing.expectEqual(one, decoded);
+
+const multi: std.meta.Tuple(&[_]type{ i8, bool, []const u8 }) = .{ 127, false, "foobar" };
+const enc_multi = try encodeRlp(testing.allocator, .{multi});
+defer testing.allocator.free(enc_multi);
+const decoded_multi = try decodeRlp(testing.allocator, std.meta.Tuple(&[_]type{ i8, bool, []const u8 }), enc_multi);
+
+try testing.expectEqual(multi[0], decoded_multi[0]);
+try testing.expectEqual(multi[1], decoded_multi[1]);
+try testing.expectEqualStrings(multi[2], decoded_multi[2]);
+
+const nested: std.meta.Tuple(&[_]type{[]const u64}) = .{&[_]u64{ 69, 420 }};
+const nested_enc = try encodeRlp(testing.allocator, .{nested});
+defer testing.allocator.free(nested_enc);
+const decoded_nested = try decodeRlp(testing.allocator, std.meta.Tuple(&[_]type{[]const u64}), nested_enc);
+defer testing.allocator.free(decoded_nested[0]);
+
+try testing.expectEqualSlices(u64, nested[0], decoded_nested[0]);
+```
+
+### Public Client
+Zabi now commes with a http public client. It's fully capable of doing most Ethereum Json RPC request. It can also be used with a wallet instance so that you can also send transactions.
+
+```zig
+var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+defer pub_client.deinit();
+
+const block_info = try pub_client.getBlockByHash(.{ .block_hash = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8" });
+try testing.expect(block_info == .blockMerge);
+try testing.expectEqual(block_info.blockMerge.number.?, 19062632);
+```
+
+### Wallet
+Zabi also implements a wallet so that you can use to sign transactions/messages. It use the `libsecp256k1` C library to manage this. This is also exported via Zabi so that you can interact with it directly. With this you will gain access to the `Signer`, `Signature` and `CompactSignature` structs.
+
+```zig
+var wallet = try Wallet.init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .ethereum);
+defer wallet.deinit();
+
+var tx: transaction.PrepareEnvelope = .{ .eip1559 = undefined };
+tx.eip1559.type = 2;
+tx.eip1559.value = try utils.parseEth(1);
+tx.eip1559.to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+
+const tx_hash = try wallet.sendTransaction(tx);
+```
+
+These are just some of the things that zabi can do. We also have some meta programing functions for you to use as well as some other utilites functions that might be usefull for your development journey. All of this will be exposed once we have a docs website.
 
 ### Sponsors
 

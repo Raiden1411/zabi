@@ -9,7 +9,7 @@ const Extract = @import("../meta/meta.zig").Extract;
 const ParamType = @import("../param_type.zig").ParamType;
 const StateMutability = @import("../state_mutability.zig").StateMutability;
 const Lexer = @import("lexer.zig").Lexer;
-const Parser = @import("parser.zig");
+const Parser = @import("Parser.zig");
 
 pub fn AbiParsed(comptime T: type) type {
     return struct {

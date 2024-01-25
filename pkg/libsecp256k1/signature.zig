@@ -41,7 +41,7 @@ pub const Signature = struct {
         const v = rec_id: {
             if (signed[64] == 0 or signed[64] == 1) break :rec_id signed[64];
 
-            if (signed[64] == 27) break :rec_id 0 else 1;
+            if (signed[64] == 27) break :rec_id 0 else break :rec_id 1;
         };
         return .{ .r = signed[0..32], .s = signed[32..64], .v = v };
     }

@@ -17,16 +17,16 @@ pub const tokens = @import("human-readable/tokens.zig");
 pub const types = @import("meta/ethereum.zig");
 pub const utils = @import("utils.zig");
 
-pub const Anvil = @import("tests/anvil.zig");
-pub const Parser = @import("human-readable/parser.zig");
-pub const PubClient = @import("client.zig");
-pub const Wallet = @import("wallet.zig");
+pub const Anvil = @import("tests/Anvil.zig");
+pub const Parser = @import("human-readable/Parser.zig");
+pub const PubClient = @import("Client.zig");
+pub const Wallet = @import("Wallet.zig");
 
 test {
     const std = @import("std");
     try Anvil.waitUntilReady(std.testing.allocator, 2_000);
 
-    _ = @import("client.zig");
+    _ = @import("Client.zig");
     _ = @import("param_type.zig");
     _ = @import("abi_parameter.zig");
     _ = @import("abi.zig");
@@ -35,10 +35,10 @@ test {
     _ = @import("human-readable/abi_parsing.zig");
     _ = @import("encoder.zig");
     _ = @import("decoder.zig");
-    _ = @import("client.zig");
     _ = @import("rlp.zig");
     _ = @import("serialize.zig");
-    _ = @import("wallet.zig");
+    _ = @import("parse_transacition.zig");
+    _ = @import("Wallet.zig");
     _ = @import("utils.zig");
     _ = @import("meta/meta.zig");
 }

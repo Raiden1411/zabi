@@ -648,7 +648,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
             defer alloc.free(slice);
 
             if (info.Int.signedness == .signed) @compileError("Signed integers are not supported for RLP decoding");
-            return .{ .consumed = len + 1, .data = try std.fmt.parseInt(T, slice, 16) };
+            return .{ .consumed = len + 1, .data = if (slice.len != 0) try std.fmt.parseInt(T, slice, 16) else @intCast(0) };
         },
         .Optional => |opt_info| {
             if (encoded[position] == 0x80) return .{ .consumed = 1, .data = null };
@@ -718,7 +718,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
             var cur_pos = position + arr_len + 1;
             for (0..arr_info.len) |i| {
-                const decoded = try decodeItem(alloc, arr_info.child, encoded, cur_pos);
+                const decoded = try decodeItem(alloc, arr_info.child, encoded[cur_pos..], 0);
                 result[i] = decoded.data;
                 cur_pos += decoded.consumed;
             }
@@ -763,10 +763,10 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
                         var cur_pos = position + 1;
                         for (0..arr_len) |_| {
-                            const decoded = try decodeItem(alloc, ptr_info.child, encoded, cur_pos);
+                            if (cur_pos == encoded.len) break;
+                            const decoded = try decodeItem(alloc, ptr_info.child, encoded[cur_pos..], 0);
                             try result.append(decoded.data);
                             cur_pos += decoded.consumed;
-                            if (cur_pos == encoded.len) break;
                         }
 
                         return .{ .consumed = arr_len + 1, .data = try result.toOwnedSlice() };
@@ -784,10 +784,10 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
                     var cur_pos = position + arr_len + 1;
                     for (0..parsed_len) |_| {
-                        const decoded = try decodeItem(alloc, ptr_info.child, encoded, cur_pos);
+                        if (cur_pos >= encoded.len) break;
+                        const decoded = try decodeItem(alloc, ptr_info.child, encoded[cur_pos..], 0);
                         try result.append(decoded.data);
                         cur_pos += decoded.consumed;
-                        if (cur_pos == encoded.len) break;
                     }
 
                     return .{ .consumed = cur_pos, .data = try result.toOwnedSlice() };

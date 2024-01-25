@@ -6,14 +6,14 @@ const Keccak256 = std.crypto.hash.sha3.Keccak256;
 /// Converts ethereum address to checksum
 pub fn toChecksum(alloc: Allocator, address: []const u8) ![]u8 {
     var buf: [40]u8 = undefined;
-    const lower = std.ascii.lowerString(&buf, address);
+    const lower = std.ascii.lowerString(&buf, if (std.mem.startsWith(u8, address, "0x")) address[2..] else address);
 
     var hashed: [Keccak256.digest_length]u8 = undefined;
     Keccak256.hash(lower, &hashed, .{});
     const hex = std.fmt.bytesToHex(hashed, .lower);
 
-    const checksum = try alloc.alloc(u8, 40);
-    for (checksum, 0..) |*c, i| {
+    const checksum = try alloc.alloc(u8, 42);
+    for (checksum[2..], 0..) |*c, i| {
         const char = lower[i];
 
         if (try std.fmt.charToDigit(hex[i], 16) > 7) {
@@ -22,6 +22,8 @@ pub fn toChecksum(alloc: Allocator, address: []const u8) ![]u8 {
             c.* = char;
         }
     }
+
+    @memcpy(checksum[0..2], "0x");
 
     return checksum;
 }
@@ -35,7 +37,18 @@ pub fn isAddress(alloc: Allocator, addr: []const u8) !bool {
     const checksumed = try toChecksum(alloc, address);
     defer alloc.free(checksumed);
 
-    return std.mem.eql(u8, address, checksumed);
+    return std.mem.eql(u8, addr, checksumed);
+}
+
+pub fn isHexString(value: []const u8) bool {
+    for (value) |char| {
+        switch (char) {
+            '0'...'9', 'a'...'f', 'A'...'F' => continue,
+            else => return false,
+        }
+    }
+
+    return true;
 }
 
 /// Checks if the given hash is a valid 32 bytes hash

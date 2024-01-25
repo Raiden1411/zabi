@@ -216,7 +216,7 @@ fn decodeAddress(alloc: Allocator, hex: []u8, position: usize) !Decoded([]const 
     const slice = hex[position + 12 .. position + 32];
 
     const checksumed = try utils.toChecksum(alloc, try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(slice)}));
-    return .{ .consumed = 32, .data = try std.mem.concat(alloc, u8, &.{ "0x", checksumed }), .bytes_read = 32 };
+    return .{ .consumed = 32, .data = checksumed, .bytes_read = 32 };
 }
 
 fn decodeNumber(alloc: Allocator, comptime T: type, hex: []u8, position: usize) !Decoded(T) {

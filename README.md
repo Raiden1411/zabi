@@ -253,6 +253,25 @@ tx.eip1559.to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 const tx_hash = try wallet.sendTransaction(tx);
 ```
 
+### ParseTransaction
+Zabi can parse serialized ethereum transactions. Use `parseTransaction` for unsigned transactions or `parseSignedTransaction` for signed ones.
+
+```zig
+// Unsigned
+const parsed = try parseTransaction(testing.allocator, base);
+defer parsed.deinit();
+
+try testing.expectEqualDeep(tx, parsed.value.eip1559);
+
+// Signed
+const parsed = try parseSignedTransaction(testing.allocator, encoded);
+defer parsed.deinit();
+
+const tx_signed: transaction.TransactionEnvelopeEip1559Signed = .{ .chainId = 31337, .nonce = 0, .maxFeePerGas = try utils.parseGwei(2), .data = null, .maxPriorityFeePerGas = try utils.parseGwei(2), .gas = 21001, .value = try utils.parseEth(1), .accessList = &.{}, .to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", .v = 1, .r = "0xd4d68c02302962fa53289fda5616c9e19a9d63b3956d63d177097143b2093e3e", .s = "0x25e1dd76721b4fc48eb5e2f91bf9132699036deccd45b3fa9d77b1d9b7628fb2" };
+
+try testing.expectEqualDeep(tx_signed, parsed.value.eip1559);
+```
+
 These are just some of the things that zabi can do. We also have some meta programing functions for you to use as well as some other utilites functions that might be usefull for your development journey. All of this will be exposed once we have a docs website.
 
 ### Sponsors

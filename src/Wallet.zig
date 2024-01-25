@@ -5,11 +5,11 @@ const transaction = @import("meta/transaction.zig");
 const types = @import("meta/ethereum.zig");
 const utils = @import("utils.zig");
 const Allocator = std.mem.Allocator;
-const Anvil = @import("tests/anvil.zig");
+const Anvil = @import("tests/Anvil.zig");
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Chains = types.PublicChains;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
-const PubClient = @import("client.zig");
+const PubClient = @import("Client.zig");
 const Signer = @import("secp256k1").Signer;
 const Signature = @import("secp256k1").Signature;
 

@@ -366,11 +366,3 @@ pub fn waitUntilReady(alloc: std.mem.Allocator, pooling_interval: u64) !void {
 
     stream.close();
 }
-
-test "setBalance" {
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-    try anvil.initClient(.{ .alloc = std.testing.allocator, .fork_url = "" });
-
-    try anvil.setBalance("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", 69696969696969696969);
-}

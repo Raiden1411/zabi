@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  Handle, generate, encode and decode Solidity ABI's using Zig. (WIP Interface for Ethereum!)
+  Interact with ethereum via Zig!
 <p>
 
 <p align="center">

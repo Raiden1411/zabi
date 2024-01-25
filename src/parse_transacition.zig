@@ -21,6 +21,8 @@ pub fn ParsedTransaction(comptime T: type) type {
     };
 }
 
+/// Parses unsigned serialized transactions. Creates and arena to manage memory.
+/// Caller needs to call deinit to free memory.
 pub fn parseTransaction(alloc: Allocator, serialized: []const u8) !ParsedTransaction(transaction.TransactionEnvelope) {
     var parsed: ParsedTransaction(transaction.TransactionEnvelope) = .{ .arena = try alloc.create(ArenaAllocator), .value = undefined };
     errdefer alloc.destroy(parsed.arena);
@@ -34,6 +36,7 @@ pub fn parseTransaction(alloc: Allocator, serialized: []const u8) !ParsedTransac
     return parsed;
 }
 
+/// Parses unsigned serialized transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseTransactionLeaky(alloc: Allocator, serialized: []const u8) !transaction.TransactionEnvelope {
     const hexed = if (std.mem.startsWith(u8, serialized, "0x")) serialized[2..] else serialized;
 
@@ -56,6 +59,7 @@ pub fn parseTransactionLeaky(alloc: Allocator, serialized: []const u8) !transact
     return error.InvalidTransactionType;
 }
 
+/// Parses unsigned serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseEip1559Transaction(alloc: Allocator, serialized: []const u8) !transaction.TransactionEnvelopeEip1559 {
     if (serialized[0] != 2)
         return error.InvaliTransactionType;
@@ -68,6 +72,7 @@ pub fn parseEip1559Transaction(alloc: Allocator, serialized: []const u8) !transa
     return .{ .chainId = chainId, .nonce = nonce, .maxPriorityFeePerGas = max_priority, .maxFeePerGas = max_fee, .gas = gas, .to = addr, .value = value, .data = data_hex, .accessList = list };
 }
 
+/// Parses unsigned serialized eip2930 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseEip2930Transaction(alloc: Allocator, serialized: []const u8) !transaction.TransactionEnvelopeEip2930 {
     if (serialized[0] != 1)
         return error.InvaliTransactionType;
@@ -80,6 +85,7 @@ pub fn parseEip2930Transaction(alloc: Allocator, serialized: []const u8) !transa
     return .{ .chainId = chainId, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = addr, .value = value, .data = data_hex, .accessList = list };
 }
 
+/// Parses unsigned serialized legacy transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseLegacyTransaction(alloc: Allocator, serialized: []const u8) !transaction.TransactionEnvelopeLegacy {
     const nonce, const gas_price, const gas, const address, const value, const data = try rlp.decodeRlp(alloc, transaction.EnvelopeLegacy, serialized);
     const addr = if (address) |addy| try utils.toChecksum(alloc, try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(addy)})) else null;
@@ -88,6 +94,8 @@ pub fn parseLegacyTransaction(alloc: Allocator, serialized: []const u8) !transac
     return .{ .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = addr, .value = value, .data = data_hex };
 }
 
+/// Parses signed serialized transactions. Creates and arena to manage memory.
+/// Caller needs to call deinit to free memory.
 pub fn parseSignedTransaction(alloc: Allocator, serialized: []const u8) !ParsedTransaction(transaction.TransactionEnvelopeSigned) {
     var parsed: ParsedTransaction(transaction.TransactionEnvelopeSigned) = .{ .arena = try alloc.create(ArenaAllocator), .value = undefined };
     errdefer alloc.destroy(parsed.arena);
@@ -101,6 +109,7 @@ pub fn parseSignedTransaction(alloc: Allocator, serialized: []const u8) !ParsedT
     return parsed;
 }
 
+/// Parses signed serialized transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseSignedTransactionLeaky(alloc: Allocator, serialized: []const u8) !transaction.TransactionEnvelopeSigned {
     const hexed = if (std.mem.startsWith(u8, serialized, "0x")) serialized[2..] else serialized;
 
@@ -123,6 +132,7 @@ pub fn parseSignedTransactionLeaky(alloc: Allocator, serialized: []const u8) !tr
     return error.InvalidTransactionType;
 }
 
+/// Parses signed serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseSignedEip1559Transaction(alloc: Allocator, serialized: []const u8) !transaction.TransactionEnvelopeEip1559Signed {
     if (serialized[0] != 2)
         return error.InvaliTransactionType;
@@ -139,6 +149,7 @@ pub fn parseSignedEip1559Transaction(alloc: Allocator, serialized: []const u8) !
     return .{ .chainId = chainId, .nonce = nonce, .maxPriorityFeePerGas = max_priority, .maxFeePerGas = max_fee, .gas = gas, .to = addr, .value = value, .data = data_hex, .accessList = list, .r = rr, .s = ss, .v = v };
 }
 
+/// Parses signed serialized eip2930 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseSignedEip2930Transaction(alloc: Allocator, serialized: []const u8) !transaction.TransactionEnvelopeEip2930Signed {
     if (serialized[0] != 1)
         return error.InvaliTransactionType;
@@ -155,6 +166,7 @@ pub fn parseSignedEip2930Transaction(alloc: Allocator, serialized: []const u8) !
     return .{ .chainId = chainId, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = addr, .value = value, .data = data_hex, .accessList = list, .r = rr, .s = ss, .v = v };
 }
 
+/// Parses signed serialized legacy transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseSignedLegacyTransaction(alloc: Allocator, serialized: []const u8) !transaction.TransactionEnvelopeLegacySigned {
     const nonce, const gas_price, const gas, const address, const value, const data, const v, const r, const s = try rlp.decodeRlp(alloc, transaction.EnvelopeLegacySigned, serialized);
 
@@ -182,6 +194,7 @@ pub fn parseSignedLegacyTransaction(alloc: Allocator, serialized: []const u8) !t
     return .{ .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = addr, .value = value, .data = data_hex, .r = rr, .s = ss, .v = v };
 }
 
+/// Parses serialized transaction accessLists. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseAccessList(alloc: Allocator, access_list: []const transaction.EncodedAccessList) ![]const transaction.AccessList {
     var list = std.ArrayList(transaction.AccessList).init(alloc);
     errdefer list.deinit();

@@ -4,13 +4,15 @@ const std = @import("std");
 const types = @import("ethereum.zig");
 
 // All the bellow are helper tuples that are used for serialization purposes.
-pub const EnvelopeEip1559 = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const std.meta.Tuple(&[_]type{ types.Hex, []const types.Hex }) });
+pub const EncodedAccessList = std.meta.Tuple(&[_]type{ types.Hex, []const types.Hex });
 
-pub const EnvelopeEip1559Signed = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const std.meta.Tuple(&[_]type{ types.Hex, []const types.Hex }), u2, types.Hex, types.Hex });
+pub const EnvelopeEip1559 = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const EncodedAccessList });
 
-pub const EnvelopeEip2930 = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const std.meta.Tuple(&[_]type{ types.Hex, []const types.Hex }) });
+pub const EnvelopeEip1559Signed = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const EncodedAccessList, u4, types.Hex, types.Hex });
 
-pub const EnvelopeEip2930Signed = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const std.meta.Tuple(&[_]type{ types.Hex, []const types.Hex }), u2, types.Hex, types.Hex });
+pub const EnvelopeEip2930 = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const EncodedAccessList });
+
+pub const EnvelopeEip2930Signed = std.meta.Tuple(&[_]type{ usize, u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, []const EncodedAccessList, u4, types.Hex, types.Hex });
 
 pub const EnvelopeLegacy = std.meta.Tuple(&[_]type{ u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex });
 
@@ -66,6 +68,58 @@ pub const AccessList = struct {
     pub usingnamespace meta.RequestParser(@This());
 };
 
+/// Signed transaction envelope types.
+pub const TransactionEnvelopeSigned = union(enum) {
+    eip1559: TransactionEnvelopeEip1559Signed,
+    eip2930: TransactionEnvelopeEip2930Signed,
+    legacy: TransactionEnvelopeLegacySigned,
+};
+
+pub const TransactionEnvelopeEip1559Signed = struct {
+    type: u2 = 2,
+    chainId: usize,
+    nonce: u64,
+    maxPriorityFeePerGas: types.Gwei,
+    maxFeePerGas: types.Gwei,
+    gas: types.Gwei,
+    to: ?types.Hex,
+    value: types.Wei,
+    data: ?types.Hex,
+    accessList: []const AccessList,
+    r: types.Hex,
+    s: types.Hex,
+    v: u4,
+};
+
+pub const TransactionEnvelopeEip2930Signed = struct {
+    type: u2 = 1,
+    chainId: usize,
+    nonce: u64,
+    gas: types.Gwei,
+    gasPrice: types.Gwei,
+    to: ?types.Hex,
+    value: types.Wei,
+    data: ?types.Hex,
+    accessList: []const AccessList,
+    r: types.Hex,
+    s: types.Hex,
+    v: u4,
+};
+
+pub const TransactionEnvelopeLegacySigned = struct {
+    type: u2 = 0,
+    chainId: usize = 0,
+    nonce: u64,
+    gas: types.Gwei,
+    gasPrice: types.Gwei,
+    to: ?types.Hex,
+    value: types.Wei,
+    data: ?types.Hex,
+    r: types.Hex,
+    s: types.Hex,
+    v: usize,
+};
+
 /// Same as `Envelope` but were all fields are optionals.
 pub const PrepareEnvelope = union(enum) {
     eip1559: PrepareEnvelopeEip1559,
@@ -89,7 +143,7 @@ pub const TransactionObjectEip1559 = struct {
     gasPrice: types.Gwei,
     gas: types.Gwei,
     input: types.Hex,
-    v: u8,
+    v: u4,
     r: types.Hex,
     s: types.Hex,
     isSystemTx: bool,
@@ -119,7 +173,7 @@ pub const TransactionObjectEip2930 = struct {
     v: u8,
     r: types.Hex,
     s: types.Hex,
-    type: u2,
+    type: u4,
     accessList: []const AccessList,
     chainId: usize,
     isSystemTx: bool,
@@ -140,7 +194,7 @@ pub const TransactionObjectLegacy = struct {
     to: types.Hex,
     transactionIndex: ?u64,
     value: types.Wei,
-    v: u8,
+    v: usize,
     r: types.Hex,
     s: types.Hex,
     type: u2,
@@ -162,7 +216,7 @@ pub const UntypedTransactionObject = struct {
     to: types.Hex,
     transactionIndex: ?u64,
     value: types.Wei,
-    v: u8,
+    v: usize,
     r: types.Hex,
     s: types.Hex,
     isSystemTx: bool,

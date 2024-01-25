@@ -763,7 +763,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
                         var cur_pos = position + 1;
                         for (0..arr_len) |_| {
-                            if (cur_pos == encoded.len) break;
+                            if (cur_pos >= encoded.len) break;
                             const decoded = try decodeItem(alloc, ptr_info.child, encoded[cur_pos..], 0);
                             try result.append(decoded.data);
                             cur_pos += decoded.consumed;

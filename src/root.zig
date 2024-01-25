@@ -8,6 +8,7 @@ pub const log = @import("meta/log.zig");
 pub const meta = @import("meta/meta.zig");
 pub const param = @import("abi_parameter.zig");
 pub const param_type = @import("param_type.zig");
+pub const parse_transacition = @import("parse_transacition.zig");
 pub const rlp = @import("rlp.zig");
 pub const secp256k1 = @import("secp256k1");
 pub const serialize = @import("serialize.zig");

@@ -1,5 +1,5 @@
-const abi = @import("abi.zig");
-const human = @import("human-readable/abi_parsing.zig");
+const abi = @import("../abi/abi.zig");
+const human = @import("../human-readable/abi_parsing.zig");
 const std = @import("std");
 const testing = std.testing;
 

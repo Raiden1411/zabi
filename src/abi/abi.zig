@@ -1,5 +1,5 @@
-const encoder = @import("encoder.zig");
-const meta = @import("meta/meta.zig");
+const encoder = @import("../encoding/encoder.zig");
+const meta = @import("../meta/meta.zig");
 const std = @import("std");
 const testing = std.testing;
 const AbiParameter = @import("abi_parameter.zig").AbiParameter;

@@ -1,15 +1,15 @@
-const abi = @import("abi.zig");
+const abi = @import("../abi/abi.zig");
 const std = @import("std");
-const meta = @import("meta/meta.zig");
+const meta = @import("../meta/meta.zig");
 const testing = std.testing;
-const utils = @import("utils.zig");
-const AbiParameter = @import("abi_parameter.zig").AbiParameter;
+const utils = @import("../utils.zig");
+const AbiParameter = @import("../abi/abi_parameter.zig").AbiParameter;
 const AbiParameterToPrimative = meta.AbiParameterToPrimative;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
-const ParamType = @import("param_type.zig").ParamType;
+const ParamType = @import("../abi/param_type.zig").ParamType;
 
 pub fn Decoded(comptime T: type) type {
     return struct { consumed: usize, data: T, bytes_read: u16 };

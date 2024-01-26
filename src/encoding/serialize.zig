@@ -1,10 +1,10 @@
 const signer = @import("secp256k1");
 const std = @import("std");
 const rlp = @import("rlp.zig");
-const transaction = @import("meta/transaction.zig");
+const transaction = @import("../meta/transaction.zig");
 const testing = std.testing;
-const types = @import("meta/ethereum.zig");
-const utils = @import("utils.zig");
+const types = @import("../meta/ethereum.zig");
+const utils = @import("../utils.zig");
 const Allocator = std.mem.Allocator;
 const Tuple = std.meta.Tuple;
 

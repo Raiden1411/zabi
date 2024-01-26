@@ -1,10 +1,10 @@
-const abi = @import("../abi.zig");
-const params = @import("../abi_parameter.zig");
+const abi = @import("../abi/abi.zig");
+const params = @import("../abi/abi_parameter.zig");
 const std = @import("std");
 const testing = std.testing;
 const Abitype = abi.Abitype;
 const Allocator = std.mem.Allocator;
-const ParamType = @import("../param_type.zig").ParamType;
+const ParamType = @import("../abi/param_type.zig").ParamType;
 
 /// UnionParser used by `zls`. Usefull to use in `AbiItem`
 /// https://github.com/zigtools/zls/blob/d1ad449a24ea77bacbeccd81d607fa0c11f87dd6/src/lsp.zig#L77

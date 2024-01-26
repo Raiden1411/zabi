@@ -1,13 +1,13 @@
 const std = @import("std");
 const testing = std.testing;
-const abi = @import("../abi.zig");
-const AbiParameter = @import("../abi_parameter.zig").AbiParameter;
-const AbiEventParameter = @import("../abi_parameter.zig").AbiEventParameter;
+const abi = @import("../abi/abi.zig");
+const AbiParameter = @import("../abi/abi_parameter.zig").AbiParameter;
+const AbiEventParameter = @import("../abi/abi_parameter.zig").AbiEventParameter;
 const Alloc = std.mem.Allocator;
 const Lexer = @import("lexer.zig").Lexer;
-const StateMutability = @import("../state_mutability.zig").StateMutability;
-const ParamErrors = @import("../param_type.zig").ParamErrors;
-const ParamType = @import("../param_type.zig").ParamType;
+const StateMutability = @import("../abi/state_mutability.zig").StateMutability;
+const ParamErrors = @import("../abi/param_type.zig").ParamErrors;
+const ParamType = @import("../abi/param_type.zig").ParamType;
 const Tokens = @import("tokens.zig").Tag.SoliditySyntax;
 
 pub const TokenList = std.MultiArrayList(struct {

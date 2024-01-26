@@ -1,4 +1,4 @@
-const serialize = @import("serialize.zig");
+const serialize = @import("encoding/serialize.zig");
 const std = @import("std");
 const testing = std.testing;
 const transaction = @import("meta/transaction.zig");

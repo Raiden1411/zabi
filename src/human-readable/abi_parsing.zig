@@ -1,13 +1,13 @@
-const abi = @import("../abi.zig");
-const param = @import("../abi_parameter.zig");
+const abi = @import("../abi/abi.zig");
+const param = @import("../abi/abi_parameter.zig");
 const std = @import("std");
 const testing = std.testing;
 const tokens = @import("tokens.zig");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Extract = @import("../meta/meta.zig").Extract;
-const ParamType = @import("../param_type.zig").ParamType;
-const StateMutability = @import("../state_mutability.zig").StateMutability;
+const ParamType = @import("../abi/param_type.zig").ParamType;
+const StateMutability = @import("../abi/state_mutability.zig").StateMutability;
 const Lexer = @import("lexer.zig").Lexer;
 const Parser = @import("Parser.zig");
 

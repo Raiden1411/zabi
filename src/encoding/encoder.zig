@@ -1,17 +1,17 @@
 const std = @import("std");
-const abi = @import("abi_parameter.zig");
-const meta = @import("meta/meta.zig");
+const abi = @import("../abi/abi_parameter.zig");
+const meta = @import("../meta/meta.zig");
 const testing = std.testing;
 const assert = std.debug.assert;
 const AbiParameterToPrimative = meta.AbiParameterToPrimative;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
-const Constructor = @import("abi.zig").Constructor;
-const Error = @import("abi.zig").Error;
+const Constructor = @import("../abi/abi.zig").Constructor;
+const Error = @import("../abi/abi.zig").Error;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
-const Function = @import("abi.zig").Function;
-const ParamType = @import("param_type.zig").ParamType;
+const Function = @import("../abi/abi.zig").Function;
+const ParamType = @import("../abi/param_type.zig").ParamType;
 
 pub const EncodeErrors = std.mem.Allocator.Error || error{ InvalidIntType, Overflow, BufferExceedsMaxSize, InvalidBits, InvalidLength, NoSpaceLeft, InvalidCharacter, InvalidParamType };
 

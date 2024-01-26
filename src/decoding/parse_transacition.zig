@@ -1,10 +1,10 @@
 const signer = @import("secp256k1");
 const std = @import("std");
-const rlp = @import("rlp.zig");
-const serialize = @import("serialize.zig");
+const rlp = @import("../encoding/rlp.zig");
+const serialize = @import("../encoding/serialize.zig");
 const testing = std.testing;
-const transaction = @import("meta/transaction.zig");
-const utils = @import("utils.zig");
+const transaction = @import("../meta/transaction.zig");
+const utils = @import("../utils.zig");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 

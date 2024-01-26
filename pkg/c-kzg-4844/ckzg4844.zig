@@ -10,6 +10,12 @@ pub const KZGProofResult = struct { proof: KZGProof, y: [32]u8 };
 
 pub const KZG4844 = @This();
 
+pub const BYTES_PER_G1_POINT: usize = 48;
+
+pub const BYTES_PER_G2_POINT: usize = 96;
+
+pub const NUM_G2_POINTS = 65;
+
 bytes_per_blob: u64 = c.BYTES_PER_BLOB,
 
 bytes_per_commitment: u64 = c.BYTES_PER_COMMITMENT,
@@ -24,20 +30,17 @@ settings: KZGSettings = .{},
 
 loaded: bool = false,
 
-pub fn initTrustedSetup(self: *KZG4844, g1: []const u8, g2: []const u8) !void {
+pub fn initTrustedSetup(self: *KZG4844, g1: [][BYTES_PER_G1_POINT]u8, g2: [][BYTES_PER_G2_POINT]u8) !void {
     if (self.loaded)
         return error.SetupAlreadyLoaded;
 
-    if (g1.len % c.BYTES_PER_G1 != 0)
+    if (g1.len != self.field_elements_per_blob)
         return error.InvalidG1Length;
 
-    if (g2.len % c.BYTES_PER_G2)
+    if (g2.len != NUM_G2_POINTS)
         return error.InvalidG2Length;
 
-    const num_g1: usize = g1.len / c.BYTES_PER_G1;
-    const num_g2: usize = g2.len / c.BYTES_PER_G2;
-
-    if (c.load_trusted_setup(&self.settings, &g1, num_g1, &g2, num_g2) != c.C_KZG_OK)
+    if (c.load_trusted_setup(&self.settings, @ptrCast(@alignCast(g1)), g1.len, @ptrCast(@alignCast(g2)), g2.len) != c.C_KZG_OK)
         return error.FailedToLoadSetup;
 
     self.loaded = true;

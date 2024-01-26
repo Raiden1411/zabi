@@ -11,6 +11,7 @@ pub const param_type = @import("param_type.zig");
 pub const parse_transacition = @import("parse_transacition.zig");
 pub const rlp = @import("rlp.zig");
 pub const secp256k1 = @import("secp256k1");
+pub const kzg4844 = @import("c-kzg-4844");
 pub const serialize = @import("serialize.zig");
 pub const state = @import("state_mutability.zig");
 pub const transactions = @import("meta/transaction.zig");

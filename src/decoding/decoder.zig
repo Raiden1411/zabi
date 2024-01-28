@@ -46,10 +46,12 @@ pub fn AbiSignatureDecoded(comptime params: []const AbiParameter) type {
 }
 
 pub const DecodeOptions = struct {
-    // Max amount of bytes allowed to be read by the decoder.
-    // This avoid a DoS vulnerability discovered here:
-    // https://github.com/paulmillr/micro-eth-signer/discussions/20
+    /// Max amount of bytes allowed to be read by the decoder.
+    /// This avoid a DoS vulnerability discovered here:
+    /// https://github.com/paulmillr/micro-eth-signer/discussions/20
     max_bytes: u16 = 1024,
+    /// By default this is false.
+    allow_junk_data: bool = false,
 };
 
 pub const DecodedErrors = error{ JunkData, InvalidAbiSignature, BufferOverrun, InvalidLength, NoSpaceLeft, InvalidDecodeDataSize } || Allocator.Error || std.fmt.ParseIntError;
@@ -194,7 +196,7 @@ fn decodeParameters(alloc: Allocator, comptime params: []const AbiParameter, hex
             return error.BufferOverrun;
     }
 
-    if (hex.len > read)
+    if (!opts.allow_junk_data and hex.len > read)
         return error.JunkData;
 
     return result;

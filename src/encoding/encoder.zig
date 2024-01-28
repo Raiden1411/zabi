@@ -186,8 +186,11 @@ pub fn encodeAbiParameters(alloc: Allocator, parameters: []const abi.AbiParamete
 /// on the parameters passed in.
 pub fn encodeAbiParametersLeaky(alloc: Allocator, params: []const abi.AbiParameter, values: anytype) EncodeErrors![]u8 {
     const fields = @typeInfo(@TypeOf(values));
-    if (fields != .Struct) @compileError("Expected " ++ @typeName(@TypeOf(values)) ++ " to be a tuple value instead");
-    if (!fields.Struct.is_tuple) @compileError("Expected " ++ @typeName(@TypeOf(values)) ++ " to be a tuple value instead");
+    if (fields != .Struct)
+        @compileError("Expected " ++ @typeName(@TypeOf(values)) ++ " to be a tuple value instead");
+
+    if (!fields.Struct.is_tuple)
+        @compileError("Expected " ++ @typeName(@TypeOf(values)) ++ " to be a tuple value instead");
 
     const prepared = try preEncodeParams(alloc, params, values);
     const data = try encodeParameters(alloc, prepared);
@@ -246,7 +249,8 @@ fn preEncodeParam(alloc: Allocator, param: abi.AbiParameter, value: anytype) !Pr
 
     switch (info) {
         .Pointer => {
-            if (info.Pointer.size != .Slice and info.Pointer.size != .One) @compileError("Invalid Pointer size. Expected Slice or comptime know string");
+            if (info.Pointer.size != .Slice and info.Pointer.size != .One)
+                @compileError("Invalid Pointer size. Expected Slice or comptime know string");
 
             if (info.Pointer.size == .One) {
                 return switch (param.type) {
@@ -307,7 +311,8 @@ fn preEncodeParam(alloc: Allocator, param: abi.AbiParameter, value: anytype) !Pr
 }
 
 fn encodeNumber(alloc: Allocator, comptime T: type, num: T) !PreEncodedParam {
-    if (num > std.math.maxInt(T)) return error.Overflow;
+    if (num > std.math.maxInt(T))
+        return error.Overflow;
 
     var buffer = try alloc.alloc(u8, 32);
     std.mem.writeInt(T, buffer[0..32], num, .big);
@@ -360,8 +365,11 @@ fn encodeFixedBytes(alloc: Allocator, size: usize, bytes: []const u8) !PreEncode
     var buffer: [32]u8 = undefined;
     const byts = try std.fmt.hexToBytes(&buffer, bytes);
 
-    if (byts.len > 32) return error.InvalidBits;
-    if (byts.len > size) return error.Overflow;
+    if (byts.len > 32)
+        return error.InvalidBits;
+
+    if (byts.len > size)
+        return error.Overflow;
 
     return .{ .dynamic = false, .encoded = try zeroPad(alloc, byts) };
 }

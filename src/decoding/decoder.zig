@@ -52,7 +52,7 @@ pub const DecodeOptions = struct {
     max_bytes: u16 = 1024,
 };
 
-pub const DecodedErrors = error{ InvalidAbiSignature, BufferOverrun, InvalidLength, NoSpaceLeft, InvalidDecodeDataSize } || Allocator.Error || std.fmt.ParseIntError;
+pub const DecodedErrors = error{ JunkData, InvalidAbiSignature, BufferOverrun, InvalidLength, NoSpaceLeft, InvalidDecodeDataSize } || Allocator.Error || std.fmt.ParseIntError;
 
 /// Decode the hex values based on the struct signature
 /// Caller owns the memory.
@@ -68,13 +68,15 @@ pub fn decodeAbiFunction(alloc: Allocator, comptime function: abi.Function, hex:
 
     const hash_hex = std.fmt.bytesToHex(hashed, .lower);
 
-    if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8])) return error.InvalidAbiSignature;
+    if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8]))
+        return error.InvalidAbiSignature;
 
     const data = hex[8..];
     const func_name = try std.mem.concat(alloc, u8, &.{ "0x", hashed_func_name });
     errdefer alloc.free(func_name);
 
-    if (data.len == 0 and function.inputs.len > 0) return error.InvalidDecodeDataSize;
+    if (data.len == 0 and function.inputs.len > 0)
+        return error.InvalidDecodeDataSize;
 
     const decoded = try decodeAbiParameters(alloc, function.inputs, data, opts);
 
@@ -101,7 +103,8 @@ pub fn decodeAbiFunctionOutputs(alloc: Allocator, comptime function: abi.Functio
     const func_name = try std.mem.concat(alloc, u8, &.{ "0x", hashed_func_name });
     errdefer alloc.free(func_name);
 
-    if (data.len == 0 and function.outputs.len > 0) return error.InvalidDecodeDataSize;
+    if (data.len == 0 and function.outputs.len > 0)
+        return error.InvalidDecodeDataSize;
 
     const decoded = try decodeAbiParameters(alloc, function.outputs, data, opts);
 
@@ -128,7 +131,8 @@ pub fn decodeAbiError(alloc: Allocator, comptime err: abi.Error, hex: []const u8
     const func_name = try std.mem.concat(alloc, u8, &.{ "0x", hashed_func_name });
     errdefer alloc.free(func_name);
 
-    if (data.len == 0 and err.inputs.len > 0) return error.InvalidDecodeDataSize;
+    if (data.len == 0 and err.inputs.len > 0)
+        return error.InvalidDecodeDataSize;
 
     const decoded = try decodeAbiParameters(alloc, err.inputs, data, opts);
 
@@ -186,8 +190,12 @@ fn decodeParameters(alloc: Allocator, comptime params: []const AbiParameter, hex
         result[i] = decoded.data;
         read += decoded.bytes_read;
 
-        if (read > opts.max_bytes) return error.BufferOverrun;
+        if (pos > opts.max_bytes)
+            return error.BufferOverrun;
     }
+
+    if (hex.len > read)
+        return error.JunkData;
 
     return result;
 }
@@ -207,7 +215,8 @@ fn decodeParameter(alloc: Allocator, comptime param: AbiParameter, hex: []u8, po
         inline else => @compileError("Not implemented " ++ @tagName(param.type)),
     };
 
-    if (decoded.bytes_read > opts.max_bytes) return error.BufferOverrun;
+    if (decoded.bytes_read > opts.max_bytes)
+        return error.BufferOverrun;
 
     return decoded;
 }
@@ -221,7 +230,8 @@ fn decodeAddress(alloc: Allocator, hex: []u8, position: usize) !Decoded([]const 
 
 fn decodeNumber(alloc: Allocator, comptime T: type, hex: []u8, position: usize) !Decoded(T) {
     const info = @typeInfo(T);
-    if (info != .Int) @compileError("Invalid type passed");
+    if (info != .Int)
+        @compileError("Invalid type passed");
 
     const hexed = std.fmt.fmtSliceHexLower(hex[position .. position + 32]);
     const slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
@@ -253,8 +263,10 @@ fn decodeString(alloc: Allocator, hex: []u8, position: usize) !Decoded([]const u
     const length = try decodeNumber(alloc, usize, hex, offset.data);
 
     const slice = hex[offset.data + 32 .. offset.data + 32 + length.data];
+    const remainder = length.data % 32;
+    const len_padded = length.data + 32 - remainder;
 
-    return .{ .consumed = 32, .data = try std.fmt.allocPrint(alloc, "{s}", .{slice}), .bytes_read = @intCast(length.data) };
+    return .{ .consumed = 32, .data = try std.fmt.allocPrint(alloc, "{s}", .{slice}), .bytes_read = @intCast(len_padded + 64) };
 }
 
 fn decodeBytes(alloc: Allocator, hex: []u8, position: usize) !Decoded([]const u8) {
@@ -262,8 +274,10 @@ fn decodeBytes(alloc: Allocator, hex: []u8, position: usize) !Decoded([]const u8
     const length = try decodeNumber(alloc, usize, hex, offset.data);
 
     const slice = hex[offset.data + 32 .. offset.data + 32 + length.data];
+    const remainder = length.data % 32;
+    const len_padded = length.data + 32 - remainder;
 
-    return .{ .consumed = 32, .data = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(slice)}), .bytes_read = @intCast(length.data) };
+    return .{ .consumed = 32, .data = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(slice)}), .bytes_read = @intCast(len_padded + 64) };
 }
 
 fn decodeFixedBytes(alloc: Allocator, size: usize, hex: []u8, position: usize) !Decoded([]const u8) {
@@ -284,11 +298,13 @@ fn decodeArray(alloc: Allocator, comptime param: AbiParameter, hex: []u8, positi
         pos += decoded.consumed;
         read += decoded.bytes_read;
 
-        if (read > opts.max_bytes) return error.BufferOverrun;
+        if (pos > opts.max_bytes)
+            return error.BufferOverrun;
+
         try list.append(decoded.data);
     }
 
-    return .{ .consumed = 32, .data = try list.toOwnedSlice(), .bytes_read = read };
+    return .{ .consumed = 32, .data = try list.toOwnedSlice(), .bytes_read = read + 64 };
 }
 
 fn decodeFixedArray(alloc: Allocator, comptime param: AbiParameter, comptime size: usize, hex: []u8, position: usize, opts: DecodeOptions) !Decoded([size]AbiParameterToPrimative(param)) {
@@ -311,10 +327,11 @@ fn decodeFixedArray(alloc: Allocator, comptime param: AbiParameter, comptime siz
             result[i] = decoded.data;
             read += decoded.bytes_read;
 
-            if (read > opts.max_bytes) return error.BufferOverrun;
+            if (pos > opts.max_bytes)
+                return error.BufferOverrun;
         }
 
-        return .{ .consumed = 32, .data = result, .bytes_read = read };
+        return .{ .consumed = 32, .data = result, .bytes_read = read + 32 };
     }
 
     var pos: usize = 0;
@@ -327,7 +344,8 @@ fn decodeFixedArray(alloc: Allocator, comptime param: AbiParameter, comptime siz
         result[i] = decoded.data;
         read += decoded.bytes_read;
 
-        if (read > opts.max_bytes) return error.BufferOverrun;
+        if (pos > opts.max_bytes)
+            return error.BufferOverrun;
     }
 
     return .{ .consumed = 32, .data = result, .bytes_read = read };
@@ -347,11 +365,13 @@ fn decodeTuple(alloc: Allocator, comptime param: AbiParameter, hex: []u8, positi
                 pos += decoded.consumed;
                 read += decoded.bytes_read;
 
-                if (read > opts.max_bytes) return error.BufferOverrun;
+                if (pos > opts.max_bytes)
+                    return error.BufferOverrun;
+
                 @field(result, component.name) = decoded.data;
             }
 
-            return .{ .consumed = 32, .data = result, .bytes_read = read };
+            return .{ .consumed = 32, .data = result, .bytes_read = read + 32 };
         }
 
         var pos: usize = 0;
@@ -361,7 +381,9 @@ fn decodeTuple(alloc: Allocator, comptime param: AbiParameter, hex: []u8, positi
             pos += decoded.consumed;
             read += decoded.bytes_read;
 
-            if (read > opts.max_bytes) return error.BufferOverrun;
+            if (pos > opts.max_bytes)
+                return error.BufferOverrun;
+
             @field(result, component.name) = decoded.data;
         }
 
@@ -448,6 +470,7 @@ test "Errors" {
     try testing.expectError(error.InvalidAbiSignature, decodeAbiFunction(testing.allocator, .{ .type = .function, .name = "Bar", .inputs = &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .stateMutability = .nonpayable, .outputs = &.{} }, "4ec7c7af00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", .{}));
     try testing.expectError(error.InvalidDecodeDataSize, decodeAbiFunction(testing.allocator, .{ .type = .function, .name = "Bar", .inputs = &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .stateMutability = .nonpayable, .outputs = &.{} }, "4ec7c7ae", .{}));
     try testing.expectError(error.BufferOverrun, decodeAbiParameters(testing.allocator, &.{.{ .type = .{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .uint = 256 } } } } } } } } } } }, .name = "" }}, "0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020", .{}));
+    try testing.expectError(error.JunkData, decodeAbiParameters(testing.allocator, &.{ .{ .type = .{ .uint = 256 }, .name = "foo" }, .{ .type = .{ .dynamicArray = &.{ .address = {} } }, .name = "bar" }, .{ .type = .{ .address = {} }, .name = "baz" }, .{ .type = .{ .uint = 256 }, .name = "fizz" } }, "0000000000000000000000000000000000000000000000164054d8356b4f5c2800000000000000000000000000000000000000000000000000000000000000800000000000000000000000006994ece772cc4abb5c9993c065a34c94544a40870000000000000000000000000000000000000000000000000000000062b348620000000000000000000000000000000000000000000000000000000000000002000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000106d3c66d22d2dd0446df23d7f5960752994d6007a6572696f6e", .{}));
 }
 
 test "Arrays" {

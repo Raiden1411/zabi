@@ -52,6 +52,7 @@ pub fn EthereumResponse(comptime T: type) type {
 pub const ErrorResponse = struct {
     code: isize,
     message: []const u8,
+    data: ?[]const u8 = null,
 };
 
 pub const EthereumErrorResponse = struct { jsonrpc: []const u8, id: usize, @"error": ErrorResponse };

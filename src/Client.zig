@@ -287,7 +287,7 @@ pub fn newLogFilter(self: *PubClient, opts: log.LogFilterRequestParams) !usize {
     if (req.status != .ok) return error.InvalidRequest;
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(usize), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{ .ignore_unknown_fields = true })) |result| {
             try self.errors.append(self.alloc, result.@"error");
             return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
@@ -324,7 +324,7 @@ pub fn uninstalllFilter(self: *PubClient, id: usize) !bool {
     if (req.status != .ok) return error.InvalidRequest;
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(bool), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{ .ignore_unknown_fields = true })) |result| {
             try self.errors.append(self.alloc, result.@"error");
             return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
@@ -348,6 +348,8 @@ pub fn printLastRpcError(self: *PubClient) !void {
 
     try writer.print("Error code: {d}\n", .{last.code});
     try writer.print("Error message: {s}\n", .{last.message});
+    if (last.data) |data|
+        try writer.print("Error message: {s}\n", .{data});
 }
 
 /// Prints all tracked error messages.
@@ -358,6 +360,9 @@ pub fn printAllRpcErrors(self: *PubClient) !void {
     for (errors) |err| {
         try writer.print("Error code: {d}\n", .{err.code});
         try writer.print("Error message: {s}\n", .{err.message});
+
+        if (err.data) |data|
+            try writer.print("Error message: {s}\n", .{data});
     }
 }
 
@@ -373,7 +378,7 @@ fn fetchByBlockNumber(self: *PubClient, opts: block.BlockNumberRequest, method: 
     if (req.status != .ok) return error.InvalidRequest;
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(usize), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{ .ignore_unknown_fields = true })) |result| {
             try self.errors.append(self.alloc, result.@"error");
             return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
@@ -393,7 +398,7 @@ fn fetchByBlockHash(self: *PubClient, block_hash: []const u8, method: types.Ethe
     if (req.status != .ok) return error.InvalidRequest;
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(usize), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{ .ignore_unknown_fields = true })) |result| {
             try self.errors.append(self.alloc, result.@"error");
             return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
@@ -415,7 +420,7 @@ fn fetchByAddress(self: *PubClient, comptime T: type, opts: block.BalanceRequest
     if (req.status != .ok) return error.InvalidRequest;
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(T), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{ .ignore_unknown_fields = true })) |result| {
             try self.errors.append(self.alloc, result.@"error");
             return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
@@ -434,7 +439,7 @@ fn fetchWithEmptyArgs(self: *PubClient, comptime T: type, method: types.Ethereum
     if (req.status != .ok) return error.InvalidRequest;
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(T), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{ .ignore_unknown_fields = true })) |result| {
             try self.errors.append(self.alloc, result.@"error");
             return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
@@ -450,7 +455,7 @@ fn fetchBlock(self: *PubClient, request: anytype) !block.Block {
     if (req.status != .ok) return error.InvalidRequest;
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(block.Block), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{ .ignore_unknown_fields = true })) |result| {
             try self.errors.append(self.alloc, result.@"error");
             return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
@@ -466,7 +471,7 @@ fn fetchTransaction(self: *PubClient, comptime T: type, request: types.EthereumR
     if (req.status != .ok) return error.InvalidRequest;
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(T), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{ .ignore_unknown_fields = true })) |result| {
             try self.errors.append(self.alloc, result.@"error");
             return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
@@ -482,7 +487,7 @@ fn fetchLogs(self: *PubClient, comptime T: type, request: types.EthereumRequest(
     if (req.status != .ok) return error.InvalidRequest;
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(log.Logs), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{ .ignore_unknown_fields = true })) |result| {
             try self.errors.append(self.alloc, result.@"error");
             return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
@@ -533,7 +538,7 @@ fn fetchCall(self: *PubClient, comptime T: type, call_object: transaction.EthCal
     if (req.status != .ok) return error.InvalidRequest;
 
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(T), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{})) |result| {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{ .ignore_unknown_fields = true })) |result| {
             try self.errors.append(self.alloc, result.@"error");
             return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;

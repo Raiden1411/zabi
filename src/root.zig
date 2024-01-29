@@ -34,11 +34,12 @@ test {
     _ = @import("abi/abi_parameter.zig");
     _ = @import("abi/abi.zig");
     _ = @import("abi/state_mutability.zig");
+    _ = @import("contract.zig");
+    _ = @import("decoding/decoder.zig");
+    _ = @import("decoding/parse_transacition.zig");
     _ = @import("encoding/encoder.zig");
     _ = @import("encoding/serialize.zig");
     _ = @import("encoding/rlp.zig");
-    _ = @import("decoding/decoder.zig");
-    _ = @import("decoding/parse_transacition.zig");
     _ = @import("human-readable/lexer.zig");
     _ = @import("human-readable/abi_parsing.zig");
     _ = @import("meta/meta.zig");

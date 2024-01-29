@@ -127,9 +127,41 @@ pub const PrepareEnvelope = union(enum) {
     legacy: PrepareEnvelopeLegacy,
 };
 
-pub const PrepareEnvelopeEip1559 = meta.ToOptionalStructAndUnionMembers(TransactionEnvelopeEip1559);
-pub const PrepareEnvelopeEip2930 = meta.ToOptionalStructAndUnionMembers(TransactionEnvelopeEip2930);
-pub const PrepareEnvelopeLegacy = meta.ToOptionalStructAndUnionMembers(TransactionEnvelopeLegacy);
+pub const PrepareEnvelopeEip1559 = struct {
+    type: u2 = 2,
+    chainId: ?usize = null,
+    nonce: ?u64 = null,
+    maxPriorityFeePerGas: ?types.Gwei = null,
+    maxFeePerGas: ?types.Gwei = null,
+    gas: ?types.Gwei = null,
+    to: ?types.Hex = null,
+    value: ?types.Wei = null,
+    data: ?types.Hex = null,
+    accessList: ?[]const AccessList = null,
+};
+
+pub const PrepareEnvelopeEip2930 = struct {
+    type: u2 = 1,
+    chainId: ?usize = null,
+    nonce: ?u64 = null,
+    gas: ?types.Gwei = null,
+    gasPrice: ?types.Gwei = null,
+    to: ?types.Hex = null,
+    value: ?types.Wei = null,
+    data: ?types.Hex = null,
+    accessList: ?[]const AccessList = null,
+};
+
+pub const PrepareEnvelopeLegacy = struct {
+    type: u2 = 0,
+    chainId: ?usize = 0,
+    nonce: ?u64 = null,
+    gas: ?types.Gwei = null,
+    gasPrice: ?types.Gwei = null,
+    to: ?types.Hex = null,
+    value: ?types.Wei = null,
+    data: ?types.Hex = null,
+};
 
 pub const TransactionObjectEip1559 = struct {
     hash: types.Hex,

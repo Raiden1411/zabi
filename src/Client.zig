@@ -303,7 +303,7 @@ pub fn newPendingTransactionFilter(self: *PubClient) !usize {
 /// Call object must be prefilled before hand. Including the data field.
 /// This will just the request to the network.
 pub fn sendEthCall(self: *PubClient, call_object: transaction.EthCall, opts: block.BlockNumberRequest) !types.Hex {
-    return self.fetchCall(types.Hex, call_object, opts);
+    return self.fetchCall(types.Hex, call_object, opts, .eth_call);
 }
 
 /// Transaction must be serialized and signed before hand.

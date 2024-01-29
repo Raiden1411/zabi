@@ -119,7 +119,9 @@ pub fn prepareTransaction(self: *Wallet, unprepared_envelope: transaction.Prepar
 
     switch (unprepared_envelope) {
         .eip1559 => |tx| {
-            if (tx.type.? != 2) return error.InvalidTransactionType;
+            if (tx.type != 2)
+                return error.InvalidTransactionType;
+
             var request: transaction.EthCallEip1559 = .{ .from = address, .to = tx.to, .gas = tx.gas, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .data = tx.data, .value = tx.value orelse 0 };
 
             const curr_block = try self.pub_client.getBlockByNumber(.{});
@@ -145,6 +147,9 @@ pub fn prepareTransaction(self: *Wallet, unprepared_envelope: transaction.Prepar
             return .{ .eip1559 = .{ .chainId = chain_id, .nonce = nonce, .gas = request.gas.?, .maxFeePerGas = request.maxFeePerGas.?, .maxPriorityFeePerGas = request.maxPriorityFeePerGas.?, .data = request.data, .to = request.to, .value = request.value.?, .accessList = accessList } };
         },
         .eip2930 => |tx| {
+            if (tx.type != 1)
+                return error.InvalidTransactionType;
+
             var request: transaction.EthCallLegacy = .{ .from = address, .to = tx.to, .gas = tx.gas, .gasPrice = tx.gasPrice, .data = tx.data, .value = tx.value orelse 0 };
 
             const curr_block = try self.pub_client.getBlockByNumber(.{});

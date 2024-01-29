@@ -1,4 +1,6 @@
 const abitype = @import("abi/abi.zig");
+const block = @import("meta/block.zig");
+const logs = @import("meta/log.zig");
 const meta = @import("meta/meta.zig");
 const testing = std.testing;
 const transaction = @import("meta/transaction.zig");
@@ -99,6 +101,38 @@ pub const Contract = struct {
         }
 
         return self.wallet.sendTransaction(copy);
+    }
+
+    pub fn estimateGas(self: *Contract, call_object: transaction.EthCall, opts: block.BlockNumberRequest) !types.Gwei {
+        return try self.wallet.pub_client.estimateGas(call_object, opts);
+    }
+
+    pub fn simulateWriteCall(self: *Contract, function_name: []const u8, function_args: anytype, overrides: transaction.PrepareEnvelope) !types.Hex {
+        const function_item = try self.getAbiItem(.function, function_name);
+        var copy = overrides;
+
+        const encoded = try function_item.abiFunction.encode(self.wallet.alloc, function_args);
+        defer if (encoded.len != 0) self.wallet.alloc.free(encoded);
+
+        const concated = try std.fmt.allocPrint(self.wallet.alloc, "0x{s}", .{encoded});
+        defer self.wallet.alloc.free(concated);
+
+        switch (copy) {
+            inline else => |*tx| {
+                if (tx.to == null)
+                    return error.InvalidRequestTarget;
+
+                tx.data = concated;
+            },
+        }
+
+        const address = try self.wallet.getWalletAddress();
+        const call: transaction.EthCall = switch (copy) {
+            .eip1559 => |tx| .{ .eip1559 = .{ .from = address, .to = tx.to, .data = tx.data, .value = tx.value, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .gas = tx.gas } },
+            inline else => |tx| .{ .legacy = .{ .from = address, .value = tx.value, .to = tx.to, .data = tx.data, .gas = tx.gas, .gasPrice = tx.gasPrice } },
+        };
+
+        return self.wallet.pub_client.sendEthCall(call, .{});
     }
 
     fn getAbiItem(self: Contract, abi_type: abitype.Abitype, name: ?[]const u8) !abitype.AbiItem {
@@ -240,6 +274,33 @@ pub fn writeContractFunction(comptime function: abitype.Function, opts: AbiFunct
     return opts.wallet.sendTransaction(copy);
 }
 
+pub fn simulateWriteCall(comptime function: abitype.Function, opts: AbiFunctionArgs(function, transaction.PrepareEnvelope)) !types.Hex {
+    var copy = opts.overrides;
+
+    const encoded = try function.encode(opts.wallet.alloc, opts.args);
+    defer if (encoded.len != 0) opts.wallet.alloc.free(encoded);
+
+    const concated = try std.fmt.allocPrint(opts.wallet.alloc, "0x{s}", .{encoded});
+    defer opts.wallet.alloc.free(concated);
+
+    switch (copy) {
+        inline else => |*tx| {
+            if (tx.to == null)
+                return error.InvalidRequestTarget;
+
+            tx.data = concated;
+        },
+    }
+
+    const address = try opts.wallet.getWalletAddress();
+    const call: transaction.EthCall = switch (copy) {
+        .eip1559 => |tx| .{ .eip1559 = .{ .from = address, .to = tx.to, .data = tx.data, .value = tx.value, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .gas = tx.gas } },
+        inline else => |tx| .{ .legacy = .{ .from = address, .value = tx.value, .to = tx.to, .data = tx.data, .gas = tx.gas, .gasPrice = tx.gasPrice } },
+    };
+
+    return opts.wallet.pub_client.sendEthCall(call, .{});
+}
+
 test "DeployContract" {
     var contract: Contract = .{
         .abi = &.{.{ .abiConstructor = .{ .type = .constructor, .inputs = &.{}, .stateMutability = .nonpayable } }},
@@ -303,5 +364,39 @@ test "WriteContract" {
 
         try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
         try testing.expectEqual(result.len, 66);
+    }
+}
+
+test "SimulateWriteCall" {
+    {
+        var contract: Contract = .{
+            .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }},
+            .wallet = try Wallet.init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .ethereum),
+        };
+        defer contract.deinit();
+        var anvil: Anvil = undefined;
+        defer anvil.deinit();
+
+        try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
+        try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+
+        const result = try contract.simulateWriteCall("setApprovalForAll", .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6546", true }, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5" } });
+
+        try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+        try testing.expect(result.len > 0);
+    }
+    {
+        var wallet = try Wallet.init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .ethereum);
+        var anvil: Anvil = undefined;
+        defer wallet.deinit();
+        defer anvil.deinit();
+
+        try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
+        try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+
+        const result = try simulateWriteCall(.{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" }, .{ .args = .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6547", true }, .overrides = .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5" } }, .wallet = wallet });
+
+        try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+        try testing.expect(result.len > 0);
     }
 }

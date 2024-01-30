@@ -276,7 +276,7 @@ These are just some of the things that zabi can do. We also have some meta progr
 
 ### Sponsors
 
-If you find ZAbi useful or use it for work, please consider supporting development on [GitHub Sponsors]( https://github.com/sponsors/Raiden1411). Thank you 🙏
+If you find ZAbi useful or use it for work, please consider supporting development on [GitHub Sponsors]( https://github.com/sponsors/Raiden1411) or sending crypto to [zzabi.eth](https://etherscan.io/name-lookup-search?id=zzabi.eth). Thank you 🙏
 
 ### Contributing
 

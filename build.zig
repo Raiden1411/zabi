@@ -76,10 +76,12 @@ fn addDependencies(b: *std.Build, step: *std.Build.Step.Compile) void {
         .target = target,
         .optimize = optimize,
     });
+    const ws = b.dependency("ws", .{ .target = target, .optimize = optimize });
 
     step.root_module.addImport("secp256k1", secp256k1_dep.module("secp256k1"));
-    step.linkLibrary(secp256k1_dep.artifact("secp256k1"));
     step.root_module.addImport("c-kzg-4844", c_kzg_4844_dep.module("c-kzg-4844"));
+    step.root_module.addImport("ws", ws.module("websocket"));
+    step.linkLibrary(secp256k1_dep.artifact("secp256k1"));
     step.linkLibrary(c_kzg_4844_dep.artifact("c-kzg-4844"));
     step.linkLibrary(blst_dep.artifact("blst"));
     step.linkLibC();

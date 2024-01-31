@@ -46,7 +46,7 @@ pub const Contract = struct {
             },
         }
 
-        return self.wallet.sendTransaction(copy);
+        return try self.wallet.sendTransaction(copy);
     }
 
     pub fn readContractFunction(self: *Contract, function_name: []const u8, function_args: anytype, overrides: transaction.EthCall) !types.Hex {
@@ -73,7 +73,7 @@ pub const Contract = struct {
             },
         }
 
-        return self.wallet.pub_client.sendEthCall(copy, .{});
+        return try self.wallet.pub_client.sendEthCall(copy, .{});
     }
 
     pub fn writeContractFunction(self: *Contract, function_name: []const u8, function_args: anytype, overrides: transaction.PrepareEnvelope) !types.Hex {
@@ -100,7 +100,7 @@ pub const Contract = struct {
             },
         }
 
-        return self.wallet.sendTransaction(copy);
+        return try self.wallet.sendTransaction(copy);
     }
 
     pub fn estimateGas(self: *Contract, call_object: transaction.EthCall, opts: block.BlockNumberRequest) !types.Gwei {
@@ -132,7 +132,7 @@ pub const Contract = struct {
             inline else => |tx| .{ .legacy = .{ .from = address, .value = tx.value, .to = tx.to, .data = tx.data, .gas = tx.gas, .gasPrice = tx.gasPrice } },
         };
 
-        return self.wallet.pub_client.sendEthCall(call, .{});
+        return try self.wallet.pub_client.sendEthCall(call, .{});
     }
 
     fn getAbiItem(self: Contract, abi_type: abitype.Abitype, name: ?[]const u8) !abitype.AbiItem {
@@ -217,7 +217,7 @@ pub fn deployContract(comptime constructor: abitype.Constructor, opts: AbiConstr
         },
     }
 
-    return opts.wallet.sendTransaction(copy);
+    return try opts.wallet.sendTransaction(copy);
 }
 
 fn AbiFunctionArgs(comptime function: abitype.Function, comptime Overrides: type) type {
@@ -246,7 +246,7 @@ pub fn readContractFunction(comptime function: abitype.Function, opts: AbiFuncti
         },
     }
 
-    return opts.wallet.pub_client.sendEthCall(copy, .{});
+    return try opts.wallet.pub_client.sendEthCall(copy, .{});
 }
 
 pub fn writeContractFunction(comptime function: abitype.Function, opts: AbiFunctionArgs(function, transaction.PrepareEnvelope)) !types.Hex {
@@ -271,7 +271,7 @@ pub fn writeContractFunction(comptime function: abitype.Function, opts: AbiFunct
         },
     }
 
-    return opts.wallet.sendTransaction(copy);
+    return try opts.wallet.sendTransaction(copy);
 }
 
 pub fn simulateWriteCall(comptime function: abitype.Function, opts: AbiFunctionArgs(function, transaction.PrepareEnvelope)) !types.Hex {
@@ -298,7 +298,7 @@ pub fn simulateWriteCall(comptime function: abitype.Function, opts: AbiFunctionA
         inline else => |tx| .{ .legacy = .{ .from = address, .value = tx.value, .to = tx.to, .data = tx.data, .gas = tx.gas, .gasPrice = tx.gasPrice } },
     };
 
-    return opts.wallet.pub_client.sendEthCall(call, .{});
+    return try opts.wallet.pub_client.sendEthCall(call, .{});
 }
 
 test "DeployContract" {

@@ -1,5 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
+const transaction = @import("meta/transaction.zig");
+const types = @import("meta/ethereum.zig");
 const Allocator = std.mem.Allocator;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
@@ -68,6 +70,40 @@ pub fn isHash(hash: []const u8) bool {
     }
 
     return true;
+}
+
+pub fn hexifyEthCall(alloc: Allocator, call_object: transaction.EthCall) !transaction.EthCallHexed {
+    const call: transaction.EthCallHexed = call: {
+        switch (call_object) {
+            .eip1559 => |tx| {
+                const eip1559_call: transaction.EthCallEip1559Hexed = .{
+                    .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
+                    .gas = if (tx.gas) |gas| try std.fmt.allocPrint(alloc, "0x{x}", .{gas}) else null,
+                    .maxFeePerGas = if (tx.maxFeePerGas) |fees| try std.fmt.allocPrint(alloc, "0x{x}", .{fees}) else null,
+                    .maxPriorityFeePerGas = if (tx.maxPriorityFeePerGas) |max_fees| try std.fmt.allocPrint(alloc, "0x{x}", .{max_fees}) else null,
+                    .from = tx.from,
+                    .to = tx.to,
+                    .data = tx.data,
+                };
+
+                break :call .{ .eip1559 = eip1559_call };
+            },
+            .legacy => |tx| {
+                const legacy_call: transaction.EthCallLegacyHexed = .{
+                    .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
+                    .gasPrice = if (tx.gasPrice) |gas_price| try std.fmt.allocPrint(alloc, "0x{x}", .{gas_price}) else null,
+                    .gas = if (tx.gas) |gas| try std.fmt.allocPrint(alloc, "0x{x}", .{gas}) else null,
+                    .from = tx.from,
+                    .to = tx.to,
+                    .data = tx.data,
+                };
+
+                break :call .{ .legacy = legacy_call };
+            },
+        }
+    };
+
+    return call;
 }
 
 pub fn parseEth(value: usize) !u256 {

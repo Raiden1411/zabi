@@ -30,6 +30,7 @@ test {
 
     _ = @import("Client.zig");
     _ = @import("Wallet.zig");
+    _ = @import("WebSocket.zig");
     _ = @import("abi/param_type.zig");
     _ = @import("abi/abi_parameter.zig");
     _ = @import("abi/abi.zig");

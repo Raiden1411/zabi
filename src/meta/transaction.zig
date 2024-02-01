@@ -18,6 +18,12 @@ pub const EnvelopeLegacy = std.meta.Tuple(&[_]type{ u64, types.Gwei, types.Gwei,
 
 pub const EnvelopeLegacySigned = std.meta.Tuple(&[_]type{ u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, usize, types.Hex, types.Hex });
 
+pub const TransactionSubscription = struct {
+    removed: bool,
+    transaction: TransactionObjectEip1559,
+    pub usingnamespace meta.RequestParser(@This());
+};
+
 /// The transaction envelope that will be serialized before getting sent to the network.
 pub const TransactionEnvelope = union(enum) {
     eip1559: TransactionEnvelopeEip1559,

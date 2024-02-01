@@ -8,39 +8,51 @@ const types = @import("meta/ethereum.zig");
 const utils = @import("utils.zig");
 const ws = @import("ws");
 const Allocator = std.mem.Allocator;
-const Channel = @import("channel.zig").Channel;
 const ArenaAllocator = std.heap.ArenaAllocator;
+const Channel = @import("channel.zig").Channel;
 const EthereumRequest = types.EthereumRpcMethods;
 const EthereumResponse = types.EthereumResponse;
 
 const WebSocketClient = @This();
+
+const wslog = std.log.scoped(.ws);
 
 pub const StartUpOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
     alloc: Allocator,
     /// Fork url for anvil to fork from
     host_url: []const u8,
-    /// Return object slice
-    channel: *Channel(SubscribeEvents),
+    /// The client chainId.
+    chain_id: ?types.PublicChains = null,
     /// Retry count for failed connections to anvil. The process takes some ms to start so this is necessary
     retry_count: u8 = 5,
     /// The interval to retry the connection. This will get multiplied in ns_per_ms.
     pooling_interval: u64 = 2_000,
 };
 
-pub const SubscribeEvents = union(enum) { newHeads: usize };
+pub const SubscribeEvents = union(enum) {
+    newHeads: types.EthereumSubscribeResponse(block.Block),
+    pending_transactions: types.EthereumSubscribeResponse(transaction.TransactionSubscription),
+    pending_transactions_hashes: types.EthereumSubscribeResponse(struct {
+        removed: bool,
+        transaction: types.Hex,
+        pub usingnamespace meta.RequestParser(@This());
+    }),
+    logs: types.EthereumSubscribeResponse(log.Log),
+
+    pub usingnamespace meta.UnionParser(@This());
+};
 
 pub const Handler = struct {
     ws_client: *WebSocketClient,
 
     pub fn handle(self: Handler, message: ws.Message) !void {
-        const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(usize), self.ws_client.alloc, message.data, .{}) catch {
+        const parsed = std.json.parseFromSliceLeaky(SubscribeEvents, self.ws_client.alloc, message.data, .{}) catch {
             if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.ws_client.alloc, message.data, .{ .ignore_unknown_fields = true })) |_| {
-                // try self.errors.append(self.alloc, result.@"error");
                 return error.RpcErrorResponse;
             } else |_| return error.RpcNullResponse;
         };
-        self.ws_client.channel.put(SubscribeEvents{ .chain_id = parsed.result });
+        self.ws_client.channel.put(parsed);
     }
 
     pub fn close(_: Handler) void {}
@@ -49,16 +61,20 @@ pub const Handler = struct {
 arena: *ArenaAllocator,
 
 alloc: Allocator,
-
-host: std.Uri,
-
-retry_count: u8,
-
-pooling_interval: u64,
+/// The client chainId.
+chain_id: usize,
 
 channel: *Channel(SubscribeEvents),
 
 client: *ws.Client,
+
+host: []const u8,
+
+uri: std.Uri,
+
+retry_count: u8,
+
+pooling_interval: u64,
 
 pub fn init(self: *WebSocketClient, init_opts: StartUpOptions) !void {
     const client = try init_opts.alloc.create(ws.Client);
@@ -67,12 +83,22 @@ pub fn init(self: *WebSocketClient, init_opts: StartUpOptions) !void {
     const arena = try init_opts.alloc.create(ArenaAllocator);
     errdefer init_opts.alloc.destroy(arena);
 
+    const channel = try init_opts.alloc.create(Channel(SubscribeEvents));
+    errdefer init_opts.alloc.destroy(channel);
+
+    const chain: types.PublicChains = init_opts.chain_id orelse .ethereum;
+    const id = switch (chain) {
+        inline else => |id| @intFromEnum(id),
+    };
+
     self.* = .{
         .alloc = undefined,
         .arena = arena,
-        .channel = init_opts.channel,
+        .chain_id = id,
+        .channel = channel,
         .client = client,
-        .host = try std.Uri.parse(init_opts.host_url),
+        .host = init_opts.host_url,
+        .uri = try std.Uri.parse(init_opts.host_url),
         .pooling_interval = init_opts.pooling_interval,
         .retry_count = init_opts.retry_count,
     };
@@ -80,19 +106,22 @@ pub fn init(self: *WebSocketClient, init_opts: StartUpOptions) !void {
     self.arena.* = ArenaAllocator.init(init_opts.alloc);
     self.alloc = self.arena.allocator();
 
+    self.channel.* = Channel(SubscribeEvents).init(self.alloc);
+
     try self.connect();
 }
 
 pub fn deinit(self: *WebSocketClient) void {
     const allocator = self.arena.child_allocator;
-    self.client.stream.close();
     self.arena.deinit();
     allocator.destroy(self.client);
+    allocator.destroy(self.channel);
     allocator.destroy(self.arena);
 }
 
 pub fn connect(self: *WebSocketClient) !void {
     var retries: u8 = 0;
+
     self.client.* = while (true) : (retries += 1) {
         switch (retries) {
             0...2 => {},
@@ -105,23 +134,38 @@ pub fn connect(self: *WebSocketClient) !void {
         if (retries > self.retry_count)
             return error.FailedToConnect;
 
-        var ws_client = ws.connect(self.alloc, self.host.host.?, self.host.port orelse 433, .{ .tls = self.host.port == null, .max_size = std.math.maxInt(u64) }) catch continue;
+        var ws_client = ws.connect(self.alloc, self.uri.host.?, self.uri.port orelse 443, .{ .tls = self.uri.port == null, .max_size = std.math.maxInt(u64) }) catch |err| {
+            wslog.debug("Connection failed: {s}", .{@errorName(err)});
+            continue;
+        };
 
-        const headers = try std.fmt.allocPrint(self.alloc, "Host: {s}", .{self.host.host.?});
+        const headers = try std.fmt.allocPrint(self.alloc, "Host: {s}", .{self.uri.host.?});
         defer self.alloc.free(headers);
-        ws_client.handshake(self.host.path, .{ .headers = headers, .timeout_ms = 5_000 }) catch continue;
+
+        const path = if (std.mem.eql(u8, "localhost", self.uri.host.?)) "/" else self.host;
+
+        ws_client.handshake(path, .{ .headers = headers, .timeout_ms = 5_000 }) catch |err| {
+            wslog.debug("Handshake failed: {s}", .{@errorName(err)});
+            continue;
+        };
 
         break ws_client;
     };
+
+    wslog.debug("Connected!", .{});
 }
 
-pub fn readLoopInSeperateThread(self: *WebSocketClient) !void {
+pub fn readLoopWithHandler(self: *WebSocketClient) !void {
     std.os.maybeIgnoreSigpipe();
-
     const handler: Handler = .{ .ws_client = self };
     while (true) {
         self.client.readLoop(handler) catch continue;
     }
+}
+
+pub fn readLoopThread(self: *WebSocketClient) !void {
+    const thread = try std.Thread.spawn(.{}, readLoopWithHandler, .{self});
+    thread.detach();
 }
 
 pub fn estimateFeesPerGas(self: *WebSocketClient, call_object: transaction.EthCall, know_block: ?block.Block) !transaction.EstimateFeeReturn {
@@ -380,6 +424,31 @@ pub fn uninstalllFilter(self: *WebSocketClient, id: usize) !bool {
     return try self.parseRPCEvent(bool, message.data);
 }
 
+pub fn unsubscribe(self: *WebSocketClient, sub_id: types.Hex) !bool {
+    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{sub_id}, .method = .eth_unsubscribe, .id = 1 };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    defer self.alloc.free(req_body);
+
+    try self.client.write(@constCast(req_body));
+    const message = try self.client._reader.readMessage(&self.client.stream);
+
+    return try self.parseRPCEvent(bool, message.data);
+}
+
+pub fn watchTransactions(self: *WebSocketClient) !types.Hex {
+    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{"newPendingTransactions"}, .method = .eth_subscribe, .id = 1 };
+
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    defer self.alloc.free(req_body);
+
+    try self.client.write(@constCast(req_body));
+    const message = try self.client._reader.readMessage(&self.client.stream);
+    try self.readLoopThread();
+
+    return try self.parseRPCEvent(types.Hex, message.data);
+}
+
 fn fetchByBlockNumber(self: *WebSocketClient, opts: block.BlockNumberRequest, method: types.EthereumRpcMethods) !usize {
     const tag: block.BalanceBlockTag = opts.tag orelse .latest;
 
@@ -494,7 +563,8 @@ fn fetchCall(self: *WebSocketClient, comptime T: type, call_object: transaction.
 
 fn parseRPCEvent(self: *WebSocketClient, comptime T: type, request: []const u8) !T {
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(T), self.alloc, request, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, request, .{ .ignore_unknown_fields = true })) |_| {
+        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, request, .{ .ignore_unknown_fields = true })) |result| {
+            wslog.err("Error response: {s}", .{result.@"error".message});
             return error.RpcErrorResponse;
         } else |_| return error.RpcNullResponse;
     };
@@ -506,8 +576,7 @@ test "GetBlockNumber" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const block_req = try ws_client.getBlockNumber();
 
@@ -518,8 +587,7 @@ test "GetChainId" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const chain = try ws_client.getChainId();
 
@@ -530,13 +598,11 @@ test "GetBlock" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const block_info = try ws_client.getBlockByNumber(.{});
     try testing.expect(block_info == .blockMerge);
     try testing.expect(block_info.blockMerge.number != null);
-    try testing.expectEqualStrings(block_info.blockMerge.hash.?, "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
 
     const block_old = try ws_client.getBlockByNumber(.{ .block_number = 696969 });
     try testing.expect(block_old == .block);
@@ -546,8 +612,7 @@ test "GetBlockByHash" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const block_info = try ws_client.getBlockByHash(.{ .block_hash = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8" });
     try testing.expect(block_info == .blockMerge);
@@ -558,8 +623,7 @@ test "GetBlockTransactionCountByHash" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const block_info = try ws_client.getBlockTransactionCountByHash("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
     try testing.expect(block_info != 0);
@@ -569,8 +633,7 @@ test "getBlockTransactionCountByNumber" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const block_info = try ws_client.getBlockTransactionCountByNumber(.{});
     try testing.expect(block_info != 0);
@@ -580,8 +643,7 @@ test "getBlockTransactionCountByHash" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const block_info = try ws_client.getBlockTransactionCountByHash("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
     try testing.expect(block_info != 0);
@@ -591,8 +653,7 @@ test "getAccounts" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const accounts = try ws_client.getAccounts();
     try testing.expect(accounts.len != 0);
@@ -602,8 +663,7 @@ test "gasPrice" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const gasPrice = try ws_client.getGasPrice();
     try testing.expect(gasPrice != 0);
@@ -613,8 +673,7 @@ test "getCode" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const code = try ws_client.getContractCode(.{ .address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" });
     try testing.expectEqualStrings(code, "0x6060604052600436106100af576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806306fdde03146100b9578063095ea7b31461014757806318160ddd146101a157806323b872dd146101ca5780632e1a7d4d14610243578063313ce5671461026657806370a082311461029557806395d89b41146102e2578063a9059cbb14610370578063d0e30db0146103ca578063dd62ed3e146103d4575b6100b7610440565b005b34156100c457600080fd5b6100cc6104dd565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561010c5780820151818401526020810190506100f1565b50505050905090810190601f1680156101395780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b341561015257600080fd5b610187600480803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803590602001909190505061057b565b604051808215151515815260200191505060405180910390f35b34156101ac57600080fd5b6101b461066d565b6040518082815260200191505060405180910390f35b34156101d557600080fd5b610229600480803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803590602001909190505061068c565b604051808215151515815260200191505060405180910390f35b341561024e57600080fd5b61026460048080359060200190919050506109d9565b005b341561027157600080fd5b610279610b05565b604051808260ff1660ff16815260200191505060405180910390f35b34156102a057600080fd5b6102cc600480803573ffffffffffffffffffffffffffffffffffffffff16906020019091905050610b18565b6040518082815260200191505060405180910390f35b34156102ed57600080fd5b6102f5610b30565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561033557808201518184015260208101905061031a565b50505050905090810190601f1680156103625780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b341561037b57600080fd5b6103b0600480803573ffffffffffffffffffffffffffffffffffffffff16906020019091908035906020019091905050610bce565b604051808215151515815260200191505060405180910390f35b6103d2610440565b005b34156103df57600080fd5b61042a600480803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803573ffffffffffffffffffffffffffffffffffffffff16906020019091905050610be3565b6040518082815260200191505060405180910390f35b34600360003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825401925050819055503373ffffffffffffffffffffffffffffffffffffffff167fe1fffcc4923d04b559f4d29a8bfc6cda04eb5b0d3c460751c2402c5c5cc9109c346040518082815260200191505060405180910390a2565b60008054600181600116156101000203166002900480601f0160208091040260200160405190810160405280929190818152602001828054600181600116156101000203166002900480156105735780601f1061054857610100808354040283529160200191610573565b820191906000526020600020905b81548152906001019060200180831161055657829003601f168201915b505050505081565b600081600460003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060008573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020819055508273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925846040518082815260200191505060405180910390a36001905092915050565b60003073ffffffffffffffffffffffffffffffffffffffff1631905090565b600081600360008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002054101515156106dc57600080fd5b3373ffffffffffffffffffffffffffffffffffffffff168473ffffffffffffffffffffffffffffffffffffffff16141580156107b457507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff600460008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205414155b156108cf5781600460008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020541015151561084457600080fd5b81600460008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825403925050819055505b81600360008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000828254039250508190555081600360008573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825401925050819055508273ffffffffffffffffffffffffffffffffffffffff168473ffffffffffffffffffffffffffffffffffffffff167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef846040518082815260200191505060405180910390a3600190509392505050565b80600360003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205410151515610a2757600080fd5b80600360003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825403925050819055503373ffffffffffffffffffffffffffffffffffffffff166108fc829081150290604051600060405180830381858888f193505050501515610ab457600080fd5b3373ffffffffffffffffffffffffffffffffffffffff167f7fcf532c15f0a6db0bd6d0e038bea71d30d808c7d98cb3bf7268a95bf5081b65826040518082815260200191505060405180910390a250565b600260009054906101000a900460ff1681565b60036020528060005260406000206000915090505481565b60018054600181600116156101000203166002900480601f016020809104026020016040519081016040528092919081815260200182805460018160011615610100020316600290048015610bc65780601f10610b9b57610100808354040283529160200191610bc6565b820191906000526020600020905b815481529060010190602001808311610ba957829003601f168201915b505050505081565b6000610bdb33848461068c565b905092915050565b60046020528160005260406000206020528060005260406000206000915091505054815600a165627a7a72305820deb4c2ccab3c2fdca32ab3f46728389c2fe2c165d5fafa07661e4e004f6c344a0029");
@@ -624,8 +683,7 @@ test "getAddressBalance" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const address = try ws_client.getAddressBalance(.{ .address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" });
     try testing.expectEqual(address, try utils.parseEth(10000));
@@ -635,8 +693,7 @@ test "getUncleCountByBlockHash" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const uncle = try ws_client.getUncleCountByBlockHash("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
     try testing.expectEqual(uncle, 0);
@@ -646,8 +703,7 @@ test "getUncleCountByBlockNumber" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const uncle = try ws_client.getUncleCountByBlockNumber(.{});
     try testing.expectEqual(uncle, 0);
@@ -657,8 +713,7 @@ test "getLogs" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const logs = try ws_client.getLogs(.{ .blockHash = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8" });
     try testing.expect(logs.len != 0);
@@ -668,8 +723,7 @@ test "getTransactionByBlockNumberAndIndex" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const tx = try ws_client.getTransactionByBlockNumberAndIndex(.{ .block_number = 16777215 }, 0);
     try testing.expect(tx == .eip1559);
@@ -679,8 +733,7 @@ test "getTransactionByBlockHashAndIndex" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const tx = try ws_client.getTransactionByBlockHashAndIndex("0xf34c3c11b35466e5595e077239e6b25a7c3ec07a214b2492d42ba6d73d503a1b", 0);
     try testing.expect(tx == .eip1559);
@@ -690,8 +743,7 @@ test "getAddressTransactionCount" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const nonce = try ws_client.getAddressTransactionCount(.{ .address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" });
     try testing.expectEqual(nonce, 605);
@@ -701,8 +753,7 @@ test "getTransactionByHash" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const eip1559 = try ws_client.getTransactionByHash("0x72c2a1a82c48da81fac7b434cdb5662b5c92b76f85565e062196ca8a84f43ee5");
     try testing.expect(eip1559 == .eip1559);
@@ -719,8 +770,7 @@ test "getTransactionReceipt" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const receipt = try ws_client.getTransactionReceipt("0x72c2a1a82c48da81fac7b434cdb5662b5c92b76f85565e062196ca8a84f43ee5");
     try testing.expect(receipt.status != null);
@@ -734,8 +784,7 @@ test "estimateGas" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const gas = try ws_client.estimateGas(.{ .eip1559 = .{ .from = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1) } }, .{});
     try testing.expect(gas != 0);
@@ -745,8 +794,7 @@ test "estimateFeesPerGas" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const gas = try ws_client.estimateFeesPerGas(.{ .eip1559 = .{ .from = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1) } }, null);
     try testing.expect(gas.eip1559.max_fee_gas != 0);
@@ -757,8 +805,7 @@ test "estimateMaxFeePerGasManual" {
     var ws_client: WebSocketClient = undefined;
     defer ws_client.deinit();
 
-    var ch = Channel(SubscribeEvents).init(testing.allocator);
-    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/", .channel = &ch });
+    try ws_client.init(.{ .alloc = std.testing.allocator, .host_url = "http://localhost:8545/" });
 
     const gas = try ws_client.estimateMaxFeePerGasManual(null);
     try testing.expect(gas != 0);

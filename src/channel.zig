@@ -60,6 +60,8 @@ pub fn Channel(comptime T: type) type {
             if (self.fifo.readItem()) |item| return item;
 
             self.writeable.signal();
+
+            return null;
         }
     };
 }

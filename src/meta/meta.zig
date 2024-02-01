@@ -144,6 +144,9 @@ pub fn RequestParser(comptime T: type) type {
                 .Struct => {
                     if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(alloc, source, opts) else @compileError("Unable to parse structs without jsonParseFromValue custom declaration");
                 },
+                .Union => {
+                    if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(alloc, source, opts) else @compileError("Unable to parse structs without jsonParseFromValue custom declaration");
+                },
 
                 else => @compileError("Unable to parse type " ++ @typeName(TT)),
             }
@@ -227,6 +230,9 @@ pub fn RequestParser(comptime T: type) type {
                     }
                 },
                 .Struct => {
+                    if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(alloc, source, opts) else @compileError("Unable to parse structs without jsonParse custom declaration");
+                },
+                .Union => {
                     if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(alloc, source, opts) else @compileError("Unable to parse structs without jsonParse custom declaration");
                 },
                 else => @compileError("Unable to parse type " ++ @typeName(TT)),

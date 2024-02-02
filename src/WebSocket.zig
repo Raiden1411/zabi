@@ -157,6 +157,15 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
         const headers = try std.fmt.allocPrint(self.allocator, "Host: {s}", .{self.uri.host.?});
         defer self.allocator.free(headers);
 
+        if (self.uri.path.len == 0)
+            return error.MissingUrlPath;
+
+        const path = switch (scheme) {
+            .tls => try std.fmt.allocPrint(self.allocator, "{s}", .{self.uri}),
+            else => self.uri.path,
+        };
+        defer if (scheme == .tls) self.allocator.free(path);
+
         client.handshake(self.uri.path, .{ .headers = headers, .timeout_ms = 5_000 }) catch |err| {
             wslog.debug("Handshake failed: {s}", .{@errorName(err)});
             continue;
@@ -170,6 +179,10 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
 
 pub fn write(self: *WebSocketHandler, data: []const u8) !void {
     return try self.ws_client.write(@constCast(data));
+}
+
+pub fn getCurrentEvent(self: *WebSocketHandler) !EthereumEvents {
+    return self.channel.get();
 }
 
 pub fn estimateFeesPerGas(self: *WebSocketHandler, call_object: transaction.EthCall, know_block: ?block.Block) !transaction.EstimateFeeReturn {

@@ -150,10 +150,13 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
             },
         }
 
-        var client = ws.connect(self.allocator, self.uri.host.?, port, .{ .tls = scheme == .tls, .max_size = std.math.maxInt(usize), .buffer_size = std.math.maxInt(u24) }) catch |err| {
+        const b_provider = try ws.bufferProvider(self.allocator, 10, 32768);
+
+        var client = ws.connect(self.allocator, self.uri.host.?, port, .{ .tls = scheme == .tls, .max_size = std.math.maxInt(u24), .buffer_provider = b_provider }) catch |err| {
             wslog.debug("Connection failed: {s}", .{@errorName(err)});
             continue;
         };
+
         const headers = try std.fmt.allocPrint(self.allocator, "Host: {s}", .{self.uri.host.?});
         defer self.allocator.free(headers);
 

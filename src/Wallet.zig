@@ -45,9 +45,11 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         const ws_client = try alloc.create(WebSocketClient);
                         errdefer alloc.destroy(ws_client);
 
+                        const uri = try std.Uri.parse(url);
+
                         try ws_client.init(.{
-                            .alloc = alloc,
-                            .host_url = url,
+                            .allocator = alloc,
+                            .uri = uri,
                         });
 
                         break :client ws_client;
@@ -300,7 +302,7 @@ test "signMessage" {
 test "sendTransaction" {
     // CI coverage runner dislikes this tests so for now we skip it.
     if (true) return error.SkipZigTest;
-    var wallet = try Wallet(.http).init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .ethereum);
+    var wallet = try Wallet(.websocket).init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum);
     defer wallet.deinit();
 
     var tx: transaction.PrepareEnvelope = .{ .eip1559 = undefined };

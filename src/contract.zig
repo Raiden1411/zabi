@@ -78,7 +78,7 @@ pub fn Contract(comptime client_type: ClientType) type {
             return try self.wallet.pub_client.sendEthCall(copy, .{});
         }
 
-        pub fn writeContractFunction(self: *Contract(.http), function_name: []const u8, function_args: anytype, overrides: transaction.PrepareEnvelope) !types.Hex {
+        pub fn writeContractFunction(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: transaction.PrepareEnvelope) !types.Hex {
             const function_item = try self.getAbiItem(.function, function_name);
             var copy = overrides;
 

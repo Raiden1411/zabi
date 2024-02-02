@@ -1,5 +1,8 @@
 const std = @import("std");
 const meta = @import("meta.zig");
+const block = @import("block.zig");
+const log = @import("log.zig");
+const transaction = @import("transaction.zig");
 
 pub const Hex = []const u8;
 pub const Gwei = u64;
@@ -56,11 +59,7 @@ pub fn EthereumSubscribeResponse(comptime T: type) type {
         params: struct {
             result: T,
             subscription: Hex,
-
-            pub usingnamespace meta.RequestParser(@This());
         },
-
-        pub usingnamespace meta.RequestParser(@This());
     };
 }
 
@@ -73,3 +72,19 @@ pub const ErrorResponse = struct {
 pub const EthereumErrorResponse = struct { jsonrpc: []const u8, id: usize, @"error": ErrorResponse };
 
 pub const HexRequestParameters = []const Hex;
+
+pub const EthereumEvents = union(enum) {
+    new_heads_event: EthereumSubscribeResponse(block.Block),
+    // pending_transactions: EthereumSubscribeResponse(transaction.TransactionSubscription),
+    pending_transactions_hashes_event: EthereumSubscribeResponse([]const u8),
+    log_event: EthereumSubscribeResponse(log.Log),
+    logs_event: EthereumResponse(log.Logs),
+    accounts_event: EthereumResponse([]const []const u8),
+    receipt_event: EthereumResponse(transaction.TransactionReceipt),
+    transaction_event: EthereumResponse(transaction.Transaction),
+    bool_event: EthereumResponse(bool),
+    block_event: EthereumResponse(block.Block),
+    hex_event: EthereumResponse([]const u8),
+
+    pub usingnamespace meta.UnionParser(@This());
+};

@@ -121,13 +121,17 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
 }
 
 pub fn deinit(self: *WebSocketHandler) void {
-    if (!@atomicLoad(bool, &self.ws_client._closed, .Acquire)) {
-        const allocator = self._arena.child_allocator;
-        self.ws_client.deinit();
-        self._arena.deinit();
+    while (@atomicRmw(bool, &self.ws_client._closed, .Xchg, true, .SeqCst)) {
+        std.time.sleep(10 * std.time.ns_per_ms);
+    }
+    const allocator = self._arena.child_allocator;
+    self.ws_client.deinit();
+    self._arena.deinit();
 
-        allocator.destroy(self.channel);
-        allocator.destroy(self._arena);
+    allocator.destroy(self.channel);
+    allocator.destroy(self._arena);
+
+    if (@atomicLoad(bool, &self.ws_client._closed, .Acquire)) {
         allocator.destroy(self.ws_client);
     }
 }
@@ -183,9 +187,11 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
 }
 
 pub fn readLoopOwned(self: *WebSocketHandler) !void {
+    errdefer self.deinit();
     std.os.maybeIgnoreSigpipe();
+
     self.ws_client.readLoop(self) catch |err| {
-        wslog.err("Read loop reported error: {s}", .{@errorName(err)});
+        wslog.debug("Read loop reported error: {s}", .{@errorName(err)});
         return;
     };
 }

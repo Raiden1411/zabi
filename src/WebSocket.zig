@@ -50,7 +50,7 @@ uri: std.Uri,
 ws_client: *ws.Client,
 
 fn parseRPCEvent(self: *WebSocketHandler, comptime T: type, request: []const u8) !T {
-    const parsed = std.json.parseFromSliceLeaky(T, self.allocator, request, .{}) catch {
+    const parsed = std.json.parseFromSliceLeaky(T, self.allocator, request, .{ .allocate = .alloc_always }) catch {
         if (std.json.parseFromSliceLeaky(EthereumErrorResponse, self.allocator, request, .{ .ignore_unknown_fields = true })) |result| {
             wslog.debug("Rpc replied with error message: {s}", .{result.@"error".message});
             return error.RpcErrorResponse;
@@ -61,6 +61,10 @@ fn parseRPCEvent(self: *WebSocketHandler, comptime T: type, request: []const u8)
 }
 
 pub fn handle(self: *WebSocketHandler, message: ws.Message) !void {
+    errdefer |err| {
+        wslog.debug("Handler errored out: {s}", .{@errorName(err)});
+    }
+
     wslog.debug("Got message: {s}", .{message.data});
     switch (message.type) {
         .text => {
@@ -119,12 +123,12 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
 pub fn deinit(self: *WebSocketHandler) void {
     if (!@atomicLoad(bool, &self.ws_client._closed, .Acquire)) {
         const allocator = self._arena.child_allocator;
-        self.ws_client.close();
+        self.ws_client.deinit();
         self._arena.deinit();
 
-        allocator.destroy(self.ws_client);
         allocator.destroy(self.channel);
         allocator.destroy(self._arena);
+        allocator.destroy(self.ws_client);
     }
 }
 
@@ -148,7 +152,7 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
             },
         }
 
-        const b_provider = try ws.bufferProvider(self.allocator, 16, std.math.maxInt(u16));
+        const b_provider = try ws.bufferProvider(self.allocator, 10, std.math.maxInt(u16));
 
         var client = ws.connect(self.allocator, self.uri.host.?, port, .{ .tls = scheme == .tls, .max_size = std.math.maxInt(u32), .buffer_provider = b_provider }) catch |err| {
             wslog.debug("Connection failed: {s}", .{@errorName(err)});

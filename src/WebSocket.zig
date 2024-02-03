@@ -122,7 +122,7 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
 
 pub fn deinit(self: *WebSocketHandler) void {
     while (@atomicRmw(bool, &self.ws_client._closed, .Xchg, true, .SeqCst)) {
-        std.time.sleep(10 * std.time.ns_per_ms);
+        std.time.sleep(50 * std.time.ns_per_ms);
     }
     const allocator = self._arena.child_allocator;
     self.ws_client.deinit();

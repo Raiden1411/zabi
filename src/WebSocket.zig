@@ -62,20 +62,25 @@ fn parseRPCEvent(self: *WebSocketHandler, comptime T: type, request: []const u8)
 
 pub fn handle(self: *WebSocketHandler, message: ws.Message) !void {
     wslog.debug("Got message: {s}", .{message.data});
-    const parsed = self.parseRPCEvent(EthereumEvents, message.data) catch |err| switch (err) {
-        error.RpcErrorResponse => {
-            wslog.debug("Closing the connection", .{});
-            self.ws_client.closeWithCode(1002);
-            return;
+    switch (message.type) {
+        .text => {
+            const parsed = self.parseRPCEvent(EthereumEvents, message.data) catch |err| switch (err) {
+                error.RpcErrorResponse => {
+                    wslog.debug("Closing the connection", .{});
+                    self.ws_client.closeWithCode(1002);
+                    return;
+                },
+                error.RpcNullResponse => {
+                    wslog.debug("Rpc replied with null result", .{});
+                    wslog.debug("Closing the connection", .{});
+                    self.ws_client.closeWithCode(1002);
+                    return;
+                },
+            };
+            self.channel.put(parsed);
         },
-        error.RpcNullResponse => {
-            wslog.debug("Rpc replied with null result", .{});
-            wslog.debug("Closing the connection", .{});
-            self.ws_client.closeWithCode(1002);
-            return;
-        },
-    };
-    self.channel.put(parsed);
+        else => {},
+    }
 }
 
 pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
@@ -112,7 +117,7 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
 }
 
 pub fn deinit(self: *WebSocketHandler) void {
-    if (!@atomicLoad(bool, &self.ws_client._closed, .Monotonic)) {
+    if (!@atomicLoad(bool, &self.ws_client._closed, .Acquire)) {
         const allocator = self._arena.child_allocator;
         self.ws_client.close();
         self._arena.deinit();
@@ -120,13 +125,6 @@ pub fn deinit(self: *WebSocketHandler) void {
         allocator.destroy(self.ws_client);
         allocator.destroy(self.channel);
         allocator.destroy(self._arena);
-    } else {
-        const allocator = self._arena.child_allocator;
-        self._arena.deinit();
-
-        allocator.destroy(self.channel);
-        allocator.destroy(self._arena);
-        allocator.destroy(self.ws_client);
     }
 }
 

@@ -107,7 +107,7 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
     self.channel.* = Channel(EthereumEvents).init(self.allocator);
     self.ws_client.* = try self.connect();
 
-    const thread = try self.ws_client.readLoopInNewThread(self);
+    const thread = try std.Thread.spawn(.{}, readLoopOwned, .{self});
     thread.detach();
 }
 
@@ -150,9 +150,9 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
             },
         }
 
-        const b_provider = try ws.bufferProvider(self.allocator, 10, 32768);
+        const b_provider = try ws.bufferProvider(self.allocator, 16, std.math.maxInt(u16));
 
-        var client = ws.connect(self.allocator, self.uri.host.?, port, .{ .tls = scheme == .tls, .max_size = std.math.maxInt(u24), .buffer_provider = b_provider }) catch |err| {
+        var client = ws.connect(self.allocator, self.uri.host.?, port, .{ .tls = scheme == .tls, .max_size = std.math.maxInt(u32), .buffer_provider = b_provider }) catch |err| {
             wslog.debug("Connection failed: {s}", .{@errorName(err)});
             continue;
         };
@@ -178,6 +178,14 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
     };
 
     return client;
+}
+
+pub fn readLoopOwned(self: *WebSocketHandler) !void {
+    std.os.maybeIgnoreSigpipe();
+    self.ws_client.readLoop(self) catch |err| {
+        wslog.err("Read loop reported error: {s}", .{@errorName(err)});
+        return;
+    };
 }
 
 pub fn write(self: *WebSocketHandler, data: []const u8) !void {

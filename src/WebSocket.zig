@@ -114,6 +114,8 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
     self.allocator = self._arena.allocator();
 
     self.channel.* = Channel(EthereumEvents).init(self.allocator);
+    errdefer self._arena.deinit();
+
     self.ws_client.* = try self.connect();
 
     const thread = try std.Thread.spawn(.{}, readLoopOwned, .{self});
@@ -122,16 +124,15 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
 
 pub fn deinit(self: *WebSocketHandler) void {
     while (@atomicRmw(bool, &self.ws_client._closed, .Xchg, true, .SeqCst)) {
-        std.time.sleep(50 * std.time.ns_per_ms);
+        std.time.sleep(10 * std.time.ns_per_ms);
     }
     const allocator = self._arena.child_allocator;
-    self.ws_client.deinit();
-    self._arena.deinit();
-
-    allocator.destroy(self.channel);
-    allocator.destroy(self._arena);
-
+    self.ws_client.stream.close();
     if (@atomicLoad(bool, &self.ws_client._closed, .Acquire)) {
+        self._arena.deinit();
+
+        allocator.destroy(self.channel);
+        allocator.destroy(self._arena);
         allocator.destroy(self.ws_client);
     }
 }

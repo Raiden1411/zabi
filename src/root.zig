@@ -35,7 +35,6 @@ test {
     _ = @import("abi/abi_parameter.zig");
     _ = @import("abi/abi.zig");
     _ = @import("abi/state_mutability.zig");
-    _ = @import("contract.zig");
     _ = @import("decoding/decoder.zig");
     _ = @import("decoding/parse_transacition.zig");
     _ = @import("encoding/encoder.zig");
@@ -46,4 +45,5 @@ test {
     _ = @import("meta/meta.zig");
     _ = @import("utils.zig");
     _ = @import("Wallet.zig");
+    _ = @import("contract.zig");
 }

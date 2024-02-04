@@ -27,6 +27,10 @@ pub const InitOptions = struct {
     uri: std.Uri,
     /// The client chainId.
     chain_id: ?Chains = null,
+    /// Callback function for everytime an event is parsed.
+    onEvent: ?*const fn (args: EthereumEvents) anyerror!void = null,
+    /// Callback function for everytime an error is caught.
+    onError: ?*const fn (args: []const u8) anyerror!void = null,
     /// Retry count for failed connections to anvil. The process takes some ms to start so this is necessary
     retries: u8 = 5,
     /// The interval to retry the connection. This will get multiplied in ns_per_ms.
@@ -40,6 +44,10 @@ allocator: std.mem.Allocator,
 chain_id: usize,
 
 channel: *Channel(EthereumEvents),
+
+onEvent: ?*const fn (args: EthereumEvents) anyerror!void,
+
+onError: ?*const fn (args: []const u8) anyerror!void,
 
 pooling_interval: u64,
 
@@ -70,17 +78,30 @@ pub fn handle(self: *WebSocketHandler, message: ws.Message) !void {
         .text => {
             const parsed = self.parseRPCEvent(EthereumEvents, message.data) catch |err| switch (err) {
                 error.RpcErrorResponse => {
+                    if (self.onError) |onError| {
+                        try onError(message.data);
+                    }
+
                     wslog.debug("Closing the connection", .{});
                     self.ws_client.closeWithCode(1002);
                     return;
                 },
                 error.RpcNullResponse => {
                     wslog.debug("Rpc replied with null result", .{});
+                    if (self.onError) |onError| {
+                        try onError(message.data);
+                    }
+
                     wslog.debug("Closing the connection", .{});
                     self.ws_client.closeWithCode(1002);
                     return;
                 },
             };
+
+            if (self.onEvent) |onEvent| {
+                try onEvent(parsed);
+            }
+
             self.channel.put(parsed);
         },
         else => {},
@@ -104,6 +125,8 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
         .allocator = undefined,
         .chain_id = @intFromEnum(chain),
         .channel = channel,
+        .onError = opts.onError,
+        .onEvent = opts.onEvent,
         .pooling_interval = opts.pooling_interval,
         .retries = opts.retries,
         .uri = opts.uri,
@@ -127,12 +150,12 @@ pub fn deinit(self: *WebSocketHandler) void {
         std.time.sleep(10 * std.time.ns_per_ms);
     }
     const allocator = self._arena.child_allocator;
-    self.ws_client.stream.close();
-    if (@atomicLoad(bool, &self.ws_client._closed, .Acquire)) {
-        self._arena.deinit();
+    self.ws_client.deinit();
+    self._arena.deinit();
 
-        allocator.destroy(self.channel);
-        allocator.destroy(self._arena);
+    allocator.destroy(self.channel);
+    allocator.destroy(self._arena);
+    if (@atomicLoad(bool, &self.ws_client._closed, .Acquire)) {
         allocator.destroy(self.ws_client);
     }
 }

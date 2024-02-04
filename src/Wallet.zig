@@ -67,7 +67,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
         /// Inits wallet from a random generated priv key. Must call `deinit` after.
         pub fn initFromRandomKey(alloc: Allocator, url: []const u8, chain_id: ?Chains) !*Wallet(client_type) {
-            var wallet = try alloc.create(Wallet);
+            var wallet = try alloc.create(Wallet(client_type));
             errdefer alloc.destroy(wallet);
 
             wallet.arena = try alloc.create(ArenaAllocator);

@@ -40,7 +40,16 @@ pub fn build(b: *std.Build) void {
     });
 
     addDependencies(b, lib_unit_tests);
-    const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
+    var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
+    if (coverage) {
+        const include = b.fmt("--include-pattern=/src", .{});
+        const args = &[_]std.Build.Step.Run.Arg{ .{ .bytes = b.dupe("kcov") }, .{ .bytes = b.dupe(include) }, .{ .bytes = b.dupe(coverage_output_dir) } };
+
+        // var tests_run = b.addRunArtifact(lib_unit_tests);
+        run_lib_unit_tests.has_side_effects = true;
+        run_lib_unit_tests.argv.insertSlice(0, args) catch @panic("OutOfMemory");
+        // test_step.dependOn(&tests_run.step);
+    }
 
     // Similar to creating the run step earlier, this exposes a `test` step to
     // the `zig build --help` menu, providing a way for the user to request
@@ -49,15 +58,6 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_lib_unit_tests.step);
 
     // Coverage build option with kcov
-    if (coverage) {
-        const include = b.fmt("--include-pattern=/src", .{});
-        const args = &[_]std.Build.Step.Run.Arg{ .{ .bytes = b.dupe("kcov") }, .{ .bytes = b.dupe(include) }, .{ .bytes = b.dupe(coverage_output_dir) } };
-
-        var tests_run = b.addRunArtifact(lib_unit_tests);
-        tests_run.has_side_effects = true;
-        tests_run.argv.insertSlice(0, args) catch @panic("OutOfMemory");
-        test_step.dependOn(&tests_run.step);
-    }
 }
 
 fn addDependencies(b: *std.Build, step: *std.Build.Step.Compile) void {

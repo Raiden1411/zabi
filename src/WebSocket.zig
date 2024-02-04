@@ -818,8 +818,8 @@ pub fn unsubscribe(self: *WebSocketHandler, sub_id: types.Hex) !bool {
     return event.result;
 }
 
-pub fn watchTransactions(self: *WebSocketHandler) !types.Hex {
-    const request: EthereumRequest(types.HexRequestParameters) = .{ .params = &.{"newPendingTransactions"}, .method = .eth_subscribe, .id = self.chain_id };
+pub fn watchNewBlocks(self: *WebSocketHandler) !types.Hex {
+    const request: EthereumRequest(types.HexRequestParameters) = .{ .params = &.{"newHeads"}, .method = .eth_subscribe, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -836,8 +836,31 @@ pub fn watchTransactions(self: *WebSocketHandler) !types.Hex {
     return event.result;
 }
 
-pub fn watchNewBlocks(self: *WebSocketHandler) !types.Hex {
-    const request: EthereumRequest(types.HexRequestParameters) = .{ .params = &.{"newHeads"}, .method = .eth_subscribe, .id = self.chain_id };
+pub fn watchLogs(self: *WebSocketHandler, opts: log.LogFilterRequestParams) !types.Hex {
+    const from_block = if (opts.tag) |tag| @tagName(tag) else if (opts.fromBlock) |number| try std.fmt.allocPrint(self.allocator, "0x{x}", .{number}) else null;
+    defer if (from_block) |from| if (from[0] == '0') self.allocator.free(from);
+
+    const to_block = if (opts.tag) |tag| @tagName(tag) else if (opts.toBlock) |number| try std.fmt.allocPrint(self.allocator, "0x{x}", .{number}) else null;
+    defer if (to_block) |to| if (to[0] == '0') self.allocator.free(to);
+    const request: EthereumRequest(std.meta.Tuple(&[_]type{ []const u8, log.LogRequest })) = .{ .params = &.{ "logs", .{ .fromBlock = from_block, .toBlock = to_block, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics } }, .method = .eth_subscribe, .id = self.chain_id };
+
+    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{ .emit_null_optional_fields = false });
+    defer self.allocator.free(req_body);
+
+    try self.write(@constCast(req_body));
+    const event = switch (self.channel.get()) {
+        .hex_event => |hex| hex,
+        else => |eve| {
+            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            return error.InvalidEventFound;
+        },
+    };
+
+    return event.result;
+}
+
+pub fn watchTransactions(self: *WebSocketHandler) !types.Hex {
+    const request: EthereumRequest(types.HexRequestParameters) = .{ .params = &.{"newPendingTransactions"}, .method = .eth_subscribe, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);

@@ -18,7 +18,7 @@ pub const transactions = @import("meta/transaction.zig");
 pub const tokens = @import("human-readable/tokens.zig");
 pub const types = @import("meta/ethereum.zig");
 pub const utils = @import("utils.zig");
-pub const wallet = @import("Wallet.zig");
+pub const wallet = @import("wallet.zig");
 
 pub const Anvil = @import("tests/Anvil.zig");
 pub const Parser = @import("human-readable/Parser.zig");
@@ -44,6 +44,6 @@ test {
     _ = @import("human-readable/abi_parsing.zig");
     _ = @import("meta/meta.zig");
     _ = @import("utils.zig");
-    _ = @import("Wallet.zig");
+    _ = @import("wallet.zig");
     _ = @import("contract.zig");
 }

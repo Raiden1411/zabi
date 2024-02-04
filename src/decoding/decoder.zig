@@ -175,8 +175,9 @@ pub fn decodeAbiParametersLeaky(alloc: Allocator, comptime params: []const AbiPa
     if (params.len == 0) return;
     std.debug.assert(hex.len > 63 and hex.len % 2 == 0);
 
-    const buffer = try alloc.alloc(u8, @divExact(hex.len, 2));
-    const bytes = try std.fmt.hexToBytes(buffer, hex);
+    const hex_buffer = if (std.mem.startsWith(u8, hex, "0x")) hex[2..] else hex;
+    const buffer = try alloc.alloc(u8, @divExact(hex_buffer.len, 2));
+    const bytes = try std.fmt.hexToBytes(buffer, hex_buffer);
 
     return decodeParameters(alloc, params, bytes, opts);
 }

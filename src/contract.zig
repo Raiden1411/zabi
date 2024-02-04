@@ -1,5 +1,6 @@
 const abitype = @import("abi/abi.zig");
 const block = @import("meta/block.zig");
+const decoder = @import("decoding/decoder.zig");
 const logs = @import("meta/log.zig");
 const meta = @import("meta/meta.zig");
 const testing = std.testing;
@@ -8,8 +9,8 @@ const types = @import("meta/ethereum.zig");
 const std = @import("std");
 const Anvil = @import("tests/Anvil.zig");
 const Allocator = std.mem.Allocator;
-const ClientType = @import("Wallet.zig").WalletClients;
-const Wallet = @import("Wallet.zig").Wallet;
+const ClientType = @import("wallet.zig").WalletClients;
+const Wallet = @import("wallet.zig").Wallet;
 
 pub fn Contract(comptime client_type: ClientType) type {
     return struct {
@@ -227,7 +228,7 @@ fn AbiFunctionArgs(comptime function: abitype.Function, comptime Overrides: type
     return struct { args: meta.AbiParametersToPrimative(function.inputs), wallet: *Wallet(client_type), overrides: Overrides };
 }
 
-pub fn readContractFunction(comptime function: abitype.Function, comptime client_type: ClientType, opts: AbiFunctionArgs(function, transaction.EthCall, client_type)) !types.Hex {
+pub fn readContractFunction(comptime function: abitype.Function, comptime client_type: ClientType, opts: AbiFunctionArgs(function, transaction.EthCall, client_type)) !decoder.AbiDecoded(function.outputs) {
     switch (function.stateMutability) {
         .view, .pure => {},
         inline else => return error.InvalidFunctionMutability,
@@ -249,7 +250,10 @@ pub fn readContractFunction(comptime function: abitype.Function, comptime client
         },
     }
 
-    return try opts.wallet.pub_client.sendEthCall(copy, .{});
+    const data = try opts.wallet.pub_client.sendEthCall(copy, .{});
+    const decoded = try decoder.decodeAbiParameters(opts.wallet.alloc, function.outputs, data, .{});
+
+    return decoded;
 }
 
 pub fn writeContractFunction(comptime function: abitype.Function, comptime client_type: ClientType, opts: AbiFunctionArgs(function, transaction.PrepareEnvelope, client_type)) !types.Hex {
@@ -354,7 +358,7 @@ test "ReadContract" {
 
         const result = try readContractFunction(.{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" }, .http, .{ .wallet = wallet, .args = .{69}, .overrides = .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try wallet.getWalletAddress() } } });
 
-        try testing.expectEqual(result.len, 66);
+        try testing.expectEqual(result.values[0].len, 42);
     }
 }
 

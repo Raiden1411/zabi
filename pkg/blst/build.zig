@@ -32,6 +32,7 @@ fn buildBlst(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.R
     if (target.result.isDarwin()) {
         const apple_sdk = @import("apple_sdk");
         try apple_sdk.addPaths(b, &lib.root_module);
+        try flags.appendSlice(&.{"-D__APPLE__"});
     }
 
     return lib;

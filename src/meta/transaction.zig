@@ -18,10 +18,14 @@ pub const EnvelopeLegacy = std.meta.Tuple(&[_]type{ u64, types.Gwei, types.Gwei,
 
 pub const EnvelopeLegacySigned = std.meta.Tuple(&[_]type{ u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, usize, types.Hex, types.Hex });
 
-pub const TransactionSubscription = struct {
+pub const MinedTransactionHashes = struct {
     removed: bool,
-    transaction: TransactionObjectEip1559,
-    pub usingnamespace meta.RequestParser(@This());
+    transaction: struct { hash: types.Hex },
+};
+
+pub const MinedTransactions = struct {
+    removed: bool,
+    transaction: PendingTransaction,
 };
 
 /// The transaction envelope that will be serialized before getting sent to the network.
@@ -167,6 +171,58 @@ pub const PrepareEnvelopeLegacy = struct {
     to: ?types.Hex = null,
     value: ?types.Wei = null,
     data: ?types.Hex = null,
+};
+
+pub const PendingTransactionEip1559 = struct {
+    hash: types.Hex,
+    nonce: u64,
+    blockHash: ?types.Hex,
+    blockNumber: ?u64,
+    transactionIndex: ?u64,
+    from: types.Hex,
+    to: types.Hex,
+    value: types.Wei,
+    gasPrice: types.Gwei,
+    gas: types.Gwei,
+    input: types.Hex,
+    v: u4,
+    r: types.Hex,
+    s: types.Hex,
+    type: u2,
+    accessList: []const AccessList,
+    maxPriorityFeePerGas: types.Gwei,
+    maxFeePerGas: types.Gwei,
+    chainId: usize,
+    yParity: u1,
+
+    pub usingnamespace meta.RequestParser(@This());
+};
+
+pub const PendingTransactionLegacy = struct {
+    hash: types.Hex,
+    nonce: u64,
+    blockHash: ?types.Hex,
+    blockNumber: ?u64,
+    transactionIndex: ?u64,
+    from: types.Hex,
+    to: types.Hex,
+    value: types.Wei,
+    gasPrice: types.Gwei,
+    gas: types.Gwei,
+    input: types.Hex,
+    v: u4,
+    r: types.Hex,
+    s: types.Hex,
+    type: u2,
+    chainId: usize,
+
+    pub usingnamespace meta.RequestParser(@This());
+};
+
+/// Signed transaction envelope types.
+pub const PendingTransaction = union(enum) {
+    eip1559: PendingTransactionEip1559,
+    legacy: PrepareEnvelopeLegacy,
 };
 
 pub const TransactionObjectEip1559 = struct {

@@ -75,7 +75,7 @@ pub const HexRequestParameters = []const Hex;
 
 pub const EthereumEvents = union(enum) {
     new_heads_event: EthereumSubscribeResponse(block.Block),
-    // pending_transactions: EthereumSubscribeResponse(transaction.TransactionSubscription),
+    pending_transactions_event: EthereumSubscribeResponse(transaction.PendingTransaction),
     pending_transactions_hashes_event: EthereumSubscribeResponse([]const u8),
     log_event: EthereumSubscribeResponse(log.Log),
     logs_event: EthereumResponse(log.Logs),
@@ -85,6 +85,8 @@ pub const EthereumEvents = union(enum) {
     bool_event: EthereumResponse(bool),
     block_event: EthereumResponse(block.Block),
     hex_event: EthereumResponse([]const u8),
+    mined_transaction_hashes_event: EthereumSubscribeResponse(transaction.MinedTransactionHashes),
+    mined_transaction_event: EthereumSubscribeResponse(transaction.MinedTransactions),
 
     pub usingnamespace meta.UnionParser(@This());
 };

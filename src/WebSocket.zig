@@ -877,6 +877,21 @@ pub fn watchTransactions(self: *WebSocketHandler) !types.Hex {
     return event.result;
 }
 
+/// The request must be preformated before using this.
+/// Returns the subscription id
+pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []const u8) !types.Hex {
+    try self.write(@constCast(request));
+    const event = switch (self.channel.get()) {
+        .hex_event => |hex| hex,
+        else => |eve| {
+            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            return error.InvalidEventFound;
+        },
+    };
+
+    return event.result;
+}
+
 fn prepEmptyArgsRequest(self: *WebSocketHandler, method: EthereumRpcMethods) ![]const u8 {
     const Params = std.meta.Tuple(&[_]type{});
     const request: EthereumRequest(Params) = .{ .params = .{}, .method = method, .id = self.chain_id };

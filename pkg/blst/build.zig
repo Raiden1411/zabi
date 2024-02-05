@@ -25,7 +25,7 @@ fn buildBlst(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.R
 
     try flags.appendSlice(&.{ "-D__BLST_PORTABLE__", "-fno-builtin", "-fPIC" });
     if (builtin.target.isDarwin()) {
-        try flags.appendSlice(&.{"-D__ADX__"});
+        try flags.appendSlice(&.{"-D__BLST_NO_ASM__"});
     }
 
     lib.addCSourceFiles(.{ .dependency = upstream, .flags = flags.items, .files = &.{ "src/server.c", "build/assembly.S" } });

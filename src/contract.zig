@@ -52,7 +52,7 @@ pub fn Contract(comptime client_type: ClientType) type {
             return try self.wallet.sendTransaction(copy);
         }
 
-        pub fn readContractFunction(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: transaction.EthCall) !types.Hex {
+        pub fn readContractFunction(self: *Contract(client_type), comptime T: type, function_name: []const u8, function_args: anytype, overrides: transaction.EthCall) !decoder.AbiDecodedRuntime(T) {
             const function_item = try self.getAbiItem(.function, function_name);
             var copy = overrides;
 
@@ -76,7 +76,10 @@ pub fn Contract(comptime client_type: ClientType) type {
                 },
             }
 
-            return try self.wallet.pub_client.sendEthCall(copy, .{});
+            const data = try self.wallet.pub_client.sendEthCall(copy, .{});
+            const decoded = try decoder.decodeAbiParametersRuntime(self.wallet.alloc, T, function_item.abiFunction.outputs, data, .{});
+
+            return decoded;
         }
 
         pub fn writeContractFunction(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: transaction.PrepareEnvelope) !types.Hex {
@@ -340,8 +343,9 @@ test "ReadContract" {
             .wallet = try Wallet(.websocket).init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum),
         };
         defer contract.deinit();
-        const result = try contract.readContractFunction("ownerOf", .{69}, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try contract.wallet.getWalletAddress() } });
-        try testing.expectEqual(result.len, 66);
+        const ReturnType = std.meta.Tuple(&[_]type{[]const u8});
+        const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try contract.wallet.getWalletAddress() } });
+        try testing.expectEqual(result.values[0].len, 42);
     }
     {
         var contract: Contract(.http) = .{
@@ -349,8 +353,9 @@ test "ReadContract" {
             .wallet = try Wallet(.http).init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum),
         };
         defer contract.deinit();
-        const result = try contract.readContractFunction("ownerOf", .{69}, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try contract.wallet.getWalletAddress() } });
-        try testing.expectEqual(result.len, 66);
+        const ReturnType = std.meta.Tuple(&[_]type{[]const u8});
+        const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try contract.wallet.getWalletAddress() } });
+        try testing.expectEqual(result.values[0].len, 42);
     }
     {
         var wallet = try Wallet(.http).init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum);

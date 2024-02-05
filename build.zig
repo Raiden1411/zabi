@@ -15,20 +15,12 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    _ = b.addModule("zabi", .{ .root_source_file = .{ .path = "src/root.zig" } });
+    const mod = b.addModule("zabi", .{ .root_source_file = .{ .path = "src/root.zig" }, .link_libc = true });
 
     const coverage = b.option(bool, "generate_coverage", "Generate coverage data with kcov") orelse false;
     const coverage_output_dir = b.option([]const u8, "coverage_output_dir", "Output directory for coverage data") orelse b.pathJoin(&.{ b.install_prefix, "kcov" });
 
-    const lib = b.addStaticLibrary(.{
-        .name = "zabi",
-        .root_source_file = .{ .path = "src/root.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-    addDependencies(b, lib);
-
-    b.installArtifact(lib);
+    addDependencies(b, mod, target, optimize);
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
@@ -37,9 +29,10 @@ pub fn build(b: *std.Build) void {
         .root_source_file = .{ .path = "src/root.zig" },
         .target = target,
         .optimize = optimize,
+        .link_libc = true,
     });
 
-    addDependencies(b, lib_unit_tests);
+    addDependencies(b, &lib_unit_tests.root_module, target, optimize);
     var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
     if (coverage) {
         const include = b.fmt("--include-pattern=/src", .{});
@@ -60,10 +53,7 @@ pub fn build(b: *std.Build) void {
     // Coverage build option with kcov
 }
 
-fn addDependencies(b: *std.Build, step: *std.Build.Step.Compile) void {
-    const target = step.root_module.resolved_target.?;
-    const optimize = step.root_module.optimize.?;
-
+fn addDependencies(b: *std.Build, mod: *std.Build.Module, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
     const secp256k1_dep = b.dependency("secp256k1", .{
         .target = target,
         .optimize = optimize,
@@ -78,11 +68,10 @@ fn addDependencies(b: *std.Build, step: *std.Build.Step.Compile) void {
     });
     const ws = b.dependency("ws", .{ .target = target, .optimize = optimize });
 
-    step.root_module.addImport("secp256k1", secp256k1_dep.module("secp256k1"));
-    step.root_module.addImport("c-kzg-4844", c_kzg_4844_dep.module("c-kzg-4844"));
-    step.root_module.addImport("ws", ws.module("websocket"));
-    step.linkLibrary(secp256k1_dep.artifact("secp256k1"));
-    step.linkLibrary(c_kzg_4844_dep.artifact("c-kzg-4844"));
-    step.linkLibrary(blst_dep.artifact("blst"));
-    step.linkLibC();
+    mod.addImport("secp256k1", secp256k1_dep.module("secp256k1"));
+    mod.addImport("c-kzg-4844", c_kzg_4844_dep.module("c-kzg-4844"));
+    mod.addImport("ws", ws.module("websocket"));
+    mod.linkLibrary(secp256k1_dep.artifact("secp256k1"));
+    mod.linkLibrary(c_kzg_4844_dep.artifact("c-kzg-4844"));
+    mod.linkLibrary(blst_dep.artifact("blst"));
 }

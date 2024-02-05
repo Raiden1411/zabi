@@ -24,8 +24,11 @@ fn buildBlst(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.R
     defer flags.deinit();
 
     try flags.appendSlice(&.{ "-D__BLST_PORTABLE__", "-fno-builtin", "-fPIC" });
-    if (builtin.target.isDarwin()) {
-        try flags.appendSlice(&.{"-D__ADX__"});
+
+    if (target.result.isDarwin()) {
+        const apple_sdk = @import("apple_sdk");
+        try apple_sdk.addPaths(b, &lib.root_module);
+        try flags.appendSlice(&.{"-D__APPLE__"});
     }
 
     lib.addCSourceFiles(.{ .dependency = upstream, .flags = flags.items, .files = &.{ "src/server.c", "build/assembly.S" } });

@@ -18,6 +18,16 @@ pub const EnvelopeLegacy = std.meta.Tuple(&[_]type{ u64, types.Gwei, types.Gwei,
 
 pub const EnvelopeLegacySigned = std.meta.Tuple(&[_]type{ u64, types.Gwei, types.Gwei, ?types.Hex, types.Wei, ?types.Hex, usize, types.Hex, types.Hex });
 
+pub const MinedTransactionHashes = struct {
+    removed: bool,
+    transaction: struct { hash: types.Hex },
+};
+
+pub const MinedTransactions = struct {
+    removed: bool,
+    transaction: PendingTransaction,
+};
+
 /// The transaction envelope that will be serialized before getting sent to the network.
 pub const TransactionEnvelope = union(enum) {
     eip1559: TransactionEnvelopeEip1559,
@@ -127,9 +137,93 @@ pub const PrepareEnvelope = union(enum) {
     legacy: PrepareEnvelopeLegacy,
 };
 
-pub const PrepareEnvelopeEip1559 = meta.ToOptionalStructAndUnionMembers(TransactionEnvelopeEip1559);
-pub const PrepareEnvelopeEip2930 = meta.ToOptionalStructAndUnionMembers(TransactionEnvelopeEip2930);
-pub const PrepareEnvelopeLegacy = meta.ToOptionalStructAndUnionMembers(TransactionEnvelopeLegacy);
+pub const PrepareEnvelopeEip1559 = struct {
+    type: u2 = 2,
+    chainId: ?usize = null,
+    nonce: ?u64 = null,
+    maxPriorityFeePerGas: ?types.Gwei = null,
+    maxFeePerGas: ?types.Gwei = null,
+    gas: ?types.Gwei = null,
+    to: ?types.Hex = null,
+    value: ?types.Wei = null,
+    data: ?types.Hex = null,
+    accessList: ?[]const AccessList = null,
+};
+
+pub const PrepareEnvelopeEip2930 = struct {
+    type: u2 = 1,
+    chainId: ?usize = null,
+    nonce: ?u64 = null,
+    gas: ?types.Gwei = null,
+    gasPrice: ?types.Gwei = null,
+    to: ?types.Hex = null,
+    value: ?types.Wei = null,
+    data: ?types.Hex = null,
+    accessList: ?[]const AccessList = null,
+};
+
+pub const PrepareEnvelopeLegacy = struct {
+    type: u2 = 0,
+    chainId: ?usize = 0,
+    nonce: ?u64 = null,
+    gas: ?types.Gwei = null,
+    gasPrice: ?types.Gwei = null,
+    to: ?types.Hex = null,
+    value: ?types.Wei = null,
+    data: ?types.Hex = null,
+};
+
+pub const PendingTransactionEip1559 = struct {
+    hash: types.Hex,
+    nonce: u64,
+    blockHash: ?types.Hex,
+    blockNumber: ?u64,
+    transactionIndex: ?u64,
+    from: types.Hex,
+    to: types.Hex,
+    value: types.Wei,
+    gasPrice: types.Gwei,
+    gas: types.Gwei,
+    input: types.Hex,
+    v: u4,
+    r: types.Hex,
+    s: types.Hex,
+    type: u2,
+    accessList: []const AccessList,
+    maxPriorityFeePerGas: types.Gwei,
+    maxFeePerGas: types.Gwei,
+    chainId: usize,
+    yParity: u1,
+
+    pub usingnamespace meta.RequestParser(@This());
+};
+
+pub const PendingTransactionLegacy = struct {
+    hash: types.Hex,
+    nonce: u64,
+    blockHash: ?types.Hex,
+    blockNumber: ?u64,
+    transactionIndex: ?u64,
+    from: types.Hex,
+    to: types.Hex,
+    value: types.Wei,
+    gasPrice: types.Gwei,
+    gas: types.Gwei,
+    input: types.Hex,
+    v: u4,
+    r: types.Hex,
+    s: types.Hex,
+    type: u2,
+    chainId: usize,
+
+    pub usingnamespace meta.RequestParser(@This());
+};
+
+/// Signed transaction envelope types.
+pub const PendingTransaction = union(enum) {
+    eip1559: PendingTransactionEip1559,
+    legacy: PrepareEnvelopeLegacy,
+};
 
 pub const TransactionObjectEip1559 = struct {
     hash: types.Hex,

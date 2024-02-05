@@ -8,5 +8,6 @@
             .hash = "122037488cd5d62e856888f1bb206989fdcb02efcdbae8fc110df5395a12d4be5eb0",
         },
         .blst = .{ .path = "../blst" },
+        .apple_sdk = .{ .path = "../apple-sdk" },
     },
 }

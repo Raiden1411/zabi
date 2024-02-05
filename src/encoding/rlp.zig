@@ -253,7 +253,7 @@ fn computePayloadSize(payload: anytype) u64 {
     return size;
 }
 
-fn formatInt(int: u256, buffer: *[32]u8) u8 {
+inline fn formatInt(int: u256, buffer: *[32]u8) u8 {
     if (int < (1 << 8)) {
         buffer.* = @bitCast(@byteSwap(int));
         return 1;
@@ -405,7 +405,7 @@ fn formatInt(int: u256, buffer: *[32]u8) u8 {
     return 32;
 }
 
-fn computeSize(int: u256) u8 {
+inline fn computeSize(int: u256) u8 {
     if (int < (1 << 8)) return 1;
     if (int < (1 << 16)) return 2;
     if (int < (1 << 24)) return 3;

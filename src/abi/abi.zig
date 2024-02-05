@@ -1,4 +1,5 @@
 const encoder = @import("../encoding/encoder.zig");
+const decoder = @import("../decoding/decoder.zig");
 const meta = @import("../meta/meta.zig");
 const std = @import("std");
 const testing = std.testing;
@@ -106,6 +107,78 @@ pub const Function = struct {
         @memcpy(buffer[8..], hexed);
 
         return buffer;
+    }
+
+    /// Decode a encoded function based on itself.
+    /// Runtime reflection based on the provided values will occur to determine
+    /// what is the correct method to use to encode the values.
+    /// This methods will run the values against the `inputs` proprety.
+    ///
+    /// Caller owns the memory.
+    ///
+    /// Consider using `decodeAbiFunction` if the struct is
+    /// comptime know and you dont want to provided the return type.
+    pub fn decode(self: @This(), allocator: Allocator, comptime T: type, encoded: []const u8, opts: decoder.DecodeOptions) !decoder.AbiSignatureDecodedRuntime(T) {
+        std.debug.assert(encoded.len > 7);
+
+        const hashed_func_name = encoded[0..8];
+        const prepared = try self.allocPrepare(allocator);
+        defer allocator.free(prepared);
+
+        var hashed: [Keccak256.digest_length]u8 = undefined;
+        Keccak256.hash(prepare, &hashed, .{});
+
+        const hash_hex = std.fmt.bytesToHex(hashed, .lower);
+
+        if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8]))
+            return error.InvalidAbiSignature;
+
+        const data = encoded[8..];
+        const func_name = try std.mem.concat(allocator, u8, &.{ "0x", hashed_func_name });
+        errdefer allocator.free(func_name);
+
+        if (data.len == 0 and self.inputs.len > 0)
+            return error.InvalidDecodeDataSize;
+
+        const decoded = try decoder.decodeAbiParametersRuntime(allocator, T, self.inputs, data, opts);
+
+        return .{ .arena = decoded.arena, .name = func_name, .values = decoded.values };
+    }
+
+    /// Decode a encoded function based on itself.
+    /// Runtime reflection based on the provided values will occur to determine
+    /// what is the correct method to use to encode the values.
+    /// This methods will run the values against the `outputs` proprety.
+    ///
+    /// Caller owns the memory.
+    ///
+    /// Consider using `decodeAbiFunction` if the struct is
+    /// comptime know and you dont want to provided the return type.
+    pub fn decodeOutputs(self: @This(), allocator: Allocator, comptime T: type, encoded: []const u8, opts: decoder.DecodeOptions) !decoder.AbiSignatureDecodedRuntime(T) {
+        std.debug.assert(encoded.len > 7);
+
+        const hashed_func_name = encoded[0..8];
+        const prepared = try self.allocPrepare(allocator);
+        defer allocator.free(prepared);
+
+        var hashed: [Keccak256.digest_length]u8 = undefined;
+        Keccak256.hash(prepare, &hashed, .{});
+
+        const hash_hex = std.fmt.bytesToHex(hashed, .lower);
+
+        if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8]))
+            return error.InvalidAbiSignature;
+
+        const data = encoded[8..];
+        const func_name = try std.mem.concat(allocator, u8, &.{ "0x", hashed_func_name });
+        errdefer allocator.free(func_name);
+
+        if (data.len == 0 and self.outputs.len > 0)
+            return error.InvalidDecodeDataSize;
+
+        const decoded = try decoder.decodeAbiParametersRuntime(allocator, T, self.outputs, data, opts);
+
+        return .{ .arena = decoded.arena, .name = func_name, .values = decoded.values };
     }
 
     /// Format the struct into a human readable string.
@@ -302,6 +375,42 @@ pub const Error = struct {
         return buffer;
     }
 
+    /// Decode a encoded error based on itself.
+    /// Runtime reflection based on the provided values will occur to determine
+    /// what is the correct method to use to encode the values.
+    /// This methods will run the values against the `inputs` proprety.
+    ///
+    /// Caller owns the memory.
+    ///
+    /// Consider using `decodeAbiError` if the struct is
+    /// comptime know and you dont want to provided the return type.
+    pub fn decode(self: @This(), allocator: Allocator, comptime T: type, encoded: []const u8, opts: decoder.DecodeOptions) !decoder.AbiSignatureDecodedRuntime(T) {
+        std.debug.assert(encoded.len > 7);
+
+        const hashed_func_name = encoded[0..8];
+        const prepared = try self.allocPrepare(allocator);
+        defer allocator.free(prepared);
+
+        var hashed: [Keccak256.digest_length]u8 = undefined;
+        Keccak256.hash(prepare, &hashed, .{});
+
+        const hash_hex = std.fmt.bytesToHex(hashed, .lower);
+
+        if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8]))
+            return error.InvalidAbiSignature;
+
+        const data = encoded[8..];
+        const func_name = try std.mem.concat(allocator, u8, &.{ "0x", hashed_func_name });
+        errdefer allocator.free(func_name);
+
+        if (data.len == 0 and self.inputs.len > 0)
+            return error.InvalidDecodeDataSize;
+
+        const decoded = try decoder.decodeAbiErrorRuntime(allocator, T, self.inputs, data, opts);
+
+        return .{ .arena = decoded.arena, .name = func_name, .values = decoded.values };
+    }
+
     /// Format the struct into a human readable string.
     /// Intended to use for hashing purposes.
     ///
@@ -382,6 +491,21 @@ pub const Constructor = struct {
         const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
 
         return hexed;
+    }
+
+    /// Decode a encoded constructor arguments based on itself.
+    /// Runtime reflection based on the provided values will occur to determine
+    /// what is the correct method to use to encode the values.
+    /// This methods will run the values against the `inputs` proprety.
+    ///
+    /// Caller owns the memory.
+    ///
+    /// Consider using `decodeAbiConstructor` if the struct is
+    /// comptime know and you dont want to provided the return type.
+    pub fn decode(self: @This(), allocator: Allocator, comptime T: type, encoded: []const u8, opts: decoder.DecodeOptions) !decoder.AbiSignatureDecodedRuntime(T) {
+        const decoded = try decoder.decodeAbiConstructorRuntime(allocator, T, self.inputs, encoded, opts);
+
+        return .{ .arena = decoded.arena, .name = "", .values = decoded.values };
     }
 };
 

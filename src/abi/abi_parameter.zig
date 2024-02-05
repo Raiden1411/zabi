@@ -1,5 +1,8 @@
+const decoder = @import("../decoding/decoder.zig");
+const encoder = @import("../encoding/encoder.zig");
 const std = @import("std");
 const testing = std.testing;
+const Allocator = std.mem.Allocator;
 const ParamType = @import("param_type.zig").ParamType;
 
 /// Struct to represent solidity Abi Paramters
@@ -16,6 +19,37 @@ pub const AbiParameter = struct {
             }
             alloc.free(components);
         }
+    }
+
+    /// Encode the paramters based on the values provided and `self`.
+    /// Runtime reflection based on the provided values will occur to determine
+    /// what is the correct method to use to encode the values
+    ///
+    /// Caller owns the memory.
+    ///
+    /// Consider using `encodeAbiParametersComptime` if the parameter is
+    /// comptime know and you want better typesafety from the compiler
+    pub fn encode(self: @This(), allocator: Allocator, values: anytype) ![]u8 {
+        const encoded = try encoder.encodeAbiParameters(allocator, &.{self}, values);
+        defer encoded.deinit();
+
+        const hexed = try std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded.data)});
+
+        return hexed;
+    }
+
+    /// Decode the paramters based on self.
+    /// Runtime reflection based on the provided values will occur to determine
+    /// what is the correct method to use to encode the values
+    ///
+    /// Caller owns the memory.
+    ///
+    /// Consider using `decodeAbiParameters` if the parameter is
+    /// comptime know and you want better typesafety from the compiler
+    pub fn decode(self: @This(), allocator: Allocator, comptime T: type, encoded: []const u8, opts: decoder.DecodeOptions) !decoder.AbiDecodedRuntime(T) {
+        const decoded = try decoder.decodeAbiParametersRuntime(allocator, T, &.{self}, encoded, opts);
+
+        return decoded;
     }
 
     /// Format the struct into a human readable string.

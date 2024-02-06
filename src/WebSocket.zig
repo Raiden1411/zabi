@@ -37,24 +37,26 @@ pub const InitOptions = struct {
     pooling_interval: u64 = 2_000,
 };
 
+/// Arena used to manage the socket connection
 _arena: *ArenaAllocator,
-
+/// The allocator that will manage the connections memory
 allocator: std.mem.Allocator,
-
+/// The chain id of the attached network
 chain_id: usize,
-
+/// Channel used to communicate between threads.
+/// All events are set in this channel in a FIFO data structure. This is thread safe.
 channel: *Channel(EthereumEvents),
-
+/// Callback function that will run once a socket event is parsed
 onEvent: ?*const fn (args: EthereumEvents) anyerror!void,
-
+/// Callback function that will run once a error is parsed.
 onError: ?*const fn (args: []const u8) anyerror!void,
-
+/// The interval to retry the connection. This will get multiplied in ns_per_ms.
 pooling_interval: u64,
-
+/// Retry count for failed connections to anvil. The process takes some ms to start so this is necessary
 retries: u8,
-
+/// The uri of the connection
 uri: std.Uri,
-
+/// The underlaying websocket client
 ws_client: *ws.Client,
 
 fn parseRPCEvent(self: *WebSocketHandler, comptime T: type, request: []const u8) !T {
@@ -68,6 +70,9 @@ fn parseRPCEvent(self: *WebSocketHandler, comptime T: type, request: []const u8)
     return parsed;
 }
 
+/// This will get run everytime a socket message is found.
+/// All messages are parsed and put into the handlers channel.
+/// All callbacks will only affect this function.
 pub fn handle(self: *WebSocketHandler, message: ws.Message) !void {
     errdefer |err| {
         wslog.debug("Handler errored out: {s}", .{@errorName(err)});
@@ -108,6 +113,8 @@ pub fn handle(self: *WebSocketHandler, message: ws.Message) !void {
     }
 }
 
+/// Populates the WebSocketHandler pointer.
+/// Starts the connection in a seperate process.
 pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
     const arena = try opts.allocator.create(ArenaAllocator);
     errdefer opts.allocator.destroy(arena);
@@ -160,6 +167,7 @@ pub fn deinit(self: *WebSocketHandler) void {
     }
 }
 
+/// Connects to a socket client. This is a blocking operation.
 pub fn connect(self: *WebSocketHandler) !ws.Client {
     const scheme = std.http.Client.protocol_map.get(self.uri.scheme) orelse return error.UnsupportedSchema;
     const port: u16 = self.uri.port orelse switch (scheme) {
@@ -210,6 +218,8 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
     return client;
 }
 
+/// This is a blocking operation.
+/// Call this in a seperate thread.
 pub fn readLoopOwned(self: *WebSocketHandler) !void {
     errdefer self.deinit();
     std.os.maybeIgnoreSigpipe();
@@ -220,10 +230,14 @@ pub fn readLoopOwned(self: *WebSocketHandler) !void {
     };
 }
 
+/// Write messages to the websocket connections.
 pub fn write(self: *WebSocketHandler, data: []const u8) !void {
     return try self.ws_client.write(@constCast(data));
 }
 
+/// Get the first event of the channel.
+/// Only call this if you are sure that the channel has messages.
+/// Otherwise this will run in a infinite loop.
 pub fn getCurrentEvent(self: *WebSocketHandler) !EthereumEvents {
     return self.channel.get();
 }
@@ -260,7 +274,7 @@ pub fn estimateGas(self: *WebSocketHandler, call_object: transaction.EthCall, op
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -298,7 +312,7 @@ pub fn estimateMaxFeePerGas(self: *WebSocketHandler) !types.Gwei {
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -314,7 +328,7 @@ pub fn getAccounts(self: *WebSocketHandler) ![]const types.Hex {
     const event = switch (self.channel.get()) {
         .accounts_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a accounts_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -330,7 +344,7 @@ pub fn getAddressBalance(self: *WebSocketHandler, opts: block.BalanceRequest) !t
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -346,7 +360,7 @@ pub fn getAddressTransactionCount(self: *WebSocketHandler, opts: block.BalanceRe
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -369,7 +383,7 @@ pub fn getBlockByHash(self: *WebSocketHandler, opts: block.BlockHashRequest) !bl
     const event = switch (self.channel.get()) {
         .block_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -395,7 +409,7 @@ pub fn getBlockByNumber(self: *WebSocketHandler, opts: block.BlockRequest) !bloc
     const event = switch (self.channel.get()) {
         .block_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -411,7 +425,7 @@ pub fn getBlockNumber(self: *WebSocketHandler) !u64 {
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Event found: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -427,7 +441,7 @@ pub fn getBlockTransactionCountByHash(self: *WebSocketHandler, block_hash: types
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -443,7 +457,7 @@ pub fn getBlockTransactionCountByNumber(self: *WebSocketHandler, opts: block.Blo
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -459,7 +473,7 @@ pub fn getChainId(self: *WebSocketHandler) !usize {
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -480,7 +494,7 @@ pub fn getContractCode(self: *WebSocketHandler, opts: block.BalanceRequest) !typ
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -500,7 +514,10 @@ pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: usize, method: 
     try self.write(@constCast(req_body));
     const event = switch (self.channel.get()) {
         .logs_event => |hex| hex,
-        else => return error.InvalidEventFound,
+        else => |eve| {
+            wslog.debug("Found incorrect event named: {s}. Expected a logs_event.", .{@tagName(eve)});
+            return error.InvalidEventFound;
+        },
     };
 
     return event.result;
@@ -514,7 +531,7 @@ pub fn getGasPrice(self: *WebSocketHandler) !u64 {
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -538,7 +555,7 @@ pub fn getLogs(self: *WebSocketHandler, opts: log.LogRequestParams) !log.Logs {
     const event = switch (self.channel.get()) {
         .logs_event => |logs| logs,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a logs_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -557,7 +574,7 @@ pub fn getTransactionByBlockHashAndIndex(self: *WebSocketHandler, block_hash: ty
     const event = switch (self.channel.get()) {
         .transaction_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -579,7 +596,7 @@ pub fn getTransactionByBlockNumberAndIndex(self: *WebSocketHandler, opts: block.
     const event = switch (self.channel.get()) {
         .transaction_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -599,7 +616,7 @@ pub fn getTransactionByHash(self: *WebSocketHandler, transaction_hash: types.Hex
     const event = switch (self.channel.get()) {
         .transaction_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -638,7 +655,10 @@ pub fn getUncleByBlockHashAndIndex(self: *WebSocketHandler, block_hash: types.He
     try self.write(@constCast(req_body));
     const event = switch (self.channel.get()) {
         .block_event => |hex| hex,
-        else => return error.InvalidEventFound,
+        else => |eve| {
+            wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
+            return error.InvalidEventFound;
+        },
     };
 
     return event.result;
@@ -661,7 +681,7 @@ pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: block.BlockN
     const event = switch (self.channel.get()) {
         .block_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -689,7 +709,10 @@ pub fn getUncleCountByBlockNumber(self: *WebSocketHandler, opts: block.BlockNumb
     try self.write(@constCast(req_body));
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
-        else => return error.InvalidEventFound,
+        else => |eve| {
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
+            return error.InvalidEventFound;
+        },
     };
 
     return try std.fmt.parseInt(usize, event.result, 0);
@@ -702,7 +725,10 @@ pub fn newBlockFilter(self: *WebSocketHandler) !usize {
     try self.write(@constCast(req_body));
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
-        else => return error.InvalidEventFound,
+        else => |eve| {
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
+            return error.InvalidEventFound;
+        },
     };
 
     return try std.fmt.parseInt(usize, event.result, 0);
@@ -724,7 +750,7 @@ pub fn newLogFilter(self: *WebSocketHandler, opts: log.LogFilterRequestParams) !
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -740,7 +766,7 @@ pub fn newPendingTransactionFilter(self: *WebSocketHandler) !usize {
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -758,7 +784,7 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: transaction.EthCall, op
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -777,7 +803,7 @@ pub fn sendRawTransaction(self: *WebSocketHandler, serialized_hex_tx: types.Hex)
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -797,7 +823,10 @@ pub fn uninstalllFilter(self: *WebSocketHandler, id: usize) !bool {
     try self.write(@constCast(req_body));
     const event = switch (self.channel.get()) {
         .bool_event => |hex| hex,
-        else => return error.InvalidEventFound,
+        else => |eve| {
+            wslog.debug("Found incorrect event named: {s}. Expected a bool_event.", .{@tagName(eve)});
+            return error.InvalidEventFound;
+        },
     };
 
     return event.result;
@@ -812,12 +841,16 @@ pub fn unsubscribe(self: *WebSocketHandler, sub_id: types.Hex) !bool {
     try self.write(@constCast(req_body));
     const event = switch (self.channel.get()) {
         .bool_event => |hex| hex,
-        else => return error.InvalidEventFound,
+        else => |eve| {
+            wslog.debug("Found incorrect event named: {s}. Expected a bool_event.", .{@tagName(eve)});
+            return error.InvalidEventFound;
+        },
     };
 
     return event.result;
 }
 
+/// Watch any new blocks that get created.
 pub fn watchNewBlocks(self: *WebSocketHandler) !types.Hex {
     const request: EthereumRequest(types.HexRequestParameters) = .{ .params = &.{"newHeads"}, .method = .eth_subscribe, .id = self.chain_id };
 
@@ -828,7 +861,7 @@ pub fn watchNewBlocks(self: *WebSocketHandler) !types.Hex {
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -851,7 +884,7 @@ pub fn watchLogs(self: *WebSocketHandler, opts: log.LogFilterRequestParams) !typ
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -859,6 +892,8 @@ pub fn watchLogs(self: *WebSocketHandler, opts: log.LogFilterRequestParams) !typ
     return event.result;
 }
 
+/// Watch any new pending transactions.
+/// This only outputs the transactions hashes
 pub fn watchTransactions(self: *WebSocketHandler) !types.Hex {
     const request: EthereumRequest(types.HexRequestParameters) = .{ .params = &.{"newPendingTransactions"}, .method = .eth_subscribe, .id = self.chain_id };
 
@@ -869,7 +904,7 @@ pub fn watchTransactions(self: *WebSocketHandler) !types.Hex {
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };
@@ -884,7 +919,7 @@ pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []const u8) !types.
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
         else => |eve| {
-            wslog.debug("Found event named: {s}", .{@tagName(eve)});
+            wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
             return error.InvalidEventFound;
         },
     };

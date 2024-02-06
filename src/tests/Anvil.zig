@@ -30,10 +30,6 @@ pub const StartUpOptions = struct {
     fork_url: []const u8,
     /// Fork block number to use
     block_number_fork: u64 = 19062632,
-    /// Retry count for failed connections to anvil. The process takes some ms to start so this is necessary
-    retry_count: u8 = 5,
-    /// The interval to retry the connection. This will get multiplied in ns_per_ms.
-    pooling_interval: u64 = 2_000,
     /// The localhost address.
     localhost: []const u8 = "http://127.0.0.1:8545/",
 };
@@ -46,24 +42,20 @@ block_number_fork: u64,
 localhost: std.Uri,
 /// Fork url for anvil to fork from
 fork_url: []const u8,
-/// The interval to retry the connection. This will get multiplied in ns_per_ms.
-pooling_interval: u64,
 /// The socket connection to anvil. Use `connectToAnvil` to populate this.
 http_client: std.http.Client,
 /// The ChildProcess result. This contains all related commands.
 result: std.ChildProcess,
-/// Retry count for failed connections to anvil. The process takes some ms to start so this is necessary
-retry_count: u8,
 /// The theared that gets spawn on init for the ChildProcess so that we don't block the main thread.
 thread: std.Thread,
+/// Connection closed.
+closed: bool = false,
 
 pub fn initClient(self: *Anvil, opts: StartUpOptions) !void {
     self.* = .{
         .alloc = opts.alloc,
         .fork_url = opts.fork_url,
         .localhost = try std.Uri.parse(opts.localhost),
-        .pooling_interval = opts.pooling_interval,
-        .retry_count = opts.retry_count,
         .block_number_fork = opts.block_number_fork,
         .http_client = std.http.Client{ .allocator = opts.alloc },
         .thread = undefined,
@@ -71,33 +63,40 @@ pub fn initClient(self: *Anvil, opts: StartUpOptions) !void {
     };
 }
 
+/// Starts anvil process on a seperate thread;
 pub fn initProcess(self: *Anvil, opts: StartUpOptions) !void {
     self.* = .{
         .alloc = opts.alloc,
         .fork_url = opts.fork_url,
         .localhost = try std.Uri.parse(opts.localhost),
-        .pooling_interval = opts.pooling_interval,
-        .retry_count = opts.retry_count,
         .block_number_fork = opts.block_number_fork,
         .thread = try std.Thread.spawn(.{}, start, .{self}),
         .http_client = std.http.Client{ .allocator = opts.alloc },
         .result = undefined,
     };
-}
 
-pub fn deinit(self: *Anvil) void {
-    self.http_client.deinit();
-}
-
-/// Kills the anvil process and closes any connections.
-pub fn deinitProcess(self: *Anvil) void {
-    _ = self.result.kill() catch |err| {
-        std.io.getStdErr().writer().writeAll(@errorName(err)) catch {};
-    };
-    self.http_client.deinit();
     self.thread.detach();
 }
 
+/// Cleans up the http client
+pub fn deinit(self: *Anvil) void {
+    if (@cmpxchgStrong(bool, &self.closed, false, true, .Monotonic, .Monotonic) == null) {
+        self.http_client.deinit();
+    }
+}
+
+/// Kills the anvil process and closes any connections.
+/// Only use this if a process was created before
+pub fn killProcessAndDeinit(self: *Anvil) void {
+    if (@cmpxchgStrong(bool, &self.closed, false, true, .Monotonic, .Monotonic) == null) {
+        _ = self.result.kill() catch |err| {
+            std.io.getStdErr().writer().writeAll(@errorName(err)) catch {};
+        };
+        self.http_client.deinit();
+    }
+}
+
+/// Sets the balance of a anvil account
 pub fn setBalance(self: *Anvil, address: []const u8, balance: u256) !void {
     if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
     const hex_balance = try std.fmt.allocPrint(self.alloc, "0x{x}", .{balance});
@@ -117,6 +116,7 @@ pub fn setBalance(self: *Anvil, address: []const u8, balance: u256) !void {
     if (req.status != .ok) return error.InvalidRequest;
 }
 
+/// Changes the contract code of a address.
 pub fn setCode(self: *Anvil, address: []const u8, code: []const u8) !void {
     if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
     var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
@@ -133,6 +133,7 @@ pub fn setCode(self: *Anvil, address: []const u8, code: []const u8) !void {
     if (req.status != .ok) return error.InvalidRequest;
 }
 
+/// Changes the rpc of the anvil connection
 pub fn setRpcUrl(self: *Anvil, rpc_url: []const u8) !void {
     var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
     defer headers.deinit();
@@ -148,6 +149,7 @@ pub fn setRpcUrl(self: *Anvil, rpc_url: []const u8) !void {
     if (req.status != .ok) return error.InvalidRequest;
 }
 
+/// Changes the coinbase address
 pub fn setCoinbase(self: *Anvil, address: []const u8) !void {
     if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
     var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
@@ -164,6 +166,7 @@ pub fn setCoinbase(self: *Anvil, address: []const u8) !void {
     if (req.status != .ok) return error.InvalidRequest;
 }
 
+/// Enable anvil verbose logging for anvil.
 pub fn setLoggingEnable(self: *Anvil) !void {
     var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
     defer headers.deinit();
@@ -179,6 +182,7 @@ pub fn setLoggingEnable(self: *Anvil) !void {
     if (req.status != .ok) return error.InvalidRequest;
 }
 
+/// Changes the min gasprice from the anvil fork
 pub fn setMinGasPrice(self: *Anvil, new_price: u64) !void {
     const hex_balance = try std.fmt.allocPrint(self.alloc, "0x{x}", .{new_price});
     defer self.alloc.free(hex_balance);
@@ -215,6 +219,7 @@ pub fn setNextBlockBaseFeePerGas(self: *Anvil, new_price: u64) !void {
     if (req.status != .ok) return error.InvalidRequest;
 }
 
+/// Changes the networks chainId
 pub fn setChainId(self: *Anvil, new_id: u64) !void {
     const hex_id = try std.fmt.allocPrint(self.alloc, "0x{x}", .{new_id});
     defer self.alloc.free(hex_id);
@@ -233,6 +238,7 @@ pub fn setChainId(self: *Anvil, new_id: u64) !void {
     if (req.status != .ok) return error.InvalidRequest;
 }
 
+/// Changes the nonce of a account
 pub fn setNonce(self: *Anvil, address: []const u8, new_nonce: u64) !void {
     if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
     const hex_id = try std.fmt.allocPrint(self.alloc, "0x{x}", .{new_nonce});
@@ -252,6 +258,7 @@ pub fn setNonce(self: *Anvil, address: []const u8, new_nonce: u64) !void {
     if (req.status != .ok) return error.InvalidRequest;
 }
 
+/// Drops a pending transaction from the mempool
 pub fn dropTransaction(self: *Anvil, tx_hash: []const u8) !void {
     if (!try utils.isHash(self.alloc, tx_hash)) return error.InvalidAddress;
 
@@ -269,6 +276,7 @@ pub fn dropTransaction(self: *Anvil, tx_hash: []const u8) !void {
     if (req.status != .ok) return error.InvalidRequest;
 }
 
+/// Mine a pending transaction
 pub fn mine(self: *Anvil, amount: u64, time_in_seconds: ?u64) !void {
     const hex_amount = try std.fmt.allocPrint(self.alloc, "0x{x}", .{amount});
     defer self.alloc.free(hex_amount);
@@ -290,6 +298,7 @@ pub fn mine(self: *Anvil, amount: u64, time_in_seconds: ?u64) !void {
     if (req.status != .ok) return error.InvalidRequest;
 }
 
+/// Reset the fork
 pub fn reset(self: *Anvil, reset_config: ?Reset) !void {
     var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
     defer headers.deinit();
@@ -305,6 +314,7 @@ pub fn reset(self: *Anvil, reset_config: ?Reset) !void {
     if (req.status != .ok) return error.InvalidRequest;
 }
 
+/// Impersonate a EOA or contract. Call `stopImpersonatingAccount` after.
 pub fn impersonateAccount(self: *Anvil, address: []const u8) !void {
     if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
     var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
@@ -321,6 +331,7 @@ pub fn impersonateAccount(self: *Anvil, address: []const u8) !void {
     if (req.status != .ok) return error.InvalidRequest;
 }
 
+/// Stops impersonating a EOA or contract.
 pub fn stopImpersonatingAccount(self: *Anvil, address: []const u8) !void {
     if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
     var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
@@ -339,7 +350,8 @@ pub fn stopImpersonatingAccount(self: *Anvil, address: []const u8) !void {
 
 /// Start the child process. Use this with init if you want to use this in a seperate theread.
 pub fn start(self: *Anvil) !void {
-    var result = std.ChildProcess.init(&.{ "anvil", "-f", self.fork_url, "--fork-block-number", self.block_number_fork, "--port", self.localhost.port.? }, self.alloc);
+    const port = self.localhost.port orelse return error.InvalidAddressPort;
+    var result = std.ChildProcess.init(&.{ "anvil", "-f", self.fork_url, "--fork-block-number", self.block_number_fork, "--port", port }, self.alloc);
     result.stdin_behavior = .Pipe;
     result.stdout_behavior = .Pipe;
     result.stderr_behavior = .Pipe;

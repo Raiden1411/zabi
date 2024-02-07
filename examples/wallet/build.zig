@@ -4,11 +4,11 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    _ = b.addModule("example", .{ .root_source_file = .{ .path = "watch.zig" } });
+    _ = b.addModule("wallet_example", .{ .root_source_file = .{ .path = "wallet.zig" } });
 
     const exe = b.addExecutable(.{
-        .name = "example",
-        .root_source_file = .{ .path = "watch.zig" },
+        .name = "wallet_example",
+        .root_source_file = .{ .path = "wallet.zig" },
         .target = target,
         .optimize = optimize,
     });

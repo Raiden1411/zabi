@@ -14,7 +14,7 @@
     // `zig build --fetch` can be used to fetch all dependencies of a package, recursively.
     // Once all dependencies are fetched, `zig build` no longer requires
     // Internet connectivity.
-    .dependencies = .{ .zabi = .{ .path = "../" } },
+    .dependencies = .{ .zabi = .{ .path = "../../" } },
     .paths = .{
         // This makes *all* files, recursively, included in this package. It is generally
         // better to explicitly list the files and directories instead, to insure that

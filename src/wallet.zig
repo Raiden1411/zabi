@@ -1,3 +1,4 @@
+const eip712 = @import("abi/eip712.zig");
 const serialize = @import("encoding/serialize.zig");
 const std = @import("std");
 const testing = std.testing;
@@ -109,8 +110,12 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         }
 
         /// Signs a ethereum message with the specified prefix.
-        pub fn signEthereumMessage(self: *Wallet(client_type), alloc: Allocator, message: []const u8) !Signature {
-            return try self.signer.signMessage(alloc, message);
+        pub fn signEthereumMessage(self: *Wallet(client_type), message: []const u8) !Signature {
+            return try self.signer.signMessage(self.alloc, message);
+        }
+
+        pub fn signTypedData(self: *Wallet(client_type), comptime eip_types: anytype, comptime primary_type: []const u8, domain: ?eip712.TypedDataDomain, message: anytype) !Signature {
+            return try self.signer.sign(try eip712.hashTypedData(self.alloc, eip_types, primary_type, domain, message));
         }
 
         /// Get the wallet address.
@@ -292,11 +297,22 @@ test "signMessage" {
     var wallet = try Wallet(.http).init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .anvil);
     defer wallet.deinit();
 
-    const sig = try wallet.signEthereumMessage(testing.allocator, "hello world");
+    const sig = try wallet.signEthereumMessage("hello world");
     const hex = try sig.toHex(testing.allocator);
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("a461f509887bd19e312c0c58467ce8ff8e300d3c1a90b608a760c5b80318eaf15fe57c96f9175d6cd4daad4663763baa7e78836e067d0163e9a2ccf2ff753f5b00", hex);
+}
+
+test "signTypedData" {
+    var wallet = try Wallet(.http).init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .anvil);
+    defer wallet.deinit();
+
+    const sig = try wallet.signTypedData(.{ .EIP712Domain = &.{} }, "EIP712Domain", .{}, .{});
+    const hex = try sig.toHex(testing.allocator);
+    defer testing.allocator.free(hex);
+
+    try testing.expectEqualStrings("da87197eb020923476a6d0149ca90bc1c894251cc30b38e0dd2cdd48567e12386d3ed40a509397410a4fd2d66e1300a39ac42f828f8a5a2cb948b35c22cf29e801", hex);
 }
 
 test "sendTransaction" {

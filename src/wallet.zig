@@ -11,8 +11,9 @@ const ArenaAllocator = std.heap.ArenaAllocator;
 const Chains = types.PublicChains;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const PubClient = @import("Client.zig");
-const Signer = @import("secp256k1").Signer;
-const Signature = @import("secp256k1").Signature;
+const secp256k1 = @import("secp256k1");
+const Signer = secp256k1.Signer;
+const Signature = secp256k1.Signature;
 const WebSocketClient = @import("WebSocket.zig");
 const Handler = WebSocketClient.Handler;
 
@@ -146,10 +147,19 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         }
 
         /// Verifies if a given signature was signed by the current wallet.
-        pub fn verifyMessage(self: *Wallet(client_type), sig: Signature, message: []const u8) bool {
+        pub fn verifyMessage(self: *Wallet(client_type), sig: Signature, message: []const u8) !bool {
             var hash_buffer: [Keccak256.digest_length]u8 = undefined;
             Keccak256.hash(message, &hash_buffer, .{});
-            return self.signer.verifyMessage(sig, hash_buffer);
+            return try self.signer.verifyMessage(sig, hash_buffer);
+        }
+
+        pub fn verifyTypedData(self: *Wallet(client_type), sig: Signature, comptime eip712_types: anytype, comptime primary_type: []const u8, domain: ?eip712.TypedDataDomain, message: anytype) !bool {
+            const hash = try eip712.hashTypedData(self.alloc, eip712_types, primary_type, domain, message);
+
+            const address = try secp256k1.recoverEthereumAddress(hash, sig);
+            const wallet_address = (try self.getWalletAddress())[2..];
+
+            return std.mem.eql(u8, wallet_address, &address);
         }
 
         /// Prepares a transaction so that it can be sent through the network.
@@ -313,6 +323,19 @@ test "signTypedData" {
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("da87197eb020923476a6d0149ca90bc1c894251cc30b38e0dd2cdd48567e12386d3ed40a509397410a4fd2d66e1300a39ac42f828f8a5a2cb948b35c22cf29e801", hex);
+}
+
+test "verifyTypedData" {
+    var wallet = try Wallet(.http).init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545", .anvil);
+    defer wallet.deinit();
+
+    const domain: eip712.TypedDataDomain = .{ .name = "Ether Mail", .version = "1", .chainId = 1, .verifyingContract = "0x0000000000000000000000000000000000000000" };
+    const e_types = .{ .EIP712Domain = &.{ .{ .type = "string", .name = "name" }, .{ .name = "version", .type = "string" }, .{ .name = "chainId", .type = "uint256" }, .{ .name = "verifyingContract", .type = "address" } }, .Person = &.{ .{ .name = "name", .type = "string" }, .{ .name = "wallet", .type = "address" } }, .Mail = &.{ .{ .name = "from", .type = "Person" }, .{ .name = "to", .type = "Person" }, .{ .name = "contents", .type = "string" } } };
+
+    const sig = try Signature.fromHex("0x32f3d5975ba38d6c2fba9b95d5cbed1febaa68003d3d588d51f2de522ad54117760cfc249470a75232552e43991f53953a3d74edf6944553c6bef2469bb9e5921b");
+    const validate = try wallet.verifyTypedData(sig, e_types, "Mail", domain, .{ .from = .{ .name = "Cow", .wallet = "0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826" }, .to = .{ .name = "Bob", .wallet = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB" }, .contents = "Hello, Bob!" });
+
+    try testing.expect(validate);
 }
 
 test "sendTransaction" {

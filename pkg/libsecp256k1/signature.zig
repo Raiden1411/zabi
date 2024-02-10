@@ -31,7 +31,7 @@ pub const Signature = struct {
         return std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});
     }
 
-    pub fn fromHex(hex: []const u8) Signature {
+    pub fn fromHex(hex: []const u8) !Signature {
         const signature = if (std.mem.startsWith(u8, hex, "0x")) hex[2..] else hex;
 
         if (signature.len != 130) return error.InvalidSignature;
@@ -43,7 +43,7 @@ pub const Signature = struct {
 
             if (signed[64] == 27) break :rec_id 0 else break :rec_id 1;
         };
-        return .{ .r = signed[0..32], .s = signed[32..64], .v = v };
+        return .{ .r = signed[0..32].*, .s = signed[32..64].*, .v = @intCast(v) };
     }
 };
 

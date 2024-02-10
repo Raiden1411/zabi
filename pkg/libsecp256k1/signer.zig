@@ -113,19 +113,18 @@ pub fn recoverPublicKey(message_hash: [32]u8, signature: Signature) ![PublicKeyL
     if (c.secp256k1_ecdsa_recover(context, &struct_pub, &sig_rec, &message_hash) == 0)
         return error.FailedToRecoverPublicKey;
 
-    if (c.secp256k1_ec_pubkey_serialize(context, &public_key, 65, &struct_pub, c.SECP256K1_EC_UNCOMPRESSED) == 0)
+    var key_len: c_uint = 65;
+    if (c.secp256k1_ec_pubkey_serialize(context, &public_key, @ptrCast(@alignCast(&key_len)), &struct_pub, c.SECP256K1_EC_UNCOMPRESSED) == 0)
         return error.FailedToSerializePubKey;
-
-    public_key[0] = 4;
 
     return public_key;
 }
 
 pub fn recoverEthereumAddress(message_hash: [32]u8, signature: Signature) ![40]u8 {
-    const pub_key = recoverPublicKey(message_hash, signature);
+    const pub_key = try recoverPublicKey(message_hash, signature);
 
     var hash: [32]u8 = undefined;
-    std.crypto.hash.sha3.Keccak256.hash(pub_key, &hash, .{});
+    std.crypto.hash.sha3.Keccak256.hash(pub_key[1..], &hash, .{});
 
     const hex_address_lower = std.fmt.bytesToHex(hash[12..].*, .lower);
 
@@ -133,8 +132,8 @@ pub fn recoverEthereumAddress(message_hash: [32]u8, signature: Signature) ![40]u
     Keccak256.hash(hex_address_lower[0..], &hashed, .{});
     const hex = std.fmt.bytesToHex(hashed, .lower);
 
-    const checksum: [40]u8 = undefined;
-    for (checksum, 0..) |*ch, i| {
+    var checksum: [40]u8 = undefined;
+    for (&checksum, 0..) |*ch, i| {
         const char = hex_address_lower[i];
 
         if (try std.fmt.charToDigit(hex[i], 16) > 7) {

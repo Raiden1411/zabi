@@ -113,8 +113,8 @@ pub fn recoverPublicKey(message_hash: [32]u8, signature: Signature) ![PublicKeyL
     if (c.secp256k1_ecdsa_recover(context, &struct_pub, &sig_rec, &message_hash) == 0)
         return error.FailedToRecoverPublicKey;
 
-    var key_len: c_uint = 65;
-    if (c.secp256k1_ec_pubkey_serialize(context, &public_key, @ptrCast(@alignCast(&key_len)), &struct_pub, c.SECP256K1_EC_UNCOMPRESSED) == 0)
+    var key_len: usize = 65;
+    if (c.secp256k1_ec_pubkey_serialize(context, &public_key, &key_len, &struct_pub, c.SECP256K1_EC_UNCOMPRESSED) == 0)
         return error.FailedToSerializePubKey;
 
     return public_key;

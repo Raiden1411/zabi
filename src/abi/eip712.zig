@@ -14,6 +14,24 @@ pub const MessageProperty = struct {
     type: []const u8,
 };
 
+/// Performs hashing of EIP712 according to the expecification
+/// https://eips.ethereum.org/EIPS/eip-712
+///
+/// `types` parameter is expected to be a struct where the struct
+/// keys are used to grab the solidity type information so that the
+/// encoding and hashing can happen based on it. See the specification
+/// for more details.
+///
+/// `primary_type` is the expected main type that you want to hash this message.
+/// Compilation will fail if the provided string doesn't exist on the `types` parameter
+///
+/// `domain` is the values of the defined EIP712Domain. Currently it doesnt not support custom
+/// domain types.
+///
+/// `message` is expected to be a struct where the solidity types are transalated to the native
+/// zig types. I.E string -> []const u8 or int256 -> i256 and so on.
+/// In the future work will be done where the compiler will offer more clearer types
+/// base on a meta programming type function.
 pub fn hashTypedData(allocator: Allocator, comptime types: anytype, comptime primary_type: []const u8, domain: ?TypedDataDomain, message: anytype) ![Keccak256.digest_length]u8 {
     var list = std.ArrayList(u8).init(allocator);
     errdefer list.deinit();
@@ -23,7 +41,7 @@ pub fn hashTypedData(allocator: Allocator, comptime types: anytype, comptime pri
 
     if (domain) |dom| {
         if (!@hasField(@TypeOf(types), "EIP712Domain"))
-            return error.ExpectedDomainField;
+            @compileError("Expected EIP712Domain field on types parameter");
 
         const hash = try hashStruct(allocator, types, "EIP712Domain", dom);
         try writer.writeAll(&hash);

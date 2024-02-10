@@ -115,6 +115,26 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             return try self.signer.signMessage(self.alloc, message);
         }
 
+        /// Signs a EIP712 message according to the expecification
+        /// https://eips.ethereum.org/EIPS/eip-712
+        ///
+        /// `types` parameter is expected to be a struct where the struct
+        /// keys are used to grab the solidity type information so that the
+        /// encoding and hashing can happen based on it. See the specification
+        /// for more details.
+        ///
+        /// `primary_type` is the expected main type that you want to hash this message.
+        /// Compilation will fail if the provided string doesn't exist on the `types` parameter
+        ///
+        /// `domain` is the values of the defined EIP712Domain. Currently it doesnt not support custom
+        /// domain types.
+        ///
+        /// `message` is expected to be a struct where the solidity types are transalated to the native
+        /// zig types. I.E string -> []const u8 or int256 -> i256 and so on.
+        /// In the future work will be done where the compiler will offer more clearer types
+        /// base on a meta programming type function.
+        ///
+        /// Returns the libsecp256k1 signature type.
         pub fn signTypedData(self: *Wallet(client_type), comptime eip_types: anytype, comptime primary_type: []const u8, domain: ?eip712.TypedDataDomain, message: anytype) !Signature {
             return try self.signer.sign(try eip712.hashTypedData(self.alloc, eip_types, primary_type, domain, message));
         }
@@ -153,6 +173,26 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             return try self.signer.verifyMessage(sig, hash_buffer);
         }
 
+        /// Verifies a EIP712 message according to the expecification
+        /// https://eips.ethereum.org/EIPS/eip-712
+        ///
+        /// `types` parameter is expected to be a struct where the struct
+        /// keys are used to grab the solidity type information so that the
+        /// encoding and hashing can happen based on it. See the specification
+        /// for more details.
+        ///
+        /// `primary_type` is the expected main type that you want to hash this message.
+        /// Compilation will fail if the provided string doesn't exist on the `types` parameter
+        ///
+        /// `domain` is the values of the defined EIP712Domain. Currently it doesnt not support custom
+        /// domain types.
+        ///
+        /// `message` is expected to be a struct where the solidity types are transalated to the native
+        /// zig types. I.E string -> []const u8 or int256 -> i256 and so on.
+        /// In the future work will be done where the compiler will offer more clearer types
+        /// base on a meta programming type function.
+        ///
+        /// Returns the libsecp256k1 signature type.
         pub fn verifyTypedData(self: *Wallet(client_type), sig: Signature, comptime eip712_types: anytype, comptime primary_type: []const u8, domain: ?eip712.TypedDataDomain, message: anytype) !bool {
             const hash = try eip712.hashTypedData(self.alloc, eip712_types, primary_type, domain, message);
 

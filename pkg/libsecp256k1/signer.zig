@@ -99,7 +99,7 @@ pub fn recoverPublicKey(message_hash: [32]u8, signature: Signature) ![PublicKeyL
         return error.InvalidRecoveryId;
 
     const context = c.secp256k1_context_create(c.SECP256K1_CONTEXT_SIGN | c.SECP256K1_CONTEXT_VERIFY) orelse return error.FailedToInitializeContext;
-    errdefer c.secp256k1_context_destroy(context);
+    defer c.secp256k1_context_destroy(context);
 
     var public_key: [PublicKeyLength]u8 = undefined;
     var sig_bytes = signature.toBytes();

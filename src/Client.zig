@@ -346,6 +346,95 @@ pub fn sendRawTransaction(self: *PubClient, serialized_hex_tx: types.Hex) !types
     return try self.fetchTransaction(types.Hex, request);
 }
 
+pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: types.Hex, confirmations: u8) !?transaction.TransactionReceipt {
+    var retries: u8 = 0;
+    var tx: ?transaction.Transaction = null;
+    var block_number = try self.getBlockNumber();
+    var receipt = try self.getTransactionReceipt(tx_hash);
+
+    if (confirmations == 0)
+        return receipt;
+
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.FailedToGetReceipt;
+
+        if (receipt) |tx_receipt| {
+            if (retries > confirmations and (tx_receipt.blockNumber != null or block_number - tx_receipt.blockNumber.? + 1 < confirmations)) {
+                receipt = tx_receipt;
+                break;
+            } else {
+                std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                continue;
+            }
+        }
+
+        if (tx == null) {
+            tx = self.getTransactionByHash(tx_hash) catch |err| switch (err) {
+                error.TransactionNotFound => {
+                    std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                    continue;
+                },
+                else => return err,
+            };
+
+            switch (tx.?) {
+                inline else => |tx_object| {
+                    if (tx_object.blockNumber) |number| block_number = number;
+                },
+            }
+
+            receipt = try self.getTransactionReceipt(tx_hash);
+
+            if (receipt) |tx_receipt| {
+                if (retries > confirmations and (tx_receipt.blockNumber != null or block_number - tx_receipt.blockNumber.? + 1 < confirmations)) {
+                    receipt = tx_receipt;
+                    break;
+                } else {
+                    std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                    continue;
+                }
+            } else {
+                const current_block = try self.getBlockByNumber(.{ .include_transaction_objects = true });
+
+                const replaced: ?transaction.Transaction = outer: {
+                    switch (tx.?) {
+                        inline else => |transactions| {
+                            switch (current_block) {
+                                inline else => |pending| {
+                                    for (pending.transactions.objects) |pending_transaction| {
+                                        switch (pending_transaction) {
+                                            inline else => |tx_pending| {
+                                                if (std.mem.eql(u8, transactions.from, tx_pending.from) and tx_pending.nonce == transactions.nonce)
+                                                    break :outer pending_transaction;
+                                            },
+                                        }
+                                    }
+                                    break :outer null;
+                                },
+                            }
+                        },
+                    }
+                };
+
+                if (replaced) |replaced_tx| {
+                    receipt = switch (replaced_tx) {
+                        inline else => |tx_object| try self.getTransactionReceipt(tx_object.hash),
+                    };
+
+                    if (retries > confirmations and (receipt.?.blockNumber != null or block_number - receipt.?.blockNumber.? + 1 < confirmations))
+                        break;
+                } else {
+                    std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                    continue;
+                }
+            }
+        }
+    }
+
+    return receipt;
+}
+
 pub fn uninstalllFilter(self: *PubClient, id: usize) !bool {
     const filter_id = try std.fmt.allocPrint(self.alloc, "0x{x}", .{id});
 

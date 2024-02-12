@@ -326,6 +326,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             return try self.sendSignedTransaction(prepared);
         }
+
+        pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: types.Hex, confirmations: u8) !?transaction.TransactionReceipt {
+            return try self.pub_client.waitForTransactionReceipt(tx_hash, confirmations);
+        }
     };
 }
 
@@ -384,8 +388,8 @@ test "verifyTypedData" {
 
 test "sendTransaction" {
     // CI coverage runner dislikes this tests so for now we skip it.
-    if (true) return error.SkipZigTest;
-    var wallet = try Wallet(.websocket).init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum);
+    // if (true) return error.SkipZigTest;
+    var wallet = try Wallet(.http).init(testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum);
     defer wallet.deinit();
 
     var tx: transaction.PrepareEnvelope = .{ .eip1559 = undefined };
@@ -394,8 +398,10 @@ test "sendTransaction" {
     tx.eip1559.to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 
     const tx_hash = try wallet.sendTransaction(tx);
+    const receipt = try wallet.waitForTransactionReceipt(tx_hash, 1);
 
     try testing.expect(tx_hash.len != 0);
+    try testing.expect(receipt != null);
 }
 
 test "assertTransaction" {

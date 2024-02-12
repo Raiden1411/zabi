@@ -42,7 +42,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             const client = client: {
                 switch (client_type) {
-                    .http => break :client try PubClient.init(alloc, url, chain_id),
+                    .http => {
+                        const uri = try std.Uri.parse(url);
+                        break :client try PubClient.init(.{ .allocator = alloc, .uri = uri, .chain_id = chain_id });
+                    },
                     .websocket => {
                         const ws_client = try alloc.create(WebSocketClient);
                         errdefer alloc.destroy(ws_client);
@@ -52,6 +55,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         try ws_client.init(.{
                             .allocator = alloc,
                             .uri = uri,
+                            .chain_id = chain_id,
                         });
 
                         break :client ws_client;

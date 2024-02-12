@@ -13,6 +13,19 @@ const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Uri = std.Uri;
 
+pub const InitOptions = struct {
+    /// Allocator to use to create the ChildProcess and other allocations
+    allocator: Allocator,
+    /// Fork url for anvil to fork from
+    uri: std.Uri,
+    /// The client chainId.
+    chain_id: ?Chains = null,
+    /// Retry count for failed requests.
+    retries: u8 = 5,
+    /// The interval to retry the request. This will get multiplied in ns_per_ms.
+    pooling_interval: u64 = 2_000,
+};
+
 /// This allocator will get set by the arena.
 alloc: Allocator,
 /// The arena where all allocations will leave.
@@ -27,40 +40,46 @@ headers: *http.Headers,
 uri: Uri,
 /// Tracked errors picked up by the requests
 errors: std.ArrayListUnmanaged(types.ErrorResponse) = .{},
+/// Retry count for failed requests.
+retries: u8,
+/// The interval to retry the request. This will get multiplied in ns_per_ms.
+pooling_interval: u64,
 
 const PubClient = @This();
 
 /// Init the client instance. Caller must call `deinit` to free the memory.
 /// Most of the client method are replicas of the JSON RPC methods name with the `eth_` start.
-pub fn init(alloc: Allocator, url: []const u8, chain_id: ?Chains) !*PubClient {
-    var pub_client = try alloc.create(PubClient);
-    errdefer alloc.destroy(pub_client);
+pub fn init(opts: InitOptions) !*PubClient {
+    var pub_client = try opts.allocator.create(PubClient);
+    errdefer opts.allocator.destroy(pub_client);
 
-    pub_client.arena = try alloc.create(ArenaAllocator);
-    errdefer alloc.destroy(pub_client.arena);
+    pub_client.arena = try opts.allocator.create(ArenaAllocator);
+    errdefer opts.allocator.destroy(pub_client.arena);
 
-    pub_client.client = try alloc.create(http.Client);
-    errdefer alloc.destroy(pub_client.client);
+    pub_client.client = try opts.allocator.create(http.Client);
+    errdefer opts.allocator.destroy(pub_client.client);
 
-    pub_client.headers = try alloc.create(http.Headers);
-    errdefer alloc.destroy(pub_client.arena);
+    pub_client.headers = try opts.allocator.create(http.Headers);
+    errdefer opts.allocator.destroy(pub_client.arena);
 
-    pub_client.arena.* = ArenaAllocator.init(alloc);
+    pub_client.arena.* = ArenaAllocator.init(opts.allocator);
     pub_client.alloc = pub_client.arena.allocator();
     errdefer pub_client.arena.deinit();
 
     pub_client.headers.* = try http.Headers.initList(pub_client.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
     pub_client.client.* = http.Client{ .allocator = pub_client.alloc };
 
-    pub_client.uri = try Uri.parse(url);
+    pub_client.uri = opts.uri;
 
-    const chain: Chains = chain_id orelse .ethereum;
+    const chain: Chains = opts.chain_id orelse .ethereum;
     const id = switch (chain) {
         inline else => |id| @intFromEnum(id),
     };
 
     pub_client.chain_id = id;
     pub_client.errors = .{};
+    pub_client.retries = opts.retries;
+    pub_client.pooling_interval = opts.pooling_interval;
 
     return pub_client;
 }
@@ -469,7 +488,8 @@ fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !T {
 }
 
 test "GetBlockNumber" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const block_req = try pub_client.getBlockNumber();
@@ -478,7 +498,8 @@ test "GetBlockNumber" {
 }
 
 test "GetChainId" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const chain = try pub_client.getChainId();
@@ -487,7 +508,8 @@ test "GetChainId" {
 }
 
 test "GetBlock" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const block_info = try pub_client.getBlockByNumber(.{});
@@ -500,7 +522,8 @@ test "GetBlock" {
 }
 
 test "GetBlockByHash" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const block_info = try pub_client.getBlockByHash(.{ .block_hash = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8" });
@@ -509,7 +532,8 @@ test "GetBlockByHash" {
 }
 
 test "GetBlockTransactionCountByHash" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const block_info = try pub_client.getBlockTransactionCountByHash("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
@@ -517,7 +541,8 @@ test "GetBlockTransactionCountByHash" {
 }
 
 test "getBlockTransactionCountByNumber" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const block_info = try pub_client.getBlockTransactionCountByNumber(.{});
@@ -525,7 +550,8 @@ test "getBlockTransactionCountByNumber" {
 }
 
 test "getBlockTransactionCountByHash" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const block_info = try pub_client.getBlockTransactionCountByHash("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
@@ -533,7 +559,8 @@ test "getBlockTransactionCountByHash" {
 }
 
 test "getAccounts" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const accounts = try pub_client.getAccounts();
@@ -541,7 +568,8 @@ test "getAccounts" {
 }
 
 test "gasPrice" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const gasPrice = try pub_client.getGasPrice();
@@ -549,7 +577,8 @@ test "gasPrice" {
 }
 
 test "getCode" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const code = try pub_client.getContractCode(.{ .address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" });
@@ -557,7 +586,8 @@ test "getCode" {
 }
 
 test "getAddressBalance" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const address = try pub_client.getAddressBalance(.{ .address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" });
@@ -565,7 +595,8 @@ test "getAddressBalance" {
 }
 
 test "getUncleCountByBlockHash" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const uncle = try pub_client.getUncleCountByBlockHash("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
@@ -573,7 +604,8 @@ test "getUncleCountByBlockHash" {
 }
 
 test "getUncleCountByBlockNumber" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const uncle = try pub_client.getUncleCountByBlockNumber(.{});
@@ -581,7 +613,8 @@ test "getUncleCountByBlockNumber" {
 }
 
 test "getLogs" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const logs = try pub_client.getLogs(.{ .blockHash = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8" });
@@ -589,7 +622,8 @@ test "getLogs" {
 }
 
 test "getTransactionByBlockNumberAndIndex" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const tx = try pub_client.getTransactionByBlockNumberAndIndex(.{ .block_number = 16777215 }, 0);
@@ -597,7 +631,8 @@ test "getTransactionByBlockNumberAndIndex" {
 }
 
 test "getTransactionByBlockHashAndIndex" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const tx = try pub_client.getTransactionByBlockHashAndIndex("0xf34c3c11b35466e5595e077239e6b25a7c3ec07a214b2492d42ba6d73d503a1b", 0);
@@ -605,7 +640,8 @@ test "getTransactionByBlockHashAndIndex" {
 }
 
 test "getAddressTransactionCount" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const nonce = try pub_client.getAddressTransactionCount(.{ .address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" });
@@ -613,7 +649,8 @@ test "getAddressTransactionCount" {
 }
 
 test "getTransactionByHash" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const eip1559 = try pub_client.getTransactionByHash("0x72c2a1a82c48da81fac7b434cdb5662b5c92b76f85565e062196ca8a84f43ee5");
@@ -628,19 +665,21 @@ test "getTransactionByHash" {
 }
 
 test "getTransactionReceipt" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const receipt = try pub_client.getTransactionReceipt("0x72c2a1a82c48da81fac7b434cdb5662b5c92b76f85565e062196ca8a84f43ee5");
-    try testing.expect(receipt.status != null);
+    try testing.expect(receipt.?.status != null);
 
     // Pre-Byzantium
     const legacy = try pub_client.getTransactionReceipt("0x4dadc87da2b7c47125fb7e4102d95457830e44d2fbcd45537d91f8be1e5f6130");
-    try testing.expect(legacy.root != null);
+    try testing.expect(legacy.?.root != null);
 }
 
 test "estimateGas" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const gas = try pub_client.estimateGas(.{ .eip1559 = .{ .from = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1) } }, .{});
@@ -648,7 +687,8 @@ test "estimateGas" {
 }
 
 test "estimateFeesPerGas" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const gas = try pub_client.estimateFeesPerGas(.{ .eip1559 = .{ .from = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1) } }, null);
@@ -657,7 +697,8 @@ test "estimateFeesPerGas" {
 }
 
 test "estimateMaxFeePerGasManual" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const gas = try pub_client.estimateMaxFeePerGasManual(null);

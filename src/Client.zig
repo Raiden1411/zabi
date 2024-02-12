@@ -501,7 +501,21 @@ fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !T {
     const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(T), self.alloc, request, .{}) catch {
         if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, request, .{ .ignore_unknown_fields = true })) |result| {
             try self.errors.append(self.alloc, result.@"error");
-            return error.RpcErrorResponse;
+
+            return switch (result.@"error".code) {
+                .InvalidInput => error.InvalidInput,
+                .MethodNotFound => error.MethodNotFound,
+                .ResourceNotFound => error.ResourceNotFound,
+                .InvalidRequest => error.InvalidRequest,
+                .ParseError => error.ParseError,
+                .LimitExceeded => error.LimitExceeded,
+                .InvalidParams => error.InvalidParams,
+                .InternalError => error.InternalError,
+                .MethodNotSupported => error.MethodNotSupported,
+                .ResourceUnavailable => error.ResourceNotFound,
+                .TransactionRejected => error.TransactionRejected,
+                .RpcVersionNotSupported => error.RpcVersionNotSupported,
+            };
         } else |_| return error.RpcNullResponse;
     };
 

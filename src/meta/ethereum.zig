@@ -64,9 +64,24 @@ pub fn EthereumSubscribeResponse(comptime T: type) type {
 }
 
 pub const ErrorResponse = struct {
-    code: isize,
+    code: EthereumErrorCodes,
     message: []const u8,
     data: ?[]const u8 = null,
+};
+
+pub const EthereumErrorCodes = enum(isize) {
+    InvalidInput = -32000,
+    ResourceNotFound = -32001,
+    ResourceUnavailable = -32002,
+    TransactionRejected = -32003,
+    MethodNotSupported = -32004,
+    LimitExceeded = -32005,
+    RpcVersionNotSupported = -32006,
+    InvalidRequest = -32600,
+    MethodNotFound = -32601,
+    InvalidParams = -32602,
+    InternalError = -32603,
+    ParseError = -32700,
 };
 
 pub const EthereumErrorResponse = struct { jsonrpc: []const u8, id: usize, @"error": ErrorResponse };

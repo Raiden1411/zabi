@@ -338,7 +338,7 @@ pub const TransactionReceipt = struct {
     transactionHash: types.Hex,
     transactionIndex: usize,
     blockHash: types.Hex,
-    blockNumber: u64,
+    blockNumber: ?u64,
     from: types.Hex,
     to: ?types.Hex,
     cumulativeGasUsed: types.Gwei,

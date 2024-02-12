@@ -1,5 +1,6 @@
 const meta = @import("meta.zig");
 const std = @import("std");
+const transactions = @import("transaction.zig");
 const types = @import("ethereum.zig");
 const Allocator = std.mem.Allocator;
 const Scanner = std.json.Scanner;
@@ -42,13 +43,20 @@ pub const BlockBeforeMerge = struct {
     totalDifficulty: ?types.Wei,
     sealFields: []const types.Hex,
     uncles: []const types.Hex,
-    transactions: []const types.Hex,
+    transactions: BlockTransactions,
     size: u64,
     mixHash: types.Hex,
     nonce: ?types.Gwei,
     baseFeePerGas: ?types.Gwei,
 
     pub usingnamespace meta.RequestParser(@This());
+};
+
+pub const BlockTransactions = union(enum) {
+    hashes: []const types.Hex,
+    objects: []const transactions.Transaction,
+
+    pub usingnamespace meta.UnionParser(@This());
 };
 
 pub const BlockAfterMerge = struct {
@@ -69,7 +77,7 @@ pub const BlockAfterMerge = struct {
     totalDifficulty: ?types.Wei,
     sealFields: []const types.Hex,
     uncles: []const types.Hex,
-    transactions: []const types.Hex,
+    transactions: BlockTransactions,
     size: u64,
     mixHash: types.Hex,
     nonce: ?types.Gwei,

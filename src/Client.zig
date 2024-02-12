@@ -169,7 +169,10 @@ pub fn getBlockByHash(self: *PubClient, opts: block.BlockHashRequest) !block.Blo
 
     const request: types.EthereumRequest(Params) = .{ .params = params, .method = .eth_getBlockByHash, .id = self.chain_id };
 
-    return try self.fetchBlock(request);
+    const request_block = try self.fetchBlock(request);
+    const block_info = request_block orelse return error.InvalidBlockHash;
+
+    return block_info;
 }
 
 pub fn getBlockByNumber(self: *PubClient, opts: block.BlockRequest) !block.Block {
@@ -182,7 +185,10 @@ pub fn getBlockByNumber(self: *PubClient, opts: block.BlockRequest) !block.Block
     const params: Params = .{ block_number, include };
     const request: types.EthereumRequest(Params) = .{ .params = params, .method = .eth_getBlockByNumber, .id = self.chain_id };
 
-    return try self.fetchBlock(request);
+    const request_block = try self.fetchBlock(request);
+    const block_info = request_block orelse return error.InvalidBlockNumber;
+
+    return block_info;
 }
 
 pub fn getBlockNumber(self: *PubClient) !u64 {
@@ -231,7 +237,10 @@ pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: types.Hex
 
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{ block_hash, try std.fmt.allocPrint(self.alloc, "0x{x}", .{index}) }, .method = .eth_getTransactionByBlockHashAndIndex, .id = self.chain_id };
 
-    return try self.fetchTransaction(transaction.Transaction, request);
+    const possible_tx = try self.fetchTransaction(?transaction.Transaction, request);
+    const tx = possible_tx orelse return error.TransactionNotFound;
+
+    return tx;
 }
 
 pub fn getTransactionByBlockNumberAndIndex(self: *PubClient, opts: block.BlockNumberRequest, index: usize) !transaction.Transaction {
@@ -240,7 +249,10 @@ pub fn getTransactionByBlockNumberAndIndex(self: *PubClient, opts: block.BlockNu
 
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{ block_number, try std.fmt.allocPrint(self.alloc, "0x{x}", .{index}) }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
 
-    return try self.fetchTransaction(transaction.Transaction, request);
+    const possible_tx = try self.fetchTransaction(?transaction.Transaction, request);
+    const tx = possible_tx orelse return error.TransactionNotFound;
+
+    return tx;
 }
 
 pub fn getTransactionByHash(self: *PubClient, transaction_hash: types.Hex) !transaction.Transaction {
@@ -248,15 +260,18 @@ pub fn getTransactionByHash(self: *PubClient, transaction_hash: types.Hex) !tran
 
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{transaction_hash}, .method = .eth_getTransactionByHash, .id = self.chain_id };
 
-    return try self.fetchTransaction(transaction.Transaction, request);
+    const possible_tx = try self.fetchTransaction(?transaction.Transaction, request);
+    const tx = possible_tx orelse return error.TransactionNotFound;
+
+    return tx;
 }
 
-pub fn getTransactionReceipt(self: *PubClient, transaction_hash: types.Hex) !transaction.TransactionReceipt {
+pub fn getTransactionReceipt(self: *PubClient, transaction_hash: types.Hex) !?transaction.TransactionReceipt {
     if (!utils.isHash(transaction_hash)) return error.InvalidHash;
 
     const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{transaction_hash}, .method = .eth_getTransactionReceipt, .id = self.chain_id };
 
-    return try self.fetchTransaction(transaction.TransactionReceipt, request);
+    return try self.fetchTransaction(?transaction.TransactionReceipt, request);
 }
 
 pub fn getUncleByBlockHashAndIndex(self: *PubClient, block_hash: types.Hex, index: usize) !block.Block {
@@ -267,7 +282,10 @@ pub fn getUncleByBlockHashAndIndex(self: *PubClient, block_hash: types.Hex, inde
 
     const request: types.EthereumRequest(Params) = .{ .params = params, .method = .eth_getUncleByBlockHashAndIndex, .id = self.chain_id };
 
-    return try self.fetchBlock(request);
+    const request_block = try self.fetchBlock(request);
+    const block_info = request_block orelse return error.InvalidBlockHashOrIndex;
+
+    return block_info;
 }
 
 pub fn getUncleByBlockNumberAndIndex(self: *PubClient, opts: block.BlockNumberRequest, index: usize) !block.Block {
@@ -279,7 +297,10 @@ pub fn getUncleByBlockNumberAndIndex(self: *PubClient, opts: block.BlockNumberRe
 
     const request: types.EthereumRequest(Params) = .{ .params = params, .method = .eth_getTransactionByBlockHashAndIndex, .id = self.chain_id };
 
-    return try self.fetchBlock(request);
+    const request_block = try self.fetchBlock(request);
+    const block_info = request_block orelse return error.InvalidBlockNumberOrIndex;
+
+    return block_info;
 }
 
 pub fn getUncleCountByBlockHash(self: *PubClient, block_hash: types.Hex) !usize {
@@ -425,13 +446,13 @@ fn fetchWithEmptyArgs(self: *PubClient, comptime T: type, method: types.Ethereum
     return try self.parseRPCEvent(T, req.body.?);
 }
 
-fn fetchBlock(self: *PubClient, request: anytype) !block.Block {
+fn fetchBlock(self: *PubClient, request: anytype) !?block.Block {
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 
     if (req.status != .ok) return error.InvalidRequest;
 
-    return try self.parseRPCEvent(block.Block, req.body.?);
+    return try self.parseRPCEvent(?block.Block, req.body.?);
 }
 
 fn fetchTransaction(self: *PubClient, comptime T: type, request: types.EthereumRequest(types.HexRequestParameters)) !T {

@@ -7,14 +7,41 @@ const transaction = @import("meta/transaction.zig");
 const types = @import("meta/ethereum.zig");
 const utils = @import("utils.zig");
 const ws = @import("ws");
+
 const Allocator = std.mem.Allocator;
+const Anvil = @import("tests/Anvil.zig");
 const ArenaAllocator = std.heap.ArenaAllocator;
+const BalanceBlockTag = block.BalanceBlockTag;
+const BalanceRequest = block.BalanceRequest;
+const Block = block.Block;
+const BlockHashRequest = block.BlockHashRequest;
+const BlockNumberRequest = block.BlockNumberRequest;
+const BlockRequest = block.BlockRequest;
+const BlockTag = block.BlockTag;
 const Chains = types.PublicChains;
 const Channel = @import("channel.zig").Channel;
-const EthereumEvents = types.EthereumEvents;
+const EthCall = transaction.EthCall;
+const EthCallHexed = transaction.EthCallHexed;
+const ErrorResponse = types.ErrorResponse;
 const EthereumErrorResponse = types.EthereumErrorResponse;
+const EthereumEvents = types.EthereumEvents;
+const EthereumResponse = types.EthereumResponse;
 const EthereumRequest = types.EthereumRequest;
 const EthereumRpcMethods = types.EthereumRpcMethods;
+const EstimateFeeReturn = transaction.EstimateFeeReturn;
+const Extract = meta.Extract;
+const Gwei = types.Gwei;
+const Hex = types.Hex;
+const HexRequestParameters = types.HexRequestParameters;
+const Log = log.Log;
+const LogFilterRequestParams = log.LogFilterRequestParams;
+const LogRequest = log.LogRequest;
+const LogRequestParams = log.LogRequestParams;
+const Logs = log.Logs;
+const Transaction = transaction.Transaction;
+const TransactionReceipt = transaction.TransactionReceipt;
+const Uri = std.Uri;
+const Wei = types.Wei;
 
 const WebSocketHandler = @This();
 
@@ -27,6 +54,8 @@ pub const InitOptions = struct {
     uri: std.Uri,
     /// The client chainId.
     chain_id: ?Chains = null,
+    /// Callback function for when the connection is closed.
+    onClose: ?*const fn () void = null,
     /// Callback function for everytime an event is parsed.
     onEvent: ?*const fn (args: EthereumEvents) anyerror!void = null,
     /// Callback function for everytime an error is caught.
@@ -35,17 +64,23 @@ pub const InitOptions = struct {
     retries: u8 = 5,
     /// The interval to retry the connection. This will get multiplied in ns_per_ms.
     pooling_interval: u64 = 2_000,
+    /// The base fee multiplier used to estimate the gas fees in a transaction
+    base_fee_multiplier: f64 = 1.2,
 };
 
 /// Arena used to manage the socket connection
 _arena: *ArenaAllocator,
 /// The allocator that will manage the connections memory
 allocator: std.mem.Allocator,
+/// The base fee multiplier used to estimate the gas fees in a transaction
+base_fee_multiplier: f64,
 /// The chain id of the attached network
 chain_id: usize,
 /// Channel used to communicate between threads.
 /// All events are set in this channel in a FIFO data structure. This is thread safe.
 channel: *Channel(EthereumEvents),
+/// Callback function for when the connection is closed.
+onClose: ?*const fn () void = null,
 /// Callback function that will run once a socket event is parsed
 onEvent: ?*const fn (args: EthereumEvents) anyerror!void,
 /// Callback function that will run once a error is parsed.
@@ -63,8 +98,26 @@ fn parseRPCEvent(self: *WebSocketHandler, comptime T: type, request: []const u8)
     const parsed = std.json.parseFromSliceLeaky(T, self.allocator, request, .{ .allocate = .alloc_always }) catch {
         if (std.json.parseFromSliceLeaky(EthereumErrorResponse, self.allocator, request, .{ .ignore_unknown_fields = true })) |result| {
             wslog.debug("Rpc replied with error message: {s}", .{result.@"error".message});
-            return error.RpcErrorResponse;
-        } else |_| return error.RpcNullResponse;
+
+            if (result.@"error".data) |data|
+                wslog.debug("RPC error response data: {s}", .{data});
+
+            // Converts the rpc error codes to zig errors
+            return switch (result.@"error".code) {
+                .InvalidInput => error.InvalidInput,
+                .MethodNotFound => error.MethodNotFound,
+                .ResourceNotFound => error.ResourceNotFound,
+                .InvalidRequest => error.InvalidRequest,
+                .ParseError => error.ParseError,
+                .LimitExceeded => error.LimitExceeded,
+                .InvalidParams => error.InvalidParams,
+                .InternalError => error.InternalError,
+                .MethodNotSupported => error.MethodNotSupported,
+                .ResourceUnavailable => error.ResourceNotFound,
+                .TransactionRejected => error.TransactionRejected,
+                .RpcVersionNotSupported => error.RpcVersionNotSupported,
+            };
+        } else |_| return error.UnexpectedErrorFound;
     };
 
     return parsed;
@@ -130,8 +183,10 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
     self.* = .{
         ._arena = arena,
         .allocator = undefined,
+        .base_fee_multiplier = opts.base_fee_multiplier,
         .chain_id = @intFromEnum(chain),
         .channel = channel,
+        .onClose = opts.onClose,
         .onError = opts.onError,
         .onEvent = opts.onEvent,
         .pooling_interval = opts.pooling_interval,
@@ -166,7 +221,6 @@ pub fn deinit(self: *WebSocketHandler) void {
         allocator.destroy(self.ws_client);
     }
 }
-
 /// Connects to a socket client. This is a blocking operation.
 pub fn connect(self: *WebSocketHandler) !ws.Client {
     const scheme = std.http.Client.protocol_map.get(self.uri.scheme) orelse return error.UnsupportedSchema;
@@ -217,7 +271,6 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
 
     return client;
 }
-
 /// This is a blocking operation.
 /// Call this in a seperate thread.
 pub fn readLoopOwned(self: *WebSocketHandler) !void {
@@ -229,7 +282,6 @@ pub fn readLoopOwned(self: *WebSocketHandler) !void {
         return;
     };
 }
-
 /// Write messages to the websocket connections.
 pub fn write(self: *WebSocketHandler, data: []const u8) !void {
     return try self.ws_client.write(@constCast(data));
@@ -241,8 +293,10 @@ pub fn write(self: *WebSocketHandler, data: []const u8) !void {
 pub fn getCurrentEvent(self: *WebSocketHandler) !EthereumEvents {
     return self.channel.get();
 }
-
-pub fn estimateFeesPerGas(self: *WebSocketHandler, call_object: transaction.EthCall, know_block: ?block.Block) !transaction.EstimateFeeReturn {
+/// Estimate maxPriorityFeePerGas and maxFeePerGas. Will make more than one network request.
+/// Uses the `baseFeePerGas` included in the block to calculate the gas fees.
+/// Will return an error in case the `baseFeePerGas` is null.
+pub fn estimateFeesPerGas(self: *WebSocketHandler, call_object: EthCall, know_block: ?Block) !EstimateFeeReturn {
     const current_block = know_block orelse try self.getBlockByNumber(.{});
 
     switch (current_block) {
@@ -257,16 +311,20 @@ pub fn estimateFeesPerGas(self: *WebSocketHandler, call_object: transaction.EthC
                 },
                 .legacy => |tx| {
                     const gas_price = if (tx.gasPrice) |price| price else try self.getGasPrice() * std.math.pow(u64, 10, 9);
-                    const price = @divExact(gas_price * @as(u64, @intFromFloat(std.math.ceil(1.2 * std.math.pow(f64, 10, 1)))), std.math.pow(u64, 10, 1));
+                    const price = @divExact(gas_price * @as(u64, @intFromFloat(std.math.ceil(self.base_fee_multiplier * std.math.pow(f64, 10, 1)))), std.math.pow(u64, 10, 1));
                     return .{ .legacy = .{ .gas_price = price } };
                 },
             }
         },
     }
 }
-
-/// Calls `eth_estimateGas` with the call object.
-pub fn estimateGas(self: *WebSocketHandler, call_object: transaction.EthCall, opts: block.BlockNumberRequest) !types.Gwei {
+/// Generates and returns an estimate of how much gas is necessary to allow the transaction to complete.
+/// The transaction will not be added to the blockchain.
+/// Note that the estimate may be significantly more than the amount of gas actually used by the transaction,
+/// for a variety of reasons including EVM mechanics and node performance.
+///
+/// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
+pub fn estimateGas(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) !Gwei {
     const req_body = try self.prepEthCallRequest(call_object, opts, .eth_estimateGas);
     defer self.allocator.free(req_body);
 
@@ -281,10 +339,9 @@ pub fn estimateGas(self: *WebSocketHandler, call_object: transaction.EthCall, op
 
     return try std.fmt.parseInt(u64, event.result, 0);
 }
-
 /// Estimates maxPriorityFeePerGas manually. If the node you are currently using
 /// supports `eth_maxPriorityFeePerGas` consider using `estimateMaxFeePerGas`.
-pub fn estimateMaxFeePerGasManual(self: *WebSocketHandler, know_block: ?block.Block) !types.Gwei {
+pub fn estimateMaxFeePerGasManual(self: *WebSocketHandler, know_block: ?Block) !Gwei {
     const current_block = know_block orelse try self.getBlockByNumber(.{});
     const gas_price = try self.getGasPrice();
 
@@ -302,9 +359,8 @@ pub fn estimateMaxFeePerGasManual(self: *WebSocketHandler, know_block: ?block.Bl
         },
     }
 }
-
 /// Only use this if the node you are currently using supports `eth_maxPriorityFeePerGas`.
-pub fn estimateMaxFeePerGas(self: *WebSocketHandler) !types.Gwei {
+pub fn estimateMaxFeePerGas(self: *WebSocketHandler) !Gwei {
     const req_body = try self.prepEmptyArgsRequest(.eth_maxPriorityFeePerGas);
     defer self.allocator.free(req_body);
 
@@ -319,8 +375,10 @@ pub fn estimateMaxFeePerGas(self: *WebSocketHandler) !types.Gwei {
 
     return try std.fmt.parseInt(u64, event.result, 0);
 }
-
-pub fn getAccounts(self: *WebSocketHandler) ![]const types.Hex {
+/// Returns a list of addresses owned by client.
+///
+/// RPC Method: [eth_accounts](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_accounts)
+pub fn getAccounts(self: *WebSocketHandler) ![]const Hex {
     const req_body = try self.prepEmptyArgsRequest(.eth_accounts);
     defer self.allocator.free(req_body);
 
@@ -335,7 +393,9 @@ pub fn getAccounts(self: *WebSocketHandler) ![]const types.Hex {
 
     return event.result;
 }
-
+/// Returns the balance of the account of given address.
+///
+/// RPC Method: [eth_getBalance](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getbalance)
 pub fn getAddressBalance(self: *WebSocketHandler, opts: block.BalanceRequest) !types.Wei {
     const req_body = try self.prepAddressRequest(opts, .eth_getBalance);
     defer self.allocator.free(req_body);
@@ -351,8 +411,10 @@ pub fn getAddressBalance(self: *WebSocketHandler, opts: block.BalanceRequest) !t
 
     return try std.fmt.parseInt(u256, event.result, 0);
 }
-
-pub fn getAddressTransactionCount(self: *WebSocketHandler, opts: block.BalanceRequest) !u64 {
+/// Returns the number of transactions sent from an address.
+///
+/// RPC Method: [eth_getTransactionCount](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactioncount)
+pub fn getAddressTransactionCount(self: *WebSocketHandler, opts: BalanceRequest) !u64 {
     const req_body = try self.prepAddressRequest(opts, .eth_getTransactionCount);
     defer self.allocator.free(req_body);
 
@@ -367,8 +429,10 @@ pub fn getAddressTransactionCount(self: *WebSocketHandler, opts: block.BalanceRe
 
     return try std.fmt.parseInt(u64, event.result, 0);
 }
-
-pub fn getBlockByHash(self: *WebSocketHandler, opts: block.BlockHashRequest) !block.Block {
+/// Returns the number of most recent block.
+///
+/// RPC Method: [eth_blockNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_blocknumber)
+pub fn getBlockByHash(self: *WebSocketHandler, opts: BlockHashRequest) !Block {
     if (!utils.isHash(opts.block_hash)) return error.InvalidHash;
     const include = opts.include_transaction_objects orelse false;
 
@@ -390,8 +454,10 @@ pub fn getBlockByHash(self: *WebSocketHandler, opts: block.BlockHashRequest) !bl
 
     return event.result;
 }
-
-pub fn getBlockByNumber(self: *WebSocketHandler, opts: block.BlockRequest) !block.Block {
+/// Returns the number of transactions in a block from a block matching the given block hash.
+///
+/// RPC Method: [eth_getBlockTransactionCountByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbyhash)
+pub fn getBlockByNumber(self: *WebSocketHandler, opts: BlockRequest) !Block {
     const tag: block.BlockTag = opts.tag orelse .latest;
     const include = opts.include_transaction_objects orelse false;
 
@@ -416,7 +482,9 @@ pub fn getBlockByNumber(self: *WebSocketHandler, opts: block.BlockRequest) !bloc
 
     return event.result;
 }
-
+/// Returns the number of transactions in a block from a block matching the given block number.
+///
+/// RPC Method: [eth_getBlockTransactionCountByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbynumber)
 pub fn getBlockNumber(self: *WebSocketHandler) !u64 {
     const req_body = try self.prepEmptyArgsRequest(.eth_blockNumber);
     defer self.allocator.free(req_body);
@@ -432,8 +500,10 @@ pub fn getBlockNumber(self: *WebSocketHandler) !u64 {
 
     return try std.fmt.parseInt(u64, event.result, 0);
 }
-
-pub fn getBlockTransactionCountByHash(self: *WebSocketHandler, block_hash: types.Hex) !u64 {
+/// Returns the number of transactions in a block from a block matching the given block hash.
+///
+/// RPC Method: [eth_getBlockTransactionCountByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbyhash)
+pub fn getBlockTransactionCountByHash(self: *WebSocketHandler, block_hash: Hex) !u64 {
     const req_body = try self.prepBlockHashRequest(block_hash, .eth_getBlockTransactionCountByHash);
     defer self.allocator.free(req_body);
 
@@ -448,8 +518,10 @@ pub fn getBlockTransactionCountByHash(self: *WebSocketHandler, block_hash: types
 
     return try std.fmt.parseInt(u64, event.result, 0);
 }
-
-pub fn getBlockTransactionCountByNumber(self: *WebSocketHandler, opts: block.BlockNumberRequest) !u64 {
+/// Returns the number of transactions in a block from a block matching the given block number.
+///
+/// RPC Method: [eth_getBlockTransactionCountByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbynumber)
+pub fn getBlockTransactionCountByNumber(self: *WebSocketHandler, opts: BlockNumberRequest) !u64 {
     const req_body = try self.prepBlockNumberRequest(opts, .eth_getBlockTransactionCountByNumber);
     defer self.allocator.free(req_body);
 
@@ -464,7 +536,9 @@ pub fn getBlockTransactionCountByNumber(self: *WebSocketHandler, opts: block.Blo
 
     return try std.fmt.parseInt(u64, event.result, 0);
 }
-
+/// Returns the chain ID used for signing replay-protected transactions.
+///
+/// RPC Method: [eth_chainId](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_chainid)
 pub fn getChainId(self: *WebSocketHandler) !usize {
     const req_body = try self.prepEmptyArgsRequest(.eth_chainId);
     defer self.allocator.free(req_body);
@@ -485,8 +559,10 @@ pub fn getChainId(self: *WebSocketHandler) !usize {
 
     return chain_id;
 }
-
-pub fn getContractCode(self: *WebSocketHandler, opts: block.BalanceRequest) !types.Hex {
+/// Returns code at a given address.
+///
+/// RPC Method: [eth_getCode](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getcode)
+pub fn getContractCode(self: *WebSocketHandler, opts: BalanceRequest) !Hex {
     const req_body = try self.prepAddressRequest(opts, .eth_getCode);
     defer self.allocator.free(req_body);
 
@@ -501,8 +577,11 @@ pub fn getContractCode(self: *WebSocketHandler, opts: block.BalanceRequest) !typ
 
     return event.result;
 }
-
-pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: usize, method: meta.Extract(types.EthereumRpcMethods, "eth_getFilterChanges,eth_FilterLogs")) !log.Logs {
+/// Polling method for a filter, which returns an array of logs which occurred since last poll or
+/// Returns an array of all logs matching filter with given id depending on the selected method
+/// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterchanges
+/// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterlogs
+pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: usize, method: Extract(types.EthereumRpcMethods, "eth_getFilterChanges,eth_FilterLogs")) !log.Logs {
     const filter = try std.fmt.allocPrint(self.allocator, "0x{x}", .{filter_id});
     defer self.allocator.free(filter);
 
@@ -522,7 +601,10 @@ pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: usize, method: 
 
     return event.result;
 }
-
+/// Returns an estimate of the current price per gas in wei.
+/// For example, the Besu client examines the last 100 blocks and returns the median gas unit price by default.
+///
+/// RPC Method: [eth_gasPrice](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gasprice)
 pub fn getGasPrice(self: *WebSocketHandler) !u64 {
     const req_body = try self.prepEmptyArgsRequest(.eth_gasPrice);
     defer self.allocator.free(req_body);
@@ -538,15 +620,17 @@ pub fn getGasPrice(self: *WebSocketHandler) !u64 {
 
     return try std.fmt.parseInt(u64, event.result, 0);
 }
-
-pub fn getLogs(self: *WebSocketHandler, opts: log.LogRequestParams) !log.Logs {
+/// Returns an array of all logs matching a given filter object.
+///
+/// RPC Method: [eth_getLogs](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getlogs)
+pub fn getLogs(self: *WebSocketHandler, opts: LogRequestParams) !Logs {
     const from_block = if (opts.tag) |tag| @tagName(tag) else if (opts.fromBlock) |number| try std.fmt.allocPrint(self.allocator, "0x{x}", .{number}) else null;
     defer if (from_block) |from| if (from[0] == '0') self.allocator.free(from);
 
     const to_block = if (opts.tag) |tag| @tagName(tag) else if (opts.toBlock) |number| try std.fmt.allocPrint(self.allocator, "0x{x}", .{number}) else null;
     defer if (to_block) |to| if (to[0] == '0') self.allocator.free(to);
 
-    const request: types.EthereumRequest([]const log.LogRequest) = .{ .params = &.{.{ .fromBlock = from_block, .toBlock = to_block, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_getLogs, .id = self.chain_id };
+    const request: types.EthereumRequest([]const LogRequest) = .{ .params = &.{.{ .fromBlock = from_block, .toBlock = to_block, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_getLogs, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{ .emit_null_optional_fields = false });
     defer self.allocator.free(req_body);
@@ -562,8 +646,10 @@ pub fn getLogs(self: *WebSocketHandler, opts: log.LogRequestParams) !log.Logs {
 
     return event.result;
 }
-
-pub fn getTransactionByBlockHashAndIndex(self: *WebSocketHandler, block_hash: types.Hex, index: usize) !transaction.Transaction {
+/// Returns information about a transaction by block hash and transaction index position.
+///
+/// RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblockhashandindex)
+pub fn getTransactionByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Hex, index: usize) !Transaction {
     if (!utils.isHash(block_hash)) return error.InvalidHash;
 
     const request: EthereumRequest(types.HexRequestParameters) = .{ .params = &.{ block_hash, try std.fmt.allocPrint(self.allocator, "0x{x}", .{index}) }, .method = .eth_getTransactionByBlockHashAndIndex, .id = self.chain_id };
@@ -581,8 +667,10 @@ pub fn getTransactionByBlockHashAndIndex(self: *WebSocketHandler, block_hash: ty
 
     return event.result;
 }
-
-pub fn getTransactionByBlockNumberAndIndex(self: *WebSocketHandler, opts: block.BlockNumberRequest, index: usize) !transaction.Transaction {
+/// Returns information about a transaction by block number and transaction index position.
+///
+/// RPC Method: [eth_getTransactionByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblocknumberandindex)
+pub fn getTransactionByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberRequest, index: usize) !Transaction {
     const tag: block.BalanceBlockTag = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.allocator, "0x{x}", .{number}) else @tagName(tag);
     defer if (block_number[0] == '0') self.allocator.free(block_number);
@@ -603,8 +691,10 @@ pub fn getTransactionByBlockNumberAndIndex(self: *WebSocketHandler, opts: block.
 
     return event.result;
 }
-
-pub fn getTransactionByHash(self: *WebSocketHandler, transaction_hash: types.Hex) !transaction.Transaction {
+/// Returns the information about a transaction requested by transaction hash.
+///
+/// RPC Method: [eth_getTransactionByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyhash)
+pub fn getTransactionByHash(self: *WebSocketHandler, transaction_hash: types.Hex) !Transaction {
     if (!utils.isHash(transaction_hash)) return error.InvalidHash;
 
     const request: EthereumRequest(types.HexRequestParameters) = .{ .params = &.{transaction_hash}, .method = .eth_getTransactionByHash, .id = self.chain_id };
@@ -623,8 +713,10 @@ pub fn getTransactionByHash(self: *WebSocketHandler, transaction_hash: types.Hex
 
     return event.result;
 }
-
-pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: types.Hex) !transaction.TransactionReceipt {
+/// Returns the receipt of a transaction by transaction hash.
+///
+/// RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
+pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: types.Hex) !TransactionReceipt {
     if (!utils.isHash(transaction_hash)) return error.InvalidHash;
 
     const request: EthereumRequest(types.HexRequestParameters) = .{ .params = &.{transaction_hash}, .method = .eth_getTransactionReceipt, .id = self.chain_id };
@@ -640,14 +732,16 @@ pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: types.He
 
     return event.result;
 }
-
-pub fn getUncleByBlockHashAndIndex(self: *WebSocketHandler, block_hash: types.Hex, index: usize) !block.Block {
+/// Returns information about a uncle of a block by hash and uncle index position.
+///
+/// RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblockhashandindex)
+pub fn getUncleByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Hex, index: usize) !Block {
     if (!utils.isHash(block_hash)) return error.InvalidHash;
 
     const Params = std.meta.Tuple(&[_]type{ types.Hex, types.Hex });
     const params: Params = .{ block_hash, try std.fmt.allocPrint(self.allocator, "0x{x}", .{index}) };
 
-    const request: types.EthereumRequest(Params) = .{ .params = params, .method = .eth_getUncleByBlockHashAndIndex, .id = 1 };
+    const request: types.EthereumRequest(Params) = .{ .params = params, .method = .eth_getUncleByBlockHashAndIndex, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -663,8 +757,10 @@ pub fn getUncleByBlockHashAndIndex(self: *WebSocketHandler, block_hash: types.He
 
     return event.result;
 }
-
-pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: block.BlockNumberRequest, index: usize) !block.Block {
+/// Returns information about a uncle of a block by number and uncle index position.
+///
+/// RPC Method: [eth_getUncleByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblocknumberandindex)
+pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberRequest, index: usize) !Block {
     const tag: block.BalanceBlockTag = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.allocator, "0x{x}", .{number}) else @tagName(tag);
     defer if (block_number[0] == '0') self.allocator.free(block_number);
@@ -688,8 +784,10 @@ pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: block.BlockN
 
     return event.result;
 }
-
-pub fn getUncleCountByBlockHash(self: *WebSocketHandler, block_hash: types.Hex) !usize {
+/// Returns the number of uncles in a block from a block matching the given block hash.
+///
+/// RPC Method: [`eth_getUncleCountByBlockHash`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclecountbyblockhash)
+pub fn getUncleCountByBlockHash(self: *WebSocketHandler, block_hash: Hex) !usize {
     const req_body = try self.prepBlockHashRequest(block_hash, .eth_getUncleCountByBlockHash);
     defer self.allocator.free(req_body);
 
@@ -701,8 +799,10 @@ pub fn getUncleCountByBlockHash(self: *WebSocketHandler, block_hash: types.Hex) 
 
     return try std.fmt.parseInt(usize, event.result, 0);
 }
-
-pub fn getUncleCountByBlockNumber(self: *WebSocketHandler, opts: block.BlockNumberRequest) !usize {
+/// Returns the number of uncles in a block from a block matching the given block number.
+///
+/// RPC Method: [`eth_getUncleCountByBlockNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclecountbyblocknumber)
+pub fn getUncleCountByBlockNumber(self: *WebSocketHandler, opts: BlockNumberRequest) !usize {
     const req_body = try self.prepBlockNumberRequest(opts, .eth_getUncleCountByBlockNumber);
     defer self.allocator.free(req_body);
 
@@ -717,7 +817,10 @@ pub fn getUncleCountByBlockNumber(self: *WebSocketHandler, opts: block.BlockNumb
 
     return try std.fmt.parseInt(usize, event.result, 0);
 }
-
+/// Creates a filter in the node, to notify when a new block arrives.
+/// To check if the state has changed, call `getFilterOrLogChanges`.
+///
+/// RPC Method: [`eth_newBlockFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newblockfilter)
 pub fn newBlockFilter(self: *WebSocketHandler) !usize {
     const req_body = try self.prepEmptyArgsRequest(.eth_newBlockFilter);
     defer self.allocator.free(req_body);
@@ -733,8 +836,11 @@ pub fn newBlockFilter(self: *WebSocketHandler) !usize {
 
     return try std.fmt.parseInt(usize, event.result, 0);
 }
-
-pub fn newLogFilter(self: *WebSocketHandler, opts: log.LogFilterRequestParams) !usize {
+/// Creates a filter object, based on filter options, to notify when the state changes (logs).
+/// To check if the state has changed, call `getFilterOrLogChanges`.
+///
+/// RPC Method: [`eth_newFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newfilter)
+pub fn newLogFilter(self: *WebSocketHandler, opts: LogFilterRequestParams) !usize {
     const from_block = if (opts.tag) |tag| @tagName(tag) else if (opts.fromBlock) |number| try std.fmt.allocPrint(self.allocator, "0x{x}", .{number}) else null;
     defer if (from_block) |from| if (from[0] == '0') self.allocator.free(from);
 
@@ -757,7 +863,10 @@ pub fn newLogFilter(self: *WebSocketHandler, opts: log.LogFilterRequestParams) !
 
     return try std.fmt.parseInt(usize, event.result, 0);
 }
-
+/// Creates a filter in the node, to notify when new pending transactions arrive.
+/// To check if the state has changed, call `getFilterOrLogChanges`.
+///
+/// RPC Method: [`eth_newPendingTransactionFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newpendingtransactionfilter)
 pub fn newPendingTransactionFilter(self: *WebSocketHandler) !usize {
     const req_body = try self.prepEmptyArgsRequest(.eth_newPendingTransactionFilter);
     defer self.allocator.free(req_body);
@@ -773,10 +882,15 @@ pub fn newPendingTransactionFilter(self: *WebSocketHandler) !usize {
 
     return try std.fmt.parseInt(usize, event.result, 0);
 }
-
+/// Executes a new message call immediately without creating a transaction on the block chain.
+/// Often used for executing read-only smart contract functions,
+/// for example the balanceOf for an ERC-20 contract.
+///
 /// Call object must be prefilled before hand. Including the data field.
-/// This will just the request to the network.
-pub fn sendEthCall(self: *WebSocketHandler, call_object: transaction.EthCall, opts: block.BlockNumberRequest) !types.Hex {
+/// This will just make the request to the network.
+///
+/// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
+pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) !Hex {
     const req_body = try self.prepEthCallRequest(call_object, opts, .eth_call);
     defer self.allocator.free(req_body);
 
@@ -791,9 +905,11 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: transaction.EthCall, op
 
     return event.result;
 }
-
+/// Creates new message call transaction or a contract creation for signed transactions.
 /// Transaction must be serialized and signed before hand.
-pub fn sendRawTransaction(self: *WebSocketHandler, serialized_hex_tx: types.Hex) !types.Hex {
+///
+/// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
+pub fn sendRawTransaction(self: *WebSocketHandler, serialized_hex_tx: Hex) !Hex {
     const request: EthereumRequest(types.HexRequestParameters) = .{ .params = &.{serialized_hex_tx}, .method = .eth_sendRawTransaction, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -810,7 +926,10 @@ pub fn sendRawTransaction(self: *WebSocketHandler, serialized_hex_tx: types.Hex)
 
     return event.result;
 }
-
+/// Uninstalls a filter with given id. Should always be called when watch is no longer needed.
+/// Additionally Filters timeout when they aren't requested with `getFilterOrLogChanges` for a period of time.
+///
+/// RPC Method: [`eth_uninstallFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_uninstallfilter)
 pub fn uninstalllFilter(self: *WebSocketHandler, id: usize) !bool {
     const filter_id = try std.fmt.allocPrint(self.allocator, "0x{x}", .{id});
     defer self.allocator.free(filter_id);
@@ -831,8 +950,11 @@ pub fn uninstalllFilter(self: *WebSocketHandler, id: usize) !bool {
 
     return event.result;
 }
-
-pub fn unsubscribe(self: *WebSocketHandler, sub_id: types.Hex) !bool {
+/// Unsubscribe from different Ethereum event types with a regular RPC call
+/// with eth_unsubscribe as the method and the subscriptionId as the first parameter.
+///
+/// RPC Method: [`eth_unsubscribe`](https://docs.alchemy.com/reference/eth-unsubscribe)
+pub fn unsubscribe(self: *WebSocketHandler, sub_id: Hex) !bool {
     const request: EthereumRequest(types.HexRequestParameters) = .{ .params = &.{sub_id}, .method = .eth_unsubscribe, .id = self.allocator };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -849,9 +971,10 @@ pub fn unsubscribe(self: *WebSocketHandler, sub_id: types.Hex) !bool {
 
     return event.result;
 }
-
-/// Watch any new blocks that get created.
-pub fn watchNewBlocks(self: *WebSocketHandler) !types.Hex {
+/// Emits new blocks that are added to the blockchain.
+///
+/// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/eth-subscribe)
+pub fn watchNewBlocks(self: *WebSocketHandler) !Hex {
     const request: EthereumRequest(types.HexRequestParameters) = .{ .params = &.{"newHeads"}, .method = .eth_subscribe, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -868,8 +991,10 @@ pub fn watchNewBlocks(self: *WebSocketHandler) !types.Hex {
 
     return event.result;
 }
-
-pub fn watchLogs(self: *WebSocketHandler, opts: log.LogFilterRequestParams) !types.Hex {
+/// Emits logs attached to a new block that match certain topic filters.
+///
+/// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/logs)
+pub fn watchLogs(self: *WebSocketHandler, opts: LogFilterRequestParams) !Hex {
     const from_block = if (opts.tag) |tag| @tagName(tag) else if (opts.fromBlock) |number| try std.fmt.allocPrint(self.allocator, "0x{x}", .{number}) else null;
     defer if (from_block) |from| if (from[0] == '0') self.allocator.free(from);
 
@@ -891,10 +1016,10 @@ pub fn watchLogs(self: *WebSocketHandler, opts: log.LogFilterRequestParams) !typ
 
     return event.result;
 }
-
-/// Watch any new pending transactions.
-/// This only outputs the transactions hashes
-pub fn watchTransactions(self: *WebSocketHandler) !types.Hex {
+/// Emits transaction hashes that are sent to the network and marked as "pending".
+///
+/// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/newpendingtransactions)
+pub fn watchTransactions(self: *WebSocketHandler) !Hex {
     const request: EthereumRequest(types.HexRequestParameters) = .{ .params = &.{"newPendingTransactions"}, .method = .eth_subscribe, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -911,10 +1036,10 @@ pub fn watchTransactions(self: *WebSocketHandler) !types.Hex {
 
     return event.result;
 }
-
-/// The request must be preformated before using this.
-/// Returns the subscription id
-pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []const u8) !types.Hex {
+/// Creates a new subscription for desired events. Sends data as soon as it occurs
+///
+/// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/eth-subscribe)
+pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []const u8) !Hex {
     try self.write(@constCast(request));
     const event = switch (self.channel.get()) {
         .hex_event => |hex| hex,
@@ -926,6 +1051,12 @@ pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []const u8) !types.
 
     return event.result;
 }
+/// Runs the callback once the handler close method gets called by the ws_client
+pub fn close(self: *WebSocketHandler) void {
+    if (self.onClose) |onClose| {
+        return onClose();
+    }
+}
 
 fn prepEmptyArgsRequest(self: *WebSocketHandler, method: EthereumRpcMethods) ![]const u8 {
     const Params = std.meta.Tuple(&[_]type{});
@@ -936,7 +1067,7 @@ fn prepEmptyArgsRequest(self: *WebSocketHandler, method: EthereumRpcMethods) ![]
     return req_body;
 }
 
-fn prepBlockNumberRequest(self: *WebSocketHandler, opts: block.BlockNumberRequest, method: EthereumRpcMethods) ![]const u8 {
+fn prepBlockNumberRequest(self: *WebSocketHandler, opts: BlockNumberRequest, method: EthereumRpcMethods) ![]const u8 {
     const tag: block.BalanceBlockTag = opts.tag orelse .latest;
 
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.allocator, "0x{x}", .{number}) else @tagName(tag);
@@ -957,20 +1088,20 @@ fn prepBlockHashRequest(self: *WebSocketHandler, block_hash: []const u8, method:
     return req_body;
 }
 
-fn prepAddressRequest(self: *WebSocketHandler, opts: block.BalanceRequest, method: EthereumRpcMethods) ![]const u8 {
+fn prepAddressRequest(self: *WebSocketHandler, opts: BalanceRequest, method: EthereumRpcMethods) ![]const u8 {
     if (!try utils.isAddress(self.allocator, opts.address)) return error.InvalidAddress;
 
     const tag: block.BalanceBlockTag = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.allocator, "0x{x}", .{number}) else @tagName(tag);
     defer if (block_number[0] == '0') self.allocator.free(block_number);
 
-    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{ opts.address, block_number }, .method = method, .id = self.chain_id };
+    const request: types.EthereumRequest(HexRequestParameters) = .{ .params = &.{ opts.address, block_number }, .method = method, .id = self.chain_id };
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
 
     return req_body;
 }
 
-fn prepEthCallRequest(self: *WebSocketHandler, call_object: transaction.EthCall, opts: block.BlockNumberRequest, method: EthereumRpcMethods) ![]const u8 {
+fn prepEthCallRequest(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest, method: EthereumRpcMethods) ![]const u8 {
     const tag: block.BalanceBlockTag = opts.tag orelse .latest;
 
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.allocator, "0x{x}", .{number}) else @tagName(tag);
@@ -978,14 +1109,12 @@ fn prepEthCallRequest(self: *WebSocketHandler, call_object: transaction.EthCall,
 
     const call = try utils.hexifyEthCall(self.allocator, call_object);
 
-    const Params = std.meta.Tuple(&[_]type{ transaction.EthCallHexed, types.Hex });
+    const Params = std.meta.Tuple(&[_]type{ EthCallHexed, Hex });
     const request: types.EthereumRequest(Params) = .{ .params = .{ call, block_number }, .method = method, .id = self.chain_id };
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{ .emit_null_optional_fields = false });
 
     return req_body;
 }
-
-pub fn close(_: *WebSocketHandler) void {}
 
 test "GetBlockNumber" {
     const uri = try std.Uri.parse("http://localhost:8545/");

@@ -47,36 +47,36 @@ const httplog = std.log.scoped(.http);
 pub const InitOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
     allocator: Allocator,
-    /// Fork url for anvil to fork from
-    uri: std.Uri,
-    /// The client chainId.
-    chain_id: ?Chains = null,
-    /// Retry count for failed requests.
-    retries: u8 = 5,
-    /// The interval to retry the request. This will get multiplied in ns_per_ms.
-    pooling_interval: u64 = 2_000,
     /// The base fee multiplier used to estimate the gas fees in a transaction
     base_fee_multiplier: f64 = 1.2,
+    /// The client chainId.
+    chain_id: ?Chains = null,
+    /// The interval to retry the request. This will get multiplied in ns_per_ms.
+    pooling_interval: u64 = 2_000,
+    /// Retry count for failed requests.
+    retries: u8 = 5,
+    /// Fork url for anvil to fork from
+    uri: std.Uri,
 };
 
 /// This allocator will get set by the arena.
 alloc: Allocator,
 /// The arena where all allocations will leave.
 arena: *ArenaAllocator,
+/// The base fee multiplier used to estimate the gas fees in a transaction
+base_fee_multiplier: f64,
 /// The client chainId.
 chain_id: usize,
 /// The underlaying http client used to manage all the calls.
 client: *http.Client,
 /// The set of predifined headers use for the rpc calls.
 headers: *http.Headers,
-/// The uri of the provided init string.
-uri: Uri,
-/// Retry count for failed requests.
-retries: u8,
 /// The interval to retry the request. This will get multiplied in ns_per_ms.
 pooling_interval: u64,
-/// The base fee multiplier used to estimate the gas fees in a transaction
-base_fee_multiplier: f64,
+/// Retry count for failed requests.
+retries: u8,
+/// The uri of the provided init string.
+uri: Uri,
 
 const PubClient = @This();
 
@@ -152,7 +152,6 @@ pub fn estimateFeesPerGas(self: *PubClient, call_object: EthCall, know_block: ?B
         },
     }
 }
-
 /// Generates and returns an estimate of how much gas is necessary to allow the transaction to complete.
 /// The transaction will not be added to the blockchain.
 /// Note that the estimate may be significantly more than the amount of gas actually used by the transaction,
@@ -162,7 +161,6 @@ pub fn estimateFeesPerGas(self: *PubClient, call_object: EthCall, know_block: ?B
 pub fn estimateGas(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) !Gwei {
     return try self.fetchCall(Gwei, call_object, opts, .eth_estimateGas);
 }
-
 /// Estimates maxPriorityFeePerGas manually. If the node you are currently using
 /// supports `eth_maxPriorityFeePerGas` consider using `estimateMaxFeePerGas`.
 pub fn estimateMaxFeePerGasManual(self: *PubClient, know_block: ?Block) !Gwei {
@@ -454,7 +452,6 @@ pub fn newPendingTransactionFilter(self: *PubClient) !usize {
 pub fn sendEthCall(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) !Hex {
     return try self.fetchCall(Hex, call_object, opts, .eth_call);
 }
-
 /// Creates new message call transaction or a contract creation for signed transactions.
 /// Transaction must be serialized and signed before hand.
 ///

@@ -7,11 +7,42 @@ const testing = std.testing;
 const transaction = @import("meta/transaction.zig");
 const types = @import("meta/ethereum.zig");
 const utils = @import("utils.zig");
-const Anvil = @import("tests/Anvil.zig");
-const Chains = types.PublicChains;
+
+// Types
 const Allocator = std.mem.Allocator;
+const Anvil = @import("tests/Anvil.zig");
 const ArenaAllocator = std.heap.ArenaAllocator;
+const BalanceBlockTag = block.BalanceBlockTag;
+const BalanceRequest = block.BalanceRequest;
+const Block = block.Block;
+const BlockHashRequest = block.BlockHashRequest;
+const BlockNumberRequest = block.BlockNumberRequest;
+const BlockRequest = block.BlockRequest;
+const BlockTag = block.BlockTag;
+const Chains = types.PublicChains;
+const EthCall = transaction.EthCall;
+const EthCallHexed = transaction.EthCallHexed;
+const ErrorResponse = types.ErrorResponse;
+const EthereumErrorResponse = types.EthereumErrorResponse;
+const EthereumResponse = types.EthereumResponse;
+const EthereumRequest = types.EthereumRequest;
+const EthereumRpcMethods = types.EthereumRpcMethods;
+const EstimateFeeReturn = transaction.EstimateFeeReturn;
+const Extract = meta.Extract;
+const Gwei = types.Gwei;
+const Hex = types.Hex;
+const HexRequestParameters = types.HexRequestParameters;
+const Log = log.Log;
+const LogFilterRequestParams = log.LogFilterRequestParams;
+const LogRequest = log.LogRequest;
+const LogRequestParams = log.LogRequestParams;
+const Logs = log.Logs;
+const Transaction = transaction.Transaction;
+const TransactionReceipt = transaction.TransactionReceipt;
 const Uri = std.Uri;
+const Wei = types.Wei;
+
+const httplog = std.log.scoped(.http);
 
 pub const InitOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
@@ -24,6 +55,8 @@ pub const InitOptions = struct {
     retries: u8 = 5,
     /// The interval to retry the request. This will get multiplied in ns_per_ms.
     pooling_interval: u64 = 2_000,
+    /// The base fee multiplier used to estimate the gas fees in a transaction
+    base_fee_multiplier: f64 = 1.2,
 };
 
 /// This allocator will get set by the arena.
@@ -38,17 +71,18 @@ client: *http.Client,
 headers: *http.Headers,
 /// The uri of the provided init string.
 uri: Uri,
-/// Tracked errors picked up by the requests
-errors: std.ArrayListUnmanaged(types.ErrorResponse) = .{},
 /// Retry count for failed requests.
 retries: u8,
 /// The interval to retry the request. This will get multiplied in ns_per_ms.
 pooling_interval: u64,
+/// The base fee multiplier used to estimate the gas fees in a transaction
+base_fee_multiplier: f64,
 
 const PubClient = @This();
 
 /// Init the client instance. Caller must call `deinit` to free the memory.
 /// Most of the client method are replicas of the JSON RPC methods name with the `eth_` start.
+/// The client will handle request with 429 errors via exponential backoff but not the rest.
 pub fn init(opts: InitOptions) !*PubClient {
     var pub_client = try opts.allocator.create(PubClient);
     errdefer opts.allocator.destroy(pub_client);
@@ -80,10 +114,11 @@ pub fn init(opts: InitOptions) !*PubClient {
     pub_client.errors = .{};
     pub_client.retries = opts.retries;
     pub_client.pooling_interval = opts.pooling_interval;
+    pub_client.base_fee_multiplier = opts.base_fee_multiplier;
 
     return pub_client;
 }
-
+/// Clears the memory arena and destroys all pointers created
 pub fn deinit(self: *PubClient) void {
     const allocator = self.arena.child_allocator;
     self.arena.deinit();

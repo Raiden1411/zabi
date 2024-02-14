@@ -47,7 +47,7 @@ const WebSocketHandler = @This();
 
 const wslog = std.log.scoped(.ws);
 
-pub const WebSocketHandlerErrors = error{ FailedToConnect, UnsupportedSchema, InvalidChainId, InvalidFilterId, InvalidEventFound, InvalidBlockRequest, InvalidLogRequest, TransactionNotFound, TransactionReceiptNotFound, InvalidHash, UnexpectedErrorFound, UnableToFetchFeeInfoFromBlock, UnexpectedTooManyRequestError, InvalidInput, InvalidParams, InvalidRequest, InvalidAddress, InvalidBlockHash, InvalidBlockHashOrIndex, InvalidBlockNumberOrIndex, TooManyRequests, MethodNotFound, MethodNotSupported, RpcVersionNotSupported, LimitExceeded, TransactionRejected, ResourceNotFound, ResourceUnavailable, UnexpectedRpcErrorCode, InvalidBlockNumber, ParseError, ReachedMaxRetryLimit } || Allocator.Error || std.fmt.ParseIntError || std.Uri.ParseError;
+pub const WebSocketHandlerErrors = error{ FailedToConnect, UnsupportedSchema, InvalidChainId, FailedToGetReceipt, FailedToUnsubscribe, InvalidFilterId, InvalidEventFound, InvalidBlockRequest, InvalidLogRequest, TransactionNotFound, TransactionReceiptNotFound, InvalidHash, UnexpectedErrorFound, UnableToFetchFeeInfoFromBlock, UnexpectedTooManyRequestError, InvalidInput, InvalidParams, InvalidRequest, InvalidAddress, InvalidBlockHash, InvalidBlockHashOrIndex, InvalidBlockNumberOrIndex, TooManyRequests, MethodNotFound, MethodNotSupported, RpcVersionNotSupported, LimitExceeded, TransactionRejected, ResourceNotFound, ResourceUnavailable, UnexpectedRpcErrorCode, InvalidBlockNumber, ParseError, ReachedMaxRetryLimit } || Allocator.Error || std.fmt.ParseIntError || std.Uri.ParseError;
 
 pub const InitOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
@@ -1482,6 +1482,148 @@ pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []const u8) !Hex {
             },
         }
     }
+}
+/// Waits until a transaction gets mined and the receipt can be grabbed.
+/// This is retry based on either the amount of `confirmations` given.
+///
+/// If 0 confirmations are given the transaction receipt can be null in case
+/// the transaction has not been mined yet. It's recommened to have atleast one confirmation
+/// because some nodes might be slower to sync.
+///
+/// This also supports checking if the transaction was replaced. It will return the
+/// replaced transactions receipt in the case it was replaced.
+///
+/// RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
+pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hex, confirmations: u8) !?TransactionReceipt {
+    var tx: ?Transaction = null;
+    var block_number = try self.getBlockNumber();
+    var receipt: ?TransactionReceipt = self.getTransactionReceipt(tx_hash) catch |err| switch (err) {
+        error.TransactionReceiptNotFound => null,
+        else => return err,
+    };
+
+    // The receipt can be null here
+    if (confirmations == 0)
+        return receipt;
+
+    const sub_id = try self.watchNewBlocks();
+
+    var retries: u8 = 0;
+    var valid_confirmations: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries - valid_confirmations > self.retries)
+            return error.FailedToGetReceipt;
+
+        const event = self.channel.get();
+
+        switch (event) {
+            .new_heads_event => {},
+            else => {
+                // Decrements the retries since we didn't get a block subscription
+                retries -= 1;
+                continue;
+            },
+        }
+
+        if (receipt) |tx_receipt| {
+            // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
+            if (valid_confirmations > confirmations and (tx_receipt.blockNumber != null or block_number - tx_receipt.blockNumber.? + 1 < confirmations)) {
+                receipt = tx_receipt;
+                break;
+            } else {
+                valid_confirmations += 1;
+                std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                continue;
+            }
+        }
+
+        if (tx == null) {
+            tx = self.getTransactionByHash(tx_hash) catch |err| switch (err) {
+                // If it fails we keep trying
+                error.TransactionNotFound => continue,
+                else => return err,
+            };
+
+            switch (tx.?) {
+                // Changes the block search to the one of the found transaction
+                inline else => |tx_object| {
+                    if (tx_object.blockNumber) |number| block_number = number;
+                },
+            }
+
+            receipt = self.getTransactionReceipt(tx_hash) catch |err| switch (err) {
+                error.TransactionReceiptNotFound => {
+                    const current_block = try self.getBlockByNumber(.{ .include_transaction_objects = true });
+                    // TODO: Find cleaner way to do this.
+                    const replaced: ?Transaction = outer: {
+                        switch (tx.?) {
+                            inline else => |transactions| {
+                                switch (current_block) {
+                                    inline else => |pending| {
+                                        for (pending.transactions.objects) |pending_transaction| {
+                                            switch (pending_transaction) {
+                                                inline else => |tx_pending| {
+                                                    if (std.mem.eql(u8, transactions.from, tx_pending.from) and tx_pending.nonce == transactions.nonce)
+                                                        break :outer pending_transaction;
+                                                },
+                                            }
+                                        }
+                                        break :outer null;
+                                    },
+                                }
+                            },
+                        }
+                    };
+
+                    // If the transaction was replace return it's receipt. Otherwise try again.
+                    if (replaced) |replaced_tx| {
+                        receipt = switch (replaced_tx) {
+                            inline else => |tx_object| try self.getTransactionReceipt(tx_object.hash),
+                        };
+
+                        wslog.debug("Transaction was replace by a newer one", .{});
+
+                        switch (replaced_tx) {
+                            inline else => |replacement| switch (tx.?) {
+                                inline else => |original| {
+                                    if (std.mem.eql(u8, replacement.from, original.from) and replacement.value == original.value)
+                                        wslog.debug("Original transaction was repriced", .{});
+
+                                    if (replacement.to) |replaced_to| {
+                                        if (std.mem.eql(u8, replacement.from, replaced_to) and replacement.value == 0)
+                                            wslog.debug("Original transaction was canceled", .{});
+                                    }
+                                },
+                            },
+                        }
+
+                        // Here we are sure to have a valid receipt.
+                        const valid_receipt = receipt.?;
+                        // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
+                        if (valid_confirmations > confirmations and (valid_receipt.blockNumber != null or block_number - valid_receipt.blockNumber.? + 1 < confirmations))
+                            break;
+                    }
+                },
+                else => return err,
+            };
+
+            const valid_receipt = receipt.?;
+            // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
+            if (valid_confirmations > confirmations and (valid_receipt.blockNumber != null or block_number - valid_receipt.blockNumber.? + 1 < confirmations)) {
+                break;
+            } else {
+                valid_confirmations += 1;
+                std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                continue;
+            }
+        }
+    }
+    const success = try self.unsubscribe(sub_id);
+
+    if (!success)
+        return error.FailedToUnsubscribe;
+
+    return receipt;
 }
 /// Runs the callback once the handler close method gets called by the ws_client
 pub fn close(self: *WebSocketHandler) void {

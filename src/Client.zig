@@ -44,7 +44,7 @@ const Wei = types.Wei;
 
 const httplog = std.log.scoped(.http);
 
-pub const HttpClientError = error{ TransactionNotFound, InvalidFilterId, InvalidLogRequestParams, TransactionReceiptNotFound, InvalidHash, UnexpectedErrorFound, UnableToFetchFeeInfoFromBlock, UnexpectedTooManyRequestError, InvalidInput, InvalidParams, InvalidRequest, InvalidAddress, InvalidBlockHash, InvalidBlockHashOrIndex, InvalidBlockNumberOrIndex, TooManyRequests, MethodNotFound, MethodNotSupported, RpcVersionNotSupported, LimitExceeded, TransactionRejected, ResourceNotFound, ResourceUnavailable, UnexpectedRpcErrorCode, InvalidBlockNumber, ParseError, ReachedMaxRetryLimit } || Allocator.Error || std.fmt.ParseIntError || http.Client.RequestError || std.Uri.ParseError;
+pub const HttpClientError = error{ TransactionNotFound, FailedToGetReceipt, InvalidFilterId, InvalidLogRequestParams, TransactionReceiptNotFound, InvalidHash, UnexpectedErrorFound, UnableToFetchFeeInfoFromBlock, UnexpectedTooManyRequestError, InvalidInput, InvalidParams, InvalidRequest, InvalidAddress, InvalidBlockHash, InvalidBlockHashOrIndex, InvalidBlockNumberOrIndex, TooManyRequests, MethodNotFound, MethodNotSupported, RpcVersionNotSupported, LimitExceeded, TransactionRejected, ResourceNotFound, ResourceUnavailable, UnexpectedRpcErrorCode, InvalidBlockNumber, ParseError, ReachedMaxRetryLimit } || Allocator.Error || std.fmt.ParseIntError || http.Client.RequestError || std.Uri.ParseError;
 
 pub const InitOptions = struct {
     /// Allocator used to manage the memory arena.
@@ -491,7 +491,7 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hex, confirmations: 
     var retries: u8 = 0;
     var valid_confirmations: u8 = 0;
     while (true) : (retries += 1) {
-        if (retries > self.retries)
+        if (retries - valid_confirmations > self.retries)
             return error.FailedToGetReceipt;
 
         if (receipt) |tx_receipt| {
@@ -555,14 +555,27 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hex, confirmations: 
                             inline else => |tx_object| try self.getTransactionReceipt(tx_object.hash),
                         };
 
+                        httplog.debug("Transaction was replace by a newer one", .{});
+
+                        switch (replaced_tx) {
+                            inline else => |replacement| switch (tx.?) {
+                                inline else => |original| {
+                                    if (std.mem.eql(u8, replacement.from, original.from) and replacement.value == original.value)
+                                        httplog.debug("Original transaction was repriced", .{});
+
+                                    if (replacement.to) |replaced_to| {
+                                        if (std.mem.eql(u8, replacement.from, replaced_to) and replacement.value == 0)
+                                            httplog.debug("Original transaction was canceled", .{});
+                                    }
+                                },
+                            },
+                        }
+
                         // Here we are sure to have a valid receipt.
                         const valid_receipt = receipt.?;
                         // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
                         if (valid_confirmations > confirmations and (valid_receipt.blockNumber != null or block_number - valid_receipt.blockNumber.? + 1 < confirmations))
                             break;
-                    } else {
-                        std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
-                        continue;
                     }
 
                     std.time.sleep(std.time.ns_per_ms * self.pooling_interval);

@@ -1,6 +1,8 @@
 const c = @import("c.zig");
 const std = @import("std");
 
+pub const Eip4844Errors = error{ SetupAlreadyLoaded, InvalidProof, InvalidG1Length, InvalidG2Length, InvalidSize };
+
 pub const Blob = [c.BYTES_PER_BLOB]u8;
 pub const KZGProof = [48]u8;
 pub const KZGCommitment = [48]u8;
@@ -16,20 +18,22 @@ pub const BYTES_PER_G2_POINT: usize = 96;
 
 pub const NUM_G2_POINTS = 65;
 
+/// Amount of bytes per blob
 bytes_per_blob: u64 = c.BYTES_PER_BLOB,
-
+/// Amount of bytes per commitment
 bytes_per_commitment: u64 = c.BYTES_PER_COMMITMENT,
-
+/// Amount of bytes per field element
 bytes_per_field_element: u64 = c.BYTES_PER_FIELD_ELEMENT,
-
+/// Amount of bytes per kzg proof
 bytes_per_proof: u64 = c.BYTES_PER_PROOF,
-
+/// Amount of elements per blob
 field_elements_per_blob: u64 = c.FIELD_ELEMENTS_PER_BLOB,
-
+/// KZGSettings used for the configuration
 settings: KZGSettings = .{},
-
+/// If the trusted setup has already loaded.
 loaded: bool = false,
 
+/// Inits the trusted setup from a 2d array of g1 and g2 bytes.
 pub fn initTrustedSetup(self: *KZG4844, g1: [][BYTES_PER_G1_POINT]u8, g2: [][BYTES_PER_G2_POINT]u8) !void {
     if (self.loaded)
         return error.SetupAlreadyLoaded;
@@ -45,7 +49,7 @@ pub fn initTrustedSetup(self: *KZG4844, g1: [][BYTES_PER_G1_POINT]u8, g2: [][BYT
 
     self.loaded = true;
 }
-
+/// Inits the trusted setup from a trusted setup file.
 pub fn initTrustedSetupFromFile(self: *KZG4844, file_path: [*:0]const u8) !void {
     if (self.loaded)
         return error.SetupAlreadyLoaded;
@@ -57,7 +61,7 @@ pub fn initTrustedSetupFromFile(self: *KZG4844, file_path: [*:0]const u8) !void 
 
     self.loaded = true;
 }
-
+/// Frees the trusted setup. Will panic if the setup was never loaded.
 pub fn deinitTrustSetupFile(self: *KZG4844) void {
     if (!self.loaded)
         @panic("Setup is not initialized yet");
@@ -65,7 +69,7 @@ pub fn deinitTrustSetupFile(self: *KZG4844) void {
     c.free_trusted_setup(&self.settings);
     self.loaded = false;
 }
-
+/// Converts a blob to a KZGCommitment.
 pub fn blobToKZGCommitment(self: *KZG4844, blob: Blob) !KZGCommitment {
     var commitment: c.Bytes48 = .{ .bytes = undefined };
 
@@ -74,7 +78,7 @@ pub fn blobToKZGCommitment(self: *KZG4844, blob: Blob) !KZGCommitment {
 
     return commitment.bytes;
 }
-
+/// Computes a given KZGProof from a blob
 pub fn computeKZGProof(self: *KZG4844, blob: Blob, bytes: [32]u8) !KZGProofResult {
     var proof: c.KZGProof = .{ .bytes = undefined };
     var y: c.Bytes32 = .{ .bytes = undefined };
@@ -84,7 +88,7 @@ pub fn computeKZGProof(self: *KZG4844, blob: Blob, bytes: [32]u8) !KZGProofResul
 
     return .{ .proof = proof.bytes, .y = y.bytes };
 }
-
+/// Verifies a KZGProof from a commitment.
 pub fn verifyKZGProof(self: *KZG4844, commitment_bytes: KZGCommitment, z_bytes: [32]u8, y_bytes: [32]u8, proof_bytes: KZGProof) !bool {
     var verify = false;
 
@@ -93,7 +97,7 @@ pub fn verifyKZGProof(self: *KZG4844, commitment_bytes: KZGCommitment, z_bytes: 
 
     return verify;
 }
-
+/// Verifies a Blob KZG Proof from a commitment.
 pub fn verifyBlobKZGProof(self: *KZG4844, blob: Blob, commitment_bytes: KZGCommitment, proof_bytes: KZGProof) !bool {
     var verify = false;
 
@@ -102,7 +106,7 @@ pub fn verifyBlobKZGProof(self: *KZG4844, blob: Blob, commitment_bytes: KZGCommi
 
     return verify;
 }
-
+/// Verifies a batch of blob KZG proofs from an array commitments and blobs.
 pub fn verifyBlobKZGProofBatch(self: *KZG4844, blobs: []c.Blob, commitment_bytes: []c.KZGCommitment, proof_bytes: []c.KZGProof) !bool {
     var verify = false;
 

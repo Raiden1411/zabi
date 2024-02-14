@@ -111,7 +111,6 @@ pub fn init(opts: InitOptions) !*PubClient {
     };
 
     pub_client.chain_id = id;
-    pub_client.errors = .{};
     pub_client.retries = opts.retries;
     pub_client.pooling_interval = opts.pooling_interval;
     pub_client.base_fee_multiplier = opts.base_fee_multiplier;
@@ -424,8 +423,8 @@ pub fn newLogFilter(self: *PubClient, opts: LogFilterRequestParams) !usize {
             .ok => return try self.parseRPCEvent(usize, req.body.?),
             .too_many_requests => {
                 // Exponential backoff
-                const backoff = (1 << retries) * 200;
-                httplog.debug("Error 429 found. Retrying in {s} ms", .{backoff});
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;
@@ -557,6 +556,9 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hex, confirmations: 
                         std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
                         continue;
                     }
+
+                    std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                    continue;
                 },
                 else => return err,
             };
@@ -596,8 +598,8 @@ pub fn uninstalllFilter(self: *PubClient, id: usize) !bool {
             .ok => return try self.parseRPCEvent(bool, req.body.?),
             .too_many_requests => {
                 // Exponential backoff
-                const backoff = (1 << retries) * 200;
-                httplog.debug("Error 429 found. Retrying in {s} ms", .{backoff});
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;
@@ -632,8 +634,8 @@ fn fetchByBlockNumber(self: *PubClient, opts: BlockNumberRequest, method: Ethere
             .ok => return try self.parseRPCEvent(usize, req.body.?),
             .too_many_requests => {
                 // Exponential backoff
-                const backoff = (1 << retries) * 200;
-                httplog.debug("Error 429 found. Retrying in {s} ms", .{backoff});
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;
@@ -660,8 +662,8 @@ fn fetchByBlockHash(self: *PubClient, block_hash: []const u8, method: EthereumRp
             .ok => return try self.parseRPCEvent(usize, req.body.?),
             .too_many_requests => {
                 // Exponential backoff
-                const backoff = (1 << retries) * 200;
-                httplog.debug("Error 429 found. Retrying in {s} ms", .{backoff});
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;
@@ -690,8 +692,8 @@ fn fetchByAddress(self: *PubClient, comptime T: type, opts: BalanceRequest, meth
             .ok => return try self.parseRPCEvent(T, req.body.?),
             .too_many_requests => {
                 // Exponential backoff
-                const backoff = (1 << retries) * 200;
-                httplog.debug("Error 429 found. Retrying in {s} ms", .{backoff});
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;
@@ -717,8 +719,8 @@ fn fetchWithEmptyArgs(self: *PubClient, comptime T: type, method: EthereumRpcMet
             .ok => return try self.parseRPCEvent(T, req.body.?),
             .too_many_requests => {
                 // Exponential backoff
-                const backoff = (1 << retries) * 200;
-                httplog.debug("Error 429 found. Retrying in {s} ms", .{backoff});
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;
@@ -740,8 +742,8 @@ fn fetchBlock(self: *PubClient, request: anytype) !?Block {
             .ok => return try self.parseRPCEvent(?Block, req.body.?),
             .too_many_requests => {
                 // Exponential backoff
-                const backoff = (1 << retries) * 200;
-                httplog.debug("Error 429 found. Retrying in {s} ms", .{backoff});
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;
@@ -763,8 +765,8 @@ fn fetchTransaction(self: *PubClient, comptime T: type, request: EthereumRequest
             .ok => return try self.parseRPCEvent(T, req.body.?),
             .too_many_requests => {
                 // Exponential backoff
-                const backoff = (1 << retries) * 200;
-                httplog.debug("Error 429 found. Retrying in {s} ms", .{backoff});
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;
@@ -787,8 +789,8 @@ fn fetchLogs(self: *PubClient, comptime T: type, request: EthereumRequest(T)) !L
             .ok => return try self.parseRPCEvent(Logs, req.body.?),
             .too_many_requests => {
                 // Exponential backoff
-                const backoff = (1 << retries) * 200;
-                httplog.debug("Error 429 found. Retrying in {s} ms", .{backoff});
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;
@@ -812,15 +814,15 @@ fn fetchCall(self: *PubClient, comptime T: type, call_object: EthCall, opts: Blo
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
-            return error.ReachMaxRetryLimit;
+            return error.ReachedMaxRetryLimit;
 
         const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
         switch (req.status) {
             .ok => return try self.parseRPCEvent(T, req.body.?),
             .too_many_requests => {
                 // Exponential backoff
-                const backoff = (1 << retries) * 200;
-                httplog.debug("Error 429 found. Retrying in {s} ms", .{backoff});
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;
@@ -831,7 +833,7 @@ fn fetchCall(self: *PubClient, comptime T: type, call_object: EthCall, opts: Blo
 }
 
 fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !T {
-    const parsed = std.json.parseFromSliceLeaky(EthereumResponse(T), self.alloc, request, .{}) catch {
+    const parsed = std.json.parseFromSliceLeaky(EthereumResponse(T), self.alloc, request, .{ .allocate = .alloc_always }) catch {
         if (std.json.parseFromSliceLeaky(EthereumErrorResponse, self.alloc, request, .{ .ignore_unknown_fields = true })) |result| {
             httplog.debug("RPC error response: {s}", .{result.@"error".message});
 
@@ -840,6 +842,8 @@ fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !T {
 
             // Converts the rpc error codes to zig errors
             return switch (result.@"error".code) {
+                // This will only affect WS connections but we need to handle it here too
+                .TooManyRequests => error.UnexpectedTooManyRequestError,
                 .InvalidInput => error.InvalidInput,
                 .MethodNotFound => error.MethodNotFound,
                 .ResourceNotFound => error.ResourceNotFound,
@@ -852,6 +856,7 @@ fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !T {
                 .ResourceUnavailable => error.ResourceNotFound,
                 .TransactionRejected => error.TransactionRejected,
                 .RpcVersionNotSupported => error.RpcVersionNotSupported,
+                _ => error.UnexpectedRpcErrorCode,
             };
         } else |_| return error.UnexpectedErrorFound;
     };
@@ -1042,11 +1047,11 @@ test "getTransactionReceipt" {
     defer pub_client.deinit();
 
     const receipt = try pub_client.getTransactionReceipt("0x72c2a1a82c48da81fac7b434cdb5662b5c92b76f85565e062196ca8a84f43ee5");
-    try testing.expect(receipt.?.status != null);
+    try testing.expect(receipt.status != null);
 
     // Pre-Byzantium
     const legacy = try pub_client.getTransactionReceipt("0x4dadc87da2b7c47125fb7e4102d95457830e44d2fbcd45537d91f8be1e5f6130");
-    try testing.expect(legacy.?.root != null);
+    try testing.expect(legacy.root != null);
 }
 
 test "estimateGas" {

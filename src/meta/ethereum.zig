@@ -4,6 +4,17 @@ const block = @import("block.zig");
 const log = @import("log.zig");
 const transaction = @import("transaction.zig");
 
+const Block = block.Block;
+const Log = log.Log;
+const Logs = log.Logs;
+const MinedTransactions = transaction.MinedTransactions;
+const MinedTransactionHashes = transaction.MinedTransactionHashes;
+const PendingTransaction = transaction.PendingTransaction;
+const RequestParser = meta.RequestParser;
+const Transaction = transaction.Transaction;
+const TransactionReceipt = transaction.TransactionReceipt;
+const UnionParser = meta.UnionParser;
+
 pub const Hex = []const u8;
 pub const Gwei = u64;
 pub const Wei = u256;
@@ -48,7 +59,7 @@ pub fn EthereumResponse(comptime T: type) type {
         id: usize,
         result: T,
 
-        pub usingnamespace if (@typeInfo(T) == .Int) meta.RequestParser(@This()) else struct {};
+        pub usingnamespace if (@typeInfo(T) == .Int) RequestParser(@This()) else struct {};
     };
 }
 
@@ -70,6 +81,7 @@ pub const ErrorResponse = struct {
 };
 
 pub const EthereumErrorCodes = enum(isize) {
+    TooManyRequests = 429,
     InvalidInput = -32000,
     ResourceNotFound = -32001,
     ResourceUnavailable = -32002,
@@ -82,6 +94,7 @@ pub const EthereumErrorCodes = enum(isize) {
     InvalidParams = -32602,
     InternalError = -32603,
     ParseError = -32700,
+    _,
 };
 
 pub const EthereumErrorResponse = struct { jsonrpc: []const u8, id: usize, @"error": ErrorResponse };
@@ -89,19 +102,20 @@ pub const EthereumErrorResponse = struct { jsonrpc: []const u8, id: usize, @"err
 pub const HexRequestParameters = []const Hex;
 
 pub const EthereumEvents = union(enum) {
-    new_heads_event: EthereumSubscribeResponse(block.Block),
-    pending_transactions_event: EthereumSubscribeResponse(transaction.PendingTransaction),
-    pending_transactions_hashes_event: EthereumSubscribeResponse([]const u8),
-    log_event: EthereumSubscribeResponse(log.Log),
-    logs_event: EthereumResponse(log.Logs),
-    accounts_event: EthereumResponse([]const []const u8),
-    receipt_event: EthereumResponse(transaction.TransactionReceipt),
-    transaction_event: EthereumResponse(transaction.Transaction),
+    new_heads_event: EthereumSubscribeResponse(Block),
+    pending_transactions_event: EthereumSubscribeResponse(PendingTransaction),
+    pending_transactions_hashes_event: EthereumSubscribeResponse(Hex),
+    log_event: EthereumSubscribeResponse(Log),
+    logs_event: EthereumResponse(?Logs),
+    accounts_event: EthereumResponse([]const Hex),
+    receipt_event: EthereumResponse(?TransactionReceipt),
+    transaction_event: EthereumResponse(?Transaction),
     bool_event: EthereumResponse(bool),
-    block_event: EthereumResponse(block.Block),
-    hex_event: EthereumResponse([]const u8),
-    mined_transaction_hashes_event: EthereumSubscribeResponse(transaction.MinedTransactionHashes),
-    mined_transaction_event: EthereumSubscribeResponse(transaction.MinedTransactions),
+    block_event: EthereumResponse(?Block),
+    hex_event: EthereumResponse(Hex),
+    mined_transaction_hashes_event: EthereumSubscribeResponse(MinedTransactionHashes),
+    mined_transaction_event: EthereumSubscribeResponse(MinedTransactions),
+    too_many_requests: struct { message: []const u8 },
 
-    pub usingnamespace meta.UnionParser(@This());
+    pub usingnamespace UnionParser(@This());
 };

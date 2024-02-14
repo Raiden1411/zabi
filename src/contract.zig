@@ -27,11 +27,11 @@ pub fn Contract(comptime client_type: ClientType) type {
             const constructor = try self.getAbiItem(.constructor, null);
             const code = if (std.mem.startsWith(u8, bytecode, "0x")) bytecode[2..] else bytecode;
 
-            const encoded = try constructor.abiConstructor.encode(self.wallet.alloc, constructor_args);
-            defer if (encoded.len != 0) self.wallet.alloc.free(encoded);
+            const encoded = try constructor.abiConstructor.encode(self.wallet.allocator, constructor_args);
+            defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
 
-            const concated = try std.fmt.allocPrint(self.wallet.alloc, "0x{s}{s}", .{ code, std.fmt.fmtSliceHexLower(encoded) });
-            defer self.wallet.alloc.free(concated);
+            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}{s}", .{ code, std.fmt.fmtSliceHexLower(encoded) });
+            defer self.wallet.allocator.free(concated);
 
             switch (copy) {
                 inline else => |*tx| {
@@ -61,11 +61,11 @@ pub fn Contract(comptime client_type: ClientType) type {
                 inline else => return error.InvalidFunctionMutability,
             }
 
-            const encoded = try function_item.abiFunction.encode(self.wallet.alloc, function_args);
-            defer if (encoded.len != 0) self.wallet.alloc.free(encoded);
+            const encoded = try function_item.abiFunction.encode(self.wallet.allocator, function_args);
+            defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
 
-            const concated = try std.fmt.allocPrint(self.wallet.alloc, "0x{s}", .{encoded});
-            defer self.wallet.alloc.free(concated);
+            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{encoded});
+            defer self.wallet.allocator.free(concated);
 
             switch (copy) {
                 inline else => |*tx| {
@@ -77,7 +77,7 @@ pub fn Contract(comptime client_type: ClientType) type {
             }
 
             const data = try self.wallet.pub_client.sendEthCall(copy, .{});
-            const decoded = try decoder.decodeAbiParametersRuntime(self.wallet.alloc, T, function_item.abiFunction.outputs, data, .{});
+            const decoded = try decoder.decodeAbiParametersRuntime(self.wallet.allocator, T, function_item.abiFunction.outputs, data, .{});
 
             return decoded;
         }
@@ -91,11 +91,11 @@ pub fn Contract(comptime client_type: ClientType) type {
                 inline else => return error.InvalidFunctionMutability,
             }
 
-            const encoded = try function_item.abiFunction.encode(self.wallet.alloc, function_args);
-            defer if (encoded.len != 0) self.wallet.alloc.free(encoded);
+            const encoded = try function_item.abiFunction.encode(self.wallet.allocator, function_args);
+            defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
 
-            const concated = try std.fmt.allocPrint(self.wallet.alloc, "0x{s}", .{encoded});
-            defer self.wallet.alloc.free(concated);
+            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{encoded});
+            defer self.wallet.allocator.free(concated);
 
             switch (copy) {
                 inline else => |*tx| {
@@ -117,11 +117,11 @@ pub fn Contract(comptime client_type: ClientType) type {
             const function_item = try self.getAbiItem(.function, function_name);
             var copy = overrides;
 
-            const encoded = try function_item.abiFunction.encode(self.wallet.alloc, function_args);
-            defer if (encoded.len != 0) self.wallet.alloc.free(encoded);
+            const encoded = try function_item.abiFunction.encode(self.wallet.allocator, function_args);
+            defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
 
-            const concated = try std.fmt.allocPrint(self.wallet.alloc, "0x{s}", .{encoded});
-            defer self.wallet.alloc.free(concated);
+            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{encoded});
+            defer self.wallet.allocator.free(concated);
 
             switch (copy) {
                 inline else => |*tx| {
@@ -202,11 +202,11 @@ pub fn deployContract(comptime constructor: abitype.Constructor, comptime client
     const code = if (std.mem.startsWith(u8, opts.bytecode, "0x")) opts.bytecode[2..] else opts.bytecode;
     var copy = opts.overrides;
 
-    const encoded = try constructor.encode(opts.wallet.alloc, opts.args);
-    defer if (encoded.len != 0) opts.wallet.alloc.free(encoded);
+    const encoded = try constructor.encode(opts.wallet.allocator, opts.args);
+    defer if (encoded.len != 0) opts.wallet.allocator.free(encoded);
 
-    const concated = try std.fmt.allocPrint(opts.wallet.alloc, "0x{s}{s}", .{ code, std.fmt.fmtSliceHexLower(encoded) });
-    defer opts.wallet.alloc.free(concated);
+    const concated = try std.fmt.allocPrint(opts.wallet.allocator, "0x{s}{s}", .{ code, std.fmt.fmtSliceHexLower(encoded) });
+    defer opts.wallet.allocator.free(concated);
 
     switch (copy) {
         inline else => |*tx| {
@@ -238,11 +238,11 @@ pub fn readContractFunction(comptime function: abitype.Function, comptime client
     }
     var copy = opts.overrides;
 
-    const encoded = try function.encode(opts.wallet.alloc, opts.args);
-    defer if (encoded.len != 0) opts.wallet.alloc.free(encoded);
+    const encoded = try function.encode(opts.wallet.allocator, opts.args);
+    defer if (encoded.len != 0) opts.wallet.allocator.free(encoded);
 
-    const concated = try std.fmt.allocPrint(opts.wallet.alloc, "0x{s}", .{encoded});
-    defer opts.wallet.alloc.free(concated);
+    const concated = try std.fmt.allocPrint(opts.wallet.allocator, "0x{s}", .{encoded});
+    defer opts.wallet.allocator.free(concated);
 
     switch (copy) {
         inline else => |*tx| {
@@ -254,7 +254,7 @@ pub fn readContractFunction(comptime function: abitype.Function, comptime client
     }
 
     const data = try opts.wallet.pub_client.sendEthCall(copy, .{});
-    const decoded = try decoder.decodeAbiParameters(opts.wallet.alloc, function.outputs, data, .{});
+    const decoded = try decoder.decodeAbiParameters(opts.wallet.allocator, function.outputs, data, .{});
 
     return decoded;
 }
@@ -266,11 +266,11 @@ pub fn writeContractFunction(comptime function: abitype.Function, comptime clien
     }
     var copy = opts.overrides;
 
-    const encoded = try function.encode(opts.wallet.alloc, opts.args);
-    defer if (encoded.len != 0) opts.wallet.alloc.free(encoded);
+    const encoded = try function.encode(opts.wallet.allocator, opts.args);
+    defer if (encoded.len != 0) opts.wallet.allocator.free(encoded);
 
-    const concated = try std.fmt.allocPrint(opts.wallet.alloc, "0x{s}", .{encoded});
-    defer opts.wallet.alloc.free(concated);
+    const concated = try std.fmt.allocPrint(opts.wallet.allocator, "0x{s}", .{encoded});
+    defer opts.wallet.allocator.free(concated);
 
     switch (copy) {
         inline else => |*tx| {
@@ -287,11 +287,11 @@ pub fn writeContractFunction(comptime function: abitype.Function, comptime clien
 pub fn simulateWriteCall(comptime function: abitype.Function, comptime client_type: ClientType, opts: AbiFunctionArgs(function, transaction.PrepareEnvelope, client_type)) !types.Hex {
     var copy = opts.overrides;
 
-    const encoded = try function.encode(opts.wallet.alloc, opts.args);
-    defer if (encoded.len != 0) opts.wallet.alloc.free(encoded);
+    const encoded = try function.encode(opts.wallet.allocator, opts.args);
+    defer if (encoded.len != 0) opts.wallet.allocator.free(encoded);
 
-    const concated = try std.fmt.allocPrint(opts.wallet.alloc, "0x{s}", .{encoded});
-    defer opts.wallet.alloc.free(concated);
+    const concated = try std.fmt.allocPrint(opts.wallet.allocator, "0x{s}", .{encoded});
+    defer opts.wallet.allocator.free(concated);
 
     switch (copy) {
         inline else => |*tx| {
@@ -313,10 +313,8 @@ pub fn simulateWriteCall(comptime function: abitype.Function, comptime client_ty
 
 test "DeployContract" {
     {
-        var contract: Contract(.websocket) = .{
-            .abi = &.{.{ .abiConstructor = .{ .type = .constructor, .inputs = &.{}, .stateMutability = .nonpayable } }},
-            .wallet = try Wallet(.websocket).init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum),
-        };
+        const uri = try std.Uri.parse("http://localhost:8545/");
+        var contract: Contract(.websocket) = .{ .abi = &.{.{ .abiConstructor = .{ .type = .constructor, .inputs = &.{}, .stateMutability = .nonpayable } }}, .wallet = try Wallet(.websocket).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri }) };
         defer contract.deinit();
 
         const hash = try contract.deployContract(.{}, "0x608060405260358060116000396000f3006080604052600080fd00a165627a7a72305820f86ff341f0dff29df244305f8aa88abaf10e3a0719fa6ea1dcdd01b8b7d750970029", .{ .eip1559 = .{} });
@@ -324,10 +322,8 @@ test "DeployContract" {
         try testing.expectEqual(hash.len, 66);
     }
     {
-        var contract: Contract(.http) = .{
-            .abi = &.{.{ .abiConstructor = .{ .type = .constructor, .inputs = &.{}, .stateMutability = .nonpayable } }},
-            .wallet = try Wallet(.http).init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum),
-        };
+        const uri = try std.Uri.parse("http://localhost:8545/");
+        var contract: Contract(.http) = .{ .abi = &.{.{ .abiConstructor = .{ .type = .constructor, .inputs = &.{}, .stateMutability = .nonpayable } }}, .wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri }) };
         defer contract.deinit();
 
         const hash = try contract.deployContract(.{}, "0x608060405260358060116000396000f3006080604052600080fd00a165627a7a72305820f86ff341f0dff29df244305f8aa88abaf10e3a0719fa6ea1dcdd01b8b7d750970029", .{ .eip1559 = .{} });
@@ -338,27 +334,24 @@ test "DeployContract" {
 
 test "ReadContract" {
     {
-        var contract: Contract(.websocket) = .{
-            .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" } }},
-            .wallet = try Wallet(.websocket).init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum),
-        };
+        const uri = try std.Uri.parse("http://localhost:8545/");
+        var contract: Contract(.websocket) = .{ .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" } }}, .wallet = try Wallet(.websocket).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri }) };
         defer contract.deinit();
         const ReturnType = std.meta.Tuple(&[_]type{[]const u8});
         const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try contract.wallet.getWalletAddress() } });
         try testing.expectEqual(result.values[0].len, 42);
     }
     {
-        var contract: Contract(.http) = .{
-            .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" } }},
-            .wallet = try Wallet(.http).init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum),
-        };
+        const uri = try std.Uri.parse("http://localhost:8545/");
+        var contract: Contract(.http) = .{ .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" } }}, .wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri }) };
         defer contract.deinit();
         const ReturnType = std.meta.Tuple(&[_]type{[]const u8});
         const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try contract.wallet.getWalletAddress() } });
         try testing.expectEqual(result.values[0].len, 42);
     }
     {
-        var wallet = try Wallet(.http).init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum);
+        const uri = try std.Uri.parse("http://localhost:8545/");
+        var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
         defer wallet.deinit();
 
         const result = try readContractFunction(.{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" }, .http, .{ .wallet = wallet, .args = .{69}, .overrides = .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try wallet.getWalletAddress() } } });
@@ -369,10 +362,8 @@ test "ReadContract" {
 
 test "WriteContract" {
     {
-        var contract: Contract(.websocket) = .{
-            .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }},
-            .wallet = try Wallet(.websocket).init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum),
-        };
+        const uri = try std.Uri.parse("http://localhost:8545/");
+        var contract: Contract(.websocket) = .{ .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }}, .wallet = try Wallet(.websocket).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri }) };
         defer contract.deinit();
         var anvil: Anvil = undefined;
         defer anvil.deinit();
@@ -386,10 +377,8 @@ test "WriteContract" {
         try testing.expectEqual(result.len, 66);
     }
     {
-        var contract: Contract(.http) = .{
-            .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }},
-            .wallet = try Wallet(.http).init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum),
-        };
+        const uri = try std.Uri.parse("http://localhost:8545/");
+        var contract: Contract(.http) = .{ .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }}, .wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri }) };
         defer contract.deinit();
         var anvil: Anvil = undefined;
         defer anvil.deinit();
@@ -403,7 +392,8 @@ test "WriteContract" {
         try testing.expectEqual(result.len, 66);
     }
     {
-        var wallet = try Wallet(.http).init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum);
+        const uri = try std.Uri.parse("http://localhost:8545/");
+        var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
         var anvil: Anvil = undefined;
         defer wallet.deinit();
         defer anvil.deinit();
@@ -420,10 +410,8 @@ test "WriteContract" {
 
 test "SimulateWriteCall" {
     {
-        var contract: Contract(.websocket) = .{
-            .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }},
-            .wallet = try Wallet(.websocket).init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum),
-        };
+        const uri = try std.Uri.parse("http://localhost:8545/");
+        var contract: Contract(.websocket) = .{ .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }}, .wallet = try Wallet(.websocket).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri }) };
         defer contract.deinit();
         var anvil: Anvil = undefined;
         defer anvil.deinit();
@@ -437,10 +425,8 @@ test "SimulateWriteCall" {
         try testing.expect(result.len > 0);
     }
     {
-        var contract: Contract(.http) = .{
-            .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }},
-            .wallet = try Wallet(.http).init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum),
-        };
+        const uri = try std.Uri.parse("http://localhost:8545/");
+        var contract: Contract(.http) = .{ .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }}, .wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri }) };
         defer contract.deinit();
         var anvil: Anvil = undefined;
         defer anvil.deinit();
@@ -454,7 +440,8 @@ test "SimulateWriteCall" {
         try testing.expect(result.len > 0);
     }
     {
-        var wallet = try Wallet(.http).init(std.testing.allocator, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", "http://localhost:8545/", .ethereum);
+        const uri = try std.Uri.parse("http://localhost:8545/");
+        var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
         var anvil: Anvil = undefined;
         defer wallet.deinit();
         defer anvil.deinit();

@@ -23,6 +23,8 @@ pub const Ether = f64;
 /// Set of public rpc actions.
 pub const EthereumRpcMethods = enum { eth_chainId, eth_gasPrice, eth_accounts, eth_getBalance, eth_getBlockByNumber, eth_getBlockByHash, eth_blockNumber, eth_getTransactionCount, eth_getBlockTransactionCountByHash, eth_getBlockTransactionCountByNumber, eth_getUncleCountByBlockHash, eth_getUncleCountByBlockNumber, eth_getCode, eth_getTransactionByHash, eth_getTransactionByBlockHashAndIndex, eth_getTransactionByBlockNumberAndIndex, eth_getTransactionReceipt, eth_getUncleByBlockHashAndIndex, eth_getUncleByBlockNumberAndIndex, eth_newFilter, eth_newBlockFilter, eth_newPendingTransactionFilter, eth_uninstallFilter, eth_getFilterChanges, eth_getFilterLogs, eth_getLogs, eth_sign, eth_signTransaction, eth_sendTransaction, eth_sendRawTransaction, eth_call, eth_estimateGas, eth_maxPriorityFeePerGas, eth_subscribe, eth_unsubscribe, eth_signTypedData_v4 };
 
+/// Enum of know chains.
+/// More will be added in the future.
 pub const PublicChains = enum(usize) {
     ethereum = 1,
     goerli = 5,
@@ -42,8 +44,9 @@ pub const PublicChains = enum(usize) {
     arbitrum_nova = 42170,
     celo = 42220,
     avalanche = 43114,
+    _,
 };
-
+/// Zig struct representation of a RPC Request
 pub fn EthereumRequest(comptime T: type) type {
     return struct {
         jsonrpc: []const u8 = "2.0",
@@ -52,7 +55,7 @@ pub fn EthereumRequest(comptime T: type) type {
         id: usize,
     };
 }
-
+/// Zig struct representation of a RPC Response
 pub fn EthereumResponse(comptime T: type) type {
     return struct {
         jsonrpc: []const u8,
@@ -62,7 +65,7 @@ pub fn EthereumResponse(comptime T: type) type {
         pub usingnamespace if (@typeInfo(T) == .Int) RequestParser(@This()) else struct {};
     };
 }
-
+/// Zig struct representation of a RPC subscribe response
 pub fn EthereumSubscribeResponse(comptime T: type) type {
     return struct {
         jsonrpc: []const u8,
@@ -73,13 +76,14 @@ pub fn EthereumSubscribeResponse(comptime T: type) type {
         },
     };
 }
-
+/// Zig struct representation of a RPC error message
 pub const ErrorResponse = struct {
     code: EthereumErrorCodes,
     message: []const u8,
     data: ?[]const u8 = null,
 };
-
+/// Ethereum RPC error codes.
+/// https://eips.ethereum.org/EIPS/eip-1474#error-codes
 pub const EthereumErrorCodes = enum(isize) {
     TooManyRequests = 429,
     InvalidInput = -32000,
@@ -96,11 +100,11 @@ pub const EthereumErrorCodes = enum(isize) {
     ParseError = -32700,
     _,
 };
-
+/// Zig struct representation of a RPC error response
 pub const EthereumErrorResponse = struct { jsonrpc: []const u8, id: usize, @"error": ErrorResponse };
-
+/// Mostly used for requests
 pub const HexRequestParameters = []const Hex;
-
+/// Know ethereum events emited by the websocket client
 pub const EthereumEvents = union(enum) {
     new_heads_event: EthereumSubscribeResponse(Block),
     pending_transactions_event: EthereumSubscribeResponse(PendingTransaction),

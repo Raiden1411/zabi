@@ -5,8 +5,8 @@ const mem = std.mem;
 const Token = @import("tokens.zig").Tag;
 const Syntax = Token.SoliditySyntax;
 
-/// Costum Solidity Lexer that us to generate tokens based
-/// on the provided solidity signature. This is not a full
+/// Custom Solidity Lexer that is used to generate tokens based
+/// on the provided solidity signature. This is not a fully
 /// solidity compatable Lexer.
 pub const Lexer = struct {
     position: u32,

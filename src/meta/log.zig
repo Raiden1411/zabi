@@ -2,43 +2,59 @@ const block = @import("block.zig");
 const meta = @import("meta.zig");
 const types = @import("ethereum.zig");
 
+// Types
+const BalanceBlockTag = block.BalanceBlockTag;
+const Extract = meta.Extract;
+const Gwei = types.Gwei;
+const Hex = types.Hex;
+const RequestParser = meta.RequestParser;
+const UnionParser = meta.UnionParser;
+const Wei = types.Wei;
+
+/// Zig struct representation of the log RPC response.
 pub const Log = struct {
-    address: types.Hex,
-    topics: []const types.Hex,
-    blockHash: ?types.Hex,
+    address: Hex,
+    topics: []const Hex,
+    blockHash: ?Hex,
     blockNumber: ?u64,
     data: types.Hex,
     logIndex: ?usize,
-    transactionHash: ?types.Hex,
+    transactionHash: ?Hex,
     transactionIndex: ?usize,
     removed: bool,
 
-    pub usingnamespace meta.RequestParser(@This());
+    pub usingnamespace RequestParser(@This());
 };
-
+/// Slice of the struct log
 pub const Logs = []const Log;
-
+/// Logs request struct used by the RPC request methods.
+/// Its default all null so that when it gets stringified
+/// we can use `ignore_null_fields` to omit these fields
 pub const LogRequest = struct {
-    fromBlock: ?types.Hex = null,
-    toBlock: ?types.Hex = null,
-    address: ?types.Hex = null,
-    topics: ?[]const types.Hex = null,
-    blockHash: ?types.Hex = null,
+    fromBlock: ?Hex = null,
+    toBlock: ?Hex = null,
+    address: ?Hex = null,
+    topics: ?[]const Hex = null,
+    blockHash: ?Hex = null,
 };
-
+/// Logs request params struct used by the RPC request methods.
+/// Its default all null so that when it gets stringified
+/// we can use `ignore_null_fields` to omit these fields
 pub const LogRequestParams = struct {
     fromBlock: ?u64 = null,
     toBlock: ?u64 = null,
-    tag: ?block.BalanceBlockTag = null,
-    address: ?types.Hex = null,
-    topics: ?[]const types.Hex = null,
-    blockHash: ?types.Hex = null,
+    tag: ?BalanceBlockTag = null,
+    address: ?Hex = null,
+    topics: ?[]const Hex = null,
+    blockHash: ?Hex = null,
 };
-
+/// Logs filter request params struct used by the RPC request methods.
+/// Its default all null so that when it gets stringified
+/// we can use `ignore_null_fields` to omit these fields
 pub const LogFilterRequestParams = struct {
     fromBlock: ?u64 = null,
     toBlock: ?u64 = null,
-    tag: ?block.BalanceBlockTag = null,
-    address: ?types.Hex = null,
-    topics: ?[]const types.Hex = null,
+    tag: ?BalanceBlockTag = null,
+    address: ?Hex = null,
+    topics: ?[]const Hex = null,
 };

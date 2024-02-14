@@ -2,20 +2,28 @@ const abi = @import("../abi/abi.zig");
 const params = @import("../abi/abi_parameter.zig");
 const std = @import("std");
 const testing = std.testing;
+
+// Types
 const Abitype = abi.Abitype;
+const AbiParameter = params.AbiParameter;
 const Allocator = std.mem.Allocator;
 const ParamType = @import("../abi/param_type.zig").ParamType;
+const ParseError = std.json.ParseError;
+const ParseFromValueError = std.json.ParseFromValueError;
+const ParseOptions = std.json.ParseOptions;
+const Token = std.json.Token;
+const Value = std.json.Value;
 
 /// UnionParser used by `zls`. Usefull to use in `AbiItem`
 /// https://github.com/zigtools/zls/blob/d1ad449a24ea77bacbeccd81d607fa0c11f87dd6/src/lsp.zig#L77
 pub fn UnionParser(comptime T: type) type {
     return struct {
-        pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!T {
-            const json_value = try std.json.Value.jsonParse(allocator, source, options);
+        pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!T {
+            const json_value = try Value.jsonParse(allocator, source, options);
             return try jsonParseFromValue(allocator, json_value, options);
         }
 
-        pub fn jsonParseFromValue(allocator: std.mem.Allocator, source: std.json.Value, options: std.json.ParseOptions) std.json.ParseFromValueError!T {
+        pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!T {
             inline for (std.meta.fields(T)) |field| {
                 if (std.json.parseFromValueLeaky(field.type, allocator, source, options)) |result| {
                     return @unionInit(T, field.name, result);
@@ -31,17 +39,20 @@ pub fn UnionParser(comptime T: type) type {
         }
     };
 }
-
+/// Custom jsonParse that is mostly used to enable
+/// the ability to parse hex string values into native `int` types,
+/// since parsing hex values is not part of the JSON RFC we need to rely on
+/// the hability of zig to create a custom jsonParse method for structs
 pub fn RequestParser(comptime T: type) type {
     return struct {
-        pub fn jsonParse(alloc: Allocator, source: anytype, opts: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!T {
+        pub fn jsonParse(alloc: Allocator, source: anytype, opts: ParseOptions) ParseError(@TypeOf(source.*))!T {
             const info = @typeInfo(T);
             if (.object_begin != try source.next()) return error.UnexpectedToken;
 
             var result: T = undefined;
 
             while (true) {
-                var name_token: ?std.json.Token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
+                var name_token: ?Token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
                 const field_name = switch (name_token.?) {
                     inline .string, .allocated_string => |slice| slice,
                     .object_end => { // No more fields.
@@ -70,7 +81,7 @@ pub fn RequestParser(comptime T: type) type {
             return result;
         }
 
-        pub fn jsonParseFromValue(alloc: Allocator, source: std.json.Value, opts: std.json.ParseOptions) std.json.ParseFromValueError!T {
+        pub fn jsonParseFromValue(alloc: Allocator, source: Value, opts: ParseOptions) ParseFromValueError!T {
             const info = @typeInfo(T);
             if (source != .object) return error.UnexpectedToken;
 
@@ -94,7 +105,7 @@ pub fn RequestParser(comptime T: type) type {
             return result;
         }
 
-        fn innerParseValueRequest(comptime TT: type, alloc: Allocator, source: anytype, opts: std.json.ParseOptions) std.json.ParseFromValueError!TT {
+        fn innerParseValueRequest(comptime TT: type, alloc: Allocator, source: anytype, opts: ParseOptions) ParseFromValueError!TT {
             switch (@typeInfo(TT)) {
                 .Bool => {
                     switch (source) {
@@ -152,7 +163,7 @@ pub fn RequestParser(comptime T: type) type {
             }
         }
 
-        fn innerParseRequest(comptime TT: type, alloc: Allocator, source: anytype, opts: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!TT {
+        fn innerParseRequest(comptime TT: type, alloc: Allocator, source: anytype, opts: ParseOptions) ParseError(@TypeOf(source.*))!TT {
             const info = @typeInfo(TT);
 
             switch (info) {
@@ -240,7 +251,6 @@ pub fn RequestParser(comptime T: type) type {
         }
     };
 }
-
 /// Type function use to extract enum members from any enum.
 ///
 /// The needle can be just the tagName of a single member or a comma seperated value.
@@ -278,7 +288,8 @@ pub fn Extract(comptime T: type, comptime needle: []const u8) type {
 
     return @Type(.{ .Enum = .{ .tag_type = info.tag_type, .fields = &enumFields, .decls = &.{}, .is_exhaustive = true } });
 }
-
+/// Experimental meta function that is used to merge to structs
+/// into a single struct.
 pub fn Merge(comptime T: type, comptime K: type) type {
     const info = @typeInfo(T);
     const info_k = @typeInfo(K);
@@ -317,8 +328,8 @@ pub fn Merge(comptime T: type, comptime K: type) type {
 
     return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
 }
-
 /// Converts all of the struct or union fields into optional type.
+/// This doesn't set the default_value to null.
 pub fn ToOptionalStructAndUnionMembers(comptime T: type) type {
     const info = @typeInfo(T);
 
@@ -351,12 +362,11 @@ pub fn ToOptionalStructAndUnionMembers(comptime T: type) type {
         else => @compileError("Unsupported type. Expected Union or Struct type but found " ++ @typeName(T)),
     }
 }
-
 /// Convert sets of solidity ABI paramters to the representing Zig types.
 /// This will create a tuple type of the subset of the resulting types
 /// generated by `AbiParameterToPrimative`. If the paramters length is
 /// O then the resulting type will be a void type.
-pub fn AbiParametersToPrimative(comptime paramters: []const params.AbiParameter) type {
+pub fn AbiParametersToPrimative(comptime paramters: []const AbiParameter) type {
     if (paramters.len == 0) return void;
     var fields: [paramters.len]std.builtin.Type.StructField = undefined;
 
@@ -374,7 +384,6 @@ pub fn AbiParametersToPrimative(comptime paramters: []const params.AbiParameter)
 
     return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
 }
-
 /// Convert solidity ABI paramter to the representing Zig types.
 ///
 /// The resulting type will depend on the parameter passed in.
@@ -392,7 +401,7 @@ pub fn AbiParametersToPrimative(comptime paramters: []const params.AbiParameter)
 ///
 /// Finally for tuple type a **struct** will be created where the field names are property names
 /// that the components array field has. If this field is null compilation will fail.
-pub fn AbiParameterToPrimative(comptime param: params.AbiParameter) type {
+pub fn AbiParameterToPrimative(comptime param: AbiParameter) type {
     return switch (param.type) {
         .string, .bytes, .address => []const u8,
         .bool => bool,

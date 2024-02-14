@@ -24,7 +24,7 @@ pub fn encodeRlp(alloc: Allocator, items: anytype) ![]u8 {
 
     return list.toOwnedSlice();
 }
-
+/// Reflects on the items and encodes based on it's type.
 fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
     const info = @typeInfo(@TypeOf(payload));
 
@@ -212,7 +212,7 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
         else => @compileError("Unable to parse type " ++ @typeName(@TypeOf(payload))),
     }
 }
-
+/// Computes the array or slice type size for RLP encoding
 fn computePayloadSize(payload: anytype) u64 {
     var size: u64 = 0;
     const info = @typeInfo(@TypeOf(payload));
@@ -252,7 +252,7 @@ fn computePayloadSize(payload: anytype) u64 {
 
     return size;
 }
-
+/// Finds the size of an int and writes to the buffer accordingly.
 inline fn formatInt(int: u256, buffer: *[32]u8) u8 {
     if (int < (1 << 8)) {
         buffer.* = @bitCast(@byteSwap(int));
@@ -404,7 +404,7 @@ inline fn formatInt(int: u256, buffer: *[32]u8) u8 {
     buffer.* = @bitCast(@byteSwap(int));
     return 32;
 }
-
+/// Computes the size of a given int
 inline fn computeSize(int: u256) u8 {
     if (int < (1 << 8)) return 1;
     if (int < (1 << 16)) return 2;

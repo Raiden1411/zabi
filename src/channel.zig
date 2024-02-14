@@ -1,15 +1,22 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
 
+/// Types
+const Allocator = std.mem.Allocator;
+const Condition = std.Thread.Condition;
+const LinearFifo = std.fifo.LinearFifo;
+const Mutex = std.Thread.Mutex;
+
+/// Channel used to manages the messages between threads.
+/// Main use case if for the websocket client.
 pub fn Channel(comptime T: type) type {
     return struct {
-        lock: std.Thread.Mutex = .{},
+        lock: Mutex = .{},
         fifo: Fifo,
-        writeable: std.Thread.Condition = .{},
-        readable: std.Thread.Condition = .{},
+        writeable: Condition = .{},
+        readable: Condition = .{},
 
         const Self = @This();
-        const Fifo = std.fifo.LinearFifo(T, .Dynamic);
+        const Fifo = LinearFifo(T, .Dynamic);
 
         pub fn init(alloc: Allocator) Self {
             return .{ .fifo = Fifo.init(alloc) };

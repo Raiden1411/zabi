@@ -3,6 +3,9 @@ const abi = @import("../abi/abi_parameter.zig");
 const meta = @import("../meta/meta.zig");
 const testing = std.testing;
 const assert = std.debug.assert;
+
+/// Types
+const AbiParameter = abi.AbiParameter;
 const AbiParameterToPrimative = meta.AbiParameterToPrimative;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
 const ArenaAllocator = std.heap.ArenaAllocator;
@@ -35,7 +38,6 @@ pub const AbiEncoded = struct {
         allocator.destroy(self.arena);
     }
 };
-
 /// Encode the struct signature based on the values provided.
 /// Caller owns the memory.
 pub fn encodeAbiConstructorComptime(alloc: Allocator, comptime constructor: Constructor, values: AbiParametersToPrimative(constructor.inputs)) EncodeErrors![]u8 {
@@ -47,7 +49,6 @@ pub fn encodeAbiConstructorComptime(alloc: Allocator, comptime constructor: Cons
 
     return hexed;
 }
-
 /// Encode the struct signature based on the values provided.
 /// Caller owns the memory.
 pub fn encodeAbiErrorComptime(alloc: Allocator, comptime err: Error, values: AbiParametersToPrimative(err.inputs)) EncodeErrors![]u8 {
@@ -72,7 +73,6 @@ pub fn encodeAbiErrorComptime(alloc: Allocator, comptime err: Error, values: Abi
 
     return buffer;
 }
-
 /// Encode the struct signature based on the values provided.
 /// Caller owns the memory.
 pub fn encodeAbiFunctionComptime(alloc: Allocator, comptime function: Function, values: AbiParametersToPrimative(function.inputs)) EncodeErrors![]u8 {
@@ -97,7 +97,6 @@ pub fn encodeAbiFunctionComptime(alloc: Allocator, comptime function: Function, 
 
     return buffer;
 }
-
 /// Encode the struct signature based on the values provided.
 /// Caller owns the memory.
 pub fn encodeAbiFunctionOutputsComptime(alloc: Allocator, comptime function: Function, values: AbiParametersToPrimative(function.outputs)) EncodeErrors![]u8 {
@@ -122,12 +121,11 @@ pub fn encodeAbiFunctionOutputsComptime(alloc: Allocator, comptime function: Fun
 
     return buffer;
 }
-
 /// Main function that will be used to encode abi paramters.
 /// This will allocate and a ArenaAllocator will be used to manage the memory.
 ///
 /// Caller owns the memory.
-pub fn encodeAbiParametersComptime(alloc: Allocator, comptime parameters: []const abi.AbiParameter, values: AbiParametersToPrimative(parameters)) EncodeErrors!AbiEncoded {
+pub fn encodeAbiParametersComptime(alloc: Allocator, comptime parameters: []const AbiParameter, values: AbiParametersToPrimative(parameters)) EncodeErrors!AbiEncoded {
     var abi_encoded = AbiEncoded{ .arena = try alloc.create(ArenaAllocator), .data = undefined };
     errdefer alloc.destroy(abi_encoded.arena);
 
@@ -139,13 +137,12 @@ pub fn encodeAbiParametersComptime(alloc: Allocator, comptime parameters: []cons
 
     return abi_encoded;
 }
-
 /// Subset function used for encoding. Its highly recommend to use an ArenaAllocator
 /// or a FixedBufferAllocator to manage memory since allocations will not be freed when done,
 /// and with those all of the memory can be freed at once.
 ///
 /// Caller owns the memory.
-pub fn encodeAbiParametersLeakyComptime(alloc: Allocator, comptime params: []const abi.AbiParameter, values: AbiParametersToPrimative(params)) EncodeErrors![]u8 {
+pub fn encodeAbiParametersLeakyComptime(alloc: Allocator, comptime params: []const AbiParameter, values: AbiParametersToPrimative(params)) EncodeErrors![]u8 {
     const prepared = try preEncodeParams(alloc, params, values);
     const data = try encodeParameters(alloc, prepared);
 
@@ -161,7 +158,7 @@ pub fn encodeAbiParametersLeakyComptime(alloc: Allocator, comptime params: []con
 /// This will provided type safe values to be passed into the function.
 /// However runtime reflection will happen to best determine what values should be used based
 /// on the parameters passed in.
-pub fn encodeAbiParameters(alloc: Allocator, parameters: []const abi.AbiParameter, values: anytype) EncodeErrors!AbiEncoded {
+pub fn encodeAbiParameters(alloc: Allocator, parameters: []const AbiParameter, values: anytype) EncodeErrors!AbiEncoded {
     var abi_encoded = AbiEncoded{ .arena = try alloc.create(ArenaAllocator), .data = undefined };
     errdefer alloc.destroy(abi_encoded.arena);
 
@@ -184,7 +181,7 @@ pub fn encodeAbiParameters(alloc: Allocator, parameters: []const abi.AbiParamete
 /// This will provided type safe values to be passed into the function.
 /// However runtime reflection will happen to best determine what values should be used based
 /// on the parameters passed in.
-pub fn encodeAbiParametersLeaky(alloc: Allocator, params: []const abi.AbiParameter, values: anytype) EncodeErrors![]u8 {
+pub fn encodeAbiParametersLeaky(alloc: Allocator, params: []const AbiParameter, values: anytype) EncodeErrors![]u8 {
     const fields = @typeInfo(@TypeOf(values));
     if (fields != .Struct)
         @compileError("Expected " ++ @typeName(@TypeOf(values)) ++ " to be a tuple value instead");
@@ -231,7 +228,7 @@ fn encodeParameters(alloc: Allocator, params: []PreEncodedParam) ![]u8 {
     return concated;
 }
 
-fn preEncodeParams(alloc: Allocator, params: []const abi.AbiParameter, values: anytype) ![]PreEncodedParam {
+fn preEncodeParams(alloc: Allocator, params: []const AbiParameter, values: anytype) ![]PreEncodedParam {
     assert(params.len == values.len);
 
     var list = std.ArrayList(PreEncodedParam).init(alloc);
@@ -244,7 +241,7 @@ fn preEncodeParams(alloc: Allocator, params: []const abi.AbiParameter, values: a
     return list.toOwnedSlice();
 }
 
-fn preEncodeParam(alloc: Allocator, param: abi.AbiParameter, value: anytype) !PreEncodedParam {
+fn preEncodeParam(alloc: Allocator, param: AbiParameter, value: anytype) !PreEncodedParam {
     const info = @typeInfo(@TypeOf(value));
 
     switch (info) {
@@ -374,7 +371,7 @@ fn encodeFixedBytes(alloc: Allocator, size: usize, bytes: []const u8) !PreEncode
     return .{ .dynamic = false, .encoded = try zeroPad(alloc, byts) };
 }
 
-fn encodeArray(alloc: Allocator, param: abi.AbiParameter, values: anytype, size: ?usize) !PreEncodedParam {
+fn encodeArray(alloc: Allocator, param: AbiParameter, values: anytype, size: ?usize) !PreEncodedParam {
     assert(values.len > 0);
     const dynamic = size == null;
 
@@ -408,7 +405,7 @@ fn encodeArray(alloc: Allocator, param: abi.AbiParameter, values: anytype, size:
     return .{ .dynamic = false, .encoded = concated };
 }
 
-fn encodeTuples(alloc: std.mem.Allocator, param: abi.AbiParameter, values: anytype) !PreEncodedParam {
+fn encodeTuples(alloc: std.mem.Allocator, param: AbiParameter, values: anytype) !PreEncodedParam {
     const fields = @typeInfo(@TypeOf(values)).Struct.fields;
     assert(fields.len > 0);
 
@@ -507,7 +504,7 @@ test "Tuples" {
 test "Multiple" {
     try testEncode("0000000000000000000000000000000000000000000000000000000000000045000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000004500000000000000000000000000000000000000000000000000000000000001a40000000000000000000000000000000000000000000000000000000000010f2c", &.{ .{ .type = .{ .uint = 256 }, .name = "foo" }, .{ .type = .{ .bool = {} }, .name = "bar" }, .{ .type = .{ .dynamicArray = &.{ .int = 120 } }, .name = "baz" } }, .{ 69, true, &[_]i120{ 69, 420, 69420 } });
 
-    const params: []const abi.AbiParameter = &.{.{ .type = .{ .tuple = {} }, .name = "fizzbuzz", .components = &.{ .{ .type = .{ .dynamicArray = &.{ .string = {} } }, .name = "foo" }, .{ .type = .{ .uint = 256 }, .name = "bar" }, .{ .type = .{ .dynamicArray = &.{ .tuple = {} } }, .name = "baz", .components = &.{ .{ .type = .{ .dynamicArray = &.{ .bytes = {} } }, .name = "fizz" }, .{ .type = .{ .bool = {} }, .name = "buzz" }, .{ .type = .{ .dynamicArray = &.{ .int = 256 } }, .name = "jazz" } } } } }};
+    const params: []const AbiParameter = &.{.{ .type = .{ .tuple = {} }, .name = "fizzbuzz", .components = &.{ .{ .type = .{ .dynamicArray = &.{ .string = {} } }, .name = "foo" }, .{ .type = .{ .uint = 256 }, .name = "bar" }, .{ .type = .{ .dynamicArray = &.{ .tuple = {} } }, .name = "baz", .components = &.{ .{ .type = .{ .dynamicArray = &.{ .bytes = {} } }, .name = "fizz" }, .{ .type = .{ .bool = {} }, .name = "buzz" }, .{ .type = .{ .dynamicArray = &.{ .int = 256 } }, .name = "jazz" } } } } }};
 
     try testEncode("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000a45500000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001c666f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f00000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000018424f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f00000000000000000000000000000000000000000000000000000000000000000000000000000009000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000009", params, .{.{ .foo = &[_][]const u8{"fooooooooooooooooooooooooooo"}, .bar = 42069, .baz = &.{.{ .fizz = &.{"BOOOOOOOOOOOOOOOOOOOOOOO"}, .buzz = true, .jazz = &.{ 1, 2, 3, 4, 5, 6, 7, 8, 9 } }} }});
 
@@ -530,7 +527,7 @@ test "Selectors" {
     _ = @import("selector_test.zig");
 }
 
-fn testEncode(expected: []const u8, comptime params: []const abi.AbiParameter, values: AbiParametersToPrimative(params)) !void {
+fn testEncode(expected: []const u8, comptime params: []const AbiParameter, values: AbiParametersToPrimative(params)) !void {
     const encoded = try encodeAbiParametersComptime(testing.allocator, params, values);
     defer encoded.deinit();
 

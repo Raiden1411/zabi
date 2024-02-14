@@ -1,9 +1,19 @@
 const std = @import("std");
 const testing = std.testing;
 const abi = @import("../abi/abi.zig");
+
+// Types
+const Abi = abi.Abi;
+const AbiItem = abi.AbiItem;
 const AbiParameter = @import("../abi/abi_parameter.zig").AbiParameter;
 const AbiEventParameter = @import("../abi/abi_parameter.zig").AbiEventParameter;
-const Alloc = std.mem.Allocator;
+const Allocator = std.mem.Allocator;
+const Constructor = abi.Constructor;
+const Error = abi.Error;
+const Event = abi.Event;
+const Fallback = abi.Fallback;
+const Function = abi.Function;
+const Receive = abi.Receive;
 const Lexer = @import("lexer.zig").Lexer;
 const StateMutability = @import("../abi/state_mutability.zig").StateMutability;
 const ParamErrors = @import("../abi/param_type.zig").ParamErrors;
@@ -20,7 +30,7 @@ pub const ParseError = error{ InvalidDataLocation, UnexceptedToken, InvalidType,
 
 const Parser = @This();
 
-alloc: Alloc,
+alloc: Allocator,
 tokens: []const Tokens,
 tokens_start: []const u32,
 tokens_end: []const u32,
@@ -32,8 +42,8 @@ structs: std.StringHashMapUnmanaged([]const AbiParameter),
 /// This will return all signatures as a slice of `AbiItem`.
 /// This supports parsing struct signatures if its intended to use
 /// The struct signatures must be defined top down.
-pub fn parseAbiProto(p: *Parser) !abi.Abi {
-    var abi_list = std.ArrayList(abi.AbiItem).init(p.alloc);
+pub fn parseAbiProto(p: *Parser) !Abi {
+    var abi_list = std.ArrayList(AbiItem).init(p.alloc);
 
     while (true) {
         if (p.tokens[p.token_index] == .Struct) {
@@ -51,7 +61,7 @@ pub fn parseAbiProto(p: *Parser) !abi.Abi {
 
 // Parse a single solidity signature based on expected tokens.
 // Will return an error if the token is not expected.
-pub fn parseAbiItemProto(p: *Parser) !abi.AbiItem {
+pub fn parseAbiItemProto(p: *Parser) !AbiItem {
     return switch (p.tokens[p.token_index]) {
         .Function => .{ .abiFunction = try p.parseFunctionFnProto() },
         .Event => .{ .abiEvent = try p.parseEventFnProto() },
@@ -65,7 +75,7 @@ pub fn parseAbiItemProto(p: *Parser) !abi.AbiItem {
 
 // Parse single solidity function signature
 // FunctionProto -> Function KEYWORD, Identifier, OpenParen, ParamDecls?, ClosingParen, Visibility?, StateMutability?, Returns?
-pub fn parseFunctionFnProto(p: *Parser) !abi.Function {
+pub fn parseFunctionFnProto(p: *Parser) !Function {
     _ = try p.expectToken(.Function);
     const name = p.parseIdentifier().?;
 
@@ -101,7 +111,7 @@ pub fn parseFunctionFnProto(p: *Parser) !abi.Function {
 
 // Parse single solidity event signature
 // EventProto -> Event KEYWORD, Identifier, OpenParen, ParamDecls?, ClosingParen
-pub fn parseEventFnProto(p: *Parser) !abi.Event {
+pub fn parseEventFnProto(p: *Parser) !Event {
     _ = try p.expectToken(.Event);
     const name = p.parseIdentifier().?;
 
@@ -116,7 +126,7 @@ pub fn parseEventFnProto(p: *Parser) !abi.Event {
 
 // Parse single solidity error signature
 // ErrorProto -> Error KEYWORD, Identifier, OpenParen, ParamDecls?, ClosingParen
-pub fn parseErrorFnProto(p: *Parser) !abi.Error {
+pub fn parseErrorFnProto(p: *Parser) !Error {
     _ = try p.expectToken(.Error);
     const name = p.parseIdentifier().?;
 
@@ -131,7 +141,7 @@ pub fn parseErrorFnProto(p: *Parser) !abi.Error {
 
 // Parse single solidity constructor signature
 // ConstructorProto -> Constructor KEYWORD, OpenParen, ParamDecls?, ClosingParen, StateMutability?
-pub fn parseConstructorFnProto(p: *Parser) !abi.Constructor {
+pub fn parseConstructorFnProto(p: *Parser) !Constructor {
     _ = try p.expectToken(.Constructor);
 
     _ = try p.expectToken(.OpenParen);
@@ -164,7 +174,7 @@ pub fn parseStructProto(p: *Parser) !void {
 
 // Parse single solidity fallback signature
 // FallbackProto -> Fallback KEYWORD, OpenParen, ClosingParen, StateMutability?
-pub fn parseFallbackFnProto(p: *Parser) !abi.Fallback {
+pub fn parseFallbackFnProto(p: *Parser) !Fallback {
     _ = try p.expectToken(.Fallback);
     _ = try p.expectToken(.OpenParen);
     _ = try p.expectToken(.ClosingParen);
@@ -182,7 +192,7 @@ pub fn parseFallbackFnProto(p: *Parser) !abi.Fallback {
 
 // Parse single solidity receive signature
 // ReceiveProto -> Receive KEYWORD, OpenParen, ClosingParen, External, Payable
-pub fn parseReceiveFnProto(p: *Parser) !abi.Receive {
+pub fn parseReceiveFnProto(p: *Parser) !Receive {
     _ = try p.expectToken(.Receive);
     _ = try p.expectToken(.OpenParen);
     _ = try p.expectToken(.ClosingParen);

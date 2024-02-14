@@ -12,17 +12,33 @@ const Allocator = std.mem.Allocator;
 const ClientType = @import("wallet.zig").WalletClients;
 const Wallet = @import("wallet.zig").Wallet;
 
+const Abi = abitype.Abi;
+const Abitype = abitype.Abitype;
+const AbiDecoded = decoder.AbiDecoded;
+const AbiDecodedRuntime = decoder.AbiDecodedRuntime;
+const AbiItem = abitype.AbiItem;
+const BlockNumberRequest = block.BlockNumberRequest;
+const Constructor = abitype.Constructor;
+const EthCall = transaction.EthCall;
+const Function = abitype.Function;
+const Gwei = types.Gwei;
+const Hex = types.Hex;
+const PrepareEnvelope = transaction.PrepareEnvelope;
+
 pub fn Contract(comptime client_type: ClientType) type {
     return struct {
+        /// The wallet instance that manages this contract instance
         wallet: *Wallet(client_type),
+        /// The abi that will be used to read or write from
+        abi: Abi,
 
-        abi: abitype.Abi,
-
+        /// Deinits the wallet instance.
         pub fn deinit(self: *Contract(client_type)) void {
             self.wallet.deinit();
         }
-
-        pub fn deployContract(self: *Contract(client_type), constructor_args: anytype, bytecode: []const u8, overrides: transaction.PrepareEnvelope) !types.Hex {
+        /// Creates a contract on the network.
+        /// If the constructor abi contains inputs it will encode `constructor_args` accordingly.
+        pub fn deployContract(self: *Contract(client_type), constructor_args: anytype, bytecode: []const u8, overrides: PrepareEnvelope) !Hex {
             var copy = overrides;
             const constructor = try self.getAbiItem(.constructor, null);
             const code = if (std.mem.startsWith(u8, bytecode, "0x")) bytecode[2..] else bytecode;
@@ -51,8 +67,12 @@ pub fn Contract(comptime client_type: ClientType) type {
 
             return try self.wallet.sendTransaction(copy);
         }
-
-        pub fn readContractFunction(self: *Contract(client_type), comptime T: type, function_name: []const u8, function_args: anytype, overrides: transaction.EthCall) !decoder.AbiDecodedRuntime(T) {
+        /// Uses eth_call to query an contract information.
+        /// Only abi items that are either `view` or `pure` will be allowed.
+        /// It won't commit a transaction to the network.
+        ///
+        /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
+        pub fn readContractFunction(self: *Contract(client_type), comptime T: type, function_name: []const u8, function_args: anytype, overrides: EthCall) !AbiDecodedRuntime(T) {
             const function_item = try self.getAbiItem(.function, function_name);
             var copy = overrides;
 
@@ -81,8 +101,12 @@ pub fn Contract(comptime client_type: ClientType) type {
 
             return decoded;
         }
-
-        pub fn writeContractFunction(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: transaction.PrepareEnvelope) !types.Hex {
+        /// Encodes the function arguments based on the function abi item.
+        /// Only abi items that are either `payable` or `nonpayable` will be allowed.
+        /// It will send the transaction to the network and return the transaction hash.
+        ///
+        /// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
+        pub fn writeContractFunction(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: PrepareEnvelope) !Hex {
             const function_item = try self.getAbiItem(.function, function_name);
             var copy = overrides;
 
@@ -102,18 +126,36 @@ pub fn Contract(comptime client_type: ClientType) type {
                     if (tx.to == null)
                         return error.InvalidRequestTarget;
 
+                    const value = tx.value orelse 0;
+                    switch (function_item.abiFunction.stateMutability) {
+                        .nonpayable => if (value != 0)
+                            return error.ValueInNonPayableFunction,
+                        .payable => {},
+                        inline else => return error.InvalidFunctionMutability,
+                    }
+
                     tx.data = concated;
                 },
             }
 
             return try self.wallet.sendTransaction(copy);
         }
-
-        pub fn estimateGas(self: *Contract, call_object: transaction.EthCall, opts: block.BlockNumberRequest) !types.Gwei {
+        /// Generates and returns an estimate of how much gas is necessary to allow the transaction to complete.
+        /// The transaction will not be added to the blockchain.
+        /// Note that the estimate may be significantly more than the amount of gas actually used by the transaction,
+        /// for a variety of reasons including EVM mechanics and node performance.
+        ///
+        /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
+        pub fn estimateGas(self: *Contract, call_object: EthCall, opts: BlockNumberRequest) !Gwei {
             return try self.wallet.pub_client.estimateGas(call_object, opts);
         }
-
-        pub fn simulateWriteCall(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: transaction.PrepareEnvelope) !types.Hex {
+        /// Uses eth_call to simulate a contract interaction.
+        /// Only abi items that are either `view` or `pure` will be allowed.
+        /// It won't commit a transaction to the network.
+        /// I recommend watching this talk to better grasp this: https://www.youtube.com/watch?v=bEUtGLnCCYM (I promise it's not a rick roll)
+        ///
+        /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
+        pub fn simulateWriteCall(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: PrepareEnvelope) !Hex {
             const function_item = try self.getAbiItem(.function, function_name);
             var copy = overrides;
 
@@ -133,15 +175,16 @@ pub fn Contract(comptime client_type: ClientType) type {
             }
 
             const address = try self.wallet.getWalletAddress();
-            const call: transaction.EthCall = switch (copy) {
+            const call: EthCall = switch (copy) {
                 .eip1559 => |tx| .{ .eip1559 = .{ .from = address, .to = tx.to, .data = tx.data, .value = tx.value, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .gas = tx.gas } },
                 inline else => |tx| .{ .legacy = .{ .from = address, .value = tx.value, .to = tx.to, .data = tx.data, .gas = tx.gas, .gasPrice = tx.gasPrice } },
             };
 
             return try self.wallet.pub_client.sendEthCall(call, .{});
         }
-
-        fn getAbiItem(self: Contract(client_type), abi_type: abitype.Abitype, name: ?[]const u8) !abitype.AbiItem {
+        // TODO: Handle overrides abi items
+        /// Grabs the first match in the `Contract` abi
+        fn getAbiItem(self: Contract(client_type), abi_type: Abitype, name: ?[]const u8) !AbiItem {
             switch (abi_type) {
                 .constructor => {
                     for (self.abi) |abi_item| {
@@ -193,12 +236,14 @@ pub fn Contract(comptime client_type: ClientType) type {
         }
     };
 }
-
-fn AbiConstructorArgs(comptime constructor: abitype.Constructor, comptime client_type: ClientType) type {
-    return struct { args: meta.AbiParametersToPrimative(constructor.inputs), bytecode: []const u8, wallet: *Wallet(client_type), overrides: transaction.PrepareEnvelope };
+/// Init values needed depending on the abi constructor arguments.
+fn AbiConstructorArgs(comptime constructor: Constructor, comptime client_type: ClientType) type {
+    return struct { args: meta.AbiParametersToPrimative(constructor.inputs), bytecode: []const u8, wallet: *Wallet(client_type), overrides: PrepareEnvelope };
 }
-
-pub fn deployContract(comptime constructor: abitype.Constructor, comptime client_type: ClientType, opts: AbiConstructorArgs(constructor, client_type)) !types.Hex {
+/// Creates a contract on the network.
+/// If the constructor abi contains inputs it will encode `constructor_args` accordingly.
+/// The arguments here are comptime so that the compiler can effectively enforce the correct expected types.
+pub fn deployContract(comptime constructor: Constructor, comptime client_type: ClientType, opts: AbiConstructorArgs(constructor, client_type)) !Hex {
     const code = if (std.mem.startsWith(u8, opts.bytecode, "0x")) opts.bytecode[2..] else opts.bytecode;
     var copy = opts.overrides;
 
@@ -226,12 +271,17 @@ pub fn deployContract(comptime constructor: abitype.Constructor, comptime client
 
     return try opts.wallet.sendTransaction(copy);
 }
-
-fn AbiFunctionArgs(comptime function: abitype.Function, comptime Overrides: type, client_type: ClientType) type {
+/// Init values needed depending on the abi function arguments.
+fn AbiFunctionArgs(comptime function: Function, comptime Overrides: type, client_type: ClientType) type {
     return struct { args: meta.AbiParametersToPrimative(function.inputs), wallet: *Wallet(client_type), overrides: Overrides };
 }
-
-pub fn readContractFunction(comptime function: abitype.Function, comptime client_type: ClientType, opts: AbiFunctionArgs(function, transaction.EthCall, client_type)) !decoder.AbiDecoded(function.outputs) {
+/// Uses eth_call to query an contract information.
+/// Only abi items that are either `view` or `pure` will be allowed.
+/// It won't commit a transaction to the network.
+/// The arguments here are comptime so that the compiler can effectively enforce the correct expected types.
+///
+/// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
+pub fn readContractFunction(comptime function: Function, comptime client_type: ClientType, opts: AbiFunctionArgs(function, EthCall, client_type)) !AbiDecoded(function.outputs) {
     switch (function.stateMutability) {
         .view, .pure => {},
         inline else => return error.InvalidFunctionMutability,
@@ -258,8 +308,13 @@ pub fn readContractFunction(comptime function: abitype.Function, comptime client
 
     return decoded;
 }
-
-pub fn writeContractFunction(comptime function: abitype.Function, comptime client_type: ClientType, opts: AbiFunctionArgs(function, transaction.PrepareEnvelope, client_type)) !types.Hex {
+/// Encodes the function arguments based on the function abi item.
+/// Only abi items that are either `payable` or `nonpayable` will be allowed.
+/// It will send the transaction to the network and return the transaction hash.
+/// The arguments here are comptime so that the compiler can effectively enforce the correct expected types.
+///
+/// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
+pub fn writeContractFunction(comptime function: Function, comptime client_type: ClientType, opts: AbiFunctionArgs(function, PrepareEnvelope, client_type)) !Hex {
     switch (function.stateMutability) {
         .payable, .nonpayable => {},
         inline else => return error.InvalidFunctionMutability,
@@ -277,14 +332,28 @@ pub fn writeContractFunction(comptime function: abitype.Function, comptime clien
             if (tx.to == null)
                 return error.InvalidRequestTarget;
 
+            const value = tx.value orelse 0;
+            switch (function.stateMutability) {
+                .nonpayable => if (value != 0)
+                    return error.ValueInNonPayableFunction,
+                .payable => {},
+                inline else => return error.InvalidFunctionMutability,
+            }
+
             tx.data = concated;
         },
     }
 
     return try opts.wallet.sendTransaction(copy);
 }
-
-pub fn simulateWriteCall(comptime function: abitype.Function, comptime client_type: ClientType, opts: AbiFunctionArgs(function, transaction.PrepareEnvelope, client_type)) !types.Hex {
+/// Uses eth_call to simulate a contract interaction.
+/// Only abi items that are either `view` or `pure` will be allowed.
+/// It won't commit a transaction to the network.
+/// I recommend watching this talk to better grasp this: https://www.youtube.com/watch?v=bEUtGLnCCYM (I promise it's not a rick roll)
+/// The arguments here are comptime so that the compiler can effectively enforce the correct expected types.
+///
+/// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
+pub fn simulateWriteCall(comptime function: Function, comptime client_type: ClientType, opts: AbiFunctionArgs(function, PrepareEnvelope, client_type)) !Hex {
     var copy = opts.overrides;
 
     const encoded = try function.encode(opts.wallet.allocator, opts.args);

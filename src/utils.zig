@@ -1,8 +1,13 @@
 const std = @import("std");
 const testing = std.testing;
 const transaction = @import("meta/transaction.zig");
-const types = @import("meta/ethereum.zig");
+
+// Types
 const Allocator = std.mem.Allocator;
+const EthCall = transaction.EthCall;
+const EthCallHexed = transaction.EthCallHexed;
+const EthCallEip1559Hexed = transaction.EthCallEip1559Hexed;
+const EthCallLegacyHexed = transaction.EthCallLegacyHexed;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
 /// Converts ethereum address to checksum
@@ -29,7 +34,6 @@ pub fn toChecksum(alloc: Allocator, address: []const u8) ![]u8 {
 
     return checksum;
 }
-
 /// Checks if the given address is a valid ethereum address.
 pub fn isAddress(alloc: Allocator, addr: []const u8) !bool {
     if (!std.mem.startsWith(u8, addr, "0x")) return false;
@@ -52,7 +56,6 @@ pub fn isHexString(value: []const u8) bool {
 
     return true;
 }
-
 /// Checks if the given hash is a valid 32 bytes hash
 pub fn isHash(hash: []const u8) bool {
     if (!std.mem.startsWith(u8, hash, "0x")) return false;
@@ -71,12 +74,12 @@ pub fn isHash(hash: []const u8) bool {
 
     return true;
 }
-
-pub fn hexifyEthCall(alloc: Allocator, call_object: transaction.EthCall) !transaction.EthCallHexed {
+/// Converts a `EthCall` struct into all hex values.
+pub fn hexifyEthCall(alloc: Allocator, call_object: EthCall) !EthCallHexed {
     const call: transaction.EthCallHexed = call: {
         switch (call_object) {
             .eip1559 => |tx| {
-                const eip1559_call: transaction.EthCallEip1559Hexed = .{
+                const eip1559_call: EthCallEip1559Hexed = .{
                     .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
                     .gas = if (tx.gas) |gas| try std.fmt.allocPrint(alloc, "0x{x}", .{gas}) else null,
                     .maxFeePerGas = if (tx.maxFeePerGas) |fees| try std.fmt.allocPrint(alloc, "0x{x}", .{fees}) else null,
@@ -89,7 +92,7 @@ pub fn hexifyEthCall(alloc: Allocator, call_object: transaction.EthCall) !transa
                 break :call .{ .eip1559 = eip1559_call };
             },
             .legacy => |tx| {
-                const legacy_call: transaction.EthCallLegacyHexed = .{
+                const legacy_call: EthCallLegacyHexed = .{
                     .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
                     .gasPrice = if (tx.gasPrice) |gas_price| try std.fmt.allocPrint(alloc, "0x{x}", .{gas_price}) else null,
                     .gas = if (tx.gas) |gas| try std.fmt.allocPrint(alloc, "0x{x}", .{gas}) else null,
@@ -105,7 +108,8 @@ pub fn hexifyEthCall(alloc: Allocator, call_object: transaction.EthCall) !transa
 
     return call;
 }
-
+/// Convert value into u256 representing ether value
+/// Ex: 1 * 10 ** 18 = 1 ETH
 pub fn parseEth(value: usize) !u256 {
     const size = value * std.math.pow(u256, 10, 18);
 
@@ -113,7 +117,8 @@ pub fn parseEth(value: usize) !u256 {
 
     return size;
 }
-
+/// Convert value into u64 representing ether value
+/// Ex: 1 * 10 ** 9 = 1 GWEI
 pub fn parseGwei(value: usize) !u64 {
     const size = value * std.math.pow(u64, 10, 9);
 

@@ -5,30 +5,44 @@ const transaction = @import("../meta/transaction.zig");
 const testing = std.testing;
 const types = @import("../meta/ethereum.zig");
 const utils = @import("../utils.zig");
+
+// Types
+const AccessList = transaction.AccessList;
 const Allocator = std.mem.Allocator;
+const EnvelopeEip1559 = transaction.EnvelopeEip1559;
+const EnvelopeEip2930 = transaction.EnvelopeEip2930;
+const EnvelopeLegacy = transaction.EnvelopeLegacy;
+const EnvelopeEip1559Signed = transaction.EnvelopeEip1559Signed;
+const EnvelopeEip2930Signed = transaction.EnvelopeEip2930Signed;
+const EnvelopeLegacySigned = transaction.EnvelopeLegacySigned;
+const Hex = types.Hex;
+const Signature = signer.Signature;
+const TransactionEnvelope = transaction.TransactionEnvelope;
+const TransactionEnvelopeEip1559 = transaction.TransactionEnvelopeEip1559;
+const TransactionEnvelopeEip2930 = transaction.TransactionEnvelopeEip2930;
+const TransactionEnvelopeLegacy = transaction.TransactionEnvelopeLegacy;
 const Tuple = std.meta.Tuple;
 
 /// Main function to serialize transactions.
 /// Support all 3 main transaction envelopes.
 /// Caller ownes the memory
-pub fn serializeTransaction(alloc: Allocator, tx: transaction.TransactionEnvelope, sig: ?signer.Signature) ![]u8 {
+pub fn serializeTransaction(alloc: Allocator, tx: TransactionEnvelope, sig: ?Signature) ![]u8 {
     return switch (tx) {
         .eip1559 => |val| try serializeTransactionEIP1559(alloc, val, sig),
         .eip2930 => |val| try serializeTransactionEIP2930(alloc, val, sig),
         .legacy => |val| try serializeTransactionLegacy(alloc, val, sig),
     };
 }
-
 /// Function to serialize eip1559 transactions.
 /// Caller ownes the memory
-pub fn serializeTransactionEIP1559(alloc: Allocator, tx: transaction.TransactionEnvelopeEip1559, sig: ?signer.Signature) ![]u8 {
+pub fn serializeTransactionEIP1559(alloc: Allocator, tx: TransactionEnvelopeEip1559, sig: ?Signature) ![]u8 {
     if (tx.type != 2) return error.InvalidTransactionType;
 
     const prep_access = try prepareAccessList(alloc, tx.accessList);
     defer alloc.free(prep_access);
 
     if (sig) |signature| {
-        const envelope_sig: transaction.EnvelopeEip1559Signed = .{ tx.chainId, tx.nonce, tx.maxPriorityFeePerGas, tx.maxFeePerGas, tx.gas, tx.to, tx.value, tx.data, prep_access, signature.v, signature.r[0..], signature.s[0..] };
+        const envelope_sig: EnvelopeEip1559Signed = .{ tx.chainId, tx.nonce, tx.maxPriorityFeePerGas, tx.maxFeePerGas, tx.gas, tx.to, tx.value, tx.data, prep_access, signature.v, signature.r[0..], signature.s[0..] };
 
         const encoded_sig = try rlp.encodeRlp(alloc, .{envelope_sig});
         defer alloc.free(encoded_sig);
@@ -36,24 +50,23 @@ pub fn serializeTransactionEIP1559(alloc: Allocator, tx: transaction.Transaction
         return try std.mem.concat(alloc, u8, &.{ &.{tx.type}, encoded_sig });
     }
 
-    const envelope: transaction.EnvelopeEip1559 = .{ tx.chainId, tx.nonce, tx.maxPriorityFeePerGas, tx.maxFeePerGas, tx.gas, tx.to, tx.value, tx.data, prep_access };
+    const envelope: EnvelopeEip1559 = .{ tx.chainId, tx.nonce, tx.maxPriorityFeePerGas, tx.maxFeePerGas, tx.gas, tx.to, tx.value, tx.data, prep_access };
 
     const encoded = try rlp.encodeRlp(alloc, .{envelope});
     defer alloc.free(encoded);
 
     return try std.mem.concat(alloc, u8, &.{ &.{tx.type}, encoded });
 }
-
 /// Function to serialize eip2930 transactions.
 /// Caller ownes the memory
-pub fn serializeTransactionEIP2930(alloc: Allocator, tx: transaction.TransactionEnvelopeEip2930, sig: ?signer.Signature) ![]u8 {
+pub fn serializeTransactionEIP2930(alloc: Allocator, tx: TransactionEnvelopeEip2930, sig: ?Signature) ![]u8 {
     if (tx.type != 1) return error.InvalidTransactionType;
 
     const prep_access = try prepareAccessList(alloc, tx.accessList);
     defer alloc.free(prep_access);
 
     if (sig) |signature| {
-        const envelope_sig: transaction.EnvelopeEip2930Signed = .{ tx.chainId, tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data, prep_access, signature.v, signature.r[0..], signature.s[0..] };
+        const envelope_sig: EnvelopeEip2930Signed = .{ tx.chainId, tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data, prep_access, signature.v, signature.r[0..], signature.s[0..] };
 
         const encoded_sig = try rlp.encodeRlp(alloc, .{envelope_sig});
         defer alloc.free(encoded_sig);
@@ -61,17 +74,16 @@ pub fn serializeTransactionEIP2930(alloc: Allocator, tx: transaction.Transaction
         return try std.mem.concat(alloc, u8, &.{ &.{tx.type}, encoded_sig });
     }
 
-    const envelope: transaction.EnvelopeEip2930 = .{ tx.chainId, tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data, prep_access };
+    const envelope: EnvelopeEip2930 = .{ tx.chainId, tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data, prep_access };
 
     const encoded = try rlp.encodeRlp(alloc, .{envelope});
     defer alloc.free(encoded);
 
     return try std.mem.concat(alloc, u8, &.{ &.{tx.type}, encoded });
 }
-
 /// Function to serialize legacy transactions.
 /// Caller ownes the memory
-pub fn serializeTransactionLegacy(alloc: Allocator, tx: transaction.TransactionEnvelopeLegacy, sig: ?signer.Signature) ![]u8 {
+pub fn serializeTransactionLegacy(alloc: Allocator, tx: TransactionEnvelopeLegacy, sig: ?Signature) ![]u8 {
     if (tx.type != 0) return error.InvalidTransactionType;
 
     if (sig) |signature| {
@@ -92,21 +104,21 @@ pub fn serializeTransactionLegacy(alloc: Allocator, tx: transaction.TransactionE
             break :chainId v;
         };
 
-        const envelope_sig: transaction.EnvelopeLegacySigned = .{ tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data, v, signature.r[0..], signature.s[0..] };
+        const envelope_sig: EnvelopeLegacySigned = .{ tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data, v, signature.r[0..], signature.s[0..] };
 
         const encoded_sig = try rlp.encodeRlp(alloc, .{envelope_sig});
 
         return encoded_sig;
     }
 
-    const envelope: transaction.EnvelopeLegacy = .{ tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data };
+    const envelope: EnvelopeLegacy = .{ tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data };
 
     const encoded = try rlp.encodeRlp(alloc, .{envelope});
 
     return encoded;
 }
-
-pub fn prepareAccessList(alloc: Allocator, access_list: []const transaction.AccessList) ![]Tuple(&[_]type{ types.Hex, []const types.Hex }) {
+/// Serializes the access list into a slice of tuples of hex values.
+pub fn prepareAccessList(alloc: Allocator, access_list: []const AccessList) ![]Tuple(&[_]type{ Hex, []const Hex }) {
     var tuple_list = std.ArrayList(Tuple(&[_]type{ types.Hex, []const types.Hex })).init(alloc);
     errdefer tuple_list.deinit();
 

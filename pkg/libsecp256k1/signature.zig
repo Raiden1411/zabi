@@ -1,11 +1,13 @@
 const std = @import("std");
 const Secp256k1 = std.crypto.ecc.Secp256k1;
 
+/// Zig representation of a ethereum signature.
 pub const Signature = struct {
     r: [Secp256k1.scalar.encoded_length]u8,
     s: [Secp256k1.scalar.encoded_length]u8,
     v: u2,
 
+    /// Converts a `CompactSignature` into a `Signature`.
     pub fn fromCompact(compact: CompactSignature) Signature {
         const v = compact.yParityWithS[0] & 0x80;
         const s = compact.yParityWithS;
@@ -15,7 +17,7 @@ pub const Signature = struct {
 
         return .{ .r = compact.r, .s = s, .v = v };
     }
-
+    /// Converts the struct signature into bytes.
     pub fn toBytes(sig: Signature) [65]u8 {
         var signed: [65]u8 = undefined;
         @memcpy(signed[0..32], sig.r[0..]);
@@ -24,13 +26,13 @@ pub const Signature = struct {
 
         return signed;
     }
-
+    /// Converts the struct signature into a hex string.
     pub fn toHex(sig: Signature, alloc: std.mem.Allocator) ![]u8 {
         const bytes = sig.toBytes();
 
         return std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});
     }
-
+    /// Converts a hex signature into it's struct representation.
     pub fn fromHex(hex: []const u8) !Signature {
         const signature = if (std.mem.startsWith(u8, hex, "0x")) hex[2..] else hex;
 
@@ -47,10 +49,12 @@ pub const Signature = struct {
     }
 };
 
+/// Zig representation of a compact ethereum signature.
 pub const CompactSignature = struct {
     r: [Secp256k1.scalar.encoded_length]u8,
     yParityWithS: [Secp256k1.scalar.encoded_length]u8,
 
+    /// Converts from a `Signature` into `CompactSignature`.
     pub fn toCompact(sig: Signature) CompactSignature {
         var compact: CompactSignature = undefined;
 
@@ -65,7 +69,7 @@ pub const CompactSignature = struct {
 
         return compact;
     }
-
+    /// Converts the struct signature into bytes.
     pub fn toBytes(sig: CompactSignature) [Secp256k1.scalar.encoded_length * 2]u8 {
         var signed: [64]u8 = undefined;
         @memcpy(signed[0..32], sig.r[0..]);
@@ -73,13 +77,13 @@ pub const CompactSignature = struct {
 
         return signed;
     }
-
+    /// Converts the struct signature into a hex string.
     pub fn toHex(sig: CompactSignature, alloc: std.mem.Allocator) ![]u8 {
         const bytes = sig.toBytes();
 
         return std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});
     }
-
+    /// Converts a hex signature into it's struct representation.
     pub fn fromHex(hex: []const u8) CompactSignature {
         const signature = if (std.mem.startsWith(u8, hex, "0x")) hex[2..] else hex;
 

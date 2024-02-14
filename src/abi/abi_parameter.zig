@@ -2,6 +2,8 @@ const decoder = @import("../decoding/decoder.zig");
 const encoder = @import("../encoding/encoder.zig");
 const std = @import("std");
 const testing = std.testing;
+
+// Types
 const Allocator = std.mem.Allocator;
 const ParamType = @import("param_type.zig").ParamType;
 

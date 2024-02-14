@@ -2,6 +2,8 @@ const std = @import("std");
 const abi_parameter = @import("abi_parameter.zig");
 const param = @import("param_type.zig");
 const testing = std.testing;
+
+// Types
 const AbiParameter = abi_parameter.AbiParameter;
 const Allocator = std.mem.Allocator;
 const ParamType = param.ParamType;
@@ -60,7 +62,21 @@ pub fn hashTypedData(allocator: Allocator, comptime types: anytype, comptime pri
 
     return buffer;
 }
-
+/// Performs hashing of EIP712 structs according to the expecification
+/// https://eips.ethereum.org/EIPS/eip-712
+///
+/// `types` parameter is expected to be a struct where the struct
+/// keys are used to grab the solidity type information so that the
+/// encoding and hashing can happen based on it. See the specification
+/// for more details.
+///
+/// `primary_type` is the expected main type that you want to hash this message.
+/// Compilation will fail if the provided string doesn't exist on the `types` parameter
+///
+/// `data` is expected to be a struct where the solidity types are transalated to the native
+/// zig types. I.E string -> []const u8 or int256 -> i256 and so on.
+/// In the future work will be done where the compiler will offer more clearer types
+/// base on a meta programming type function.
 pub fn hashStruct(allocator: Allocator, comptime types: anytype, comptime primary_type: []const u8, data: anytype) ![Keccak256.digest_length]u8 {
     var list = std.ArrayList(u8).init(allocator);
     errdefer list.deinit();
@@ -75,7 +91,24 @@ pub fn hashStruct(allocator: Allocator, comptime types: anytype, comptime primar
 
     return buffer;
 }
-
+/// Performs encoding of EIP712 structs according to the expecification
+/// https://eips.ethereum.org/EIPS/eip-712
+///
+/// `types` parameter is expected to be a struct where the struct
+/// keys are used to grab the solidity type information so that the
+/// encoding and hashing can happen based on it. See the specification
+/// for more details.
+///
+/// `primary_type` is the expected main type that you want to hash this message.
+/// Compilation will fail if the provided string doesn't exist on the `types` parameter
+///
+/// `data` is expected to be a struct where the solidity types are transalated to the native
+/// zig types. I.E string -> []const u8 or int256 -> i256 and so on.
+/// In the future work will be done where the compiler will offer more clearer types
+/// base on a meta programming type function.
+///
+/// Slices, arrays, strings and bytes will all be encoded as "bytes32" instead of their
+/// usual encoded values.
 pub fn encodeStruct(allocator: Allocator, comptime types: anytype, comptime primary_type: []const u8, data: anytype, writer: anytype) !void {
     const info = @typeInfo(@TypeOf(types));
     const data_info = @typeInfo(@TypeOf(data));
@@ -99,7 +132,7 @@ pub fn encodeStruct(allocator: Allocator, comptime types: anytype, comptime prim
         }
     }
 }
-
+/// Encodes a singular struct field.
 pub fn encodeStructField(allocator: Allocator, comptime types: anytype, comptime primary_type: []const u8, value: anytype, writer: anytype) !void {
     const info = @typeInfo(@TypeOf(value));
     if (@hasField(@TypeOf(types), primary_type)) {
@@ -313,7 +346,7 @@ pub fn encodeStructField(allocator: Allocator, comptime types: anytype, comptime
         else => @compileError("Unsupported type " ++ @typeName(@TypeOf(value))),
     }
 }
-
+/// Hash the main types and it's nested children
 pub fn hashType(allocator: Allocator, comptime types_fields: anytype, comptime primary_type: []const u8) ![Keccak256.digest_length]u8 {
     var list = std.ArrayList(u8).init(allocator);
     errdefer list.deinit();
@@ -328,7 +361,9 @@ pub fn hashType(allocator: Allocator, comptime types_fields: anytype, comptime p
 
     return hash;
 }
-
+/// Encodes the main type from a struct into a "human-readable" format.
+///
+/// *Ex: struct { Mail: []const struct {type: "address", name: "foo"}} into "Mail(address foo)"*
 pub fn encodeType(allocator: Allocator, comptime types_fields: anytype, comptime primary_type: []const u8, writer: anytype) !void {
     const info = @typeInfo(@TypeOf(types_fields));
 
@@ -386,7 +421,7 @@ pub fn encodeType(allocator: Allocator, comptime types_fields: anytype, comptime
         }
     }
 }
-
+/// Finds the main type child type and recursivly checks their children as well.
 pub fn findTypeDependencies(comptime types_fields: anytype, comptime primary_type: []const u8, result: *std.StringArrayHashMap(void)) Allocator.Error!void {
     if (result.getKey(primary_type) != null)
         return;

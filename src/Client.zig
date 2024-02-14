@@ -7,64 +7,119 @@ const testing = std.testing;
 const transaction = @import("meta/transaction.zig");
 const types = @import("meta/ethereum.zig");
 const utils = @import("utils.zig");
-const Anvil = @import("tests/Anvil.zig");
-const Chains = types.PublicChains;
+
+// Types
 const Allocator = std.mem.Allocator;
+const Anvil = @import("tests/Anvil.zig");
 const ArenaAllocator = std.heap.ArenaAllocator;
+const BalanceBlockTag = block.BalanceBlockTag;
+const BalanceRequest = block.BalanceRequest;
+const Block = block.Block;
+const BlockHashRequest = block.BlockHashRequest;
+const BlockNumberRequest = block.BlockNumberRequest;
+const BlockRequest = block.BlockRequest;
+const BlockTag = block.BlockTag;
+const Chains = types.PublicChains;
+const EthCall = transaction.EthCall;
+const EthCallHexed = transaction.EthCallHexed;
+const ErrorResponse = types.ErrorResponse;
+const EthereumErrorResponse = types.EthereumErrorResponse;
+const EthereumResponse = types.EthereumResponse;
+const EthereumRequest = types.EthereumRequest;
+const EthereumRpcMethods = types.EthereumRpcMethods;
+const EstimateFeeReturn = transaction.EstimateFeeReturn;
+const Extract = meta.Extract;
+const Gwei = types.Gwei;
+const Hex = types.Hex;
+const HexRequestParameters = types.HexRequestParameters;
+const Log = log.Log;
+const LogFilterRequestParams = log.LogFilterRequestParams;
+const LogRequest = log.LogRequest;
+const LogRequestParams = log.LogRequestParams;
+const Logs = log.Logs;
+const Transaction = transaction.Transaction;
+const TransactionReceipt = transaction.TransactionReceipt;
 const Uri = std.Uri;
+const Wei = types.Wei;
+
+const httplog = std.log.scoped(.http);
+
+pub const HttpClientError = error{ TransactionNotFound, FailedToGetReceipt, InvalidFilterId, InvalidLogRequestParams, TransactionReceiptNotFound, InvalidHash, UnexpectedErrorFound, UnableToFetchFeeInfoFromBlock, UnexpectedTooManyRequestError, InvalidInput, InvalidParams, InvalidRequest, InvalidAddress, InvalidBlockHash, InvalidBlockHashOrIndex, InvalidBlockNumberOrIndex, TooManyRequests, MethodNotFound, MethodNotSupported, RpcVersionNotSupported, LimitExceeded, TransactionRejected, ResourceNotFound, ResourceUnavailable, UnexpectedRpcErrorCode, InvalidBlockNumber, ParseError, ReachedMaxRetryLimit } || Allocator.Error || std.fmt.ParseIntError || http.Client.RequestError || std.Uri.ParseError;
+
+pub const InitOptions = struct {
+    /// Allocator used to manage the memory arena.
+    allocator: Allocator,
+    /// The base fee multiplier used to estimate the gas fees in a transaction
+    base_fee_multiplier: f64 = 1.2,
+    /// The client chainId.
+    chain_id: ?Chains = null,
+    /// The interval to retry the request. This will get multiplied in ns_per_ms.
+    pooling_interval: u64 = 2_000,
+    /// Retry count for failed requests.
+    retries: u8 = 5,
+    /// Fork url for anvil to fork from
+    uri: std.Uri,
+};
 
 /// This allocator will get set by the arena.
 alloc: Allocator,
 /// The arena where all allocations will leave.
 arena: *ArenaAllocator,
+/// The base fee multiplier used to estimate the gas fees in a transaction
+base_fee_multiplier: f64,
 /// The client chainId.
 chain_id: usize,
 /// The underlaying http client used to manage all the calls.
 client: *http.Client,
 /// The set of predifined headers use for the rpc calls.
 headers: *http.Headers,
+/// The interval to retry the request. This will get multiplied in ns_per_ms.
+pooling_interval: u64,
+/// Retry count for failed requests.
+retries: u8,
 /// The uri of the provided init string.
 uri: Uri,
-/// Tracked errors picked up by the requests
-errors: std.ArrayListUnmanaged(types.ErrorResponse) = .{},
 
 const PubClient = @This();
 
 /// Init the client instance. Caller must call `deinit` to free the memory.
 /// Most of the client method are replicas of the JSON RPC methods name with the `eth_` start.
-pub fn init(alloc: Allocator, url: []const u8, chain_id: ?Chains) !*PubClient {
-    var pub_client = try alloc.create(PubClient);
-    errdefer alloc.destroy(pub_client);
+/// The client will handle request with 429 errors via exponential backoff but not the rest.
+pub fn init(opts: InitOptions) !*PubClient {
+    var pub_client = try opts.allocator.create(PubClient);
+    errdefer opts.allocator.destroy(pub_client);
 
-    pub_client.arena = try alloc.create(ArenaAllocator);
-    errdefer alloc.destroy(pub_client.arena);
+    pub_client.arena = try opts.allocator.create(ArenaAllocator);
+    errdefer opts.allocator.destroy(pub_client.arena);
 
-    pub_client.client = try alloc.create(http.Client);
-    errdefer alloc.destroy(pub_client.client);
+    pub_client.client = try opts.allocator.create(http.Client);
+    errdefer opts.allocator.destroy(pub_client.client);
 
-    pub_client.headers = try alloc.create(http.Headers);
-    errdefer alloc.destroy(pub_client.arena);
+    pub_client.headers = try opts.allocator.create(http.Headers);
+    errdefer opts.allocator.destroy(pub_client.arena);
 
-    pub_client.arena.* = ArenaAllocator.init(alloc);
+    pub_client.arena.* = ArenaAllocator.init(opts.allocator);
     pub_client.alloc = pub_client.arena.allocator();
     errdefer pub_client.arena.deinit();
 
     pub_client.headers.* = try http.Headers.initList(pub_client.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
     pub_client.client.* = http.Client{ .allocator = pub_client.alloc };
 
-    pub_client.uri = try Uri.parse(url);
+    pub_client.uri = opts.uri;
 
-    const chain: Chains = chain_id orelse .ethereum;
+    const chain: Chains = opts.chain_id orelse .ethereum;
     const id = switch (chain) {
         inline else => |id| @intFromEnum(id),
     };
 
     pub_client.chain_id = id;
-    pub_client.errors = .{};
+    pub_client.retries = opts.retries;
+    pub_client.pooling_interval = opts.pooling_interval;
+    pub_client.base_fee_multiplier = opts.base_fee_multiplier;
 
     return pub_client;
 }
-
+/// Clears the memory arena and destroys all pointers created
 pub fn deinit(self: *PubClient) void {
     const allocator = self.arena.child_allocator;
     self.arena.deinit();
@@ -73,9 +128,10 @@ pub fn deinit(self: *PubClient) void {
     allocator.destroy(self.client);
     allocator.destroy(self);
 }
-
 /// Estimate maxPriorityFeePerGas and maxFeePerGas. Will make more than one network request.
-pub fn estimateFeesPerGas(self: *PubClient, call_object: transaction.EthCall, know_block: ?block.Block) !transaction.EstimateFeeReturn {
+/// Uses the `baseFeePerGas` included in the block to calculate the gas fees.
+/// Will return an error in case the `baseFeePerGas` is null.
+pub fn estimateFeesPerGas(self: *PubClient, call_object: EthCall, know_block: ?Block) !EstimateFeeReturn {
     const current_block = know_block orelse try self.getBlockByNumber(.{});
 
     switch (current_block) {
@@ -90,22 +146,25 @@ pub fn estimateFeesPerGas(self: *PubClient, call_object: transaction.EthCall, kn
                 },
                 .legacy => |tx| {
                     const gas_price = if (tx.gasPrice) |price| price else try self.getGasPrice() * std.math.pow(u64, 10, 9);
-                    const price = @divExact(gas_price * @as(u64, @intFromFloat(std.math.ceil(1.2 * std.math.pow(f64, 10, 1)))), std.math.pow(u64, 10, 1));
+                    const price = @divExact(gas_price * @as(u64, @intFromFloat(std.math.ceil(self.base_fee_multiplier * std.math.pow(f64, 10, 1)))), std.math.pow(u64, 10, 1));
                     return .{ .legacy = .{ .gas_price = price } };
                 },
             }
         },
     }
 }
-
-/// Calls `eth_estimateGas` with the call object.
-pub fn estimateGas(self: *PubClient, call_object: transaction.EthCall, opts: block.BlockNumberRequest) !types.Gwei {
-    return try self.fetchCall(types.Gwei, call_object, opts, .eth_estimateGas);
+/// Generates and returns an estimate of how much gas is necessary to allow the transaction to complete.
+/// The transaction will not be added to the blockchain.
+/// Note that the estimate may be significantly more than the amount of gas actually used by the transaction,
+/// for a variety of reasons including EVM mechanics and node performance.
+///
+/// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
+pub fn estimateGas(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) !Gwei {
+    return try self.fetchCall(Gwei, call_object, opts, .eth_estimateGas);
 }
-
 /// Estimates maxPriorityFeePerGas manually. If the node you are currently using
 /// supports `eth_maxPriorityFeePerGas` consider using `estimateMaxFeePerGas`.
-pub fn estimateMaxFeePerGasManual(self: *PubClient, know_block: ?block.Block) !types.Gwei {
+pub fn estimateMaxFeePerGasManual(self: *PubClient, know_block: ?Block) !Gwei {
     const current_block = know_block orelse try self.getBlockByNumber(.{});
     const gas_price = try self.getGasPrice();
 
@@ -123,202 +182,453 @@ pub fn estimateMaxFeePerGasManual(self: *PubClient, know_block: ?block.Block) !t
         },
     }
 }
-
 /// Only use this if the node you are currently using supports `eth_maxPriorityFeePerGas`.
-pub fn estimateMaxFeePerGas(self: *PubClient) !types.Gwei {
-    return try self.fetchWithEmptyArgs(types.Gwei, .eth_maxPriorityFeePerGas);
+pub fn estimateMaxFeePerGas(self: *PubClient) !Gwei {
+    return try self.fetchWithEmptyArgs(Gwei, .eth_maxPriorityFeePerGas);
 }
-
-pub fn getAccounts(self: *PubClient) ![]const types.Hex {
-    return try self.fetchWithEmptyArgs([]const types.Hex, .eth_accounts);
+/// Returns a list of addresses owned by client.
+///
+/// RPC Method: [eth_accounts](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_accounts)
+pub fn getAccounts(self: *PubClient) ![]const Hex {
+    return try self.fetchWithEmptyArgs([]const Hex, .eth_accounts);
 }
-
-pub fn getAddressBalance(self: *PubClient, opts: block.BalanceRequest) !types.Wei {
-    return try self.fetchByAddress(types.Wei, opts, .eth_getBalance);
+/// Returns the balance of the account of given address.
+///
+/// RPC Method: [eth_getBalance](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getbalance)
+pub fn getAddressBalance(self: *PubClient, opts: BalanceRequest) !Wei {
+    return try self.fetchByAddress(Wei, opts, .eth_getBalance);
 }
-
-pub fn getAddressTransactionCount(self: *PubClient, opts: block.BalanceRequest) !u64 {
+/// Returns the number of transactions sent from an address.
+///
+/// RPC Method: [eth_getTransactionCount](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactioncount)
+pub fn getAddressTransactionCount(self: *PubClient, opts: BalanceRequest) !u64 {
     return try self.fetchByAddress(u64, opts, .eth_getTransactionCount);
 }
-
-pub fn getBlockByHash(self: *PubClient, opts: block.BlockHashRequest) !block.Block {
+/// Returns information about a block by hash.
+///
+/// RPC Method: [eth_getBlockByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblockbyhash)
+pub fn getBlockByHash(self: *PubClient, opts: BlockHashRequest) !Block {
     if (!utils.isHash(opts.block_hash)) return error.InvalidHash;
     const include = opts.include_transaction_objects orelse false;
 
-    const Params = std.meta.Tuple(&[_]type{ types.Hex, bool });
+    const Params = std.meta.Tuple(&[_]type{ Hex, bool });
     const params: Params = .{ opts.block_hash, include };
 
-    const request: types.EthereumRequest(Params) = .{ .params = params, .method = .eth_getBlockByHash, .id = self.chain_id };
+    const request: EthereumRequest(Params) = .{ .params = params, .method = .eth_getBlockByHash, .id = self.chain_id };
 
-    return try self.fetchBlock(request);
+    const request_block = try self.fetchBlock(request);
+    const block_info = request_block orelse return error.InvalidBlockHash;
+
+    return block_info;
 }
-
-pub fn getBlockByNumber(self: *PubClient, opts: block.BlockRequest) !block.Block {
-    const tag: block.BlockTag = opts.tag orelse .latest;
+/// Returns information about a block by number.
+///
+/// RPC Method: [eth_getBlockByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblockbynumber)
+pub fn getBlockByNumber(self: *PubClient, opts: BlockRequest) !Block {
+    const tag: BlockTag = opts.tag orelse .latest;
     const include = opts.include_transaction_objects orelse false;
 
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
 
-    const Params = std.meta.Tuple(&[_]type{ types.Hex, bool });
+    const Params = std.meta.Tuple(&[_]type{ Hex, bool });
     const params: Params = .{ block_number, include };
-    const request: types.EthereumRequest(Params) = .{ .params = params, .method = .eth_getBlockByNumber, .id = self.chain_id };
+    const request: EthereumRequest(Params) = .{ .params = params, .method = .eth_getBlockByNumber, .id = self.chain_id };
 
-    return try self.fetchBlock(request);
+    const request_block = try self.fetchBlock(request);
+    const block_info = request_block orelse return error.InvalidBlockNumber;
+
+    return block_info;
 }
-
+/// Returns the number of most recent block.
+///
+/// RPC Method: [eth_blockNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_blocknumber)
 pub fn getBlockNumber(self: *PubClient) !u64 {
     return try self.fetchWithEmptyArgs(u64, .eth_blockNumber);
 }
-
-pub fn getBlockTransactionCountByHash(self: *PubClient, block_hash: types.Hex) !usize {
+/// Returns the number of transactions in a block from a block matching the given block hash.
+///
+/// RPC Method: [eth_getBlockTransactionCountByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbyhash)
+pub fn getBlockTransactionCountByHash(self: *PubClient, block_hash: Hex) !usize {
     return try self.fetchByBlockHash(block_hash, .eth_getBlockTransactionCountByHash);
 }
-
-pub fn getBlockTransactionCountByNumber(self: *PubClient, opts: block.BlockNumberRequest) !usize {
+/// Returns the number of transactions in a block from a block matching the given block number.
+///
+/// RPC Method: [eth_getBlockTransactionCountByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbynumber)
+pub fn getBlockTransactionCountByNumber(self: *PubClient, opts: BlockNumberRequest) !usize {
     return try self.fetchByBlockNumber(opts, .eth_getBlockTransactionCountByNumber);
 }
-
+/// Returns the chain ID used for signing replay-protected transactions.
+///
+/// RPC Method: [eth_chainId](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_chainid)
 pub fn getChainId(self: *PubClient) !usize {
     return try self.fetchWithEmptyArgs(usize, .eth_chainId);
 }
-
-pub fn getContractCode(self: *PubClient, opts: block.BalanceRequest) !types.Hex {
-    return try self.fetchByAddress(types.Hex, opts, .eth_getCode);
+/// Returns code at a given address.
+///
+/// RPC Method: [eth_getCode](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getcode)
+pub fn getContractCode(self: *PubClient, opts: BalanceRequest) !Hex {
+    return try self.fetchByAddress(Hex, opts, .eth_getCode);
 }
+/// Polling method for a filter, which returns an array of logs which occurred since last poll or
+/// Returns an array of all logs matching filter with given id depending on the selected method
+/// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterchanges
+/// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterlogs
+pub fn getFilterOrLogChanges(self: *PubClient, filter_id: usize, method: Extract(EthereumRpcMethods, "eth_getFilterChanges,eth_getFilterLogs")) !Logs {
+    const filter_i = try std.fmt.allocPrint(self.alloc, "0x{x}", .{filter_id});
 
-pub fn getFilterOrLogChanges(self: *PubClient, filter_id: usize, method: meta.Extract(types.EthereumRpcMethods, "eth_getFilterChanges,eth_FilterLogs")) !log.Logs {
-    const filter = try std.fmt.allocPrint(self.alloc, "0x{x}", .{filter_id});
+    const request: EthereumRequest(HexRequestParameters) = .{ .params = &.{filter_i}, .method = method, .id = self.chain_id };
 
-    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{filter}, .method = method, .id = self.chain_id };
+    const possible_filter = try self.fetchLogs(HexRequestParameters, request);
+    const filter = possible_filter orelse return error.InvalidFilterId;
 
-    return try self.fetchLogs(types.HexRequestParameters, request);
+    return filter;
 }
-
-pub fn getGasPrice(self: *PubClient) !types.Gwei {
+/// Returns an estimate of the current price per gas in wei.
+/// For example, the Besu client examines the last 100 blocks and returns the median gas unit price by default.
+///
+/// RPC Method: [eth_gasPrice](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gasprice)
+pub fn getGasPrice(self: *PubClient) !Gwei {
     return try self.fetchWithEmptyArgs(u64, .eth_gasPrice);
 }
-
-pub fn getLogs(self: *PubClient, opts: log.LogRequestParams) !log.Logs {
+/// Returns an array of all logs matching a given filter object.
+///
+/// RPC Method: [eth_getLogs](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getlogs)
+pub fn getLogs(self: *PubClient, opts: LogRequestParams) !Logs {
     const from_block = if (opts.tag) |tag| @tagName(tag) else if (opts.fromBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
     const to_block = if (opts.tag) |tag| @tagName(tag) else if (opts.toBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
 
-    const request: types.EthereumRequest([]const log.LogRequest) = .{ .params = &.{.{ .fromBlock = from_block, .toBlock = to_block, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_getLogs, .id = self.chain_id };
+    const request: EthereumRequest([]const LogRequest) = .{ .params = &.{.{ .fromBlock = from_block, .toBlock = to_block, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_getLogs, .id = self.chain_id };
 
-    return try self.fetchLogs([]const log.LogRequest, request);
+    const possible_logs = try self.fetchLogs([]const LogRequest, request);
+    const logs = possible_logs orelse return error.InvalidLogRequestParams;
+
+    return logs;
 }
-
-pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: types.Hex, index: usize) !transaction.Transaction {
+/// Returns information about a transaction by block hash and transaction index position.
+///
+/// RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblockhashandindex)
+pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: Hex, index: usize) !Transaction {
     if (!utils.isHash(block_hash)) return error.InvalidHash;
 
-    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{ block_hash, try std.fmt.allocPrint(self.alloc, "0x{x}", .{index}) }, .method = .eth_getTransactionByBlockHashAndIndex, .id = self.chain_id };
+    const request: EthereumRequest(HexRequestParameters) = .{ .params = &.{ block_hash, try std.fmt.allocPrint(self.alloc, "0x{x}", .{index}) }, .method = .eth_getTransactionByBlockHashAndIndex, .id = self.chain_id };
 
-    return try self.fetchTransaction(transaction.Transaction, request);
+    const possible_tx = try self.fetchTransaction(?Transaction, request);
+    const tx = possible_tx orelse return error.TransactionNotFound;
+
+    return tx;
 }
-
-pub fn getTransactionByBlockNumberAndIndex(self: *PubClient, opts: block.BlockNumberRequest, index: usize) !transaction.Transaction {
-    const tag: block.BalanceBlockTag = opts.tag orelse .latest;
+/// Returns information about a transaction by block number and transaction index position.
+///
+/// RPC Method: [eth_getTransactionByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblocknumberandindex)
+pub fn getTransactionByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRequest, index: usize) !Transaction {
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
 
-    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{ block_number, try std.fmt.allocPrint(self.alloc, "0x{x}", .{index}) }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
+    const request: EthereumRequest(HexRequestParameters) = .{ .params = &.{ block_number, try std.fmt.allocPrint(self.alloc, "0x{x}", .{index}) }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
 
-    return try self.fetchTransaction(transaction.Transaction, request);
+    const possible_tx = try self.fetchTransaction(?Transaction, request);
+    const tx = possible_tx orelse return error.TransactionNotFound;
+
+    return tx;
 }
-
-pub fn getTransactionByHash(self: *PubClient, transaction_hash: types.Hex) !transaction.Transaction {
+/// Returns the information about a transaction requested by transaction hash.
+///
+/// RPC Method: [eth_getTransactionByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyhash)
+pub fn getTransactionByHash(self: *PubClient, transaction_hash: Hex) !Transaction {
     if (!utils.isHash(transaction_hash)) return error.InvalidHash;
 
-    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{transaction_hash}, .method = .eth_getTransactionByHash, .id = self.chain_id };
+    const request: EthereumRequest(HexRequestParameters) = .{ .params = &.{transaction_hash}, .method = .eth_getTransactionByHash, .id = self.chain_id };
 
-    return try self.fetchTransaction(transaction.Transaction, request);
+    const possible_tx = try self.fetchTransaction(?Transaction, request);
+    const tx = possible_tx orelse return error.TransactionNotFound;
+
+    return tx;
 }
-
-pub fn getTransactionReceipt(self: *PubClient, transaction_hash: types.Hex) !transaction.TransactionReceipt {
+/// Returns the receipt of a transaction by transaction hash.
+///
+/// RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
+pub fn getTransactionReceipt(self: *PubClient, transaction_hash: Hex) !TransactionReceipt {
     if (!utils.isHash(transaction_hash)) return error.InvalidHash;
 
-    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{transaction_hash}, .method = .eth_getTransactionReceipt, .id = self.chain_id };
+    const request: EthereumRequest(HexRequestParameters) = .{ .params = &.{transaction_hash}, .method = .eth_getTransactionReceipt, .id = self.chain_id };
 
-    return try self.fetchTransaction(transaction.TransactionReceipt, request);
+    const possible_receipt = try self.fetchTransaction(?TransactionReceipt, request);
+    const receipt = possible_receipt orelse return error.TransactionReceiptNotFound;
+
+    return receipt;
 }
-
-pub fn getUncleByBlockHashAndIndex(self: *PubClient, block_hash: types.Hex, index: usize) !block.Block {
+/// Returns information about a uncle of a block by hash and uncle index position.
+///
+/// RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblockhashandindex)
+pub fn getUncleByBlockHashAndIndex(self: *PubClient, block_hash: Hex, index: usize) !Block {
     if (!utils.isHash(block_hash)) return error.InvalidHash;
 
-    const Params = std.meta.Tuple(&[_]type{ types.Hex, types.Hex });
+    const Params = std.meta.Tuple(&[_]type{ Hex, Hex });
     const params: Params = .{ block_hash, try std.fmt.allocPrint(self.alloc, "0x{x}", .{index}) };
 
-    const request: types.EthereumRequest(Params) = .{ .params = params, .method = .eth_getUncleByBlockHashAndIndex, .id = self.chain_id };
+    const request: EthereumRequest(Params) = .{ .params = params, .method = .eth_getUncleByBlockHashAndIndex, .id = self.chain_id };
 
-    return try self.fetchBlock(request);
+    const request_block = try self.fetchBlock(request);
+    const block_info = request_block orelse return error.InvalidBlockHashOrIndex;
+
+    return block_info;
 }
-
-pub fn getUncleByBlockNumberAndIndex(self: *PubClient, opts: block.BlockNumberRequest, index: usize) !block.Block {
-    const tag: block.BalanceBlockTag = opts.tag orelse .latest;
+/// Returns information about a uncle of a block by number and uncle index position.
+///
+/// RPC Method: [eth_getUncleByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblocknumberandindex)
+pub fn getUncleByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRequest, index: usize) !Block {
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
 
-    const Params = std.meta.Tuple(&[_]type{ types.Hex, types.Hex });
+    const Params = std.meta.Tuple(&[_]type{ Hex, Hex });
     const params: Params = .{ block_number, try std.fmt.allocPrint(self.alloc, "0x{x}", .{index}) };
 
-    const request: types.EthereumRequest(Params) = .{ .params = params, .method = .eth_getTransactionByBlockHashAndIndex, .id = self.chain_id };
+    const request: EthereumRequest(Params) = .{ .params = params, .method = .eth_getUncleByBlockNumberAndIndex, .id = self.chain_id };
 
-    return try self.fetchBlock(request);
+    const request_block = try self.fetchBlock(request);
+    const block_info = request_block orelse return error.InvalidBlockNumberOrIndex;
+
+    return block_info;
 }
-
-pub fn getUncleCountByBlockHash(self: *PubClient, block_hash: types.Hex) !usize {
+/// Returns the number of uncles in a block from a block matching the given block hash.
+///
+/// RPC Method: [`eth_getUncleCountByBlockHash`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclecountbyblockhash)
+pub fn getUncleCountByBlockHash(self: *PubClient, block_hash: Hex) !usize {
     return self.fetchByBlockHash(block_hash, .eth_getUncleCountByBlockHash);
 }
-
-pub fn getUncleCountByBlockNumber(self: *PubClient, opts: block.BlockNumberRequest) !usize {
+/// Returns the number of uncles in a block from a block matching the given block number.
+///
+/// RPC Method: [`eth_getUncleCountByBlockNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclecountbyblocknumber)
+pub fn getUncleCountByBlockNumber(self: *PubClient, opts: BlockNumberRequest) !usize {
     return try self.fetchByBlockNumber(opts, .eth_getUncleCountByBlockNumber);
 }
-
+/// Creates a filter in the node, to notify when a new block arrives.
+/// To check if the state has changed, call `getFilterOrLogChanges`.
+///
+/// RPC Method: [`eth_newBlockFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newblockfilter)
 pub fn newBlockFilter(self: *PubClient) !usize {
     return try self.fetchWithEmptyArgs(usize, .eth_newBlockFilter);
 }
-
-pub fn newLogFilter(self: *PubClient, opts: log.LogFilterRequestParams) !usize {
+/// Creates a filter object, based on filter options, to notify when the state changes (logs).
+/// To check if the state has changed, call `getFilterOrLogChanges`.
+///
+/// RPC Method: [`eth_newFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newfilter)
+pub fn newLogFilter(self: *PubClient, opts: LogFilterRequestParams) !usize {
     const from_block = if (opts.tag) |tag| @tagName(tag) else if (opts.fromBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
     const to_block = if (opts.tag) |tag| @tagName(tag) else if (opts.toBlock) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else null;
 
-    const request: types.EthereumRequest([]const log.LogRequest) = .{ .params = &.{.{ .fromBlock = from_block, .toBlock = to_block, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_newFilter, .id = self.chain_id };
+    const request: EthereumRequest([]const LogRequest) = .{ .params = &.{.{ .fromBlock = from_block, .toBlock = to_block, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_newFilter, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 
-    if (req.status != .ok) return error.InvalidRequest;
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
 
-    return try self.parseRPCEvent(usize, req.body.?);
+        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        switch (req.status) {
+            .ok => return try self.parseRPCEvent(usize, req.body.?),
+            .too_many_requests => {
+                // Exponential backoff
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                std.time.sleep(std.time.ns_per_ms * backoff);
+                continue;
+            },
+            else => return error.InvalidRequest,
+        }
+    }
 }
-
+/// Creates a filter in the node, to notify when new pending transactions arrive.
+/// To check if the state has changed, call `getFilterOrLogChanges`.
+///
+/// RPC Method: [`eth_newPendingTransactionFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newpendingtransactionfilter)
 pub fn newPendingTransactionFilter(self: *PubClient) !usize {
     return try self.fetchWithEmptyArgs(usize, .eth_newPendingTransactionFilter);
 }
-
+/// Executes a new message call immediately without creating a transaction on the block chain.
+/// Often used for executing read-only smart contract functions,
+/// for example the balanceOf for an ERC-20 contract.
+///
 /// Call object must be prefilled before hand. Including the data field.
-/// This will just the request to the network.
-pub fn sendEthCall(self: *PubClient, call_object: transaction.EthCall, opts: block.BlockNumberRequest) !types.Hex {
-    return try self.fetchCall(types.Hex, call_object, opts, .eth_call);
+/// This will just make the request to the network.
+///
+/// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
+pub fn sendEthCall(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) !Hex {
+    return try self.fetchCall(Hex, call_object, opts, .eth_call);
 }
-
+/// Creates new message call transaction or a contract creation for signed transactions.
 /// Transaction must be serialized and signed before hand.
-pub fn sendRawTransaction(self: *PubClient, serialized_hex_tx: types.Hex) !types.Hex {
-    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{serialized_hex_tx}, .method = .eth_sendRawTransaction, .id = self.chain_id };
+///
+/// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
+pub fn sendRawTransaction(self: *PubClient, serialized_hex_tx: Hex) !Hex {
+    const request: EthereumRequest(HexRequestParameters) = .{ .params = &.{serialized_hex_tx}, .method = .eth_sendRawTransaction, .id = self.chain_id };
 
-    return try self.fetchTransaction(types.Hex, request);
+    return try self.fetchTransaction(Hex, request);
 }
+/// Waits until a transaction gets mined and the receipt can be grabbed.
+/// This is retry based on either the amount of `confirmations` given.
+///
+/// If 0 confirmations are given the transaction receipt can be null in case
+/// the transaction has not been mined yet. It's recommened to have atleast one confirmation
+/// because some nodes might be slower to sync.
+///
+/// RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
+pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hex, confirmations: u8) !?TransactionReceipt {
+    var tx: ?Transaction = null;
+    var block_number = try self.getBlockNumber();
+    var receipt: ?TransactionReceipt = self.getTransactionReceipt(tx_hash) catch |err| switch (err) {
+        error.TransactionReceiptNotFound => null,
+        else => return err,
+    };
 
+    // The receipt can be null here
+    if (confirmations == 0)
+        return receipt;
+
+    var retries: u8 = 0;
+    var valid_confirmations: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries - valid_confirmations > self.retries)
+            return error.FailedToGetReceipt;
+
+        if (receipt) |tx_receipt| {
+            // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
+            if (valid_confirmations > confirmations and (tx_receipt.blockNumber != null or block_number - tx_receipt.blockNumber.? + 1 < confirmations)) {
+                receipt = tx_receipt;
+                break;
+            } else {
+                valid_confirmations += 1;
+                std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                continue;
+            }
+        }
+
+        if (tx == null) {
+            tx = self.getTransactionByHash(tx_hash) catch |err| switch (err) {
+                // If it fails we keep trying
+                error.TransactionNotFound => {
+                    std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                    continue;
+                },
+                else => return err,
+            };
+
+            switch (tx.?) {
+                // Changes the block search to the one of the found transaction
+                inline else => |tx_object| {
+                    if (tx_object.blockNumber) |number| block_number = number;
+                },
+            }
+
+            receipt = self.getTransactionReceipt(tx_hash) catch |err| switch (err) {
+                error.TransactionReceiptNotFound => {
+                    // Need to check if the transaction was replaced.
+                    const current_block = try self.getBlockByNumber(.{ .include_transaction_objects = true });
+
+                    // TODO: Find cleaner way to do this.
+                    const replaced: ?Transaction = outer: {
+                        switch (tx.?) {
+                            inline else => |transactions| {
+                                switch (current_block) {
+                                    inline else => |pending| {
+                                        for (pending.transactions.objects) |pending_transaction| {
+                                            switch (pending_transaction) {
+                                                inline else => |tx_pending| {
+                                                    if (std.mem.eql(u8, transactions.from, tx_pending.from) and tx_pending.nonce == transactions.nonce)
+                                                        break :outer pending_transaction;
+                                                },
+                                            }
+                                        }
+                                        break :outer null;
+                                    },
+                                }
+                            },
+                        }
+                    };
+
+                    // If the transaction was replace return it's receipt. Otherwise try again.
+                    if (replaced) |replaced_tx| {
+                        receipt = switch (replaced_tx) {
+                            inline else => |tx_object| try self.getTransactionReceipt(tx_object.hash),
+                        };
+
+                        httplog.debug("Transaction was replace by a newer one", .{});
+
+                        switch (replaced_tx) {
+                            inline else => |replacement| switch (tx.?) {
+                                inline else => |original| {
+                                    if (std.mem.eql(u8, replacement.from, original.from) and replacement.value == original.value)
+                                        httplog.debug("Original transaction was repriced", .{});
+
+                                    if (replacement.to) |replaced_to| {
+                                        if (std.mem.eql(u8, replacement.from, replaced_to) and replacement.value == 0)
+                                            httplog.debug("Original transaction was canceled", .{});
+                                    }
+                                },
+                            },
+                        }
+
+                        // Here we are sure to have a valid receipt.
+                        const valid_receipt = receipt.?;
+                        // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
+                        if (valid_confirmations > confirmations and (valid_receipt.blockNumber != null or block_number - valid_receipt.blockNumber.? + 1 < confirmations))
+                            break;
+                    }
+
+                    std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                    continue;
+                },
+                else => return err,
+            };
+
+            const valid_receipt = receipt.?;
+            // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
+            if (valid_confirmations > confirmations and (valid_receipt.blockNumber != null or block_number - valid_receipt.blockNumber.? + 1 < confirmations)) {
+                break;
+            } else {
+                valid_confirmations += 1;
+                std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                continue;
+            }
+        }
+    }
+
+    return receipt;
+}
+/// Uninstalls a filter with given id. Should always be called when watch is no longer needed.
+/// Additionally Filters timeout when they aren't requested with `getFilterOrLogChanges` for a period of time.
+///
+/// RPC Method: [`eth_uninstallFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_uninstallfilter)
 pub fn uninstalllFilter(self: *PubClient, id: usize) !bool {
     const filter_id = try std.fmt.allocPrint(self.alloc, "0x{x}", .{id});
 
-    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{filter_id}, .method = .eth_uninstallFilter, .id = self.chain_id };
+    const request: EthereumRequest(HexRequestParameters) = .{ .params = &.{filter_id}, .method = .eth_uninstallFilter, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 
-    if (req.status != .ok) return error.InvalidRequest;
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
 
-    return try self.parseRPCEvent(bool, req.body.?);
+        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        switch (req.status) {
+            .ok => return try self.parseRPCEvent(bool, req.body.?),
+            .too_many_requests => {
+                // Exponential backoff
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                std.time.sleep(std.time.ns_per_ms * backoff);
+                continue;
+            },
+            else => return error.InvalidRequest,
+        }
+    }
 }
-
 /// Switch the client network and chainId.
 pub fn switchNetwork(self: *PubClient, new_chain_id: Chains, new_url: []const u8) void {
     self.chain_id = @intFromEnum(new_chain_id);
@@ -327,149 +637,257 @@ pub fn switchNetwork(self: *PubClient, new_chain_id: Chains, new_url: []const u8
     self.uri = uri;
 }
 
-/// Prints the last error message that was tracked.
-pub fn printLastRpcError(self: *PubClient) !void {
-    const writer = std.io.getStdErr().writer();
-    const last = self.errors.getLast();
+fn fetchByBlockNumber(self: *PubClient, opts: BlockNumberRequest, method: EthereumRpcMethods) !usize {
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
+    const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
 
-    try writer.print("Error code: {d}\n", .{last.code});
-    try writer.print("Error message: {s}\n", .{last.message});
-    if (last.data) |data|
-        try writer.print("Error data: {s}\n", .{data});
-}
+    const request: EthereumRequest(HexRequestParameters) = .{ .params = &.{block_number}, .method = method, .id = self.chain_id };
 
-/// Prints all tracked error messages.
-pub fn printAllRpcErrors(self: *PubClient) !void {
-    const writer = std.io.getStdErr().writer();
-    const errors = self.errors.items;
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
 
-    for (errors) |err| {
-        try writer.print("Error code: {d}\n", .{err.code});
-        try writer.print("Error message: {s}\n", .{err.message});
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
 
-        if (err.data) |data|
-            try writer.print("Error message: {s}\n", .{data});
+        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        switch (req.status) {
+            .ok => return try self.parseRPCEvent(usize, req.body.?),
+            .too_many_requests => {
+                // Exponential backoff
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                std.time.sleep(std.time.ns_per_ms * backoff);
+                continue;
+            },
+            else => return error.InvalidRequest,
+        }
     }
 }
 
-fn fetchByBlockNumber(self: *PubClient, opts: block.BlockNumberRequest, method: types.EthereumRpcMethods) !usize {
-    const tag: block.BalanceBlockTag = opts.tag orelse .latest;
-    const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
-
-    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{block_number}, .method = method, .id = self.chain_id };
-
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
-
-    if (req.status != .ok) return error.InvalidRequest;
-
-    return try self.parseRPCEvent(usize, req.body.?);
-}
-
-fn fetchByBlockHash(self: *PubClient, block_hash: []const u8, method: types.EthereumRpcMethods) !usize {
+fn fetchByBlockHash(self: *PubClient, block_hash: []const u8, method: EthereumRpcMethods) !usize {
     if (!utils.isHash(block_hash)) return error.InvalidHash;
 
-    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{block_hash}, .method = method, .id = self.chain_id };
+    const request: EthereumRequest(HexRequestParameters) = .{ .params = &.{block_hash}, .method = method, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 
-    if (req.status != .ok) return error.InvalidRequest;
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
 
-    return try self.parseRPCEvent(usize, req.body.?);
+        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        switch (req.status) {
+            .ok => return try self.parseRPCEvent(usize, req.body.?),
+            .too_many_requests => {
+                // Exponential backoff
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                std.time.sleep(std.time.ns_per_ms * backoff);
+                continue;
+            },
+            else => return error.InvalidRequest,
+        }
+    }
 }
 
-fn fetchByAddress(self: *PubClient, comptime T: type, opts: block.BalanceRequest, method: types.EthereumRpcMethods) !T {
+fn fetchByAddress(self: *PubClient, comptime T: type, opts: BalanceRequest, method: EthereumRpcMethods) !T {
     if (!try utils.isAddress(self.alloc, opts.address)) return error.InvalidAddress;
-    const tag: block.BalanceBlockTag = opts.tag orelse .latest;
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
 
-    const request: types.EthereumRequest(types.HexRequestParameters) = .{ .params = &.{ opts.address, block_number }, .method = method, .id = self.chain_id };
+    const request: EthereumRequest(HexRequestParameters) = .{ .params = &.{ opts.address, block_number }, .method = method, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 
-    if (req.status != .ok) return error.InvalidRequest;
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
 
-    return try self.parseRPCEvent(T, req.body.?);
+        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        switch (req.status) {
+            .ok => return try self.parseRPCEvent(T, req.body.?),
+            .too_many_requests => {
+                // Exponential backoff
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                std.time.sleep(std.time.ns_per_ms * backoff);
+                continue;
+            },
+            else => return error.InvalidRequest,
+        }
+    }
 }
 
-fn fetchWithEmptyArgs(self: *PubClient, comptime T: type, method: types.EthereumRpcMethods) !T {
+fn fetchWithEmptyArgs(self: *PubClient, comptime T: type, method: EthereumRpcMethods) !T {
     const Params = std.meta.Tuple(&[_]type{});
-    const request: types.EthereumRequest(Params) = .{ .params = .{}, .method = method, .id = self.chain_id };
+    const request: EthereumRequest(Params) = .{ .params = .{}, .method = method, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 
-    if (req.status != .ok) return error.InvalidRequest;
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
 
-    return try self.parseRPCEvent(T, req.body.?);
+        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        switch (req.status) {
+            .ok => return try self.parseRPCEvent(T, req.body.?),
+            .too_many_requests => {
+                // Exponential backoff
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                std.time.sleep(std.time.ns_per_ms * backoff);
+                continue;
+            },
+            else => return error.InvalidRequest,
+        }
+    }
 }
 
-fn fetchBlock(self: *PubClient, request: anytype) !block.Block {
+fn fetchBlock(self: *PubClient, request: anytype) !?Block {
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
 
-    if (req.status != .ok) return error.InvalidRequest;
+        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        switch (req.status) {
+            .ok => return try self.parseRPCEvent(?Block, req.body.?),
+            .too_many_requests => {
+                // Exponential backoff
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
-    return try self.parseRPCEvent(block.Block, req.body.?);
+                std.time.sleep(std.time.ns_per_ms * backoff);
+                continue;
+            },
+            else => return error.InvalidRequest,
+        }
+    }
 }
 
-fn fetchTransaction(self: *PubClient, comptime T: type, request: types.EthereumRequest(types.HexRequestParameters)) !T {
+fn fetchTransaction(self: *PubClient, comptime T: type, request: EthereumRequest(HexRequestParameters)) !T {
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
 
-    if (req.status != .ok) return error.InvalidRequest;
+        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        switch (req.status) {
+            .ok => return try self.parseRPCEvent(T, req.body.?),
+            .too_many_requests => {
+                // Exponential backoff
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
-    return try self.parseRPCEvent(T, req.body.?);
+                std.time.sleep(std.time.ns_per_ms * backoff);
+                continue;
+            },
+            else => return error.InvalidRequest,
+        }
+    }
 }
 
-fn fetchLogs(self: *PubClient, comptime T: type, request: types.EthereumRequest(T)) !log.Logs {
+fn fetchLogs(self: *PubClient, comptime T: type, request: EthereumRequest(T)) !?Logs {
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 
-    if (req.status != .ok) return error.InvalidRequest;
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
 
-    const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(log.Logs), self.alloc, req.body.?, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, req.body.?, .{ .ignore_unknown_fields = true })) |result| {
-            try self.errors.append(self.alloc, result.@"error");
-            return error.RpcErrorResponse;
-        } else |_| return error.RpcNullResponse;
-    };
+        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        switch (req.status) {
+            .ok => return try self.parseRPCEvent(?Logs, req.body.?),
+            .too_many_requests => {
+                // Exponential backoff
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
-    return parsed.result;
+                std.time.sleep(std.time.ns_per_ms * backoff);
+                continue;
+            },
+            else => return error.InvalidRequest,
+        }
+    }
 }
 
-fn fetchCall(self: *PubClient, comptime T: type, call_object: transaction.EthCall, opts: block.BlockNumberRequest, method: types.EthereumRpcMethods) !T {
-    const tag: block.BalanceBlockTag = opts.tag orelse .latest;
+fn fetchCall(self: *PubClient, comptime T: type, call_object: EthCall, opts: BlockNumberRequest, method: EthereumRpcMethods) !T {
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
     const block_number = if (opts.block_number) |number| try std.fmt.allocPrint(self.alloc, "0x{x}", .{number}) else @tagName(tag);
 
     const call = try utils.hexifyEthCall(self.alloc, call_object);
 
-    const Params = std.meta.Tuple(&[_]type{ transaction.EthCallHexed, types.Hex });
-    const request: types.EthereumRequest(Params) = .{ .params = .{ call, block_number }, .method = method, .id = self.chain_id };
+    const Params = std.meta.Tuple(&[_]type{ EthCallHexed, Hex });
+    const request: EthereumRequest(Params) = .{ .params = .{ call, block_number }, .method = method, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
-    const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
 
-    if (req.status != .ok) return error.InvalidRequest;
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
 
-    return try self.parseRPCEvent(T, req.body.?);
+        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        switch (req.status) {
+            .ok => return try self.parseRPCEvent(T, req.body.?),
+            .too_many_requests => {
+                // Exponential backoff
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                std.time.sleep(std.time.ns_per_ms * backoff);
+                continue;
+            },
+            else => return error.InvalidRequest,
+        }
+    }
 }
 
 fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !T {
-    const parsed = std.json.parseFromSliceLeaky(types.EthereumResponse(T), self.alloc, request, .{}) catch {
-        if (std.json.parseFromSliceLeaky(types.EthereumErrorResponse, self.alloc, request, .{ .ignore_unknown_fields = true })) |result| {
-            try self.errors.append(self.alloc, result.@"error");
-            return error.RpcErrorResponse;
-        } else |_| return error.RpcNullResponse;
+    const parsed = std.json.parseFromSliceLeaky(EthereumResponse(T), self.alloc, request, .{ .allocate = .alloc_always }) catch {
+        if (std.json.parseFromSliceLeaky(EthereumErrorResponse, self.alloc, request, .{ .ignore_unknown_fields = true })) |result| {
+            httplog.debug("RPC error response: {s}", .{result.@"error".message});
+
+            if (result.@"error".data) |data|
+                httplog.debug("RPC error response data: {s}", .{data});
+
+            // Converts the rpc error codes to zig errors
+            return switch (result.@"error".code) {
+                // This will only affect WS connections but we need to handle it here too
+                .TooManyRequests => error.UnexpectedTooManyRequestError,
+                .InvalidInput => error.InvalidInput,
+                .MethodNotFound => error.MethodNotFound,
+                .ResourceNotFound => error.ResourceNotFound,
+                .InvalidRequest => error.InvalidRequest,
+                .ParseError => error.ParseError,
+                .LimitExceeded => error.LimitExceeded,
+                .InvalidParams => error.InvalidParams,
+                .InternalError => error.InternalError,
+                .MethodNotSupported => error.MethodNotSupported,
+                .ResourceUnavailable => error.ResourceNotFound,
+                .TransactionRejected => error.TransactionRejected,
+                .RpcVersionNotSupported => error.RpcVersionNotSupported,
+                _ => error.UnexpectedRpcErrorCode,
+            };
+        } else |_| return error.UnexpectedErrorFound;
     };
 
     return parsed.result;
 }
 
 test "GetBlockNumber" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const block_req = try pub_client.getBlockNumber();
@@ -478,7 +896,8 @@ test "GetBlockNumber" {
 }
 
 test "GetChainId" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const chain = try pub_client.getChainId();
@@ -487,7 +906,8 @@ test "GetChainId" {
 }
 
 test "GetBlock" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const block_info = try pub_client.getBlockByNumber(.{});
@@ -500,7 +920,8 @@ test "GetBlock" {
 }
 
 test "GetBlockByHash" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const block_info = try pub_client.getBlockByHash(.{ .block_hash = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8" });
@@ -509,7 +930,8 @@ test "GetBlockByHash" {
 }
 
 test "GetBlockTransactionCountByHash" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const block_info = try pub_client.getBlockTransactionCountByHash("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
@@ -517,7 +939,8 @@ test "GetBlockTransactionCountByHash" {
 }
 
 test "getBlockTransactionCountByNumber" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const block_info = try pub_client.getBlockTransactionCountByNumber(.{});
@@ -525,7 +948,8 @@ test "getBlockTransactionCountByNumber" {
 }
 
 test "getBlockTransactionCountByHash" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const block_info = try pub_client.getBlockTransactionCountByHash("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
@@ -533,7 +957,8 @@ test "getBlockTransactionCountByHash" {
 }
 
 test "getAccounts" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const accounts = try pub_client.getAccounts();
@@ -541,7 +966,8 @@ test "getAccounts" {
 }
 
 test "gasPrice" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const gasPrice = try pub_client.getGasPrice();
@@ -549,7 +975,8 @@ test "gasPrice" {
 }
 
 test "getCode" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const code = try pub_client.getContractCode(.{ .address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" });
@@ -557,7 +984,8 @@ test "getCode" {
 }
 
 test "getAddressBalance" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const address = try pub_client.getAddressBalance(.{ .address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" });
@@ -565,7 +993,8 @@ test "getAddressBalance" {
 }
 
 test "getUncleCountByBlockHash" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const uncle = try pub_client.getUncleCountByBlockHash("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
@@ -573,7 +1002,8 @@ test "getUncleCountByBlockHash" {
 }
 
 test "getUncleCountByBlockNumber" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const uncle = try pub_client.getUncleCountByBlockNumber(.{});
@@ -581,7 +1011,8 @@ test "getUncleCountByBlockNumber" {
 }
 
 test "getLogs" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const logs = try pub_client.getLogs(.{ .blockHash = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8" });
@@ -589,7 +1020,8 @@ test "getLogs" {
 }
 
 test "getTransactionByBlockNumberAndIndex" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const tx = try pub_client.getTransactionByBlockNumberAndIndex(.{ .block_number = 16777215 }, 0);
@@ -597,7 +1029,8 @@ test "getTransactionByBlockNumberAndIndex" {
 }
 
 test "getTransactionByBlockHashAndIndex" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const tx = try pub_client.getTransactionByBlockHashAndIndex("0xf34c3c11b35466e5595e077239e6b25a7c3ec07a214b2492d42ba6d73d503a1b", 0);
@@ -605,7 +1038,8 @@ test "getTransactionByBlockHashAndIndex" {
 }
 
 test "getAddressTransactionCount" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const nonce = try pub_client.getAddressTransactionCount(.{ .address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" });
@@ -613,7 +1047,8 @@ test "getAddressTransactionCount" {
 }
 
 test "getTransactionByHash" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const eip1559 = try pub_client.getTransactionByHash("0x72c2a1a82c48da81fac7b434cdb5662b5c92b76f85565e062196ca8a84f43ee5");
@@ -628,7 +1063,8 @@ test "getTransactionByHash" {
 }
 
 test "getTransactionReceipt" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const receipt = try pub_client.getTransactionReceipt("0x72c2a1a82c48da81fac7b434cdb5662b5c92b76f85565e062196ca8a84f43ee5");
@@ -640,7 +1076,8 @@ test "getTransactionReceipt" {
 }
 
 test "estimateGas" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const gas = try pub_client.estimateGas(.{ .eip1559 = .{ .from = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1) } }, .{});
@@ -648,7 +1085,8 @@ test "estimateGas" {
 }
 
 test "estimateFeesPerGas" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const gas = try pub_client.estimateFeesPerGas(.{ .eip1559 = .{ .from = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1) } }, null);
@@ -657,7 +1095,8 @@ test "estimateFeesPerGas" {
 }
 
 test "estimateMaxFeePerGasManual" {
-    var pub_client = try PubClient.init(std.testing.allocator, "http://localhost:8545", null);
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
     const gas = try pub_client.estimateMaxFeePerGasManual(null);

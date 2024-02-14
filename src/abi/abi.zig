@@ -3,6 +3,8 @@ const decoder = @import("../decoding/decoder.zig");
 const meta = @import("../meta/meta.zig");
 const std = @import("std");
 const testing = std.testing;
+
+// Types
 const AbiParameter = @import("abi_parameter.zig").AbiParameter;
 const AbiEventParameter = @import("abi_parameter.zig").AbiEventParameter;
 const Allocator = std.mem.Allocator;

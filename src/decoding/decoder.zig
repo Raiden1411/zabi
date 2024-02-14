@@ -3,11 +3,16 @@ const std = @import("std");
 const meta = @import("../meta/meta.zig");
 const testing = std.testing;
 const utils = @import("../utils.zig");
+
+// Types
 const AbiParameter = @import("../abi/abi_parameter.zig").AbiParameter;
 const AbiParameterToPrimative = meta.AbiParameterToPrimative;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
+const Constructor = abi.Constructor;
+const Error = abi.Error;
+const Function = abi.Function;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const ParamType = @import("../abi/param_type.zig").ParamType;
 
@@ -93,7 +98,7 @@ pub const DecodedErrors = error{ InvalidBits, InvalidEnumType, InvalidAbiParamet
 
 /// Decode the hex values based on the struct signature
 /// Caller owns the memory.
-pub fn decodeAbiFunctionRuntime(alloc: Allocator, comptime T: type, function: abi.Function, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
+pub fn decodeAbiFunctionRuntime(alloc: Allocator, comptime T: type, function: Function, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
     std.debug.assert(hex.len > 7);
 
     const hashed_func_name = hex[0..8];
@@ -119,10 +124,9 @@ pub fn decodeAbiFunctionRuntime(alloc: Allocator, comptime T: type, function: ab
 
     return .{ .arena = decoded.arena, .name = func_name, .values = decoded.values };
 }
-
 /// Decode the hex values based on the struct signature
 /// Caller owns the memory.
-pub fn decodeAbiFunctionOutputsRuntime(alloc: Allocator, comptime T: type, function: abi.Function, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
+pub fn decodeAbiFunctionOutputsRuntime(alloc: Allocator, comptime T: type, function: Function, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
     std.debug.assert(hex.len > 7);
 
     const hashed_func_name = hex[0..8];
@@ -147,10 +151,9 @@ pub fn decodeAbiFunctionOutputsRuntime(alloc: Allocator, comptime T: type, funct
 
     return .{ .arena = decoded.arena, .name = func_name, .values = decoded.values };
 }
-
 /// Decode the hex values based on the struct signature
 /// Caller owns the memory.
-pub fn decodeAbiErrorRuntime(alloc: Allocator, comptime T: type, err: abi.Error, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
+pub fn decodeAbiErrorRuntime(alloc: Allocator, comptime T: type, err: Error, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
     std.debug.assert(hex.len > 7);
 
     const hashed_func_name = hex[0..8];
@@ -175,15 +178,13 @@ pub fn decodeAbiErrorRuntime(alloc: Allocator, comptime T: type, err: abi.Error,
 
     return .{ .arena = decoded.arena, .name = func_name, .values = decoded.values };
 }
-
 /// Decode the hex values based on the struct signature
 /// Caller owns the memory.
-pub fn decodeAbiConstructorRuntime(alloc: Allocator, comptime T: type, constructor: abi.Constructor, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
+pub fn decodeAbiConstructorRuntime(alloc: Allocator, comptime T: type, constructor: Constructor, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
     const decoded = try decodeAbiParametersRuntime(alloc, T, constructor.inputs, hex, opts);
 
     return .{ .arena = decoded.arena, .name = "", .values = decoded.values };
 }
-
 /// Main function that will be used to decode the hex values based on the abi paramters.
 /// This will allocate and a ArenaAllocator will be used to manage the memory.
 ///
@@ -202,7 +203,6 @@ pub fn decodeAbiParametersRuntime(alloc: Allocator, comptime T: type, params: []
 
     return decoded;
 }
-
 /// Subset function used for decoding. Its highly recommend to use an ArenaAllocator
 /// or a FixedBufferAllocator to manage memory since allocations will not be freed when done,
 /// and with those all of the memory can be freed at once.
@@ -231,7 +231,8 @@ pub fn decodeAbiParametersLeakyRuntime(alloc: Allocator, comptime T: type, param
 
     return try decodeItems(alloc, T, params, bytes, opts);
 }
-
+/// Reflects on the provided type and decodes based on it
+/// and also based on the provided `[]const AbiParameter`
 fn decodeItems(alloc: Allocator, comptime T: type, params: []const AbiParameter, hex: []u8, opts: DecodeOptions) !T {
     const info = @typeInfo(T).Struct.fields;
     var pos: usize = 0;
@@ -257,7 +258,8 @@ fn decodeItems(alloc: Allocator, comptime T: type, params: []const AbiParameter,
 
     return result;
 }
-
+/// Reflects on the provided type and decodes based on it
+/// and also based on the provided `[]const AbiParameter`
 fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: []u8, position: usize, opts: DecodeOptions) !Decoded(T) {
     const info = @typeInfo(T);
 
@@ -468,7 +470,7 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
 
 /// Decode the hex values based on the struct signature
 /// Caller owns the memory.
-pub fn decodeAbiFunction(alloc: Allocator, comptime function: abi.Function, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(function.inputs) {
+pub fn decodeAbiFunction(alloc: Allocator, comptime function: Function, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(function.inputs) {
     std.debug.assert(hex.len > 7);
 
     const hashed_func_name = hex[0..8];
@@ -497,7 +499,7 @@ pub fn decodeAbiFunction(alloc: Allocator, comptime function: abi.Function, hex:
 
 /// Decode the hex values based on the struct signature
 /// Caller owns the memory.
-pub fn decodeAbiFunctionOutputs(alloc: Allocator, comptime function: abi.Function, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(function.outputs) {
+pub fn decodeAbiFunctionOutputs(alloc: Allocator, comptime function: Function, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(function.outputs) {
     std.debug.assert(hex.len > 7);
 
     const hashed_func_name = hex[0..8];
@@ -525,7 +527,7 @@ pub fn decodeAbiFunctionOutputs(alloc: Allocator, comptime function: abi.Functio
 
 /// Decode the hex values based on the struct signature
 /// Caller owns the memory.
-pub fn decodeAbiError(alloc: Allocator, comptime err: abi.Error, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(err.inputs) {
+pub fn decodeAbiError(alloc: Allocator, comptime err: Error, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(err.inputs) {
     std.debug.assert(hex.len > 7);
 
     const hashed_func_name = hex[0..8];
@@ -553,7 +555,7 @@ pub fn decodeAbiError(alloc: Allocator, comptime err: abi.Error, hex: []const u8
 
 /// Decode the hex values based on the struct signature
 /// Caller owns the memory.
-pub fn decodeAbiConstructor(alloc: Allocator, comptime constructor: abi.Constructor, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(constructor.inputs) {
+pub fn decodeAbiConstructor(alloc: Allocator, comptime constructor: Constructor, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(constructor.inputs) {
     const decoded = try decodeAbiParameters(alloc, constructor.inputs, hex, opts);
 
     return .{ .arena = decoded.arena, .name = "", .values = decoded.values };

@@ -1,5 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
+
+// Types
 const Alloc = std.mem.Allocator;
 const ParserOptions = std.json.ParseOptions;
 const Scanner = std.json.Scanner;

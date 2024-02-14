@@ -53,6 +53,8 @@ pub const TransactionEnvelopeEip1559 = struct {
     value: Wei,
     data: ?Hex,
     accessList: []const AccessList,
+
+    pub usingnamespace RequestParser(@This());
 };
 /// The transaction envelope from the Berlin hardfork
 pub const TransactionEnvelopeEip2930 = struct {
@@ -65,6 +67,8 @@ pub const TransactionEnvelopeEip2930 = struct {
     value: Wei,
     data: ?Hex,
     accessList: []const AccessList,
+
+    pub usingnamespace RequestParser(@This());
 };
 /// The transaction envelope from a legacy transaction
 pub const TransactionEnvelopeLegacy = struct {
@@ -76,17 +80,23 @@ pub const TransactionEnvelopeLegacy = struct {
     to: ?Hex,
     value: Wei,
     data: ?Hex,
+
+    pub usingnamespace RequestParser(@This());
 };
 /// Struct representing the accessList field.
 pub const AccessList = struct {
     address: Hex,
     storageKeys: []const Hex,
+
+    pub usingnamespace RequestParser(@This());
 };
 /// Signed transaction envelope with the signature fields
 pub const TransactionEnvelopeSigned = union(enum) {
     eip1559: TransactionEnvelopeEip1559Signed,
     eip2930: TransactionEnvelopeEip2930Signed,
     legacy: TransactionEnvelopeLegacySigned,
+
+    pub usingnamespace UnionParser(@This());
 };
 /// The transaction envelope from the London hardfork with the signature fields
 pub const TransactionEnvelopeEip1559Signed = struct {
@@ -144,6 +154,8 @@ pub const PrepareEnvelope = union(enum) {
     eip1559: PrepareEnvelopeEip1559,
     eip2930: PrepareEnvelopeEip2930,
     legacy: PrepareEnvelopeLegacy,
+
+    pub usingnamespace UnionParser(@This());
 };
 /// The transaction envelope from the Londo hardfork where all fields are optionals
 /// These are optionals so that when we stringify we can
@@ -243,6 +255,8 @@ pub const PendingTransactionLegacy = struct {
 pub const PendingTransaction = union(enum) {
     eip1559: PendingTransactionEip1559,
     legacy: PrepareEnvelopeLegacy,
+
+    pub usingnamespace UnionParser(@This());
 };
 /// The London hardfork representation of a transaction.
 pub const TransactionObjectEip1559 = struct {
@@ -392,7 +406,7 @@ pub const EthCallEip1559 = struct {
     value: ?Wei = null,
     data: ?Hex = null,
 
-    pub usingnamespace meta.RequestParser(@This());
+    pub usingnamespace RequestParser(@This());
 };
 /// The representation of an `eth_call` struct where all fields are optional
 /// These are optionals so that when we stringify we can

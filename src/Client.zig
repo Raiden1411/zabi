@@ -44,8 +44,10 @@ const Wei = types.Wei;
 
 const httplog = std.log.scoped(.http);
 
+pub const HttpClientError = error{ TransactionNotFound, InvalidFilterId, InvalidLogRequestParams, TransactionReceiptNotFound, InvalidHash, UnexpectedErrorFound, UnableToFetchFeeInfoFromBlock, UnexpectedTooManyRequestError, InvalidInput, InvalidParams, InvalidRequest, InvalidAddress, InvalidBlockHash, InvalidBlockHashOrIndex, InvalidBlockNumberOrIndex, TooManyRequests, MethodNotFound, MethodNotSupported, RpcVersionNotSupported, LimitExceeded, TransactionRejected, ResourceNotFound, ResourceUnavailable, UnexpectedRpcErrorCode, InvalidBlockNumber, ParseError, ReachedMaxRetryLimit } || Allocator.Error || std.fmt.ParseIntError || http.Client.RequestError || std.Uri.ParseError;
+
 pub const InitOptions = struct {
-    /// Allocator to use to create the ChildProcess and other allocations
+    /// Allocator used to manage the memory arena.
     allocator: Allocator,
     /// The base fee multiplier used to estimate the gas fees in a transaction
     base_fee_multiplier: f64 = 1.2,
@@ -272,11 +274,14 @@ pub fn getContractCode(self: *PubClient, opts: BalanceRequest) !Hex {
 /// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterchanges
 /// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterlogs
 pub fn getFilterOrLogChanges(self: *PubClient, filter_id: usize, method: Extract(EthereumRpcMethods, "eth_getFilterChanges,eth_getFilterLogs")) !Logs {
-    const filter = try std.fmt.allocPrint(self.alloc, "0x{x}", .{filter_id});
+    const filter_i = try std.fmt.allocPrint(self.alloc, "0x{x}", .{filter_id});
 
-    const request: EthereumRequest(HexRequestParameters) = .{ .params = &.{filter}, .method = method, .id = self.chain_id };
+    const request: EthereumRequest(HexRequestParameters) = .{ .params = &.{filter_i}, .method = method, .id = self.chain_id };
 
-    return try self.fetchLogs(HexRequestParameters, request);
+    const possible_filter = try self.fetchLogs(HexRequestParameters, request);
+    const filter = possible_filter orelse return error.InvalidFilterId;
+
+    return filter;
 }
 /// Returns an estimate of the current price per gas in wei.
 /// For example, the Besu client examines the last 100 blocks and returns the median gas unit price by default.
@@ -294,7 +299,10 @@ pub fn getLogs(self: *PubClient, opts: LogRequestParams) !Logs {
 
     const request: EthereumRequest([]const LogRequest) = .{ .params = &.{.{ .fromBlock = from_block, .toBlock = to_block, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_getLogs, .id = self.chain_id };
 
-    return try self.fetchLogs([]const LogRequest, request);
+    const possible_logs = try self.fetchLogs([]const LogRequest, request);
+    const logs = possible_logs orelse return error.InvalidLogRequestParams;
+
+    return logs;
 }
 /// Returns information about a transaction by block hash and transaction index position.
 ///
@@ -416,7 +424,7 @@ pub fn newLogFilter(self: *PubClient, opts: LogFilterRequestParams) !usize {
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
-            return error.ReachMaxRetryLimit;
+            return error.ReachedMaxRetryLimit;
 
         const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
         switch (req.status) {
@@ -591,7 +599,7 @@ pub fn uninstalllFilter(self: *PubClient, id: usize) !bool {
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
-            return error.ReachMaxRetryLimit;
+            return error.ReachedMaxRetryLimit;
 
         const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
         switch (req.status) {
@@ -627,7 +635,7 @@ fn fetchByBlockNumber(self: *PubClient, opts: BlockNumberRequest, method: Ethere
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
-            return error.ReachMaxRetryLimit;
+            return error.ReachedMaxRetryLimit;
 
         const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
         switch (req.status) {
@@ -655,7 +663,7 @@ fn fetchByBlockHash(self: *PubClient, block_hash: []const u8, method: EthereumRp
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
-            return error.ReachMaxRetryLimit;
+            return error.ReachedMaxRetryLimit;
 
         const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
         switch (req.status) {
@@ -685,7 +693,7 @@ fn fetchByAddress(self: *PubClient, comptime T: type, opts: BalanceRequest, meth
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
-            return error.ReachMaxRetryLimit;
+            return error.ReachedMaxRetryLimit;
 
         const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
         switch (req.status) {
@@ -712,7 +720,7 @@ fn fetchWithEmptyArgs(self: *PubClient, comptime T: type, method: EthereumRpcMet
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
-            return error.ReachMaxRetryLimit;
+            return error.ReachedMaxRetryLimit;
 
         const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
         switch (req.status) {
@@ -735,7 +743,7 @@ fn fetchBlock(self: *PubClient, request: anytype) !?Block {
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
-            return error.ReachMaxRetryLimit;
+            return error.ReachedMaxRetryLimit;
 
         const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
         switch (req.status) {
@@ -758,7 +766,7 @@ fn fetchTransaction(self: *PubClient, comptime T: type, request: EthereumRequest
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
-            return error.ReachMaxRetryLimit;
+            return error.ReachedMaxRetryLimit;
 
         const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
         switch (req.status) {
@@ -776,17 +784,17 @@ fn fetchTransaction(self: *PubClient, comptime T: type, request: EthereumRequest
     }
 }
 
-fn fetchLogs(self: *PubClient, comptime T: type, request: EthereumRequest(T)) !Logs {
+fn fetchLogs(self: *PubClient, comptime T: type, request: EthereumRequest(T)) !?Logs {
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
 
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
-            return error.ReachMaxRetryLimit;
+            return error.ReachedMaxRetryLimit;
 
         const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
         switch (req.status) {
-            .ok => return try self.parseRPCEvent(Logs, req.body.?),
+            .ok => return try self.parseRPCEvent(?Logs, req.body.?),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;

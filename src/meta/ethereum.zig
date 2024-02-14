@@ -44,7 +44,6 @@ pub const PublicChains = enum(usize) {
     arbitrum_nova = 42170,
     celo = 42220,
     avalanche = 43114,
-    _,
 };
 /// Zig struct representation of a RPC Request
 pub fn EthereumRequest(comptime T: type) type {

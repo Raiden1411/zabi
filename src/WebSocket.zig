@@ -47,6 +47,8 @@ const WebSocketHandler = @This();
 
 const wslog = std.log.scoped(.ws);
 
+pub const WebSocketHandlerErrors = error{ FailedToConnect, UnsupportedSchema, InvalidChainId, InvalidFilterId, InvalidEventFound, InvalidBlockRequest, InvalidLogRequest, TransactionNotFound, TransactionReceiptNotFound, InvalidHash, UnexpectedErrorFound, UnableToFetchFeeInfoFromBlock, UnexpectedTooManyRequestError, InvalidInput, InvalidParams, InvalidRequest, InvalidAddress, InvalidBlockHash, InvalidBlockHashOrIndex, InvalidBlockNumberOrIndex, TooManyRequests, MethodNotFound, MethodNotSupported, RpcVersionNotSupported, LimitExceeded, TransactionRejected, ResourceNotFound, ResourceUnavailable, UnexpectedRpcErrorCode, InvalidBlockNumber, ParseError, ReachedMaxRetryLimit } || Allocator.Error || std.fmt.ParseIntError || std.Uri.ParseError;
+
 pub const InitOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
     allocator: Allocator,

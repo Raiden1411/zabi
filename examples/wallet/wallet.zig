@@ -10,9 +10,13 @@ pub fn main() !void {
 
     _ = iter.skip();
 
-    var wallet = try Wallet.init(gpa.allocator(), iter.next().?, iter.next().?, .ethereum);
+    const private_key = iter.next().?;
+    const host_url = iter.next().?;
+
+    const uri = try std.Uri.parse(host_url);
+    var wallet = try Wallet.init(private_key, .{ .allocator = gpa.allocator(), .uri = uri });
     defer wallet.deinit();
 
-    const message = try wallet.signEthereumMessage(wallet.alloc, "Hello World");
-    std.debug.print("Ethereum message: {s}\n", .{try message.toHex(wallet.alloc)});
+    const message = try wallet.signEthereumMessage("Hello World");
+    std.debug.print("Ethereum message: {s}\n", .{try message.toHex(wallet.allocator)});
 }

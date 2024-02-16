@@ -55,4 +55,19 @@ export default defineConfig({
 			link: "https://github.com/Raiden1411/zabi/tree/main/examples",
 		},
 	],
+	sponsors: [
+		{
+			name: "Individuals",
+			height: 60,
+			items: [
+				[
+					{
+						name: "awkweb",
+						link: "https://github.com/tmm",
+						image: "https://avatars.githubusercontent.com/u/6759464?v=4",
+					},
+				],
+			],
+		},
+	],
 });

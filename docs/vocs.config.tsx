@@ -3,7 +3,7 @@ import { sidebar } from "./sidebar";
 
 export default defineConfig({
 	title: "Zabi",
-	titleTemplate: "%s . Zabi",
+	titleTemplate: "%s - Zabi",
 	description:
 		"Zig interface for interacting with ethereum and other EVM based chains",
 	editLink: {
@@ -31,6 +31,9 @@ export default defineConfig({
 			/>
 		</>
 	),
+	ogImageUrl: {
+		"/": "/zabi.svg",
+	},
 	logoUrl: {
 		light: "/zabi.svg",
 		dark: "/zabi.svg",

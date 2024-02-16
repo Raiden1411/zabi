@@ -11,6 +11,24 @@ export const sidebar = {
 			items: [{ text: "Integrating Zabi", link: "/integration" }],
 		},
 		{
+			text: "Client",
+			collapsed: true,
+			items: [
+				{
+					text: "HTTP and Websocket",
+					link: "/api/client/public/client",
+				},
+				{
+					text: "Wallet",
+					link: "/api/client/wallet/client",
+				},
+				{
+					text: "Contract",
+					link: "/api/client/contract/client",
+				},
+			],
+		},
+		{
 			text: "ABI Utilities",
 			collapsed: true,
 			items: [
@@ -87,6 +105,111 @@ export const sidebar = {
 				{
 					text: "ABI Parameter",
 					link: "/api/abi/parameters",
+				},
+			],
+		},
+		{
+			text: "Human readable",
+			collapsed: true,
+			items: [
+				{
+					text: "Human Readable",
+					link: "/api/abi/human",
+				},
+			],
+		},
+		{
+			text: "EIP712",
+			collapsed: true,
+			items: [
+				{
+					text: "EIP712 Utils",
+					link: "/api/abi/eip712",
+				},
+			],
+		},
+		{
+			text: "Utilities",
+			collapsed: true,
+			items: [
+				{
+					text: "Address",
+					items: [
+						{
+							text: "isAddress",
+							link: "/api/utilities/address/isAddress",
+						},
+						{
+							text: "isHash",
+							link: "/api/utilities/address/isHash",
+						},
+						{
+							text: "toChecksum",
+							link: "/api/utilities/address/toChecksum",
+						},
+					],
+				},
+				{
+					text: "Units",
+					items: [
+						{
+							text: "parseGwei",
+							link: "/api/utilities/units/parseGwei",
+						},
+						{
+							text: "parseEther",
+							link: "/api/utilities/units/parseEther",
+						},
+					],
+				},
+				{
+					text: "Encoding",
+					items: [
+						{
+							text: "RLP Encoding",
+							link: "/api/utilities/encoding/rlp_encode",
+						},
+						{
+							text: "RLP Decode",
+							link: "/api/utilities/encoding/rlp_decode",
+						},
+					],
+				},
+				{
+					text: "Signature",
+					items: [
+						{
+							text: "Signature",
+							link: "/api/utilities/signature/signature",
+						},
+						{
+							text: "Signer",
+							link: "/api/utilities/signature/signer",
+						},
+					],
+				},
+				{
+					text: "Transaction",
+					items: [
+						{
+							text: "Parse",
+							link: "/api/utilities/transaction/parse",
+						},
+						{
+							text: "Serialize",
+							link: "/api/utilities/transaction/serialize",
+						},
+					],
+				},
+			],
+		},
+		{
+			text: "Meta Programming",
+			collapsed: true,
+			items: [
+				{
+					text: "Meta Functions",
+					link: "/api/meta/metaprogramming",
 				},
 			],
 		},

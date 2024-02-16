@@ -230,7 +230,7 @@ This takes in 4 arguments:
 - a allocator used to manage the memory allocations
 - a `type` that is used as the expected return type of this call.
 - the abi encoded hex string.
-- the options used for decoding (Checkout the options here: [DecodeOptions]())
+- the options used for decoding (Checkout the options here: [DecodeOptions](/api/abi_utils/types#decodedoptions))
 
 **You must call `deinit()` after to free any allocated memory.**
 

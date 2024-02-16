@@ -56,7 +56,7 @@ const abi_parameter: AbiParameter = .{ .type = .{ .bool = {} }, .name = "foo"};
 
 const writer = std.io.getStdOut().writer();
 
-try self.prepare(&writer);
+try self.prepare(&writer); 
 
 // Result
 // Foo(bool foo, string bar)
@@ -116,7 +116,7 @@ const ReturnType = std.meta.Tuple(&[_]type{bool});
 
 const encoded = "0000000000000000000000000000000000000000000000000000000000000001"
 
-const decoded = try abi_error.decode(std.testing.allocator, ReturnType, encoded, .{})
+const decoded = try abi_parameter.decode(std.testing.allocator, ReturnType, encoded, .{})
 defer decoded.deinit();
 
 // Result

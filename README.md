@@ -51,7 +51,7 @@ pub fn main() !void {
 
 ### Usage
 
-Explore our [docs]() to find out more on how you can use or integrate Zabi in your project!
+Explore our [docs](https://zabi.sh) to find out more on how you can use or integrate Zabi in your project!
 
 ### Sponsors
 

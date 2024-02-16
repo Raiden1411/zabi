@@ -21,8 +21,6 @@
 ### Overview
 Zabi aims to add support for interacting with ethereum and EVM based chains. By default it comes with almost all of the features you would expect from a ethereum library. From RLP encoding/decoding, to wallet and contract instances, to a http or a websocket client and much more.
 
-Explore our documentation to find out what zabi can offer for your development needs.
-
 ```zig
 const std = @import("std");
 const zabi = @import("zabi");

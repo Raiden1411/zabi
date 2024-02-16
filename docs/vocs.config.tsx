@@ -34,6 +34,7 @@ export default defineConfig({
 	ogImageUrl: {
 		"/": "/zabi.svg",
 	},
+	iconUrl: "/zabi.svg",
 	logoUrl: {
 		light: "/zabi.svg",
 		dark: "/zabi.svg",

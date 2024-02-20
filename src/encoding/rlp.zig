@@ -35,7 +35,7 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
 
             if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intCast(payload)) else {
                 var buffer: [32]u8 = undefined;
-                const size_slice = formatInt(payload, &buffer);
+                const size_slice = formatInt(@intCast(payload), &buffer);
                 try writer.writeByte(0x80 + size_slice);
                 try writer.writeAll(buffer[32 - size_slice ..]);
             }
@@ -44,19 +44,46 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
             if (payload < 0) return error.NegativeNumber;
 
             if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intCast(payload)) else {
-                const size = comptime computeSize(payload);
+                const size = comptime computeSize(@intCast(payload));
                 try writer.writeByte(0x80 + size);
                 var buffer: [32]u8 = undefined;
-                const size_slice = formatInt(payload, &buffer);
+                const size_slice = formatInt(@intCast(payload), &buffer);
+                try writer.writeAll(buffer[32 - size_slice ..]);
+            }
+        },
+        .Float => |float_info| {
+            if (payload < 0)
+                return error.NegativeNumber;
+
+            if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intFromFloat(payload)) else {
+                const bits = float_info.bits;
+                const IntType = @Type(.{ .Int = .{ .signedness = .unsigned, .bits = bits } });
+                const as_int = @as(IntType, @bitCast(payload));
+                var buffer: [32]u8 = undefined;
+                const size_slice = formatInt(as_int, &buffer);
+                try writer.writeByte(0x80 + size_slice);
+                try writer.writeAll(buffer[32 - size_slice ..]);
+            }
+        },
+        .ComptimeFloat => {
+            if (payload < 0) return error.NegativeNumber;
+
+            if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intFromFloat(payload)) else {
+                if (payload > std.math.maxInt(u256))
+                    @compileError("Cannot fit " ++ payload ++ " as u256");
+
+                const size = comptime computeSize(@intFromFloat(payload));
+                try writer.writeByte(0x80 + size);
+                var buffer: [32]u8 = undefined;
+                const size_slice = formatInt(@intFromFloat(payload), &buffer);
                 try writer.writeAll(buffer[32 - size_slice ..]);
             }
         },
         .Optional => {
             if (payload) |item| try encodeItem(alloc, item, writer) else try writer.writeByte(0x80);
         },
-        .Enum => {
-            try encodeItem(alloc, @tagName(payload), writer);
-        },
+        .Enum, .EnumLiteral => try encodeItem(alloc, @tagName(payload), writer),
+        .ErrorSet => try encodeItem(alloc, @errorName(payload), writer),
         .Array => |arr_info| {
             if (arr_info.child == u8) {
                 const slice = slice: {
@@ -117,7 +144,7 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 .One => {
                     try encodeItem(alloc, payload.*, writer);
                 },
-                .Slice => {
+                .Slice, .Many => {
                     if (ptr_info.child == u8) {
                         const slice = slice: {
                             if (payload.len == 0) break :slice payload;
@@ -173,7 +200,7 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                         }
                     }
                 },
-                else => @compileError("Unable to parse type " ++ @typeName(@TypeOf(payload))),
+                else => @compileError("Unable to parse pointer type " ++ @typeName(@TypeOf(payload))),
             }
         },
         .Struct => |struct_info| {
@@ -209,6 +236,45 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 }
             }
         },
+        .Union => |union_info| {
+            if (union_info.tag_type) |TagType| {
+                inline for (union_info.fields) |u_field| {
+                    if (payload == @field(TagType, u_field.name)) {
+                        if (u_field.type == void) {
+                            try encodeItem(alloc, u_field.name, writer);
+                        } else try encodeItem(alloc, @field(payload, u_field.name), writer);
+                    }
+                }
+            } else try encodeItem(alloc, @tagName(payload), writer);
+        },
+        .Vector => {
+            if (payload.len == 0) try writer.writeByte(0xc0) else {
+                var slice = std.ArrayList(u8).init(alloc);
+                errdefer slice.deinit();
+                const slice_writer = slice.writer();
+
+                for (payload) |item| {
+                    try encodeItem(alloc, item, &slice_writer);
+                }
+
+                const bytes = try slice.toOwnedSlice();
+                defer alloc.free(bytes);
+
+                if (bytes.len > std.math.maxInt(u64)) return error.Overflow;
+
+                if (bytes.len < 56) {
+                    try writer.writeByte(@intCast(0xc0 + bytes.len));
+                    try writer.writeAll(bytes);
+                } else {
+                    var buffer: [32]u8 = undefined;
+                    const size = formatInt(bytes.len, &buffer);
+                    try writer.writeByte(0xf7 + size);
+                    try writer.writeAll(buffer[32 - size ..]);
+                    try writer.writeAll(bytes);
+                }
+            }
+        },
+
         else => @compileError("Unable to parse type " ++ @typeName(@TypeOf(payload))),
     }
 }
@@ -465,6 +531,23 @@ test "Int" {
     try testing.expectEqualSlices(u8, big, &[_]u8{0x88} ++ &[_]u8{0xFF} ** 8);
 }
 
+test "Float" {
+    const low = try encodeRlp(testing.allocator, .{127.4});
+    defer testing.allocator.free(low);
+
+    try testing.expectEqualSlices(u8, low, &[_]u8{0x7f});
+
+    const medium = try encodeRlp(testing.allocator, .{69420.45});
+    defer testing.allocator.free(medium);
+
+    try testing.expectEqualSlices(u8, medium, &[_]u8{ 0x83, 0x01, 0x0F, 0x2c });
+
+    const big = try encodeRlp(testing.allocator, .{std.math.floatMax(f64)});
+    defer testing.allocator.free(big);
+
+    try testing.expectEqualSlices(u8, big, &[_]u8{ 0x88, 0x7F, 0xEF } ++ &[_]u8{0xFF} ** 6);
+}
+
 test "Strings < 56" {
     const str = try encodeRlp(testing.allocator, .{"dog"});
     defer testing.allocator.free(str);
@@ -592,12 +675,69 @@ test "Enums" {
         bar,
         baz,
     };
-    const tuple: std.meta.Tuple(&[_]type{Enum}) = .{.foo};
+    {
+        const tuple: std.meta.Tuple(&[_]type{Enum}) = .{.foo};
+
+        const encoded = try encodeRlp(testing.allocator, tuple);
+        defer testing.allocator.free(encoded);
+
+        try testing.expectEqualSlices(u8, encoded, &[_]u8{0x83} ++ "foo");
+    }
+    // Enum literal
+    {
+        const encoded = try encodeRlp(testing.allocator, .{.foo});
+        defer testing.allocator.free(encoded);
+
+        try testing.expectEqualSlices(u8, encoded, &[_]u8{0x83} ++ "foo");
+    }
+}
+
+test "ErrorSet" {
+    const ErrorSet = error{
+        foo,
+        bar,
+        baz,
+    };
+    const tuple: std.meta.Tuple(&[_]type{ErrorSet}) = .{error.foo};
 
     const encoded = try encodeRlp(testing.allocator, tuple);
     defer testing.allocator.free(encoded);
 
     try testing.expectEqualSlices(u8, encoded, &[_]u8{0x83} ++ "foo");
+}
+
+test "Unions" {
+    const Union = union(enum) {
+        foo: i32,
+        bar: bool,
+        baz: []const u8,
+    };
+    {
+        const tuple: std.meta.Tuple(&[_]type{Union}) = .{.{ .foo = 69 }};
+
+        const encoded = try encodeRlp(testing.allocator, tuple);
+        defer testing.allocator.free(encoded);
+
+        try testing.expectEqualSlices(u8, encoded, &[_]u8{0x45});
+    }
+
+    {
+        const tuple: std.meta.Tuple(&[_]type{Union}) = .{.{ .bar = true }};
+
+        const encoded = try encodeRlp(testing.allocator, tuple);
+        defer testing.allocator.free(encoded);
+
+        try testing.expectEqualSlices(u8, encoded, &[_]u8{0x01});
+    }
+
+    {
+        const tuple: std.meta.Tuple(&[_]type{Union}) = .{.{ .baz = "foo" }};
+
+        const encoded = try encodeRlp(testing.allocator, tuple);
+        defer testing.allocator.free(encoded);
+
+        try testing.expectEqualSlices(u8, encoded, &[_]u8{0x83} ++ "foo");
+    }
 }
 
 test "Optionals" {

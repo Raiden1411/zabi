@@ -157,7 +157,7 @@ pub const PrepareEnvelope = union(enum) {
 
     pub usingnamespace UnionParser(@This());
 };
-/// The transaction envelope from the Londo hardfork where all fields are optionals
+/// The transaction envelope from the London hardfork where all fields are optionals
 /// These are optionals so that when we stringify we can
 /// use the option `ignore_null_fields`
 pub const PrepareEnvelopeEip1559 = struct {

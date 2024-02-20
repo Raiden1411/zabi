@@ -279,46 +279,6 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
         else => @compileError("Unable to parse type " ++ @typeName(@TypeOf(payload))),
     }
 }
-/// Computes the array or slice type size for RLP encoding
-fn computePayloadSize(payload: anytype) u64 {
-    var size: u64 = 0;
-    const info = @typeInfo(@TypeOf(payload));
-
-    switch (info) {
-        .Array => {
-            size += payload.len;
-            for (payload) |item| {
-                size += computePayloadSize(item);
-            }
-        },
-        .Pointer => |ptr_info| {
-            switch (ptr_info.size) {
-                .One => size += computePayloadSize(payload.*),
-                .Slice => {
-                    size += payload.len;
-                    for (payload) |item| {
-                        size += computePayloadSize(item);
-                    }
-                },
-                else => {},
-            }
-        },
-        .Optional => {
-            size += if (payload) |item| computePayloadSize(item) else 0;
-        },
-        .Struct => |struct_info| {
-            if (!struct_info.is_tuple) @compileError("Only tuple types are supported for struct types");
-            size += payload.len;
-
-            inline for (payload) |item| {
-                size += computePayloadSize(item);
-            }
-        },
-        else => {},
-    }
-
-    return size;
-}
 /// Finds the size of an int and writes to the buffer accordingly.
 inline fn formatInt(int: u256, buffer: *[32]u8) u8 {
     if (int < (1 << 8)) {
@@ -789,6 +749,9 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
             }
         },
         .Int => {
+            if (info.Int.signedness == .signed)
+                @compileError("Signed integers are not supported for RLP decoding");
+
             if (encoded[position] < 0x80) return .{ .consumed = 1, .data = @intCast(encoded[position]) };
             const len = encoded[position] - 0x80;
             const hex_number = encoded[position + 1 .. position + len + 1];
@@ -797,16 +760,30 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
             const slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
             defer alloc.free(slice);
 
-            if (info.Int.signedness == .signed) @compileError("Signed integers are not supported for RLP decoding");
             return .{ .consumed = len + 1, .data = if (slice.len != 0) try std.fmt.parseInt(T, slice, 16) else @intCast(0) };
         },
+        .Float => {
+            if (encoded[position] < 0x80) return .{ .consumed = 1, .data = @floatCast(encoded[position]) };
+            const len = encoded[position] - 0x80;
+            const hex_number = encoded[position + 1 .. position + len + 1];
+
+            const hexed = std.fmt.fmtSliceHexLower(hex_number);
+            const slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
+            defer alloc.free(slice);
+
+            const bits = info.Float.bits;
+            const AsInt = @Type(.{ .Int = .{ .signedness = .unsigned, .bits = bits } });
+            const parsed = try std.fmt.parseInt(AsInt, slice, 16);
+            return .{ .consumed = len + 1, .data = if (slice.len != 0) @floatCast(parsed) else @floatCast(0) };
+        },
+        .Null => if (encoded[position] != 0x80) return error.UnexpectedValue else return .{ .consumed = 1, .data = null },
         .Optional => |opt_info| {
             if (encoded[position] == 0x80) return .{ .consumed = 1, .data = null };
 
             const opt = try decodeItem(alloc, opt_info.child, encoded, position);
             return .{ .consumed = opt.consumed, .data = opt.data };
         },
-        .Enum => {
+        .Enum, .EnumLiteral => {
             const size = encoded[position];
 
             if (size <= 0xb7) {
@@ -942,8 +919,36 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
                     return .{ .consumed = cur_pos, .data = try result.toOwnedSlice() };
                 },
-                else => @compileError("Unable to parse type " ++ @typeName(T)),
+                else => @compileError("Unable to parse pointer type " ++ @typeName(T)),
             }
+        },
+        .Vector => |vec_info| {
+            const arr_size = encoded[position];
+
+            if (arr_size <= 0xf7) {
+                var result: T = undefined;
+
+                var cur_pos = position + 1;
+                for (0..vec_info.len) |i| {
+                    const decoded = try decodeItem(alloc, vec_info.child, encoded, cur_pos);
+                    result[i] = decoded.data;
+                    cur_pos += decoded.consumed;
+                }
+
+                return .{ .consumed = vec_info.len + 1, .data = result };
+            }
+
+            const arr_len = arr_size - 0xf7;
+            var result: T = undefined;
+
+            var cur_pos = position + arr_len + 1;
+            for (0..vec_info.len) |i| {
+                const decoded = try decodeItem(alloc, vec_info.child, encoded[cur_pos..], 0);
+                result[i] = decoded.data;
+                cur_pos += decoded.consumed;
+            }
+
+            return .{ .consumed = vec_info.len + 1, .data = result };
         },
         .Struct => |struct_info| {
             if (struct_info.is_tuple) {
@@ -1045,6 +1050,13 @@ test "Decoded Strings > 56" {
     const decoded_big = try decodeRlp(testing.allocator, []const u8, encoded);
 
     try testing.expectEqualStrings(big, decoded_big);
+}
+
+test "Decoded Vector" {
+    const one: @Vector(2, bool) = .{ true, true };
+    const decoded_one = try decodeRlp(testing.allocator, @Vector(2, bool), &[_]u8{ 0xc2, 0x01, 0x01 });
+
+    try testing.expectEqualDeep(&one, &decoded_one);
 }
 
 test "Decoded Arrays" {

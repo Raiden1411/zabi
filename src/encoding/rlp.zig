@@ -79,6 +79,7 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 try writer.writeAll(buffer[32 - size_slice ..]);
             }
         },
+        .Null => try writer.writeByte(0x80),
         .Optional => {
             if (payload) |item| try encodeItem(alloc, item, writer) else try writer.writeByte(0x80);
         },
@@ -247,14 +248,14 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 }
             } else try encodeItem(alloc, @tagName(payload), writer);
         },
-        .Vector => {
-            if (payload.len == 0) try writer.writeByte(0xc0) else {
+        .Vector => |vec_info| {
+            if (vec_info.len == 0) try writer.writeByte(0xc0) else {
                 var slice = std.ArrayList(u8).init(alloc);
                 errdefer slice.deinit();
                 const slice_writer = slice.writer();
 
-                for (payload) |item| {
-                    try encodeItem(alloc, item, &slice_writer);
+                for (0..vec_info.len) |i| {
+                    try encodeItem(alloc, payload[i], &slice_writer);
                 }
 
                 const bytes = try slice.toOwnedSlice();
@@ -576,6 +577,15 @@ test "Strings > 56" {
     const encoded = try encodeRlp(testing.allocator, .{big});
     defer testing.allocator.free(encoded);
     try testing.expectEqualSlices(u8, encoded, &[_]u8{ 0xB9, 0x03, 0x7F } ++ big);
+}
+
+test "Vector" {
+    const One = @Vector(2, bool);
+
+    const encoded = try encodeRlp(testing.allocator, .{One{ true, true }});
+    defer testing.allocator.free(encoded);
+
+    try testing.expectEqualSlices(u8, encoded, &[_]u8{ 0xc2, 0x01, 0x01 });
 }
 
 test "Arrays" {

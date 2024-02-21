@@ -14,6 +14,7 @@ const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
+/// Return type for logs encoded.
 pub const LogsEncoded = struct {
     arena: *ArenaAllocator,
     data: []const ?[]u8,
@@ -25,22 +26,8 @@ pub const LogsEncoded = struct {
         child_allocator.destroy(self.arena);
     }
 };
-
-pub fn encodeLogs(allocator: Allocator, params: AbiEvent, values: anytype) !LogsEncoded {
-    var encoded_logs: LogsEncoded = .{ .arena = try allocator.create(ArenaAllocator), .data = undefined };
-    errdefer allocator.destroy(encoded_logs.arena);
-
-    encoded_logs.arena.* = ArenaAllocator.init(allocator);
-
-    const child_allocator = encoded_logs.arena.allocator();
-
-    encoded_logs.data = try encodeLogsLeaky(child_allocator, params, values);
-
-    return encoded_logs;
-}
-
 /// Encode event log topics
-/// **Currently indexed topics are not supported**
+/// **Currently non indexed topics are not supported**
 ///
 /// `values` is expected to be a tuple of the values to encode.
 /// By default the log encoding definition doesn't support ABI array types and tuple types.
@@ -55,7 +42,21 @@ pub fn encodeLogs(allocator: Allocator, params: AbiEvent, values: anytype) !Logs
 ///
 /// const encoded = encodeLogs(testing.allocator, event, .{});
 ///
-/// Result: \["0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0"\]
+/// Result: &.{"0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0"}
+pub fn encodeLogs(allocator: Allocator, params: AbiEvent, values: anytype) !LogsEncoded {
+    var encoded_logs: LogsEncoded = .{ .arena = try allocator.create(ArenaAllocator), .data = undefined };
+    errdefer allocator.destroy(encoded_logs.arena);
+
+    encoded_logs.arena.* = ArenaAllocator.init(allocator);
+
+    const child_allocator = encoded_logs.arena.allocator();
+
+    encoded_logs.data = try encodeLogsLeaky(child_allocator, params, values);
+
+    return encoded_logs;
+}
+/// Recommened to use an ArenaAllocator or a similar allocator as not allocations
+/// will be freed. Caller owns the memory
 pub fn encodeLogsLeaky(allocator: Allocator, event: AbiEvent, values: anytype) ![]const ?[]u8 {
     const info = @typeInfo(@TypeOf(values));
 
@@ -266,6 +267,7 @@ test "With remaing types" {
 
 // Decoding
 
+/// Decoded logs return type.
 pub fn DecodedLogs(comptime T: type) type {
     return struct {
         result: T,
@@ -279,7 +281,22 @@ pub fn DecodedLogs(comptime T: type) type {
         }
     };
 }
-
+/// Decode event log topics
+/// **Currently non indexed topics are not supported**
+///
+/// By default the log encoding definition doesn't support ABI array types and tuple types.
+///
+/// Example:
+///
+/// const event = .{
+///     .type = .event,
+///     .inputs = &.{},
+///     .name = "Transfer"
+/// }
+///
+/// const encoded = decodeLogs(testing.allocator, event, &.{@constCast("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")});
+///
+/// Result: .{"0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0"}
 pub fn decodeLogs(allocator: Allocator, comptime T: type, event: AbiEvent, encoded: []const ?[]u8) !DecodedLogs(T) {
     var decoded: DecodedLogs(T) = .{ .arena = try allocator.create(ArenaAllocator), .result = undefined };
     errdefer allocator.destroy(decoded.arena);
@@ -292,7 +309,8 @@ pub fn decodeLogs(allocator: Allocator, comptime T: type, event: AbiEvent, encod
 
     return decoded;
 }
-
+/// Recommened to use an ArenaAllocator or a similar allocator as not allocations
+/// will be freed. Caller owns the memory
 pub fn decodeLogsLeaky(allocator: Allocator, comptime T: type, event: AbiEvent, encoded: []const ?[]u8) !T {
     const info = @typeInfo(T);
 

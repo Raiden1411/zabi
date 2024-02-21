@@ -1,4 +1,5 @@
 const encoder = @import("../encoding/encoder.zig");
+const encoder_logs = @import("../encoding/logs.zig");
 const decoder = @import("../decoding/decoder.zig");
 const meta = @import("../meta/meta.zig");
 const std = @import("std");
@@ -9,9 +10,10 @@ const AbiParameter = @import("abi_parameter.zig").AbiParameter;
 const AbiEventParameter = @import("abi_parameter.zig").AbiEventParameter;
 const Allocator = std.mem.Allocator;
 const Extract = meta.Extract;
+const Keccak256 = std.crypto.hash.sha3.Keccak256;
+const LogsEncoded = encoder_logs.LogsEncoded;
 const StateMutability = @import("state_mutability.zig").StateMutability;
 const UnionParser = meta.UnionParser;
-const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
 pub const Abitype = enum { function, @"error", event, constructor, fallback, receive };
 
@@ -283,7 +285,11 @@ pub const Event = struct {
         var hashed: [Keccak256.digest_length]u8 = undefined;
         Keccak256.hash(prep_signature, &hashed, .{});
 
-        return try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.bytesToHex(hashed, .lower)});
+        return try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(&hashed)});
+    }
+
+    pub fn encodeLogs(self: @This(), allocator: Allocator, values: anytype) !LogsEncoded {
+        return try encoder_logs.encodeLogs(allocator, self, values);
     }
 
     /// Format the struct into a human readable string.

@@ -42,6 +42,7 @@ test {
     _ = @import("decoding/decoder.zig");
     _ = @import("decoding/parse_transacition.zig");
     _ = @import("encoding/encoder.zig");
+    _ = @import("encoding/logs.zig");
     _ = @import("encoding/serialize.zig");
     _ = @import("encoding/rlp.zig");
     _ = @import("human-readable/lexer.zig");

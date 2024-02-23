@@ -18,6 +18,7 @@ pub const rlp = @import("encoding/rlp.zig");
 pub const secp256k1 = @import("secp256k1");
 pub const serialize = @import("encoding/serialize.zig");
 pub const state = @import("abi/state_mutability.zig");
+pub const ssz = @import("encoding/ssz.zig");
 pub const transactions = @import("meta/transaction.zig");
 pub const tokens = @import("human-readable/tokens.zig");
 pub const types = @import("meta/ethereum.zig");
@@ -44,6 +45,7 @@ test {
     _ = @import("encoding/encoder.zig");
     _ = @import("encoding/logs.zig");
     _ = @import("encoding/serialize.zig");
+    _ = @import("encoding/ssz.zig");
     _ = @import("encoding/rlp.zig");
     _ = @import("human-readable/lexer.zig");
     _ = @import("human-readable/abi_parsing.zig");

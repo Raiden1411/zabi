@@ -9,6 +9,7 @@ const testing = std.testing;
 const AbiParameter = @import("abi_parameter.zig").AbiParameter;
 const AbiEventParameter = @import("abi_parameter.zig").AbiEventParameter;
 const Allocator = std.mem.Allocator;
+const DecodedLogs = encoder_logs.DecodedLogs;
 const Extract = meta.Extract;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const LogsEncoded = encoder_logs.LogsEncoded;
@@ -270,9 +271,7 @@ pub const Event = struct {
         try writer.print(")", .{});
     }
 
-    /// Encode the struct signature based on the values provided.
-    /// Runtime reflection based on the provided values will occur to determine
-    /// what is the correct method to use to encode the values
+    /// Encode the struct signature based it's hash.
     ///
     /// Caller owns the memory.
     ///
@@ -288,8 +287,22 @@ pub const Event = struct {
         return try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(&hashed)});
     }
 
+    /// Encode the struct signature based on the values provided.
+    /// Only indexed parameters are allowed to encode
+    /// Runtime reflection based on the provided values will occur to determine
+    /// what is the correct method to use to encode the values
+    ///
+    /// Caller owns the memory.
     pub fn encodeLogs(self: @This(), allocator: Allocator, values: anytype) !LogsEncoded {
         return try encoder_logs.encodeLogs(allocator, self, values);
+    }
+
+    /// Decode the encoded log topics based on the event signature and the provided type.
+    /// Only indexed parameters are allowed to encode
+    ///
+    /// Caller owns the memory.
+    pub fn decodeLogs(self: @This(), allocator: Allocator, comptime T: type, encoded: []const ?[]u8) !DecodedLogs(T) {
+        return try encoder_logs.decodeLogs(allocator, T, self, encoded);
     }
 
     /// Format the struct into a human readable string.

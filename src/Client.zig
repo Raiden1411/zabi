@@ -137,12 +137,12 @@ pub fn estimateFeesPerGas(self: *PubClient, call_object: EthCall, know_block: ?B
     switch (current_block) {
         inline else => |block_info| {
             switch (call_object) {
-                .eip1559 => |tx| {
+                .london => |tx| {
                     const base_fee = block_info.baseFeePerGas orelse return error.UnableToFetchFeeInfoFromBlock;
                     const max_priority = if (tx.maxPriorityFeePerGas) |max| max else try self.estimateMaxFeePerGasManual(current_block);
                     const max_fee = if (tx.maxFeePerGas) |max| max else base_fee + max_priority;
 
-                    return .{ .eip1559 = .{ .max_fee_gas = max_fee, .max_priority_fee = max_priority } };
+                    return .{ .london = .{ .max_fee_gas = max_fee, .max_priority_fee = max_priority } };
                 },
                 .legacy => |tx| {
                     const gas_price = if (tx.gasPrice) |price| price else try self.getGasPrice() * std.math.pow(u64, 10, 9);
@@ -1025,7 +1025,7 @@ test "getTransactionByBlockNumberAndIndex" {
     defer pub_client.deinit();
 
     const tx = try pub_client.getTransactionByBlockNumberAndIndex(.{ .block_number = 16777215 }, 0);
-    try testing.expect(tx == .eip1559);
+    try testing.expect(tx == .london);
 }
 
 test "getTransactionByBlockHashAndIndex" {
@@ -1034,7 +1034,7 @@ test "getTransactionByBlockHashAndIndex" {
     defer pub_client.deinit();
 
     const tx = try pub_client.getTransactionByBlockHashAndIndex("0xf34c3c11b35466e5595e077239e6b25a7c3ec07a214b2492d42ba6d73d503a1b", 0);
-    try testing.expect(tx == .eip1559);
+    try testing.expect(tx == .london);
 }
 
 test "getAddressTransactionCount" {
@@ -1052,7 +1052,7 @@ test "getTransactionByHash" {
     defer pub_client.deinit();
 
     const eip1559 = try pub_client.getTransactionByHash("0x72c2a1a82c48da81fac7b434cdb5662b5c92b76f85565e062196ca8a84f43ee5");
-    try testing.expect(eip1559 == .eip1559);
+    try testing.expect(eip1559 == .london);
 
     // Remove because they fail on CI run.
     // const legacy = try pub_client.getTransactionByHash("0xf9ffe354d26160616844278c4fcbfe0eaa5589da48bc1359eda81fc1ce18b51a");
@@ -1080,7 +1080,7 @@ test "estimateGas" {
     var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
-    const gas = try pub_client.estimateGas(.{ .eip1559 = .{ .from = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1) } }, .{});
+    const gas = try pub_client.estimateGas(.{ .london = .{ .from = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1) } }, .{});
     try testing.expect(gas != 0);
 }
 
@@ -1089,9 +1089,9 @@ test "estimateFeesPerGas" {
     var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
-    const gas = try pub_client.estimateFeesPerGas(.{ .eip1559 = .{ .from = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1) } }, null);
-    try testing.expect(gas.eip1559.max_fee_gas != 0);
-    try testing.expect(gas.eip1559.max_priority_fee != 0);
+    const gas = try pub_client.estimateFeesPerGas(.{ .london = .{ .from = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1) } }, null);
+    try testing.expect(gas.london.max_fee_gas != 0);
+    try testing.expect(gas.london.max_priority_fee != 0);
 }
 
 test "estimateMaxFeePerGasManual" {

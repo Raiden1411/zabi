@@ -13,8 +13,8 @@ const Allocator = std.mem.Allocator;
 const Anvil = @import("tests/Anvil.zig");
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Chains = types.PublicChains;
-const EthCallEip1559 = transaction.EthCallEip1559;
-const EthCallLegacy = transaction.EthCallLegacy;
+const LondonEthCall = transaction.LondonEthCall;
+const LegacyEthCall = transaction.LegacyEthCall;
 const Handler = WebSocketClient.Handler;
 const Hex = types.Hex;
 const InitOptsHttp = PubClient.InitOptions;
@@ -230,11 +230,11 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             const address = try self.getWalletAddress();
 
             switch (unprepared_envelope) {
-                .eip1559 => |tx| {
+                .london => |tx| {
                     if (tx.type != 2)
                         return error.InvalidTransactionType;
 
-                    var request: EthCallEip1559 = .{ .from = address, .to = tx.to, .gas = tx.gas, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .data = tx.data, .value = tx.value orelse 0 };
+                    var request: LondonEthCall = .{ .from = address, .to = tx.to, .gas = tx.gas, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .data = tx.data, .value = tx.value orelse 0 };
 
                     const curr_block = try self.pub_client.getBlockByNumber(.{});
                     const chain_id = tx.chainId orelse self.pub_client.chain_id;
@@ -243,26 +243,26 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const nonce: u64 = tx.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
 
                     if (tx.maxFeePerGas == null or tx.maxPriorityFeePerGas == null) {
-                        const fees = try self.pub_client.estimateFeesPerGas(.{ .eip1559 = request }, curr_block);
-                        request.maxPriorityFeePerGas = tx.maxPriorityFeePerGas orelse fees.eip1559.max_priority_fee;
-                        request.maxFeePerGas = tx.maxFeePerGas orelse fees.eip1559.max_fee_gas;
+                        const fees = try self.pub_client.estimateFeesPerGas(.{ .london = request }, curr_block);
+                        request.maxPriorityFeePerGas = tx.maxPriorityFeePerGas orelse fees.london.max_priority_fee;
+                        request.maxFeePerGas = tx.maxFeePerGas orelse fees.london.max_fee_gas;
 
                         if (tx.maxFeePerGas) |fee| {
-                            if (fee < fees.eip1559.max_priority_fee) return error.MaxFeePerGasUnderflow;
+                            if (fee < fees.london.max_priority_fee) return error.MaxFeePerGasUnderflow;
                         }
                     }
 
                     if (tx.gas == null) {
-                        request.gas = try self.pub_client.estimateGas(.{ .eip1559 = request }, .{});
+                        request.gas = try self.pub_client.estimateGas(.{ .london = request }, .{});
                     }
 
-                    return .{ .eip1559 = .{ .chainId = chain_id, .nonce = nonce, .gas = request.gas.?, .maxFeePerGas = request.maxFeePerGas.?, .maxPriorityFeePerGas = request.maxPriorityFeePerGas.?, .data = request.data, .to = request.to, .value = request.value.?, .accessList = accessList } };
+                    return .{ .london = .{ .chainId = chain_id, .nonce = nonce, .gas = request.gas.?, .maxFeePerGas = request.maxFeePerGas.?, .maxPriorityFeePerGas = request.maxPriorityFeePerGas.?, .data = request.data, .to = request.to, .value = request.value.?, .accessList = accessList } };
                 },
-                .eip2930 => |tx| {
+                .berlin => |tx| {
                     if (tx.type != 1)
                         return error.InvalidTransactionType;
 
-                    var request: EthCallLegacy = .{ .from = address, .to = tx.to, .gas = tx.gas, .gasPrice = tx.gasPrice, .data = tx.data, .value = tx.value orelse 0 };
+                    var request: LegacyEthCall = .{ .from = address, .to = tx.to, .gas = tx.gas, .gasPrice = tx.gasPrice, .data = tx.data, .value = tx.value orelse 0 };
 
                     const curr_block = try self.pub_client.getBlockByNumber(.{});
                     const chain_id = tx.chainId orelse self.pub_client.chain_id;
@@ -279,10 +279,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         request.gas = try self.pub_client.estimateGas(.{ .legacy = request }, .{});
                     }
 
-                    return .{ .eip2930 = .{ .chainId = chain_id, .nonce = nonce, .gas = request.gas.?, .gasPrice = request.gasPrice.?, .data = request.data, .to = request.to, .value = request.value.?, .accessList = accessList } };
+                    return .{ .berlin = .{ .chainId = chain_id, .nonce = nonce, .gas = request.gas.?, .gasPrice = request.gasPrice.?, .data = request.data, .to = request.to, .value = request.value.?, .accessList = accessList } };
                 },
                 .legacy => |tx| {
-                    var request: EthCallLegacy = .{ .from = address, .to = tx.to, .gas = tx.gas, .gasPrice = tx.gasPrice, .data = tx.data, .value = tx.value orelse 0 };
+                    var request: LegacyEthCall = .{ .from = address, .to = tx.to, .gas = tx.gas, .gasPrice = tx.gasPrice, .data = tx.data, .value = tx.value orelse 0 };
 
                     const curr_block = try self.pub_client.getBlockByNumber(.{});
                     const chain_id = tx.chainId orelse self.pub_client.chain_id;
@@ -306,12 +306,12 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Will return errors where the values are not expected
         pub fn assertTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !void {
             switch (tx) {
-                .eip1559 => |tx_eip1559| {
+                .london => |tx_eip1559| {
                     if (tx_eip1559.chainId != self.pub_client.chain_id) return error.InvalidChainId;
                     if (tx_eip1559.maxPriorityFeePerGas > tx_eip1559.maxFeePerGas) return error.TransactionTipToHigh;
                     if (tx_eip1559.to) |addr| if (!try utils.isAddress(self.allocator, addr)) return error.InvalidAddress;
                 },
-                .eip2930 => |tx_eip2930| {
+                .berlin => |tx_eip2930| {
                     if (tx_eip2930.chainId != self.pub_client.chain_id) return error.InvalidChainId;
                     if (tx_eip2930.to) |addr| if (!try utils.isAddress(self.allocator, addr)) return error.InvalidAddress;
                 },
@@ -418,10 +418,10 @@ test "sendTransaction" {
     var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
-    var tx: transaction.PrepareEnvelope = .{ .eip1559 = undefined };
-    tx.eip1559.type = 2;
-    tx.eip1559.value = try utils.parseEth(1);
-    tx.eip1559.to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+    var tx: transaction.PrepareEnvelope = .{ .london = undefined };
+    tx.london.type = 2;
+    tx.london.value = try utils.parseEth(1);
+    tx.london.to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 
     const tx_hash = try wallet.sendTransaction(tx);
     const receipt = try wallet.waitForTransactionReceipt(tx_hash, 1);
@@ -437,7 +437,7 @@ test "assertTransaction" {
     var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
-    tx = .{ .eip1559 = .{
+    tx = .{ .london = .{
         .nonce = 0,
         .gas = 21001,
         .maxPriorityFeePerGas = 2,
@@ -450,15 +450,15 @@ test "assertTransaction" {
     } };
     try wallet.assertTransaction(tx);
 
-    tx.eip1559.chainId = 2;
+    tx.london.chainId = 2;
     try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
 
-    tx.eip1559.chainId = 1;
-    tx.eip1559.to = "";
+    tx.london.chainId = 1;
+    tx.london.to = "";
     try testing.expectError(error.InvalidAddress, wallet.assertTransaction(tx));
 
-    tx.eip1559.maxPriorityFeePerGas = 69;
-    tx.eip1559.to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+    tx.london.maxPriorityFeePerGas = 69;
+    tx.london.to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
     try testing.expectError(error.TransactionTipToHigh, wallet.assertTransaction(tx));
 }
 
@@ -469,7 +469,7 @@ test "assertTransactionLegacy" {
     var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
-    tx = .{ .eip2930 = .{
+    tx = .{ .berlin = .{
         .nonce = 0,
         .gas = 21001,
         .gasPrice = 2,
@@ -481,11 +481,11 @@ test "assertTransactionLegacy" {
     } };
     try wallet.assertTransaction(tx);
 
-    tx.eip2930.chainId = 2;
+    tx.berlin.chainId = 2;
     try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
 
-    tx.eip2930.chainId = 1;
-    tx.eip2930.to = "";
+    tx.berlin.chainId = 1;
+    tx.berlin.to = "";
     try testing.expectError(error.InvalidAddress, wallet.assertTransaction(tx));
 
     tx = .{ .legacy = .{

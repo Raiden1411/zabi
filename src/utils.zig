@@ -6,8 +6,8 @@ const transaction = @import("meta/transaction.zig");
 const Allocator = std.mem.Allocator;
 const EthCall = transaction.EthCall;
 const EthCallHexed = transaction.EthCallHexed;
-const EthCallEip1559Hexed = transaction.EthCallEip1559Hexed;
-const EthCallLegacyHexed = transaction.EthCallLegacyHexed;
+const LondonEthCallHexed = transaction.LondonEthCallHexed;
+const LegacyEthCallHexed = transaction.LegacyEthCallHexed;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
 /// Converts ethereum address to checksum
@@ -76,10 +76,10 @@ pub fn isHash(hash: []const u8) bool {
 }
 /// Converts a `EthCall` struct into all hex values.
 pub fn hexifyEthCall(alloc: Allocator, call_object: EthCall) !EthCallHexed {
-    const call: transaction.EthCallHexed = call: {
+    const call: EthCallHexed = call: {
         switch (call_object) {
-            .eip1559 => |tx| {
-                const eip1559_call: EthCallEip1559Hexed = .{
+            .london => |tx| {
+                const eip1559_call: LondonEthCallHexed = .{
                     .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
                     .gas = if (tx.gas) |gas| try std.fmt.allocPrint(alloc, "0x{x}", .{gas}) else null,
                     .maxFeePerGas = if (tx.maxFeePerGas) |fees| try std.fmt.allocPrint(alloc, "0x{x}", .{fees}) else null,
@@ -89,10 +89,10 @@ pub fn hexifyEthCall(alloc: Allocator, call_object: EthCall) !EthCallHexed {
                     .data = tx.data,
                 };
 
-                break :call .{ .eip1559 = eip1559_call };
+                break :call .{ .london = eip1559_call };
             },
             .legacy => |tx| {
-                const legacy_call: EthCallLegacyHexed = .{
+                const legacy_call: LegacyEthCallHexed = .{
                     .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
                     .gasPrice = if (tx.gasPrice) |gas_price| try std.fmt.allocPrint(alloc, "0x{x}", .{gas_price}) else null,
                     .gas = if (tx.gas) |gas| try std.fmt.allocPrint(alloc, "0x{x}", .{gas}) else null,

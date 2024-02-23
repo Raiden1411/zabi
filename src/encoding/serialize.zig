@@ -9,18 +9,18 @@ const utils = @import("../utils.zig");
 // Types
 const AccessList = transaction.AccessList;
 const Allocator = std.mem.Allocator;
-const EnvelopeEip1559 = transaction.EnvelopeEip1559;
-const EnvelopeEip2930 = transaction.EnvelopeEip2930;
-const EnvelopeLegacy = transaction.EnvelopeLegacy;
-const EnvelopeEip1559Signed = transaction.EnvelopeEip1559Signed;
-const EnvelopeEip2930Signed = transaction.EnvelopeEip2930Signed;
-const EnvelopeLegacySigned = transaction.EnvelopeLegacySigned;
+const LondonEnvelope = transaction.LondonEnvelope;
+const BerlinEnvelope = transaction.BerlinEnvelope;
+const LegacyEnvelope = transaction.LegacyEnvelope;
+const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
+const BerlinEnvelopeSigned = transaction.BerlinEnvelopeSigned;
+const LegacyEnvelopeSigned = transaction.LegacyEnvelopeSigned;
 const Hex = types.Hex;
 const Signature = signer.Signature;
 const TransactionEnvelope = transaction.TransactionEnvelope;
-const TransactionEnvelopeEip1559 = transaction.TransactionEnvelopeEip1559;
-const TransactionEnvelopeEip2930 = transaction.TransactionEnvelopeEip2930;
-const TransactionEnvelopeLegacy = transaction.TransactionEnvelopeLegacy;
+const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
+const BerlinTransactionEnvelope = transaction.BerlinTransactionEnvelope;
+const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
 const Tuple = std.meta.Tuple;
 
 /// Main function to serialize transactions.
@@ -28,21 +28,21 @@ const Tuple = std.meta.Tuple;
 /// Caller ownes the memory
 pub fn serializeTransaction(alloc: Allocator, tx: TransactionEnvelope, sig: ?Signature) ![]u8 {
     return switch (tx) {
-        .eip1559 => |val| try serializeTransactionEIP1559(alloc, val, sig),
-        .eip2930 => |val| try serializeTransactionEIP2930(alloc, val, sig),
+        .london => |val| try serializeTransactionEIP1559(alloc, val, sig),
+        .berlin => |val| try serializeTransactionEIP2930(alloc, val, sig),
         .legacy => |val| try serializeTransactionLegacy(alloc, val, sig),
     };
 }
 /// Function to serialize eip1559 transactions.
 /// Caller ownes the memory
-pub fn serializeTransactionEIP1559(alloc: Allocator, tx: TransactionEnvelopeEip1559, sig: ?Signature) ![]u8 {
+pub fn serializeTransactionEIP1559(alloc: Allocator, tx: LondonTransactionEnvelope, sig: ?Signature) ![]u8 {
     if (tx.type != 2) return error.InvalidTransactionType;
 
     const prep_access = try prepareAccessList(alloc, tx.accessList);
     defer alloc.free(prep_access);
 
     if (sig) |signature| {
-        const envelope_sig: EnvelopeEip1559Signed = .{ tx.chainId, tx.nonce, tx.maxPriorityFeePerGas, tx.maxFeePerGas, tx.gas, tx.to, tx.value, tx.data, prep_access, signature.v, signature.r[0..], signature.s[0..] };
+        const envelope_sig: LondonEnvelopeSigned = .{ tx.chainId, tx.nonce, tx.maxPriorityFeePerGas, tx.maxFeePerGas, tx.gas, tx.to, tx.value, tx.data, prep_access, signature.v, signature.r[0..], signature.s[0..] };
 
         const encoded_sig = try rlp.encodeRlp(alloc, .{envelope_sig});
         defer alloc.free(encoded_sig);
@@ -50,7 +50,7 @@ pub fn serializeTransactionEIP1559(alloc: Allocator, tx: TransactionEnvelopeEip1
         return try std.mem.concat(alloc, u8, &.{ &.{tx.type}, encoded_sig });
     }
 
-    const envelope: EnvelopeEip1559 = .{ tx.chainId, tx.nonce, tx.maxPriorityFeePerGas, tx.maxFeePerGas, tx.gas, tx.to, tx.value, tx.data, prep_access };
+    const envelope: LondonEnvelope = .{ tx.chainId, tx.nonce, tx.maxPriorityFeePerGas, tx.maxFeePerGas, tx.gas, tx.to, tx.value, tx.data, prep_access };
 
     const encoded = try rlp.encodeRlp(alloc, .{envelope});
     defer alloc.free(encoded);
@@ -59,14 +59,14 @@ pub fn serializeTransactionEIP1559(alloc: Allocator, tx: TransactionEnvelopeEip1
 }
 /// Function to serialize eip2930 transactions.
 /// Caller ownes the memory
-pub fn serializeTransactionEIP2930(alloc: Allocator, tx: TransactionEnvelopeEip2930, sig: ?Signature) ![]u8 {
+pub fn serializeTransactionEIP2930(alloc: Allocator, tx: BerlinTransactionEnvelope, sig: ?Signature) ![]u8 {
     if (tx.type != 1) return error.InvalidTransactionType;
 
     const prep_access = try prepareAccessList(alloc, tx.accessList);
     defer alloc.free(prep_access);
 
     if (sig) |signature| {
-        const envelope_sig: EnvelopeEip2930Signed = .{ tx.chainId, tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data, prep_access, signature.v, signature.r[0..], signature.s[0..] };
+        const envelope_sig: BerlinEnvelopeSigned = .{ tx.chainId, tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data, prep_access, signature.v, signature.r[0..], signature.s[0..] };
 
         const encoded_sig = try rlp.encodeRlp(alloc, .{envelope_sig});
         defer alloc.free(encoded_sig);
@@ -74,7 +74,7 @@ pub fn serializeTransactionEIP2930(alloc: Allocator, tx: TransactionEnvelopeEip2
         return try std.mem.concat(alloc, u8, &.{ &.{tx.type}, encoded_sig });
     }
 
-    const envelope: EnvelopeEip2930 = .{ tx.chainId, tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data, prep_access };
+    const envelope: BerlinEnvelope = .{ tx.chainId, tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data, prep_access };
 
     const encoded = try rlp.encodeRlp(alloc, .{envelope});
     defer alloc.free(encoded);
@@ -83,7 +83,7 @@ pub fn serializeTransactionEIP2930(alloc: Allocator, tx: TransactionEnvelopeEip2
 }
 /// Function to serialize legacy transactions.
 /// Caller ownes the memory
-pub fn serializeTransactionLegacy(alloc: Allocator, tx: TransactionEnvelopeLegacy, sig: ?Signature) ![]u8 {
+pub fn serializeTransactionLegacy(alloc: Allocator, tx: LegacyTransactionEnvelope, sig: ?Signature) ![]u8 {
     if (tx.type != 0) return error.InvalidTransactionType;
 
     if (sig) |signature| {
@@ -104,14 +104,14 @@ pub fn serializeTransactionLegacy(alloc: Allocator, tx: TransactionEnvelopeLegac
             break :chainId v;
         };
 
-        const envelope_sig: EnvelopeLegacySigned = .{ tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data, v, signature.r[0..], signature.s[0..] };
+        const envelope_sig: LegacyEnvelopeSigned = .{ tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data, v, signature.r[0..], signature.s[0..] };
 
         const encoded_sig = try rlp.encodeRlp(alloc, .{envelope_sig});
 
         return encoded_sig;
     }
 
-    const envelope: EnvelopeLegacy = .{ tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data };
+    const envelope: LegacyEnvelope = .{ tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, tx.data };
 
     const encoded = try rlp.encodeRlp(alloc, .{envelope});
 
@@ -312,7 +312,7 @@ test "Serialize Transaction Base" {
 
     try testing.expectEqualStrings("e64584773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080", hex_legacy);
 
-    const base_2930 = try serializeTransaction(testing.allocator, .{ .eip2930 = .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 0, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = null, .accessList = &.{} } }, null);
+    const base_2930 = try serializeTransaction(testing.allocator, .{ .berlin = .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 0, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = null, .accessList = &.{} } }, null);
     defer testing.allocator.free(base_2930);
 
     const hex_2930 = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base_2930)});
@@ -320,7 +320,7 @@ test "Serialize Transaction Base" {
 
     try testing.expectEqualStrings("01e8014584773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080c0", hex_2930);
 
-    const base = try serializeTransaction(testing.allocator, .{ .eip1559 = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 0, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = null, .accessList = &.{} } }, null);
+    const base = try serializeTransaction(testing.allocator, .{ .london = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 0, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = null, .accessList = &.{} } }, null);
     defer testing.allocator.free(base);
 
     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});

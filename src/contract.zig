@@ -176,7 +176,7 @@ pub fn Contract(comptime client_type: ClientType) type {
 
             const address = try self.wallet.getWalletAddress();
             const call: EthCall = switch (copy) {
-                .eip1559 => |tx| .{ .eip1559 = .{ .from = address, .to = tx.to, .data = tx.data, .value = tx.value, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .gas = tx.gas } },
+                .london => |tx| .{ .london = .{ .from = address, .to = tx.to, .data = tx.data, .value = tx.value, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .gas = tx.gas } },
                 inline else => |tx| .{ .legacy = .{ .from = address, .value = tx.value, .to = tx.to, .data = tx.data, .gas = tx.gas, .gasPrice = tx.gasPrice } },
             };
 
@@ -372,8 +372,8 @@ pub fn simulateWriteCall(comptime function: Function, comptime client_type: Clie
     }
 
     const address = try opts.wallet.getWalletAddress();
-    const call: transaction.EthCall = switch (copy) {
-        .eip1559 => |tx| .{ .eip1559 = .{ .from = address, .to = tx.to, .data = tx.data, .value = tx.value, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .gas = tx.gas } },
+    const call: EthCall = switch (copy) {
+        .london => |tx| .{ .london = .{ .from = address, .to = tx.to, .data = tx.data, .value = tx.value, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .gas = tx.gas } },
         inline else => |tx| .{ .legacy = .{ .from = address, .value = tx.value, .to = tx.to, .data = tx.data, .gas = tx.gas, .gasPrice = tx.gasPrice } },
     };
 
@@ -386,7 +386,7 @@ test "DeployContract" {
         var contract: Contract(.websocket) = .{ .abi = &.{.{ .abiConstructor = .{ .type = .constructor, .inputs = &.{}, .stateMutability = .nonpayable } }}, .wallet = try Wallet(.websocket).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri }) };
         defer contract.deinit();
 
-        const hash = try contract.deployContract(.{}, "0x608060405260358060116000396000f3006080604052600080fd00a165627a7a72305820f86ff341f0dff29df244305f8aa88abaf10e3a0719fa6ea1dcdd01b8b7d750970029", .{ .eip1559 = .{} });
+        const hash = try contract.deployContract(.{}, "0x608060405260358060116000396000f3006080604052600080fd00a165627a7a72305820f86ff341f0dff29df244305f8aa88abaf10e3a0719fa6ea1dcdd01b8b7d750970029", .{ .london = .{} });
 
         try testing.expectEqual(hash.len, 66);
     }
@@ -395,7 +395,7 @@ test "DeployContract" {
         var contract: Contract(.http) = .{ .abi = &.{.{ .abiConstructor = .{ .type = .constructor, .inputs = &.{}, .stateMutability = .nonpayable } }}, .wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri }) };
         defer contract.deinit();
 
-        const hash = try contract.deployContract(.{}, "0x608060405260358060116000396000f3006080604052600080fd00a165627a7a72305820f86ff341f0dff29df244305f8aa88abaf10e3a0719fa6ea1dcdd01b8b7d750970029", .{ .eip1559 = .{} });
+        const hash = try contract.deployContract(.{}, "0x608060405260358060116000396000f3006080604052600080fd00a165627a7a72305820f86ff341f0dff29df244305f8aa88abaf10e3a0719fa6ea1dcdd01b8b7d750970029", .{ .london = .{} });
 
         try testing.expectEqual(hash.len, 66);
     }
@@ -407,7 +407,7 @@ test "ReadContract" {
         var contract: Contract(.websocket) = .{ .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" } }}, .wallet = try Wallet(.websocket).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri }) };
         defer contract.deinit();
         const ReturnType = std.meta.Tuple(&[_]type{[]const u8});
-        const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try contract.wallet.getWalletAddress() } });
+        const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .london = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try contract.wallet.getWalletAddress() } });
         try testing.expectEqual(result.values[0].len, 42);
     }
     {
@@ -415,7 +415,7 @@ test "ReadContract" {
         var contract: Contract(.http) = .{ .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" } }}, .wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri }) };
         defer contract.deinit();
         const ReturnType = std.meta.Tuple(&[_]type{[]const u8});
-        const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try contract.wallet.getWalletAddress() } });
+        const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .london = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try contract.wallet.getWalletAddress() } });
         try testing.expectEqual(result.values[0].len, 42);
     }
     {
@@ -423,7 +423,7 @@ test "ReadContract" {
         var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
         defer wallet.deinit();
 
-        const result = try readContractFunction(.{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" }, .http, .{ .wallet = wallet, .args = .{69}, .overrides = .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try wallet.getWalletAddress() } } });
+        const result = try readContractFunction(.{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" }, .http, .{ .wallet = wallet, .args = .{69}, .overrides = .{ .london = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try wallet.getWalletAddress() } } });
 
         try testing.expectEqual(result.values[0].len, 42);
     }
@@ -440,7 +440,7 @@ test "WriteContract" {
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
         try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
 
-        const result = try contract.writeContractFunction("setApprovalForAll", .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6546", true }, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5" } });
+        const result = try contract.writeContractFunction("setApprovalForAll", .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6546", true }, .{ .london = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5" } });
 
         try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
         try testing.expectEqual(result.len, 66);
@@ -455,7 +455,7 @@ test "WriteContract" {
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
         try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
 
-        const result = try contract.writeContractFunction("setApprovalForAll", .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6546", true }, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5" } });
+        const result = try contract.writeContractFunction("setApprovalForAll", .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6546", true }, .{ .london = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5" } });
 
         try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
         try testing.expectEqual(result.len, 66);
@@ -470,7 +470,7 @@ test "WriteContract" {
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
         try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
 
-        const result = try writeContractFunction(.{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" }, .http, .{ .args = .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6547", true }, .overrides = .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5" } }, .wallet = wallet });
+        const result = try writeContractFunction(.{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" }, .http, .{ .args = .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6547", true }, .overrides = .{ .london = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5" } }, .wallet = wallet });
 
         try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
         try testing.expectEqual(result.len, 66);
@@ -488,7 +488,7 @@ test "SimulateWriteCall" {
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
         try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
 
-        const result = try contract.simulateWriteCall("setApprovalForAll", .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6546", true }, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5" } });
+        const result = try contract.simulateWriteCall("setApprovalForAll", .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6546", true }, .{ .london = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5" } });
 
         try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
         try testing.expect(result.len > 0);
@@ -503,7 +503,7 @@ test "SimulateWriteCall" {
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
         try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
 
-        const result = try contract.simulateWriteCall("setApprovalForAll", .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6546", true }, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5" } });
+        const result = try contract.simulateWriteCall("setApprovalForAll", .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6546", true }, .{ .london = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5" } });
 
         try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
         try testing.expect(result.len > 0);
@@ -518,7 +518,7 @@ test "SimulateWriteCall" {
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
         try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
 
-        const result = try simulateWriteCall(.{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" }, .http, .{ .args = .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6547", true }, .overrides = .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5" } }, .wallet = wallet });
+        const result = try simulateWriteCall(.{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" }, .http, .{ .args = .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6547", true }, .overrides = .{ .london = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5" } }, .wallet = wallet });
 
         try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
         try testing.expect(result.len > 0);

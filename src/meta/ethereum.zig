@@ -7,8 +7,8 @@ const transaction = @import("transaction.zig");
 const Block = block.Block;
 const Log = log.Log;
 const Logs = log.Logs;
-const MinedTransactions = transaction.MinedTransactions;
-const MinedTransactionHashes = transaction.MinedTransactionHashes;
+const PendingTransactionsSubscription = transaction.PendingTransactionsSubscription;
+const PendingTransactionHashesSubscription = transaction.PendingTransactionHashesSubscription;
 const PendingTransaction = transaction.PendingTransaction;
 const RequestParser = meta.RequestParser;
 const Transaction = transaction.Transaction;
@@ -116,8 +116,8 @@ pub const EthereumEvents = union(enum) {
     bool_event: EthereumResponse(bool),
     block_event: EthereumResponse(?Block),
     hex_event: EthereumResponse(Hex),
-    mined_transaction_hashes_event: EthereumSubscribeResponse(MinedTransactionHashes),
-    mined_transaction_event: EthereumSubscribeResponse(MinedTransactions),
+    mined_transaction_hashes_event: EthereumSubscribeResponse(PendingTransactionHashesSubscription),
+    mined_transaction_event: EthereumSubscribeResponse(PendingTransactionsSubscription),
     too_many_requests: struct { message: []const u8 },
 
     pub usingnamespace UnionParser(@This());

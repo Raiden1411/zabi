@@ -14,35 +14,35 @@ const UnionParser = meta.UnionParser;
 /// Tuple representig an encoded accessList
 pub const EncodedAccessList = std.meta.Tuple(&[_]type{ Hex, []const Hex });
 /// Tuple representig an encoded envelope for the London hardfork
-pub const EnvelopeEip1559 = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList });
+pub const LondonEnvelope = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList });
 /// Tuple representig an encoded envelope for the London hardfork with the signature
-pub const EnvelopeEip1559Signed = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u4, Hex, Hex });
+pub const LondonEnvelopeSigned = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u4, Hex, Hex });
 /// Tuple representig an encoded envelope for the Berlin hardfork
-pub const EnvelopeEip2930 = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList });
+pub const BerlinEnvelope = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList });
 /// Tuple representig an encoded envelope for the Berlin hardfork with the signature
-pub const EnvelopeEip2930Signed = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u4, Hex, Hex });
+pub const BerlinEnvelopeSigned = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u4, Hex, Hex });
 /// Tuple representig an encoded envelope for a legacy transaction
-pub const EnvelopeLegacy = std.meta.Tuple(&[_]type{ u64, Gwei, Gwei, ?Hex, Wei, ?Hex });
+pub const LegacyEnvelope = std.meta.Tuple(&[_]type{ u64, Gwei, Gwei, ?Hex, Wei, ?Hex });
 /// Tuple representig an encoded envelope for a legacy transaction
-pub const EnvelopeLegacySigned = std.meta.Tuple(&[_]type{ u64, Gwei, Gwei, ?Hex, Wei, ?Hex, usize, Hex, Hex });
+pub const LegacyEnvelopeSigned = std.meta.Tuple(&[_]type{ u64, Gwei, Gwei, ?Hex, Wei, ?Hex, usize, Hex, Hex });
 /// Some nodes represent pending transactions hashes like this.
-pub const MinedTransactionHashes = struct {
+pub const PendingTransactionHashesSubscription = struct {
     removed: bool,
     transaction: struct { hash: Hex },
 };
 /// Pending transactions objects represented via the subscription responses.
-pub const MinedTransactions = struct {
+pub const PendingTransactionsSubscription = struct {
     removed: bool,
     transaction: PendingTransaction,
 };
 /// The transaction envelope that will be serialized before getting sent to the network.
 pub const TransactionEnvelope = union(enum) {
-    eip1559: TransactionEnvelopeEip1559,
-    eip2930: TransactionEnvelopeEip2930,
-    legacy: TransactionEnvelopeLegacy,
+    london: LondonTransactionEnvelope,
+    berlin: BerlinTransactionEnvelope,
+    legacy: LegacyTransactionEnvelope,
 };
 /// The transaction envelope from the London hardfork
-pub const TransactionEnvelopeEip1559 = struct {
+pub const LondonTransactionEnvelope = struct {
     type: u2 = 2,
     chainId: usize,
     nonce: u64,
@@ -57,7 +57,7 @@ pub const TransactionEnvelopeEip1559 = struct {
     pub usingnamespace RequestParser(@This());
 };
 /// The transaction envelope from the Berlin hardfork
-pub const TransactionEnvelopeEip2930 = struct {
+pub const BerlinTransactionEnvelope = struct {
     type: u2 = 1,
     chainId: usize,
     nonce: u64,
@@ -71,7 +71,7 @@ pub const TransactionEnvelopeEip2930 = struct {
     pub usingnamespace RequestParser(@This());
 };
 /// The transaction envelope from a legacy transaction
-pub const TransactionEnvelopeLegacy = struct {
+pub const LegacyTransactionEnvelope = struct {
     type: u2 = 0,
     chainId: usize = 0,
     nonce: u64,
@@ -92,14 +92,14 @@ pub const AccessList = struct {
 };
 /// Signed transaction envelope with the signature fields
 pub const TransactionEnvelopeSigned = union(enum) {
-    eip1559: TransactionEnvelopeEip1559Signed,
-    eip2930: TransactionEnvelopeEip2930Signed,
-    legacy: TransactionEnvelopeLegacySigned,
+    london: LondonTransactionEnvelopeSigned,
+    berlin: BerlinTransactionEnvelopeSigned,
+    legacy: LegacyTransactionEnvelopeSigned,
 
     pub usingnamespace UnionParser(@This());
 };
 /// The transaction envelope from the London hardfork with the signature fields
-pub const TransactionEnvelopeEip1559Signed = struct {
+pub const LondonTransactionEnvelopeSigned = struct {
     type: u2 = 2,
     chainId: usize,
     nonce: u64,
@@ -117,7 +117,7 @@ pub const TransactionEnvelopeEip1559Signed = struct {
     pub usingnamespace RequestParser(@This());
 };
 /// The transaction envelope from the Berlin hardfork with the signature fields
-pub const TransactionEnvelopeEip2930Signed = struct {
+pub const BerlinTransactionEnvelopeSigned = struct {
     type: u2 = 1,
     chainId: usize,
     nonce: u64,
@@ -134,7 +134,7 @@ pub const TransactionEnvelopeEip2930Signed = struct {
     pub usingnamespace RequestParser(@This());
 };
 /// The transaction envelope from a legacy transaction with the signature fields
-pub const TransactionEnvelopeLegacySigned = struct {
+pub const LegacyTransactionEnvelopeSigned = struct {
     type: u2 = 0,
     chainId: usize = 0,
     nonce: u64,
@@ -151,16 +151,16 @@ pub const TransactionEnvelopeLegacySigned = struct {
 };
 /// Same as `Envelope` but were all fields are optionals.
 pub const PrepareEnvelope = union(enum) {
-    eip1559: PrepareEnvelopeEip1559,
-    eip2930: PrepareEnvelopeEip2930,
-    legacy: PrepareEnvelopeLegacy,
+    london: PrepareLondonEnvelope,
+    berlin: PrepareBerlinEnvelope,
+    legacy: PrepareLegacyEnvelope,
 
     pub usingnamespace UnionParser(@This());
 };
 /// The transaction envelope from the London hardfork where all fields are optionals
 /// These are optionals so that when we stringify we can
 /// use the option `ignore_null_fields`
-pub const PrepareEnvelopeEip1559 = struct {
+pub const PrepareLondonEnvelope = struct {
     type: u2 = 2,
     chainId: ?usize = null,
     nonce: ?u64 = null,
@@ -177,7 +177,7 @@ pub const PrepareEnvelopeEip1559 = struct {
 /// The transaction envelope from the Berlin hardfork where all fields are optionals
 /// These are optionals so that when we stringify we can
 /// use the option `ignore_null_fields`
-pub const PrepareEnvelopeEip2930 = struct {
+pub const PrepareBerlinEnvelope = struct {
     type: u2 = 1,
     chainId: ?usize = null,
     nonce: ?u64 = null,
@@ -193,7 +193,7 @@ pub const PrepareEnvelopeEip2930 = struct {
 /// The transaction envelope from a legacy transaction where all fields are optionals
 /// These are optionals so that when we stringify we can
 /// use the option `ignore_null_fields`
-pub const PrepareEnvelopeLegacy = struct {
+pub const PrepareLegacyEnvelope = struct {
     type: u2 = 0,
     chainId: ?usize = 0,
     nonce: ?u64 = null,
@@ -206,7 +206,7 @@ pub const PrepareEnvelopeLegacy = struct {
     pub usingnamespace RequestParser(@This());
 };
 /// The legacy representation of a London hardfork transaction.
-pub const PendingTransactionEip1559 = struct {
+pub const LondonPendingTransaction = struct {
     hash: Hex,
     nonce: u64,
     blockHash: ?Hex,
@@ -231,7 +231,7 @@ pub const PendingTransactionEip1559 = struct {
     pub usingnamespace RequestParser(@This());
 };
 /// The legacy representation of a pending transaction.
-pub const PendingTransactionLegacy = struct {
+pub const LegacyPendingTransaction = struct {
     hash: Hex,
     nonce: u64,
     blockHash: ?Hex,
@@ -253,13 +253,13 @@ pub const PendingTransactionLegacy = struct {
 };
 /// Pending transaction from a subscription event
 pub const PendingTransaction = union(enum) {
-    eip1559: PendingTransactionEip1559,
-    legacy: PrepareEnvelopeLegacy,
+    london: LondonPendingTransaction,
+    legacy: LegacyPendingTransaction,
 
     pub usingnamespace UnionParser(@This());
 };
 /// The London hardfork representation of a transaction.
-pub const TransactionObjectEip1559 = struct {
+pub const LondonTransaction = struct {
     hash: Hex,
     nonce: u64,
     blockHash: ?Hex,
@@ -286,7 +286,7 @@ pub const TransactionObjectEip1559 = struct {
     pub usingnamespace RequestParser(@This());
 };
 /// The Berlin hardfork representation of a transaction.
-pub const TransactionObjectEip2930 = struct {
+pub const BerlinTransaction = struct {
     blockHash: ?Hex,
     blockNumber: ?u64,
     from: Hex,
@@ -310,7 +310,7 @@ pub const TransactionObjectEip2930 = struct {
     pub usingnamespace RequestParser(@This());
 };
 /// The legacy representation of a transaction.
-pub const TransactionObjectLegacy = struct {
+pub const LegacyTransaction = struct {
     blockHash: ?Hex,
     blockNumber: ?u64,
     from: Hex,
@@ -332,7 +332,7 @@ pub const TransactionObjectLegacy = struct {
     pub usingnamespace RequestParser(@This());
 };
 /// The representation of an untyped transaction.
-pub const UntypedTransactionObject = struct {
+pub const UntypedTransaction = struct {
     blockHash: ?Hex,
     blockNumber: ?u64,
     from: Hex,
@@ -356,13 +356,13 @@ pub const UntypedTransactionObject = struct {
 /// with the JSON RPC server.
 pub const Transaction = union(enum) {
     /// Some transactions might not have the type field.
-    untyped: UntypedTransactionObject,
+    untyped: UntypedTransaction,
     /// Legacy type transactions.
-    legacy: TransactionObjectLegacy,
+    legacy: LegacyTransaction,
     /// Legacy type transactions that might have the accessList.
-    eip2930: TransactionObjectEip2930,
+    berlin: BerlinTransaction,
     /// Current transaction objects.
-    eip1559: TransactionObjectEip1559,
+    london: LondonTransaction,
 
     pub usingnamespace UnionParser(@This());
 };
@@ -389,15 +389,15 @@ pub const TransactionReceipt = struct {
 };
 /// The representation of an `eth_call` struct.
 pub const EthCall = union(enum) {
-    eip1559: EthCallEip1559,
-    legacy: EthCallLegacy,
+    london: LondonEthCall,
+    legacy: LegacyEthCall,
 
     pub usingnamespace UnionParser(@This());
 };
 /// The representation of an London hardfork `eth_call` struct where all fields are optional
 /// These are optionals so that when we stringify we can
 /// use the option `ignore_null_fields`
-pub const EthCallEip1559 = struct {
+pub const LondonEthCall = struct {
     from: ?Hex = null,
     maxPriorityFeePerGas: ?Gwei = null,
     maxFeePerGas: ?Gwei = null,
@@ -411,7 +411,7 @@ pub const EthCallEip1559 = struct {
 /// The representation of an `eth_call` struct where all fields are optional
 /// These are optionals so that when we stringify we can
 /// use the option `ignore_null_fields`
-pub const EthCallLegacy = struct {
+pub const LegacyEthCall = struct {
     from: ?Hex = null,
     gasPrice: ?Gwei = null,
     gas: ?Gwei = null,
@@ -424,15 +424,15 @@ pub const EthCallLegacy = struct {
 /// This is used for eth call request and want to send the request with all hexed values.
 /// The JSON RPC cannot understand the "native" value so we need these helper
 pub const EthCallHexed = union(enum) {
-    eip1559: EthCallEip1559Hexed,
-    legacy: EthCallLegacyHexed,
+    london: LondonEthCallHexed,
+    legacy: LegacyEthCallHexed,
 
     pub usingnamespace UnionParser(@This());
 };
 /// The representation of an London hardfork `eth_call` struct where all fields are optional and hex values.
 /// These are optionals so that when we stringify we can
 /// use the option `ignore_null_fields`
-pub const EthCallEip1559Hexed = struct {
+pub const LondonEthCallHexed = struct {
     from: ?Hex = null,
     maxPriorityFeePerGas: ?Hex = null,
     maxFeePerGas: ?Hex = null,
@@ -446,7 +446,7 @@ pub const EthCallEip1559Hexed = struct {
 /// The representation of an legacy `eth_call` struct where all fields are optional and hex values.
 /// These are optionals so that when we stringify we can
 /// use the option `ignore_null_fields`
-pub const EthCallLegacyHexed = struct {
+pub const LegacyEthCallHexed = struct {
     from: ?Hex = null,
     gasPrice: ?Hex = null,
     gas: ?Hex = null,
@@ -457,7 +457,7 @@ pub const EthCallLegacyHexed = struct {
     pub usingnamespace RequestParser(@This());
 };
 /// Return struct for fee estimation calculation.
-pub const EstimateFeeReturn = union(enum) { eip1559: struct {
+pub const EstimateFeeReturn = union(enum) { london: struct {
     max_priority_fee: Gwei,
     max_fee_gas: Gwei,
 }, legacy: struct {

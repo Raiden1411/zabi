@@ -3,7 +3,7 @@
 ## Definition
 
 Encodes values into a Recursive-Length Prefix (RLP) encoded value.
-`Vectors`, `C` and `Many` pointers, `Unions` are not supported.
+`C` pointers are not supported.
 
 ## Usage
 

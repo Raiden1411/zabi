@@ -173,6 +173,14 @@ export const sidebar = {
 							text: "RLP Decode",
 							link: "/api/utilities/encoding/rlp_decode",
 						},
+						{
+							text: "SSZ Encoding",
+							link: "/api/utilities/encoding/ssz_encode",
+						},
+						{
+							text: "SSZ Decode",
+							link: "/api/utilities/encoding/ssz_decode",
+						},
 					],
 				},
 				{

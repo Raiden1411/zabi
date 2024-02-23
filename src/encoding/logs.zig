@@ -386,24 +386,25 @@ fn decodeLog(allocator: Allocator, comptime T: type, param: AbiEventParameter, e
                     if (int_info.signedness != .unsigned)
                         return error.ExpectedUnsignedInt;
 
-                    return try std.fmt.parseInt(T, encoded, 0);
+                    const slice = if (std.mem.startsWith(u8, encoded, "0x")) encoded[2..] else encoded;
+                    var buffer: [32]u8 = undefined;
+                    _ = try std.fmt.hexToBytes(&buffer, slice);
+
+                    const decoded = std.mem.readInt(u256, &buffer, .big);
+
+                    return @as(T, @truncate(decoded));
                 },
                 .int => {
                     if (int_info.signedness != .signed)
                         return error.ExpectedSignedInt;
 
-                    const parsed = std.fmt.parseInt(T, encoded, 0) catch |err| {
-                        switch (err) {
-                            error.Overflow => {
-                                const parsedUnsigned = try std.fmt.parseInt(u256, encoded, 0);
-                                const negative = std.math.cast(T, (std.math.maxInt(u256) - parsedUnsigned) + 1) orelse return err;
-                                return -negative;
-                            },
-                            inline else => return err,
-                        }
-                    };
+                    const slice = if (std.mem.startsWith(u8, encoded, "0x")) encoded[2..] else encoded;
+                    var buffer: [32]u8 = undefined;
+                    _ = try std.fmt.hexToBytes(&buffer, slice);
 
-                    return parsed;
+                    const decoded = std.mem.readInt(i256, &buffer, .big);
+
+                    return @as(T, @truncate(decoded));
                 },
                 else => return error.InvalidParamType,
             }

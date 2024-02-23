@@ -266,7 +266,7 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
     switch (info) {
         .Bool => {
             const decoded = switch (param.type) {
-                .bool => try decodeBool(allocator, hex, position),
+                .bool => try decodeBool(hex, position),
                 else => return error.InvalidAbiParameter,
             };
 
@@ -277,8 +277,8 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
         },
         .Int => |int_info| {
             const decoded = switch (param.type) {
-                .uint => |bits| if (int_info.signedness == .signed) return error.InvalidSignedness else if (int_info.bits != bits) return error.InvalidBits else try decodeNumber(allocator, T, hex, position),
-                .int => |bits| if (int_info.signedness == .unsigned) return error.InvalidSignedness else if (int_info.bits != bits) return error.InvalidBits else try decodeNumber(allocator, T, hex, position),
+                .uint => |bits| if (int_info.signedness == .signed) return error.InvalidSignedness else if (int_info.bits != bits) return error.InvalidBits else try decodeNumber(T, hex, position),
+                .int => |bits| if (int_info.signedness == .unsigned) return error.InvalidSignedness else if (int_info.bits != bits) return error.InvalidBits else try decodeNumber(T, hex, position),
                 else => return error.InvalidAbiParameter,
             };
 
@@ -328,7 +328,7 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
             const abi_param: AbiParameter = .{ .type = param.type.fixedArray.child.*, .name = param.name, .internalType = param.internalType, .components = param.components };
 
             if (isDynamicType(abi_param)) {
-                const offset = try decodeNumber(allocator, usize, hex, position);
+                const offset = try decodeNumber(usize, hex, position);
                 var pos: usize = 0;
                 var read: u16 = 0;
 
@@ -386,8 +386,8 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
                         return error.InvalidAbiParameter;
 
                     const abi_param = .{ .type = param.type.dynamicArray.*, .name = param.name, .internalType = param.internalType, .components = param.components };
-                    const offset = try decodeNumber(allocator, usize, hex, position);
-                    const length = try decodeNumber(allocator, usize, hex, offset.data);
+                    const offset = try decodeNumber(usize, hex, position);
+                    const length = try decodeNumber(usize, hex, offset.data);
 
                     var pos: usize = 0;
                     var read: u16 = 0;
@@ -420,7 +420,7 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
                 if (isDynamicType(param)) {
                     var pos: usize = 0;
                     var read: u16 = 0;
-                    const offset = try decodeNumber(allocator, usize, hex, position);
+                    const offset = try decodeNumber(usize, hex, position);
 
                     inline for (struct_info.fields) |field| {
                         for (components) |component| {
@@ -621,9 +621,9 @@ fn decodeParameter(alloc: Allocator, comptime param: AbiParameter, hex: []u8, po
         .bytes => try decodeBytes(alloc, hex, position),
         .address => try decodeAddress(alloc, hex, position),
         .fixedBytes => |val| try decodeFixedBytes(alloc, val, hex, position),
-        .int => |val| try decodeNumber(alloc, if (val % 8 != 0 or val > 256) @compileError("Invalid bits passed in to int type") else @Type(.{ .Int = .{ .signedness = .signed, .bits = val } }), hex, position),
-        .uint => |val| try decodeNumber(alloc, if (val % 8 != 0 or val > 256) @compileError("Invalid bits passed in to int type") else @Type(.{ .Int = .{ .signedness = .unsigned, .bits = val } }), hex, position),
-        .bool => try decodeBool(alloc, hex, position),
+        .int => |val| try decodeNumber(if (val % 8 != 0 or val > 256) @compileError("Invalid bits passed in to int type") else @Type(.{ .Int = .{ .signedness = .signed, .bits = val } }), hex, position),
+        .uint => |val| try decodeNumber(if (val % 8 != 0 or val > 256) @compileError("Invalid bits passed in to int type") else @Type(.{ .Int = .{ .signedness = .unsigned, .bits = val } }), hex, position),
+        .bool => try decodeBool(hex, position),
         .dynamicArray => |val| try decodeArray(alloc, .{ .type = val.*, .name = param.name, .internalType = param.internalType, .components = param.components }, hex, position, opts),
         .fixedArray => |val| try decodeFixedArray(alloc, .{ .type = val.child.*, .name = param.name, .internalType = param.internalType, .components = param.components }, val.size, hex, position, opts),
         .tuple => try decodeTuple(alloc, param, hex, position, opts),
@@ -636,80 +636,74 @@ fn decodeParameter(alloc: Allocator, comptime param: AbiParameter, hex: []u8, po
     return decoded;
 }
 
-fn decodeAddress(alloc: Allocator, hex: []u8, position: usize) !Decoded([]const u8) {
+fn decodeAddress(allocator: Allocator, hex: []u8, position: usize) !Decoded([]const u8) {
     const slice = hex[position + 12 .. position + 32];
 
-    const checksumed = try utils.toChecksum(alloc, try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(slice)}));
+    const checksumed = try utils.toChecksum(allocator, try std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(slice)}));
     return .{ .consumed = 32, .data = checksumed, .bytes_read = 32 };
 }
 
-fn decodeNumber(alloc: Allocator, comptime T: type, hex: []u8, position: usize) !Decoded(T) {
+fn decodeNumber(comptime T: type, hex: []u8, position: usize) !Decoded(T) {
     const info = @typeInfo(T);
     if (info != .Int)
-        @compileError("Invalid type passed");
+        @compileError("Invalid type passed. Expected int type but found " ++ @typeName(T));
 
-    const hexed = std.fmt.fmtSliceHexLower(hex[position .. position + 32]);
-    const slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
+    const bytes = hex[position .. position + 32];
 
-    if (info.Int.signedness == .signed) {
-        const parsed = std.fmt.parseInt(T, slice, 16) catch |err| {
-            switch (err) {
-                error.Overflow => {
-                    const parsedUnsigned = try std.fmt.parseInt(u256, slice, 16);
-                    const negative = std.math.cast(T, (std.math.maxInt(u256) - parsedUnsigned) + 1) orelse return err;
-                    return .{ .consumed = 32, .data = -negative, .bytes_read = 32 };
-                },
-                inline else => return err,
-            }
-        };
-        return .{ .consumed = 32, .data = parsed, .bytes_read = 32 };
-    }
-    return .{ .consumed = 32, .data = try std.fmt.parseInt(T, slice, 16), .bytes_read = 32 };
+    const decoded = switch (info.Int.signedness) {
+        .signed => std.mem.readInt(i256, @ptrCast(bytes), .big),
+        .unsigned => std.mem.readInt(u256, @ptrCast(bytes), .big),
+    };
+
+    return .{ .consumed = 32, .data = @as(T, @truncate(decoded)), .bytes_read = 32 };
 }
 
-fn decodeBool(alloc: Allocator, hex: []u8, position: usize) !Decoded(bool) {
-    const b = try decodeNumber(alloc, u1, hex, position);
+fn decodeBool(hex: []u8, position: usize) !Decoded(bool) {
+    const bit = hex[position + 31];
 
-    return .{ .consumed = 32, .data = b.data != 0, .bytes_read = 32 };
+    if (bit > 1)
+        return error.InvalidBits;
+
+    return .{ .consumed = 32, .data = bit != 0, .bytes_read = 32 };
 }
 
-fn decodeString(alloc: Allocator, hex: []u8, position: usize) !Decoded([]const u8) {
-    const offset = try decodeNumber(alloc, usize, hex, position);
-    const length = try decodeNumber(alloc, usize, hex, offset.data);
+fn decodeString(allocator: Allocator, hex: []u8, position: usize) !Decoded([]const u8) {
+    const offset = try decodeNumber(usize, hex, position);
+    const length = try decodeNumber(usize, hex, offset.data);
 
     const slice = hex[offset.data + 32 .. offset.data + 32 + length.data];
     const remainder = length.data % 32;
     const len_padded = length.data + 32 - remainder;
 
-    return .{ .consumed = 32, .data = try std.fmt.allocPrint(alloc, "{s}", .{slice}), .bytes_read = @intCast(len_padded + 64) };
+    return .{ .consumed = 32, .data = try std.fmt.allocPrint(allocator, "{s}", .{slice}), .bytes_read = @intCast(len_padded + 64) };
 }
 
-fn decodeBytes(alloc: Allocator, hex: []u8, position: usize) !Decoded([]const u8) {
-    const offset = try decodeNumber(alloc, usize, hex, position);
-    const length = try decodeNumber(alloc, usize, hex, offset.data);
+fn decodeBytes(allocator: Allocator, hex: []u8, position: usize) !Decoded([]const u8) {
+    const offset = try decodeNumber(usize, hex, position);
+    const length = try decodeNumber(usize, hex, offset.data);
 
     const slice = hex[offset.data + 32 .. offset.data + 32 + length.data];
     const remainder = length.data % 32;
     const len_padded = length.data + 32 - remainder;
 
-    return .{ .consumed = 32, .data = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(slice)}), .bytes_read = @intCast(len_padded + 64) };
+    return .{ .consumed = 32, .data = try std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(slice)}), .bytes_read = @intCast(len_padded + 64) };
 }
 
-fn decodeFixedBytes(alloc: Allocator, size: usize, hex: []u8, position: usize) !Decoded([]const u8) {
-    return .{ .consumed = 32, .data = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(hex[position .. position + size])}), .bytes_read = 32 };
+fn decodeFixedBytes(allocator: Allocator, size: usize, hex: []u8, position: usize) !Decoded([]const u8) {
+    return .{ .consumed = 32, .data = try std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(hex[position .. position + size])}), .bytes_read = 32 };
 }
 
-fn decodeArray(alloc: Allocator, comptime param: AbiParameter, hex: []u8, position: usize, opts: DecodeOptions) !Decoded([]const AbiParameterToPrimative(param)) {
-    const offset = try decodeNumber(alloc, usize, hex, position);
-    const length = try decodeNumber(alloc, usize, hex, offset.data);
+fn decodeArray(allocator: Allocator, comptime param: AbiParameter, hex: []u8, position: usize, opts: DecodeOptions) !Decoded([]const AbiParameterToPrimative(param)) {
+    const offset = try decodeNumber(usize, hex, position);
+    const length = try decodeNumber(usize, hex, offset.data);
 
     var pos: usize = 0;
     var read: u16 = 0;
 
-    var list = std.ArrayList(AbiParameterToPrimative(param)).init(alloc);
+    var list = std.ArrayList(AbiParameterToPrimative(param)).init(allocator);
 
     for (0..length.data) |_| {
-        const decoded = try decodeParameter(alloc, param, hex[offset.data + 32 ..], pos, opts);
+        const decoded = try decodeParameter(allocator, param, hex[offset.data + 32 ..], pos, opts);
         pos += decoded.consumed;
         read += decoded.bytes_read;
 
@@ -722,9 +716,9 @@ fn decodeArray(alloc: Allocator, comptime param: AbiParameter, hex: []u8, positi
     return .{ .consumed = 32, .data = try list.toOwnedSlice(), .bytes_read = read + 64 };
 }
 
-fn decodeFixedArray(alloc: Allocator, comptime param: AbiParameter, comptime size: usize, hex: []u8, position: usize, opts: DecodeOptions) !Decoded([size]AbiParameterToPrimative(param)) {
+fn decodeFixedArray(allocator: Allocator, comptime param: AbiParameter, comptime size: usize, hex: []u8, position: usize, opts: DecodeOptions) !Decoded([size]AbiParameterToPrimative(param)) {
     if (isDynamicType(param)) {
-        const offset = try decodeNumber(alloc, usize, hex, position);
+        const offset = try decodeNumber(usize, hex, position);
         var pos: usize = 0;
         var read: u16 = 0;
 
@@ -737,7 +731,7 @@ fn decodeFixedArray(alloc: Allocator, comptime param: AbiParameter, comptime siz
         };
 
         for (0..size) |i| {
-            const decoded = try decodeParameter(alloc, param, hex[offset.data..], if (@TypeOf(child) != void) pos else i * 32, opts);
+            const decoded = try decodeParameter(allocator, param, hex[offset.data..], if (@TypeOf(child) != void) pos else i * 32, opts);
             pos += decoded.consumed;
             result[i] = decoded.data;
             read += decoded.bytes_read;
@@ -754,7 +748,7 @@ fn decodeFixedArray(alloc: Allocator, comptime param: AbiParameter, comptime siz
 
     var result: [size]AbiParameterToPrimative(param) = undefined;
     for (0..size) |i| {
-        const decoded = try decodeParameter(alloc, param, hex, pos + position, opts);
+        const decoded = try decodeParameter(allocator, param, hex, pos + position, opts);
         pos += decoded.consumed;
         result[i] = decoded.data;
         read += decoded.bytes_read;
@@ -773,7 +767,7 @@ fn decodeTuple(alloc: Allocator, comptime param: AbiParameter, hex: []u8, positi
         if (isDynamicType(param)) {
             var pos: usize = 0;
             var read: u16 = 0;
-            const offset = try decodeNumber(alloc, usize, hex, position);
+            const offset = try decodeNumber(usize, hex, position);
 
             inline for (components) |component| {
                 const decoded = try decodeParameter(alloc, component, hex[offset.data..], pos, opts);

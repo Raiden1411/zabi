@@ -4,6 +4,7 @@
 
 const std = @import("std");
 const testing = std.testing;
+const utils = @import("../utils.zig");
 
 // Types
 const Allocator = std.mem.Allocator;
@@ -31,6 +32,13 @@ fn encodeItem(value: anytype, list: *std.ArrayList(u8)) !void {
             switch (int_info.bits) {
                 8, 16, 32, 64, 128, 256 => try writer.writeInt(@TypeOf(value), value, .little),
                 else => @compileError(std.fmt.comptimePrint("Unsupported {d} bits for ssz encoding", .{int_info.bits})),
+            }
+        },
+        .ComptimeInt => {
+            const size = comptime utils.computeSize(@intCast(value)) * 8;
+            switch (size) {
+                8, 16, 32, 64, 128, 256 => try writer.writeInt(@Type(.{ .Int = .{ .signedness = .unsigned, .bits = size } }), value, .little),
+                else => @compileError(std.fmt.comptimePrint("Unsupported {d} bits for ssz encoding", .{size})),
             }
         },
         .Null => return,

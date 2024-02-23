@@ -1,5 +1,8 @@
 const std = @import("std");
 const testing = std.testing;
+const utils = @import("../utils.zig");
+
+// Types
 const Allocator = std.mem.Allocator;
 
 pub const RlpEncodeErrors = error{ NegativeNumber, Overflow } || Allocator.Error;
@@ -35,7 +38,7 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
 
             if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intCast(payload)) else {
                 var buffer: [32]u8 = undefined;
-                const size_slice = formatInt(@intCast(payload), &buffer);
+                const size_slice = utils.formatInt(@intCast(payload), &buffer);
                 try writer.writeByte(0x80 + size_slice);
                 try writer.writeAll(buffer[32 - size_slice ..]);
             }
@@ -44,10 +47,10 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
             if (payload < 0) return error.NegativeNumber;
 
             if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intCast(payload)) else {
-                const size = comptime computeSize(@intCast(payload));
+                const size = comptime utils.computeSize(@intCast(payload));
                 try writer.writeByte(0x80 + size);
                 var buffer: [32]u8 = undefined;
-                const size_slice = formatInt(@intCast(payload), &buffer);
+                const size_slice = utils.formatInt(@intCast(payload), &buffer);
                 try writer.writeAll(buffer[32 - size_slice ..]);
             }
         },
@@ -60,7 +63,7 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 const IntType = @Type(.{ .Int = .{ .signedness = .unsigned, .bits = bits } });
                 const as_int = @as(IntType, @bitCast(payload));
                 var buffer: [32]u8 = undefined;
-                const size_slice = formatInt(as_int, &buffer);
+                const size_slice = utils.formatInt(as_int, &buffer);
                 try writer.writeByte(0x80 + size_slice);
                 try writer.writeAll(buffer[32 - size_slice ..]);
             }
@@ -72,10 +75,10 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 if (payload > std.math.maxInt(u256))
                     @compileError("Cannot fit " ++ payload ++ " as u256");
 
-                const size = comptime computeSize(@intFromFloat(payload));
+                const size = comptime utils.computeSize(@intFromFloat(payload));
                 try writer.writeByte(0x80 + size);
                 var buffer: [32]u8 = undefined;
-                const size_slice = formatInt(@intFromFloat(payload), &buffer);
+                const size_slice = utils.formatInt(@intFromFloat(payload), &buffer);
                 try writer.writeAll(buffer[32 - size_slice ..]);
             }
         },
@@ -105,9 +108,11 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                     try writer.writeByte(@intCast(0x80 + bytes.len));
                     try writer.writeAll(bytes);
                 } else {
-                    if (bytes.len > std.math.maxInt(u64)) return error.Overflow;
+                    if (bytes.len > std.math.maxInt(u64))
+                        return error.Overflow;
+
                     var buffer: [32]u8 = undefined;
-                    const size = formatInt(bytes.len, &buffer);
+                    const size = utils.formatInt(bytes.len, &buffer);
                     try writer.writeByte(0xb7 + size);
                     try writer.writeAll(buffer[32 - size ..]);
                     try writer.writeAll(bytes);
@@ -125,14 +130,15 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                     const bytes = try arr.toOwnedSlice();
                     defer alloc.free(bytes);
 
-                    if (bytes.len > std.math.maxInt(u64)) return error.Overflow;
+                    if (bytes.len > std.math.maxInt(u64))
+                        return error.Overflow;
 
                     if (bytes.len < 56) {
                         try writer.writeByte(@intCast(0xc0 + bytes.len));
                         try writer.writeAll(bytes);
                     } else {
                         var buffer: [32]u8 = undefined;
-                        const size = formatInt(bytes.len, &buffer);
+                        const size = utils.formatInt(bytes.len, &buffer);
                         try writer.writeByte(0xf7 + size);
                         try writer.writeAll(buffer[32 - size ..]);
                         try writer.writeAll(bytes);
@@ -166,9 +172,11 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                             try writer.writeByte(@intCast(0x80 + bytes.len));
                             try writer.writeAll(bytes);
                         } else {
-                            if (bytes.len > std.math.maxInt(u64)) return error.Overflow;
+                            if (bytes.len > std.math.maxInt(u64))
+                                return error.Overflow;
+
                             var buffer: [32]u8 = undefined;
-                            const size = formatInt(bytes.len, &buffer);
+                            const size = utils.formatInt(bytes.len, &buffer);
                             try writer.writeByte(0xb7 + size);
                             try writer.writeAll(buffer[32 - size ..]);
                             try writer.writeAll(bytes);
@@ -186,14 +194,15 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                             const bytes = try slice.toOwnedSlice();
                             defer alloc.free(bytes);
 
-                            if (bytes.len > std.math.maxInt(u64)) return error.Overflow;
+                            if (bytes.len > std.math.maxInt(u64))
+                                return error.Overflow;
 
                             if (bytes.len < 56) {
                                 try writer.writeByte(@intCast(0xc0 + bytes.len));
                                 try writer.writeAll(bytes);
                             } else {
                                 var buffer: [32]u8 = undefined;
-                                const size = formatInt(bytes.len, &buffer);
+                                const size = utils.formatInt(bytes.len, &buffer);
                                 try writer.writeByte(0xf7 + size);
                                 try writer.writeAll(buffer[32 - size ..]);
                                 try writer.writeAll(bytes);
@@ -218,14 +227,15 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                     const bytes = try tuple.toOwnedSlice();
                     defer alloc.free(bytes);
 
-                    if (bytes.len > std.math.maxInt(u64)) return error.Overflow;
+                    if (bytes.len > std.math.maxInt(u64))
+                        return error.Overflow;
 
                     if (bytes.len < 56) {
                         try writer.writeByte(@intCast(0xc0 + bytes.len));
                         try writer.writeAll(bytes);
                     } else {
                         var buffer: [32]u8 = undefined;
-                        const size = formatInt(bytes.len, &buffer);
+                        const size = utils.formatInt(bytes.len, &buffer);
                         try writer.writeByte(0xf7 + size);
                         try writer.writeAll(buffer[32 - size ..]);
                         try writer.writeAll(bytes);
@@ -261,14 +271,15 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 const bytes = try slice.toOwnedSlice();
                 defer alloc.free(bytes);
 
-                if (bytes.len > std.math.maxInt(u64)) return error.Overflow;
+                if (bytes.len > std.math.maxInt(u64))
+                    return error.Overflow;
 
                 if (bytes.len < 56) {
                     try writer.writeByte(@intCast(0xc0 + bytes.len));
                     try writer.writeAll(bytes);
                 } else {
                     var buffer: [32]u8 = undefined;
-                    const size = formatInt(bytes.len, &buffer);
+                    const size = utils.formatInt(bytes.len, &buffer);
                     try writer.writeByte(0xf7 + size);
                     try writer.writeAll(buffer[32 - size ..]);
                     try writer.writeAll(bytes);
@@ -278,194 +289,6 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
 
         else => @compileError("Unable to parse type " ++ @typeName(@TypeOf(payload))),
     }
-}
-/// Finds the size of an int and writes to the buffer accordingly.
-inline fn formatInt(int: u256, buffer: *[32]u8) u8 {
-    if (int < (1 << 8)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 1;
-    }
-    if (int < (1 << 16)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 2;
-    }
-    if (int < (1 << 24)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 3;
-    }
-    if (int < (1 << 32)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 4;
-    }
-    if (int < (1 << 40)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 5;
-    }
-    if (int < (1 << 48)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 6;
-    }
-    if (int < (1 << 56)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 7;
-    }
-    if (int < (1 << 64)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 8;
-    }
-    if (int < (1 << 72)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 9;
-    }
-
-    if (int < (1 << 80)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 10;
-    }
-
-    if (int < (1 << 88)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 11;
-    }
-
-    if (int < (1 << 96)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 12;
-    }
-
-    if (int < (1 << 104)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 13;
-    }
-
-    if (int < (1 << 112)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 14;
-    }
-
-    if (int < (1 << 120)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 15;
-    }
-
-    if (int < (1 << 128)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 16;
-    }
-
-    if (int < (1 << 136)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 17;
-    }
-
-    if (int < (1 << 144)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 18;
-    }
-
-    if (int < (1 << 152)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 19;
-    }
-
-    if (int < (1 << 160)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 20;
-    }
-
-    if (int < (1 << 168)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 21;
-    }
-
-    if (int < (1 << 176)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 22;
-    }
-
-    if (int < (1 << 184)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 23;
-    }
-
-    if (int < (1 << 192)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 24;
-    }
-
-    if (int < (1 << 200)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 25;
-    }
-
-    if (int < (1 << 208)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 26;
-    }
-
-    if (int < (1 << 216)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 27;
-    }
-
-    if (int < (1 << 224)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 28;
-    }
-
-    if (int < (1 << 232)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 29;
-    }
-
-    if (int < (1 << 240)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 30;
-    }
-
-    if (int < (1 << 248)) {
-        buffer.* = @bitCast(@byteSwap(int));
-        return 31;
-    }
-
-    buffer.* = @bitCast(@byteSwap(int));
-    return 32;
-}
-/// Computes the size of a given int
-inline fn computeSize(int: u256) u8 {
-    if (int < (1 << 8)) return 1;
-    if (int < (1 << 16)) return 2;
-    if (int < (1 << 24)) return 3;
-    if (int < (1 << 32)) return 4;
-    if (int < (1 << 40)) return 5;
-    if (int < (1 << 48)) return 6;
-    if (int < (1 << 56)) return 7;
-    if (int < (1 << 64)) return 8;
-    if (int < (1 << 72)) return 9;
-    if (int < (1 << 80)) return 10;
-    if (int < (1 << 88)) return 11;
-    if (int < (1 << 96)) return 12;
-    if (int < (1 << 104)) return 13;
-    if (int < (1 << 112)) return 14;
-    if (int < (1 << 120)) return 15;
-    if (int < (1 << 128)) return 16;
-    if (int < (1 << 136)) return 17;
-    if (int < (1 << 144)) return 18;
-    if (int < (1 << 152)) return 19;
-    if (int < (1 << 160)) return 20;
-    if (int < (1 << 168)) return 21;
-    if (int < (1 << 176)) return 22;
-    if (int < (1 << 184)) return 23;
-    if (int < (1 << 192)) return 24;
-    if (int < (1 << 200)) return 25;
-    if (int < (1 << 208)) return 26;
-    if (int < (1 << 216)) return 27;
-    if (int < (1 << 224)) return 28;
-    if (int < (1 << 232)) return 29;
-    if (int < (1 << 240)) return 30;
-    if (int < (1 << 248)) return 31;
-
-    return 32;
 }
 
 test "Empty" {

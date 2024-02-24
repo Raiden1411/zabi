@@ -28,9 +28,10 @@ const Tuple = std.meta.Tuple;
 /// Caller ownes the memory
 pub fn serializeTransaction(alloc: Allocator, tx: TransactionEnvelope, sig: ?Signature) ![]u8 {
     return switch (tx) {
-        .london => |val| try serializeTransactionEIP1559(alloc, val, sig),
         .berlin => |val| try serializeTransactionEIP2930(alloc, val, sig),
         .legacy => |val| try serializeTransactionLegacy(alloc, val, sig),
+        .london => |val| try serializeTransactionEIP1559(alloc, val, sig),
+        else => return error.NotImplementedYet,
     };
 }
 /// Function to serialize eip1559 transactions.

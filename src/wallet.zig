@@ -300,6 +300,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
                     return .{ .legacy = .{ .chainId = chain_id, .nonce = nonce, .gas = request.gas.?, .gasPrice = request.gasPrice.?, .data = request.data, .to = request.to, .value = request.value.? } };
                 },
+
+                else => return error.NotImplementedYet,
             }
         }
         /// Asserts that the transactions is ready to be sent.
@@ -319,6 +321,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     if (tx_legacy.chainId != 0 and tx_legacy.chainId != self.pub_client.chain_id) return error.InvalidChainId;
                     if (tx_legacy.to) |addr| if (!try utils.isAddress(self.allocator, addr)) return error.InvalidAddress;
                 },
+                else => return error.NotImplementedYet,
             }
         }
         /// Signs, serializes and send the transaction via `eth_sendRawTransaction`.

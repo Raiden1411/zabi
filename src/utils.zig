@@ -103,6 +103,7 @@ pub fn hexifyEthCall(alloc: Allocator, call_object: EthCall) !EthCallHexed {
 
                 break :call .{ .legacy = legacy_call };
             },
+            else => return error.NotImplementedYet,
         }
     };
 

@@ -37,9 +37,27 @@ pub const PendingTransactionsSubscription = struct {
 };
 /// The transaction envelope that will be serialized before getting sent to the network.
 pub const TransactionEnvelope = union(enum) {
-    london: LondonTransactionEnvelope,
     berlin: BerlinTransactionEnvelope,
+    cancun: CancunTransactionEnvelope,
     legacy: LegacyTransactionEnvelope,
+    london: LondonTransactionEnvelope,
+};
+/// The transaction envelope from the Cancun hardfork
+pub const CancunTransactionEnvelope = struct {
+    type: u2 = 3,
+    chainId: usize,
+    nonce: u64,
+    maxFeePerBlobGas: Gwei,
+    maxPriorityFeePerGas: Gwei,
+    maxFeePerGas: Gwei,
+    gas: Gwei,
+    to: ?Hex,
+    value: Wei,
+    data: ?Hex,
+    accessList: []const AccessList,
+    blobs: []const Hex,
+
+    pub usingnamespace RequestParser(@This());
 };
 /// The transaction envelope from the London hardfork
 pub const LondonTransactionEnvelope = struct {
@@ -92,11 +110,32 @@ pub const AccessList = struct {
 };
 /// Signed transaction envelope with the signature fields
 pub const TransactionEnvelopeSigned = union(enum) {
-    london: LondonTransactionEnvelopeSigned,
     berlin: BerlinTransactionEnvelopeSigned,
+    cancun: CancunTransactionEnvelopeSigned,
     legacy: LegacyTransactionEnvelopeSigned,
+    london: LondonTransactionEnvelopeSigned,
 
     pub usingnamespace UnionParser(@This());
+};
+/// The transaction envelope from the London hardfork with the signature fields
+pub const CancunTransactionEnvelopeSigned = struct {
+    type: u2 = 3,
+    chainId: usize,
+    nonce: u64,
+    maxFeePerBlobGas: Gwei,
+    maxPriorityFeePerGas: Gwei,
+    maxFeePerGas: Gwei,
+    gas: Gwei,
+    to: ?Hex,
+    value: Wei,
+    data: ?Hex,
+    accessList: []const AccessList,
+    blobs: []const Hex,
+    r: Hex,
+    s: Hex,
+    v: u4,
+
+    pub usingnamespace RequestParser(@This());
 };
 /// The transaction envelope from the London hardfork with the signature fields
 pub const LondonTransactionEnvelopeSigned = struct {
@@ -151,11 +190,31 @@ pub const LegacyTransactionEnvelopeSigned = struct {
 };
 /// Same as `Envelope` but were all fields are optionals.
 pub const PrepareEnvelope = union(enum) {
-    london: PrepareLondonEnvelope,
     berlin: PrepareBerlinEnvelope,
+    cancun: PrepareCancunEnvelope,
     legacy: PrepareLegacyEnvelope,
+    london: PrepareLondonEnvelope,
 
     pub usingnamespace UnionParser(@This());
+};
+/// The transaction envelope from the London hardfork where all fields are optionals
+/// These are optionals so that when we stringify we can
+/// use the option `ignore_null_fields`
+pub const PrepareCancunEnvelope = struct {
+    type: u2 = 3,
+    chainId: ?usize = null,
+    nonce: ?u64 = null,
+    maxFeePerBlobGas: ?Gwei = null,
+    maxPriorityFeePerGas: ?Gwei = null,
+    maxFeePerGas: ?Gwei = null,
+    gas: ?Gwei = null,
+    to: ?Hex = null,
+    value: ?Wei = null,
+    data: ?Hex = null,
+    accessList: ?[]const AccessList = null,
+    blobs: ?[]const Hex = null,
+
+    pub usingnamespace RequestParser(@This());
 };
 /// The transaction envelope from the London hardfork where all fields are optionals
 /// These are optionals so that when we stringify we can
@@ -258,6 +317,35 @@ pub const PendingTransaction = union(enum) {
 
     pub usingnamespace UnionParser(@This());
 };
+/// The Cancun hardfork representation of a transaction.
+pub const CancunTransaction = struct {
+    hash: Hex,
+    nonce: u64,
+    blockHash: ?Hex,
+    blockNumber: ?u64,
+    transactionIndex: ?u64,
+    from: Hex,
+    to: ?Hex,
+    value: Wei,
+    gasPrice: Gwei,
+    gas: Gwei,
+    input: Hex,
+    v: u4,
+    r: Hex,
+    s: Hex,
+    isSystemTx: bool,
+    sourceHash: Hex,
+    type: u2,
+    accessList: []const AccessList,
+    blobVersionHashes: []const Hex,
+    maxFeePerBlobGas: Gwei,
+    maxPriorityFeePerGas: Gwei,
+    maxFeePerGas: Gwei,
+    chainId: usize,
+    yParity: u1,
+
+    pub usingnamespace RequestParser(@This());
+};
 /// The London hardfork representation of a transaction.
 pub const LondonTransaction = struct {
     hash: Hex,
@@ -359,15 +447,17 @@ pub const Transaction = union(enum) {
     untyped: UntypedTransaction,
     /// Legacy type transactions.
     legacy: LegacyTransaction,
-    /// Legacy type transactions that might have the accessList.
+    /// Berlin hardfork transactions that might have the accessList.
     berlin: BerlinTransaction,
-    /// Current transaction objects.
+    /// London hardfork transaction objects.
     london: LondonTransaction,
+    /// Cancun hardfork transactions.
+    cancun: CancunTransaction,
 
     pub usingnamespace UnionParser(@This());
 };
-/// The transaction receipt representation
-pub const TransactionReceipt = struct {
+/// The london and other hardforks transaction receipt representation
+pub const LondonReceipt = struct {
     transactionHash: Hex,
     transactionIndex: usize,
     blockHash: Hex,
@@ -387,12 +477,57 @@ pub const TransactionReceipt = struct {
 
     pub usingnamespace RequestParser(@This());
 };
-/// The representation of an `eth_call` struct.
-pub const EthCall = union(enum) {
-    london: LondonEthCall,
-    legacy: LegacyEthCall,
+/// Cancun transaction receipt representation
+pub const CancunReceipt = struct {
+    transactionHash: Hex,
+    transactionIndex: usize,
+    blockHash: Hex,
+    blockNumber: ?u64,
+    from: Hex,
+    to: ?Hex,
+    cumulativeGasUsed: Gwei,
+    effectiveGasPrice: Gwei,
+    blobGasPrice: Gwei,
+    blobGasUsed: Gwei,
+    gasUsed: Gwei,
+    contractAddress: ?Hex,
+    logs: Logs,
+    logsBloom: Hex,
+    type: u2,
+    root: ?Hex,
+    status: ?bool,
+    deposit_nonce: ?usize,
+
+    pub usingnamespace RequestParser(@This());
+};
+/// All possible transaction receipts
+pub const TransactionReceipt = union(enum) {
+    london: LondonReceipt,
+    cancun: CancunReceipt,
 
     pub usingnamespace UnionParser(@This());
+};
+/// The representation of an `eth_call` struct.
+pub const EthCall = union(enum) {
+    cancun: CancunEthCall,
+    legacy: LegacyEthCall,
+    london: LondonEthCall,
+
+    pub usingnamespace UnionParser(@This());
+};
+/// The representation of an Cancun hardfork `eth_call` struct where all fields are optional
+/// These are optionals so that when we stringify we can
+/// use the option `ignore_null_fields`
+pub const CancunEthCall = struct {
+    from: ?Hex = null,
+    maxPriorityFeePerGas: ?Gwei = null,
+    maxFeePerGas: ?Gwei = null,
+    gas: ?Gwei = null,
+    to: ?Hex = null,
+    value: ?Wei = null,
+    data: ?Hex = null,
+
+    pub usingnamespace RequestParser(@This());
 };
 /// The representation of an London hardfork `eth_call` struct where all fields are optional
 /// These are optionals so that when we stringify we can
@@ -424,10 +559,25 @@ pub const LegacyEthCall = struct {
 /// This is used for eth call request and want to send the request with all hexed values.
 /// The JSON RPC cannot understand the "native" value so we need these helper
 pub const EthCallHexed = union(enum) {
-    london: LondonEthCallHexed,
+    cancun: CancunEthCallHexed,
     legacy: LegacyEthCallHexed,
+    london: LondonEthCallHexed,
 
     pub usingnamespace UnionParser(@This());
+};
+/// The representation of an Cancun hardfork `eth_call` struct where all fields are optional and hex values.
+/// These are optionals so that when we stringify we can
+/// use the option `ignore_null_fields`
+pub const CancunEthCallHexed = struct {
+    from: ?Hex = null,
+    maxPriorityFeePerGas: ?Hex = null,
+    maxFeePerGas: ?Hex = null,
+    gas: ?Hex = null,
+    to: ?Hex = null,
+    value: ?Hex = null,
+    data: ?Hex = null,
+
+    pub usingnamespace RequestParser(@This());
 };
 /// The representation of an London hardfork `eth_call` struct where all fields are optional and hex values.
 /// These are optionals so that when we stringify we can

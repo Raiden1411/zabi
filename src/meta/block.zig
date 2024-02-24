@@ -21,7 +21,6 @@ const Wei = types.Wei;
 pub const BlockTag = enum { latest, earliest, pending, safe, finalized };
 /// Specific tags used in some RPC requests
 pub const BalanceBlockTag = Extract(BlockTag, "latest,pending,earliest");
-
 /// Used in the RPC method requests
 pub const BlockRequest = struct { block_number: ?u64 = null, tag: ?BlockTag = .latest, include_transaction_objects: ?bool = false };
 /// Used in the RPC method requests
@@ -43,7 +42,7 @@ pub const Withdrawal = struct {
 /// The most common block that can be found before the
 /// ethereum merge. Doesn't contain the `withdrawals` or
 /// `withdrawalsRoot` fields.
-pub const BlockBeforeMerge = struct {
+pub const LegacyBlock = struct {
     hash: ?Hex,
     parentHash: Hex,
     sha3Uncles: Hex,
@@ -79,7 +78,7 @@ pub const BlockTransactions = union(enum) {
 };
 /// Almost similar to `BlockBeforeMerge` but with
 /// the `withdrawalsRoot` and `withdrawals` fields.
-pub const BlockAfterMerge = struct {
+pub const BeaconBlock = struct {
     hash: ?Hex,
     parentHash: Hex,
     sha3Uncles: Hex,
@@ -109,8 +108,8 @@ pub const BlockAfterMerge = struct {
 };
 /// Union type of the possible block found on the network.
 pub const Block = union(enum) {
-    block: BlockBeforeMerge,
-    blockMerge: BlockAfterMerge,
+    legacy: LegacyBlock,
+    beacon: BeaconBlock,
 
     pub usingnamespace UnionParser(@This());
 };

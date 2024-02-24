@@ -149,6 +149,7 @@ pub fn estimateFeesPerGas(self: *PubClient, call_object: EthCall, know_block: ?B
                     const price = @divExact(gas_price * @as(u64, @intFromFloat(std.math.ceil(self.base_fee_multiplier * std.math.pow(f64, 10, 1)))), std.math.pow(u64, 10, 1));
                     return .{ .legacy = .{ .gas_price = price } };
                 },
+                else => return error.NotImplementedYet,
             }
         },
     }
@@ -495,8 +496,11 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hex, confirmations: 
             return error.FailedToGetReceipt;
 
         if (receipt) |tx_receipt| {
+            const number: ?u64 = switch (tx_receipt) {
+                inline else => |all| all.blockNumber,
+            };
             // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
-            if (valid_confirmations > confirmations and (tx_receipt.blockNumber != null or block_number - tx_receipt.blockNumber.? + 1 < confirmations)) {
+            if (valid_confirmations > confirmations and (number != null or block_number - number.? + 1 < confirmations)) {
                 receipt = tx_receipt;
                 break;
             } else {
@@ -573,8 +577,11 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hex, confirmations: 
 
                         // Here we are sure to have a valid receipt.
                         const valid_receipt = receipt.?;
+                        const number: ?u64 = switch (valid_receipt) {
+                            inline else => |all| all.blockNumber,
+                        };
                         // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
-                        if (valid_confirmations > confirmations and (valid_receipt.blockNumber != null or block_number - valid_receipt.blockNumber.? + 1 < confirmations))
+                        if (valid_confirmations > confirmations and (number != null or block_number - number.? + 1 < confirmations))
                             break;
                     }
 
@@ -911,12 +918,12 @@ test "GetBlock" {
     defer pub_client.deinit();
 
     const block_info = try pub_client.getBlockByNumber(.{});
-    try testing.expect(block_info == .blockMerge);
-    try testing.expectEqual(block_info.blockMerge.number.?, 19062632);
-    try testing.expectEqualStrings(block_info.blockMerge.hash.?, "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
+    try testing.expect(block_info == .beacon);
+    try testing.expectEqual(block_info.beacon.number.?, 19062632);
+    try testing.expectEqualStrings(block_info.beacon.hash.?, "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
 
     const block_old = try pub_client.getBlockByNumber(.{ .block_number = 696969 });
-    try testing.expect(block_old == .block);
+    try testing.expect(block_old == .legacy);
 }
 
 test "GetBlockByHash" {
@@ -925,8 +932,8 @@ test "GetBlockByHash" {
     defer pub_client.deinit();
 
     const block_info = try pub_client.getBlockByHash(.{ .block_hash = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8" });
-    try testing.expect(block_info == .blockMerge);
-    try testing.expectEqual(block_info.blockMerge.number.?, 19062632);
+    try testing.expect(block_info == .beacon);
+    try testing.expectEqual(block_info.beacon.number.?, 19062632);
 }
 
 test "GetBlockTransactionCountByHash" {
@@ -1068,11 +1075,11 @@ test "getTransactionReceipt" {
     defer pub_client.deinit();
 
     const receipt = try pub_client.getTransactionReceipt("0x72c2a1a82c48da81fac7b434cdb5662b5c92b76f85565e062196ca8a84f43ee5");
-    try testing.expect(receipt.status != null);
+    try testing.expect(receipt.london.status != null);
 
     // Pre-Byzantium
     const legacy = try pub_client.getTransactionReceipt("0x4dadc87da2b7c47125fb7e4102d95457830e44d2fbcd45537d91f8be1e5f6130");
-    try testing.expect(legacy.root != null);
+    try testing.expect(legacy.london.root != null);
 }
 
 test "estimateGas" {

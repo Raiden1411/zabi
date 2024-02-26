@@ -612,4 +612,8 @@ pub const EstimateFeeReturn = union(enum) { london: struct {
     max_fee_gas: Gwei,
 }, legacy: struct {
     gas_price: Gwei,
+}, cancun: struct {
+    max_priority_fee: Gwei,
+    max_fee_gas: Gwei,
+    max_fee_per_blob: Gwei,
 } };

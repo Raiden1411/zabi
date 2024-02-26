@@ -292,6 +292,40 @@ pub fn write(self: *WebSocketHandler, data: []const u8) !void {
 pub fn getCurrentEvent(self: *WebSocketHandler) !EthereumEvents {
     return self.channel.get();
 }
+/// Estimate
+pub fn blobBaseFee(self: *WebSocketHandler) !Gwei {
+    const req_body = try self.prepEmptyArgsRequest(.eth_blobBaseFee);
+    defer self.allocator.free(req_body);
+
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
+
+        try self.write(@constCast(req_body));
+        switch (self.channel.get()) {
+            .hex_event => |hex| return try std.fmt.parseInt(u64, hex.result, 0),
+            .too_many_requests => {
+                // Exponential backoff
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                std.time.sleep(std.time.ns_per_ms * backoff);
+                continue;
+            },
+            else => |eve| {
+                wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
+                return error.InvalidEventFound;
+            },
+        }
+    }
+}
+pub fn estimateBlobMaxFeePerGas(self: *WebSocketHandler) !Gwei {
+    const base = try self.blobBaseFee();
+    const gas_price = try self.getGasPrice();
+
+    return if (base > gas_price) 0 else base - gas_price;
+}
 /// Estimate maxPriorityFeePerGas and maxFeePerGas. Will make more than one network request.
 /// Uses the `baseFeePerGas` included in the block to calculate the gas fees.
 /// Will return an error in case the `baseFeePerGas` is null.
@@ -313,7 +347,14 @@ pub fn estimateFeesPerGas(self: *WebSocketHandler, call_object: EthCall, know_bl
                     const price = @divExact(gas_price * @as(u64, @intFromFloat(std.math.ceil(self.base_fee_multiplier * std.math.pow(f64, 10, 1)))), std.math.pow(u64, 10, 1));
                     return .{ .legacy = .{ .gas_price = price } };
                 },
-                else => return error.NotImplementedYet,
+                .cancun => |tx| {
+                    const base_fee = block_info.baseFeePerGas orelse return error.UnableToFetchFeeInfoFromBlock;
+                    const max_priority = if (tx.maxPriorityFeePerGas) |max| max else try self.estimateMaxFeePerGasManual(current_block);
+                    const max_fee = if (tx.maxFeePerGas) |max| max else base_fee + max_priority;
+                    const max_blob_fee = try self.estimateBlobMaxFeePerGas();
+
+                    return .{ .cancun = .{ .max_fee_gas = max_fee, .max_priority_fee = max_priority, .max_fee_per_blob = max_blob_fee } };
+                },
             }
         },
     }

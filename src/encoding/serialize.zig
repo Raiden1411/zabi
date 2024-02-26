@@ -5,34 +5,62 @@ const transaction = @import("../meta/transaction.zig");
 const testing = std.testing;
 const types = @import("../meta/ethereum.zig");
 const utils = @import("../utils.zig");
+const kzg = @import("c-kzg-4844");
 
 // Types
 const AccessList = transaction.AccessList;
 const Allocator = std.mem.Allocator;
-const LondonEnvelope = transaction.LondonEnvelope;
 const BerlinEnvelope = transaction.BerlinEnvelope;
-const LegacyEnvelope = transaction.LegacyEnvelope;
-const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
 const BerlinEnvelopeSigned = transaction.BerlinEnvelopeSigned;
-const LegacyEnvelopeSigned = transaction.LegacyEnvelopeSigned;
+const BerlinTransactionEnvelope = transaction.BerlinTransactionEnvelope;
+const Blob = kzg.Blob;
+const CancunTransactionEnvelope = transaction.CancunTransactionEnvelope;
 const Hex = types.Hex;
+const KZGCommitment = kzg.KZGCommitment;
+const KZGProof = kzg.KZGProof;
+const LegacyEnvelope = transaction.LegacyEnvelope;
+const LegacyEnvelopeSigned = transaction.LegacyEnvelopeSigned;
+const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
+const LondonEnvelope = transaction.LondonEnvelope;
+const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
+const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
 const Signature = signer.Signature;
 const TransactionEnvelope = transaction.TransactionEnvelope;
-const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
-const BerlinTransactionEnvelope = transaction.BerlinTransactionEnvelope;
-const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
 const Tuple = std.meta.Tuple;
 
+/// Blobs, commitments and proofs required for the cancun envelope.
+pub const CancunSerializeOptions = struct {
+    blobs: []const Blob,
+    commitments: []const KZGCommitment,
+    proofs: []const KZGProof,
+};
+
 /// Main function to serialize transactions.
-/// Support all 3 main transaction envelopes.
+/// Support london, berlin and legacy transaction envelopes.
+/// For cancun transactions use the `serializeCancunTransaction` function. This
+/// will panic if you call this with the cancun transaction envelope.
+///
 /// Caller ownes the memory
 pub fn serializeTransaction(alloc: Allocator, tx: TransactionEnvelope, sig: ?Signature) ![]u8 {
     return switch (tx) {
         .berlin => |val| try serializeTransactionEIP2930(alloc, val, sig),
         .legacy => |val| try serializeTransactionLegacy(alloc, val, sig),
         .london => |val| try serializeTransactionEIP1559(alloc, val, sig),
-        else => return error.NotImplementedYet,
+        else => @panic("Use serializeCancunTransaction instead"),
     };
+}
+
+pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature, opts: CancunSerializeOptions) ![]u8 {
+    if (tx.type != 3)
+        return error.InvalidTransactionType;
+
+    _ = opts;
+    const prep_access = try prepareAccessList(allocator, tx.accessList);
+    _ = prep_access;
+
+    if (sig) |signature| {
+        _ = signature;
+    }
 }
 /// Function to serialize eip1559 transactions.
 /// Caller ownes the memory

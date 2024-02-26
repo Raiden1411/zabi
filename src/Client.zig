@@ -128,6 +128,16 @@ pub fn deinit(self: *PubClient) void {
     allocator.destroy(self.client);
     allocator.destroy(self);
 }
+/// Estimate
+pub fn blobBaseFee(self: *PubClient) !Gwei {
+    return try self.fetchWithEmptyArgs(Gwei, .eth_blobBaseFee);
+}
+pub fn estimateBlobMaxFeePerGas(self: *PubClient) !Gwei {
+    const base = try self.blobBaseFee();
+    const gas_price = try self.getGasPrice();
+
+    return if (base > gas_price) 0 else base - gas_price;
+}
 /// Estimate maxPriorityFeePerGas and maxFeePerGas. Will make more than one network request.
 /// Uses the `baseFeePerGas` included in the block to calculate the gas fees.
 /// Will return an error in case the `baseFeePerGas` is null.
@@ -149,7 +159,14 @@ pub fn estimateFeesPerGas(self: *PubClient, call_object: EthCall, know_block: ?B
                     const price = @divExact(gas_price * @as(u64, @intFromFloat(std.math.ceil(self.base_fee_multiplier * std.math.pow(f64, 10, 1)))), std.math.pow(u64, 10, 1));
                     return .{ .legacy = .{ .gas_price = price } };
                 },
-                else => return error.NotImplementedYet,
+                .cancun => |tx| {
+                    const base_fee = block_info.baseFeePerGas orelse return error.UnableToFetchFeeInfoFromBlock;
+                    const max_priority = if (tx.maxPriorityFeePerGas) |max| max else try self.estimateMaxFeePerGasManual(current_block);
+                    const max_fee = if (tx.maxFeePerGas) |max| max else base_fee + max_priority;
+                    const max_blob_fee = try self.estimateBlobMaxFeePerGas();
+
+                    return .{ .cancun = .{ .max_fee_gas = max_fee, .max_priority_fee = max_priority, .max_fee_per_blob = max_blob_fee } };
+                },
             }
         },
     }

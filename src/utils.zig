@@ -4,6 +4,7 @@ const transaction = @import("meta/transaction.zig");
 
 // Types
 const Allocator = std.mem.Allocator;
+const CancunEthCallHexed = transaction.CancunEthCallHexed;
 const EthCall = transaction.EthCall;
 const EthCallHexed = transaction.EthCallHexed;
 const LondonEthCallHexed = transaction.LondonEthCallHexed;
@@ -78,6 +79,19 @@ pub fn isHash(hash: []const u8) bool {
 pub fn hexifyEthCall(alloc: Allocator, call_object: EthCall) !EthCallHexed {
     const call: EthCallHexed = call: {
         switch (call_object) {
+            .cancun => |tx| {
+                const cancun_call: CancunEthCallHexed = .{
+                    .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
+                    .gas = if (tx.gas) |gas| try std.fmt.allocPrint(alloc, "0x{x}", .{gas}) else null,
+                    .maxFeePerGas = if (tx.maxFeePerGas) |fees| try std.fmt.allocPrint(alloc, "0x{x}", .{fees}) else null,
+                    .maxPriorityFeePerGas = if (tx.maxPriorityFeePerGas) |max_fees| try std.fmt.allocPrint(alloc, "0x{x}", .{max_fees}) else null,
+                    .from = tx.from,
+                    .to = tx.to,
+                    .data = tx.data,
+                };
+
+                break :call .{ .cancun = cancun_call };
+            },
             .london => |tx| {
                 const eip1559_call: LondonEthCallHexed = .{
                     .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
@@ -103,7 +117,6 @@ pub fn hexifyEthCall(alloc: Allocator, call_object: EthCall) !EthCallHexed {
 
                 break :call .{ .legacy = legacy_call };
             },
-            else => return error.NotImplementedYet,
         }
     };
 

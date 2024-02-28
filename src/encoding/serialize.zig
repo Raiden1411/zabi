@@ -14,6 +14,8 @@ const BerlinEnvelope = transaction.BerlinEnvelope;
 const BerlinEnvelopeSigned = transaction.BerlinEnvelopeSigned;
 const BerlinTransactionEnvelope = transaction.BerlinTransactionEnvelope;
 const Blob = kzg.Blob;
+const CancunEnvelope = transaction.CancunEnvelope;
+const CancunEnvelopeSigned = transaction.CancunEnvelopeSigned;
 const CancunTransactionEnvelope = transaction.CancunTransactionEnvelope;
 const Hex = types.Hex;
 const KZGCommitment = kzg.KZGCommitment;
@@ -24,48 +26,87 @@ const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
 const LondonEnvelope = transaction.LondonEnvelope;
 const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
+const Sidecar = kzg.Sidecar;
 const Signature = signer.Signature;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const Tuple = std.meta.Tuple;
 
-/// Blobs, commitments and proofs required for the cancun envelope.
-pub const CancunSerializeOptions = struct {
-    blobs: []const Blob,
-    commitments: []const KZGCommitment,
-    proofs: []const KZGProof,
-};
-
 /// Main function to serialize transactions.
 /// Support london, berlin and legacy transaction envelopes.
-/// For cancun transactions use the `serializeCancunTransaction` function. This
+/// For cancun transactions with blobs use the `serializeCancunTransactionWithBlob` function. This
 /// will panic if you call this with the cancun transaction envelope.
 ///
 /// Caller ownes the memory
-pub fn serializeTransaction(alloc: Allocator, tx: TransactionEnvelope, sig: ?Signature) ![]u8 {
+pub fn serializeTransaction(allocator: Allocator, tx: TransactionEnvelope, sig: ?Signature) ![]u8 {
     return switch (tx) {
-        .berlin => |val| try serializeTransactionEIP2930(alloc, val, sig),
-        .legacy => |val| try serializeTransactionLegacy(alloc, val, sig),
-        .london => |val| try serializeTransactionEIP1559(alloc, val, sig),
-        else => @panic("Use serializeCancunTransaction instead"),
+        .berlin => |val| try serializeTransactionEIP2930(allocator, val, sig),
+        .cancun => |val| try serializeCancunTransaction(allocator, val, sig),
+        .legacy => |val| try serializeTransactionLegacy(allocator, val, sig),
+        .london => |val| try serializeTransactionEIP1559(allocator, val, sig),
     };
 }
 
-pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature, opts: CancunSerializeOptions) ![]u8 {
+pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature) ![]u8 {
     if (tx.type != 3)
         return error.InvalidTransactionType;
 
-    _ = opts;
     const prep_access = try prepareAccessList(allocator, tx.accessList);
-    _ = prep_access;
+    defer allocator.free(prep_access);
+
+    const blob_hashes: []const Hex = tx.blobVersionedHashes orelse &.{};
 
     if (sig) |signature| {
-        _ = signature;
+        // zig fmt: off
+        const envelope_signed: CancunEnvelopeSigned = .{
+            tx.chainId,
+            tx.nonce,
+            tx.maxPriorityFeePerGas,
+            tx.maxFeePerGas,
+            tx.gas,
+            tx.to,
+            tx.value,
+            tx.data,
+            prep_access,
+            tx.maxFeePerBlobGas,
+            blob_hashes,
+            signature.v,
+            signature.r[0..],
+            signature.s[0..]
+        };
+        // zig fmt: on
+
+        const encoded = try rlp.encodeRlp(allocator, .{envelope_signed});
+        defer allocator.free(encoded);
+
+        return try std.mem.concat(allocator, u8, &.{ &.{tx.type}, encoded });
     }
+
+    // zig fmt: off
+    const envelope: CancunEnvelope = .{ 
+        tx.chainId,
+        tx.nonce, 
+        tx.maxPriorityFeePerGas,
+        tx.maxFeePerGas,
+        tx.gas,
+        tx.to,
+        tx.value,
+        tx.data,
+        prep_access,
+        tx.maxFeePerBlobGas,
+        blob_hashes
+    };
+    // zig fmt: on
+
+    const encoded = try rlp.encodeRlp(allocator, .{envelope});
+    defer allocator.free(encoded);
+
+    return try std.mem.concat(allocator, u8, &.{ &.{tx.type}, encoded });
 }
 /// Function to serialize eip1559 transactions.
 /// Caller ownes the memory
 pub fn serializeTransactionEIP1559(alloc: Allocator, tx: LondonTransactionEnvelope, sig: ?Signature) ![]u8 {
-    if (tx.type != 2) return error.InvalidTransactionType;
+    if (tx.type != 2)
+        return error.InvalidTransactionType;
 
     const prep_access = try prepareAccessList(alloc, tx.accessList);
     defer alloc.free(prep_access);
@@ -89,7 +130,8 @@ pub fn serializeTransactionEIP1559(alloc: Allocator, tx: LondonTransactionEnvelo
 /// Function to serialize eip2930 transactions.
 /// Caller ownes the memory
 pub fn serializeTransactionEIP2930(alloc: Allocator, tx: BerlinTransactionEnvelope, sig: ?Signature) ![]u8 {
-    if (tx.type != 1) return error.InvalidTransactionType;
+    if (tx.type != 1)
+        return error.InvalidTransactionType;
 
     const prep_access = try prepareAccessList(alloc, tx.accessList);
     defer alloc.free(prep_access);
@@ -113,7 +155,8 @@ pub fn serializeTransactionEIP2930(alloc: Allocator, tx: BerlinTransactionEnvelo
 /// Function to serialize legacy transactions.
 /// Caller ownes the memory
 pub fn serializeTransactionLegacy(alloc: Allocator, tx: LegacyTransactionEnvelope, sig: ?Signature) ![]u8 {
-    if (tx.type != 0) return error.InvalidTransactionType;
+    if (tx.type != 0)
+        return error.InvalidTransactionType;
 
     if (sig) |signature| {
         const v: usize = chainId: {

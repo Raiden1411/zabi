@@ -11,20 +11,24 @@ const RequestParser = meta.RequestParser;
 const Wei = types.Wei;
 const UnionParser = meta.UnionParser;
 
-/// Tuple representig an encoded accessList
-pub const EncodedAccessList = std.meta.Tuple(&[_]type{ Hex, []const Hex });
-/// Tuple representig an encoded envelope for the London hardfork
-pub const LondonEnvelope = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList });
-/// Tuple representig an encoded envelope for the London hardfork with the signature
-pub const LondonEnvelopeSigned = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u4, Hex, Hex });
 /// Tuple representig an encoded envelope for the Berlin hardfork
 pub const BerlinEnvelope = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList });
 /// Tuple representig an encoded envelope for the Berlin hardfork with the signature
 pub const BerlinEnvelopeSigned = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u4, Hex, Hex });
+/// Tuple representig an encoded accessList
+pub const EncodedAccessList = std.meta.Tuple(&[_]type{ Hex, []const Hex });
 /// Tuple representig an encoded envelope for a legacy transaction
 pub const LegacyEnvelope = std.meta.Tuple(&[_]type{ u64, Gwei, Gwei, ?Hex, Wei, ?Hex });
 /// Tuple representig an encoded envelope for a legacy transaction
 pub const LegacyEnvelopeSigned = std.meta.Tuple(&[_]type{ u64, Gwei, Gwei, ?Hex, Wei, ?Hex, usize, Hex, Hex });
+/// Tuple representig an encoded envelope for the London hardfork
+pub const LondonEnvelope = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList });
+/// Tuple representig an encoded envelope for the London hardfork with the signature
+pub const LondonEnvelopeSigned = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u4, Hex, Hex });
+/// Tuple representig an encoded envelope for the London hardfork
+pub const CancunEnvelope = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u64, []const Hex });
+/// Tuple representig an encoded envelope for the London hardfork with the signature
+pub const CancunEnvelopeSigned = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u64, []const Hex, u4, Hex, Hex });
 /// Some nodes represent pending transactions hashes like this.
 pub const PendingTransactionHashesSubscription = struct {
     removed: bool,
@@ -51,11 +55,11 @@ pub const CancunTransactionEnvelope = struct {
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
     gas: Gwei,
-    to: ?Hex,
+    to: ?Hex = null,
     value: Wei,
-    data: ?Hex,
+    data: ?Hex = null,
     accessList: []const AccessList,
-    blobs: []const Hex,
+    blobVersionedHashes: ?[]const Hex = null,
 
     pub usingnamespace RequestParser(@This());
 };
@@ -67,9 +71,9 @@ pub const LondonTransactionEnvelope = struct {
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
     gas: Gwei,
-    to: ?Hex,
+    to: ?Hex = null,
     value: Wei,
-    data: ?Hex,
+    data: ?Hex = null,
     accessList: []const AccessList,
 
     pub usingnamespace RequestParser(@This());
@@ -81,9 +85,9 @@ pub const BerlinTransactionEnvelope = struct {
     nonce: u64,
     gas: Gwei,
     gasPrice: Gwei,
-    to: ?Hex,
+    to: ?Hex = null,
     value: Wei,
-    data: ?Hex,
+    data: ?Hex = null,
     accessList: []const AccessList,
 
     pub usingnamespace RequestParser(@This());
@@ -95,9 +99,9 @@ pub const LegacyTransactionEnvelope = struct {
     nonce: u64,
     gas: Gwei,
     gasPrice: Gwei,
-    to: ?Hex,
+    to: ?Hex = null,
     value: Wei,
-    data: ?Hex,
+    data: ?Hex = null,
 
     pub usingnamespace RequestParser(@This());
 };
@@ -126,11 +130,11 @@ pub const CancunTransactionEnvelopeSigned = struct {
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
     gas: Gwei,
-    to: ?Hex,
+    to: ?Hex = null,
     value: Wei,
-    data: ?Hex,
+    data: ?Hex = null,
     accessList: []const AccessList,
-    blobs: []const Hex,
+    blobVersionedHashes: ?[]const Hex = null,
     r: Hex,
     s: Hex,
     v: u4,
@@ -145,9 +149,9 @@ pub const LondonTransactionEnvelopeSigned = struct {
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
     gas: Gwei,
-    to: ?Hex,
+    to: ?Hex = null,
     value: Wei,
-    data: ?Hex,
+    data: ?Hex = null,
     accessList: []const AccessList,
     r: Hex,
     s: Hex,
@@ -162,9 +166,9 @@ pub const BerlinTransactionEnvelopeSigned = struct {
     nonce: u64,
     gas: Gwei,
     gasPrice: Gwei,
-    to: ?Hex,
+    to: ?Hex = null,
     value: Wei,
-    data: ?Hex,
+    data: ?Hex = null,
     accessList: []const AccessList,
     r: Hex,
     s: Hex,
@@ -179,9 +183,9 @@ pub const LegacyTransactionEnvelopeSigned = struct {
     nonce: u64,
     gas: Gwei,
     gasPrice: Gwei,
-    to: ?Hex,
+    to: ?Hex = null,
     value: Wei,
-    data: ?Hex,
+    data: ?Hex = null,
     r: Hex,
     s: Hex,
     v: usize,
@@ -337,7 +341,7 @@ pub const CancunTransaction = struct {
     sourceHash: Hex,
     type: u2,
     accessList: []const AccessList,
-    blobVersionHashes: []const Hex,
+    blobVersionedHashes: []const Hex,
     maxFeePerBlobGas: Gwei,
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,

@@ -216,7 +216,7 @@ pub const PrepareCancunEnvelope = struct {
     value: ?Wei = null,
     data: ?Hex = null,
     accessList: ?[]const AccessList = null,
-    blobs: ?[]const Hex = null,
+    blobVersionedHashes: ?[]const Hex = null,
 
     pub usingnamespace RequestParser(@This());
 };

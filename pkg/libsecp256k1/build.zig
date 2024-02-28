@@ -38,7 +38,7 @@ fn buildSecp256k1(b: *std.Build, upstream: *std.Build.Dependency, target: std.Bu
     defer flags.deinit();
 
     try flags.appendSlice(&.{"-DENABLE_MODULE_RECOVERY=1"});
-    lib.addCSourceFiles(.{ .dependency = upstream, .flags = flags.items, .files = &.{ "src/secp256k1.c", "src/precomputed_ecmult.c", "src/precomputed_ecmult_gen.c" } });
+    lib.addCSourceFiles(.{ .root = upstream.path("."), .flags = flags.items, .files = &.{ "src/secp256k1.c", "src/precomputed_ecmult.c", "src/precomputed_ecmult_gen.c" } });
     lib.defineCMacro("USE_FIELD_10X26", "1");
     lib.defineCMacro("USE_SCALAR_8X32", "1");
     lib.defineCMacro("USE_ENDOMORPHISM", "1");

@@ -176,9 +176,10 @@ pub fn Contract(comptime client_type: ClientType) type {
 
             const address = try self.wallet.getWalletAddress();
             const call: EthCall = switch (copy) {
+                .berlin => |tx| .{ .legacy = .{ .from = address, .value = tx.value, .to = tx.to, .data = tx.data, .gas = tx.gas, .gasPrice = tx.gasPrice } },
                 .cancun => |tx| .{ .cancun = .{ .from = address, .to = tx.to, .data = tx.data, .value = tx.value, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .gas = tx.gas } },
-                .london => |tx| .{ .london = .{ .from = address, .to = tx.to, .data = tx.data, .value = tx.value, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .gas = tx.gas } },
                 .legacy => |tx| .{ .legacy = .{ .from = address, .value = tx.value, .to = tx.to, .data = tx.data, .gas = tx.gas, .gasPrice = tx.gasPrice } },
+                .london => |tx| .{ .london = .{ .from = address, .to = tx.to, .data = tx.data, .value = tx.value, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .gas = tx.gas } },
             };
 
             return try self.wallet.pub_client.sendEthCall(call, .{});
@@ -374,9 +375,10 @@ pub fn simulateWriteCall(comptime function: Function, comptime client_type: Clie
 
     const address = try opts.wallet.getWalletAddress();
     const call: EthCall = switch (copy) {
+        .berlin => |tx| .{ .legacy = .{ .from = address, .value = tx.value, .to = tx.to, .data = tx.data, .gas = tx.gas, .gasPrice = tx.gasPrice } },
         .cancun => |tx| .{ .cancun = .{ .from = address, .to = tx.to, .data = tx.data, .value = tx.value, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .gas = tx.gas } },
-        .london => |tx| .{ .london = .{ .from = address, .to = tx.to, .data = tx.data, .value = tx.value, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .gas = tx.gas } },
         .legacy => |tx| .{ .legacy = .{ .from = address, .value = tx.value, .to = tx.to, .data = tx.data, .gas = tx.gas, .gasPrice = tx.gasPrice } },
+        .london => |tx| .{ .london = .{ .from = address, .to = tx.to, .data = tx.data, .value = tx.value, .maxFeePerGas = tx.maxFeePerGas, .maxPriorityFeePerGas = tx.maxPriorityFeePerGas, .gas = tx.gas } },
     };
 
     return try opts.wallet.pub_client.sendEthCall(call, .{});

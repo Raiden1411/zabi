@@ -71,8 +71,6 @@ base_fee_multiplier: f64,
 chain_id: usize,
 /// The underlaying http client used to manage all the calls.
 client: *http.Client,
-/// The set of predifined headers use for the rpc calls.
-headers: *http.Headers,
 /// The interval to retry the request. This will get multiplied in ns_per_ms.
 pooling_interval: u64,
 /// Retry count for failed requests.
@@ -95,14 +93,11 @@ pub fn init(opts: InitOptions) !*PubClient {
     pub_client.client = try opts.allocator.create(http.Client);
     errdefer opts.allocator.destroy(pub_client.client);
 
-    pub_client.headers = try opts.allocator.create(http.Headers);
-    errdefer opts.allocator.destroy(pub_client.arena);
-
     pub_client.arena.* = ArenaAllocator.init(opts.allocator);
     pub_client.alloc = pub_client.arena.allocator();
     errdefer pub_client.arena.deinit();
 
-    pub_client.headers.* = try http.Headers.initList(pub_client.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
+    //&{.{ .name = "Content-Type", .value = "application/json" }}
     pub_client.client.* = http.Client{ .allocator = pub_client.alloc };
 
     pub_client.uri = opts.uri;
@@ -124,7 +119,6 @@ pub fn deinit(self: *PubClient) void {
     const allocator = self.arena.child_allocator;
     self.arena.deinit();
     allocator.destroy(self.arena);
-    allocator.destroy(self.headers);
     allocator.destroy(self.client);
     allocator.destroy(self);
 }
@@ -439,14 +433,21 @@ pub fn newLogFilter(self: *PubClient, opts: LogFilterRequestParams) !usize {
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
 
+    var body = std.ArrayList(u8).init(self.alloc);
+    defer body.deinit();
+
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        const req = try self.client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.uri }, .response_storage = .{ .dynamic = &body } });
+
+        const res_body = try body.toOwnedSlice();
+        defer self.alloc.free(res_body);
+
         switch (req.status) {
-            .ok => return try self.parseRPCEvent(usize, req.body.?),
+            .ok => return try self.parseRPCEvent(usize, res_body),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -633,14 +634,21 @@ pub fn uninstalllFilter(self: *PubClient, id: usize) !bool {
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
 
+    var body = std.ArrayList(u8).init(self.alloc);
+    defer body.deinit();
+
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        const req = try self.client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.uri }, .response_storage = .{ .dynamic = &body } });
+
+        const res_body = try body.toOwnedSlice();
+        defer self.alloc.free(res_body);
+
         switch (req.status) {
-            .ok => return try self.parseRPCEvent(bool, req.body.?),
+            .ok => return try self.parseRPCEvent(bool, res_body),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -669,14 +677,21 @@ fn fetchByBlockNumber(self: *PubClient, opts: BlockNumberRequest, method: Ethere
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
 
+    var body = std.ArrayList(u8).init(self.alloc);
+    defer body.deinit();
+
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        const req = try self.client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.uri }, .response_storage = .{ .dynamic = &body } });
+
+        const res_body = try body.toOwnedSlice();
+        defer self.alloc.free(res_body);
+
         switch (req.status) {
-            .ok => return try self.parseRPCEvent(usize, req.body.?),
+            .ok => return try self.parseRPCEvent(usize, res_body),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -697,14 +712,21 @@ fn fetchByBlockHash(self: *PubClient, block_hash: []const u8, method: EthereumRp
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
 
+    var body = std.ArrayList(u8).init(self.alloc);
+    defer body.deinit();
+
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        const req = try self.client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.uri }, .response_storage = .{ .dynamic = &body } });
+
+        const res_body = try body.toOwnedSlice();
+        defer self.alloc.free(res_body);
+
         switch (req.status) {
-            .ok => return try self.parseRPCEvent(usize, req.body.?),
+            .ok => return try self.parseRPCEvent(usize, res_body),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -727,14 +749,21 @@ fn fetchByAddress(self: *PubClient, comptime T: type, opts: BalanceRequest, meth
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
 
+    var body = std.ArrayList(u8).init(self.alloc);
+    defer body.deinit();
+
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        const req = try self.client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.uri }, .response_storage = .{ .dynamic = &body } });
+
+        const res_body = try body.toOwnedSlice();
+        defer self.alloc.free(res_body);
+
         switch (req.status) {
-            .ok => return try self.parseRPCEvent(T, req.body.?),
+            .ok => return try self.parseRPCEvent(T, res_body),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -753,15 +782,23 @@ fn fetchWithEmptyArgs(self: *PubClient, comptime T: type, method: EthereumRpcMet
     const request: EthereumRequest(Params) = .{ .params = .{}, .method = method, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    defer self.alloc.free(req_body);
+
+    var body = std.ArrayList(u8).init(self.alloc);
+    errdefer body.deinit();
 
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        const req = try self.client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.uri }, .response_storage = .{ .dynamic = &body } });
+
+        const res_body = try body.toOwnedSlice();
+        defer self.alloc.free(res_body);
+
         switch (req.status) {
-            .ok => return try self.parseRPCEvent(T, req.body.?),
+            .ok => return try self.parseRPCEvent(T, res_body),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -777,14 +814,22 @@ fn fetchWithEmptyArgs(self: *PubClient, comptime T: type, method: EthereumRpcMet
 
 fn fetchBlock(self: *PubClient, request: anytype) !?Block {
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+
+    var body = std.ArrayList(u8).init(self.alloc);
+    defer body.deinit();
+
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        const req = try self.client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.uri }, .response_storage = .{ .dynamic = &body } });
+
+        const res_body = try body.toOwnedSlice();
+        defer self.alloc.free(res_body);
+
         switch (req.status) {
-            .ok => return try self.parseRPCEvent(?Block, req.body.?),
+            .ok => return try self.parseRPCEvent(?Block, res_body),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -800,14 +845,22 @@ fn fetchBlock(self: *PubClient, request: anytype) !?Block {
 
 fn fetchTransaction(self: *PubClient, comptime T: type, request: EthereumRequest(HexRequestParameters)) !T {
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+
+    var body = std.ArrayList(u8).init(self.alloc);
+    defer body.deinit();
+
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        const req = try self.client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.uri }, .response_storage = .{ .dynamic = &body } });
+
+        const res_body = try body.toOwnedSlice();
+        defer self.alloc.free(res_body);
+
         switch (req.status) {
-            .ok => return try self.parseRPCEvent(T, req.body.?),
+            .ok => return try self.parseRPCEvent(T, res_body),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -824,14 +877,21 @@ fn fetchTransaction(self: *PubClient, comptime T: type, request: EthereumRequest
 fn fetchLogs(self: *PubClient, comptime T: type, request: EthereumRequest(T)) !?Logs {
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
 
+    var body = std.ArrayList(u8).init(self.alloc);
+    defer body.deinit();
+
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        const req = try self.client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.uri }, .response_storage = .{ .dynamic = &body } });
+
+        const res_body = try body.toOwnedSlice();
+        defer self.alloc.free(res_body);
+
         switch (req.status) {
-            .ok => return try self.parseRPCEvent(?Logs, req.body.?),
+            .ok => return try self.parseRPCEvent(?Logs, res_body),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -856,14 +916,21 @@ fn fetchCall(self: *PubClient, comptime T: type, call_object: EthCall, opts: Blo
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
 
+    var body = std.ArrayList(u8).init(self.alloc);
+    defer body.deinit();
+
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        const req = try self.client.fetch(self.alloc, .{ .headers = self.headers.*, .payload = .{ .string = req_body }, .location = .{ .uri = self.uri }, .method = .POST });
+        const req = try self.client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.uri }, .response_storage = .{ .dynamic = &body } });
+
+        const res_body = try body.toOwnedSlice();
+        defer self.alloc.free(res_body);
+
         switch (req.status) {
-            .ok => return try self.parseRPCEvent(T, req.body.?),
+            .ok => return try self.parseRPCEvent(T, res_body),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;

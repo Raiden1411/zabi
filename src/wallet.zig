@@ -236,8 +236,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         return error.InvalidTransactionType;
 
                     // zig fmt: off
-                    var request: CancunEthCall = .{
-                        .from = address,
+                    var request: LondonEthCall = .{
                         .to = tx.to,
                         .gas = tx.gas,
                         .maxFeePerGas = tx.maxFeePerGas,
@@ -250,7 +249,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const curr_block = try self.pub_client.getBlockByNumber(.{});
                     const chain_id = tx.chainId orelse self.pub_client.chain_id;
                     const accessList: []const AccessList = tx.accessList orelse &.{};
-                    const max_fee_per_blob = tx.maxFeePerBlobGas orelse try self.pub_client.estimateBlobMaxFeePerGas(.{});
+                    const max_fee_per_blob = tx.maxFeePerBlobGas orelse try self.pub_client.estimateBlobMaxFeePerGas();
 
                     const nonce: u64 = tx.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
 
@@ -276,7 +275,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .maxFeePerGas = request.maxFeePerGas.?,
                         .maxPriorityFeePerGas = request.maxPriorityFeePerGas.?,
                         .maxFeePerBlobGas = max_fee_per_blob,
-                        .from = request.from.?,
                         .to = request.to,
                         .data = request.data,
                         .value = request.value.?,
@@ -328,7 +326,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .gas = request.gas.?,
                         .maxFeePerGas = request.maxFeePerGas.?,
                         .maxPriorityFeePerGas = request.maxPriorityFeePerGas.?,
-                        .from = request.from.?,
                         .to = request.to,
                         .data = request.data,
                         .value = request.value.?,
@@ -363,7 +360,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .nonce = nonce,
                         .gas = request.gas.?,
                         .gasPrice = request.gasPrice.?,
-                        .from = request.from.?,
                         .to = request.to,
                         .data = request.data,
                         .value = request.value.?,
@@ -394,7 +390,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .nonce = nonce,
                         .gas = request.gas.?,
                         .gasPrice = request.gasPrice.?,
-                        .from = request.from.?,
                         .to = request.to,
                         .data = request.data,
                         .value = request.value.?,
@@ -407,10 +402,15 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Will return errors where the values are not expected
         pub fn assertTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !void {
             switch (tx) {
-                .london, .cancun => |tx_eip1559| {
+                .london => |tx_eip1559| {
                     if (tx_eip1559.chainId != self.pub_client.chain_id) return error.InvalidChainId;
                     if (tx_eip1559.maxPriorityFeePerGas > tx_eip1559.maxFeePerGas) return error.TransactionTipToHigh;
                     if (tx_eip1559.to) |addr| if (!try utils.isAddress(self.allocator, addr)) return error.InvalidAddress;
+                },
+                .cancun => |tx_eip4844| {
+                    if (tx_eip4844.chainId != self.pub_client.chain_id) return error.InvalidChainId;
+                    if (tx_eip4844.maxPriorityFeePerGas > tx_eip4844.maxFeePerGas) return error.TransactionTipToHigh;
+                    if (tx_eip4844.to) |addr| if (!try utils.isAddress(self.allocator, addr)) return error.InvalidAddress;
                 },
                 .berlin => |tx_eip2930| {
                     if (tx_eip2930.chainId != self.pub_client.chain_id) return error.InvalidChainId;

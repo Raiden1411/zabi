@@ -63,7 +63,7 @@ pub const InitOptions = struct {
 
 /// This allocator will get set by the arena.
 alloc: Allocator,
-/// The arena where all allocations will leave.
+/// The arena where all allocations will be managed from.
 arena: *ArenaAllocator,
 /// The base fee multiplier used to estimate the gas fees in a transaction
 base_fee_multiplier: f64,
@@ -949,8 +949,8 @@ fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !T {
         if (std.json.parseFromSliceLeaky(EthereumErrorResponse, self.alloc, request, .{ .ignore_unknown_fields = true })) |result| {
             httplog.debug("RPC error response: {s}", .{result.@"error".message});
 
-            if (result.@"error".data) |data|
-                httplog.debug("RPC error response data: {s}", .{data});
+            if (!std.mem.eql(u8, result.@"error".data, "0x"))
+                httplog.debug("RPC error response data: {s}", .{result.@"error".data});
 
             // Converts the rpc error codes to zig errors
             return switch (result.@"error".code) {
@@ -1004,7 +1004,11 @@ test "GetBlock" {
     const block_info = try pub_client.getBlockByNumber(.{});
     try testing.expect(block_info == .beacon);
     try testing.expectEqual(block_info.beacon.number.?, 19062632);
-    try testing.expectEqualStrings(block_info.beacon.hash.?, "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8");
+
+    var buffer: [32]u8 = undefined;
+    const slice = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8";
+    _ = try std.fmt.hexToBytes(&buffer, slice[2..]);
+    try testing.expectEqualSlices(u8, &block_info.beacon.hash.?, &buffer);
 
     const block_old = try pub_client.getBlockByNumber(.{ .block_number = 696969 });
     try testing.expect(block_old == .legacy);

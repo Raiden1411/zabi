@@ -4,9 +4,11 @@ const transactions = @import("transaction.zig");
 const types = @import("ethereum.zig");
 
 // Types
+const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Extract = meta.Extract;
 const Gwei = types.Gwei;
+const Hash = types.Hash;
 const Hex = types.Hex;
 const ParserError = std.json.ParseError;
 const ParserOptions = std.json.ParseOptions;
@@ -34,7 +36,7 @@ pub const BlockNumberRequest = struct { block_number: ?u64 = null, tag: ?Balance
 pub const Withdrawal = struct {
     index: u64,
     validatorIndex: u64,
-    address: Hex,
+    address: Address,
     amount: Wei,
 
     pub usingnamespace RequestParser(@This());
@@ -43,27 +45,27 @@ pub const Withdrawal = struct {
 /// ethereum merge. Doesn't contain the `withdrawals` or
 /// `withdrawalsRoot` fields.
 pub const LegacyBlock = struct {
-    hash: ?Hex,
-    parentHash: Hex,
-    sha3Uncles: Hex,
-    miner: Hex,
-    stateRoot: Hex,
-    transactionsRoot: Hex,
-    receiptsRoot: Hex,
-    number: ?Gwei,
+    hash: ?Hash,
+    parentHash: Hash,
+    sha3Uncles: Hash,
+    miner: Address,
+    stateRoot: Hash,
+    transactionsRoot: Hash,
+    receiptsRoot: Hash,
+    number: ?u64,
     gasUsed: Gwei,
     gasLimit: Gwei,
     extraData: Hex,
     logsBloom: ?Hex,
     timestamp: u64,
     difficulty: u256,
-    totalDifficulty: ?Wei,
-    sealFields: []const Hex,
-    uncles: []const Hex,
+    totalDifficulty: ?u256,
+    sealFields: []const Hash,
+    uncles: []const Hash,
     transactions: BlockTransactions,
     size: u64,
-    mixHash: Hex,
-    nonce: ?Gwei,
+    mixHash: Hash,
+    nonce: ?u64,
     baseFeePerGas: ?Gwei,
 
     pub usingnamespace RequestParser(@This());
@@ -79,37 +81,37 @@ pub const BlockTransactions = union(enum) {
 /// Almost similar to `BlockBeforeMerge` but with
 /// the `withdrawalsRoot` and `withdrawals` fields.
 pub const BeaconBlock = struct {
-    hash: ?Hex,
-    parentHash: Hex,
-    sha3Uncles: Hex,
-    miner: Hex,
-    stateRoot: Hex,
-    transactionsRoot: Hex,
-    receiptsRoot: Hex,
-    number: ?Gwei,
+    hash: ?Hash,
+    parentHash: Hash,
+    sha3Uncles: Hash,
+    miner: Address,
+    stateRoot: Hash,
+    transactionsRoot: Hash,
+    receiptsRoot: Hash,
+    number: ?u64,
     gasUsed: Gwei,
     gasLimit: Gwei,
     extraData: Hex,
     logsBloom: ?Hex,
     timestamp: u64,
     difficulty: u256,
-    totalDifficulty: ?Wei,
-    sealFields: []const Hex,
-    uncles: []const Hex,
+    totalDifficulty: ?u256,
+    sealFields: []const Hash,
+    uncles: []const Hash,
     transactions: BlockTransactions,
     size: u64,
-    mixHash: Hex,
-    nonce: ?Gwei,
-    baseFeePerGas: ?Gwei,
-    withdrawalsRoot: Hex,
+    mixHash: Hash,
+    nonce: ?u64,
+    baseFeePerGas: ?u64,
+    withdrawalsRoot: Hash,
     withdrawals: []const Withdrawal,
 
     pub usingnamespace RequestParser(@This());
 };
 /// Union type of the possible block found on the network.
 pub const Block = union(enum) {
-    legacy: LegacyBlock,
     beacon: BeaconBlock,
+    legacy: LegacyBlock,
 
     pub usingnamespace UnionParser(@This());
 };

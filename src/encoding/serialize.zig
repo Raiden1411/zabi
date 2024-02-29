@@ -16,8 +16,11 @@ const BerlinTransactionEnvelope = transaction.BerlinTransactionEnvelope;
 const Blob = kzg.Blob;
 const CancunEnvelope = transaction.CancunEnvelope;
 const CancunEnvelopeSigned = transaction.CancunEnvelopeSigned;
+const CancunSignedWrapper = transaction.CancunSignedWrapper;
+const CancunWrapper = transaction.CancunWrapper;
 const CancunTransactionEnvelope = transaction.CancunTransactionEnvelope;
 const Hex = types.Hex;
+const KZG4844 = kzg.KZG4844;
 const KZGCommitment = kzg.KZGCommitment;
 const KZGProof = kzg.KZGProof;
 const LegacyEnvelope = transaction.LegacyEnvelope;
@@ -27,6 +30,7 @@ const LondonEnvelope = transaction.LondonEnvelope;
 const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
 const Sidecar = kzg.Sidecar;
+const Sidecars = kzg.Sidecar;
 const Signature = signer.Signature;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const Tuple = std.meta.Tuple;
@@ -45,7 +49,11 @@ pub fn serializeTransaction(allocator: Allocator, tx: TransactionEnvelope, sig: 
         .london => |val| try serializeTransactionEIP1559(allocator, val, sig),
     };
 }
-
+/// Serializes a cancun type transactions without blobs.
+///
+/// Please use `serializeCancunTransactionWithBlob` or
+/// `serializeCancunTransactionWithSidecars` if you want to
+/// serialize them as a wrapper
 pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature) ![]u8 {
     if (tx.type != 3)
         return error.InvalidTransactionType;
@@ -94,6 +102,78 @@ pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnv
         prep_access,
         tx.maxFeePerBlobGas,
         blob_hashes
+    };
+    // zig fmt: on
+
+    const encoded = try rlp.encodeRlp(allocator, .{envelope});
+    defer allocator.free(encoded);
+
+    return try std.mem.concat(allocator, u8, &.{ &.{tx.type}, encoded });
+}
+pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature, sidecars: Sidecars) ![]u8 {
+    if (tx.type != 3)
+        return error.InvalidTransactionType;
+
+    const prep_access = try prepareAccessList(allocator, tx.accessList);
+    defer allocator.free(prep_access);
+
+    var list_sidecar: std.MultiArrayList(Sidecar) = .{};
+    defer list_sidecar.deinit(allocator);
+
+    for (sidecars) |sidecar| {
+        try list_sidecar.append(allocator, .{ .proof = sidecar.proof, .commitment = sidecar.commitment, .blob = sidecar.blob });
+    }
+
+    const commitments = list_sidecar.items(.commitment);
+
+    var trusted: KZG4844 = .{};
+    const blob_hashes = tx.blobVersionedHashes orelse try trusted.commitmentsToVersionedHash(allocator, commitments, null);
+
+    if (sig) |signature| {
+        // zig fmt: off
+        const envelope_signed: CancunEnvelopeSigned = .{
+            tx.chainId,
+            tx.nonce,
+            tx.maxPriorityFeePerGas,
+            tx.maxFeePerGas,
+            tx.gas,
+            tx.to,
+            tx.value,
+            tx.data,
+            prep_access,
+            tx.maxFeePerBlobGas,
+            blob_hashes,
+            signature.v,
+            signature.r[0..],
+            signature.s[0..],
+            list_sidecar.items(.blob),
+            commitments,
+            list_sidecar.items(.proof),
+        };
+        // zig fmt: on
+
+        const encoded = try rlp.encodeRlp(allocator, .{envelope_signed});
+        defer allocator.free(encoded);
+
+        return try std.mem.concat(allocator, u8, &.{ &.{tx.type}, encoded });
+    }
+
+    // zig fmt: off
+    const envelope: CancunEnvelope = .{ 
+        tx.chainId,
+        tx.nonce, 
+        tx.maxPriorityFeePerGas,
+        tx.maxFeePerGas,
+        tx.gas,
+        tx.to,
+        tx.value,
+        tx.data,
+        prep_access,
+        tx.maxFeePerBlobGas,
+        blob_hashes,
+        list_sidecar.items(.blob),
+        commitments,
+        list_sidecar.items(.proof),
     };
     // zig fmt: on
 
@@ -203,6 +283,16 @@ pub fn prepareAccessList(alloc: Allocator, access_list: []const AccessList) ![]T
     }
 
     return try tuple_list.toOwnedSlice();
+}
+
+test "Base eip 4844" {
+    const base = try serializeCancunTransaction(testing.allocator, .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 0, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = null, .accessList = &.{}, .maxFeePerBlobGas = 0, .blobVersionedHashes = &.{"0x01adbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"} }, null);
+    defer testing.allocator.free(base);
+
+    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+    defer testing.allocator.free(hex);
+
+    try testing.expectEqualStrings("03f8500145847735940084773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080c080e1a001adbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef", hex);
 }
 
 test "Base eip 1559" {

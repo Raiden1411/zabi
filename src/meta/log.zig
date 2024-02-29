@@ -3,9 +3,11 @@ const meta = @import("meta.zig");
 const types = @import("ethereum.zig");
 
 // Types
+const Address = types.Address;
 const BalanceBlockTag = block.BalanceBlockTag;
 const Extract = meta.Extract;
 const Gwei = types.Gwei;
+const Hash = types.Hash;
 const Hex = types.Hex;
 const RequestParser = meta.RequestParser;
 const UnionParser = meta.UnionParser;
@@ -13,13 +15,13 @@ const Wei = types.Wei;
 
 /// Zig struct representation of the log RPC response.
 pub const Log = struct {
-    address: Hex,
+    address: Address,
     topics: []const Hex,
-    blockHash: ?Hex,
+    blockHash: ?Hash,
     blockNumber: ?u64,
-    data: types.Hex,
+    data: Hex,
     logIndex: ?usize,
-    transactionHash: ?Hex,
+    transactionHash: ?Hash,
     transactionIndex: ?usize,
     removed: bool,
 

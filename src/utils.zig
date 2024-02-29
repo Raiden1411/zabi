@@ -3,6 +3,7 @@ const testing = std.testing;
 const transaction = @import("meta/transaction.zig");
 
 // Types
+const Address = @import("meta/ethereum.zig").Address;
 const Allocator = std.mem.Allocator;
 const CancunEthCallHexed = transaction.CancunEthCallHexed;
 const EthCall = transaction.EthCall;
@@ -46,7 +47,19 @@ pub fn isAddress(alloc: Allocator, addr: []const u8) !bool {
 
     return std.mem.eql(u8, addr, checksumed);
 }
+/// Convert address to its representing bytes
+pub fn addressToBytes(address: []const u8) !Address {
+    const addr = if (std.mem.startsWith(u8, address, "0x")) address[2..] else address;
 
+    if (addr.len != 40)
+        return error.InvalidAddress;
+
+    var addr_bytes: Address = undefined;
+    _ = try std.fmt.hexToBytes(&addr_bytes, addr);
+
+    return addr_bytes;
+}
+/// Checks if a given string is a hex string;
 pub fn isHexString(value: []const u8) bool {
     for (value) |char| {
         switch (char) {
@@ -64,9 +77,7 @@ pub fn isHash(hash: []const u8) bool {
 
     if (hash_slice.len != 64) return false;
 
-    for (0..hash_slice.len) |i| {
-        const char = hash_slice[i];
-
+    for (hash_slice) |char| {
         switch (char) {
             '0'...'9', 'a'...'f' => continue,
             else => return false,

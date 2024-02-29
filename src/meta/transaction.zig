@@ -29,6 +29,10 @@ pub const LondonEnvelopeSigned = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei
 pub const CancunEnvelope = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u64, []const Hex });
 /// Tuple representig an encoded envelope for the London hardfork with the signature
 pub const CancunEnvelopeSigned = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u64, []const Hex, u4, Hex, Hex });
+/// Signed cancun transaction converted to wrapper with blobs, commitments and proofs
+pub const CancunSignedWrapper = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u64, []const Hex, u4, Hex, Hex, []const Hex, []const Hex, []const Hex });
+/// Cancun transaction converted to wrapper with blobs, commitments and proofs
+pub const CancunWrapper = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u64, []const Hex, []const Hex, []const Hex, []const Hex });
 /// Some nodes represent pending transactions hashes like this.
 pub const PendingTransactionHashesSubscription = struct {
     removed: bool,
@@ -346,7 +350,7 @@ pub const CancunTransaction = struct {
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
     chainId: usize,
-    yParity: u1,
+    // yParity: u1,
 
     pub usingnamespace RequestParser(@This());
 };
@@ -373,7 +377,7 @@ pub const LondonTransaction = struct {
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
     chainId: usize,
-    yParity: u1,
+    // yParity: u1,
 
     pub usingnamespace RequestParser(@This());
 };
@@ -475,7 +479,7 @@ pub const LondonReceipt = struct {
     logs: Logs,
     logsBloom: Hex,
     type: u2,
-    root: ?Hex,
+    root: ?Hex = null,
     status: ?bool,
     deposit_nonce: ?usize,
 
@@ -498,7 +502,7 @@ pub const CancunReceipt = struct {
     logs: Logs,
     logsBloom: Hex,
     type: u2,
-    root: ?Hex,
+    root: ?Hex = null,
     status: ?bool,
     deposit_nonce: ?usize,
 

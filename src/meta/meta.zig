@@ -50,6 +50,7 @@ pub fn RequestParser(comptime T: type) type {
             if (.object_begin != try source.next()) return error.UnexpectedToken;
 
             var result: T = undefined;
+            var fields_seen = [_]bool{false} ** info.Struct.fields.len;
 
             while (true) {
                 var name_token: ?Token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
@@ -63,10 +64,11 @@ pub fn RequestParser(comptime T: type) type {
                     },
                 };
 
-                inline for (info.Struct.fields) |field| {
+                inline for (info.Struct.fields, 0..) |field, i| {
                     if (std.mem.eql(u8, field.name, field_name)) {
                         name_token = null;
                         @field(result, field.name) = try innerParseRequest(field.type, alloc, source, opts);
+                        fields_seen[i] = true;
                         break;
                     }
                 } else {
@@ -74,6 +76,17 @@ pub fn RequestParser(comptime T: type) type {
                         try source.skipValue();
                     } else {
                         return error.UnknownField;
+                    }
+                }
+            }
+
+            inline for (info.Struct.fields, 0..) |field, i| {
+                if (!fields_seen[i]) {
+                    if (field.default_value) |default_value| {
+                        const default = @as(*align(1) const field.type, @ptrCast(default_value)).*;
+                        @field(result, field.name) = default;
+                    } else {
+                        return error.MissingField;
                     }
                 }
             }
@@ -86,19 +99,33 @@ pub fn RequestParser(comptime T: type) type {
             if (source != .object) return error.UnexpectedToken;
 
             var result: T = undefined;
+            var fields_seen = [_]bool{false} ** info.Struct.fields.len;
 
             var iter = source.object.iterator();
 
             while (iter.next()) |token| {
                 const field_name = token.key_ptr.*;
 
-                inline for (info.Struct.fields) |field| {
+                inline for (info.Struct.fields, 0..) |field, i| {
                     if (std.mem.eql(u8, field.name, field_name)) {
                         @field(result, field.name) = try innerParseValueRequest(field.type, alloc, token.value_ptr.*, opts);
+                        fields_seen[i] = true;
                         break;
                     }
                 } else {
-                    if (!opts.ignore_unknown_fields) return error.UnknownField;
+                    if (!opts.ignore_unknown_fields)
+                        return error.UnknownField;
+                }
+            }
+
+            inline for (info.Struct.fields, 0..) |field, i| {
+                if (!fields_seen[i]) {
+                    if (field.default_value) |default_value| {
+                        const default = @as(*align(1) const field.type, @ptrCast(default_value)).*;
+                        @field(result, field.name) = default;
+                    } else {
+                        return error.MissingField;
+                    }
                 }
             }
 
@@ -114,6 +141,14 @@ pub fn RequestParser(comptime T: type) type {
                         else => return error.UnexpectedToken,
                     }
                 },
+                .Float, .ComptimeFloat => {
+                    switch (source) {
+                        .float => |f| return @as(T, @floatCast(f)),
+                        .integer => |i| return @as(T, @floatFromInt(i)),
+                        .number_string, .string => |s| return std.fmt.parseFloat(T, s),
+                        else => return error.UnexpectedToken,
+                    }
+                },
                 .Int => {
                     switch (source) {
                         .number_string, .string => |str| return try std.fmt.parseInt(TT, str, 0),
@@ -126,8 +161,46 @@ pub fn RequestParser(comptime T: type) type {
                         else => return try innerParseValueRequest(opt_info.child, alloc, source, opts),
                     }
                 },
+                .Array => |arr_info| {
+                    switch (source) {
+                        .array => |arr| {
+                            var result: TT = undefined;
+                            for (arr.items, 0..) |item, i| {
+                                result[i] = try innerParseValueRequest(arr_info.child, alloc, item, opts);
+                            }
+
+                            return result;
+                        },
+                        .string => |str| {
+                            if (arr_info.child != u8)
+                                return error.UnexpectedToken;
+
+                            var result: TT = undefined;
+
+                            const slice = if (std.mem.startsWith(u8, str, "0x")) str[2..] else str[0..];
+                            if (std.fmt.hexToBytes(&result, slice)) |_| {
+                                if (arr_info.len != slice.len / 2)
+                                    return error.LengthMismatch;
+
+                                return result;
+                            } else |_| {
+                                if (slice.len != result.len)
+                                    return error.LengthMismatch;
+
+                                @memcpy(result[0..], slice[0..]);
+                            }
+                            return result;
+                        },
+                        else => return error.UnexpectedToken,
+                    }
+                },
                 .Pointer => |ptr_info| {
                     switch (ptr_info.size) {
+                        .One => {
+                            const result: *ptr_info.child = try alloc.create(ptr_info.child);
+                            result.* = try innerParseRequest(ptr_info.child, alloc, source, opts);
+                            return result;
+                        },
                         .Slice => {
                             switch (source) {
                                 .array => |array| {
@@ -141,10 +214,13 @@ pub fn RequestParser(comptime T: type) type {
                                 .string => |str| {
                                     if (ptr_info.child != u8) return error.UnexpectedToken;
 
-                                    const result = try alloc.alloc(ptr_info.child, str.len);
-                                    @memcpy(result[0..], str);
+                                    const hex = if (std.mem.startsWith(u8, str, "0x")) str[2..] else str;
+                                    const buf = try alloc.alloc(u8, if (@mod(str.len, 2) == 0) @divExact(str.len, 2) else str.len);
+                                    if (std.fmt.hexToBytes(buf, hex)) |result| return result else |_| {
+                                        defer alloc.free(buf);
 
-                                    return result;
+                                        return str;
+                                    }
                                 },
                                 else => return error.UnexpectedToken,
                             }
@@ -184,7 +260,14 @@ pub fn RequestParser(comptime T: type) type {
 
                     return try std.fmt.parseInt(TT, slice, 0);
                 },
-
+                .Float, .ComptimeFloat => {
+                    const token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
+                    const slice = switch (token) {
+                        inline .number, .allocated_number, .string, .allocated_string => |slice| slice,
+                        else => return error.UnexpectedToken,
+                    };
+                    return try std.fmt.parseFloat(TT, slice);
+                },
                 .Optional => |opt_info| {
                     switch (try source.peekNextTokenType()) {
                         .null => {
@@ -192,6 +275,45 @@ pub fn RequestParser(comptime T: type) type {
                             return null;
                         },
                         else => return try innerParseRequest(opt_info.child, alloc, source, opts),
+                    }
+                },
+                .Array => |arr_info| {
+                    switch (try source.peekNextTokenType()) {
+                        .array_begin => {
+                            _ = try source.next();
+
+                            var result: TT = undefined;
+
+                            var index: usize = 0;
+                            while (index < arr_info.len) : (index += 1) {
+                                result[index] = try innerParseRequest(arr_info.child, alloc, source, opts);
+                            }
+
+                            if (.array_end != try source.next())
+                                return error.UnexpectedToken;
+
+                            return result;
+                        },
+                        .string => {
+                            var result: TT = undefined;
+
+                            switch (try source.next()) {
+                                .string => |str| {
+                                    const slice = if (std.mem.startsWith(u8, str, "0x")) str[2..] else return error.UnexpectedToken;
+                                    if (std.fmt.hexToBytes(&result, slice)) |_| {
+                                        return result;
+                                    } else |_| {
+                                        if (slice.len != result.len)
+                                            return error.LengthMismatch;
+
+                                        @memcpy(result[0..], slice[0..]);
+                                    }
+                                    return result;
+                                },
+                                else => return error.UnexpectedToken,
+                            }
+                        },
+                        else => return error.UnexpectedToken,
                     }
                 },
 
@@ -220,10 +342,19 @@ pub fn RequestParser(comptime T: type) type {
                                     return try arraylist.toOwnedSlice();
                                 },
                                 .string => {
-                                    if (ptrInfo.child != u8) return error.UnexpectedToken;
+                                    if (ptrInfo.child != u8)
+                                        return error.UnexpectedToken;
+
                                     if (ptrInfo.is_const) {
                                         switch (try source.nextAllocMax(alloc, opts.allocate.?, opts.max_value_len.?)) {
-                                            inline .string, .allocated_string => |slice| return slice,
+                                            inline .string, .allocated_string => |slice| {
+                                                const hex = if (std.mem.startsWith(u8, slice, "0x")) slice[2..] else slice;
+
+                                                const buf = try alloc.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
+                                                const bytes = if (std.fmt.hexToBytes(buf, hex)) |result| result else |_| slice;
+
+                                                return bytes;
+                                            },
                                             else => unreachable,
                                         }
                                     } else {

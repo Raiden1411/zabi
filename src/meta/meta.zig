@@ -419,79 +419,87 @@ pub fn Extract(comptime T: type, comptime needle: []const u8) type {
 
     return @Type(.{ .Enum = .{ .tag_type = info.tag_type, .fields = &enumFields, .decls = &.{}, .is_exhaustive = true } });
 }
-/// Experimental meta function that is used to merge to structs
-/// into a single struct.
-pub fn Merge(comptime T: type, comptime K: type) type {
-    const info = @typeInfo(T);
-    const info_k = @typeInfo(K);
-
-    if (info != .Struct) @compileError("Only struct types are supported");
-    if (info_k != .Struct) @compileError("Cannot merge from non struct type");
-
-    if (info.Struct.is_tuple or info_k.Struct.is_tuple) @compileError("Not supported for tuple types");
-
-    var fields: [info.Struct.fields.len + info_k.Struct.fields.len]std.builtin.Type.StructField = undefined;
-
-    var counter: u32 = 0;
-    inline for (info.Struct.fields) |field| {
-        fields[counter] = .{
-            .name = field.name,
-            .type = field.type,
-            .default_value = field.default_value,
-            .is_comptime = field.is_comptime,
-            .alignment = field.alignment,
-        };
-        counter += 1;
-    }
-
-    inline for (info_k.Struct.fields) |field| {
-        fields[counter] = .{
-            .name = field.name,
-            .type = field.type,
-            .default_value = field.default_value,
-            .is_comptime = field.is_comptime,
-            .alignment = field.alignment,
-        };
-        counter += 1;
-    }
-
-    if (counter != info.Struct.fields.len + info_k.Struct.fields.len) @compileError("Missmatch field length");
-
-    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
-}
-/// Converts all of the struct or union fields into optional type.
-/// This doesn't set the default_value to null.
-pub fn ToOptionalStructAndUnionMembers(comptime T: type) type {
+pub fn StructToTupleType(comptime T: type) type {
     const info = @typeInfo(T);
 
-    switch (info) {
-        .Struct => |struct_info| {
-            if (struct_info.is_tuple) @compileError("Tuple types are not supported");
+    if (info != .Struct and info.Struct.is_tuple)
+        @compileError("Expected non tuple struct type but found " ++ @typeName(T));
 
-            var fields: [struct_info.fields.len]std.builtin.Type.StructField = undefined;
-            inline for (struct_info.fields, 0..) |field, i| {
+    var fields: [info.Struct.fields.len]std.builtin.Type.StructField = undefined;
+
+    inline for (info.Struct.fields, 0..) |field, i| {
+        const field_info = @typeInfo(field.type);
+
+        switch (field_info) {
+            .Struct => {
+                const Type = StructToTupleType(field.type);
                 fields[i] = .{
-                    .name = field.name,
-                    .type = if (@typeInfo(field.type) == .Optional) field.type else ?field.type,
+                    .name = std.fmt.comptimePrint("{d}", .{i}),
+                    .type = Type,
                     .default_value = null,
+                    .is_comptime = false,
+                    .alignment = if (@sizeOf(Type) > 0) @alignOf(Type) else 0,
+                };
+            },
+            .Array => |arr_info| {
+                const arr_type_info = @typeInfo(arr_info.child);
+
+                if (arr_type_info == .Struct) {
+                    const Type = StructToTupleType(field.type);
+                    fields[i] = .{
+                        .name = std.fmt.comptimePrint("{d}", .{i}),
+                        .type = Type,
+                        .default_value = null,
+                        .is_comptime = false,
+                        .alignment = if (@sizeOf(Type) > 0) @alignOf(Type) else 0,
+                    };
+
+                    continue;
+                }
+                fields[i] = .{
+                    .name = std.fmt.comptimePrint("{d}", .{i}),
+                    .type = field.type,
+                    .default_value = field.default_value,
                     .is_comptime = field.is_comptime,
                     .alignment = field.alignment,
                 };
-            }
+            },
+            .Pointer => |ptr_info| {
+                const ptr_type_info = @typeInfo(ptr_info.child);
 
-            return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
-        },
-        .Union => |union_info| {
-            var fields: [union_info.fields.len]std.builtin.Type.UnionField = undefined;
+                if (ptr_type_info == .Struct) {
+                    const Type = StructToTupleType(field.type);
+                    fields[i] = .{
+                        .name = std.fmt.comptimePrint("{d}", .{i}),
+                        .type = Type,
+                        .default_value = null,
+                        .is_comptime = false,
+                        .alignment = if (@sizeOf(Type) > 0) @alignOf(Type) else 0,
+                    };
 
-            inline for (union_info.fields, 0..) |field, i| {
-                fields[i] = .{ .name = field.name, .type = if (@typeInfo(field.type) == .Optional) field.type else ?field.type, .alignment = field.alignment };
-            }
-
-            return @Type(.{ .Union = .{ .layout = union_info.layout, .fields = &fields, .decls = &.{}, .tag_type = union_info.tag_type } });
-        },
-        else => @compileError("Unsupported type. Expected Union or Struct type but found " ++ @typeName(T)),
+                    continue;
+                }
+                fields[i] = .{
+                    .name = std.fmt.comptimePrint("{d}", .{i}),
+                    .type = field.type,
+                    .default_value = field.default_value,
+                    .is_comptime = field.is_comptime,
+                    .alignment = field.alignment,
+                };
+            },
+            else => {
+                fields[i] = .{
+                    .name = std.fmt.comptimePrint("{d}", .{i}),
+                    .type = field.type,
+                    .default_value = field.default_value,
+                    .is_comptime = field.is_comptime,
+                    .alignment = field.alignment,
+                };
+            },
+        }
     }
+
+    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
 }
 /// Convert sets of solidity ABI paramters to the representing Zig types.
 /// This will create a tuple type of the subset of the resulting types
@@ -574,10 +582,7 @@ test "Meta" {
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .dynamicArray = &.{ .bool = {} } }, .name = "foo" }), []const bool);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .fixedArray = .{ .child = &.{ .bool = {} }, .size = 2 } }, .name = "foo" }), [2]bool);
 
-    try expectEqualUnions(union(enum) { foo: ?u64, bar: ?i32 }, ToOptionalStructAndUnionMembers(union(enum) { foo: u64, bar: i32 }));
-
-    try expectEqualStructs(struct { foo: u32, bar: []const u8, baz: [5]u8 }, Merge(struct { foo: u32, bar: []const u8 }, struct { baz: [5]u8 }));
-    try expectEqualStructs(struct { foo: ?u32, bar: ?[]const u8 }, ToOptionalStructAndUnionMembers(struct { foo: u32, bar: []const u8 }));
+    try expectEqualStructs(std.meta.Tuple(&[_]type{ u64, std.meta.Tuple(&[_]type{ u64, u256 }) }), StructToTupleType(struct { foo: u64, bar: struct { baz: u64, jazz: u256 } }));
     try expectEqualStructs(AbiParameterToPrimative(.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .bool = {} }, .name = "bar" }} }), struct { bar: bool });
     try expectEqualStructs(AbiParameterToPrimative(.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .tuple = {} }, .name = "bar", .components = &.{.{ .type = .{ .bool = {} }, .name = "baz" }} }} }), struct { bar: struct { baz: bool } });
 }

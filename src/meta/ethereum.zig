@@ -80,7 +80,12 @@ pub fn EthereumSubscribeResponse(comptime T: type) type {
 pub const ErrorResponse = struct {
     code: EthereumErrorCodes,
     message: []const u8,
-    data: []const u8 = "0x",
+};
+/// Zig struct representation of a RPC error message
+pub const ContractErrorResponse = struct {
+    code: EthereumErrorCodes,
+    message: []const u8,
+    data: []const u8,
 };
 /// Ethereum RPC error codes.
 /// https://eips.ethereum.org/EIPS/eip-1474#error-codes

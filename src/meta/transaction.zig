@@ -9,6 +9,7 @@ const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
 const Logs = log.Logs;
+const Omit = meta.Omit;
 const RequestParser = meta.RequestParser;
 const StructToTupleType = meta.StructToTupleType;
 const Wei = types.Wei;
@@ -19,9 +20,9 @@ pub const BerlinEnvelope = StructToTupleType(BerlinTransactionEnvelope);
 /// Tuple representig an encoded envelope for the Berlin hardfork with the signature
 pub const BerlinEnvelopeSigned = StructToTupleType(BerlinTransactionEnvelopeSigned);
 /// Tuple representig an encoded envelope for a legacy transaction
-pub const LegacyEnvelope = StructToTupleType(LegacyTransactionEnvelope);
+pub const LegacyEnvelope = StructToTupleType(Omit(LegacyTransactionEnvelope, &.{"chainId"}));
 /// Tuple representig an encoded envelope for a legacy transaction
-pub const LegacyEnvelopeSigned = StructToTupleType(LegacyTransactionEnvelopeSigned);
+pub const LegacyEnvelopeSigned = StructToTupleType(Omit(LegacyTransactionEnvelopeSigned, &.{"chainId"}));
 /// Tuple representig an encoded envelope for the London hardfork
 pub const LondonEnvelope = StructToTupleType(LondonTransactionEnvelope);
 /// Tuple representig an encoded envelope for the London hardfork with the signature
@@ -56,24 +57,22 @@ pub const TransactionEnvelope = union(enum) {
 };
 /// The transaction envelope from the Cancun hardfork
 pub const CancunTransactionEnvelope = struct {
-    type: u2 = 3,
     chainId: usize,
     nonce: u64,
-    maxFeePerBlobGas: Gwei,
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
     gas: Gwei,
-    to: ?Hash = null,
+    to: ?Address = null,
     value: Wei,
     data: ?Hex = null,
     accessList: []const AccessList,
+    maxFeePerBlobGas: Gwei,
     blobVersionedHashes: ?[]const Hash = null,
 
     pub usingnamespace RequestParser(@This());
 };
 /// The transaction envelope from the London hardfork
 pub const LondonTransactionEnvelope = struct {
-    type: u2 = 2,
     chainId: usize,
     nonce: u64,
     maxPriorityFeePerGas: Gwei,
@@ -88,12 +87,11 @@ pub const LondonTransactionEnvelope = struct {
 };
 /// The transaction envelope from the Berlin hardfork
 pub const BerlinTransactionEnvelope = struct {
-    type: u2 = 1,
     chainId: usize,
     nonce: u64,
     gas: Gwei,
     gasPrice: Gwei,
-    to: ?Hash = null,
+    to: ?Address = null,
     value: Wei,
     data: ?Hex = null,
     accessList: []const AccessList,
@@ -102,12 +100,11 @@ pub const BerlinTransactionEnvelope = struct {
 };
 /// The transaction envelope from a legacy transaction
 pub const LegacyTransactionEnvelope = struct {
-    type: u2 = 0,
     chainId: usize = 0,
     nonce: u64,
     gas: Gwei,
     gasPrice: Gwei,
-    to: ?Hash = null,
+    to: ?Address = null,
     value: Wei,
     data: ?Hex = null,
 
@@ -131,10 +128,8 @@ pub const TransactionEnvelopeSigned = union(enum) {
 };
 /// The transaction envelope from the London hardfork with the signature fields
 pub const CancunTransactionEnvelopeSigned = struct {
-    type: u2 = 3,
     chainId: usize,
     nonce: u64,
-    maxFeePerBlobGas: Gwei,
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
     gas: Gwei,
@@ -142,16 +137,16 @@ pub const CancunTransactionEnvelopeSigned = struct {
     value: Wei,
     data: ?Hex = null,
     accessList: []const AccessList,
+    maxFeePerBlobGas: Gwei,
     blobVersionedHashes: ?[]const Hash = null,
+    v: u2,
     r: Hash,
     s: Hash,
-    v: u4,
 
     pub usingnamespace RequestParser(@This());
 };
 /// The transaction envelope from the London hardfork with the signature fields
 pub const LondonTransactionEnvelopeSigned = struct {
-    type: u2 = 2,
     chainId: usize,
     nonce: u64,
     maxPriorityFeePerGas: Gwei,
@@ -161,15 +156,14 @@ pub const LondonTransactionEnvelopeSigned = struct {
     value: Wei,
     data: ?Hex = null,
     accessList: []const AccessList,
+    v: u2,
     r: Hash,
     s: Hash,
-    v: u4,
 
     pub usingnamespace RequestParser(@This());
 };
 /// The transaction envelope from the Berlin hardfork with the signature fields
 pub const BerlinTransactionEnvelopeSigned = struct {
-    type: u2 = 1,
     chainId: usize,
     nonce: u64,
     gas: Gwei,
@@ -178,15 +172,14 @@ pub const BerlinTransactionEnvelopeSigned = struct {
     value: Wei,
     data: ?Hex = null,
     accessList: []const AccessList,
+    v: u2,
     r: Hash,
     s: Hash,
-    v: u4,
 
     pub usingnamespace RequestParser(@This());
 };
 /// The transaction envelope from a legacy transaction with the signature fields
 pub const LegacyTransactionEnvelopeSigned = struct {
-    type: u2 = 0,
     chainId: usize = 0,
     nonce: u64,
     gas: Gwei,
@@ -194,9 +187,9 @@ pub const LegacyTransactionEnvelopeSigned = struct {
     to: ?Address = null,
     value: Wei,
     data: ?Hex = null,
+    v: usize,
     r: Hash,
     s: Hash,
-    v: usize,
 
     pub usingnamespace RequestParser(@This());
 };

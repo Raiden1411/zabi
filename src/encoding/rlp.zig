@@ -606,7 +606,13 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                     const str_len = size - 0x80;
                     const slice = encoded[position + 1 .. position + str_len + 1];
 
-                    return .{ .consumed = str_len + 1, .data = slice };
+                    if (slice.len != arr_info.len)
+                        return error.LengthMissmatch;
+
+                    var result: T = undefined;
+                    @memcpy(result[0..], slice[0..arr_info.len]);
+
+                    return .{ .consumed = str_len + 1, .data = result };
                 }
                 const len_size = size - 0xb7;
                 const len = encoded[position + 1 .. position + len_size + 1];
@@ -615,8 +621,15 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                 defer alloc.free(len_slice);
 
                 const parsed = try std.fmt.parseInt(usize, len_slice, 16);
+                const slice = encoded[position + 1 + len_size .. position + parsed + 1 + len_size];
 
-                return .{ .consumed = 2 + len_size + parsed, .data = encoded[position + 1 + len_size .. position + parsed + 1 + len_size] };
+                if (slice.len != arr_info.len)
+                    return error.LengthMissmatch;
+
+                var result: T = undefined;
+                @memcpy(result[0..], slice[0..arr_info.len]);
+
+                return .{ .consumed = 2 + len_size + parsed, .data = result };
             }
 
             const arr_size = encoded[position];

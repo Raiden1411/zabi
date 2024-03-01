@@ -1,3 +1,4 @@
+const meta = @import("../meta/meta.zig");
 const signer = @import("secp256k1");
 const std = @import("std");
 const rlp = @import("../encoding/rlp.zig");
@@ -14,7 +15,6 @@ const BerlinEnvelope = transaction.BerlinEnvelope;
 const BerlinEnvelopeSigned = transaction.BerlinEnvelopeSigned;
 const BerlinTransactionEnvelope = transaction.BerlinTransactionEnvelope;
 const BerlinTransactionEnvelopeSigned = transaction.BerlinTransactionEnvelopeSigned;
-const EncodedAccessList = transaction.EncodedAccessList;
 const LegacyEnvelope = transaction.LegacyEnvelope;
 const LegacyEnvelopeSigned = transaction.LegacyEnvelopeSigned;
 const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
@@ -24,6 +24,7 @@ const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
 const LondonTransactionEnvelopeSigned = transaction.LondonTransactionEnvelopeSigned;
 const Signature = signer.Signature;
+const StructToTupleType = meta.StructToTupleType;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const TransactionEnvelopeSigned = transaction.TransactionEnvelopeSigned;
 
@@ -83,12 +84,22 @@ pub fn parseEip1559Transaction(alloc: Allocator, serialized: []const u8) !London
     if (serialized[0] != 2)
         return error.InvaliTransactionType;
 
-    const chainId, const nonce, const max_priority, const max_fee, const gas, const address, const value, const data, const access_list = try rlp.decodeRlp(alloc, LondonEnvelope, serialized[1..]);
+    // zig fmt: off
+    const chainId, 
+    const nonce,
+    const max_priority,
+    const max_fee, 
+    const gas, 
+    const address, 
+    const value, 
+    const data, 
+    const access_list = try rlp.decodeRlp(alloc, LondonEnvelope, serialized[1..]);
+    // zig fmt: on
+
     const list = try parseAccessList(alloc, access_list);
-    const addr = if (address) |addy| try utils.toChecksum(alloc, try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(addy)})) else null;
     const data_hex = if (data) |d| try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
 
-    return .{ .chainId = chainId, .nonce = nonce, .maxPriorityFeePerGas = max_priority, .maxFeePerGas = max_fee, .gas = gas, .to = addr, .value = value, .data = data_hex, .accessList = list };
+    return .{ .chainId = chainId, .nonce = nonce, .maxPriorityFeePerGas = max_priority, .maxFeePerGas = max_fee, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list };
 }
 
 /// Parses unsigned serialized eip2930 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
@@ -96,21 +107,37 @@ pub fn parseEip2930Transaction(alloc: Allocator, serialized: []const u8) !Berlin
     if (serialized[0] != 1)
         return error.InvaliTransactionType;
 
-    const chainId, const nonce, const gas_price, const gas, const address, const value, const data, const access_list = try rlp.decodeRlp(alloc, BerlinEnvelope, serialized[1..]);
+    // zig fmt: off
+    const chainId, 
+    const nonce, 
+    const gas_price, 
+    const gas,
+    const address,
+    const value,
+    const data, 
+    const access_list = try rlp.decodeRlp(alloc, BerlinEnvelope, serialized[1..]);
+    // zig fmt: on
+
     const list = try parseAccessList(alloc, access_list);
-    const addr = if (address) |addy| try utils.toChecksum(alloc, try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(addy)})) else null;
     const data_hex = if (data) |d| try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
 
-    return .{ .chainId = chainId, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = addr, .value = value, .data = data_hex, .accessList = list };
+    return .{ .chainId = chainId, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list };
 }
 
 /// Parses unsigned serialized legacy transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseLegacyTransaction(alloc: Allocator, serialized: []const u8) !LegacyTransactionEnvelope {
-    const nonce, const gas_price, const gas, const address, const value, const data = try rlp.decodeRlp(alloc, LegacyEnvelope, serialized);
-    const addr = if (address) |addy| try utils.toChecksum(alloc, try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(addy)})) else null;
+    // zig fmt: off
+    const nonce, 
+    const gas_price, 
+    const gas,
+    const address,
+    const value,
+    const data = try rlp.decodeRlp(alloc, LegacyEnvelope, serialized);
+    // zig fmt: on
+
     const data_hex = if (data) |d| try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
 
-    return .{ .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = addr, .value = value, .data = data_hex };
+    return .{ .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = address, .value = value, .data = data_hex };
 }
 
 /// Parses signed serialized transactions. Creates and arena to manage memory.
@@ -156,16 +183,26 @@ pub fn parseSignedEip1559Transaction(alloc: Allocator, serialized: []const u8) !
     if (serialized[0] != 2)
         return error.InvaliTransactionType;
 
-    const chainId, const nonce, const max_priority, const max_fee, const gas, const address, const value, const data, const access_list, const v, const r, const s = try rlp.decodeRlp(alloc, LondonEnvelopeSigned, serialized[1..]);
+    // zig fmt: off
+    const chainId, 
+    const nonce,
+    const max_priority,
+    const max_fee, 
+    const gas, 
+    const address, 
+    const value, 
+    const data, 
+    const access_list,
+    const v,
+    const r,
+    const s = try rlp.decodeRlp(alloc, LondonEnvelopeSigned, serialized[1..]);
+    // zig fmt: on
+
     const list = try parseAccessList(alloc, access_list);
 
-    const addr = if (address) |addy| try utils.toChecksum(alloc, try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(addy)})) else null;
     const data_hex = if (data) |d| try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
 
-    const rr = try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(r)});
-    const ss = try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(s)});
-
-    return .{ .chainId = chainId, .nonce = nonce, .maxPriorityFeePerGas = max_priority, .maxFeePerGas = max_fee, .gas = gas, .to = addr, .value = value, .data = data_hex, .accessList = list, .r = rr, .s = ss, .v = v };
+    return .{ .chainId = chainId, .nonce = nonce, .maxPriorityFeePerGas = max_priority, .maxFeePerGas = max_fee, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list, .r = r, .s = s, .v = v };
 }
 
 /// Parses signed serialized eip2930 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
@@ -173,72 +210,80 @@ pub fn parseSignedEip2930Transaction(alloc: Allocator, serialized: []const u8) !
     if (serialized[0] != 1)
         return error.InvaliTransactionType;
 
-    const chainId, const nonce, const gas_price, const gas, const address, const value, const data, const access_list, const v, const r, const s = try rlp.decodeRlp(alloc, BerlinEnvelopeSigned, serialized[1..]);
+    // zig fmt: off
+    const chainId, 
+    const nonce,
+    const gas_price,
+    const gas, 
+    const address, 
+    const value, 
+    const data, 
+    const access_list,
+    const v,
+    const r,
+    const s = try rlp.decodeRlp(alloc, BerlinEnvelopeSigned, serialized[1..]);
+    // zig fmt: on
+
     const list = try parseAccessList(alloc, access_list);
 
-    const addr = if (address) |addy| try utils.toChecksum(alloc, try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(addy)})) else null;
     const data_hex = if (data) |d| try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
 
-    const rr = try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(r)});
-    const ss = try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(s)});
-
-    return .{ .chainId = chainId, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = addr, .value = value, .data = data_hex, .accessList = list, .r = rr, .s = ss, .v = v };
+    return .{ .chainId = chainId, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list, .r = r, .s = s, .v = v };
 }
 
 /// Parses signed serialized legacy transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseSignedLegacyTransaction(alloc: Allocator, serialized: []const u8) !LegacyTransactionEnvelopeSigned {
-    const nonce, const gas_price, const gas, const address, const value, const data, const v, const r, const s = try rlp.decodeRlp(alloc, LegacyEnvelopeSigned, serialized);
+    // zig fmt: off
+    const nonce, 
+    const gas_price, 
+    const gas,
+    const address,
+    const value,
+    const data,
+    const v,
+    const r,
+    const s = try rlp.decodeRlp(alloc, LegacyEnvelopeSigned, serialized);
+    // zig fmt: on
 
-    const addr = if (address) |addy| try utils.toChecksum(alloc, try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(addy)})) else null;
     const data_hex = if (data) |d| try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
-
-    const rr = try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(r)});
-    const ss = try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(s)});
 
     const chainId = if (v > 0 and r.len == 0 and s.len == 0) v else 0;
 
     if (chainId != 0)
-        return .{ .chainId = chainId, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = addr, .value = value, .data = data_hex, .r = rr, .s = ss, .v = v };
+        return .{ .chainId = chainId, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = address, .value = value, .data = data_hex, .r = r, .s = s, .v = v };
 
     if (v < 0) return error.InvalidRecoveryId;
 
     const recover_with_id = @divExact(v - 35, 2);
 
     if (recover_with_id > 0)
-        return .{ .chainId = recover_with_id, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = addr, .value = value, .data = data_hex, .r = rr, .s = ss, .v = v };
+        return .{ .chainId = recover_with_id, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = address, .value = value, .data = data_hex, .r = r, .s = s, .v = v };
 
     if (v != 27 or v != 28)
         return error.InvalidRecoveryId;
 
-    return .{ .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = addr, .value = value, .data = data_hex, .r = rr, .s = ss, .v = v };
+    return .{ .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = address, .value = value, .data = data_hex, .r = r, .s = s, .v = v };
 }
 
 /// Parses serialized transaction accessLists. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseAccessList(alloc: Allocator, access_list: []const EncodedAccessList) ![]const AccessList {
+pub fn parseAccessList(alloc: Allocator, access_list: []const StructToTupleType(AccessList)) ![]const AccessList {
     var list = std.ArrayList(AccessList).init(alloc);
     errdefer list.deinit();
 
     for (access_list) |item| {
         const address, const storage_keys = item;
-        var access: AccessList = .{ .address = try utils.toChecksum(alloc, try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(address)})), .storageKeys = undefined };
 
-        var keys = std.ArrayList([]const u8).init(alloc);
-        errdefer keys.deinit();
-
-        for (storage_keys) |key| {
-            try keys.append(try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(key)}));
-        }
-        access.storageKeys = try keys.toOwnedSlice();
-
-        try list.append(access);
+        try list.ensureUnusedCapacity(1);
+        list.appendAssumeCapacity(.{ .address = address, .storageKeys = storage_keys });
     }
 
     return try list.toOwnedSlice();
 }
 
 test "Base eip 1559" {
-    const tx: LondonTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 0, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = null, .accessList = &.{} };
-    const base = try serialize.serializeTransactionEIP1559(testing.allocator, tx, null);
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: LondonTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 0, .to = to, .value = try utils.parseEth(1), .data = null, .accessList = &.{} };
+    const base = try serialize.serializeTransaction(testing.allocator, .{ .london = tx }, null);
     defer testing.allocator.free(base);
 
     const parsed = try parseTransaction(testing.allocator, base);
@@ -248,8 +293,9 @@ test "Base eip 1559" {
 }
 
 test "Zero eip 1559" {
-    const tx: LondonTransactionEnvelope = .{ .chainId = 1, .nonce = 0, .maxPriorityFeePerGas = 0, .maxFeePerGas = 0, .gas = 0, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = 0, .data = null, .accessList = &.{} };
-    const zero = try serialize.serializeTransactionEIP1559(testing.allocator, tx, null);
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: LondonTransactionEnvelope = .{ .chainId = 1, .nonce = 0, .maxPriorityFeePerGas = 0, .maxFeePerGas = 0, .gas = 0, .to = to, .value = 0, .data = null, .accessList = &.{} };
+    const zero = try serialize.serializeTransaction(testing.allocator, .{ .london = tx }, null);
     defer testing.allocator.free(zero);
 
     const parsed = try parseTransaction(testing.allocator, zero);
@@ -260,7 +306,7 @@ test "Zero eip 1559" {
 
 test "Minimal eip 1559" {
     const tx: LondonTransactionEnvelope = .{ .chainId = 1, .nonce = 0, .maxPriorityFeePerGas = 0, .maxFeePerGas = 0, .gas = 0, .to = null, .value = 0, .data = null, .accessList = &.{} };
-    const min = try serialize.serializeTransactionEIP1559(testing.allocator, tx, null);
+    const min = try serialize.serializeTransaction(testing.allocator, .{ .london = tx }, null);
     defer testing.allocator.free(min);
 
     const parsed = try parseTransaction(testing.allocator, min);
@@ -270,8 +316,9 @@ test "Minimal eip 1559" {
 }
 
 test "Base eip1559 with gas" {
-    const tx: LondonTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 21001, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = null, .accessList = &.{} };
-    const base = try serialize.serializeTransactionEIP1559(testing.allocator, tx, null);
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: LondonTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = null, .accessList = &.{} };
+    const base = try serialize.serializeTransaction(testing.allocator, .{ .london = tx }, null);
     defer testing.allocator.free(base);
 
     const parsed = try parseTransaction(testing.allocator, base);
@@ -281,8 +328,9 @@ test "Base eip1559 with gas" {
 }
 
 test "Base eip1559 with accessList" {
-    const tx: LondonTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 21001, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = null, .accessList = &.{.{ .address = "0x0000000000000000000000000000000000000000", .storageKeys = &.{ "0x0000000000000000000000000000000000000000000000000000000000000001", "0x0000000000000000000000000000000000000000000000000000000000000002" } }} };
-    const base = try serialize.serializeTransactionEIP1559(testing.allocator, tx, null);
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: LondonTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = null, .accessList = &.{.{ .address = [_]u8{0} ** 20, .storageKeys = &.{ [_]u8{0} ** 31 ++ [1]u8{1}, [_]u8{0} ** 31 ++ [1]u8{2} } }} };
+    const base = try serialize.serializeTransaction(testing.allocator, .{ .london = tx }, null);
     defer testing.allocator.free(base);
 
     const parsed = try parseTransaction(testing.allocator, base);
@@ -292,8 +340,9 @@ test "Base eip1559 with accessList" {
 }
 
 test "Base eip1559 with data" {
-    const tx: LondonTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 21001, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = "0x1234", .accessList = &.{} };
-    const base = try serialize.serializeTransactionEIP1559(testing.allocator, tx, null);
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: LondonTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = "0x1234", .accessList = &.{} };
+    const base = try serialize.serializeTransaction(testing.allocator, .{ .london = tx }, null);
     defer testing.allocator.free(base);
 
     const parsed = try parseTransaction(testing.allocator, base);
@@ -303,8 +352,9 @@ test "Base eip1559 with data" {
 }
 
 test "Base eip 2930" {
-    const tx: BerlinTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 0, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = null, .accessList = &.{} };
-    const base = try serialize.serializeTransactionEIP2930(testing.allocator, tx, null);
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: BerlinTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 0, .to = to, .value = try utils.parseEth(1), .data = null, .accessList = &.{} };
+    const base = try serialize.serializeTransaction(testing.allocator, .{ .berlin = tx }, null);
     defer testing.allocator.free(base);
 
     const parsed = try parseTransaction(testing.allocator, base);
@@ -314,8 +364,9 @@ test "Base eip 2930" {
 }
 
 test "Zero eip eip2930" {
-    const tx: BerlinTransactionEnvelope = .{ .chainId = 1, .nonce = 0, .gasPrice = 0, .gas = 0, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = 0, .data = null, .accessList = &.{} };
-    const zero = try serialize.serializeTransactionEIP2930(testing.allocator, tx, null);
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: BerlinTransactionEnvelope = .{ .chainId = 1, .nonce = 0, .gasPrice = 0, .gas = 0, .to = to, .value = 0, .data = null, .accessList = &.{} };
+    const zero = try serialize.serializeTransaction(testing.allocator, .{ .berlin = tx }, null);
     defer testing.allocator.free(zero);
 
     const parsed = try parseTransaction(testing.allocator, zero);
@@ -326,7 +377,7 @@ test "Zero eip eip2930" {
 
 test "Minimal eip 2930" {
     const tx: BerlinTransactionEnvelope = .{ .chainId = 1, .nonce = 0, .gasPrice = 0, .gas = 0, .to = null, .value = 0, .data = null, .accessList = &.{} };
-    const min = try serialize.serializeTransactionEIP2930(testing.allocator, tx, null);
+    const min = try serialize.serializeTransaction(testing.allocator, .{ .berlin = tx }, null);
     defer testing.allocator.free(min);
 
     const parsed = try parseTransaction(testing.allocator, min);
@@ -336,8 +387,9 @@ test "Minimal eip 2930" {
 }
 
 test "Base eip2930 with gas" {
-    const tx: BerlinTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = null, .accessList = &.{} };
-    const base = try serialize.serializeTransactionEIP2930(testing.allocator, tx, null);
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: BerlinTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = null, .accessList = &.{} };
+    const base = try serialize.serializeTransaction(testing.allocator, .{ .berlin = tx }, null);
     defer testing.allocator.free(base);
 
     const parsed = try parseTransaction(testing.allocator, base);
@@ -347,8 +399,9 @@ test "Base eip2930 with gas" {
 }
 
 test "Base eip2930 with accessList" {
-    const tx: BerlinTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = null, .accessList = &.{.{ .address = "0x0000000000000000000000000000000000000000", .storageKeys = &.{ "0x0000000000000000000000000000000000000000000000000000000000000001", "0x0000000000000000000000000000000000000000000000000000000000000002" } }} };
-    const base = try serialize.serializeTransactionEIP2930(testing.allocator, tx, null);
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: BerlinTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = null, .accessList = &.{.{ .address = [_]u8{0} ** 20, .storageKeys = &.{ [_]u8{0} ** 31 ++ [1]u8{1}, [_]u8{0} ** 31 ++ [1]u8{2} } }} };
+    const base = try serialize.serializeTransaction(testing.allocator, .{ .berlin = tx }, null);
     defer testing.allocator.free(base);
 
     const parsed = try parseTransaction(testing.allocator, base);
@@ -358,8 +411,9 @@ test "Base eip2930 with accessList" {
 }
 
 test "Base eip2930 with data" {
-    const tx: BerlinTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = "0x1234", .accessList = &.{} };
-    const base = try serialize.serializeTransactionEIP2930(testing.allocator, tx, null);
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: BerlinTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = "0x1234", .accessList = &.{} };
+    const base = try serialize.serializeTransaction(testing.allocator, .{ .berlin = tx }, null);
     defer testing.allocator.free(base);
 
     const parsed = try parseTransaction(testing.allocator, base);
@@ -369,8 +423,9 @@ test "Base eip2930 with data" {
 }
 
 test "Base eip legacy" {
-    const tx: LegacyTransactionEnvelope = .{ .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 0, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = null };
-    const base = try serialize.serializeTransactionLegacy(testing.allocator, tx, null);
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: LegacyTransactionEnvelope = .{ .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 0, .to = to, .value = try utils.parseEth(1), .data = null };
+    const base = try serialize.serializeTransaction(testing.allocator, .{ .legacy = tx }, null);
     defer testing.allocator.free(base);
 
     const parsed = try parseTransaction(testing.allocator, base);
@@ -380,8 +435,9 @@ test "Base eip legacy" {
 }
 
 test "Zero eip legacy" {
-    const tx: LegacyTransactionEnvelope = .{ .nonce = 0, .gasPrice = 0, .gas = 0, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = 0, .data = null };
-    const zero = try serialize.serializeTransactionLegacy(testing.allocator, tx, null);
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: LegacyTransactionEnvelope = .{ .nonce = 0, .gasPrice = 0, .gas = 0, .to = to, .value = 0, .data = null };
+    const zero = try serialize.serializeTransaction(testing.allocator, .{ .legacy = tx }, null);
     defer testing.allocator.free(zero);
 
     const parsed = try parseTransaction(testing.allocator, zero);
@@ -392,7 +448,7 @@ test "Zero eip legacy" {
 
 test "Minimal eip legacy" {
     const tx: LegacyTransactionEnvelope = .{ .nonce = 0, .gasPrice = 0, .gas = 0, .to = null, .value = 0, .data = null };
-    const min = try serialize.serializeTransactionLegacy(testing.allocator, tx, null);
+    const min = try serialize.serializeTransaction(testing.allocator, .{ .legacy = tx }, null);
     defer testing.allocator.free(min);
 
     const parsed = try parseTransaction(testing.allocator, min);
@@ -402,8 +458,9 @@ test "Minimal eip legacy" {
 }
 
 test "Base legacy with gas" {
-    const tx: LegacyTransactionEnvelope = .{ .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = null };
-    const base = try serialize.serializeTransactionLegacy(testing.allocator, tx, null);
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: LegacyTransactionEnvelope = .{ .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = null };
+    const base = try serialize.serializeTransaction(testing.allocator, .{ .legacy = tx }, null);
     defer testing.allocator.free(base);
 
     const parsed = try parseTransaction(testing.allocator, base);
@@ -413,8 +470,9 @@ test "Base legacy with gas" {
 }
 
 test "Base legacy with data" {
-    const tx: LegacyTransactionEnvelope = .{ .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", .value = try utils.parseEth(1), .data = "0x1234" };
-    const base = try serialize.serializeTransactionLegacy(testing.allocator, tx, null);
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: LegacyTransactionEnvelope = .{ .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = "0x1234" };
+    const base = try serialize.serializeTransaction(testing.allocator, .{ .legacy = tx }, null);
     defer testing.allocator.free(base);
 
     const parsed = try parseTransaction(testing.allocator, base);
@@ -424,46 +482,49 @@ test "Base legacy with data" {
 }
 
 test "Serialize eip1559 with signature" {
+    const to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
     const sig = try generateSignature("02f1827a6980847735940084773594008252099470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a764000080c0");
-    const tx: LondonTransactionEnvelope = .{ .chainId = 31337, .nonce = 0, .maxFeePerGas = try utils.parseGwei(2), .data = null, .maxPriorityFeePerGas = try utils.parseGwei(2), .gas = 21001, .value = try utils.parseEth(1), .accessList = &.{}, .to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" };
+    const tx: LondonTransactionEnvelope = .{ .chainId = 31337, .nonce = 0, .maxFeePerGas = try utils.parseGwei(2), .data = null, .maxPriorityFeePerGas = try utils.parseGwei(2), .gas = 21001, .value = try utils.parseEth(1), .accessList = &.{}, .to = to };
 
-    const encoded = try serialize.serializeTransactionEIP1559(testing.allocator, tx, sig);
+    const encoded = try serialize.serializeTransaction(testing.allocator, .{ .london = tx }, sig);
     defer testing.allocator.free(encoded);
 
     const parsed = try parseSignedTransaction(testing.allocator, encoded);
     defer parsed.deinit();
 
-    const tx_signed: LondonTransactionEnvelopeSigned = .{ .chainId = 31337, .nonce = 0, .maxFeePerGas = try utils.parseGwei(2), .data = null, .maxPriorityFeePerGas = try utils.parseGwei(2), .gas = 21001, .value = try utils.parseEth(1), .accessList = &.{}, .to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", .v = 1, .r = "0xd4d68c02302962fa53289fda5616c9e19a9d63b3956d63d177097143b2093e3e", .s = "0x25e1dd76721b4fc48eb5e2f91bf9132699036deccd45b3fa9d77b1d9b7628fb2" };
+    const tx_signed: LondonTransactionEnvelopeSigned = .{ .chainId = 31337, .nonce = 0, .maxFeePerGas = try utils.parseGwei(2), .data = null, .maxPriorityFeePerGas = try utils.parseGwei(2), .gas = 21001, .value = try utils.parseEth(1), .accessList = &.{}, .to = to, .v = 1, .r = sig.r, .s = sig.s };
 
     try testing.expectEqualDeep(tx_signed, parsed.value.london);
 }
 
 test "Serialize eip2930 with signature" {
+    const to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
     const sig = try generateSignature("01ec827a698084773594008252099470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a764000080c0");
-    const tx: BerlinTransactionEnvelope = .{ .chainId = 31337, .nonce = 0, .gasPrice = try utils.parseGwei(2), .data = null, .gas = 21001, .value = try utils.parseEth(1), .accessList = &.{}, .to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" };
+    const tx: BerlinTransactionEnvelope = .{ .chainId = 31337, .nonce = 0, .gasPrice = try utils.parseGwei(2), .data = null, .gas = 21001, .value = try utils.parseEth(1), .accessList = &.{}, .to = to };
 
-    const encoded = try serialize.serializeTransactionEIP2930(testing.allocator, tx, sig);
+    const encoded = try serialize.serializeTransaction(testing.allocator, .{ .berlin = tx }, sig);
     defer testing.allocator.free(encoded);
 
     const parsed = try parseSignedTransaction(testing.allocator, encoded);
     defer parsed.deinit();
 
-    const tx_signed: BerlinTransactionEnvelopeSigned = .{ .chainId = 31337, .nonce = 0, .gasPrice = try utils.parseGwei(2), .data = null, .gas = 21001, .value = try utils.parseEth(1), .accessList = &.{}, .to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", .v = 1, .r = "0x855b7b9d7f752dd108609930a5dd9ced9c131936d84d5c302a6a4edd0c50101a", .s = "0x75fc0c4af1cf18d5bf15a9960b1988d2fbf9ae6351a957dd572e95adbbf8c26f" };
+    const tx_signed: BerlinTransactionEnvelopeSigned = .{ .chainId = 31337, .nonce = 0, .gasPrice = try utils.parseGwei(2), .data = null, .gas = 21001, .value = try utils.parseEth(1), .accessList = &.{}, .to = to, .v = 1, .r = sig.r, .s = sig.s };
 
     try testing.expectEqualDeep(tx_signed, parsed.value.berlin);
 }
 
 test "Serialize legacy with signature" {
+    const to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
     const sig = try generateSignature("ed8084773594008252099470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a764000080827a698080");
-    const tx: LegacyTransactionEnvelope = .{ .chainId = 31337, .nonce = 0, .gasPrice = try utils.parseGwei(2), .data = null, .gas = 21001, .value = try utils.parseEth(1), .to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" };
+    const tx: LegacyTransactionEnvelope = .{ .chainId = 31337, .nonce = 0, .gasPrice = try utils.parseGwei(2), .data = null, .gas = 21001, .value = try utils.parseEth(1), .to = to };
 
-    const encoded = try serialize.serializeTransactionLegacy(testing.allocator, tx, sig);
+    const encoded = try serialize.serializeTransaction(testing.allocator, .{ .legacy = tx }, sig);
     defer testing.allocator.free(encoded);
 
     const parsed = try parseSignedTransaction(testing.allocator, encoded);
     defer parsed.deinit();
 
-    const tx_signed: LegacyTransactionEnvelopeSigned = .{ .chainId = 31337, .nonce = 0, .gasPrice = try utils.parseGwei(2), .data = null, .gas = 21001, .value = try utils.parseEth(1), .to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", .v = 62709, .r = "0xa918ad4845f590df2667eceacdb621dcedf9c3efefd7f783d5f45840131c338d", .s = "0x59a2e246acdab8cfdc51b764ec20e4a59ca1998d8a101dba01cd1cb34c1179a0" };
+    const tx_signed: LegacyTransactionEnvelopeSigned = .{ .chainId = 31337, .nonce = 0, .gasPrice = try utils.parseGwei(2), .data = null, .gas = 21001, .value = try utils.parseEth(1), .to = to, .v = 62709, .r = sig.r, .s = sig.s };
 
     try testing.expectEqualDeep(tx_signed, parsed.value.legacy);
 }

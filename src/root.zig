@@ -41,7 +41,7 @@ test {
     _ = @import("abi/abi.zig");
     _ = @import("abi/state_mutability.zig");
     _ = @import("decoding/decoder.zig");
-    // _ = @import("decoding/parse_transacition.zig");
+    _ = @import("decoding/parse_transacition.zig");
     _ = @import("encoding/encoder.zig");
     _ = @import("encoding/logs.zig");
     _ = @import("encoding/serialize.zig");

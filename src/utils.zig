@@ -1,15 +1,13 @@
 const std = @import("std");
 const testing = std.testing;
 const transaction = @import("meta/transaction.zig");
+const types = @import("meta/ethereum.zig");
 
 // Types
-const Address = @import("meta/ethereum.zig").Address;
+const Address = types.Address;
 const Allocator = std.mem.Allocator;
-const CancunEthCallHexed = transaction.CancunEthCallHexed;
 const EthCall = transaction.EthCall;
-const EthCallHexed = transaction.EthCallHexed;
-const LondonEthCallHexed = transaction.LondonEthCallHexed;
-const LegacyEthCallHexed = transaction.LegacyEthCallHexed;
+const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
 /// Converts ethereum address to checksum
@@ -59,6 +57,18 @@ pub fn addressToBytes(address: []const u8) !Address {
 
     return addr_bytes;
 }
+/// Convert a hash to its representing bytes
+pub fn hashToBytes(hash: []const u8) !Hash {
+    const hash_value = if (std.mem.startsWith(u8, hash, "0x")) hash[2..] else hash;
+
+    if (hash_value.len != 64)
+        return error.InvalidHash;
+
+    var hash_bytes: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&hash_bytes, hash_value);
+
+    return hash_bytes;
+}
 /// Checks if a given string is a hex string;
 pub fn isHexString(value: []const u8) bool {
     for (value) |char| {
@@ -77,7 +87,10 @@ pub fn isHash(hash: []const u8) bool {
 
     if (hash_slice.len != 64) return false;
 
-    for (hash_slice) |char| {
+    return isHashString(hash_slice);
+}
+pub fn isHashString(hash: []const u8) bool {
+    for (hash) |char| {
         switch (char) {
             '0'...'9', 'a'...'f' => continue,
             else => return false,
@@ -87,52 +100,52 @@ pub fn isHash(hash: []const u8) bool {
     return true;
 }
 /// Converts a `EthCall` struct into all hex values.
-pub fn hexifyEthCall(alloc: Allocator, call_object: EthCall) !EthCallHexed {
-    const call: EthCallHexed = call: {
-        switch (call_object) {
-            .cancun => |tx| {
-                const cancun_call: CancunEthCallHexed = .{
-                    .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
-                    .gas = if (tx.gas) |gas| try std.fmt.allocPrint(alloc, "0x{x}", .{gas}) else null,
-                    .maxFeePerGas = if (tx.maxFeePerGas) |fees| try std.fmt.allocPrint(alloc, "0x{x}", .{fees}) else null,
-                    .maxPriorityFeePerGas = if (tx.maxPriorityFeePerGas) |max_fees| try std.fmt.allocPrint(alloc, "0x{x}", .{max_fees}) else null,
-                    .from = tx.from,
-                    .to = tx.to,
-                    .data = tx.data,
-                };
-
-                break :call .{ .cancun = cancun_call };
-            },
-            .london => |tx| {
-                const eip1559_call: LondonEthCallHexed = .{
-                    .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
-                    .gas = if (tx.gas) |gas| try std.fmt.allocPrint(alloc, "0x{x}", .{gas}) else null,
-                    .maxFeePerGas = if (tx.maxFeePerGas) |fees| try std.fmt.allocPrint(alloc, "0x{x}", .{fees}) else null,
-                    .maxPriorityFeePerGas = if (tx.maxPriorityFeePerGas) |max_fees| try std.fmt.allocPrint(alloc, "0x{x}", .{max_fees}) else null,
-                    .from = tx.from,
-                    .to = tx.to,
-                    .data = tx.data,
-                };
-
-                break :call .{ .london = eip1559_call };
-            },
-            .legacy => |tx| {
-                const legacy_call: LegacyEthCallHexed = .{
-                    .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
-                    .gasPrice = if (tx.gasPrice) |gas_price| try std.fmt.allocPrint(alloc, "0x{x}", .{gas_price}) else null,
-                    .gas = if (tx.gas) |gas| try std.fmt.allocPrint(alloc, "0x{x}", .{gas}) else null,
-                    .from = tx.from,
-                    .to = tx.to,
-                    .data = tx.data,
-                };
-
-                break :call .{ .legacy = legacy_call };
-            },
-        }
-    };
-
-    return call;
-}
+// pub fn hexifyEthCall(alloc: Allocator, call_object: EthCall) !EthCallHexed {
+//     const call: EthCallHexed = call: {
+//         switch (call_object) {
+//             .cancun => |tx| {
+//                 const cancun_call: CancunEthCallHexed = .{
+//                     .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
+//                     .gas = if (tx.gas) |gas| try std.fmt.allocPrint(alloc, "0x{x}", .{gas}) else null,
+//                     .maxFeePerGas = if (tx.maxFeePerGas) |fees| try std.fmt.allocPrint(alloc, "0x{x}", .{fees}) else null,
+//                     .maxPriorityFeePerGas = if (tx.maxPriorityFeePerGas) |max_fees| try std.fmt.allocPrint(alloc, "0x{x}", .{max_fees}) else null,
+//                     .from = tx.from,
+//                     .to = tx.to,
+//                     .data = tx.data,
+//                 };
+//
+//                 break :call .{ .cancun = cancun_call };
+//             },
+//             .london => |tx| {
+//                 const eip1559_call: LondonEthCallHexed = .{
+//                     .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
+//                     .gas = if (tx.gas) |gas| try std.fmt.allocPrint(alloc, "0x{x}", .{gas}) else null,
+//                     .maxFeePerGas = if (tx.maxFeePerGas) |fees| try std.fmt.allocPrint(alloc, "0x{x}", .{fees}) else null,
+//                     .maxPriorityFeePerGas = if (tx.maxPriorityFeePerGas) |max_fees| try std.fmt.allocPrint(alloc, "0x{x}", .{max_fees}) else null,
+//                     .from = tx.from,
+//                     .to = tx.to,
+//                     .data = tx.data,
+//                 };
+//
+//                 break :call .{ .london = eip1559_call };
+//             },
+//             .legacy => |tx| {
+//                 const legacy_call: LegacyEthCallHexed = .{
+//                     .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
+//                     .gasPrice = if (tx.gasPrice) |gas_price| try std.fmt.allocPrint(alloc, "0x{x}", .{gas_price}) else null,
+//                     .gas = if (tx.gas) |gas| try std.fmt.allocPrint(alloc, "0x{x}", .{gas}) else null,
+//                     .from = tx.from,
+//                     .to = tx.to,
+//                     .data = tx.data,
+//                 };
+//
+//                 break :call .{ .legacy = legacy_call };
+//             },
+//         }
+//     };
+//
+//     return call;
+// }
 /// Convert value into u256 representing ether value
 /// Ex: 1 * 10 ** 18 = 1 ETH
 pub fn parseEth(value: usize) !u256 {

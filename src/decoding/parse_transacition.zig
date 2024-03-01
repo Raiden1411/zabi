@@ -15,6 +15,10 @@ const BerlinEnvelope = transaction.BerlinEnvelope;
 const BerlinEnvelopeSigned = transaction.BerlinEnvelopeSigned;
 const BerlinTransactionEnvelope = transaction.BerlinTransactionEnvelope;
 const BerlinTransactionEnvelopeSigned = transaction.BerlinTransactionEnvelopeSigned;
+const CancunEnvelope = transaction.CancunEnvelope;
+const CancunEnvelopeSigned = transaction.CancunEnvelopeSigned;
+const CancunTransactionEnvelope = transaction.CancunTransactionEnvelope;
+const CancunTransactionEnvelopeSigned = transaction.CancunTransactionEnvelopeSigned;
 const LegacyEnvelope = transaction.LegacyEnvelope;
 const LegacyEnvelopeSigned = transaction.LegacyEnvelopeSigned;
 const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
@@ -43,21 +47,21 @@ pub fn ParsedTransaction(comptime T: type) type {
 
 /// Parses unsigned serialized transactions. Creates and arena to manage memory.
 /// Caller needs to call deinit to free memory.
-pub fn parseTransaction(alloc: Allocator, serialized: []const u8) !ParsedTransaction(TransactionEnvelope) {
-    var parsed: ParsedTransaction(TransactionEnvelope) = .{ .arena = try alloc.create(ArenaAllocator), .value = undefined };
-    errdefer alloc.destroy(parsed.arena);
+pub fn parseTransaction(allocator: Allocator, serialized: []const u8) !ParsedTransaction(TransactionEnvelope) {
+    var parsed: ParsedTransaction(TransactionEnvelope) = .{ .arena = try allocator.create(ArenaAllocator), .value = undefined };
+    errdefer allocator.destroy(parsed.arena);
 
-    parsed.arena.* = ArenaAllocator.init(alloc);
+    parsed.arena.* = ArenaAllocator.init(allocator);
     errdefer parsed.arena.deinit();
 
-    const allocator = parsed.arena.allocator();
-    parsed.value = try parseTransactionLeaky(allocator, serialized);
+    const arena_allocator = parsed.arena.allocator();
+    parsed.value = try parseTransactionLeaky(arena_allocator, serialized);
 
     return parsed;
 }
 
 /// Parses unsigned serialized transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseTransactionLeaky(alloc: Allocator, serialized: []const u8) !TransactionEnvelope {
+pub fn parseTransactionLeaky(allocator: Allocator, serialized: []const u8) !TransactionEnvelope {
     const hexed = if (std.mem.startsWith(u8, serialized, "0x")) serialized[2..] else serialized;
 
     var bytes = hexed;
@@ -69,18 +73,43 @@ pub fn parseTransactionLeaky(alloc: Allocator, serialized: []const u8) !Transact
         bytes = decoded;
     }
 
+    if (bytes[0] == 3)
+        return .{ .cancun = try parseEip4844Transaction(allocator, bytes) };
     if (bytes[0] == 2)
-        return .{ .london = try parseEip1559Transaction(alloc, bytes) };
+        return .{ .london = try parseEip1559Transaction(allocator, bytes) };
     if (bytes[0] == 1)
-        return .{ .berlin = try parseEip2930Transaction(alloc, bytes) };
+        return .{ .berlin = try parseEip2930Transaction(allocator, bytes) };
     if (bytes[0] >= 0xc0)
-        return .{ .legacy = try parseLegacyTransaction(alloc, bytes) };
+        return .{ .legacy = try parseLegacyTransaction(allocator, bytes) };
 
     return error.InvalidTransactionType;
 }
-
 /// Parses unsigned serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseEip1559Transaction(alloc: Allocator, serialized: []const u8) !LondonTransactionEnvelope {
+pub fn parseEip4844Transaction(allocator: Allocator, serialized: []const u8) !CancunTransactionEnvelope {
+    if (serialized[0] != 3)
+        return error.InvaliTransactionType;
+
+    // zig fmt: off
+    const chainId, 
+    const nonce,
+    const max_priority,
+    const max_fee, 
+    const gas, 
+    const address, 
+    const value, 
+    const data, 
+    const access_list,
+    const max_blob_gas,
+    const blob_hashes = try rlp.decodeRlp(allocator, CancunEnvelope, serialized[1..]);
+    // zig fmt: on
+
+    const list = try parseAccessList(allocator, access_list);
+    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
+
+    return .{ .chainId = chainId, .nonce = nonce, .maxPriorityFeePerGas = max_priority, .maxFeePerGas = max_fee, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list, .maxFeePerBlobGas = max_blob_gas, .blobVersionedHashes = blob_hashes };
+}
+/// Parses unsigned serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
+pub fn parseEip1559Transaction(allocator: Allocator, serialized: []const u8) !LondonTransactionEnvelope {
     if (serialized[0] != 2)
         return error.InvaliTransactionType;
 
@@ -93,17 +122,17 @@ pub fn parseEip1559Transaction(alloc: Allocator, serialized: []const u8) !London
     const address, 
     const value, 
     const data, 
-    const access_list = try rlp.decodeRlp(alloc, LondonEnvelope, serialized[1..]);
+    const access_list = try rlp.decodeRlp(allocator, LondonEnvelope, serialized[1..]);
     // zig fmt: on
 
-    const list = try parseAccessList(alloc, access_list);
-    const data_hex = if (data) |d| try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
+    const list = try parseAccessList(allocator, access_list);
+    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
 
     return .{ .chainId = chainId, .nonce = nonce, .maxPriorityFeePerGas = max_priority, .maxFeePerGas = max_fee, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list };
 }
 
 /// Parses unsigned serialized eip2930 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseEip2930Transaction(alloc: Allocator, serialized: []const u8) !BerlinTransactionEnvelope {
+pub fn parseEip2930Transaction(allocator: Allocator, serialized: []const u8) !BerlinTransactionEnvelope {
     if (serialized[0] != 1)
         return error.InvaliTransactionType;
 
@@ -115,48 +144,48 @@ pub fn parseEip2930Transaction(alloc: Allocator, serialized: []const u8) !Berlin
     const address,
     const value,
     const data, 
-    const access_list = try rlp.decodeRlp(alloc, BerlinEnvelope, serialized[1..]);
+    const access_list = try rlp.decodeRlp(allocator, BerlinEnvelope, serialized[1..]);
     // zig fmt: on
 
-    const list = try parseAccessList(alloc, access_list);
-    const data_hex = if (data) |d| try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
+    const list = try parseAccessList(allocator, access_list);
+    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
 
     return .{ .chainId = chainId, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list };
 }
 
 /// Parses unsigned serialized legacy transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseLegacyTransaction(alloc: Allocator, serialized: []const u8) !LegacyTransactionEnvelope {
+pub fn parseLegacyTransaction(allocator: Allocator, serialized: []const u8) !LegacyTransactionEnvelope {
     // zig fmt: off
     const nonce, 
     const gas_price, 
     const gas,
     const address,
     const value,
-    const data = try rlp.decodeRlp(alloc, LegacyEnvelope, serialized);
+    const data = try rlp.decodeRlp(allocator, LegacyEnvelope, serialized);
     // zig fmt: on
 
-    const data_hex = if (data) |d| try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
+    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
 
     return .{ .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = address, .value = value, .data = data_hex };
 }
 
 /// Parses signed serialized transactions. Creates and arena to manage memory.
 /// Caller needs to call deinit to free memory.
-pub fn parseSignedTransaction(alloc: Allocator, serialized: []const u8) !ParsedTransaction(TransactionEnvelopeSigned) {
-    var parsed: ParsedTransaction(TransactionEnvelopeSigned) = .{ .arena = try alloc.create(ArenaAllocator), .value = undefined };
-    errdefer alloc.destroy(parsed.arena);
+pub fn parseSignedTransaction(allocator: Allocator, serialized: []const u8) !ParsedTransaction(TransactionEnvelopeSigned) {
+    var parsed: ParsedTransaction(TransactionEnvelopeSigned) = .{ .arena = try allocator.create(ArenaAllocator), .value = undefined };
+    errdefer allocator.destroy(parsed.arena);
 
-    parsed.arena.* = ArenaAllocator.init(alloc);
+    parsed.arena.* = ArenaAllocator.init(allocator);
     errdefer parsed.arena.deinit();
 
-    const allocator = parsed.arena.allocator();
-    parsed.value = try parseSignedTransactionLeaky(allocator, serialized);
+    const arena_allocator = parsed.arena.allocator();
+    parsed.value = try parseSignedTransactionLeaky(arena_allocator, serialized);
 
     return parsed;
 }
 
 /// Parses signed serialized transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseSignedTransactionLeaky(alloc: Allocator, serialized: []const u8) !TransactionEnvelopeSigned {
+pub fn parseSignedTransactionLeaky(allocator: Allocator, serialized: []const u8) !TransactionEnvelopeSigned {
     const hexed = if (std.mem.startsWith(u8, serialized, "0x")) serialized[2..] else serialized;
 
     var bytes = hexed;
@@ -168,18 +197,47 @@ pub fn parseSignedTransactionLeaky(alloc: Allocator, serialized: []const u8) !Tr
         bytes = decoded;
     }
 
+    if (bytes[0] == 3)
+        return .{ .cancun = try parseSignedEip4844Transaction(allocator, bytes) };
     if (bytes[0] == 2)
-        return .{ .london = try parseSignedEip1559Transaction(alloc, bytes) };
+        return .{ .london = try parseSignedEip1559Transaction(allocator, bytes) };
     if (bytes[0] == 1)
-        return .{ .berlin = try parseSignedEip2930Transaction(alloc, bytes) };
+        return .{ .berlin = try parseSignedEip2930Transaction(allocator, bytes) };
     if (bytes[0] >= 0xc0)
-        return .{ .legacy = try parseSignedLegacyTransaction(alloc, bytes) };
+        return .{ .legacy = try parseSignedLegacyTransaction(allocator, bytes) };
 
     return error.InvalidTransactionType;
 }
-
 /// Parses signed serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseSignedEip1559Transaction(alloc: Allocator, serialized: []const u8) !LondonTransactionEnvelopeSigned {
+pub fn parseSignedEip4844Transaction(allocator: Allocator, serialized: []const u8) !CancunTransactionEnvelopeSigned {
+    if (serialized[0] != 3)
+        return error.InvaliTransactionType;
+
+    // zig fmt: off
+    const chainId, 
+    const nonce,
+    const max_priority,
+    const max_fee, 
+    const gas, 
+    const address, 
+    const value, 
+    const data, 
+    const access_list,
+    const max_blob_gas,
+    const blob_hashes,
+    const v,
+    const r,
+    const s = try rlp.decodeRlp(allocator, CancunEnvelopeSigned, serialized[1..]);
+    // zig fmt: on
+
+    const list = try parseAccessList(allocator, access_list);
+
+    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
+
+    return .{ .chainId = chainId, .nonce = nonce, .maxPriorityFeePerGas = max_priority, .maxFeePerGas = max_fee, .maxFeePerBlobGas = max_blob_gas, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list, .blobVersionedHashes = blob_hashes, .r = r, .s = s, .v = v };
+}
+/// Parses signed serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
+pub fn parseSignedEip1559Transaction(allocator: Allocator, serialized: []const u8) !LondonTransactionEnvelopeSigned {
     if (serialized[0] != 2)
         return error.InvaliTransactionType;
 
@@ -195,18 +253,18 @@ pub fn parseSignedEip1559Transaction(alloc: Allocator, serialized: []const u8) !
     const access_list,
     const v,
     const r,
-    const s = try rlp.decodeRlp(alloc, LondonEnvelopeSigned, serialized[1..]);
+    const s = try rlp.decodeRlp(allocator, LondonEnvelopeSigned, serialized[1..]);
     // zig fmt: on
 
-    const list = try parseAccessList(alloc, access_list);
+    const list = try parseAccessList(allocator, access_list);
 
-    const data_hex = if (data) |d| try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
+    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
 
     return .{ .chainId = chainId, .nonce = nonce, .maxPriorityFeePerGas = max_priority, .maxFeePerGas = max_fee, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list, .r = r, .s = s, .v = v };
 }
 
 /// Parses signed serialized eip2930 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseSignedEip2930Transaction(alloc: Allocator, serialized: []const u8) !BerlinTransactionEnvelopeSigned {
+pub fn parseSignedEip2930Transaction(allocator: Allocator, serialized: []const u8) !BerlinTransactionEnvelopeSigned {
     if (serialized[0] != 1)
         return error.InvaliTransactionType;
 
@@ -221,18 +279,18 @@ pub fn parseSignedEip2930Transaction(alloc: Allocator, serialized: []const u8) !
     const access_list,
     const v,
     const r,
-    const s = try rlp.decodeRlp(alloc, BerlinEnvelopeSigned, serialized[1..]);
+    const s = try rlp.decodeRlp(allocator, BerlinEnvelopeSigned, serialized[1..]);
     // zig fmt: on
 
-    const list = try parseAccessList(alloc, access_list);
+    const list = try parseAccessList(allocator, access_list);
 
-    const data_hex = if (data) |d| try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
+    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
 
     return .{ .chainId = chainId, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list, .r = r, .s = s, .v = v };
 }
 
 /// Parses signed serialized legacy transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseSignedLegacyTransaction(alloc: Allocator, serialized: []const u8) !LegacyTransactionEnvelopeSigned {
+pub fn parseSignedLegacyTransaction(allocator: Allocator, serialized: []const u8) !LegacyTransactionEnvelopeSigned {
     // zig fmt: off
     const nonce, 
     const gas_price, 
@@ -242,10 +300,10 @@ pub fn parseSignedLegacyTransaction(alloc: Allocator, serialized: []const u8) !L
     const data,
     const v,
     const r,
-    const s = try rlp.decodeRlp(alloc, LegacyEnvelopeSigned, serialized);
+    const s = try rlp.decodeRlp(allocator, LegacyEnvelopeSigned, serialized);
     // zig fmt: on
 
-    const data_hex = if (data) |d| try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
+    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
 
     const chainId = if (v > 0 and r.len == 0 and s.len == 0) v else 0;
 
@@ -266,8 +324,8 @@ pub fn parseSignedLegacyTransaction(alloc: Allocator, serialized: []const u8) !L
 }
 
 /// Parses serialized transaction accessLists. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseAccessList(alloc: Allocator, access_list: []const StructToTupleType(AccessList)) ![]const AccessList {
-    var list = std.ArrayList(AccessList).init(alloc);
+pub fn parseAccessList(allocator: Allocator, access_list: []const StructToTupleType(AccessList)) ![]const AccessList {
+    var list = std.ArrayList(AccessList).init(allocator);
     errdefer list.deinit();
 
     for (access_list) |item| {
@@ -278,6 +336,21 @@ pub fn parseAccessList(alloc: Allocator, access_list: []const StructToTupleType(
     }
 
     return try list.toOwnedSlice();
+}
+
+test "Base eip 4844" {
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: CancunTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 0, .to = to, .value = try utils.parseEth(1), .data = null, .accessList = &.{}, .maxFeePerBlobGas = 0, .blobVersionedHashes = &.{[_]u8{0} ** 32} };
+    const base = try serialize.serializeTransaction(testing.allocator, .{ .cancun = tx }, null);
+    defer testing.allocator.free(base);
+
+    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+    defer testing.allocator.free(hex);
+
+    const parsed = try parseTransaction(testing.allocator, base);
+    defer parsed.deinit();
+
+    try testing.expectEqualDeep(tx, parsed.value.cancun);
 }
 
 test "Base eip 1559" {
@@ -481,6 +554,23 @@ test "Base legacy with data" {
     try testing.expectEqualDeep(tx, parsed.value.legacy);
 }
 
+test "Serialize eip4844 with signature" {
+    const to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
+
+    const tx: CancunTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 0, .to = to, .value = try utils.parseEth(1), .data = null, .accessList = &.{}, .maxFeePerBlobGas = 0, .blobVersionedHashes = &.{[_]u8{0} ** 32} };
+
+    const sig = try generateSignature("03f8500145847735940084773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080c080e1a00000000000000000000000000000000000000000000000000000000000000000");
+
+    const encoded = try serialize.serializeTransaction(testing.allocator, .{ .cancun = tx }, sig);
+    defer testing.allocator.free(encoded);
+
+    const parsed = try parseSignedTransaction(testing.allocator, encoded);
+    defer parsed.deinit();
+
+    const tx_signed: CancunTransactionEnvelopeSigned = .{ .chainId = 1, .nonce = 69, .maxFeePerGas = try utils.parseGwei(2), .data = null, .maxPriorityFeePerGas = try utils.parseGwei(2), .gas = 0, .value = try utils.parseEth(1), .accessList = &.{}, .to = to, .maxFeePerBlobGas = 0, .blobVersionedHashes = &.{[_]u8{0} ** 32}, .v = 0, .r = sig.r, .s = sig.s };
+
+    try testing.expectEqualDeep(tx_signed, parsed.value.cancun);
+}
 test "Serialize eip1559 with signature" {
     const to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
     const sig = try generateSignature("02f1827a6980847735940084773594008252099470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a764000080c0");

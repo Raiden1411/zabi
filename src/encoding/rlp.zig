@@ -552,6 +552,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
             const hexed = std.fmt.fmtSliceHexLower(hex_number);
             const slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
+
             defer alloc.free(slice);
 
             return .{ .consumed = len + 1, .data = if (slice.len != 0) try std.fmt.parseInt(T, slice, 16) else @intCast(0) };
@@ -601,6 +602,11 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
         .Array => |arr_info| {
             if (arr_info.child == u8) {
                 const size = encoded[position];
+                // std.debug.print("LEN: {d}\n\n", .{size - 0x80});
+                // std.debug.print("LEN: {s}\n\n", .{@typeName(T)});
+                // std.debug.print("LEN: {s}\n\n", .{std.fmt.fmtSliceHexLower(encoded[position + 1 ..])});
+                // std.debug.print("LEN: {s}\n\n", .{std.fmt.fmtSliceHexLower(encoded[position..])});
+                //
 
                 if (size <= 0xb7) {
                     const str_len = size - 0x80;
@@ -695,13 +701,17 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                         var result = std.ArrayList(ptr_info.child).init(alloc);
                         errdefer result.deinit();
 
-                        var cur_pos = position + 1;
-                        for (0..arr_len) |_| {
-                            if (cur_pos >= encoded.len) break;
-                            const decoded = try decodeItem(alloc, ptr_info.child, encoded[cur_pos..], 0);
+                        var read: usize = 0;
+                        while (true) {
+                            if (read >= arr_len)
+                                break;
+
+                            const decoded = try decodeItem(alloc, ptr_info.child, encoded[read + position + 1 ..], 0);
                             try result.append(decoded.data);
-                            cur_pos += decoded.consumed;
+                            read += decoded.consumed;
                         }
+
+                        std.debug.assert(read == arr_len);
 
                         return .{ .consumed = arr_len + 1, .data = try result.toOwnedSlice() };
                     }

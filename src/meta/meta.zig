@@ -445,10 +445,10 @@ pub fn StructToTupleType(comptime T: type) type {
                 const arr_type_info = @typeInfo(arr_info.child);
 
                 if (arr_type_info == .Struct) {
-                    const Type = StructToTupleType(field.type);
+                    const Type = StructToTupleType(arr_info.child);
                     fields[i] = .{
                         .name = std.fmt.comptimePrint("{d}", .{i}),
-                        .type = Type,
+                        .type = [arr_info.len]Type,
                         .default_value = null,
                         .is_comptime = false,
                         .alignment = if (@sizeOf(Type) > 0) @alignOf(Type) else 0,
@@ -468,10 +468,10 @@ pub fn StructToTupleType(comptime T: type) type {
                 const ptr_type_info = @typeInfo(ptr_info.child);
 
                 if (ptr_type_info == .Struct) {
-                    const Type = StructToTupleType(field.type);
+                    const Type = StructToTupleType(ptr_info.child);
                     fields[i] = .{
                         .name = std.fmt.comptimePrint("{d}", .{i}),
-                        .type = Type,
+                        .type = []const Type,
                         .default_value = null,
                         .is_comptime = false,
                         .alignment = if (@sizeOf(Type) > 0) @alignOf(Type) else 0,
@@ -500,6 +500,33 @@ pub fn StructToTupleType(comptime T: type) type {
     }
 
     return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+}
+pub fn Omit(comptime T: type, comptime keys: []const []const u8) type {
+    const info = @typeInfo(T);
+
+    if (info != .Struct and info.Struct.is_tuple)
+        @compileError("Expected non tuple struct type but found " ++ @typeName(T));
+
+    if (keys.len >= info.Struct.fields.len)
+        @compileError("Key length exceeds struct field length");
+
+    const size = info.Struct.fields.len - keys.len;
+    var fields: [size]std.builtin.Type.StructField = undefined;
+    var fields_seen = [_]bool{false} ** size;
+
+    var counter: usize = 0;
+    outer: inline for (info.Struct.fields) |field| {
+        for (keys) |key| {
+            if (std.mem.eql(u8, key, field.name)) {
+                continue :outer;
+            }
+        }
+        fields[counter] = field;
+        fields_seen[counter] = true;
+        counter += 1;
+    }
+
+    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
 }
 /// Convert sets of solidity ABI paramters to the representing Zig types.
 /// This will create a tuple type of the subset of the resulting types
@@ -582,6 +609,7 @@ test "Meta" {
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .dynamicArray = &.{ .bool = {} } }, .name = "foo" }), []const bool);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .fixedArray = .{ .child = &.{ .bool = {} }, .size = 2 } }, .name = "foo" }), [2]bool);
 
+    try expectEqualStructs(struct { foo: u32, jazz: bool }, Omit(struct { foo: u32, bar: u256, baz: i64, jazz: bool }, &.{ "bar", "baz" }));
     try expectEqualStructs(std.meta.Tuple(&[_]type{ u64, std.meta.Tuple(&[_]type{ u64, u256 }) }), StructToTupleType(struct { foo: u64, bar: struct { baz: u64, jazz: u256 } }));
     try expectEqualStructs(AbiParameterToPrimative(.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .bool = {} }, .name = "bar" }} }), struct { bar: bool });
     try expectEqualStructs(AbiParameterToPrimative(.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .tuple = {} }, .name = "bar", .components = &.{.{ .type = .{ .bool = {} }, .name = "baz" }} }} }), struct { bar: struct { baz: bool } });

@@ -7,6 +7,7 @@ const testing = std.testing;
 const Abitype = abi.Abitype;
 const AbiParameter = params.AbiParameter;
 const Allocator = std.mem.Allocator;
+const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const ParamType = @import("../abi/param_type.zig").ParamType;
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
@@ -87,24 +88,61 @@ pub fn RequestParser(comptime T: type) type {
                     } else return try innerStringfy(null, stream_writer);
                 },
                 .Enum, .EnumLiteral => {
-                    try stream_writer.stream.writeByte('\"');
                     try std.json.encodeJsonString(@tagName(value), .{}, stream_writer.stream);
-                    try stream_writer.stream.writeByte('\"');
                 },
                 .ErrorSet => {
-                    try stream_writer.stream.writeByte('\"');
                     try std.json.encodeJsonString(@errorName(value), .{}, stream_writer.stream);
-                    try stream_writer.stream.writeByte('\"');
                 },
                 .Array => |arr_info| {
+                    // We assume that we are dealying with hex bytes.
+                    // Mostly usefull for the cases of wanting to hex addresses and hashes
                     if (arr_info.child == u8) {
-                        var buffer: [(arr_info.len * 2) + 2]u8 = undefined;
-                        const hexed = std.fmt.bytesToHex(value, .lower);
-                        @memcpy(buffer[2..], hexed[0..]);
-                        @memcpy(buffer[0..2], "0x");
-                        try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
+                        switch (arr_info.len) {
+                            20 => {
+                                var buffer: [(arr_info.len * 2) + 2]u8 = undefined;
+                                var hash_buffer: [Keccak256.digest_length]u8 = undefined;
 
-                        return;
+                                const hexed = std.fmt.bytesToHex(value, .lower);
+                                Keccak256.hash(&hexed, &hash_buffer, .{});
+
+                                // Checksum the address
+                                for (buffer[2..], 0..) |*c, i| {
+                                    const char = hexed[i];
+                                    switch (char) {
+                                        'a'...'f' => {
+                                            const mask: u8 = if (i % 2 == 0) 0x80 else 0x08;
+                                            if ((hash_buffer[i / 2] & mask) > 7) {
+                                                c.* = char & 0b11011111;
+                                            } else c.* = char;
+                                        },
+                                        else => {
+                                            c.* = char;
+                                        },
+                                    }
+                                }
+                                @memcpy(buffer[0..2], "0x");
+                                return try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
+                            },
+                            40 => {
+                                // We assume that this is a checksumed address with missing "0x" start.
+                                var buffer: [arr_info.len + 2]u8 = undefined;
+                                @memcpy(buffer[2..], value);
+                                @memcpy(buffer[0..2], "0x");
+                                return try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
+                            },
+                            42 => {
+                                // we just write the checksumed address
+                                return try std.json.encodeJsonString(&value, .{}, stream_writer.stream);
+                            },
+                            else => {
+                                // Treat the rest as a normal hex encoded value
+                                var buffer: [(arr_info.len * 2) + 2]u8 = undefined;
+                                const hexed = std.fmt.bytesToHex(value, .lower);
+                                @memcpy(buffer[2..], hexed[0..]);
+                                @memcpy(buffer[0..2], "0x");
+                                return try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
+                            },
+                        }
                     }
 
                     return try innerStringfy(&value, stream_writer);

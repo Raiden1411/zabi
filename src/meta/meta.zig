@@ -45,6 +45,110 @@ pub fn UnionParser(comptime T: type) type {
 /// the hability of zig to create a custom jsonParse method for structs
 pub fn RequestParser(comptime T: type) type {
     return struct {
+        pub fn jsonStringify(self: T, writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+            const info = @typeInfo(T);
+
+            try writer_stream.stream.writeByte('{');
+            inline for (info.Struct.fields, 0..) |field, i| {
+                var emit_field = true;
+                if (@typeInfo(field.type) == .Optional) {
+                    if (@field(self, field.name) == null) {
+                        emit_field = false;
+                    }
+                }
+
+                if (emit_field) {
+                    try std.json.encodeJsonString(field.name, .{}, writer_stream.stream);
+                    try writer_stream.stream.writeByte(':');
+                    try innerStringfy(@field(self, field.name), writer_stream);
+                    if (i < info.Struct.fields.len - 1)
+                        try writer_stream.stream.writeByte(',');
+                }
+            }
+            try writer_stream.stream.writeByte('}');
+
+            return;
+        }
+
+        fn innerStringfy(value: anytype, stream_writer: anytype) !void {
+            const info = @typeInfo(@TypeOf(value));
+
+            switch (info) {
+                .Bool => try stream_writer.stream.writeAll(if (value) "true" else "false"),
+                .Int, .ComptimeInt => {
+                    try stream_writer.stream.writeByte('\"');
+                    try stream_writer.stream.print("0x{x}", .{value});
+                    try stream_writer.stream.writeByte('\"');
+                },
+                .Null => try stream_writer.stream.writeAll("null"),
+                .Optional => {
+                    if (value) |val| {
+                        return try innerStringfy(val, stream_writer);
+                    } else return try innerStringfy(null, stream_writer);
+                },
+                .Enum, .EnumLiteral => {
+                    try stream_writer.stream.writeByte('\"');
+                    try std.json.encodeJsonString(@tagName(value), .{}, stream_writer.stream);
+                    try stream_writer.stream.writeByte('\"');
+                },
+                .ErrorSet => {
+                    try stream_writer.stream.writeByte('\"');
+                    try std.json.encodeJsonString(@errorName(value), .{}, stream_writer.stream);
+                    try stream_writer.stream.writeByte('\"');
+                },
+                .Array => |arr_info| {
+                    if (arr_info.child == u8) {
+                        var buffer: [(arr_info.len * 2) + 2]u8 = undefined;
+                        const hexed = std.fmt.bytesToHex(value, .lower);
+                        @memcpy(buffer[2..], hexed[0..]);
+                        @memcpy(buffer[0..2], "0x");
+                        try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
+
+                        return;
+                    }
+
+                    return try innerStringfy(&value, stream_writer);
+                },
+                .Pointer => |ptr_info| {
+                    switch (ptr_info.size) {
+                        .One => switch (@typeInfo(ptr_info.child)) {
+                            .Array => {
+                                const Slice = []const std.meta.Elem(ptr_info.child);
+                                return try innerStringfy(@as(Slice, value), stream_writer);
+                            },
+                            else => return try innerStringfy(value.*, stream_writer),
+                        },
+                        .Many, .Slice => {
+                            if (ptr_info.size == .Many and ptr_info.sentinel == null)
+                                @compileError("Unable to stringify type '" ++ @typeName(T) ++ "' without sentinel");
+
+                            const slice = if (ptr_info.size == .Many) std.mem.span(value) else value;
+                            if (ptr_info.child == u8) {
+                                try std.json.encodeJsonString(value, .{}, stream_writer.stream);
+
+                                return;
+                            }
+
+                            try stream_writer.stream.writeByte('[');
+                            for (slice, 0..) |span, i| {
+                                try innerStringfy(span, stream_writer);
+                                if (i < slice.len - 1)
+                                    try stream_writer.stream.writeByte(',');
+                            }
+                            try stream_writer.stream.writeByte(']');
+                        },
+                        else => @compileError("Unsupported pointer type " ++ @typeName(@TypeOf(value))),
+                    }
+                },
+                .Struct => {
+                    if (@hasDecl(@TypeOf(value), "jsonStringify")) return value.jsonStringify(stream_writer) else @compileError("Unable to parse structs without jsonParseFromValue custom declaration");
+                },
+                .Union => {
+                    if (@hasDecl(@TypeOf(value), "jsonStringify")) return value.jsonStringify(stream_writer) else @compileError("Unable to parse structs without jsonParseFromValue custom declaration");
+                },
+                else => @compileError("Unsupported type " ++ @typeName(@TypeOf(value))),
+            }
+        }
         pub fn jsonParse(alloc: Allocator, source: anytype, opts: ParseOptions) ParseError(@TypeOf(source.*))!T {
             const info = @typeInfo(T);
             if (.object_begin != try source.next()) return error.UnexpectedToken;

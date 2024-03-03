@@ -50,7 +50,7 @@ pub fn RequestParser(comptime T: type) type {
             const info = @typeInfo(T);
 
             try writer_stream.stream.writeByte('{');
-            inline for (info.Struct.fields, 0..) |field, i| {
+            inline for (info.Struct.fields) |field| {
                 var emit_field = true;
                 if (@typeInfo(field.type) == .Optional) {
                     if (@field(self, field.name) == null) {
@@ -59,12 +59,16 @@ pub fn RequestParser(comptime T: type) type {
                 }
 
                 if (emit_field) {
+                    try valueStart(writer_stream);
                     try std.json.encodeJsonString(field.name, .{}, writer_stream.stream);
-                    try writer_stream.stream.writeByte(':');
+                    writer_stream.next_punctuation = .colon;
+                    // try writer_stream.stream.writeByte(':');
                     try innerStringfy(@field(self, field.name), writer_stream);
-                    if (i < info.Struct.fields.len - 1)
-                        try writer_stream.stream.writeByte(',');
                 }
+            }
+            switch (writer_stream.next_punctuation) {
+                .none, .comma => {},
+                else => unreachable,
             }
             try writer_stream.stream.writeByte('}');
 
@@ -75,25 +79,40 @@ pub fn RequestParser(comptime T: type) type {
             const info = @typeInfo(@TypeOf(value));
 
             switch (info) {
-                .Bool => try stream_writer.stream.writeAll(if (value) "true" else "false"),
+                .Bool => {
+                    try valueStart(stream_writer);
+                    try stream_writer.stream.writeAll(if (value) "true" else "false");
+                    stream_writer.next_punctuation = .comma;
+                },
                 .Int, .ComptimeInt => {
+                    try valueStart(stream_writer);
                     try stream_writer.stream.writeByte('\"');
                     try stream_writer.stream.print("0x{x}", .{value});
                     try stream_writer.stream.writeByte('\"');
+                    stream_writer.next_punctuation = .comma;
                 },
-                .Null => try stream_writer.stream.writeAll("null"),
+                .Null => {
+                    try valueStart(stream_writer);
+                    try stream_writer.stream.writeAll("null");
+                    stream_writer.next_punctuation = .comma;
+                },
                 .Optional => {
                     if (value) |val| {
                         return try innerStringfy(val, stream_writer);
                     } else return try innerStringfy(null, stream_writer);
                 },
                 .Enum, .EnumLiteral => {
+                    try valueStart(stream_writer);
                     try std.json.encodeJsonString(@tagName(value), .{}, stream_writer.stream);
+                    stream_writer.next_punctuation = .comma;
                 },
                 .ErrorSet => {
+                    try valueStart(stream_writer);
                     try std.json.encodeJsonString(@errorName(value), .{}, stream_writer.stream);
+                    stream_writer.next_punctuation = .comma;
                 },
                 .Array => |arr_info| {
+                    try valueStart(stream_writer);
                     // We assume that we are dealying with hex bytes.
                     // Mostly usefull for the cases of wanting to hex addresses and hashes
                     if (arr_info.child == u8) {
@@ -121,18 +140,18 @@ pub fn RequestParser(comptime T: type) type {
                                     }
                                 }
                                 @memcpy(buffer[0..2], "0x");
-                                return try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
+                                try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
                             },
                             40 => {
                                 // We assume that this is a checksumed address with missing "0x" start.
                                 var buffer: [arr_info.len + 2]u8 = undefined;
                                 @memcpy(buffer[2..], value);
                                 @memcpy(buffer[0..2], "0x");
-                                return try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
+                                try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
                             },
                             42 => {
                                 // we just write the checksumed address
-                                return try std.json.encodeJsonString(&value, .{}, stream_writer.stream);
+                                try std.json.encodeJsonString(&value, .{}, stream_writer.stream);
                             },
                             else => {
                                 // Treat the rest as a normal hex encoded value
@@ -140,12 +159,11 @@ pub fn RequestParser(comptime T: type) type {
                                 const hexed = std.fmt.bytesToHex(value, .lower);
                                 @memcpy(buffer[2..], hexed[0..]);
                                 @memcpy(buffer[0..2], "0x");
-                                return try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
+                                try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
                             },
                         }
-                    }
-
-                    return try innerStringfy(&value, stream_writer);
+                        stream_writer.next_punctuation = .comma;
+                    } else return try innerStringfy(&value, stream_writer);
                 },
                 .Pointer => |ptr_info| {
                     switch (ptr_info.size) {
@@ -161,32 +179,63 @@ pub fn RequestParser(comptime T: type) type {
                                 @compileError("Unable to stringify type '" ++ @typeName(T) ++ "' without sentinel");
 
                             const slice = if (ptr_info.size == .Many) std.mem.span(value) else value;
+
+                            try valueStart(stream_writer);
                             if (ptr_info.child == u8) {
                                 try std.json.encodeJsonString(value, .{}, stream_writer.stream);
+                                stream_writer.next_punctuation = .comma;
+                            } else {
+                                try stream_writer.stream.writeByte('[');
+                                stream_writer.next_punctuation = .none;
 
-                                return;
-                            }
+                                for (slice) |span| {
+                                    try innerStringfy(span, stream_writer);
+                                }
 
-                            try stream_writer.stream.writeByte('[');
-                            for (slice, 0..) |span, i| {
-                                try innerStringfy(span, stream_writer);
-                                if (i < slice.len - 1)
-                                    try stream_writer.stream.writeByte(',');
+                                switch (stream_writer.next_punctuation) {
+                                    .none, .comma => {},
+                                    else => unreachable,
+                                }
+
+                                try stream_writer.stream.writeByte(']');
+                                stream_writer.next_punctuation = .comma;
                             }
-                            try stream_writer.stream.writeByte(']');
                         },
                         else => @compileError("Unsupported pointer type " ++ @typeName(@TypeOf(value))),
                     }
                 },
-                .Struct => {
-                    if (@hasDecl(@TypeOf(value), "jsonStringify")) return value.jsonStringify(stream_writer) else @compileError("Unable to parse structs without jsonParseFromValue custom declaration");
+                .Struct => |struct_info| {
+                    if (struct_info.is_tuple) {
+                        try valueStart(stream_writer);
+                        try stream_writer.stream.writeByte('[');
+                        stream_writer.next_punctuation = .none;
+                        inline for (value) |val| {
+                            try innerStringfy(val, stream_writer);
+                        }
+                        switch (stream_writer.next_punctuation) {
+                            .none, .comma => {},
+                            else => unreachable,
+                        }
+                        try stream_writer.stream.writeByte(']');
+                        stream_writer.next_punctuation = .comma;
+                        return;
+                    } else if (@hasDecl(@TypeOf(value), "jsonStringify")) return value.jsonStringify(stream_writer) else @compileError("Unable to parse structs without jsonStringify custom declaration. TypeName: " ++ @typeName(@TypeOf(value)));
                 },
                 .Union => {
-                    if (@hasDecl(@TypeOf(value), "jsonStringify")) return value.jsonStringify(stream_writer) else @compileError("Unable to parse structs without jsonParseFromValue custom declaration");
+                    if (@hasDecl(@TypeOf(value), "jsonStringify")) return value.jsonStringify(stream_writer) else @compileError("Unable to parse structs without jsonStringify custom declaration");
                 },
                 else => @compileError("Unsupported type " ++ @typeName(@TypeOf(value))),
             }
         }
+
+        fn valueStart(stream_writer: anytype) !void {
+            switch (stream_writer.next_punctuation) {
+                .the_beginning, .none => {},
+                .comma => try stream_writer.stream.writeByte(','),
+                .colon => try stream_writer.stream.writeByte(':'),
+            }
+        }
+
         pub fn jsonParse(alloc: Allocator, source: anytype, opts: ParseOptions) ParseError(@TypeOf(source.*))!T {
             const info = @typeInfo(T);
             if (.object_begin != try source.next()) return error.UnexpectedToken;
@@ -356,13 +405,7 @@ pub fn RequestParser(comptime T: type) type {
                                 .string => |str| {
                                     if (ptr_info.child != u8) return error.UnexpectedToken;
 
-                                    const hex = if (std.mem.startsWith(u8, str, "0x")) str[2..] else str;
-                                    const buf = try alloc.alloc(u8, if (@mod(str.len, 2) == 0) @divExact(str.len, 2) else str.len);
-                                    if (std.fmt.hexToBytes(buf, hex)) |result| return result else |_| {
-                                        defer alloc.free(buf);
-
-                                        return str;
-                                    }
+                                    return str;
                                 },
                                 else => return error.UnexpectedToken,
                             }
@@ -490,12 +533,7 @@ pub fn RequestParser(comptime T: type) type {
                                     if (ptrInfo.is_const) {
                                         switch (try source.nextAllocMax(alloc, opts.allocate.?, opts.max_value_len.?)) {
                                             inline .string, .allocated_string => |slice| {
-                                                const hex = if (std.mem.startsWith(u8, slice, "0x")) slice[2..] else slice;
-
-                                                const buf = try alloc.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
-                                                const bytes = if (std.fmt.hexToBytes(buf, hex)) |result| result else |_| slice;
-
-                                                return bytes;
+                                                return slice;
                                             },
                                             else => unreachable,
                                         }

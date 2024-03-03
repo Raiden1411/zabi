@@ -287,7 +287,6 @@ pub const CancunTransaction = struct {
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
     chainId: usize,
-    // yParity: u1,
 
     pub usingnamespace RequestParser(@This());
 };
@@ -307,81 +306,82 @@ pub const LondonTransaction = struct {
     v: u4,
     r: Hash,
     s: Hash,
-    isSystemTx: bool,
     sourceHash: Hash,
+    isSystemTx: bool,
     type: u2,
     accessList: []const AccessList,
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
     chainId: usize,
-    // yParity: u1,
 
     pub usingnamespace RequestParser(@This());
 };
 /// The Berlin hardfork representation of a transaction.
 pub const BerlinTransaction = struct {
+    hash: Hash,
+    nonce: u64,
     blockHash: ?Hash,
     blockNumber: ?u64,
-    from: Address,
-    gas: Gwei,
-    gasPrice: Gwei,
-    hash: Hash,
-    input: Hex,
-    nonce: u64,
-    to: ?Address,
     transactionIndex: ?u64,
+    from: Address,
+    to: ?Address,
     value: Wei,
+    gasPrice: Gwei,
+    gas: Gwei,
+    input: Hex,
     v: u8,
     r: Hash,
     s: Hash,
+    sourceHash: Hash,
+    isSystemTx: bool,
     type: u4,
     accessList: []const AccessList,
     chainId: usize,
-    isSystemTx: bool,
-    sourceHash: Hash,
 
     pub usingnamespace RequestParser(@This());
 };
 /// The legacy representation of a transaction.
 pub const LegacyTransaction = struct {
+    hash: Hash,
+    nonce: u64,
     blockHash: ?Hash,
     blockNumber: ?u64,
-    from: Address,
-    gas: Gwei,
-    gasPrice: Gwei,
-    hash: Hash,
-    input: Hex,
-    nonce: u64,
-    to: ?Address,
     transactionIndex: ?u64,
+    from: Address,
+    to: ?Address,
     value: Wei,
+    gasPrice: Gwei,
+    gas: Gwei,
+    input: Hex,
     v: usize,
     r: Hash,
     s: Hash,
-    type: u2,
-    isSystemTx: bool,
     sourceHash: Hash,
+    isSystemTx: bool,
+    type: u2,
+    chainId: usize,
 
     pub usingnamespace RequestParser(@This());
 };
 /// The representation of an untyped transaction.
 pub const UntypedTransaction = struct {
+    hash: Hash,
+    nonce: u64,
     blockHash: ?Hash,
     blockNumber: ?u64,
-    from: Address,
-    gas: Gwei,
-    gasPrice: Gwei,
-    hash: Hash,
-    input: Hex,
-    nonce: u64,
-    to: ?Address,
     transactionIndex: ?u64,
+    from: Address,
+    to: ?Address,
     value: Wei,
+    gasPrice: Gwei,
+    gas: Gwei,
+    input: Hex,
     v: usize,
     r: Hash,
     s: Hash,
-    isSystemTx: bool,
     sourceHash: Hash,
+    isSystemTx: bool,
+    chainId: usize,
 
     pub usingnamespace RequestParser(@This());
 };

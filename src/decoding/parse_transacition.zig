@@ -371,7 +371,6 @@ test "Zero eip 1559" {
     const zero = try serialize.serializeTransaction(testing.allocator, .{ .london = tx }, null);
     defer testing.allocator.free(zero);
 
-    try std.json.stringify(tx, .{}, std.io.getStdErr().writer());
     const parsed = try parseTransaction(testing.allocator, zero);
     defer parsed.deinit();
 

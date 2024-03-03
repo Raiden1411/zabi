@@ -83,13 +83,19 @@ pub fn EthereumSubscribeResponse(comptime T: type) type {
         params: struct {
             result: T,
             subscription: Hex,
+
+            pub usingnamespace RequestParser(@This());
         },
+
+        pub usingnamespace RequestParser(@This());
     };
 }
 /// Zig struct representation of a RPC error message
 pub const ErrorResponse = struct {
     code: EthereumErrorCodes,
     message: []const u8,
+
+    pub usingnamespace RequestParser(@This());
 };
 /// Zig struct representation of a contract error response
 pub const ContractErrorResponse = struct { code: EthereumErrorCodes, message: []const u8, data: []const u8 };
@@ -113,23 +119,35 @@ pub const EthereumErrorCodes = enum(isize) {
     _,
 };
 /// Zig struct representation of a RPC error response
-pub const EthereumErrorResponse = struct { jsonrpc: []const u8, id: ?usize, @"error": ErrorResponse };
+pub const EthereumErrorResponse = struct {
+    jsonrpc: []const u8,
+    id: ?usize,
+    @"error": ErrorResponse,
+
+    pub usingnamespace RequestParser(@This());
+};
 /// Know ethereum events emited by the websocket client
 pub const EthereumEvents = union(enum) {
     new_heads_event: EthereumSubscribeResponse(Block),
     pending_transactions_event: EthereumSubscribeResponse(PendingTransaction),
     pending_transactions_hashes_event: EthereumSubscribeResponse(Hex),
     log_event: EthereumSubscribeResponse(Log),
-    logs_event: EthereumResponse(?Logs),
-    accounts_event: EthereumResponse([]const Hex),
-    receipt_event: EthereumResponse(?TransactionReceipt),
-    transaction_event: EthereumResponse(?Transaction),
-    bool_event: EthereumResponse(bool),
-    block_event: EthereumResponse(?Block),
-    hex_event: EthereumResponse(Hex),
+    logs_event: EthereumRpcResponse(?Logs),
+    accounts_event: EthereumRpcResponse([]const Address),
+    receipt_event: EthereumRpcResponse(?TransactionReceipt),
+    transaction_event: EthereumRpcResponse(?Transaction),
+    block_event: EthereumRpcResponse(?Block),
+    hash_event: EthereumRpcResponse(Hash),
+    number_event: EthereumRpcResponse(u256),
+    bool_event: EthereumRpcResponse(bool),
+    hex_event: EthereumRpcResponse(Hex),
     mined_transaction_hashes_event: EthereumSubscribeResponse(PendingTransactionHashesSubscription),
     mined_transaction_event: EthereumSubscribeResponse(PendingTransactionsSubscription),
-    too_many_requests: struct { message: []const u8 },
+    too_many_requests: struct {
+        message: []const u8,
+        pub usingnamespace RequestParser(@This());
+    },
+    error_event: EthereumErrorResponse,
 
     pub usingnamespace UnionParser(@This());
 };

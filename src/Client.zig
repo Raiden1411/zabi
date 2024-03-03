@@ -197,8 +197,8 @@ pub fn estimateMaxFeePerGas(self: *PubClient) !Gwei {
 /// Returns a list of addresses owned by client.
 ///
 /// RPC Method: [eth_accounts](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_accounts)
-pub fn getAccounts(self: *PubClient) ![]const Hex {
-    return try self.sendBasicRequest([]const Hex, .eth_accounts);
+pub fn getAccounts(self: *PubClient) ![]const Address {
+    return try self.sendBasicRequest([]const Address, .eth_accounts);
 }
 /// Returns the balance of the account of given address.
 ///
@@ -478,7 +478,7 @@ pub fn sendRawTransaction(self: *PubClient, serialized_hex_tx: Hex) !Hash {
 /// because some nodes might be slower to sync.
 ///
 /// RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
-pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hex, confirmations: u8) !?TransactionReceipt {
+pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations: u8) !?TransactionReceipt {
     var tx: ?Transaction = null;
     var block_number = try self.getBlockNumber();
     var receipt: ?TransactionReceipt = self.getTransactionReceipt(tx_hash) catch |err| switch (err) {

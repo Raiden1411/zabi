@@ -222,7 +222,7 @@ pub fn RequestParser(comptime T: type) type {
                     } else if (@hasDecl(@TypeOf(value), "jsonStringify")) return value.jsonStringify(stream_writer) else @compileError("Unable to parse structs without jsonStringify custom declaration. TypeName: " ++ @typeName(@TypeOf(value)));
                 },
                 .Union => {
-                    if (@hasDecl(@TypeOf(value), "jsonStringify")) return value.jsonStringify(stream_writer) else @compileError("Unable to parse structs without jsonStringify custom declaration");
+                    if (@hasDecl(@TypeOf(value), "jsonStringify")) return value.jsonStringify(stream_writer) else @compileError("Unable to parse unions without jsonStringify custom declaration. Typename: " ++ @typeName(@TypeOf(value)));
                 },
                 else => @compileError("Unsupported type " ++ @typeName(@TypeOf(value))),
             }
@@ -352,6 +352,19 @@ pub fn RequestParser(comptime T: type) type {
                         else => return try innerParseValueRequest(opt_info.child, alloc, source, opts),
                     }
                 },
+                .Enum => |enum_info| {
+                    switch (source) {
+                        .float => return error.InvalidEnumTag,
+                        .integer => |num| return std.meta.intToEnum(TT, num),
+                        .number_string, .string => |slice| {
+                            if (std.meta.stringToEnum(TT, slice)) |result| return result;
+
+                            const enum_number = std.fmt.parseInt(enum_info.tag_type, slice, 0) catch return error.InvalidEnumTag;
+                            return std.meta.intToEnum(TT, enum_number);
+                        },
+                        else => return error.UnexpectedToken,
+                    }
+                },
                 .Array => |arr_info| {
                     switch (source) {
                         .array => |arr| {
@@ -414,10 +427,10 @@ pub fn RequestParser(comptime T: type) type {
                     }
                 },
                 .Struct => {
-                    if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(alloc, source, opts) else @compileError("Unable to parse structs without jsonParseFromValue custom declaration");
+                    if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(alloc, source, opts) else @compileError("Unable to parse structs without jsonParseFromValue custom declaration. Typename: " ++ @typeName(TT));
                 },
                 .Union => {
-                    if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(alloc, source, opts) else @compileError("Unable to parse structs without jsonParseFromValue custom declaration");
+                    if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(alloc, source, opts) else @compileError("Unable to parse unions without jsonParseFromValue custom declaration. Typename: " ++ @typeName(TT));
                 },
 
                 else => @compileError("Unable to parse type " ++ @typeName(TT)),
@@ -461,6 +474,18 @@ pub fn RequestParser(comptime T: type) type {
                         },
                         else => return try innerParseRequest(opt_info.child, alloc, source, opts),
                     }
+                },
+                .Enum => |enum_info| {
+                    const token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
+                    const slice = switch (token) {
+                        inline .number, .allocated_number, .string, .allocated_string => |slice| slice,
+                        else => return error.UnexpectedToken,
+                    };
+
+                    if (std.meta.stringToEnum(TT, slice)) |result| return result;
+
+                    const enum_number = std.fmt.parseInt(enum_info.tag_type, slice, 0) catch return error.InvalidEnumTag;
+                    return std.meta.intToEnum(TT, enum_number);
                 },
                 .Array => |arr_info| {
                     switch (try source.peekNextTokenType()) {
@@ -552,10 +577,10 @@ pub fn RequestParser(comptime T: type) type {
                     }
                 },
                 .Struct => {
-                    if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(alloc, source, opts) else @compileError("Unable to parse structs without jsonParse custom declaration");
+                    if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(alloc, source, opts) else @compileError("Unable to parse structs without jsonParse custom declaration. Typename: " ++ @typeName(TT));
                 },
                 .Union => {
-                    if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(alloc, source, opts) else @compileError("Unable to parse structs without jsonParse custom declaration");
+                    if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(alloc, source, opts) else @compileError("Unable to parse unions without jsonParse custom declaration. Typename: " ++ @typeName(TT));
                 },
                 else => @compileError("Unable to parse type " ++ @typeName(TT)),
             }

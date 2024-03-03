@@ -39,7 +39,10 @@ pub const CancunEnvelopeSigned = StructToTupleType(CancunTransactionEnvelopeSign
 /// Some nodes represent pending transactions hashes like this.
 pub const PendingTransactionHashesSubscription = struct {
     removed: bool,
-    transaction: struct { hash: Hash },
+    transaction: struct {
+        hash: Hash,
+        pub usingnamespace RequestParser(@This());
+    },
 
     pub usingnamespace RequestParser(@This());
 };
@@ -47,6 +50,8 @@ pub const PendingTransactionHashesSubscription = struct {
 pub const PendingTransactionsSubscription = struct {
     removed: bool,
     transaction: PendingTransaction,
+
+    pub usingnamespace RequestParser(@This());
 };
 /// The transaction envelope that will be serialized before getting sent to the network.
 pub const TransactionEnvelope = union(enum) {

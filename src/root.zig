@@ -51,7 +51,6 @@ test {
     _ = @import("human-readable/abi_parsing.zig");
     _ = @import("meta/meta.zig");
     _ = @import("utils.zig");
-    // _ = @import("wallet.zig");
-    // _ = @import("contract.zig");
-
+    _ = @import("wallet.zig");
+    _ = @import("contract.zig");
 }

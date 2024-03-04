@@ -13,11 +13,9 @@ const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Anvil = @import("tests/Anvil.zig");
 const ArenaAllocator = std.heap.ArenaAllocator;
-const CancunEthCall = transaction.CancunEthCall;
 const Chains = types.PublicChains;
 const LondonEthCall = transaction.LondonEthCall;
 const LegacyEthCall = transaction.LegacyEthCall;
-const Handler = WebSocketClient.Handler;
 const Hex = types.Hex;
 const Hash = types.Hash;
 const InitOptsHttp = PubClient.InitOptions;
@@ -201,9 +199,9 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             const hash = try eip712.hashTypedData(self.allocator, eip712_types, primary_type, domain, message);
 
             const address = try secp256k1.recoverEthereumAddress(hash, sig);
-            const wallet_address = (try self.getWalletAddress())[2..];
+            const wallet_address = try self.getWalletAddress();
 
-            return std.mem.eql(u8, wallet_address, &address);
+            return std.mem.eql(u8, &wallet_address, &address);
         }
         /// Prepares a transaction based on it's type so that it can be sent through the network.
         /// Only the null struct properties will get changed.
@@ -211,40 +209,38 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         pub fn prepareTransaction(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !TransactionEnvelope {
             const address = try self.getWalletAddress();
 
-            switch (unprepared_envelope) {
-                .cancun => |tx| {
-                    if (tx.type != 3)
-                        return error.InvalidTransactionType;
-
+            switch (unprepared_envelope.type) {
+                .cancun => {
                     // zig fmt: off
                     var request: LondonEthCall = .{
-                        .to = tx.to,
-                        .gas = tx.gas,
-                        .maxFeePerGas = tx.maxFeePerGas,
-                        .maxPriorityFeePerGas = tx.maxPriorityFeePerGas,
-                        .data = tx.data,
-                        .value = tx.value orelse 0,
+                        .to = unprepared_envelope.to,
+                        .gas = unprepared_envelope.gas,
+                        .maxFeePerGas = unprepared_envelope.maxFeePerGas,
+                        .maxPriorityFeePerGas = unprepared_envelope.maxPriorityFeePerGas,
+                        .data = unprepared_envelope.data,
+                        .value = unprepared_envelope.value orelse 0,
                     };
                     // zig fmt: on
 
                     const curr_block = try self.pub_client.getBlockByNumber(.{});
-                    const chain_id = tx.chainId orelse self.pub_client.chain_id;
-                    const accessList: []const AccessList = tx.accessList orelse &.{};
-                    const max_fee_per_blob = tx.maxFeePerBlobGas orelse try self.pub_client.estimateBlobMaxFeePerGas();
+                    const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
+                    const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
+                    const max_fee_per_blob = unprepared_envelope.maxFeePerBlobGas orelse try self.pub_client.estimateBlobMaxFeePerGas();
+                    const blob_version = unprepared_envelope.blobVersionedHashes orelse &.{};
 
-                    const nonce: u64 = tx.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+                    const nonce: u64 = unprepared_envelope.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
 
-                    if (tx.maxFeePerGas == null or tx.maxPriorityFeePerGas == null) {
+                    if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
                         const fees = try self.pub_client.estimateFeesPerGas(.{ .london = request }, curr_block);
-                        request.maxPriorityFeePerGas = tx.maxPriorityFeePerGas orelse fees.london.max_priority_fee;
-                        request.maxFeePerGas = tx.maxFeePerGas orelse fees.london.max_fee_gas;
+                        request.maxPriorityFeePerGas = unprepared_envelope.maxPriorityFeePerGas orelse fees.london.max_priority_fee;
+                        request.maxFeePerGas = unprepared_envelope.maxFeePerGas orelse fees.london.max_fee_gas;
 
-                        if (tx.maxFeePerGas) |fee| {
+                        if (unprepared_envelope.maxFeePerGas) |fee| {
                             if (fee < fees.london.max_priority_fee) return error.MaxFeePerGasUnderflow;
                         }
                     }
 
-                    if (tx.gas == null) {
+                    if (unprepared_envelope.gas == null) {
                         request.gas = try self.pub_client.estimateGas(.{ .london = request }, .{});
                     }
 
@@ -260,43 +256,40 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .data = request.data,
                         .value = request.value.?,
                         .accessList = accessList,
+                        .blobVersionedHashes = blob_version, 
                     }};
                     // zig fmt: on
 
                 },
-                .london => |tx| {
-                    if (tx.type != 2)
-                        return error.InvalidTransactionType;
-
+                .london => {
                     // zig fmt: off
                     var request: LondonEthCall = .{
-                        .from = address,
-                        .to = tx.to,
-                        .gas = tx.gas,
-                        .maxFeePerGas = tx.maxFeePerGas,
-                        .maxPriorityFeePerGas = tx.maxPriorityFeePerGas,
-                        .data = tx.data,
-                        .value = tx.value orelse 0,
+                        .to = unprepared_envelope.to,
+                        .gas = unprepared_envelope.gas,
+                        .maxFeePerGas = unprepared_envelope.maxFeePerGas,
+                        .maxPriorityFeePerGas = unprepared_envelope.maxPriorityFeePerGas,
+                        .data = unprepared_envelope.data,
+                        .value = unprepared_envelope.value orelse 0,
                     };
                     // zig fmt: on
 
                     const curr_block = try self.pub_client.getBlockByNumber(.{});
-                    const chain_id = tx.chainId orelse self.pub_client.chain_id;
-                    const accessList: []const AccessList = tx.accessList orelse &.{};
+                    const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
+                    const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
 
-                    const nonce: u64 = tx.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+                    const nonce: u64 = unprepared_envelope.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
 
-                    if (tx.maxFeePerGas == null or tx.maxPriorityFeePerGas == null) {
+                    if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
                         const fees = try self.pub_client.estimateFeesPerGas(.{ .london = request }, curr_block);
-                        request.maxPriorityFeePerGas = tx.maxPriorityFeePerGas orelse fees.london.max_priority_fee;
-                        request.maxFeePerGas = tx.maxFeePerGas orelse fees.london.max_fee_gas;
+                        request.maxPriorityFeePerGas = unprepared_envelope.maxPriorityFeePerGas orelse fees.london.max_priority_fee;
+                        request.maxFeePerGas = unprepared_envelope.maxFeePerGas orelse fees.london.max_fee_gas;
 
-                        if (tx.maxFeePerGas) |fee| {
+                        if (unprepared_envelope.maxFeePerGas) |fee| {
                             if (fee < fees.london.max_priority_fee) return error.MaxFeePerGasUnderflow;
                         }
                     }
 
-                    if (tx.gas == null) {
+                    if (unprepared_envelope.gas == null) {
                         request.gas = try self.pub_client.estimateGas(.{ .london = request }, .{});
                     }
 
@@ -314,24 +307,30 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     }};
                     // zig fmt: on
                 },
-                .berlin => |tx| {
-                    if (tx.type != 1)
-                        return error.InvalidTransactionType;
-
-                    var request: LegacyEthCall = .{ .from = address, .to = tx.to, .gas = tx.gas, .gasPrice = tx.gasPrice, .data = tx.data, .value = tx.value orelse 0 };
+                .berlin => {
+                    // zig fmt: off
+                    var request: LegacyEthCall = .{ 
+                        .from = address, 
+                        .to = unprepared_envelope.to,
+                        .gas = unprepared_envelope.gas, 
+                        .gasPrice = unprepared_envelope.gasPrice, 
+                        .data = unprepared_envelope.data, 
+                        .value = unprepared_envelope.value orelse 0
+                    };
+                    // zig fmt: on
 
                     const curr_block = try self.pub_client.getBlockByNumber(.{});
-                    const chain_id = tx.chainId orelse self.pub_client.chain_id;
-                    const accessList: []const AccessList = tx.accessList orelse &.{};
+                    const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
+                    const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
 
-                    const nonce: u64 = tx.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+                    const nonce: u64 = unprepared_envelope.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
 
-                    if (tx.gasPrice == null) {
+                    if (unprepared_envelope.gasPrice == null) {
                         const fees = try self.pub_client.estimateFeesPerGas(.{ .legacy = request }, curr_block);
                         request.gasPrice = fees.legacy.gas_price;
                     }
 
-                    if (tx.gas == null) {
+                    if (unprepared_envelope.gas == null) {
                         request.gas = try self.pub_client.estimateGas(.{ .legacy = request }, .{});
                     }
 
@@ -348,20 +347,32 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     }};
                     // zig fmt: on
                 },
-                .legacy => |tx| {
-                    var request: LegacyEthCall = .{ .from = address, .to = tx.to, .gas = tx.gas, .gasPrice = tx.gasPrice, .data = tx.data, .value = tx.value orelse 0 };
+                _ => {
+                    if (@intFromEnum(unprepared_envelope.type) < @as(u8, @intCast(0xc0)))
+                        return error.InvalidTransactionType;
+
+                    // zig fmt: off
+                    var request: LegacyEthCall = .{ 
+                        .from = address, 
+                        .to = unprepared_envelope.to,
+                        .gas = unprepared_envelope.gas, 
+                        .gasPrice = unprepared_envelope.gasPrice, 
+                        .data = unprepared_envelope.data, 
+                        .value = unprepared_envelope.value orelse 0
+                    };
+                    // zig fmt: on
 
                     const curr_block = try self.pub_client.getBlockByNumber(.{});
-                    const chain_id = tx.chainId orelse self.pub_client.chain_id;
+                    const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
 
-                    const nonce: u64 = tx.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+                    const nonce: u64 = unprepared_envelope.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
 
-                    if (tx.gasPrice == null) {
+                    if (unprepared_envelope.gasPrice == null) {
                         const fees = try self.pub_client.estimateFeesPerGas(.{ .legacy = request }, curr_block);
                         request.gasPrice = fees.legacy.gas_price;
                     }
 
-                    if (tx.gas == null) {
+                    if (unprepared_envelope.gas == null) {
                         request.gas = try self.pub_client.estimateGas(.{ .legacy = request }, .{});
                     }
 
@@ -386,26 +397,22 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 .london => |tx_eip1559| {
                     if (tx_eip1559.chainId != self.pub_client.chain_id) return error.InvalidChainId;
                     if (tx_eip1559.maxPriorityFeePerGas > tx_eip1559.maxFeePerGas) return error.TransactionTipToHigh;
-                    if (tx_eip1559.to) |addr| if (!try utils.isAddress(self.allocator, addr)) return error.InvalidAddress;
                 },
                 .cancun => |tx_eip4844| {
                     if (tx_eip4844.chainId != self.pub_client.chain_id) return error.InvalidChainId;
                     if (tx_eip4844.maxPriorityFeePerGas > tx_eip4844.maxFeePerGas) return error.TransactionTipToHigh;
-                    if (tx_eip4844.to) |addr| if (!try utils.isAddress(self.allocator, addr)) return error.InvalidAddress;
                 },
                 .berlin => |tx_eip2930| {
                     if (tx_eip2930.chainId != self.pub_client.chain_id) return error.InvalidChainId;
-                    if (tx_eip2930.to) |addr| if (!try utils.isAddress(self.allocator, addr)) return error.InvalidAddress;
                 },
                 .legacy => |tx_legacy| {
                     if (tx_legacy.chainId != 0 and tx_legacy.chainId != self.pub_client.chain_id) return error.InvalidChainId;
-                    if (tx_legacy.to) |addr| if (!try utils.isAddress(self.allocator, addr)) return error.InvalidAddress;
                 },
             }
         }
         /// Signs, serializes and send the transaction via `eth_sendRawTransaction`.
         /// Returns the transaction hash.
-        pub fn sendSignedTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !Hex {
+        pub fn sendSignedTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !Hash {
             const serialized = try serialize.serializeTransaction(self.allocator, tx, null);
 
             var hash_buffer: [Keccak256.digest_length]u8 = undefined;
@@ -420,16 +427,16 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         }
         /// Prepares, asserts, signs and sends the transaction via `eth_sendRawTransaction`.
         /// Will return error if the envelope is incorrect
-        pub fn sendTransaction(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !Hex {
+        pub fn sendTransaction(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !Hash {
             const prepared = try self.prepareTransaction(unprepared_envelope);
 
             try self.assertTransaction(prepared);
 
-            return try self.sendSignedTransaction(prepared);
+            return self.sendSignedTransaction(prepared);
         }
         /// Waits until the transaction gets mined and we can grab the receipt.
         /// If fail if the retry counter is excedded.
-        pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: Hex, confirmations: u8) !?TransactionReceipt {
+        pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: Hash, confirmations: u8) !?TransactionReceipt {
             return try self.pub_client.waitForTransactionReceipt(tx_hash, confirmations);
         }
     };
@@ -440,7 +447,7 @@ test "Address match" {
     var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
-    try testing.expectEqualStrings(try wallet.getWalletAddress(), "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    try testing.expectEqualStrings(&try wallet.getWalletAddress(), &try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"));
 }
 
 test "verifyMessage" {
@@ -495,15 +502,12 @@ test "verifyTypedData" {
 
 test "sendTransaction" {
     // CI coverage runner dislikes this tests so for now we skip it.
-    if (true) return error.SkipZigTest;
+    // if (true) return error.SkipZigTest;
     const uri = try std.Uri.parse("http://localhost:8545/");
     var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
-    var tx: transaction.PrepareEnvelope = .{ .london = undefined };
-    tx.london.type = 2;
-    tx.london.value = try utils.parseEth(1);
-    tx.london.to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+    const tx: UnpreparedTransactionEnvelope = .{ .type = .london, .value = try utils.parseEth(1), .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8") };
 
     const tx_hash = try wallet.sendTransaction(tx);
     const receipt = try wallet.waitForTransactionReceipt(tx_hash, 1);
@@ -527,7 +531,7 @@ test "assertTransaction" {
         .chainId = 1,
         .accessList = &.{},
         .value = 0,
-        .to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
         .data = null,
     } };
     try wallet.assertTransaction(tx);
@@ -536,11 +540,9 @@ test "assertTransaction" {
     try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
 
     tx.london.chainId = 1;
-    tx.london.to = "";
-    try testing.expectError(error.InvalidAddress, wallet.assertTransaction(tx));
 
     tx.london.maxPriorityFeePerGas = 69;
-    tx.london.to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+    tx.london.to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
     try testing.expectError(error.TransactionTipToHigh, wallet.assertTransaction(tx));
 }
 
@@ -558,7 +560,7 @@ test "assertTransactionLegacy" {
         .chainId = 1,
         .accessList = &.{},
         .value = 0,
-        .to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
         .data = null,
     } };
     try wallet.assertTransaction(tx);
@@ -567,8 +569,6 @@ test "assertTransactionLegacy" {
     try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
 
     tx.berlin.chainId = 1;
-    tx.berlin.to = "";
-    try testing.expectError(error.InvalidAddress, wallet.assertTransaction(tx));
 
     tx = .{ .legacy = .{
         .nonce = 0,
@@ -576,7 +576,7 @@ test "assertTransactionLegacy" {
         .gasPrice = 2,
         .chainId = 1,
         .value = 0,
-        .to = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
         .data = null,
     } };
     try wallet.assertTransaction(tx);
@@ -585,6 +585,4 @@ test "assertTransactionLegacy" {
     try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
 
     tx.legacy.chainId = 1;
-    tx.legacy.to = "";
-    try testing.expectError(error.InvalidAddress, wallet.assertTransaction(tx));
 }

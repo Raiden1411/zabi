@@ -541,7 +541,7 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations:
                                         for (pending.transactions.objects) |pending_transaction| {
                                             switch (pending_transaction) {
                                                 inline else => |tx_pending| {
-                                                    if (std.mem.eql(u8, transactions.from, tx_pending.from) and tx_pending.nonce == transactions.nonce)
+                                                    if (std.mem.eql(u8, &transactions.from, &tx_pending.from) and tx_pending.nonce == transactions.nonce)
                                                         break :outer pending_transaction;
                                                 },
                                             }
@@ -564,11 +564,11 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations:
                         switch (replaced_tx) {
                             inline else => |replacement| switch (tx.?) {
                                 inline else => |original| {
-                                    if (std.mem.eql(u8, replacement.from, original.from) and replacement.value == original.value)
+                                    if (std.mem.eql(u8, &replacement.from, &original.from) and replacement.value == original.value)
                                         httplog.debug("Original transaction was repriced", .{});
 
                                     if (replacement.to) |replaced_to| {
-                                        if (std.mem.eql(u8, replacement.from, replaced_to) and replacement.value == 0)
+                                        if (std.mem.eql(u8, &replacement.from, &replaced_to) and replacement.value == 0)
                                             httplog.debug("Original transaction was canceled", .{});
                                     }
                                 },
@@ -592,8 +592,11 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations:
             };
 
             const valid_receipt = receipt.?;
+            const number: ?u64 = switch (valid_receipt) {
+                inline else => |all| all.blockNumber,
+            };
             // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
-            if (valid_confirmations > confirmations and (valid_receipt.blockNumber != null or block_number - valid_receipt.blockNumber.? + 1 < confirmations)) {
+            if (valid_confirmations > confirmations and (number != null or block_number - number.? + 1 < confirmations)) {
                 break;
             } else {
                 valid_confirmations += 1;
@@ -775,8 +778,8 @@ test "GetBlock" {
     const slice = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8";
     try testing.expectEqualSlices(u8, &block_info.beacon.hash.?, &try utils.hashToBytes(slice));
 
-    // const block_old = try pub_client.getBlockByNumber(.{ .block_number = 1 });
-    // try testing.expect(block_old == .legacy);
+    const block_old = try pub_client.getBlockByNumber(.{ .block_number = 1 });
+    try testing.expect(block_old == .legacy);
 }
 
 test "GetBlockByHash" {

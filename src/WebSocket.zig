@@ -1123,6 +1123,7 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
         try self.write(req_body);
         switch (self.channel.get()) {
             .hex_event => |hex| return hex.result,
+            .hash_event => |hash| return try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash.result)}),
             .error_event => |error_response| {
                 const err = self.handleErrorResponse(error_response);
 
@@ -1139,7 +1140,7 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
                 }
             },
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a hash_event.", .{@tagName(eve)});
+                wslog.err("Found incorrect event named: {s}. Expected a hex_event or hash_event", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1433,7 +1434,7 @@ pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []u8) !EthereumEven
 /// replaced transactions receipt in the case it was replaced.
 ///
 /// RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
-pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hex, confirmations: u8) !?TransactionReceipt {
+pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hash, confirmations: u8) !?TransactionReceipt {
     var tx: ?Transaction = null;
     var block_number = try self.getBlockNumber();
     var receipt: ?TransactionReceipt = self.getTransactionReceipt(tx_hash) catch |err| switch (err) {

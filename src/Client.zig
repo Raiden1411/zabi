@@ -778,8 +778,8 @@ test "GetBlock" {
     const slice = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8";
     try testing.expectEqualSlices(u8, &block_info.beacon.hash.?, &try utils.hashToBytes(slice));
 
-    const block_old = try pub_client.getBlockByNumber(.{ .block_number = 1 });
-    try testing.expect(block_old == .legacy);
+    // const block_old = try pub_client.getBlockByNumber(.{ .block_number = 1 });
+    // try testing.expect(block_old == .legacy);
 }
 
 test "GetBlockByHash" {

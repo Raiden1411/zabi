@@ -455,8 +455,8 @@ pub fn newPendingTransactionFilter(self: *PubClient) !usize {
 /// This will just make the request to the network.
 ///
 /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
-pub fn sendEthCall(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) !Hash {
-    return try self.sendEthCallRequest(Hash, call_object, opts, .eth_call);
+pub fn sendEthCall(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) !Hex {
+    return try self.sendEthCallRequest(Hex, call_object, opts, .eth_call);
 }
 /// Creates new message call transaction or a contract creation for signed transactions.
 /// Transaction must be serialized and signed before hand.
@@ -722,8 +722,8 @@ fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !T {
         .@"error" => |response| {
             httplog.debug("RPC error response: {s}\n", .{response.@"error".message});
             switch (response.@"error".code) {
-                // This will only affect WS connections but we need to handle it here too
                 .ContractErrorCode => return error.EvmFailedToExecute,
+                // This will only affect WS connections but we need to handle it here too
                 .TooManyRequests => return error.UnexpectedTooManyRequestError,
                 .InvalidInput => return error.InvalidInput,
                 .MethodNotFound => return error.MethodNotFound,
@@ -775,7 +775,6 @@ test "GetBlock" {
     const slice = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8";
     try testing.expectEqualSlices(u8, &block_info.beacon.hash.?, &try utils.hashToBytes(slice));
 
-    // Removed cause CI fails here but passes the same on websocket client :/
     // const block_old = try pub_client.getBlockByNumber(.{ .block_number = 1 });
     // try testing.expect(block_old == .legacy);
 }

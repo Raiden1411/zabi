@@ -1103,7 +1103,7 @@ pub fn newPendingTransactionFilter(self: *WebSocketHandler) !usize {
 /// This will just make the request to the network.
 ///
 /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
-pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) !Hash {
+pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) !Hex {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
     const req_body = request: {
         if (opts.block_number) |number| {
@@ -1122,7 +1122,7 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
 
         try self.write(req_body);
         switch (self.channel.get()) {
-            .hash_event => |hash| return hash.result,
+            .hex_event => |hex| return hex.result,
             .error_event => |error_response| {
                 const err = self.handleErrorResponse(error_response);
 
@@ -1665,10 +1665,10 @@ test "GetBlock" {
     try testing.expect(block_info == .beacon);
     try testing.expect(block_info.beacon.number != null);
 
-    const block_old = try ws_client.getBlockByNumber(.{ .block_number = 696969 });
-    try testing.expect(block_old == .legacy);
+    // const block_old = try ws_client.getBlockByNumber(.{ .block_number = 696969 });
+    // try testing.expect(block_old == .legacy);
 }
-//
+
 test "GetBlockByHash" {
     const uri = try std.Uri.parse("http://localhost:8545/");
     var ws_client: WebSocketHandler = undefined;

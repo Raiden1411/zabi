@@ -2,12 +2,15 @@ const std = @import("std");
 const abi = @import("../abi/abi_parameter.zig");
 const meta = @import("../meta/meta.zig");
 const testing = std.testing;
+const types = @import("../meta/ethereum.zig");
+const utils = @import("../utils.zig");
 const assert = std.debug.assert;
 
 /// Types
 const AbiParameter = abi.AbiParameter;
 const AbiParameterToPrimative = meta.AbiParameterToPrimative;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
+const Address = types.Address;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
 const Constructor = @import("../abi/abi.zig").Constructor;
@@ -257,8 +260,6 @@ fn preEncodeParam(allocator: Allocator, param: AbiParameter, value: anytype) !Pr
 
                         return switch (param.type) {
                             .string, .bytes => try encodeString(allocator, slice),
-                            .fixedBytes => try encodeFixedBytes(allocator, slice),
-                            .address => try encodeAddress(allocator, slice),
                             inline else => return error.InvalidParamType,
                         };
                     }
@@ -309,20 +310,45 @@ fn preEncodeParam(allocator: Allocator, param: AbiParameter, value: anytype) !Pr
         },
         .Array => |arr_info| {
             if (arr_info.child == u8) {
-                const slice: []const u8 = slice: {
-                    if (std.mem.startsWith(u8, value[0..], "0x")) {
-                        break :slice value[2..];
-                    }
+                switch (arr_info.len) {
+                    1...19, 21...32 => {
+                        switch (param.type) {
+                            .fixedBytes => |size| {
+                                if (size != arr_info.len)
+                                    return error.InvalidLength;
 
-                    break :slice value[0..];
-                };
+                                return try encodeFixedBytes(allocator, &value);
+                            },
+                            else => return error.InvalidParamType,
+                        }
+                    },
+                    20 => {
+                        switch (param.type) {
+                            .fixedBytes => |size| {
+                                if (size != arr_info.len)
+                                    return error.InvalidLength;
 
-                return switch (param.type) {
-                    .string, .bytes => try encodeString(allocator, slice),
-                    .fixedBytes => try encodeFixedBytes(allocator, slice),
-                    .address => try encodeAddress(allocator, slice),
-                    inline else => return error.InvalidParamType,
-                };
+                                return try encodeFixedBytes(allocator, &value);
+                            },
+                            .address => return try encodeAddress(allocator, value),
+                            else => return error.InvalidParamType,
+                        }
+                    },
+                    else => {
+                        const slice: []const u8 = slice: {
+                            if (std.mem.startsWith(u8, value[0..], "0x")) {
+                                break :slice value[2..];
+                            }
+
+                            break :slice value[0..];
+                        };
+
+                        return switch (param.type) {
+                            .string, .bytes => try encodeString(allocator, slice),
+                            inline else => return error.InvalidParamType,
+                        };
+                    },
+                }
             }
             return switch (param.type) {
                 .fixedArray => |val| {
@@ -354,11 +380,11 @@ fn encodeNumber(allocator: Allocator, comptime T: type, num: T) !PreEncodedParam
     return .{ .dynamic = false, .encoded = buffer };
 }
 
-fn encodeAddress(allocator: Allocator, addr: []const u8) !PreEncodedParam {
+fn encodeAddress(allocator: Allocator, addr: Address) !PreEncodedParam {
     var padded = try allocator.alloc(u8, 32);
 
     @memset(padded, 0);
-    _ = try std.fmt.hexToBytes(padded[12..], addr);
+    @memcpy(padded[12..], addr[0..]);
 
     return .{ .dynamic = false, .encoded = padded };
 }
@@ -394,8 +420,8 @@ fn encodeString(allocator: Allocator, str: []const u8) !PreEncodedParam {
 fn encodeFixedBytes(allocator: Allocator, bytes: []const u8) !PreEncodedParam {
     var buffer = try allocator.alloc(u8, 32);
 
-    @memset(buffer[0..], 0);
-    _ = try std.fmt.hexToBytes(buffer, bytes);
+    @memset(buffer, 0);
+    @memcpy(buffer[0..bytes.len], bytes);
 
     return .{ .dynamic = false, .encoded = buffer };
 }
@@ -499,13 +525,13 @@ test "Uint/Int" {
 }
 
 test "Address" {
-    try testEncode("0000000000000000000000004648451b5f87ff8f0f7d622bd40574bb97e25980", &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{"0x4648451b5F87FF8F0F7D622bD40574bb97E25980"});
-    try testEncode("000000000000000000000000388c818ca8b9251b393131c08a736a67ccb19297", &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{"0x388C818CA8B9251b393131C08a736A67ccB19297"});
+    try testEncode("0000000000000000000000004648451b5f87ff8f0f7d622bd40574bb97e25980", &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{try utils.addressToBytes("0x4648451b5F87FF8F0F7D622bD40574bb97E25980")});
+    try testEncode("000000000000000000000000388c818ca8b9251b393131c08a736a67ccb19297", &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{try utils.addressToBytes("0x388C818CA8B9251b393131C08a736A67ccB19297")});
 }
 
 test "Fixed Bytes" {
-    try testEncode("0123456789000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .fixedBytes = 5 }, .name = "foo" }}, .{"0123456789"});
-    try testEncode("0123456789000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .fixedBytes = 10 }, .name = "foo" }}, .{"0123456789"});
+    try testEncode("0123456789000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .fixedBytes = 5 }, .name = "foo" }}, .{[5]u8{ 0x01, 0x23, 0x45, 0x67, 0x89 }});
+    try testEncode("0123456789000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .fixedBytes = 10 }, .name = "foo" }}, .{[5]u8{ 0x01, 0x23, 0x45, 0x67, 0x89 } ++ [_]u8{0x00} ** 5});
 }
 
 test "Bytes/String" {

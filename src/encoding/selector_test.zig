@@ -17,7 +17,8 @@ test "Constructor multi params" {
     const sig = try human.parseHumanReadable(abi.Constructor, testing.allocator, "constructor(bool foo, string bar)");
     defer sig.deinit();
 
-    const encoded = try sig.value.encode(testing.allocator, .{ true, "fizzbuzz" });
+    const fizz: []const u8 = "fizzbuzz";
+    const encoded = try sig.value.encode(testing.allocator, .{ true, fizz });
     defer testing.allocator.free(encoded);
 
     try testing.expectEqualStrings("00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", encoded);
@@ -27,7 +28,8 @@ test "Error signature" {
     const sig = try human.parseHumanReadable(abi.Error, testing.allocator, "error Foo(bool foo, string bar)");
     defer sig.deinit();
 
-    const encoded = try sig.value.encode(testing.allocator, .{ true, "fizzbuzz" });
+    const fizz: []const u8 = "fizzbuzz";
+    const encoded = try sig.value.encode(testing.allocator, .{ true, fizz });
     defer testing.allocator.free(encoded);
 
     try testing.expectEqualStrings("65c9c0c100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", encoded);
@@ -57,7 +59,8 @@ test "Function" {
     const sig = try human.parseHumanReadable(abi.Function, testing.allocator, "function Foo(bool foo, string bar)");
     defer sig.deinit();
 
-    const encoded = try sig.value.encode(testing.allocator, .{ true, "fizzbuzz" });
+    const fizz: []const u8 = "fizzbuzz";
+    const encoded = try sig.value.encode(testing.allocator, .{ true, fizz });
     defer testing.allocator.free(encoded);
 
     try testing.expectEqualStrings("65c9c0c100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", encoded);
@@ -77,7 +80,8 @@ test "AbiItem" {
     const sig = try human.parseHumanReadable(abi.AbiItem, testing.allocator, "function Foo(bool foo, string bar)");
     defer sig.deinit();
 
-    const encoded = try sig.value.abiFunction.encode(testing.allocator, .{ true, "fizzbuzz" });
+    const fizz: []const u8 = "fizzbuzz";
+    const encoded = try sig.value.abiFunction.encode(testing.allocator, .{ true, fizz });
     defer testing.allocator.free(encoded);
 
     try testing.expectEqualStrings("65c9c0c100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", encoded);

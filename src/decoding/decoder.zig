@@ -2,12 +2,14 @@ const abi = @import("../abi/abi.zig");
 const std = @import("std");
 const meta = @import("../meta/meta.zig");
 const testing = std.testing;
+const types = @import("../meta/ethereum.zig");
 const utils = @import("../utils.zig");
 
 // Types
 const AbiParameter = @import("../abi/abi_parameter.zig").AbiParameter;
 const AbiParameterToPrimative = meta.AbiParameterToPrimative;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
+const Address = types.Address;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
 const Constructor = abi.Constructor;
@@ -292,10 +294,7 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
         },
         .Enum => {
             const decoded = switch (param.type) {
-                .string => try decodeString(allocator, hex, position),
-                .bytes => try decodeBytes(allocator, hex, position),
-                .fixedBytes => |size| try decodeFixedBytes(allocator, size, hex, position),
-                .address => try decodeAddress(allocator, hex, position),
+                .string, .bytes => try decodeString(allocator, hex, position),
                 else => return error.InvalidAbiParameter,
             };
             if (decoded.bytes_read > opts.max_bytes)
@@ -306,17 +305,36 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
         },
         .Array => |arr_info| {
             if (arr_info.child == u8) {
-                const decoded = switch (param.type) {
-                    .string => try decodeString(allocator, hex, position),
-                    .bytes => try decodeBytes(allocator, hex, position),
-                    .fixedBytes => |size| try decodeFixedBytes(allocator, size, hex, position),
-                    .address => try decodeAddress(allocator, hex, position),
-                    else => return error.InvalidAbiParameter,
-                };
-                if (decoded.bytes_read > opts.max_bytes)
-                    return error.BufferOverrun;
+                switch (param.type) {
+                    .string, .bytes => {
+                        const decoded = try decodeString(hex, position);
+                        if (decoded.bytes_read > opts.max_bytes)
+                            return error.BufferOverrun;
 
-                return decoded;
+                        return .{ .consumed = decoded.consumed, .data = decoded.data[0..arr_info.len].*, .bytes_read = decoded.bytes_read };
+                    },
+                    .fixedBytes => |size| {
+                        if (arr_info.len != size)
+                            return error.InvalidAbiParameter;
+
+                        const decoded = try decodeFixedBytes(size, hex, position);
+                        if (decoded.bytes_read > opts.max_bytes)
+                            return error.BufferOverrun;
+
+                        return .{ .consumed = decoded.consumed, .data = decoded.data[0..arr_info.len].*, .bytes_read = decoded.bytes_read };
+                    },
+                    .address => {
+                        if (arr_info.len != 20)
+                            return error.InvalidAbiParameter;
+
+                        const decoded = try decodeAddress(hex, position);
+                        if (decoded.bytes_read > opts.max_bytes)
+                            return error.BufferOverrun;
+
+                        return decoded;
+                    },
+                    else => return error.InvalidAbiParameter,
+                }
             }
 
             if (param.type != .fixedArray)
@@ -370,10 +388,7 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
                 .Slice => {
                     if (ptr_info.child == u8) {
                         const decoded = switch (param.type) {
-                            .string => try decodeString(allocator, hex, position),
-                            .bytes => try decodeBytes(allocator, hex, position),
-                            .fixedBytes => |size| try decodeFixedBytes(allocator, size, hex, position),
-                            .address => try decodeAddress(allocator, hex, position),
+                            .string, .bytes => try decodeString(hex, position),
                             else => return error.InvalidAbiParameter,
                         };
                         if (decoded.bytes_read > opts.max_bytes)
@@ -615,19 +630,24 @@ fn decodeParameters(alloc: Allocator, comptime params: []const AbiParameter, hex
     return result;
 }
 
-fn decodeParameter(alloc: Allocator, comptime param: AbiParameter, hex: []u8, position: usize, opts: DecodeOptions) !Decoded(AbiParameterToPrimative(param)) {
-    const decoded = switch (param.type) {
-        .string => try decodeString(alloc, hex, position),
-        .bytes => try decodeBytes(alloc, hex, position),
-        .address => try decodeAddress(alloc, hex, position),
-        .fixedBytes => |val| try decodeFixedBytes(alloc, val, hex, position),
-        .int => |val| try decodeNumber(if (val % 8 != 0 or val > 256) @compileError("Invalid bits passed in to int type") else @Type(.{ .Int = .{ .signedness = .signed, .bits = val } }), hex, position),
-        .uint => |val| try decodeNumber(if (val % 8 != 0 or val > 256) @compileError("Invalid bits passed in to int type") else @Type(.{ .Int = .{ .signedness = .unsigned, .bits = val } }), hex, position),
-        .bool => try decodeBool(hex, position),
-        .dynamicArray => |val| try decodeArray(alloc, .{ .type = val.*, .name = param.name, .internalType = param.internalType, .components = param.components }, hex, position, opts),
-        .fixedArray => |val| try decodeFixedArray(alloc, .{ .type = val.child.*, .name = param.name, .internalType = param.internalType, .components = param.components }, val.size, hex, position, opts),
-        .tuple => try decodeTuple(alloc, param, hex, position, opts),
-        inline else => @compileError("Not implemented " ++ @tagName(param.type)),
+fn decodeParameter(allocator: Allocator, comptime param: AbiParameter, hex: []u8, position: usize, opts: DecodeOptions) !Decoded(AbiParameterToPrimative(param)) {
+    const decoded = outer: {
+        break :outer switch (param.type) {
+            .string, .bytes => try decodeString(hex, position),
+            .address => try decodeAddress(hex, position),
+            .fixedBytes => |val| {
+                const decoded = try decodeFixedBytes(val, hex, position);
+
+                break :outer .{ .consumed = decoded.consumed, .data = decoded.data[0..val].*, .bytes_read = decoded.bytes_read };
+            },
+            .int => |val| try decodeNumber(if (val % 8 != 0 or val > 256) @compileError("Invalid bits passed in to int type") else @Type(.{ .Int = .{ .signedness = .signed, .bits = val } }), hex, position),
+            .uint => |val| try decodeNumber(if (val % 8 != 0 or val > 256) @compileError("Invalid bits passed in to int type") else @Type(.{ .Int = .{ .signedness = .unsigned, .bits = val } }), hex, position),
+            .bool => try decodeBool(hex, position),
+            .dynamicArray => |val| try decodeArray(allocator, .{ .type = val.*, .name = param.name, .internalType = param.internalType, .components = param.components }, hex, position, opts),
+            .fixedArray => |val| try decodeFixedArray(allocator, .{ .type = val.child.*, .name = param.name, .internalType = param.internalType, .components = param.components }, val.size, hex, position, opts),
+            .tuple => try decodeTuple(allocator, param, hex, position, opts),
+            inline else => @compileError("Not implemented " ++ @tagName(param.type)),
+        };
     };
 
     if (decoded.bytes_read > opts.max_bytes)
@@ -636,11 +656,10 @@ fn decodeParameter(alloc: Allocator, comptime param: AbiParameter, hex: []u8, po
     return decoded;
 }
 
-fn decodeAddress(allocator: Allocator, hex: []u8, position: usize) !Decoded([]const u8) {
+fn decodeAddress(hex: []u8, position: usize) !Decoded(Address) {
     const slice = hex[position + 12 .. position + 32];
 
-    const checksumed = try utils.toChecksum(allocator, try std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(slice)}));
-    return .{ .consumed = 32, .data = checksumed, .bytes_read = 32 };
+    return .{ .consumed = 32, .data = slice[0..20].*, .bytes_read = 32 };
 }
 
 fn decodeNumber(comptime T: type, hex: []u8, position: usize) !Decoded(T) {
@@ -667,7 +686,7 @@ fn decodeBool(hex: []u8, position: usize) !Decoded(bool) {
     return .{ .consumed = 32, .data = bit != 0, .bytes_read = 32 };
 }
 
-fn decodeString(allocator: Allocator, hex: []u8, position: usize) !Decoded([]const u8) {
+fn decodeString(hex: []u8, position: usize) !Decoded([]const u8) {
     const offset = try decodeNumber(usize, hex, position);
     const length = try decodeNumber(usize, hex, offset.data);
 
@@ -675,22 +694,12 @@ fn decodeString(allocator: Allocator, hex: []u8, position: usize) !Decoded([]con
     const remainder = length.data % 32;
     const len_padded = length.data + 32 - remainder;
 
-    return .{ .consumed = 32, .data = try std.fmt.allocPrint(allocator, "{s}", .{slice}), .bytes_read = @intCast(len_padded + 64) };
+    return .{ .consumed = 32, .data = slice, .bytes_read = @intCast(len_padded + 64) };
 }
 
-fn decodeBytes(allocator: Allocator, hex: []u8, position: usize) !Decoded([]const u8) {
-    const offset = try decodeNumber(usize, hex, position);
-    const length = try decodeNumber(usize, hex, offset.data);
-
-    const slice = hex[offset.data + 32 .. offset.data + 32 + length.data];
-    const remainder = length.data % 32;
-    const len_padded = length.data + 32 - remainder;
-
-    return .{ .consumed = 32, .data = try std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(slice)}), .bytes_read = @intCast(len_padded + 64) };
-}
-
-fn decodeFixedBytes(allocator: Allocator, size: usize, hex: []u8, position: usize) !Decoded([]const u8) {
-    return .{ .consumed = 32, .data = try std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(hex[position .. position + size])}), .bytes_read = 32 };
+fn decodeFixedBytes(size: usize, hex: []u8, position: usize) !Decoded([]u8) {
+    const slice = hex[position .. position + size];
+    return .{ .consumed = 32, .data = slice, .bytes_read = 32 };
 }
 
 fn decodeArray(allocator: Allocator, comptime param: AbiParameter, hex: []u8, position: usize, opts: DecodeOptions) !Decoded([]const AbiParameterToPrimative(param)) {
@@ -875,32 +884,32 @@ test "Uint/Int" {
 
 test "Address" {
     {
-        try testDecode("0000000000000000000000004648451b5f87ff8f0f7d622bd40574bb97e25980", &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{"0x4648451b5F87FF8F0F7D622bD40574bb97E25980"});
-        try testDecode("000000000000000000000000388c818ca8b9251b393131c08a736a67ccb19297", &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{"0x388C818CA8B9251b393131C08a736A67ccB19297"});
+        try testDecode("0000000000000000000000004648451b5f87ff8f0f7d622bd40574bb97e25980", &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{try utils.addressToBytes("0x4648451b5F87FF8F0F7D622bD40574bb97E25980")});
+        try testDecode("000000000000000000000000388c818ca8b9251b393131c08a736a67ccb19297", &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{try utils.addressToBytes("0x388C818CA8B9251b393131C08a736A67ccB19297")});
 
         const decoded = try decodeAbiFunctionOutputs(testing.allocator, .{ .type = .function, .name = "Bar", .inputs = &.{}, .stateMutability = .nonpayable, .outputs = &.{.{ .type = .{ .address = {} }, .name = "foo" }} }, "b0a378b0000000000000000000000000388c818ca8b9251b393131c08a736a67ccb19297", .{});
         defer decoded.deinit();
 
-        try testInnerValues(.{"0x388C818CA8B9251b393131C08a736A67ccB19297"}, decoded.values);
+        try testInnerValues(.{try utils.addressToBytes("0x388C818CA8B9251b393131C08a736A67ccB19297")}, decoded.values);
         try testing.expectEqualStrings("0xb0a378b0", decoded.name);
     }
     {
-        const R1 = std.meta.Tuple(&[_]type{[]const u8});
-        try testDecodeRuntime("0000000000000000000000004648451b5f87ff8f0f7d622bd40574bb97e25980", R1, &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{"0x4648451b5F87FF8F0F7D622bD40574bb97E25980"});
-        try testDecodeRuntime("000000000000000000000000388c818ca8b9251b393131c08a736a67ccb19297", R1, &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{"0x388C818CA8B9251b393131C08a736A67ccB19297"});
+        const R1 = std.meta.Tuple(&[_]type{Address});
+        try testDecodeRuntime("0000000000000000000000004648451b5f87ff8f0f7d622bd40574bb97e25980", R1, &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{try utils.addressToBytes("0x4648451b5F87FF8F0F7D622bD40574bb97E25980")});
+        try testDecodeRuntime("000000000000000000000000388c818ca8b9251b393131c08a736a67ccb19297", R1, &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{try utils.addressToBytes("0x388C818CA8B9251b393131C08a736A67ccB19297")});
 
         const decoded = try decodeAbiFunctionOutputsRuntime(testing.allocator, R1, .{ .type = .function, .name = "Bar", .inputs = &.{}, .stateMutability = .nonpayable, .outputs = &.{.{ .type = .{ .address = {} }, .name = "foo" }} }, "b0a378b0000000000000000000000000388c818ca8b9251b393131c08a736a67ccb19297", .{});
         defer decoded.deinit();
 
-        try testInnerValues(.{"0x388C818CA8B9251b393131C08a736A67ccB19297"}, decoded.values);
+        try testInnerValues(.{try utils.addressToBytes("0x388C818CA8B9251b393131C08a736A67ccB19297")}, decoded.values);
         try testing.expectEqualStrings("0xb0a378b0", decoded.name);
     }
 }
 
 test "Fixed Bytes" {
     {
-        try testDecode("0123456789000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .fixedBytes = 5 }, .name = "foo" }}, .{"0123456789"});
-        try testDecode("0123456789012345678900000000000000000000000000000000000000000000", &.{.{ .type = .{ .fixedBytes = 10 }, .name = "foo" }}, .{"01234567890123456789"});
+        try testDecode("0123456789000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .fixedBytes = 5 }, .name = "foo" }}, .{[_]u8{ 0x01, 0x23, 0x45, 0x67, 0x89 }});
+        try testDecode("0123456789012345678900000000000000000000000000000000000000000000", &.{.{ .type = .{ .fixedBytes = 10 }, .name = "foo" }}, .{[_]u8{ 0x01, 0x23, 0x45, 0x67, 0x89 } ** 2});
 
         const decoded = try decodeAbiError(testing.allocator, .{ .type = .@"error", .name = "Bar", .inputs = &.{} }, "b0a378b0", .{});
         defer decoded.deinit();
@@ -908,12 +917,13 @@ test "Fixed Bytes" {
         try testing.expectEqualStrings("0xb0a378b0", decoded.name);
     }
     {
-        const R1 = std.meta.Tuple(&[_]type{[]const u8});
-        try testDecodeRuntime("0123456789000000000000000000000000000000000000000000000000000000", R1, &.{.{ .type = .{ .fixedBytes = 5 }, .name = "foo" }}, .{"0123456789"});
-        try testDecodeRuntime("0123456789012345678900000000000000000000000000000000000000000000", R1, &.{.{ .type = .{ .fixedBytes = 10 }, .name = "foo" }}, .{"01234567890123456789"});
+        const R1 = std.meta.Tuple(&[_]type{[5]u8});
+        const R2 = std.meta.Tuple(&[_]type{[10]u8});
+        try testDecodeRuntime("0123456789000000000000000000000000000000000000000000000000000000", R1, &.{.{ .type = .{ .fixedBytes = 5 }, .name = "foo" }}, .{[_]u8{ 0x01, 0x23, 0x45, 0x67, 0x89 }});
+        try testDecodeRuntime("0123456789012345678900000000000000000000000000000000000000000000", R2, &.{.{ .type = .{ .fixedBytes = 10 }, .name = "foo" }}, .{[_]u8{ 0x01, 0x23, 0x45, 0x67, 0x89 } ** 2});
 
-        const R2 = std.meta.Tuple(&[_]type{});
-        const decoded = try decodeAbiErrorRuntime(testing.allocator, R2, .{ .type = .@"error", .name = "Bar", .inputs = &.{} }, "b0a378b0", .{});
+        const R3 = std.meta.Tuple(&[_]type{});
+        const decoded = try decodeAbiErrorRuntime(testing.allocator, R3, .{ .type = .@"error", .name = "Bar", .inputs = &.{} }, "b0a378b0", .{});
         defer decoded.deinit();
 
         try testing.expectEqualStrings("0xb0a378b0", decoded.name);
@@ -923,7 +933,7 @@ test "Fixed Bytes" {
 test "Bytes/String" {
     {
         try testDecode("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .{"foo"});
-        try testDecode("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .bytes = {} }, .name = "foo" }}, .{"666f6f"});
+        try testDecode("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .bytes = {} }, .name = "foo" }}, .{&[_]u8{ 0x66, 0x6f, 0x6f }});
 
         const decoded = try decodeAbiFunction(testing.allocator, .{ .type = .function, .name = "Bar", .inputs = &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .stateMutability = .nonpayable, .outputs = &.{} }, "4ec7c7ae00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", .{});
         defer decoded.deinit();
@@ -935,7 +945,7 @@ test "Bytes/String" {
         const R1 = std.meta.Tuple(&[_]type{[]const u8});
 
         try testDecodeRuntime("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", R1, &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .{"foo"});
-        try testDecodeRuntime("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", R1, &.{.{ .type = .{ .bytes = {} }, .name = "foo" }}, .{"666f6f"});
+        try testDecodeRuntime("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", R1, &.{.{ .type = .{ .bytes = {} }, .name = "foo" }}, .{&[_]u8{ 0x66, 0x6f, 0x6f }});
 
         const decoded = try decodeAbiFunctionRuntime(testing.allocator, R1, .{ .type = .function, .name = "Bar", .inputs = &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .stateMutability = .nonpayable, .outputs = &.{} }, "4ec7c7ae00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", .{});
         defer decoded.deinit();

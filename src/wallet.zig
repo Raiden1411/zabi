@@ -9,6 +9,7 @@ const utils = @import("utils.zig");
 
 // Types
 const AccessList = transaction.AccessList;
+const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Anvil = @import("tests/Anvil.zig");
 const ArenaAllocator = std.heap.ArenaAllocator;
@@ -18,16 +19,17 @@ const LondonEthCall = transaction.LondonEthCall;
 const LegacyEthCall = transaction.LegacyEthCall;
 const Handler = WebSocketClient.Handler;
 const Hex = types.Hex;
+const Hash = types.Hash;
 const InitOptsHttp = PubClient.InitOptions;
 const InitOptsWs = WebSocketClient.InitOptions;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
-const PrepareEnvelope = transaction.PrepareEnvelope;
 const PubClient = @import("Client.zig");
 const Signer = secp256k1.Signer;
 const Signature = secp256k1.Signature;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const TransactionReceipt = transaction.TransactionReceipt;
 const TypedDataDomain = eip712.TypedDataDomain;
+const UnpreparedTransactionEnvelope = transaction.UnpreparedTransactionEnvelope;
 const WebSocketClient = @import("WebSocket.zig");
 
 /// The type of client used by the wallet instance.
@@ -165,29 +167,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Get the wallet address.
         /// Uses the wallet public key to generate the address.
         /// This will allocate and the returned address is already checksumed
-        pub fn getWalletAddress(self: *Wallet(client_type)) ![]u8 {
-            const address = try self.signer.getAddressFromPublicKey();
-
-            const hex_address_lower = std.fmt.bytesToHex(address, .lower);
-
-            var hashed: [Keccak256.digest_length]u8 = undefined;
-            Keccak256.hash(hex_address_lower[0..], &hashed, .{});
-            const hex = std.fmt.bytesToHex(hashed, .lower);
-
-            const checksum = try self.allocator.alloc(u8, 42);
-            for (checksum[2..], 0..) |*c, i| {
-                const char = hex_address_lower[i];
-
-                if (try std.fmt.charToDigit(hex[i], 16) > 7) {
-                    c.* = std.ascii.toUpper(char);
-                } else {
-                    c.* = char;
-                }
-            }
-
-            @memcpy(checksum[0..2], "0x");
-
-            return checksum;
+        pub fn getWalletAddress(self: *Wallet(client_type)) !Address {
+            return self.signer.getAddressFromPublicKey();
         }
         /// Verifies if a given signature was signed by the current wallet.
         /// Uses libsecp256k1 to enable this.
@@ -227,7 +208,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Prepares a transaction based on it's type so that it can be sent through the network.
         /// Only the null struct properties will get changed.
         /// Everything that gets set before will not be touched.
-        pub fn prepareTransaction(self: *Wallet(client_type), unprepared_envelope: PrepareEnvelope) !TransactionEnvelope {
+        pub fn prepareTransaction(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !TransactionEnvelope {
             const address = try self.getWalletAddress();
 
             switch (unprepared_envelope) {
@@ -439,7 +420,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         }
         /// Prepares, asserts, signs and sends the transaction via `eth_sendRawTransaction`.
         /// Will return error if the envelope is incorrect
-        pub fn sendTransaction(self: *Wallet(client_type), unprepared_envelope: PrepareEnvelope) !Hex {
+        pub fn sendTransaction(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !Hex {
             const prepared = try self.prepareTransaction(unprepared_envelope);
 
             try self.assertTransaction(prepared);

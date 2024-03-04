@@ -98,7 +98,7 @@ uri: std.Uri,
 /// The underlaying websocket client
 ws_client: *ws.Client,
 
-fn handleErrorResponse(self: *WebSocketHandler, event: ErrorResponse) EthereumZigErrors {
+fn handleErrorResponse(self: *WebSocketHandler, event: EthereumErrorResponse) EthereumZigErrors {
     _ = self;
 
     wslog.debug("RPC error response: {s}\n", .{event.@"error".message});
@@ -123,9 +123,9 @@ fn handleErrorResponse(self: *WebSocketHandler, event: ErrorResponse) EthereumZi
 /// Internal RPC event parser.
 fn parseRPCEvent(self: *WebSocketHandler, request: []const u8) !EthereumEvents {
     const parsed = std.json.parseFromSliceLeaky(EthereumEvents, self.allocator, request, .{ .allocate = .alloc_always }) catch |err| {
-        const json_error: ErrorResponse = .{ .code = .ParseError, .message = "Failed to parse json response. Error found: " ++ @errorName(err) };
+        const json_error: ErrorResponse = .{ .code = .ParseError, .message = try std.fmt.allocPrint(self.allocator, "Failed to parse json response. Error found: {s}", .{@errorName(err)}) };
 
-        self.channel.put(.{ .error_event = .{ .jsonrpc = "2.0", .id = null, .@"error" = json_error } });
+        return .{ .error_event = .{ .jsonrpc = "2.0", .id = null, .@"error" = json_error } };
     };
 
     return parsed;
@@ -335,10 +335,10 @@ pub fn estimateGas(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
     const tag: BalanceBlockTag = opts.tag orelse .latest;
     const req_body = request: {
         if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { EthCall, u64 }) = .{ .params = .{ call_object, number }, .method = .eth_call, .id = self.chain_id };
+            const request: EthereumRequest(struct { EthCall, u64 }) = .{ .params = .{ call_object, number }, .method = .eth_estimateGas, .id = self.chain_id };
             break :request try std.json.stringifyAlloc(self.allocator, request, .{});
         }
-        const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{ .params = .{ call_object, tag }, .method = .eth_call, .id = self.chain_id };
+        const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{ .params = .{ call_object, tag }, .method = .eth_estimateGas, .id = self.chain_id };
         break :request try std.json.stringifyAlloc(self.allocator, request, .{});
     };
     defer self.allocator.free(req_body);
@@ -1394,15 +1394,15 @@ pub fn watchTransactions(self: *WebSocketHandler) !Hex {
 /// This expects the request to already be prepared beforehand.
 /// Since we have no way of knowing all possible or custom RPC methods that nodes can provide.
 /// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/eth-subscribe)
-pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []const u8) !Hex {
+pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []u8) !EthereumEvents {
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
         try self.write(request);
-        switch (self.channel.get()) {
-            .hex_event => |hex| return hex.result,
+        const event = self.channel.get();
+        switch (event) {
             .error_event => |error_response| {
                 const err = self.handleErrorResponse(error_response);
 
@@ -1418,10 +1418,7 @@ pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []const u8) !Hex {
                     else => return err,
                 }
             },
-            else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
-                return error.InvalidEventFound;
-            },
+            else => return event,
         }
     }
 }
@@ -1612,7 +1609,7 @@ fn handleNumberEvent(self: *WebSocketHandler, comptime T: type, req_body: []u8) 
     }
 }
 
-fn prepBasicRequest(self: *WebSocketHandler, method: EthereumRpcMethods) ![]const u8 {
+fn prepBasicRequest(self: *WebSocketHandler, method: EthereumRpcMethods) ![]u8 {
     const request: EthereumRequest(Tuple(&[_]type{})) = .{ .params = .{}, .method = method, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -1620,7 +1617,7 @@ fn prepBasicRequest(self: *WebSocketHandler, method: EthereumRpcMethods) ![]cons
     return req_body;
 }
 
-fn prepAddressRequest(self: *WebSocketHandler, opts: BalanceRequest, method: EthereumRpcMethods) ![]const u8 {
+fn prepAddressRequest(self: *WebSocketHandler, opts: BalanceRequest, method: EthereumRpcMethods) ![]u8 {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     const req_body = request: {

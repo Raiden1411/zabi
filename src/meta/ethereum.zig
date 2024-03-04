@@ -118,7 +118,7 @@ pub const EthereumErrorCodes = enum(isize) {
     ParseError = -32700,
     _,
 };
-pub const EthereumZigErrors = error{ EvmFailedToExecute, TooManyRequests, InvalidInput, ResourceNotFound, ResourceUnavailable, TransactionRejected, MethodNotSupported, LimitExceeded, RpcVersionNotSupported, InvalidRequest, MethodNotFound, InvalidParams, InternalError, ParseError };
+pub const EthereumZigErrors = error{ EvmFailedToExecute, TooManyRequests, InvalidInput, ResourceNotFound, ResourceUnavailable, TransactionRejected, MethodNotSupported, LimitExceeded, RpcVersionNotSupported, InvalidRequest, MethodNotFound, InvalidParams, InternalError, ParseError, UnexpectedRpcErrorCode };
 /// Zig struct representation of a RPC error response
 pub const EthereumErrorResponse = struct {
     jsonrpc: []const u8,

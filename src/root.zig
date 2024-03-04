@@ -35,7 +35,7 @@ test {
     try Anvil.waitUntilReady(std.testing.allocator, 2_000);
 
     _ = @import("Client.zig");
-    // _ = @import("WebSocket.zig");
+    _ = @import("WebSocket.zig");
     _ = @import("abi/param_type.zig");
     _ = @import("abi/abi_parameter.zig");
     _ = @import("abi/abi.zig");

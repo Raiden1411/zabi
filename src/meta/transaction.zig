@@ -36,6 +36,7 @@ pub const CancunEnvelopeSigned = StructToTupleType(CancunTransactionEnvelopeSign
 // /// Cancun transaction converted to wrapper with blobs, commitments and proofs
 // pub const CancunWrapper = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u64, []const Hex, []const Hex, []const Hex, []const Hex });
 
+pub const TransactionTypes = enum(u8) { berlin = 1, london = 2, cancun = 3, _ };
 /// Some nodes represent pending transactions hashes like this.
 pub const PendingTransactionHashesSubscription = struct {
     removed: bool,
@@ -200,7 +201,7 @@ pub const LegacyTransactionEnvelopeSigned = struct {
 };
 /// Same as `Envelope` but were all fields are optionals.
 pub const UnpreparedTransactionEnvelope = struct {
-    type: u2,
+    type: TransactionTypes,
     chainId: ?usize = null,
     nonce: ?u64 = null,
     maxFeePerBlobGas: ?Gwei = null,
@@ -230,7 +231,7 @@ pub const LondonPendingTransaction = struct {
     v: u4,
     r: Hash,
     s: Hash,
-    type: u2,
+    type: TransactionTypes,
     accessList: []const AccessList,
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
@@ -255,7 +256,7 @@ pub const LegacyPendingTransaction = struct {
     v: u4,
     r: Hash,
     s: Hash,
-    type: u2,
+    type: TransactionTypes,
     chainId: usize,
 
     pub usingnamespace RequestParser(@This());
@@ -285,7 +286,7 @@ pub const CancunTransaction = struct {
     s: Hash,
     sourceHash: ?Hash = null,
     isSystemTx: ?bool = null,
-    type: u2,
+    type: TransactionTypes,
     accessList: []const AccessList,
     blobVersionedHashes: []const Hash,
     maxFeePerBlobGas: Gwei,
@@ -313,7 +314,7 @@ pub const LondonTransaction = struct {
     s: Hash,
     sourceHash: ?Hash = null,
     isSystemTx: ?bool = null,
-    type: u2,
+    type: TransactionTypes,
     accessList: []const AccessList,
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
@@ -339,7 +340,7 @@ pub const BerlinTransaction = struct {
     s: Hash,
     sourceHash: ?Hash = null,
     isSystemTx: ?bool = null,
-    type: u4,
+    type: TransactionTypes,
     accessList: []const AccessList,
     chainId: usize,
 
@@ -363,7 +364,7 @@ pub const LegacyTransaction = struct {
     s: Hash,
     sourceHash: ?Hash = null,
     isSystemTx: ?bool = null,
-    type: u2,
+    type: TransactionTypes,
     chainId: usize,
 
     pub usingnamespace RequestParser(@This());
@@ -420,7 +421,7 @@ pub const LegacyReceipt = struct {
     contractAddress: ?Address,
     logs: Logs,
     logsBloom: Hex,
-    type: u2,
+    type: TransactionTypes,
     root: ?Hex = null,
     status: ?bool = null,
     deposit_nonce: ?usize = null,
@@ -443,7 +444,7 @@ pub const CancunReceipt = struct {
     contractAddress: ?Address,
     logs: Logs,
     logsBloom: Hex,
-    type: u2,
+    type: TransactionTypes,
     root: ?Hex = null,
     status: ?bool = null,
     deposit_nonce: ?usize = null,

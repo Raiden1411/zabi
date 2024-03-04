@@ -29,6 +29,7 @@ const EthereumResponse = types.EthereumResponse;
 const EthereumRequest = types.EthereumRequest;
 const EthereumRpcMethods = types.EthereumRpcMethods;
 const EthereumRpcResponse = types.EthereumRpcResponse;
+const EthereumZigErrors = types.EthereumZigErrors;
 const EstimateFeeReturn = transaction.EstimateFeeReturn;
 const Extract = meta.Extract;
 const Gwei = types.Gwei;
@@ -48,7 +49,7 @@ const WebSocketHandler = @This();
 
 const wslog = std.log.scoped(.ws);
 
-pub const WebSocketHandlerErrors = error{ FailedToConnect, UnsupportedSchema, InvalidChainId, FailedToGetReceipt, EvmFailedToExecute, FailedToUnsubscribe, InvalidFilterId, InvalidEventFound, InvalidBlockRequest, InvalidLogRequest, TransactionNotFound, TransactionReceiptNotFound, InvalidHash, UnexpectedErrorFound, UnableToFetchFeeInfoFromBlock, UnexpectedTooManyRequestError, InvalidInput, InvalidParams, InvalidRequest, InvalidAddress, InvalidBlockHash, InvalidBlockHashOrIndex, InvalidBlockNumberOrIndex, TooManyRequests, MethodNotFound, MethodNotSupported, RpcVersionNotSupported, LimitExceeded, TransactionRejected, ResourceNotFound, ResourceUnavailable, UnexpectedRpcErrorCode, InvalidBlockNumber, ParseError, ReachedMaxRetryLimit } || Allocator.Error || std.fmt.ParseIntError || std.Uri.ParseError;
+pub const WebSocketHandlerErrors = error{ FailedToConnect, UnsupportedSchema, InvalidChainId, FailedToGetReceipt, FailedToUnsubscribe, InvalidFilterId, InvalidEventFound, InvalidBlockRequest, InvalidLogRequest, TransactionNotFound, TransactionReceiptNotFound, InvalidHash, UnableToFetchFeeInfoFromBlock, InvalidAddress, InvalidBlockHash, InvalidBlockHashOrIndex, InvalidBlockNumberOrIndex, InvalidBlockNumber, ReachedMaxRetryLimit } || Allocator.Error || std.fmt.ParseIntError || std.Uri.ParseError || EthereumZigErrors;
 
 pub const InitOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
@@ -97,61 +98,37 @@ uri: std.Uri,
 /// The underlaying websocket client
 ws_client: *ws.Client,
 
+fn handleErrorResponse(self: *WebSocketHandler, event: ErrorResponse) EthereumZigErrors {
+    _ = self;
+
+    wslog.debug("RPC error response: {s}\n", .{event.@"error".message});
+    switch (event.@"error".code) {
+        .ContractErrorCode => return error.EvmFailedToExecute,
+        .TooManyRequests => return error.TooManyRequests,
+        .InvalidInput => return error.InvalidInput,
+        .MethodNotFound => return error.MethodNotFound,
+        .ResourceNotFound => return error.ResourceNotFound,
+        .InvalidRequest => return error.InvalidRequest,
+        .ParseError => return error.ParseError,
+        .LimitExceeded => return error.LimitExceeded,
+        .InvalidParams => return error.InvalidParams,
+        .InternalError => return error.InternalError,
+        .MethodNotSupported => return error.MethodNotSupported,
+        .ResourceUnavailable => return error.ResourceNotFound,
+        .TransactionRejected => return error.TransactionRejected,
+        .RpcVersionNotSupported => return error.RpcVersionNotSupported,
+        _ => return error.UnexpectedRpcErrorCode,
+    }
+}
 /// Internal RPC event parser.
 fn parseRPCEvent(self: *WebSocketHandler, request: []const u8) !EthereumEvents {
-    const parsed = std.json.parseFromSliceLeaky(EthereumEvents, self.allocator, request, .{ .allocate = .alloc_always }) catch return error.UnexpectedErrorFound;
+    const parsed = std.json.parseFromSliceLeaky(EthereumEvents, self.allocator, request, .{ .allocate = .alloc_always }) catch |err| {
+        const json_error: ErrorResponse = .{ .code = .ParseError, .message = "Failed to parse json response. Error found: " ++ @errorName(err) };
 
-    switch (parsed) {
-        .error_event => |response| {
-            wslog.debug("RPC error response: {s}\n", .{response.@"error".message});
-            switch (response.@"error".code) {
-                .ContractErrorCode => return error.EvmFailedToExecute,
-                .TooManyRequests => return error.TooManyRequests,
-                .InvalidInput => return error.InvalidInput,
-                .MethodNotFound => return error.MethodNotFound,
-                .ResourceNotFound => return error.ResourceNotFound,
-                .InvalidRequest => return error.InvalidRequest,
-                .ParseError => return error.ParseError,
-                .LimitExceeded => return error.LimitExceeded,
-                .InvalidParams => return error.InvalidParams,
-                .InternalError => return error.InternalError,
-                .MethodNotSupported => return error.MethodNotSupported,
-                .ResourceUnavailable => return error.ResourceNotFound,
-                .TransactionRejected => return error.TransactionRejected,
-                .RpcVersionNotSupported => return error.RpcVersionNotSupported,
-                _ => return error.UnexpectedRpcErrorCode,
-            }
-        },
-        inline else => return parsed,
-    }
-    // const parsed = std.json.parseFromSliceLeaky(T, self.allocator, request, .{ .allocate = .alloc_always }) catch {
-    //     if (std.json.parseFromSliceLeaky(EthereumErrorResponse, self.allocator, request, .{ .ignore_unknown_fields = true })) |result| {
-    //         wslog.debug("Rpc replied with error message: {s}", .{result.@"error".message});
-    //
-    //         if (result.@"error".data) |data|
-    //             wslog.debug("RPC error response data: {s}", .{data});
-    //
-    //         // Converts the rpc error codes to zig errors
-    //         return switch (result.@"error".code) {
-    //             .TooManyRequests => error.TooManyRequests,
-    //             .InvalidInput => error.InvalidInput,
-    //             .MethodNotFound => error.MethodNotFound,
-    //             .ResourceNotFound => error.ResourceNotFound,
-    //             .InvalidRequest => error.InvalidRequest,
-    //             .ParseError => error.ParseError,
-    //             .LimitExceeded => error.LimitExceeded,
-    //             .InvalidParams => error.InvalidParams,
-    //             .InternalError => error.InternalError,
-    //             .MethodNotSupported => error.MethodNotSupported,
-    //             .ResourceUnavailable => error.ResourceNotFound,
-    //             .TransactionRejected => error.TransactionRejected,
-    //             .RpcVersionNotSupported => error.RpcVersionNotSupported,
-    //             _ => error.UnexpectedRpcErrorCode,
-    //         };
-    //     } else |_| return error.UnexpectedErrorFound;
-    // };
-    //
-    // return parsed;
+        self.channel.put(.{ .error_event = .{ .jsonrpc = "2.0", .id = null, .@"error" = json_error } });
+    };
+
+    return parsed;
 }
 /// This will get run everytime a socket message is found.
 /// All messages are parsed and put into the handlers channel.
@@ -331,6 +308,7 @@ pub fn blobBaseFee(self: *WebSocketHandler) !Gwei {
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |fee| return @as(Gwei, @truncate(fee.result)),
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -395,6 +373,7 @@ pub fn estimateGas(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |fee| return @as(Gwei, @truncate(fee.result)),
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -443,6 +422,7 @@ pub fn estimateMaxFeePerGas(self: *WebSocketHandler) !Gwei {
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |gas| return @as(Gwei, @truncate(gas.result)),
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -473,6 +453,7 @@ pub fn getAccounts(self: *WebSocketHandler) ![]const Address {
         try self.write(@constCast(req_body));
         switch (self.channel.get()) {
             .accounts_event => |accounts_event| return accounts_event.result,
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -503,6 +484,7 @@ pub fn getAddressBalance(self: *WebSocketHandler, opts: BalanceRequest) !Wei {
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |balance| return balance.result,
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -533,6 +515,7 @@ pub fn getAddressTransactionCount(self: *WebSocketHandler, opts: BalanceRequest)
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |nonce| return @as(u64, @truncate(nonce.result)),
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -569,6 +552,7 @@ pub fn getBlockByHash(self: *WebSocketHandler, opts: BlockHashRequest) !Block {
                 const block_info = block_event.result orelse return error.InvalidBlockRequest;
                 return block_info;
             },
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -642,6 +626,7 @@ pub fn getBlockNumber(self: *WebSocketHandler) !u64 {
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |block_number| return @as(u64, @truncate(block_number.result)),
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -672,6 +657,7 @@ pub fn getBlockTransactionCountByHash(self: *WebSocketHandler, block_hash: Hash)
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |tx_count| return @as(u64, @truncate(tx_count.result)),
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -702,6 +688,7 @@ pub fn getBlockTransactionCountByNumber(self: *WebSocketHandler, opts: BlockNumb
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |tx_count| return @as(u64, @truncate(tx_count.result)),
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -739,14 +726,7 @@ pub fn getChainId(self: *WebSocketHandler) !usize {
 
                 return chain_id;
             },
-            .bool_event => |possible_chain| {
-                const chain_id: usize = @intFromBool(possible_chain.result);
-
-                if (chain_id != self.chain_id)
-                    return error.InvalidChainId;
-
-                return chain_id;
-            },
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -777,6 +757,7 @@ pub fn getContractCode(self: *WebSocketHandler, opts: BalanceRequest) !Hex {
         try self.write(req_body);
         switch (self.channel.get()) {
             .hex_event => |hex| return hex.result,
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -812,6 +793,7 @@ pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: usize, method: 
                 const logs_info = logs_event.result orelse return error.InvalidFilterId;
                 return logs_info;
             },
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -843,6 +825,7 @@ pub fn getGasPrice(self: *WebSocketHandler) !Gwei {
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |gas| return @as(Gwei, @truncate(gas.result)),
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -884,6 +867,7 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
                 const logs_info = logs_event.result orelse return error.InvalidLogRequest;
                 return logs_info;
             },
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -918,6 +902,7 @@ pub fn getTransactionByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Ha
                 const transaction_info = tx_event.result orelse return error.TransactionNotFound;
                 return transaction_info;
             },
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -960,6 +945,7 @@ pub fn getTransactionByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockN
                 const transaction_info = tx_event.result orelse return error.TransactionNotFound;
                 return transaction_info;
             },
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -995,6 +981,7 @@ pub fn getTransactionByHash(self: *WebSocketHandler, transaction_hash: Hash) !Tr
                 const transaction_info = tx_event.result orelse return error.TransactionNotFound;
                 return transaction_info;
             },
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1030,6 +1017,7 @@ pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: Hash) !T
                 const transaction_info = receipt_event.result orelse return error.TransactionReceiptNotFound;
                 return transaction_info;
             },
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1064,6 +1052,7 @@ pub fn getUncleByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Hash, in
                 const block_info = block_event.result orelse return error.InvalidBlockHashOrIndex;
                 return block_info;
             },
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1105,6 +1094,7 @@ pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberR
                 const block_info = block_event.result orelse return error.InvalidBlockNumberOrIndex;
                 return block_info;
             },
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1135,6 +1125,7 @@ pub fn getUncleCountByBlockHash(self: *WebSocketHandler, block_hash: Hash) !usiz
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |u_count| return @as(u64, @truncate(u_count.result)),
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1163,12 +1154,9 @@ pub fn getUncleCountByBlockNumber(self: *WebSocketHandler, opts: BlockNumberRequ
             return error.ReachedMaxRetryLimit;
 
         try self.write(req_body);
-
-        // if (self.channel.fifo.writableLength() == 0)
-        //     return error.InvalidMessage;
-
         switch (self.channel.get()) {
             .number_event => |u_count| return @as(u64, @truncate(u_count.result)),
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1200,6 +1188,7 @@ pub fn newBlockFilter(self: *WebSocketHandler) !usize {
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |filter_id| return @as(usize, @truncate(filter_id)),
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1239,6 +1228,7 @@ pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBloc
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |filter_id| return @as(usize, @truncate(filter_id)),
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1270,6 +1260,7 @@ pub fn newPendingTransactionFilter(self: *WebSocketHandler) !usize {
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |filter_id| return @as(usize, @truncate(filter_id)),
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1305,6 +1296,7 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
         try self.write(req_body);
         switch (self.channel.get()) {
             .hash_event => |hash| return hash.result,
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1338,6 +1330,7 @@ pub fn sendRawTransaction(self: *WebSocketHandler, serialized_hex_tx: Hex) !Hash
         try self.write(req_body);
         switch (self.channel.get()) {
             .hash_event => |hash| return hash.result,
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1371,6 +1364,7 @@ pub fn uninstalllFilter(self: *WebSocketHandler, id: usize) !bool {
         try self.write(req_body);
         switch (self.channel.get()) {
             .bool_event => |bool_event| return bool_event.result,
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1404,6 +1398,7 @@ pub fn unsubscribe(self: *WebSocketHandler, sub_id: Hex) !bool {
         try self.write(req_body);
         switch (self.channel.get()) {
             .bool_event => |bool_event| return bool_event.result,
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1436,6 +1431,7 @@ pub fn watchNewBlocks(self: *WebSocketHandler) !Hex {
         try self.write(req_body);
         switch (self.channel.get()) {
             .hex_event => |hex| return hex.result,
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1475,6 +1471,7 @@ pub fn watchLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTa
         try self.write(req_body);
         switch (self.channel.get()) {
             .hex_event => |hex| return hex.result,
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1507,6 +1504,7 @@ pub fn watchTransactions(self: *WebSocketHandler) !Hex {
         try self.write(req_body);
         switch (self.channel.get()) {
             .hex_event => |hex| return hex.result,
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
@@ -1536,6 +1534,7 @@ pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []const u8) !Hex {
         try self.write(request);
         switch (self.channel.get()) {
             .hex_event => |hex| return hex.result,
+            .error_event => |error_response| return self.handleErrorResponse(error_response),
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;

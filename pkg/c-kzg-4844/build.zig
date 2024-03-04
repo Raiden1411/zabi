@@ -45,7 +45,7 @@ fn buildKzg(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.Re
     defer flags.deinit();
 
     try flags.appendSlice(&.{"-fPIC"});
-    lib.addCSourceFiles(.{ .dependency = upstream, .flags = flags.items, .files = &.{"src/c_kzg_4844.c"} });
+    lib.addCSourceFiles(.{ .root = upstream.path("."), .flags = flags.items, .files = &.{"src/c_kzg_4844.c"} });
     lib.installHeadersDirectoryOptions(.{ .source_dir = upstream.path("src"), .install_dir = .header, .install_subdir = "", .include_extensions = &.{".h"} });
     lib.installHeadersDirectoryOptions(.{ .source_dir = .{ .path = "" }, .install_dir = .header, .install_subdir = "", .include_extensions = &.{".h"} });
     lib.linkLibC();

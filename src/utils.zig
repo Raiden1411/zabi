@@ -1,13 +1,13 @@
 const std = @import("std");
 const testing = std.testing;
 const transaction = @import("meta/transaction.zig");
+const types = @import("meta/ethereum.zig");
 
 // Types
+const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const EthCall = transaction.EthCall;
-const EthCallHexed = transaction.EthCallHexed;
-const EthCallEip1559Hexed = transaction.EthCallEip1559Hexed;
-const EthCallLegacyHexed = transaction.EthCallLegacyHexed;
+const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
 /// Converts ethereum address to checksum
@@ -45,7 +45,31 @@ pub fn isAddress(alloc: Allocator, addr: []const u8) !bool {
 
     return std.mem.eql(u8, addr, checksumed);
 }
+/// Convert address to its representing bytes
+pub fn addressToBytes(address: []const u8) !Address {
+    const addr = if (std.mem.startsWith(u8, address, "0x")) address[2..] else address;
 
+    if (addr.len != 40)
+        return error.InvalidAddress;
+
+    var addr_bytes: Address = undefined;
+    _ = try std.fmt.hexToBytes(&addr_bytes, addr);
+
+    return addr_bytes;
+}
+/// Convert a hash to its representing bytes
+pub fn hashToBytes(hash: []const u8) !Hash {
+    const hash_value = if (std.mem.startsWith(u8, hash, "0x")) hash[2..] else hash;
+
+    if (hash_value.len != 64)
+        return error.InvalidHash;
+
+    var hash_bytes: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&hash_bytes, hash_value);
+
+    return hash_bytes;
+}
+/// Checks if a given string is a hex string;
 pub fn isHexString(value: []const u8) bool {
     for (value) |char| {
         switch (char) {
@@ -63,9 +87,10 @@ pub fn isHash(hash: []const u8) bool {
 
     if (hash_slice.len != 64) return false;
 
-    for (0..hash_slice.len) |i| {
-        const char = hash_slice[i];
-
+    return isHashString(hash_slice);
+}
+pub fn isHashString(hash: []const u8) bool {
+    for (hash) |char| {
         switch (char) {
             '0'...'9', 'a'...'f' => continue,
             else => return false,
@@ -73,40 +98,6 @@ pub fn isHash(hash: []const u8) bool {
     }
 
     return true;
-}
-/// Converts a `EthCall` struct into all hex values.
-pub fn hexifyEthCall(alloc: Allocator, call_object: EthCall) !EthCallHexed {
-    const call: transaction.EthCallHexed = call: {
-        switch (call_object) {
-            .eip1559 => |tx| {
-                const eip1559_call: EthCallEip1559Hexed = .{
-                    .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
-                    .gas = if (tx.gas) |gas| try std.fmt.allocPrint(alloc, "0x{x}", .{gas}) else null,
-                    .maxFeePerGas = if (tx.maxFeePerGas) |fees| try std.fmt.allocPrint(alloc, "0x{x}", .{fees}) else null,
-                    .maxPriorityFeePerGas = if (tx.maxPriorityFeePerGas) |max_fees| try std.fmt.allocPrint(alloc, "0x{x}", .{max_fees}) else null,
-                    .from = tx.from,
-                    .to = tx.to,
-                    .data = tx.data,
-                };
-
-                break :call .{ .eip1559 = eip1559_call };
-            },
-            .legacy => |tx| {
-                const legacy_call: EthCallLegacyHexed = .{
-                    .value = if (tx.value) |value| try std.fmt.allocPrint(alloc, "0x{x}", .{value}) else null,
-                    .gasPrice = if (tx.gasPrice) |gas_price| try std.fmt.allocPrint(alloc, "0x{x}", .{gas_price}) else null,
-                    .gas = if (tx.gas) |gas| try std.fmt.allocPrint(alloc, "0x{x}", .{gas}) else null,
-                    .from = tx.from,
-                    .to = tx.to,
-                    .data = tx.data,
-                };
-
-                break :call .{ .legacy = legacy_call };
-            },
-        }
-    };
-
-    return call;
 }
 /// Convert value into u256 representing ether value
 /// Ex: 1 * 10 ** 18 = 1 ETH

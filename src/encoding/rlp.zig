@@ -90,32 +90,18 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
         .ErrorSet => try encodeItem(alloc, @errorName(payload), writer),
         .Array => |arr_info| {
             if (arr_info.child == u8) {
-                const slice = slice: {
-                    if (payload.len == 0) break :slice payload[0..];
-
-                    if (std.mem.startsWith(u8, payload[0..], "0x")) {
-                        break :slice payload[2..];
-                    }
-
-                    break :slice payload[0..];
-                };
-                const buf = try alloc.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
-                defer alloc.free(buf);
-
-                const bytes = if (std.fmt.hexToBytes(buf, slice)) |result| result else |_| slice;
-
-                if (bytes.len == 0) try writer.writeByte(0x80) else if (bytes.len < 56) {
-                    try writer.writeByte(@intCast(0x80 + bytes.len));
-                    try writer.writeAll(bytes);
+                if (payload.len == 0) try writer.writeByte(0x80) else if (payload.len < 56) {
+                    try writer.writeByte(@intCast(0x80 + payload.len));
+                    try writer.writeAll(&payload);
                 } else {
-                    if (bytes.len > std.math.maxInt(u64))
+                    if (payload.len > std.math.maxInt(u64))
                         return error.Overflow;
 
                     var buffer: [32]u8 = undefined;
-                    const size = utils.formatInt(bytes.len, &buffer);
+                    const size = utils.formatInt(payload.len, &buffer);
                     try writer.writeByte(0xb7 + size);
                     try writer.writeAll(buffer[32 - size ..]);
-                    try writer.writeAll(bytes);
+                    try writer.writeAll(&payload);
                 }
             } else {
                 if (payload.len == 0) try writer.writeByte(0xc0) else {
@@ -153,33 +139,18 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 },
                 .Slice, .Many => {
                     if (ptr_info.child == u8) {
-                        const slice = slice: {
-                            if (payload.len == 0) break :slice payload;
-
-                            if (std.mem.startsWith(u8, payload, "0x")) {
-                                break :slice payload[2..];
-                            }
-
-                            break :slice payload;
-                        };
-
-                        const buf = try alloc.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
-                        defer alloc.free(buf);
-
-                        const bytes = if (std.fmt.hexToBytes(buf, slice)) |result| result else |_| slice;
-
-                        if (bytes.len == 0) try writer.writeByte(0x80) else if (bytes.len < 56) {
-                            try writer.writeByte(@intCast(0x80 + bytes.len));
-                            try writer.writeAll(bytes);
+                        if (payload.len == 0) try writer.writeByte(0x80) else if (payload.len < 56) {
+                            try writer.writeByte(@intCast(0x80 + payload.len));
+                            try writer.writeAll(payload);
                         } else {
-                            if (bytes.len > std.math.maxInt(u64))
+                            if (payload.len > std.math.maxInt(u64))
                                 return error.Overflow;
 
                             var buffer: [32]u8 = undefined;
-                            const size = utils.formatInt(bytes.len, &buffer);
+                            const size = utils.formatInt(payload.len, &buffer);
                             try writer.writeByte(0xb7 + size);
                             try writer.writeAll(buffer[32 - size ..]);
-                            try writer.writeAll(bytes);
+                            try writer.writeAll(payload);
                         }
                     } else {
                         if (payload.len == 0) try writer.writeByte(0xc0) else {
@@ -581,6 +552,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
             const hexed = std.fmt.fmtSliceHexLower(hex_number);
             const slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
+
             defer alloc.free(slice);
 
             return .{ .consumed = len + 1, .data = if (slice.len != 0) try std.fmt.parseInt(T, slice, 16) else @intCast(0) };
@@ -630,12 +602,23 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
         .Array => |arr_info| {
             if (arr_info.child == u8) {
                 const size = encoded[position];
+                // std.debug.print("LEN: {d}\n\n", .{size - 0x80});
+                // std.debug.print("LEN: {s}\n\n", .{@typeName(T)});
+                // std.debug.print("LEN: {s}\n\n", .{std.fmt.fmtSliceHexLower(encoded[position + 1 ..])});
+                // std.debug.print("LEN: {s}\n\n", .{std.fmt.fmtSliceHexLower(encoded[position..])});
+                //
 
                 if (size <= 0xb7) {
                     const str_len = size - 0x80;
                     const slice = encoded[position + 1 .. position + str_len + 1];
 
-                    return .{ .consumed = str_len + 1, .data = slice };
+                    if (slice.len != arr_info.len)
+                        return error.LengthMissmatch;
+
+                    var result: T = undefined;
+                    @memcpy(result[0..], slice[0..arr_info.len]);
+
+                    return .{ .consumed = str_len + 1, .data = result };
                 }
                 const len_size = size - 0xb7;
                 const len = encoded[position + 1 .. position + len_size + 1];
@@ -644,8 +627,15 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                 defer alloc.free(len_slice);
 
                 const parsed = try std.fmt.parseInt(usize, len_slice, 16);
+                const slice = encoded[position + 1 + len_size .. position + parsed + 1 + len_size];
 
-                return .{ .consumed = 2 + len_size + parsed, .data = encoded[position + 1 + len_size .. position + parsed + 1 + len_size] };
+                if (slice.len != arr_info.len)
+                    return error.LengthMissmatch;
+
+                var result: T = undefined;
+                @memcpy(result[0..], slice[0..arr_info.len]);
+
+                return .{ .consumed = 2 + len_size + parsed, .data = result };
             }
 
             const arr_size = encoded[position];
@@ -711,13 +701,17 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                         var result = std.ArrayList(ptr_info.child).init(alloc);
                         errdefer result.deinit();
 
-                        var cur_pos = position + 1;
-                        for (0..arr_len) |_| {
-                            if (cur_pos >= encoded.len) break;
-                            const decoded = try decodeItem(alloc, ptr_info.child, encoded[cur_pos..], 0);
+                        var read: usize = 0;
+                        while (true) {
+                            if (read >= arr_len)
+                                break;
+
+                            const decoded = try decodeItem(alloc, ptr_info.child, encoded[read + position + 1 ..], 0);
                             try result.append(decoded.data);
-                            cur_pos += decoded.consumed;
+                            read += decoded.consumed;
                         }
+
+                        std.debug.assert(read == arr_len);
 
                         return .{ .consumed = arr_len + 1, .data = try result.toOwnedSlice() };
                     }

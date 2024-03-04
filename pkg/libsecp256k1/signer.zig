@@ -130,34 +130,17 @@ pub fn recoverPublicKey(message_hash: [32]u8, signature: Signature) ![PublicKeyL
 /// Recovers ethereum address from a message and signature.
 /// The message must be hash beforehand.
 /// The recovered address will already be checksumed.
-pub fn recoverEthereumAddress(message_hash: [32]u8, signature: Signature) ![40]u8 {
+pub fn recoverEthereumAddress(message_hash: [32]u8, signature: Signature) ![20]u8 {
     const pub_key = try recoverPublicKey(message_hash, signature);
 
     var hash: [32]u8 = undefined;
-    std.crypto.hash.sha3.Keccak256.hash(pub_key[1..], &hash, .{});
+    Keccak256.hash(pub_key[1..], &hash, .{});
 
-    const hex_address_lower = std.fmt.bytesToHex(hash[12..].*, .lower);
-
-    var hashed: [Keccak256.digest_length]u8 = undefined;
-    Keccak256.hash(hex_address_lower[0..], &hashed, .{});
-    const hex = std.fmt.bytesToHex(hashed, .lower);
-
-    var checksum: [40]u8 = undefined;
-    for (&checksum, 0..) |*ch, i| {
-        const char = hex_address_lower[i];
-
-        if (try std.fmt.charToDigit(hex[i], 16) > 7) {
-            ch.* = std.ascii.toUpper(char);
-        } else {
-            ch.* = char;
-        }
-    }
-
-    return checksum;
+    return hash[12..].*;
 }
 /// Its the same as `recoverEthereumAddress` but the original message is
 /// not hashed beforehand. This will take care of it.
-pub fn recoverMessageAddress(message: []const u8, signature: Signature) ![40]u8 {
+pub fn recoverMessageAddress(message: []const u8, signature: Signature) ![20]u8 {
     var hashed: [Keccak256.digest_length]u8 = undefined;
     Keccak256.hash(message, &hashed, .{});
 

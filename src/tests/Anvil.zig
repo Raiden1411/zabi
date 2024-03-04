@@ -102,16 +102,15 @@ pub fn setBalance(self: *Anvil, address: []const u8, balance: u256) !void {
     const hex_balance = try std.fmt.allocPrint(self.alloc, "0x{x}", .{balance});
     defer self.alloc.free(hex_balance);
 
-    var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
-    defer headers.deinit();
-
     const request: AnvilRequest([]const []const u8) = .{ .params = &.{ address, hex_balance }, .method = .anvil_setBalance };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var req = try self.http_client.fetch(self.alloc, .{ .headers = headers, .payload = .{ .string = req_body }, .location = .{ .uri = self.localhost }, .method = .POST });
-    defer req.deinit();
+    var body = std.ArrayList(u8).init(self.alloc);
+    defer body.deinit();
+
+    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
 
     if (req.status != .ok) return error.InvalidRequest;
 }
@@ -119,32 +118,31 @@ pub fn setBalance(self: *Anvil, address: []const u8, balance: u256) !void {
 /// Changes the contract code of a address.
 pub fn setCode(self: *Anvil, address: []const u8, code: []const u8) !void {
     if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
-    var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
-    defer headers.deinit();
 
     const request: AnvilRequest([]const []const u8) = .{ .params = &.{ address, code }, .method = .set_Code };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var req = try self.http_client.fetch(self.alloc, .{ .headers = headers, .payload = .{ .string = req_body }, .location = .{ .uri = self.localhost }, .method = .POST });
-    defer req.deinit();
+    var body = std.ArrayList(u8).init(self.alloc);
+    defer body.deinit();
+
+    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
 
     if (req.status != .ok) return error.InvalidRequest;
 }
 
 /// Changes the rpc of the anvil connection
 pub fn setRpcUrl(self: *Anvil, rpc_url: []const u8) !void {
-    var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
-    defer headers.deinit();
-
     const request: AnvilRequest([]const []const u8) = .{ .params = &.{rpc_url}, .method = .anvil_setRpcUrl };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var req = try self.http_client.fetch(self.alloc, .{ .headers = headers, .payload = .{ .string = req_body }, .location = .{ .uri = self.localhost }, .method = .POST });
-    defer req.deinit();
+    var body = std.ArrayList(u8).init(self.alloc);
+    defer body.deinit();
+
+    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost }, .response_storage = .{ .dynamic = &body } });
 
     if (req.status != .ok) return error.InvalidRequest;
 }
@@ -152,32 +150,28 @@ pub fn setRpcUrl(self: *Anvil, rpc_url: []const u8) !void {
 /// Changes the coinbase address
 pub fn setCoinbase(self: *Anvil, address: []const u8) !void {
     if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
-    var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
-    defer headers.deinit();
 
     const request: AnvilRequest([]const []const u8) = .{ .params = &.{address}, .method = .set_Coinbase };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var req = try self.http_client.fetch(self.alloc, .{ .headers = headers, .payload = .{ .string = req_body }, .location = .{ .uri = self.localhost }, .method = .POST });
-    defer req.deinit();
+    var body = std.ArrayList(u8).init(self.alloc);
+    defer body.deinit();
+
+    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
 
     if (req.status != .ok) return error.InvalidRequest;
 }
 
 /// Enable anvil verbose logging for anvil.
 pub fn setLoggingEnable(self: *Anvil) !void {
-    var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
-    defer headers.deinit();
-
     const request: AnvilRequest(&[_]type{}) = .{ .params = &.{}, .method = .set_LoggingEnabled };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var req = try self.http_client.fetch(self.alloc, .{ .headers = headers, .payload = .{ .string = req_body }, .location = .{ .uri = self.localhost }, .method = .POST });
-    defer req.deinit();
+    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
 
     if (req.status != .ok) return error.InvalidRequest;
 }
@@ -187,16 +181,12 @@ pub fn setMinGasPrice(self: *Anvil, new_price: u64) !void {
     const hex_balance = try std.fmt.allocPrint(self.alloc, "0x{x}", .{new_price});
     defer self.alloc.free(hex_balance);
 
-    var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
-    defer headers.deinit();
-
     const request: AnvilRequest([]const []const u8) = .{ .params = &.{hex_balance}, .method = .anvil_setMinGasPrice };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var req = try self.http_client.fetch(self.alloc, .{ .headers = headers, .payload = .{ .string = req_body }, .location = .{ .uri = self.localhost }, .method = .POST });
-    defer req.deinit();
+    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
 
     if (req.status != .ok) return error.InvalidRequest;
 }
@@ -205,16 +195,12 @@ pub fn setNextBlockBaseFeePerGas(self: *Anvil, new_price: u64) !void {
     const hex_balance = try std.fmt.allocPrint(self.alloc, "0x{x}", .{new_price});
     defer self.alloc.free(hex_balance);
 
-    var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
-    defer headers.deinit();
-
     const request: AnvilRequest([]const []const u8) = .{ .params = &.{hex_balance}, .method = .anvil_setNextBlockBaseFeePerGas };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var req = try self.http_client.fetch(self.alloc, .{ .headers = headers, .payload = .{ .string = req_body }, .location = .{ .uri = self.localhost }, .method = .POST });
-    defer req.deinit();
+    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
 
     if (req.status != .ok) return error.InvalidRequest;
 }
@@ -224,16 +210,12 @@ pub fn setChainId(self: *Anvil, new_id: u64) !void {
     const hex_id = try std.fmt.allocPrint(self.alloc, "0x{x}", .{new_id});
     defer self.alloc.free(hex_id);
 
-    var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
-    defer headers.deinit();
-
     const request: AnvilRequest([]const []const u8) = .{ .params = &.{hex_id}, .method = .anvil_setChainId };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var req = try self.http_client.fetch(self.alloc, .{ .headers = headers, .payload = .{ .string = req_body }, .location = .{ .uri = self.localhost }, .method = .POST });
-    defer req.deinit();
+    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
 
     if (req.status != .ok) return error.InvalidRequest;
 }
@@ -244,16 +226,12 @@ pub fn setNonce(self: *Anvil, address: []const u8, new_nonce: u64) !void {
     const hex_id = try std.fmt.allocPrint(self.alloc, "0x{x}", .{new_nonce});
     defer self.alloc.free(hex_id);
 
-    var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
-    defer headers.deinit();
-
     const request: AnvilRequest([]const []const u8) = .{ .params = &.{ address, hex_id }, .method = .anvil_setNonce };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var req = try self.http_client.fetch(self.alloc, .{ .headers = headers, .payload = .{ .string = req_body }, .location = .{ .uri = self.localhost }, .method = .POST });
-    defer req.deinit();
+    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
 
     if (req.status != .ok) return error.InvalidRequest;
 }
@@ -262,16 +240,12 @@ pub fn setNonce(self: *Anvil, address: []const u8, new_nonce: u64) !void {
 pub fn dropTransaction(self: *Anvil, tx_hash: []const u8) !void {
     if (!try utils.isHash(self.alloc, tx_hash)) return error.InvalidAddress;
 
-    var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
-    defer headers.deinit();
-
     const request: AnvilRequest([]const []const u8) = .{ .params = &.{tx_hash}, .method = .anvil_dropTransaction };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var req = try self.http_client.fetch(self.alloc, .{ .headers = headers, .payload = .{ .string = req_body }, .location = .{ .uri = self.localhost }, .method = .POST });
-    defer req.deinit();
+    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
 
     if (req.status != .ok) return error.InvalidRequest;
 }
@@ -284,32 +258,24 @@ pub fn mine(self: *Anvil, amount: u64, time_in_seconds: ?u64) !void {
     const hex_time: ?[]const u8 = if (time_in_seconds) |time| try std.fmt.allocPrint(self.alloc, "0x{x}", .{time}) else null;
     defer if (hex_time != null) self.alloc.free(hex_time);
 
-    var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
-    defer headers.deinit();
-
     const request: AnvilRequest(std.meta.Tuple(&[_]type{ []const u8, ?[]const u8 })) = .{ .params = &.{ hex_amount, hex_time }, .method = .anvil_mine };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
     defer self.alloc.free(req_body);
 
-    var req = try self.http_client.fetch(self.alloc, .{ .headers = headers, .payload = .{ .string = req_body }, .location = .{ .uri = self.localhost }, .method = .POST });
-    defer req.deinit();
+    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
 
     if (req.status != .ok) return error.InvalidRequest;
 }
 
 /// Reset the fork
 pub fn reset(self: *Anvil, reset_config: ?Reset) !void {
-    var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
-    defer headers.deinit();
-
     const request: AnvilRequest(?Reset) = .{ .params = &.{reset_config}, .method = .anvil_reset };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
     defer self.alloc.free(req_body);
 
-    var req = try self.http_client.fetch(self.alloc, .{ .headers = headers, .payload = .{ .string = req_body }, .location = .{ .uri = self.localhost }, .method = .POST });
-    defer req.deinit();
+    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
 
     if (req.status != .ok) return error.InvalidRequest;
 }
@@ -317,16 +283,13 @@ pub fn reset(self: *Anvil, reset_config: ?Reset) !void {
 /// Impersonate a EOA or contract. Call `stopImpersonatingAccount` after.
 pub fn impersonateAccount(self: *Anvil, address: []const u8) !void {
     if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
-    var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
-    defer headers.deinit();
 
     const request: AnvilRequest([]const []const u8) = .{ .params = &.{address}, .method = .anvil_impersonateAccount };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var req = try self.http_client.fetch(self.alloc, .{ .headers = headers, .payload = .{ .string = req_body }, .location = .{ .uri = self.localhost }, .method = .POST });
-    defer req.deinit();
+    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
 
     if (req.status != .ok) return error.InvalidRequest;
 }
@@ -334,16 +297,13 @@ pub fn impersonateAccount(self: *Anvil, address: []const u8) !void {
 /// Stops impersonating a EOA or contract.
 pub fn stopImpersonatingAccount(self: *Anvil, address: []const u8) !void {
     if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
-    var headers = try std.http.Headers.initList(self.alloc, &.{.{ .name = "Content-Type", .value = "application/json" }});
-    defer headers.deinit();
 
     const request: AnvilRequest([]const []const u8) = .{ .params = &.{address}, .method = .anvil_stopImpersonatingAccount };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var req = try self.http_client.fetch(self.alloc, .{ .headers = headers, .payload = .{ .string = req_body }, .location = .{ .uri = self.localhost }, .method = .POST });
-    defer req.deinit();
+    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
 
     if (req.status != .ok) return error.InvalidRequest;
 }

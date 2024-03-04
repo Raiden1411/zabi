@@ -4,9 +4,11 @@ const transactions = @import("transaction.zig");
 const types = @import("ethereum.zig");
 
 // Types
+const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Extract = meta.Extract;
 const Gwei = types.Gwei;
+const Hash = types.Hash;
 const Hex = types.Hex;
 const ParserError = std.json.ParseError;
 const ParserOptions = std.json.ParseOptions;
@@ -21,13 +23,12 @@ const Wei = types.Wei;
 pub const BlockTag = enum { latest, earliest, pending, safe, finalized };
 /// Specific tags used in some RPC requests
 pub const BalanceBlockTag = Extract(BlockTag, "latest,pending,earliest");
-
 /// Used in the RPC method requests
 pub const BlockRequest = struct { block_number: ?u64 = null, tag: ?BlockTag = .latest, include_transaction_objects: ?bool = false };
 /// Used in the RPC method requests
-pub const BlockHashRequest = struct { block_hash: Hex, include_transaction_objects: ?bool = false };
+pub const BlockHashRequest = struct { block_hash: Hash, include_transaction_objects: ?bool = false };
 /// Used in the RPC method requests
-pub const BalanceRequest = struct { address: Hex, block_number: ?u64 = null, tag: ?BalanceBlockTag = .latest };
+pub const BalanceRequest = struct { address: Address, block_number: ?u64 = null, tag: ?BalanceBlockTag = .latest };
 /// Used in the RPC method requests
 pub const BlockNumberRequest = struct { block_number: ?u64 = null, tag: ?BalanceBlockTag = .latest };
 
@@ -35,7 +36,7 @@ pub const BlockNumberRequest = struct { block_number: ?u64 = null, tag: ?Balance
 pub const Withdrawal = struct {
     index: u64,
     validatorIndex: u64,
-    address: Hex,
+    address: Address,
     amount: Wei,
 
     pub usingnamespace RequestParser(@This());
@@ -43,29 +44,29 @@ pub const Withdrawal = struct {
 /// The most common block that can be found before the
 /// ethereum merge. Doesn't contain the `withdrawals` or
 /// `withdrawalsRoot` fields.
-pub const BlockBeforeMerge = struct {
-    hash: ?Hex,
-    parentHash: Hex,
-    sha3Uncles: Hex,
-    miner: Hex,
-    stateRoot: Hex,
-    transactionsRoot: Hex,
-    receiptsRoot: Hex,
-    number: ?Gwei,
-    gasUsed: Gwei,
-    gasLimit: Gwei,
-    extraData: Hex,
-    logsBloom: ?Hex,
-    timestamp: u64,
-    difficulty: u256,
-    totalDifficulty: ?Wei,
-    sealFields: []const Hex,
-    uncles: []const Hex,
-    transactions: BlockTransactions,
-    size: u64,
-    mixHash: Hex,
-    nonce: ?Gwei,
+pub const LegacyBlock = struct {
     baseFeePerGas: ?Gwei,
+    difficulty: u256,
+    extraData: Hex,
+    gasLimit: Gwei,
+    gasUsed: Gwei,
+    hash: ?Hash,
+    logsBloom: ?Hex,
+    miner: Address,
+    mixHash: ?Hash = null,
+    nonce: ?u64,
+    number: ?u64,
+    parentHash: Hash,
+    receiptsRoot: Hash,
+    sealFields: ?[]const Hex = null,
+    sha3Uncles: Hash,
+    size: u64,
+    stateRoot: Hash,
+    timestamp: u64,
+    totalDifficulty: ?u256,
+    transactions: BlockTransactions,
+    transactionsRoot: Hash,
+    uncles: []const Hash,
 
     pub usingnamespace RequestParser(@This());
 };
@@ -77,40 +78,40 @@ pub const BlockTransactions = union(enum) {
 
     pub usingnamespace UnionParser(@This());
 };
-/// Almost similar to `BlockBeforeMerge` but with
+/// Almost similar to `LegacyBlock` but with
 /// the `withdrawalsRoot` and `withdrawals` fields.
-pub const BlockAfterMerge = struct {
-    hash: ?Hex,
-    parentHash: Hex,
-    sha3Uncles: Hex,
-    miner: Hex,
-    stateRoot: Hex,
-    transactionsRoot: Hex,
-    receiptsRoot: Hex,
-    number: ?Gwei,
-    gasUsed: Gwei,
-    gasLimit: Gwei,
-    extraData: Hex,
-    logsBloom: ?Hex,
-    timestamp: u64,
-    difficulty: u256,
-    totalDifficulty: ?Wei,
-    sealFields: []const Hex,
-    uncles: []const Hex,
-    transactions: BlockTransactions,
-    size: u64,
-    mixHash: Hex,
-    nonce: ?Gwei,
+pub const BeaconBlock = struct {
     baseFeePerGas: ?Gwei,
-    withdrawalsRoot: Hex,
+    difficulty: u256,
+    extraData: Hex,
+    gasLimit: Gwei,
+    gasUsed: Gwei,
+    hash: ?Hash,
+    logsBloom: ?Hex,
+    miner: Address,
+    mixHash: ?Hash = null,
+    nonce: ?u64,
+    number: ?u64,
+    parentHash: Hash,
+    receiptsRoot: Hash,
+    sealFields: ?[]const Hex = null,
+    sha3Uncles: Hash,
+    size: u64,
+    stateRoot: Hash,
+    timestamp: u64,
+    totalDifficulty: ?u256,
+    transactions: BlockTransactions,
+    transactionsRoot: Hash,
+    uncles: []const Hash,
+    withdrawalsRoot: Hash,
     withdrawals: []const Withdrawal,
 
     pub usingnamespace RequestParser(@This());
 };
-/// Union type of the possible block found on the network.
+/// Union type of the possible blocks found on the network.
 pub const Block = union(enum) {
-    block: BlockBeforeMerge,
-    blockMerge: BlockAfterMerge,
+    beacon: BeaconBlock,
+    legacy: LegacyBlock,
 
     pub usingnamespace UnionParser(@This());
 };

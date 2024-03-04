@@ -7,6 +7,7 @@ const testing = std.testing;
 const Abitype = abi.Abitype;
 const AbiParameter = params.AbiParameter;
 const Allocator = std.mem.Allocator;
+const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const ParamType = @import("../abi/param_type.zig").ParamType;
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
@@ -45,11 +46,202 @@ pub fn UnionParser(comptime T: type) type {
 /// the hability of zig to create a custom jsonParse method for structs
 pub fn RequestParser(comptime T: type) type {
     return struct {
+        pub fn jsonStringify(self: T, writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+            const info = @typeInfo(T);
+
+            try writer_stream.stream.writeByte('{');
+            inline for (info.Struct.fields) |field| {
+                var emit_field = true;
+                if (@typeInfo(field.type) == .Optional) {
+                    if (@field(self, field.name) == null) {
+                        emit_field = false;
+                    }
+                }
+
+                if (emit_field) {
+                    try valueStart(writer_stream);
+                    try std.json.encodeJsonString(field.name, .{}, writer_stream.stream);
+                    writer_stream.next_punctuation = .colon;
+                    // try writer_stream.stream.writeByte(':');
+                    try innerStringfy(@field(self, field.name), writer_stream);
+                }
+            }
+            switch (writer_stream.next_punctuation) {
+                .none, .comma => {},
+                else => unreachable,
+            }
+            try writer_stream.stream.writeByte('}');
+
+            return;
+        }
+
+        fn innerStringfy(value: anytype, stream_writer: anytype) !void {
+            const info = @typeInfo(@TypeOf(value));
+
+            switch (info) {
+                .Bool => {
+                    try valueStart(stream_writer);
+                    try stream_writer.stream.writeAll(if (value) "true" else "false");
+                    stream_writer.next_punctuation = .comma;
+                },
+                .Int, .ComptimeInt => {
+                    try valueStart(stream_writer);
+                    try stream_writer.stream.writeByte('\"');
+                    try stream_writer.stream.print("0x{x}", .{value});
+                    try stream_writer.stream.writeByte('\"');
+                    stream_writer.next_punctuation = .comma;
+                },
+                .Null => {
+                    try valueStart(stream_writer);
+                    try stream_writer.stream.writeAll("null");
+                    stream_writer.next_punctuation = .comma;
+                },
+                .Optional => {
+                    if (value) |val| {
+                        return try innerStringfy(val, stream_writer);
+                    } else return try innerStringfy(null, stream_writer);
+                },
+                .Enum, .EnumLiteral => {
+                    try valueStart(stream_writer);
+                    try std.json.encodeJsonString(@tagName(value), .{}, stream_writer.stream);
+                    stream_writer.next_punctuation = .comma;
+                },
+                .ErrorSet => {
+                    try valueStart(stream_writer);
+                    try std.json.encodeJsonString(@errorName(value), .{}, stream_writer.stream);
+                    stream_writer.next_punctuation = .comma;
+                },
+                .Array => |arr_info| {
+                    try valueStart(stream_writer);
+                    // We assume that we are dealying with hex bytes.
+                    // Mostly usefull for the cases of wanting to hex addresses and hashes
+                    if (arr_info.child == u8) {
+                        switch (arr_info.len) {
+                            20 => {
+                                var buffer: [(arr_info.len * 2) + 2]u8 = undefined;
+                                var hash_buffer: [Keccak256.digest_length]u8 = undefined;
+
+                                const hexed = std.fmt.bytesToHex(value, .lower);
+                                Keccak256.hash(&hexed, &hash_buffer, .{});
+
+                                // Checksum the address
+                                for (buffer[2..], 0..) |*c, i| {
+                                    const char = hexed[i];
+                                    switch (char) {
+                                        'a'...'f' => {
+                                            const mask: u8 = if (i % 2 == 0) 0x80 else 0x08;
+                                            if ((hash_buffer[i / 2] & mask) > 7) {
+                                                c.* = char & 0b11011111;
+                                            } else c.* = char;
+                                        },
+                                        else => {
+                                            c.* = char;
+                                        },
+                                    }
+                                }
+                                @memcpy(buffer[0..2], "0x");
+                                try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
+                            },
+                            40 => {
+                                // We assume that this is a checksumed address with missing "0x" start.
+                                var buffer: [arr_info.len + 2]u8 = undefined;
+                                @memcpy(buffer[2..], value);
+                                @memcpy(buffer[0..2], "0x");
+                                try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
+                            },
+                            42 => {
+                                // we just write the checksumed address
+                                try std.json.encodeJsonString(&value, .{}, stream_writer.stream);
+                            },
+                            else => {
+                                // Treat the rest as a normal hex encoded value
+                                var buffer: [(arr_info.len * 2) + 2]u8 = undefined;
+                                const hexed = std.fmt.bytesToHex(value, .lower);
+                                @memcpy(buffer[2..], hexed[0..]);
+                                @memcpy(buffer[0..2], "0x");
+                                try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
+                            },
+                        }
+                        stream_writer.next_punctuation = .comma;
+                    } else return try innerStringfy(&value, stream_writer);
+                },
+                .Pointer => |ptr_info| {
+                    switch (ptr_info.size) {
+                        .One => switch (@typeInfo(ptr_info.child)) {
+                            .Array => {
+                                const Slice = []const std.meta.Elem(ptr_info.child);
+                                return try innerStringfy(@as(Slice, value), stream_writer);
+                            },
+                            else => return try innerStringfy(value.*, stream_writer),
+                        },
+                        .Many, .Slice => {
+                            if (ptr_info.size == .Many and ptr_info.sentinel == null)
+                                @compileError("Unable to stringify type '" ++ @typeName(T) ++ "' without sentinel");
+
+                            const slice = if (ptr_info.size == .Many) std.mem.span(value) else value;
+
+                            try valueStart(stream_writer);
+                            if (ptr_info.child == u8) {
+                                try std.json.encodeJsonString(value, .{}, stream_writer.stream);
+                                stream_writer.next_punctuation = .comma;
+                            } else {
+                                try stream_writer.stream.writeByte('[');
+                                stream_writer.next_punctuation = .none;
+
+                                for (slice) |span| {
+                                    try innerStringfy(span, stream_writer);
+                                }
+
+                                switch (stream_writer.next_punctuation) {
+                                    .none, .comma => {},
+                                    else => unreachable,
+                                }
+
+                                try stream_writer.stream.writeByte(']');
+                                stream_writer.next_punctuation = .comma;
+                            }
+                        },
+                        else => @compileError("Unsupported pointer type " ++ @typeName(@TypeOf(value))),
+                    }
+                },
+                .Struct => |struct_info| {
+                    if (struct_info.is_tuple) {
+                        try valueStart(stream_writer);
+                        try stream_writer.stream.writeByte('[');
+                        stream_writer.next_punctuation = .none;
+                        inline for (value) |val| {
+                            try innerStringfy(val, stream_writer);
+                        }
+                        switch (stream_writer.next_punctuation) {
+                            .none, .comma => {},
+                            else => unreachable,
+                        }
+                        try stream_writer.stream.writeByte(']');
+                        stream_writer.next_punctuation = .comma;
+                        return;
+                    } else if (@hasDecl(@TypeOf(value), "jsonStringify")) return value.jsonStringify(stream_writer) else @compileError("Unable to parse structs without jsonStringify custom declaration. TypeName: " ++ @typeName(@TypeOf(value)));
+                },
+                .Union => {
+                    if (@hasDecl(@TypeOf(value), "jsonStringify")) return value.jsonStringify(stream_writer) else @compileError("Unable to parse unions without jsonStringify custom declaration. Typename: " ++ @typeName(@TypeOf(value)));
+                },
+                else => @compileError("Unsupported type " ++ @typeName(@TypeOf(value))),
+            }
+        }
+
+        fn valueStart(stream_writer: anytype) !void {
+            switch (stream_writer.next_punctuation) {
+                .the_beginning, .none => {},
+                .comma => try stream_writer.stream.writeByte(','),
+                .colon => try stream_writer.stream.writeByte(':'),
+            }
+        }
+
         pub fn jsonParse(alloc: Allocator, source: anytype, opts: ParseOptions) ParseError(@TypeOf(source.*))!T {
             const info = @typeInfo(T);
             if (.object_begin != try source.next()) return error.UnexpectedToken;
 
             var result: T = undefined;
+            var fields_seen = [_]bool{false} ** info.Struct.fields.len;
 
             while (true) {
                 var name_token: ?Token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
@@ -63,10 +255,11 @@ pub fn RequestParser(comptime T: type) type {
                     },
                 };
 
-                inline for (info.Struct.fields) |field| {
+                inline for (info.Struct.fields, 0..) |field, i| {
                     if (std.mem.eql(u8, field.name, field_name)) {
                         name_token = null;
                         @field(result, field.name) = try innerParseRequest(field.type, alloc, source, opts);
+                        fields_seen[i] = true;
                         break;
                     }
                 } else {
@@ -74,6 +267,17 @@ pub fn RequestParser(comptime T: type) type {
                         try source.skipValue();
                     } else {
                         return error.UnknownField;
+                    }
+                }
+            }
+
+            inline for (info.Struct.fields, 0..) |field, i| {
+                if (!fields_seen[i]) {
+                    if (field.default_value) |default_value| {
+                        const default = @as(*align(1) const field.type, @ptrCast(default_value)).*;
+                        @field(result, field.name) = default;
+                    } else {
+                        return error.MissingField;
                     }
                 }
             }
@@ -86,19 +290,33 @@ pub fn RequestParser(comptime T: type) type {
             if (source != .object) return error.UnexpectedToken;
 
             var result: T = undefined;
+            var fields_seen = [_]bool{false} ** info.Struct.fields.len;
 
             var iter = source.object.iterator();
 
             while (iter.next()) |token| {
                 const field_name = token.key_ptr.*;
 
-                inline for (info.Struct.fields) |field| {
+                inline for (info.Struct.fields, 0..) |field, i| {
                     if (std.mem.eql(u8, field.name, field_name)) {
                         @field(result, field.name) = try innerParseValueRequest(field.type, alloc, token.value_ptr.*, opts);
+                        fields_seen[i] = true;
                         break;
                     }
                 } else {
-                    if (!opts.ignore_unknown_fields) return error.UnknownField;
+                    if (!opts.ignore_unknown_fields)
+                        return error.UnknownField;
+                }
+            }
+
+            inline for (info.Struct.fields, 0..) |field, i| {
+                if (!fields_seen[i]) {
+                    if (field.default_value) |default_value| {
+                        const default = @as(*align(1) const field.type, @ptrCast(default_value)).*;
+                        @field(result, field.name) = default;
+                    } else {
+                        return error.MissingField;
+                    }
                 }
             }
 
@@ -114,6 +332,14 @@ pub fn RequestParser(comptime T: type) type {
                         else => return error.UnexpectedToken,
                     }
                 },
+                .Float, .ComptimeFloat => {
+                    switch (source) {
+                        .float => |f| return @as(T, @floatCast(f)),
+                        .integer => |i| return @as(T, @floatFromInt(i)),
+                        .number_string, .string => |s| return std.fmt.parseFloat(T, s),
+                        else => return error.UnexpectedToken,
+                    }
+                },
                 .Int => {
                     switch (source) {
                         .number_string, .string => |str| return try std.fmt.parseInt(TT, str, 0),
@@ -126,8 +352,59 @@ pub fn RequestParser(comptime T: type) type {
                         else => return try innerParseValueRequest(opt_info.child, alloc, source, opts),
                     }
                 },
+                .Enum => |enum_info| {
+                    switch (source) {
+                        .float => return error.InvalidEnumTag,
+                        .integer => |num| return std.meta.intToEnum(TT, num),
+                        .number_string, .string => |slice| {
+                            if (std.meta.stringToEnum(TT, slice)) |result| return result;
+
+                            const enum_number = std.fmt.parseInt(enum_info.tag_type, slice, 0) catch return error.InvalidEnumTag;
+                            return std.meta.intToEnum(TT, enum_number);
+                        },
+                        else => return error.UnexpectedToken,
+                    }
+                },
+                .Array => |arr_info| {
+                    switch (source) {
+                        .array => |arr| {
+                            var result: TT = undefined;
+                            for (arr.items, 0..) |item, i| {
+                                result[i] = try innerParseValueRequest(arr_info.child, alloc, item, opts);
+                            }
+
+                            return result;
+                        },
+                        .string => |str| {
+                            if (arr_info.child != u8)
+                                return error.UnexpectedToken;
+
+                            var result: TT = undefined;
+
+                            const slice = if (std.mem.startsWith(u8, str, "0x")) str[2..] else str[0..];
+                            if (std.fmt.hexToBytes(&result, slice)) |_| {
+                                if (arr_info.len != slice.len / 2)
+                                    return error.LengthMismatch;
+
+                                return result;
+                            } else |_| {
+                                if (slice.len != result.len)
+                                    return error.LengthMismatch;
+
+                                @memcpy(result[0..], slice[0..]);
+                            }
+                            return result;
+                        },
+                        else => return error.UnexpectedToken,
+                    }
+                },
                 .Pointer => |ptr_info| {
                     switch (ptr_info.size) {
+                        .One => {
+                            const result: *ptr_info.child = try alloc.create(ptr_info.child);
+                            result.* = try innerParseRequest(ptr_info.child, alloc, source, opts);
+                            return result;
+                        },
                         .Slice => {
                             switch (source) {
                                 .array => |array| {
@@ -141,10 +418,7 @@ pub fn RequestParser(comptime T: type) type {
                                 .string => |str| {
                                     if (ptr_info.child != u8) return error.UnexpectedToken;
 
-                                    const result = try alloc.alloc(ptr_info.child, str.len);
-                                    @memcpy(result[0..], str);
-
-                                    return result;
+                                    return str;
                                 },
                                 else => return error.UnexpectedToken,
                             }
@@ -153,10 +427,10 @@ pub fn RequestParser(comptime T: type) type {
                     }
                 },
                 .Struct => {
-                    if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(alloc, source, opts) else @compileError("Unable to parse structs without jsonParseFromValue custom declaration");
+                    if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(alloc, source, opts) else @compileError("Unable to parse structs without jsonParseFromValue custom declaration. Typename: " ++ @typeName(TT));
                 },
                 .Union => {
-                    if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(alloc, source, opts) else @compileError("Unable to parse structs without jsonParseFromValue custom declaration");
+                    if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(alloc, source, opts) else @compileError("Unable to parse unions without jsonParseFromValue custom declaration. Typename: " ++ @typeName(TT));
                 },
 
                 else => @compileError("Unable to parse type " ++ @typeName(TT)),
@@ -184,7 +458,14 @@ pub fn RequestParser(comptime T: type) type {
 
                     return try std.fmt.parseInt(TT, slice, 0);
                 },
-
+                .Float, .ComptimeFloat => {
+                    const token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
+                    const slice = switch (token) {
+                        inline .number, .allocated_number, .string, .allocated_string => |slice| slice,
+                        else => return error.UnexpectedToken,
+                    };
+                    return try std.fmt.parseFloat(TT, slice);
+                },
                 .Optional => |opt_info| {
                     switch (try source.peekNextTokenType()) {
                         .null => {
@@ -192,6 +473,57 @@ pub fn RequestParser(comptime T: type) type {
                             return null;
                         },
                         else => return try innerParseRequest(opt_info.child, alloc, source, opts),
+                    }
+                },
+                .Enum => |enum_info| {
+                    const token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
+                    const slice = switch (token) {
+                        inline .number, .allocated_number, .string, .allocated_string => |slice| slice,
+                        else => return error.UnexpectedToken,
+                    };
+
+                    if (std.meta.stringToEnum(TT, slice)) |result| return result;
+
+                    const enum_number = std.fmt.parseInt(enum_info.tag_type, slice, 0) catch return error.InvalidEnumTag;
+                    return std.meta.intToEnum(TT, enum_number);
+                },
+                .Array => |arr_info| {
+                    switch (try source.peekNextTokenType()) {
+                        .array_begin => {
+                            _ = try source.next();
+
+                            var result: TT = undefined;
+
+                            var index: usize = 0;
+                            while (index < arr_info.len) : (index += 1) {
+                                result[index] = try innerParseRequest(arr_info.child, alloc, source, opts);
+                            }
+
+                            if (.array_end != try source.next())
+                                return error.UnexpectedToken;
+
+                            return result;
+                        },
+                        .string => {
+                            var result: TT = undefined;
+
+                            switch (try source.next()) {
+                                .string => |str| {
+                                    const slice = if (std.mem.startsWith(u8, str, "0x")) str[2..] else return error.UnexpectedToken;
+                                    if (std.fmt.hexToBytes(&result, slice)) |_| {
+                                        return result;
+                                    } else |_| {
+                                        if (slice.len != result.len)
+                                            return error.LengthMismatch;
+
+                                        @memcpy(result[0..], slice[0..]);
+                                    }
+                                    return result;
+                                },
+                                else => return error.UnexpectedToken,
+                            }
+                        },
+                        else => return error.UnexpectedToken,
                     }
                 },
 
@@ -220,10 +552,14 @@ pub fn RequestParser(comptime T: type) type {
                                     return try arraylist.toOwnedSlice();
                                 },
                                 .string => {
-                                    if (ptrInfo.child != u8) return error.UnexpectedToken;
+                                    if (ptrInfo.child != u8)
+                                        return error.UnexpectedToken;
+
                                     if (ptrInfo.is_const) {
                                         switch (try source.nextAllocMax(alloc, opts.allocate.?, opts.max_value_len.?)) {
-                                            inline .string, .allocated_string => |slice| return slice,
+                                            inline .string, .allocated_string => |slice| {
+                                                return slice;
+                                            },
                                             else => unreachable,
                                         }
                                     } else {
@@ -241,10 +577,10 @@ pub fn RequestParser(comptime T: type) type {
                     }
                 },
                 .Struct => {
-                    if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(alloc, source, opts) else @compileError("Unable to parse structs without jsonParse custom declaration");
+                    if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(alloc, source, opts) else @compileError("Unable to parse structs without jsonParse custom declaration. Typename: " ++ @typeName(TT));
                 },
                 .Union => {
-                    if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(alloc, source, opts) else @compileError("Unable to parse structs without jsonParse custom declaration");
+                    if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(alloc, source, opts) else @compileError("Unable to parse unions without jsonParse custom declaration. Typename: " ++ @typeName(TT));
                 },
                 else => @compileError("Unable to parse type " ++ @typeName(TT)),
             }
@@ -288,79 +624,114 @@ pub fn Extract(comptime T: type, comptime needle: []const u8) type {
 
     return @Type(.{ .Enum = .{ .tag_type = info.tag_type, .fields = &enumFields, .decls = &.{}, .is_exhaustive = true } });
 }
-/// Experimental meta function that is used to merge to structs
-/// into a single struct.
-pub fn Merge(comptime T: type, comptime K: type) type {
-    const info = @typeInfo(T);
-    const info_k = @typeInfo(K);
-
-    if (info != .Struct) @compileError("Only struct types are supported");
-    if (info_k != .Struct) @compileError("Cannot merge from non struct type");
-
-    if (info.Struct.is_tuple or info_k.Struct.is_tuple) @compileError("Not supported for tuple types");
-
-    var fields: [info.Struct.fields.len + info_k.Struct.fields.len]std.builtin.Type.StructField = undefined;
-
-    var counter: u32 = 0;
-    inline for (info.Struct.fields) |field| {
-        fields[counter] = .{
-            .name = field.name,
-            .type = field.type,
-            .default_value = field.default_value,
-            .is_comptime = field.is_comptime,
-            .alignment = field.alignment,
-        };
-        counter += 1;
-    }
-
-    inline for (info_k.Struct.fields) |field| {
-        fields[counter] = .{
-            .name = field.name,
-            .type = field.type,
-            .default_value = field.default_value,
-            .is_comptime = field.is_comptime,
-            .alignment = field.alignment,
-        };
-        counter += 1;
-    }
-
-    if (counter != info.Struct.fields.len + info_k.Struct.fields.len) @compileError("Missmatch field length");
-
-    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
-}
-/// Converts all of the struct or union fields into optional type.
-/// This doesn't set the default_value to null.
-pub fn ToOptionalStructAndUnionMembers(comptime T: type) type {
+pub fn StructToTupleType(comptime T: type) type {
     const info = @typeInfo(T);
 
-    switch (info) {
-        .Struct => |struct_info| {
-            if (struct_info.is_tuple) @compileError("Tuple types are not supported");
+    if (info != .Struct and info.Struct.is_tuple)
+        @compileError("Expected non tuple struct type but found " ++ @typeName(T));
 
-            var fields: [struct_info.fields.len]std.builtin.Type.StructField = undefined;
-            inline for (struct_info.fields, 0..) |field, i| {
+    var fields: [info.Struct.fields.len]std.builtin.Type.StructField = undefined;
+
+    inline for (info.Struct.fields, 0..) |field, i| {
+        const field_info = @typeInfo(field.type);
+
+        switch (field_info) {
+            .Struct => {
+                const Type = StructToTupleType(field.type);
                 fields[i] = .{
-                    .name = field.name,
-                    .type = if (@typeInfo(field.type) == .Optional) field.type else ?field.type,
+                    .name = std.fmt.comptimePrint("{d}", .{i}),
+                    .type = Type,
                     .default_value = null,
+                    .is_comptime = false,
+                    .alignment = if (@sizeOf(Type) > 0) @alignOf(Type) else 0,
+                };
+            },
+            .Array => |arr_info| {
+                const arr_type_info = @typeInfo(arr_info.child);
+
+                if (arr_type_info == .Struct) {
+                    const Type = StructToTupleType(arr_info.child);
+                    fields[i] = .{
+                        .name = std.fmt.comptimePrint("{d}", .{i}),
+                        .type = [arr_info.len]Type,
+                        .default_value = null,
+                        .is_comptime = false,
+                        .alignment = if (@sizeOf(Type) > 0) @alignOf(Type) else 0,
+                    };
+
+                    continue;
+                }
+                fields[i] = .{
+                    .name = std.fmt.comptimePrint("{d}", .{i}),
+                    .type = field.type,
+                    .default_value = field.default_value,
                     .is_comptime = field.is_comptime,
                     .alignment = field.alignment,
                 };
-            }
+            },
+            .Pointer => |ptr_info| {
+                const ptr_type_info = @typeInfo(ptr_info.child);
 
-            return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
-        },
-        .Union => |union_info| {
-            var fields: [union_info.fields.len]std.builtin.Type.UnionField = undefined;
+                if (ptr_type_info == .Struct) {
+                    const Type = StructToTupleType(ptr_info.child);
+                    fields[i] = .{
+                        .name = std.fmt.comptimePrint("{d}", .{i}),
+                        .type = []const Type,
+                        .default_value = null,
+                        .is_comptime = false,
+                        .alignment = if (@sizeOf(Type) > 0) @alignOf(Type) else 0,
+                    };
 
-            inline for (union_info.fields, 0..) |field, i| {
-                fields[i] = .{ .name = field.name, .type = if (@typeInfo(field.type) == .Optional) field.type else ?field.type, .alignment = field.alignment };
-            }
-
-            return @Type(.{ .Union = .{ .layout = union_info.layout, .fields = &fields, .decls = &.{}, .tag_type = union_info.tag_type } });
-        },
-        else => @compileError("Unsupported type. Expected Union or Struct type but found " ++ @typeName(T)),
+                    continue;
+                }
+                fields[i] = .{
+                    .name = std.fmt.comptimePrint("{d}", .{i}),
+                    .type = field.type,
+                    .default_value = field.default_value,
+                    .is_comptime = field.is_comptime,
+                    .alignment = field.alignment,
+                };
+            },
+            else => {
+                fields[i] = .{
+                    .name = std.fmt.comptimePrint("{d}", .{i}),
+                    .type = field.type,
+                    .default_value = field.default_value,
+                    .is_comptime = field.is_comptime,
+                    .alignment = field.alignment,
+                };
+            },
+        }
     }
+
+    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+}
+pub fn Omit(comptime T: type, comptime keys: []const []const u8) type {
+    const info = @typeInfo(T);
+
+    if (info != .Struct and info.Struct.is_tuple)
+        @compileError("Expected non tuple struct type but found " ++ @typeName(T));
+
+    if (keys.len >= info.Struct.fields.len)
+        @compileError("Key length exceeds struct field length");
+
+    const size = info.Struct.fields.len - keys.len;
+    var fields: [size]std.builtin.Type.StructField = undefined;
+    var fields_seen = [_]bool{false} ** size;
+
+    var counter: usize = 0;
+    outer: inline for (info.Struct.fields) |field| {
+        for (keys) |key| {
+            if (std.mem.eql(u8, key, field.name)) {
+                continue :outer;
+            }
+        }
+        fields[counter] = field;
+        fields_seen[counter] = true;
+        counter += 1;
+    }
+
+    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
 }
 /// Convert sets of solidity ABI paramters to the representing Zig types.
 /// This will create a tuple type of the subset of the resulting types
@@ -443,10 +814,8 @@ test "Meta" {
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .dynamicArray = &.{ .bool = {} } }, .name = "foo" }), []const bool);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .fixedArray = .{ .child = &.{ .bool = {} }, .size = 2 } }, .name = "foo" }), [2]bool);
 
-    try expectEqualUnions(union(enum) { foo: ?u64, bar: ?i32 }, ToOptionalStructAndUnionMembers(union(enum) { foo: u64, bar: i32 }));
-
-    try expectEqualStructs(struct { foo: u32, bar: []const u8, baz: [5]u8 }, Merge(struct { foo: u32, bar: []const u8 }, struct { baz: [5]u8 }));
-    try expectEqualStructs(struct { foo: ?u32, bar: ?[]const u8 }, ToOptionalStructAndUnionMembers(struct { foo: u32, bar: []const u8 }));
+    try expectEqualStructs(struct { foo: u32, jazz: bool }, Omit(struct { foo: u32, bar: u256, baz: i64, jazz: bool }, &.{ "bar", "baz" }));
+    try expectEqualStructs(std.meta.Tuple(&[_]type{ u64, std.meta.Tuple(&[_]type{ u64, u256 }) }), StructToTupleType(struct { foo: u64, bar: struct { baz: u64, jazz: u256 } }));
     try expectEqualStructs(AbiParameterToPrimative(.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .bool = {} }, .name = "bar" }} }), struct { bar: bool });
     try expectEqualStructs(AbiParameterToPrimative(.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .tuple = {} }, .name = "bar", .components = &.{.{ .type = .{ .bool = {} }, .name = "baz" }} }} }), struct { bar: struct { baz: bool } });
 }

@@ -283,8 +283,8 @@ pub const CancunTransaction = struct {
     v: u4,
     r: Hash,
     s: Hash,
-    isSystemTx: bool,
-    sourceHash: Hash,
+    sourceHash: ?Hash = null,
+    isSystemTx: ?bool = null,
     type: u2,
     accessList: []const AccessList,
     blobVersionedHashes: []const Hash,
@@ -311,8 +311,8 @@ pub const LondonTransaction = struct {
     v: u4,
     r: Hash,
     s: Hash,
-    sourceHash: Hash,
-    isSystemTx: bool,
+    sourceHash: ?Hash = null,
+    isSystemTx: ?bool = null,
     type: u2,
     accessList: []const AccessList,
     maxPriorityFeePerGas: Gwei,
@@ -337,8 +337,8 @@ pub const BerlinTransaction = struct {
     v: u8,
     r: Hash,
     s: Hash,
-    sourceHash: Hash,
-    isSystemTx: bool,
+    sourceHash: ?Hash = null,
+    isSystemTx: ?bool = null,
     type: u4,
     accessList: []const AccessList,
     chainId: usize,
@@ -361,8 +361,8 @@ pub const LegacyTransaction = struct {
     v: usize,
     r: Hash,
     s: Hash,
-    sourceHash: Hash,
-    isSystemTx: bool,
+    sourceHash: ?Hash = null,
+    isSystemTx: ?bool = null,
     type: u2,
     chainId: usize,
 
@@ -384,8 +384,8 @@ pub const UntypedTransaction = struct {
     v: usize,
     r: Hash,
     s: Hash,
-    sourceHash: Hash,
-    isSystemTx: bool,
+    sourceHash: ?Hash = null,
+    isSystemTx: ?bool = null,
     chainId: usize,
 
     pub usingnamespace RequestParser(@This());
@@ -422,8 +422,8 @@ pub const LegacyReceipt = struct {
     logsBloom: Hex,
     type: u2,
     root: ?Hex = null,
-    status: ?bool,
-    deposit_nonce: ?usize,
+    status: ?bool = null,
+    deposit_nonce: ?usize = null,
 
     pub usingnamespace RequestParser(@This());
 };
@@ -444,8 +444,9 @@ pub const CancunReceipt = struct {
     logs: Logs,
     logsBloom: Hex,
     type: u2,
-    status: ?bool,
-    deposit_nonce: ?u64,
+    root: ?Hex = null,
+    status: ?bool = null,
+    deposit_nonce: ?usize = null,
 
     pub usingnamespace RequestParser(@This());
 };

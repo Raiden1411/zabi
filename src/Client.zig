@@ -97,7 +97,6 @@ pub fn init(opts: InitOptions) !*PubClient {
     pub_client.alloc = pub_client.arena.allocator();
     errdefer pub_client.arena.deinit();
 
-    //&{.{ .name = "Content-Type", .value = "application/json" }}
     pub_client.client.* = http.Client{ .allocator = pub_client.alloc };
 
     pub_client.uri = opts.uri;

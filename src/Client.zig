@@ -772,12 +772,10 @@ test "GetBlock" {
     try testing.expect(block_info == .beacon);
     try testing.expectEqual(block_info.beacon.number.?, 19062632);
 
-    var buffer: [32]u8 = undefined;
     const slice = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8";
-    _ = try std.fmt.hexToBytes(&buffer, slice[2..]);
-    try testing.expectEqualSlices(u8, &block_info.beacon.hash.?, &buffer);
+    try testing.expectEqualSlices(u8, &block_info.beacon.hash.?, &try utils.hashToBytes(slice));
 
-    const block_old = try pub_client.getBlockByNumber(.{ .block_number = 696969 });
+    const block_old = try pub_client.getBlockByNumber(.{ .block_number = 1 });
     try testing.expect(block_old == .legacy);
 }
 
@@ -786,10 +784,8 @@ test "GetBlockByHash" {
     var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
-    var buffer: [32]u8 = undefined;
     const slice = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8";
-    _ = try std.fmt.hexToBytes(&buffer, slice[2..]);
-    const block_info = try pub_client.getBlockByHash(.{ .block_hash = buffer });
+    const block_info = try pub_client.getBlockByHash(.{ .block_hash = try utils.hashToBytes(slice) });
     try testing.expect(block_info == .beacon);
     try testing.expectEqual(block_info.beacon.number.?, 19062632);
 }
@@ -799,10 +795,8 @@ test "GetBlockTransactionCountByHash" {
     var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
-    var buffer: [32]u8 = undefined;
     const slice = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8";
-    _ = try std.fmt.hexToBytes(&buffer, slice[2..]);
-    const block_info = try pub_client.getBlockTransactionCountByHash(buffer);
+    const block_info = try pub_client.getBlockTransactionCountByHash(try utils.hashToBytes(slice));
     try testing.expect(block_info != 0);
 }
 
@@ -820,10 +814,8 @@ test "getBlockTransactionCountByHash" {
     var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
     defer pub_client.deinit();
 
-    var buffer: [32]u8 = undefined;
     const slice = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8";
-    _ = try std.fmt.hexToBytes(&buffer, slice[2..]);
-    const block_info = try pub_client.getBlockTransactionCountByHash(buffer);
+    const block_info = try pub_client.getBlockTransactionCountByHash(try utils.hashToBytes(slice));
     try testing.expect(block_info != 0);
 }
 
@@ -941,8 +933,8 @@ test "getTransactionReceipt" {
     try testing.expect(receipt.legacy.status != null);
 
     // Pre-Byzantium
-    // const legacy = try pub_client.getTransactionReceipt("0x4dadc87da2b7c47125fb7e4102d95457830e44d2fbcd45537d91f8be1e5f6130");
-    // try testing.expect(legacy.legacy.root != null);
+    const legacy = try pub_client.getTransactionReceipt(try utils.hashToBytes("0x4dadc87da2b7c47125fb7e4102d95457830e44d2fbcd45537d91f8be1e5f6130"));
+    try testing.expect(legacy.legacy.root != null);
 }
 
 test "estimateGas" {

@@ -78,7 +78,7 @@ pub const BlockTransactions = union(enum) {
 
     pub usingnamespace UnionParser(@This());
 };
-/// Almost similar to `BlockBeforeMerge` but with
+/// Almost similar to `LegacyBlock` but with
 /// the `withdrawalsRoot` and `withdrawals` fields.
 pub const BeaconBlock = struct {
     baseFeePerGas: ?Gwei,
@@ -108,7 +108,7 @@ pub const BeaconBlock = struct {
 
     pub usingnamespace RequestParser(@This());
 };
-/// Union type of the possible block found on the network.
+/// Union type of the possible blocks found on the network.
 pub const Block = union(enum) {
     beacon: BeaconBlock,
     legacy: LegacyBlock,

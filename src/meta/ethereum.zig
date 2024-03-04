@@ -144,10 +144,6 @@ pub const EthereumEvents = union(enum) {
     hex_event: EthereumRpcResponse(Hex),
     mined_transaction_hashes_event: EthereumSubscribeResponse(PendingTransactionHashesSubscription),
     mined_transaction_event: EthereumSubscribeResponse(PendingTransactionsSubscription),
-    too_many_requests: struct {
-        message: []const u8,
-        pub usingnamespace RequestParser(@This());
-    },
     error_event: EthereumErrorResponse,
 
     pub usingnamespace UnionParser(@This());

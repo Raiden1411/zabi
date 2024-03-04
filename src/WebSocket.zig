@@ -141,22 +141,14 @@ pub fn handle(self: *WebSocketHandler, message: ws.Message) !void {
     wslog.debug("Got message: {s}", .{message.data});
     switch (message.type) {
         .text => {
-            const parsed = self.parseRPCEvent(message.data) catch |err| switch (err) {
-                error.TooManyRequests => {
-                    // We put the message on the channel. So that if we wanted we could try to parse it
-                    // Some nodes may provide the wait period. Needs to be confirmed.
-                    self.channel.put(.{ .too_many_requests = .{ .message = message.data } });
-                    return;
-                },
-                else => {
-                    if (self.onError) |onError| {
-                        try onError(message.data);
-                    }
+            const parsed = self.parseRPCEvent(message.data) catch {
+                if (self.onError) |onError| {
+                    try onError(message.data);
+                }
 
-                    wslog.debug("Closing the connection", .{});
-                    self.ws_client.closeWithCode(1002);
-                    return error.FailedToConnect;
-                },
+                wslog.debug("Closing the connection", .{});
+                self.ws_client.closeWithCode(1002);
+                return error.FailedToConnect;
             };
 
             if (self.onEvent) |onEvent| {
@@ -286,8 +278,8 @@ pub fn readLoopOwned(self: *WebSocketHandler) !void {
     };
 }
 /// Write messages to the websocket connections.
-pub fn write(self: *WebSocketHandler, data: []const u8) !void {
-    return try self.ws_client.write(@constCast(data));
+pub fn write(self: *WebSocketHandler, data: []u8) !void {
+    return try self.ws_client.write(data);
 }
 /// Get the first event of the channel.
 /// Only call this if you are sure that the channel has messages.
@@ -300,29 +292,7 @@ pub fn blobBaseFee(self: *WebSocketHandler) !Gwei {
     const req_body = try self.prepBasicRequest(.eth_blobBaseFee);
     defer self.allocator.free(req_body);
 
-    var retries: u8 = 0;
-    while (true) : (retries += 1) {
-        if (retries > self.retries)
-            return error.ReachedMaxRetryLimit;
-
-        try self.write(req_body);
-        switch (self.channel.get()) {
-            .number_event => |fee| return @as(Gwei, @truncate(fee.result)),
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
-            },
-            else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
-                return error.InvalidEventFound;
-            },
-        }
-    }
+    return self.handleNumberEvent(Gwei, req_body);
 }
 pub fn estimateBlobMaxFeePerGas(self: *WebSocketHandler) !Gwei {
     const base = try self.blobBaseFee();
@@ -362,32 +332,18 @@ pub fn estimateFeesPerGas(self: *WebSocketHandler, call_object: EthCall, know_bl
 ///
 /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
 pub fn estimateGas(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) !Gwei {
-    const req_body = try self.prepEthCallRequest(call_object, opts, .eth_estimateGas);
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
+    const req_body = request: {
+        if (opts.block_number) |number| {
+            const request: EthereumRequest(struct { EthCall, u64 }) = .{ .params = .{ call_object, number }, .method = .eth_call, .id = self.chain_id };
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+        }
+        const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{ .params = .{ call_object, tag }, .method = .eth_call, .id = self.chain_id };
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+    };
     defer self.allocator.free(req_body);
 
-    var retries: u8 = 0;
-    while (true) : (retries += 1) {
-        if (retries > self.retries)
-            return error.ReachedMaxRetryLimit;
-
-        try self.write(req_body);
-        switch (self.channel.get()) {
-            .number_event => |fee| return @as(Gwei, @truncate(fee.result)),
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
-            },
-            else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
-                return error.InvalidEventFound;
-            },
-        }
-    }
+    return self.handleNumberEvent(Gwei, req_body);
 }
 /// Estimates maxPriorityFeePerGas manually. If the node you are currently using
 /// supports `eth_maxPriorityFeePerGas` consider using `estimateMaxFeePerGas`.
@@ -414,29 +370,7 @@ pub fn estimateMaxFeePerGas(self: *WebSocketHandler) !Gwei {
     const req_body = try self.prepBasicRequest(.eth_maxPriorityFeePerGas);
     defer self.allocator.free(req_body);
 
-    var retries: u8 = 0;
-    while (true) : (retries += 1) {
-        if (retries > self.retries)
-            return error.ReachedMaxRetryLimit;
-
-        try self.write(req_body);
-        switch (self.channel.get()) {
-            .number_event => |gas| return @as(Gwei, @truncate(gas.result)),
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
-            },
-            else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
-                return error.InvalidEventFound;
-            },
-        }
-    }
+    return self.handleNumberEvent(Gwei, req_body);
 }
 /// Returns a list of addresses owned by client.
 ///
@@ -450,17 +384,23 @@ pub fn getAccounts(self: *WebSocketHandler) ![]const Address {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(@constCast(req_body));
+        try self.write(req_body);
         switch (self.channel.get()) {
             .accounts_event => |accounts_event| return accounts_event.result,
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a accounts_event.", .{@tagName(eve)});
@@ -484,14 +424,20 @@ pub fn getAddressBalance(self: *WebSocketHandler, opts: BalanceRequest) !Wei {
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |balance| return balance.result,
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
@@ -507,29 +453,7 @@ pub fn getAddressTransactionCount(self: *WebSocketHandler, opts: BalanceRequest)
     const req_body = try self.prepAddressRequest(opts, .eth_getTransactionCount);
     defer self.allocator.free(req_body);
 
-    var retries: u8 = 0;
-    while (true) : (retries += 1) {
-        if (retries > self.retries)
-            return error.ReachedMaxRetryLimit;
-
-        try self.write(req_body);
-        switch (self.channel.get()) {
-            .number_event => |nonce| return @as(u64, @truncate(nonce.result)),
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
-            },
-            else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
-                return error.InvalidEventFound;
-            },
-        }
-    }
+    return self.handleNumberEvent(Gwei, req_body);
 }
 /// Returns the number of most recent block.
 ///
@@ -552,17 +476,23 @@ pub fn getBlockByHash(self: *WebSocketHandler, opts: BlockHashRequest) !Block {
                 const block_info = block_event.result orelse return error.InvalidBlockRequest;
                 return block_info;
             },
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
+                wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -596,16 +526,23 @@ pub fn getBlockByNumber(self: *WebSocketHandler, opts: BlockRequest) !Block {
                 const block_info = block_event.result orelse return error.InvalidBlockRequest;
                 return block_info;
             },
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
+                wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -618,91 +555,35 @@ pub fn getBlockNumber(self: *WebSocketHandler) !u64 {
     const req_body = try self.prepBasicRequest(.eth_blockNumber);
     defer self.allocator.free(req_body);
 
-    var retries: u8 = 0;
-    while (true) : (retries += 1) {
-        if (retries > self.retries)
-            return error.ReachedMaxRetryLimit;
-
-        try self.write(req_body);
-        switch (self.channel.get()) {
-            .number_event => |block_number| return @as(u64, @truncate(block_number.result)),
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
-            },
-            else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
-                return error.InvalidEventFound;
-            },
-        }
-    }
+    return self.handleNumberEvent(u64, req_body);
 }
 /// Returns the number of transactions in a block from a block matching the given block hash.
 ///
 /// RPC Method: [eth_getBlockTransactionCountByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbyhash)
 pub fn getBlockTransactionCountByHash(self: *WebSocketHandler, block_hash: Hash) !u64 {
-    const req_body = try self.prepBlockHashRequest(block_hash, .eth_getBlockTransactionCountByHash);
+    const request: EthereumRequest(struct { Hash }) = .{ .params = .{block_hash}, .method = .eth_getBlockTransactionCountByHash, .id = self.chain_id };
+
+    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
-    var retries: u8 = 0;
-    while (true) : (retries += 1) {
-        if (retries > self.retries)
-            return error.ReachedMaxRetryLimit;
-
-        try self.write(req_body);
-        switch (self.channel.get()) {
-            .number_event => |tx_count| return @as(u64, @truncate(tx_count.result)),
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
-            },
-            else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
-                return error.InvalidEventFound;
-            },
-        }
-    }
+    return self.handleNumberEvent(u64, req_body);
 }
 /// Returns the number of transactions in a block from a block matching the given block number.
 ///
 /// RPC Method: [eth_getBlockTransactionCountByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbynumber)
 pub fn getBlockTransactionCountByNumber(self: *WebSocketHandler, opts: BlockNumberRequest) !u64 {
-    const req_body = try self.prepBlockNumberRequest(opts, .eth_getBlockTransactionCountByNumber);
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
+    const req_body = request: {
+        if (opts.block_number) |number| {
+            const request: EthereumRequest(struct { u64 }) = .{ .params = .{number}, .method = .eth_getBlockTransactionCountByNumber, .id = self.chain_id };
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+        }
+        const request: EthereumRequest(struct { BalanceBlockTag }) = .{ .params = .{tag}, .method = .eth_getBlockTransactionCountByNumber, .id = self.chain_id };
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+    };
     defer self.allocator.free(req_body);
 
-    var retries: u8 = 0;
-    while (true) : (retries += 1) {
-        if (retries > self.retries)
-            return error.ReachedMaxRetryLimit;
-
-        try self.write(req_body);
-        switch (self.channel.get()) {
-            .number_event => |tx_count| return @as(u64, @truncate(tx_count.result)),
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
-            },
-            else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
-                return error.InvalidEventFound;
-            },
-        }
-    }
+    return self.handleNumberEvent(u64, req_body);
 }
 /// Returns the chain ID used for signing replay-protected transactions.
 ///
@@ -726,14 +607,20 @@ pub fn getChainId(self: *WebSocketHandler) !usize {
 
                 return chain_id;
             },
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
@@ -757,14 +644,20 @@ pub fn getContractCode(self: *WebSocketHandler, opts: BalanceRequest) !Hex {
         try self.write(req_body);
         switch (self.channel.get()) {
             .hex_event => |hex| return hex.result,
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
@@ -793,17 +686,23 @@ pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: usize, method: 
                 const logs_info = logs_event.result orelse return error.InvalidFilterId;
                 return logs_info;
             },
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
+                wslog.debug("Found incorrect event named: {s}. Expected a logs_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -817,29 +716,7 @@ pub fn getGasPrice(self: *WebSocketHandler) !Gwei {
     const req_body = try self.prepBasicRequest(.eth_gasPrice);
     defer self.allocator.free(req_body);
 
-    var retries: u8 = 0;
-    while (true) : (retries += 1) {
-        if (retries > self.retries)
-            return error.ReachedMaxRetryLimit;
-
-        try self.write(req_body);
-        switch (self.channel.get()) {
-            .number_event => |gas| return @as(Gwei, @truncate(gas.result)),
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
-            },
-            else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
-                return error.InvalidEventFound;
-            },
-        }
-    }
+    return self.handleNumberEvent(Gwei, req_body);
 }
 /// Returns an array of all logs matching a given filter object.
 ///
@@ -867,17 +744,23 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
                 const logs_info = logs_event.result orelse return error.InvalidLogRequest;
                 return logs_info;
             },
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
+                wslog.debug("Found incorrect event named: {s}. Expected a logs_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -902,14 +785,20 @@ pub fn getTransactionByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Ha
                 const transaction_info = tx_event.result orelse return error.TransactionNotFound;
                 return transaction_info;
             },
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
@@ -945,14 +834,20 @@ pub fn getTransactionByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockN
                 const transaction_info = tx_event.result orelse return error.TransactionNotFound;
                 return transaction_info;
             },
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
@@ -981,14 +876,20 @@ pub fn getTransactionByHash(self: *WebSocketHandler, transaction_hash: Hash) !Tr
                 const transaction_info = tx_event.result orelse return error.TransactionNotFound;
                 return transaction_info;
             },
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
@@ -1017,17 +918,23 @@ pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: Hash) !T
                 const transaction_info = receipt_event.result orelse return error.TransactionReceiptNotFound;
                 return transaction_info;
             },
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
+                wslog.debug("Found incorrect event named: {s}. Expected a receipt_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1052,17 +959,23 @@ pub fn getUncleByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Hash, in
                 const block_info = block_event.result orelse return error.InvalidBlockHashOrIndex;
                 return block_info;
             },
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
+                wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1094,17 +1007,23 @@ pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberR
                 const block_info = block_event.result orelse return error.InvalidBlockNumberOrIndex;
                 return block_info;
             },
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
+                wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1114,63 +1033,29 @@ pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberR
 ///
 /// RPC Method: [`eth_getUncleCountByBlockHash`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclecountbyblockhash)
 pub fn getUncleCountByBlockHash(self: *WebSocketHandler, block_hash: Hash) !usize {
-    const req_body = try self.prepBlockHashRequest(block_hash, .eth_getUncleCountByBlockHash);
+    const request: EthereumRequest(struct { Hash }) = .{ .params = .{block_hash}, .method = .eth_getUncleCountByBlockHash, .id = self.chain_id };
+
+    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
-    var retries: u8 = 0;
-    while (true) : (retries += 1) {
-        if (retries > self.retries)
-            return error.ReachedMaxRetryLimit;
-
-        try self.write(req_body);
-        switch (self.channel.get()) {
-            .number_event => |u_count| return @as(u64, @truncate(u_count.result)),
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
-            },
-            else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
-                return error.InvalidEventFound;
-            },
-        }
-    }
+    return self.handleNumberEvent(usize, req_body);
 }
 /// Returns the number of uncles in a block from a block matching the given block number.
 ///
 /// RPC Method: [`eth_getUncleCountByBlockNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclecountbyblocknumber)
 pub fn getUncleCountByBlockNumber(self: *WebSocketHandler, opts: BlockNumberRequest) !usize {
-    const req_body = try self.prepBlockNumberRequest(opts, .eth_getUncleCountByBlockNumber);
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
+    const req_body = request: {
+        if (opts.block_number) |number| {
+            const request: EthereumRequest(struct { u64 }) = .{ .params = .{number}, .method = .eth_getUncleCountByBlockNumber, .id = self.chain_id };
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+        }
+        const request: EthereumRequest(struct { BalanceBlockTag }) = .{ .params = .{tag}, .method = .eth_getUncleCountByBlockNumber, .id = self.chain_id };
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+    };
     defer self.allocator.free(req_body);
 
-    var retries: u8 = 0;
-    while (true) : (retries += 1) {
-        if (retries > self.retries)
-            return error.ReachedMaxRetryLimit;
-
-        try self.write(req_body);
-        switch (self.channel.get()) {
-            .number_event => |u_count| return @as(u64, @truncate(u_count.result)),
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
-            },
-            else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
-                return error.InvalidEventFound;
-            },
-        }
-    }
+    return self.handleNumberEvent(usize, req_body);
 }
 /// Creates a filter in the node, to notify when a new block arrives.
 /// To check if the state has changed, call `getFilterOrLogChanges`.
@@ -1180,29 +1065,7 @@ pub fn newBlockFilter(self: *WebSocketHandler) !usize {
     const req_body = try self.prepBasicRequest(.eth_newBlockFilter);
     defer self.allocator.free(req_body);
 
-    var retries: u8 = 0;
-    while (true) : (retries += 1) {
-        if (retries > self.retries)
-            return error.ReachedMaxRetryLimit;
-
-        try self.write(req_body);
-        switch (self.channel.get()) {
-            .number_event => |filter_id| return @as(usize, @truncate(filter_id)),
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
-            },
-            else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
-                return error.InvalidEventFound;
-            },
-        }
-    }
+    return self.handleNumberEvent(usize, req_body);
 }
 /// Creates a filter object, based on filter options, to notify when the state changes (logs).
 /// To check if the state has changed, call `getFilterOrLogChanges`.
@@ -1220,29 +1083,7 @@ pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBloc
     };
     defer self.allocator.free(req_body);
 
-    var retries: u8 = 0;
-    while (true) : (retries += 1) {
-        if (retries > self.retries)
-            return error.ReachedMaxRetryLimit;
-
-        try self.write(req_body);
-        switch (self.channel.get()) {
-            .number_event => |filter_id| return @as(usize, @truncate(filter_id)),
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
-            },
-            else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
-                return error.InvalidEventFound;
-            },
-        }
-    }
+    return self.handleNumberEvent(usize, req_body);
 }
 /// Creates a filter in the node, to notify when new pending transactions arrive.
 /// To check if the state has changed, call `getFilterOrLogChanges`.
@@ -1252,29 +1093,7 @@ pub fn newPendingTransactionFilter(self: *WebSocketHandler) !usize {
     const req_body = try self.prepBasicRequest(.eth_newPendingTransactionFilter);
     defer self.allocator.free(req_body);
 
-    var retries: u8 = 0;
-    while (true) : (retries += 1) {
-        if (retries > self.retries)
-            return error.ReachedMaxRetryLimit;
-
-        try self.write(req_body);
-        switch (self.channel.get()) {
-            .number_event => |filter_id| return @as(usize, @truncate(filter_id)),
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
-            },
-            else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
-                return error.InvalidEventFound;
-            },
-        }
-    }
+    return self.handleNumberEvent(usize, req_body);
 }
 /// Executes a new message call immediately without creating a transaction on the block chain.
 /// Often used for executing read-only smart contract functions,
@@ -1285,7 +1104,15 @@ pub fn newPendingTransactionFilter(self: *WebSocketHandler) !usize {
 ///
 /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
 pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) !Hash {
-    const req_body = try self.prepEthCallRequest(call_object, opts, .eth_call);
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
+    const req_body = request: {
+        if (opts.block_number) |number| {
+            const request: EthereumRequest(struct { EthCall, u64 }) = .{ .params = .{ call_object, number }, .method = .eth_call, .id = self.chain_id };
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+        }
+        const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{ .params = .{ call_object, tag }, .method = .eth_call, .id = self.chain_id };
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+    };
     defer self.allocator.free(req_body);
 
     var retries: u8 = 0;
@@ -1296,14 +1123,20 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
         try self.write(req_body);
         switch (self.channel.get()) {
             .hash_event => |hash| return hash.result,
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a hash_event.", .{@tagName(eve)});
@@ -1330,14 +1163,20 @@ pub fn sendRawTransaction(self: *WebSocketHandler, serialized_hex_tx: Hex) !Hash
         try self.write(req_body);
         switch (self.channel.get()) {
             .hash_event => |hash| return hash.result,
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a hash_event.", .{@tagName(eve)});
@@ -1364,14 +1203,20 @@ pub fn uninstalllFilter(self: *WebSocketHandler, id: usize) !bool {
         try self.write(req_body);
         switch (self.channel.get()) {
             .bool_event => |bool_event| return bool_event.result,
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a bool_event.", .{@tagName(eve)});
@@ -1398,14 +1243,20 @@ pub fn unsubscribe(self: *WebSocketHandler, sub_id: Hex) !bool {
         try self.write(req_body);
         switch (self.channel.get()) {
             .bool_event => |bool_event| return bool_event.result,
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a bool_event.", .{@tagName(eve)});
@@ -1431,14 +1282,20 @@ pub fn watchNewBlocks(self: *WebSocketHandler) !Hex {
         try self.write(req_body);
         switch (self.channel.get()) {
             .hex_event => |hex| return hex.result,
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
@@ -1471,14 +1328,20 @@ pub fn watchLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTa
         try self.write(req_body);
         switch (self.channel.get()) {
             .hex_event => |hex| return hex.result,
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
@@ -1504,14 +1367,20 @@ pub fn watchTransactions(self: *WebSocketHandler) !Hex {
         try self.write(req_body);
         switch (self.channel.get()) {
             .hex_event => |hex| return hex.result,
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
@@ -1534,14 +1403,20 @@ pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []const u8) !Hex {
         try self.write(request);
         switch (self.channel.get()) {
             .hex_event => |hex| return hex.result,
-            .error_event => |error_response| return self.handleErrorResponse(error_response),
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
             },
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
@@ -1705,30 +1580,40 @@ pub fn close(self: *WebSocketHandler) void {
     }
 }
 
+fn handleNumberEvent(self: *WebSocketHandler, comptime T: type, req_body: []u8) !T {
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
+
+        try self.write(req_body);
+        switch (self.channel.get()) {
+            .number_event => |event| return @as(T, @truncate(event.result)),
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
+
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
+            },
+            else => |eve| {
+                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
+                return error.InvalidEventFound;
+            },
+        }
+    }
+}
+
 fn prepBasicRequest(self: *WebSocketHandler, method: EthereumRpcMethods) ![]const u8 {
     const request: EthereumRequest(Tuple(&[_]type{})) = .{ .params = .{}, .method = method, .id = self.chain_id };
-
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-
-    return req_body;
-}
-
-fn prepBlockNumberRequest(self: *WebSocketHandler, opts: BlockNumberRequest, method: EthereumRpcMethods) ![]const u8 {
-    const tag: BalanceBlockTag = opts.tag orelse .latest;
-    const req_body = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { u64 }) = .{ .params = .{number}, .method = method, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { BalanceBlockTag }) = .{ .params = .{tag}, .method = method, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-
-    return req_body;
-}
-
-fn prepBlockHashRequest(self: *WebSocketHandler, block_hash: Hash, method: EthereumRpcMethods) ![]const u8 {
-    const request: EthereumRequest(struct { Hash }) = .{ .params = .{block_hash}, .method = method, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
 
@@ -1745,20 +1630,6 @@ fn prepAddressRequest(self: *WebSocketHandler, opts: BalanceRequest, method: Eth
         }
 
         const request: EthereumRequest(struct { Address, BalanceBlockTag }) = .{ .params = .{ opts.address, tag }, .method = method, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-
-    return req_body;
-}
-
-fn prepEthCallRequest(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest, method: EthereumRpcMethods) ![]const u8 {
-    const tag: BalanceBlockTag = opts.tag orelse .latest;
-    const req_body = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { EthCall, u64 }) = .{ .params = .{ call_object, number }, .method = method, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{ .params = .{ call_object, tag }, .method = method, .id = self.chain_id };
         break :request try std.json.stringifyAlloc(self.allocator, request, .{});
     };
 

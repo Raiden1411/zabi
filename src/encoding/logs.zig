@@ -50,6 +50,7 @@ pub fn encodeLogs(allocator: Allocator, params: AbiEvent, values: anytype) !Logs
     encoded_logs.arena.* = ArenaAllocator.init(allocator);
 
     const child_allocator = encoded_logs.arena.allocator();
+    errdefer encoded_logs.arena.deinit();
 
     encoded_logs.data = try encodeLogsLeaky(child_allocator, params, values);
 
@@ -66,7 +67,10 @@ pub fn encodeLogsLeaky(allocator: Allocator, event: AbiEvent, values: anytype) !
     var list = try std.ArrayList(?[]u8).initCapacity(allocator, values.len + 1);
     errdefer list.deinit();
 
-    try list.append(try event.encode(allocator));
+    const hash = try event.encode(allocator);
+    const hash_hex = try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash)});
+
+    try list.append(hash_hex);
 
     if (values.len > 0) {
         std.debug.assert(event.inputs.len >= values.len);
@@ -136,16 +140,20 @@ fn encodeLog(allocator: Allocator, param: AbiEventParameter, value: anytype) !?[
                         return try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&buffer)});
                     },
                     .address => {
-                        const hex: []const u8 = if (std.mem.startsWith(u8, &value, "0x")) value[2..] else &value;
+                        if (arr_info.len != 20)
+                            return error.InvalidAddressType;
+
                         var buffer: [32]u8 = [_]u8{0} ** 32;
-                        _ = try std.fmt.hexToBytes(buffer[12..], hex);
+                        @memcpy(buffer[12..], value[0..]);
 
                         return try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&buffer)});
                     },
                     .fixedBytes => |size| {
-                        const hex: []const u8 = if (std.mem.startsWith(u8, &value, "0x")) value[2..] else &value;
+                        if (size != arr_info.len or arr_info.len > 32)
+                            return error.InvalidFixedBytesType;
+
                         var buffer: [32]u8 = [_]u8{0} ** 32;
-                        _ = try std.fmt.hexToBytes(buffer[0..size], hex);
+                        @memcpy(buffer[0..arr_info.len], value[0..arr_info.len]);
 
                         return try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&buffer)});
                     },
@@ -164,20 +172,6 @@ fn encodeLog(allocator: Allocator, param: AbiEventParameter, value: anytype) !?[
                             .string, .bytes => {
                                 var buffer: [32]u8 = undefined;
                                 Keccak256.hash(value, &buffer, .{});
-                                return try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(buffer)});
-                            },
-                            .address => {
-                                const hex: []const u8 = if (std.mem.startsWith(u8, &value, "0x")) value[2..] else &value;
-                                var buffer: [32]u8 = [_]u8{0} ** 32;
-                                _ = try std.fmt.hexToBytes(buffer[12..], hex);
-
-                                return try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(buffer)});
-                            },
-                            .fixedBytes => |size| {
-                                const hex: []const u8 = if (std.mem.startsWith(u8, &value, "0x")) value[2..] else &value;
-                                var buffer: [32]u8 = [_]u8{0} ** 32;
-                                _ = try std.fmt.hexToBytes(buffer[0..size], hex);
-
                                 return try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(buffer)});
                             },
                             else => return error.InvalidParamType,
@@ -220,7 +214,7 @@ test "With args" {
     const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Transfer(address indexed from, address indexed to, uint256 tokenId)");
     defer event.deinit();
 
-    const encoded = try encodeLogs(testing.allocator, event.value, .{ null, "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC" });
+    const encoded = try encodeLogs(testing.allocator, event.value, .{ null, try utils.addressToBytes("0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC") });
     defer encoded.deinit();
 
     const slice: []const ?[]u8 = &.{ @constCast("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"), null, @constCast("0x000000000000000000000000a5cc3c03994db5b0d9a5eedd10cabab0813678ac") };
@@ -435,9 +429,8 @@ fn decodeLog(allocator: Allocator, comptime T: type, param: AbiEventParameter, e
                         const slice = if (std.mem.startsWith(u8, encoded, "0x")) encoded[2..] else &encoded;
                         const addr = slice[24..];
 
-                        const checksumed = try utils.toChecksum(allocator, addr);
                         var buffer: T = undefined;
-                        _ = try std.fmt.hexToBytes(&buffer, checksumed[2..]);
+                        _ = try std.fmt.hexToBytes(&buffer, addr[2..]);
 
                         return buffer;
                     },
@@ -542,7 +535,7 @@ test "Decode with args" {
     const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Transfer(address indexed from, address indexed to, uint256 tokenId)");
     defer event.deinit();
 
-    const encoded = try encodeLogs(testing.allocator, event.value, .{ null, "0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC" });
+    const encoded = try encodeLogs(testing.allocator, event.value, .{ null, try utils.addressToBytes("0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC") });
     defer encoded.deinit();
 
     const slice: []const ?[]u8 = &.{ @constCast("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"), null, @constCast("0x000000000000000000000000a5cc3c03994db5b0d9a5eedd10cabab0813678ac") };

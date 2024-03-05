@@ -4,13 +4,16 @@ const decoder = @import("../decoding/decoder.zig");
 const meta = @import("../meta/meta.zig");
 const std = @import("std");
 const testing = std.testing;
+const types = @import("../meta/ethereum.zig");
 
 // Types
+const AbiEncoded = encoder.AbiEncoded;
 const AbiParameter = @import("abi_parameter.zig").AbiParameter;
 const AbiEventParameter = @import("abi_parameter.zig").AbiEventParameter;
 const Allocator = std.mem.Allocator;
 const DecodedLogs = encoder_logs.DecodedLogs;
 const Extract = meta.Extract;
+const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const LogsEncoded = encoder_logs.LogsEncoded;
 const StateMutability = @import("state_mutability.zig").StateMutability;
@@ -39,16 +42,16 @@ pub const Function = struct {
     payable: ?bool = null,
     stateMutability: StateMutability,
 
-    pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
+    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
         for (self.inputs) |input| {
-            input.deinit(alloc);
+            input.deinit(allocator);
         }
-        alloc.free(self.inputs);
+        allocator.free(self.inputs);
 
         for (self.outputs) |output| {
-            output.deinit(alloc);
+            output.deinit(allocator);
         }
-        alloc.free(self.outputs);
+        allocator.free(self.outputs);
     }
 
     /// Encode the struct signature based on the values provided.
@@ -59,25 +62,20 @@ pub const Function = struct {
     ///
     /// Consider using `EncodeAbiFunctionComptime` if the struct is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encode(self: @This(), alloc: Allocator, values: anytype) ![]u8 {
-        const prep_signature = try self.allocPrepare(alloc);
-        defer alloc.free(prep_signature);
+    pub fn encode(self: @This(), allocator: Allocator, values: anytype) ![]u8 {
+        const prep_signature = try self.allocPrepare(allocator);
+        defer allocator.free(prep_signature);
 
         var hashed: [Keccak256.digest_length]u8 = undefined;
         Keccak256.hash(prep_signature, &hashed, .{});
 
-        const hash_hex = std.fmt.bytesToHex(hashed, .lower);
-
-        const encoded_params = try encoder.encodeAbiParameters(alloc, self.inputs, values);
+        const encoded_params = try encoder.encodeAbiParameters(allocator, self.inputs, values);
         defer encoded_params.deinit();
 
-        const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
-        defer alloc.free(hexed);
+        const buffer = try allocator.alloc(u8, 4 + encoded_params.data.len);
 
-        const buffer = try alloc.alloc(u8, 8 + hexed.len);
-
-        @memcpy(buffer[0..8], hash_hex[0..8]);
-        @memcpy(buffer[8..], hexed);
+        @memcpy(buffer[0..4], hashed[0..4]);
+        @memcpy(buffer[4..], encoded_params.data[0..]);
 
         return buffer;
     }
@@ -91,25 +89,20 @@ pub const Function = struct {
     ///
     /// Consider using `EncodeAbiFunctionComptime` if the struct is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encodeOutputs(self: @This(), alloc: Allocator, values: anytype) ![]u8 {
-        const prep_signature = try self.allocPrepare(alloc);
-        defer alloc.free(prep_signature);
+    pub fn encodeOutputs(self: @This(), allocator: Allocator, values: anytype) ![]u8 {
+        const prep_signature = try self.allocPrepare(allocator);
+        defer allocator.free(prep_signature);
 
         var hashed: [Keccak256.digest_length]u8 = undefined;
         Keccak256.hash(prep_signature, &hashed, .{});
 
-        const hash_hex = std.fmt.bytesToHex(hashed, .lower);
-
-        const encoded_params = try encoder.encodeAbiParameters(alloc, self.outputs, values);
+        const encoded_params = try encoder.encodeAbiParameters(allocator, self.outputs, values);
         defer encoded_params.deinit();
 
-        const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
-        defer alloc.free(hexed);
+        const buffer = try allocator.alloc(u8, 4 + encoded_params.data.len);
 
-        const buffer = try alloc.alloc(u8, 8 + hexed.len);
-
-        @memcpy(buffer[0..8], hash_hex[0..8]);
-        @memcpy(buffer[8..], hexed);
+        @memcpy(buffer[0..4], hashed[0..4]);
+        @memcpy(buffer[4..], encoded_params.data[0..]);
 
         return buffer;
     }
@@ -214,14 +207,14 @@ pub const Function = struct {
     /// Intended to use for hashing purposes.
     ///
     /// Caller owns the memory.
-    pub fn allocPrepare(self: @This(), alloc: Allocator) ![]u8 {
+    pub fn allocPrepare(self: @This(), allocator: Allocator) ![]u8 {
         var c_writter = std.io.countingWriter(std.io.null_writer);
         try self.prepare(c_writter.writer());
 
         const bytes = c_writter.bytes_written;
         const size = std.math.cast(usize, bytes) orelse return error.OutOfMemory;
 
-        const buffer = try alloc.alloc(u8, size);
+        const buffer = try allocator.alloc(u8, size);
 
         var buf_writter = std.io.fixedBufferStream(buffer);
         try self.prepare(buf_writter.writer());
@@ -251,11 +244,11 @@ pub const Event = struct {
     inputs: []const AbiEventParameter,
     anonymous: ?bool = null,
 
-    pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
+    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
         for (self.inputs) |input| {
-            input.deinit(alloc);
+            input.deinit(allocator);
         }
-        alloc.free(self.inputs);
+        allocator.free(self.inputs);
     }
 
     /// Format the struct into a human readable string.
@@ -277,14 +270,14 @@ pub const Event = struct {
     ///
     /// Consider using `EncodeAbiEventComptime` if the struct is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encode(self: @This(), alloc: Allocator) ![]u8 {
-        const prep_signature = try self.allocPrepare(alloc);
-        defer alloc.free(prep_signature);
+    pub fn encode(self: @This(), allocator: Allocator) !Hash {
+        const prep_signature = try self.allocPrepare(allocator);
+        defer allocator.free(prep_signature);
 
         var hashed: [Keccak256.digest_length]u8 = undefined;
         Keccak256.hash(prep_signature, &hashed, .{});
 
-        return try std.fmt.allocPrint(alloc, "0x{s}", .{std.fmt.fmtSliceHexLower(&hashed)});
+        return hashed;
     }
 
     /// Encode the struct signature based on the values provided.
@@ -309,14 +302,14 @@ pub const Event = struct {
     /// Intended to use for hashing purposes.
     ///
     /// Caller owns the memory.
-    pub fn allocPrepare(self: @This(), alloc: Allocator) ![]u8 {
+    pub fn allocPrepare(self: @This(), allocator: Allocator) ![]u8 {
         var c_writter = std.io.countingWriter(std.io.null_writer);
         try self.prepare(c_writter.writer());
 
         const bytes = c_writter.bytes_written;
         const size = std.math.cast(usize, bytes) orelse return error.OutOfMemory;
 
-        const buffer = try alloc.alloc(u8, size);
+        const buffer = try allocator.alloc(u8, size);
 
         var buf_writter = std.io.fixedBufferStream(buffer);
         try self.prepare(buf_writter.writer());
@@ -345,11 +338,11 @@ pub const Error = struct {
     name: []const u8,
     inputs: []const AbiParameter,
 
-    pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
+    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
         for (self.inputs) |input| {
-            input.deinit(alloc);
+            input.deinit(allocator);
         }
-        alloc.free(self.inputs);
+        allocator.free(self.inputs);
     }
 
     /// Format the struct into a human readable string.
@@ -373,25 +366,20 @@ pub const Error = struct {
     ///
     /// Consider using `EncodeAbiErrorComptime` if the struct is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encode(self: @This(), alloc: Allocator, values: anytype) ![]u8 {
-        const prep_signature = try self.allocPrepare(alloc);
-        defer alloc.free(prep_signature);
+    pub fn encode(self: @This(), allocator: Allocator, values: anytype) ![]u8 {
+        const prep_signature = try self.allocPrepare(allocator);
+        defer allocator.free(prep_signature);
 
         var hashed: [Keccak256.digest_length]u8 = undefined;
         Keccak256.hash(prep_signature, &hashed, .{});
 
-        const hash_hex = std.fmt.bytesToHex(hashed, .lower);
-
-        const encoded_params = try encoder.encodeAbiParameters(alloc, self.inputs, values);
+        const encoded_params = try encoder.encodeAbiParameters(allocator, self.inputs, values);
         defer encoded_params.deinit();
 
-        const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
-        defer alloc.free(hexed);
+        const buffer = try allocator.alloc(u8, 4 + encoded_params.data.len);
 
-        const buffer = try alloc.alloc(u8, 8 + hexed.len);
-
-        @memcpy(buffer[0..8], hash_hex[0..8]);
-        @memcpy(buffer[8..], hexed);
+        @memcpy(buffer[0..4], hashed[0..4]);
+        @memcpy(buffer[4..], encoded_params.data[0..]);
 
         return buffer;
     }
@@ -436,14 +424,14 @@ pub const Error = struct {
     /// Intended to use for hashing purposes.
     ///
     /// Caller owns the memory.
-    pub fn allocPrepare(self: @This(), alloc: Allocator) ![]u8 {
+    pub fn allocPrepare(self: @This(), allocator: Allocator) ![]u8 {
         var c_writter = std.io.countingWriter(std.io.null_writer);
         try self.prepare(c_writter.writer());
 
         const bytes = c_writter.bytes_written;
         const size = std.math.cast(usize, bytes) orelse return error.OutOfMemory;
 
-        const buffer = try alloc.alloc(u8, size);
+        const buffer = try allocator.alloc(u8, size);
 
         var buf_writter = std.io.fixedBufferStream(buffer);
         try self.prepare(buf_writter.writer());
@@ -476,11 +464,11 @@ pub const Constructor = struct {
     payable: ?bool = null,
     stateMutability: Extract(StateMutability, "payable,nonpayable"),
 
-    pub fn deinit(self: @This(), alloc: std.mem.Allocator) void {
+    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
         for (self.inputs) |input| {
-            input.deinit(alloc);
+            input.deinit(allocator);
         }
-        alloc.free(self.inputs);
+        allocator.free(self.inputs);
     }
 
     /// Format the struct into a human readable string.
@@ -505,13 +493,8 @@ pub const Constructor = struct {
     ///
     /// Consider using `EncodeAbiConstructorComptime` if the struct is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encode(self: @This(), alloc: Allocator, values: anytype) ![]u8 {
-        const encoded_params = try encoder.encodeAbiParameters(alloc, self.inputs, values);
-        defer encoded_params.deinit();
-
-        const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
-
-        return hexed;
+    pub fn encode(self: @This(), allocator: Allocator, values: anytype) !AbiEncoded {
+        return encoder.encodeAbiParameters(allocator, self.inputs, values);
     }
 
     /// Decode a encoded constructor arguments based on itself.
@@ -581,9 +564,9 @@ pub const AbiItem = union(enum) {
 
     pub usingnamespace UnionParser(@This());
 
-    pub fn deinit(self: @This(), alloc: Allocator) void {
+    pub fn deinit(self: @This(), allocator: Allocator) void {
         switch (self) {
-            inline else => |item| if (@hasDecl(@TypeOf(item), "deinit")) item.deinit(alloc),
+            inline else => |item| if (@hasDecl(@TypeOf(item), "deinit")) item.deinit(allocator),
         }
     }
 

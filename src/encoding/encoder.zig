@@ -43,84 +43,63 @@ pub const AbiEncoded = struct {
 };
 /// Encode the struct signature based on the values provided.
 /// Caller owns the memory.
-pub fn encodeAbiConstructorComptime(alloc: Allocator, comptime constructor: Constructor, values: AbiParametersToPrimative(constructor.inputs)) EncodeErrors![]u8 {
-    const encoded_params = try encodeAbiParametersComptime(alloc, constructor.inputs, values);
-    defer encoded_params.deinit();
-
-    const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
-    defer alloc.free(hexed);
-
-    return hexed;
+pub fn encodeAbiConstructorComptime(allocator: Allocator, comptime constructor: Constructor, values: AbiParametersToPrimative(constructor.inputs)) EncodeErrors!AbiEncoded {
+    return encodeAbiParametersComptime(allocator, constructor.inputs, values);
 }
 /// Encode the struct signature based on the values provided.
 /// Caller owns the memory.
-pub fn encodeAbiErrorComptime(alloc: Allocator, comptime err: Error, values: AbiParametersToPrimative(err.inputs)) EncodeErrors![]u8 {
-    const prep_signature = try err.allocPrepare(alloc);
-    defer alloc.free(prep_signature);
+pub fn encodeAbiErrorComptime(allocator: Allocator, comptime err: Error, values: AbiParametersToPrimative(err.inputs)) EncodeErrors![]u8 {
+    const prep_signature = try err.allocPrepare(allocator);
+    defer allocator.free(prep_signature);
 
     var hashed: [Keccak256.digest_length]u8 = undefined;
     Keccak256.hash(prep_signature, &hashed, .{});
 
-    const hash_hex = std.fmt.bytesToHex(hashed, .lower);
-
-    const encoded_params = try encodeAbiParametersComptime(alloc, err.inputs, values);
+    var encoded_params = try encodeAbiParametersComptime(allocator, err.inputs, values);
     defer encoded_params.deinit();
 
-    const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
-    defer alloc.free(hexed);
+    const buffer = try allocator.alloc(u8, 4 + encoded_params.data.len);
 
-    const buffer = try alloc.alloc(u8, 8 + hexed.len);
-
-    @memcpy(buffer[0..8], hash_hex[0..8]);
-    @memcpy(buffer[8..], hexed);
+    @memcpy(buffer[0..4], hashed[0..4]);
+    @memcpy(buffer[4..], encoded_params.data[0..]);
 
     return buffer;
 }
 /// Encode the struct signature based on the values provided.
 /// Caller owns the memory.
-pub fn encodeAbiFunctionComptime(alloc: Allocator, comptime function: Function, values: AbiParametersToPrimative(function.inputs)) EncodeErrors![]u8 {
-    const prep_signature = try function.allocPrepare(alloc);
-    defer alloc.free(prep_signature);
+pub fn encodeAbiFunctionComptime(allocator: Allocator, comptime function: Function, values: AbiParametersToPrimative(function.inputs)) EncodeErrors![]u8 {
+    const prep_signature = try function.allocPrepare(allocator);
+    defer allocator.free(prep_signature);
 
     var hashed: [Keccak256.digest_length]u8 = undefined;
     Keccak256.hash(prep_signature, &hashed, .{});
 
-    const hash_hex = std.fmt.bytesToHex(hashed, .lower);
-
-    const encoded_params = try encodeAbiParametersComptime(alloc, function.inputs, values);
+    const encoded_params = try encodeAbiParametersComptime(allocator, function.inputs, values);
     defer encoded_params.deinit();
 
-    const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
-    defer alloc.free(hexed);
+    const buffer = try allocator.alloc(u8, 4 + encoded_params.data.len);
 
-    const buffer = try alloc.alloc(u8, 8 + hexed.len);
-
-    @memcpy(buffer[0..8], hash_hex[0..8]);
-    @memcpy(buffer[8..], hexed);
+    @memcpy(buffer[0..4], hashed[0..4]);
+    @memcpy(buffer[4..], encoded_params.data[0..]);
 
     return buffer;
 }
 /// Encode the struct signature based on the values provided.
 /// Caller owns the memory.
-pub fn encodeAbiFunctionOutputsComptime(alloc: Allocator, comptime function: Function, values: AbiParametersToPrimative(function.outputs)) EncodeErrors![]u8 {
-    const prep_signature = try function.allocPrepare(alloc);
-    defer alloc.free(prep_signature);
+pub fn encodeAbiFunctionOutputsComptime(allocator: Allocator, comptime function: Function, values: AbiParametersToPrimative(function.outputs)) EncodeErrors![]u8 {
+    const prep_signature = try function.allocPrepare(allocator);
+    defer allocator.free(prep_signature);
 
     var hashed: [Keccak256.digest_length]u8 = undefined;
     Keccak256.hash(prep_signature, &hashed, .{});
 
-    const hash_hex = std.fmt.bytesToHex(hashed, .lower);
-
-    const encoded_params = try encodeAbiParametersComptime(alloc, function.outputs, values);
+    const encoded_params = try encodeAbiParametersComptime(allocator, function.outputs, values);
     defer encoded_params.deinit();
 
-    const hexed = try std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(encoded_params.data)});
-    defer alloc.free(hexed);
+    const buffer = try allocator.alloc(u8, 4 + encoded_params.data.len);
 
-    const buffer = try alloc.alloc(u8, 8 + hexed.len);
-
-    @memcpy(buffer[0..8], hash_hex[0..8]);
-    @memcpy(buffer[8..], hexed);
+    @memcpy(buffer[0..4], hashed[0..4]);
+    @memcpy(buffer[4..], encoded_params.data[0..]);
 
     return buffer;
 }

@@ -1,6 +1,7 @@
 const encoder = @import("../encoding/encoder.zig");
 const encoder_logs = @import("../encoding/logs.zig");
 const decoder = @import("../decoding/decoder.zig");
+const decoder_logs = @import("../decoding/logs_decode.zig");
 const meta = @import("../meta/meta.zig");
 const std = @import("std");
 const testing = std.testing;
@@ -295,7 +296,7 @@ pub const Event = struct {
     ///
     /// Caller owns the memory.
     pub fn decodeLogs(self: @This(), allocator: Allocator, comptime T: type, encoded: []const ?[]u8) !DecodedLogs(T) {
-        return try encoder_logs.decodeLogs(allocator, T, self, encoded);
+        return try decoder_logs.decodeLogs(allocator, T, self, encoded);
     }
 
     /// Format the struct into a human readable string.

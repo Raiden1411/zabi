@@ -10,6 +10,27 @@ const EthCall = transaction.EthCall;
 const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
+/// Checks if a given type is static
+pub inline fn isStaticType(comptime T: type) bool {
+    const info = @typeInfo(T);
+
+    switch (info) {
+        .Bool, .Int, .Null => return true,
+        .Array => return false,
+        .Struct => inline for (info.Struct.fields) |field| {
+            if (!isStaticType(field.type)) {
+                return false;
+            }
+        },
+        .Pointer => switch (info.Pointer.size) {
+            .Many, .Slice, .C => return false,
+            .One => return isStaticType(info.Pointer.child),
+        },
+        else => @compileError("Unsupported type " ++ @typeName(T)),
+    }
+    // It should never reach this
+    unreachable;
+}
 /// Converts ethereum address to checksum
 pub fn toChecksum(alloc: Allocator, address: []const u8) ![]u8 {
     var buf: [40]u8 = undefined;

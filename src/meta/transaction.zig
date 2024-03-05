@@ -1,3 +1,4 @@
+const kzg = @import("c-kzg-4844");
 const log = @import("log.zig");
 const meta = @import("meta.zig");
 const std = @import("std");
@@ -5,10 +6,14 @@ const types = @import("ethereum.zig");
 
 // Types
 const Address = types.Address;
+const Blob = kzg.Blob;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
+const KZGCommitment = kzg.KZGCommitment;
+const KZGProof = kzg.KZGProof;
 const Logs = log.Logs;
+const Merge = meta.Merge;
 const Omit = meta.Omit;
 const RequestParser = meta.RequestParser;
 const StructToTupleType = meta.StructToTupleType;
@@ -31,10 +36,10 @@ pub const LondonEnvelopeSigned = StructToTupleType(LondonTransactionEnvelopeSign
 pub const CancunEnvelope = StructToTupleType(CancunTransactionEnvelope);
 /// Tuple representig an encoded envelope for the London hardfork with the signature
 pub const CancunEnvelopeSigned = StructToTupleType(CancunTransactionEnvelopeSigned);
-// /// Signed cancun transaction converted to wrapper with blobs, commitments and proofs
-// pub const CancunSignedWrapper = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u64, []const Hex, u4, Hex, Hex, []const Hex, []const Hex, []const Hex });
-// /// Cancun transaction converted to wrapper with blobs, commitments and proofs
-// pub const CancunWrapper = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u64, []const Hex, []const Hex, []const Hex, []const Hex });
+/// Signed cancun transaction converted to wrapper with blobs, commitments and proofs
+pub const CancunSignedWrapper = Merge(StructToTupleType(CancunTransactionEnvelopeSigned), struct { []const Blob, []const KZGCommitment, []const KZGProof });
+/// Cancun transaction converted to wrapper with blobs, commitments and proofs
+pub const CancunWrapper = Merge(StructToTupleType(CancunTransactionEnvelope), struct { []const Blob, []const KZGCommitment, []const KZGProof });
 
 pub const TransactionTypes = enum(u8) { berlin = 1, london = 2, cancun = 3, _ };
 /// Some nodes represent pending transactions hashes like this.
@@ -120,6 +125,13 @@ pub const LegacyTransactionEnvelope = struct {
 pub const AccessList = struct {
     address: Address,
     storageKeys: []const Hash,
+
+    pub usingnamespace RequestParser(@This());
+};
+/// Struct representing the result of create accessList
+pub const AccessListResult = struct {
+    accessList: []const AccessList,
+    gasUsed: Gwei,
 
     pub usingnamespace RequestParser(@This());
 };
@@ -503,3 +515,21 @@ pub const EstimateFeeReturn = union(enum) { london: struct {
     max_fee_gas: Gwei,
     max_fee_per_blob: Gwei,
 } };
+/// Provides recent fee market data that consumers can use to determine
+pub const FeeHistory = struct {
+    /// List of each block's base fee
+    baseFeePerGas: []const u256,
+    // TODO: Remove null after cancun
+    baseFeePerBlobGas: ?[]const u256 = null,
+    /// Ratio of gas used out of the total available limit
+    gasUsedRatio: []const f64,
+    // TODO: Remove null after cancun
+    blobGasUsedRation: ?[]const f64 = null,
+    /// Block corresponding to first response value
+    oldestBlock: u64,
+    /// List every txs priority fee per block
+    /// Depending on the blockCount or the newestBlock this can be null
+    reward: ?[]const []const u256 = null,
+
+    pub usingnamespace RequestParser(@This());
+};

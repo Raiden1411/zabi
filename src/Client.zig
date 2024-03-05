@@ -9,6 +9,7 @@ const types = @import("meta/ethereum.zig");
 const utils = @import("utils.zig");
 
 // Types
+const AccessListResult = transaction.AccessListResult;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Anvil = @import("tests/Anvil.zig");
@@ -29,6 +30,7 @@ const EthereumRequest = types.EthereumRequest;
 const EthereumRpcMethods = types.EthereumRpcMethods;
 const EstimateFeeReturn = transaction.EstimateFeeReturn;
 const Extract = meta.Extract;
+const FeeHistory = transaction.FeeHistory;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
@@ -127,6 +129,12 @@ pub fn deinit(self: *PubClient) void {
 pub fn blobBaseFee(self: *PubClient) !Gwei {
     return try self.sendBasicRequest(Gwei, .eth_blobBaseFee);
 }
+/// Create an accessList of addresses and storageKeys for an transaction to access
+///
+/// RPC Method: [eth_createAccessList](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_createaccesslist)
+pub fn createAccessList(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) !AccessListResult {
+    return self.sendEthCallRequest(AccessListResult, call_object, opts, .eth_createAccessList);
+}
 /// Estimate the gas used for blobs
 /// Uses `blobBaseFee` and `gasPrice` to calculate this estimation
 pub fn estimateBlobMaxFeePerGas(self: *PubClient) !Gwei {
@@ -192,6 +200,25 @@ pub fn estimateMaxFeePerGasManual(self: *PubClient, know_block: ?Block) !Gwei {
 /// Only use this if the node you are currently using supports `eth_maxPriorityFeePerGas`.
 pub fn estimateMaxFeePerGas(self: *PubClient) !Gwei {
     return try self.sendBasicRequest(Gwei, .eth_maxPriorityFeePerGas);
+}
+/// Returns historical gas information, allowing you to track trends over time.
+///
+/// RPC Method: [eth_feeHistory](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_feehistory)
+pub fn feeHistory(self: *PubClient, blockCount: u64, newest_block: BlockNumberRequest, reward_percentil: ?[]const f64) !FeeHistory {
+    const tag: BalanceBlockTag = newest_block.tag orelse .latest;
+
+    const req_body = request: {
+        if (newest_block.block_number) |number| {
+            const request: EthereumRequest(struct { u64, u64, ?[]const f64 }) = .{ .params = .{ blockCount, number, reward_percentil }, .method = .eth_feeHistory, .id = self.chain_id };
+            break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+        }
+
+        const request: EthereumRequest(struct { u64, BalanceBlockTag, ?[]const f64 }) = .{ .params = .{ blockCount, tag, reward_percentil }, .method = .eth_feeHistory, .id = self.chain_id };
+        break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+    };
+    defer self.alloc.free(req_body);
+
+    return self.sendRpcRequest(FeeHistory, req_body);
 }
 /// Returns a list of addresses owned by client.
 ///
@@ -314,6 +341,23 @@ pub fn getLogs(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !Logs 
     const logs = possible_logs orelse return error.InvalidLogRequestParams;
 
     return logs;
+}
+/// Returns the value from a storage position at a given address.
+///
+/// RPC Method: [eth_getStorageAt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getstorageat)
+pub fn getStorage(self: *PubClient, address: Address, storage_key: Hash, opts: BlockNumberRequest) !Hex {
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
+    const request = request: {
+        if (opts.block_number) |number| {
+            const request: EthereumRequest(struct { Address, Hash, u64 }) = .{ .params = .{ address, storage_key, number }, .method = .eth_getStorageAt, .id = self.chain_id };
+            break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+        }
+        const request: EthereumRequest(struct { Address, Hash, BalanceBlockTag }) = .{ .params = .{ address, storage_key, tag }, .method = .eth_getStorageAt, .id = self.chain_id };
+        break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+    };
+    defer self.alloc.free(request);
+
+    return self.sendRpcRequest(Hex, request);
 }
 /// Returns information about a transaction by block hash and transaction index position.
 ///
@@ -532,26 +576,17 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations:
                     // Need to check if the transaction was replaced.
                     const current_block = try self.getBlockByNumber(.{ .include_transaction_objects = true });
 
-                    // TODO: Find cleaner way to do this.
-                    const replaced: ?Transaction = outer: {
-                        switch (tx.?) {
-                            inline else => |transactions| {
-                                switch (current_block) {
-                                    inline else => |pending| {
-                                        for (pending.transactions.objects) |pending_transaction| {
-                                            switch (pending_transaction) {
-                                                inline else => |tx_pending| {
-                                                    if (std.mem.eql(u8, &transactions.from, &tx_pending.from) and tx_pending.nonce == transactions.nonce)
-                                                        break :outer pending_transaction;
-                                                },
-                                            }
-                                        }
-                                        break :outer null;
-                                    },
-                                }
-                            },
-                        }
+                    const tx_info: struct { from: Hash, nonce: u64 } = switch (tx.?) {
+                        inline else => |transactions| .{ .from = transactions.from, .nonce = transactions.nonce },
                     };
+                    const pending_transaction = switch (current_block) {
+                        inline else => |blocks| blocks.transactions.objects,
+                    };
+
+                    const replaced: ?Transaction = for (pending_transaction) |pending| {
+                        if (std.mem.eql(u8, &tx_info.from, &pending.from) and pending.nonce == tx_info.nonce)
+                            break pending;
+                    } else null;
 
                     // If the transaction was replace return it's receipt. Otherwise try again.
                     if (replaced) |replaced_tx| {
@@ -637,6 +672,7 @@ fn sendBlockNumberRequest(self: *PubClient, opts: BlockNumberRequest, method: Et
         const request: EthereumRequest(struct { BalanceBlockTag }) = .{ .params = .{tag}, .method = method, .id = self.chain_id };
         break :request try std.json.stringifyAlloc(self.alloc, request, .{});
     };
+    defer self.alloc.free(request);
 
     return self.sendRpcRequest(usize, request);
 }
@@ -645,6 +681,7 @@ fn sendBlockHashRequest(self: *PubClient, block_hash: Hash, method: EthereumRpcM
     const request: EthereumRequest(struct { Hash }) = .{ .params = .{block_hash}, .method = method, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    defer self.alloc.free(req_body);
 
     return self.sendRpcRequest(usize, req_body);
 }
@@ -661,6 +698,7 @@ fn sendAddressRequest(self: *PubClient, comptime T: type, opts: BalanceRequest, 
         const request: EthereumRequest(struct { Address, BalanceBlockTag }) = .{ .params = .{ opts.address, tag }, .method = method, .id = self.chain_id };
         break :request try std.json.stringifyAlloc(self.alloc, request, .{});
     };
+    defer self.alloc.free(request);
 
     return self.sendRpcRequest(T, request);
 }
@@ -684,11 +722,14 @@ fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, 
         const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{ .params = .{ call_object, tag }, .method = method, .id = self.chain_id };
         break :request try std.json.stringifyAlloc(self.alloc, request, .{});
     };
+    defer self.alloc.free(request);
 
     return self.sendRpcRequest(T, request);
 }
 
 fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !T {
+    httplog.debug("Preparing to send request body: {s}", .{request});
+
     var body = std.ArrayList(u8).init(self.alloc);
     defer body.deinit();
 
@@ -702,6 +743,7 @@ fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !T {
         const res_body = try body.toOwnedSlice();
         defer self.alloc.free(res_body);
 
+        httplog.debug("Got response from server: {s}", .{res_body});
         switch (req.status) {
             .ok => return try self.parseRPCEvent(T, res_body),
             .too_many_requests => {
@@ -723,7 +765,7 @@ fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !T {
     switch (parsed) {
         .success => |response| return response.result,
         .@"error" => |response| {
-            httplog.debug("RPC error response: {s}\n", .{response.@"error".message});
+            httplog.debug("RPC error response: {s}", .{response.@"error".message});
             switch (response.@"error".code) {
                 .ContractErrorCode => return error.EvmFailedToExecute,
                 // This will only affect WS connections but we need to handle it here too
@@ -780,6 +822,26 @@ test "GetBlock" {
 
     // const block_old = try pub_client.getBlockByNumber(.{ .block_number = 1 });
     // try testing.expect(block_old == .legacy);
+}
+
+test "CreateAccessList" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    defer pub_client.deinit();
+
+    const accessList = try pub_client.createAccessList(.{ .london = .{ .from = try utils.addressToBytes("0xaeA8F8f781326bfE6A7683C2BD48Dd6AA4d3Ba63"), .data = "0x608060806080608155" } }, .{});
+
+    try testing.expect(accessList.accessList.len != 0);
+}
+
+test "FeeHistory" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    defer pub_client.deinit();
+
+    const fee_history = try pub_client.feeHistory(5, .{}, &[_]f64{ 20, 30 });
+
+    try testing.expect(fee_history.reward != null);
 }
 
 test "GetBlockByHash" {
@@ -883,6 +945,16 @@ test "getLogs" {
 
     const logs = try pub_client.getLogs(.{ .blockHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8") }, null);
     try testing.expect(logs.len != 0);
+}
+
+test "getStorage" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    defer pub_client.deinit();
+
+    const storage = try pub_client.getStorage(try utils.addressToBytes("0x295a70b2de5e3953354a6a8344e616ed314d7251"), try utils.hashToBytes("0x6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9"), .{ .block_number = 6662363 });
+
+    try testing.expectEqualStrings("0x0000000000000000000000000000000000000000000000000000000000000000", storage);
 }
 
 test "getTransactionByBlockNumberAndIndex" {

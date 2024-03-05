@@ -91,6 +91,11 @@ pub fn RequestParser(comptime T: type) type {
                     try stream_writer.stream.writeByte('\"');
                     stream_writer.next_punctuation = .comma;
                 },
+                .Float, .ComptimeFloat => {
+                    try valueStart(stream_writer);
+                    try stream_writer.stream.print("{d}", .{value});
+                    stream_writer.next_punctuation = .comma;
+                },
                 .Null => {
                     try valueStart(stream_writer);
                     try stream_writer.stream.writeAll("null");
@@ -334,13 +339,13 @@ pub fn RequestParser(comptime T: type) type {
                 },
                 .Float, .ComptimeFloat => {
                     switch (source) {
-                        .float => |f| return @as(T, @floatCast(f)),
-                        .integer => |i| return @as(T, @floatFromInt(i)),
-                        .number_string, .string => |s| return std.fmt.parseFloat(T, s),
+                        .float => |f| return @as(TT, @floatCast(f)),
+                        .integer => |i| return @as(TT, @floatFromInt(i)),
+                        .number_string, .string => |s| return std.fmt.parseFloat(TT, s),
                         else => return error.UnexpectedToken,
                     }
                 },
-                .Int => {
+                .Int, .ComptimeInt => {
                     switch (source) {
                         .number_string, .string => |str| return try std.fmt.parseInt(TT, str, 0),
                         else => return error.UnexpectedToken,
@@ -449,7 +454,7 @@ pub fn RequestParser(comptime T: type) type {
                         else => error.UnexpectedToken,
                     };
                 },
-                .Int => {
+                .Int, .ComptimeInt => {
                     const token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
                     const slice = switch (token) {
                         inline .number, .allocated_number, .string, .allocated_string => |slice| slice,
@@ -624,6 +629,33 @@ pub fn Extract(comptime T: type, comptime needle: []const u8) type {
 
     return @Type(.{ .Enum = .{ .tag_type = info.tag_type, .fields = &enumFields, .decls = &.{}, .is_exhaustive = true } });
 }
+/// Merge structs into a single one
+pub fn Merge(comptime T: type, comptime K: type) type {
+    const info_t = @typeInfo(T);
+    const info_k = @typeInfo(K);
+
+    if (info_t != .Struct or info_k != .Struct)
+        @compileError("Expected struct type");
+
+    if (info_t.Struct.is_tuple != info_k.Struct.is_tuple)
+        @compileError("Structs must be of the same type. One of the structs is a tuple type");
+
+    var counter: usize = 0;
+    var fields: [info_t.Struct.fields.len + info_k.Struct.fields.len]std.builtin.Type.StructField = undefined;
+
+    for (info_t.Struct.fields) |field| {
+        fields[counter] = field;
+        counter += 1;
+    }
+
+    for (info_k.Struct.fields) |field| {
+        fields[counter] = field;
+        counter += 1;
+    }
+
+    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = info_t.Struct.is_tuple } });
+}
+/// Convert a struct into a tuple type.
 pub fn StructToTupleType(comptime T: type) type {
     const info = @typeInfo(T);
 
@@ -774,9 +806,10 @@ pub fn AbiParametersToPrimative(comptime paramters: []const AbiParameter) type {
 /// that the components array field has. If this field is null compilation will fail.
 pub fn AbiParameterToPrimative(comptime param: AbiParameter) type {
     return switch (param.type) {
-        .string, .bytes, .address => []const u8,
+        .string, .bytes => []const u8,
+        .address => [20]u8,
+        .fixedBytes => |fixed| [fixed]u8,
         .bool => bool,
-        .fixedBytes => []const u8,
         .int => |val| if (val % 8 != 0 or val > 256) @compileError("Invalid bits passed in to int type") else @Type(.{ .Int = .{ .signedness = .signed, .bits = val } }),
         .uint => |val| if (val % 8 != 0 or val > 256) @compileError("Invalid bits passed in to int type") else @Type(.{ .Int = .{ .signedness = .unsigned, .bits = val } }),
         .dynamicArray => []const AbiParameterToPrimative(.{ .type = param.type.dynamicArray.*, .name = param.name, .internalType = param.internalType, .components = param.components }),
@@ -805,15 +838,17 @@ pub fn AbiParameterToPrimative(comptime param: AbiParameter) type {
 test "Meta" {
     try testing.expectEqual(AbiParametersToPrimative(&.{}), void);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .string = {} }, .name = "foo" }), []const u8);
-    try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .fixedBytes = 31 }, .name = "foo" }), []const u8);
+    try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .fixedBytes = 31 }, .name = "foo" }), [31]u8);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .uint = 120 }, .name = "foo" }), u120);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .int = 48 }, .name = "foo" }), i48);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .bytes = {} }, .name = "foo" }), []const u8);
-    try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .address = {} }, .name = "foo" }), []const u8);
+    try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .address = {} }, .name = "foo" }), [20]u8);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .bool = {} }, .name = "foo" }), bool);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .dynamicArray = &.{ .bool = {} } }, .name = "foo" }), []const bool);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .fixedArray = .{ .child = &.{ .bool = {} }, .size = 2 } }, .name = "foo" }), [2]bool);
 
+    try expectEqualStructs(struct { foo: u32, jazz: bool }, Merge(struct { foo: u32 }, struct { jazz: bool }));
+    try expectEqualStructs(struct { u32, bool }, Merge(struct { u32 }, struct { bool }));
     try expectEqualStructs(struct { foo: u32, jazz: bool }, Omit(struct { foo: u32, bar: u256, baz: i64, jazz: bool }, &.{ "bar", "baz" }));
     try expectEqualStructs(std.meta.Tuple(&[_]type{ u64, std.meta.Tuple(&[_]type{ u64, u256 }) }), StructToTupleType(struct { foo: u64, bar: struct { baz: u64, jazz: u256 } }));
     try expectEqualStructs(AbiParameterToPrimative(.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .bool = {} }, .name = "bar" }} }), struct { bar: bool });

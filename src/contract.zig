@@ -60,9 +60,9 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             const code = if (std.mem.startsWith(u8, opts.bytecode, "0x")) opts.bytecode[2..] else opts.bytecode;
 
             const encoded = try constructor.encode(self.wallet.allocator, opts.args);
-            defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
+            defer encoded.deinit();
 
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}{s}", .{ code, std.fmt.fmtSliceHexLower(encoded) });
+            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}{s}", .{ code, std.fmt.fmtSliceHexLower(encoded.data) });
             defer self.wallet.allocator.free(concated);
 
             if (copy.to != null)
@@ -95,7 +95,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             const encoded = try func.encode(self.wallet.allocator, opts.args);
             defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
 
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{encoded});
+            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
             defer self.wallet.allocator.free(concated);
 
             switch (copy) {
@@ -128,7 +128,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             const encoded = try func.encode(self.wallet.allocator, opts.args);
             defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
 
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{encoded});
+            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
             defer self.wallet.allocator.free(concated);
 
             if (copy.to == null)
@@ -167,7 +167,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             const encoded = try func.encode(self.wallet.allocator, opts.args);
             defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
 
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{encoded});
+            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
             defer self.wallet.allocator.free(concated);
 
             if (copy.to == null)
@@ -207,10 +207,9 @@ pub fn Contract(comptime client_type: ClientType) type {
             const code = if (std.mem.startsWith(u8, bytecode, "0x")) bytecode[2..] else bytecode;
 
             const encoded = try constructor.abiConstructor.encode(self.wallet.allocator, constructor_args);
-            defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
+            defer encoded.deinit();
 
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}{s}", .{ code, std.fmt.fmtSliceHexLower(encoded) });
-            defer self.wallet.allocator.free(concated);
+            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}{s}", .{ code, std.fmt.fmtSliceHexLower(encoded.data) });
 
             if (copy.to != null)
                 return error.CreatingContractToKnowAddress;
@@ -243,7 +242,7 @@ pub fn Contract(comptime client_type: ClientType) type {
             const encoded = try function_item.abiFunction.encode(self.wallet.allocator, function_args);
             defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
 
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{encoded});
+            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
             defer self.wallet.allocator.free(concated);
 
             switch (copy) {
@@ -277,7 +276,7 @@ pub fn Contract(comptime client_type: ClientType) type {
             const encoded = try function_item.abiFunction.encode(self.wallet.allocator, function_args);
             defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
 
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{encoded});
+            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
             defer self.wallet.allocator.free(concated);
 
             if (copy.to == null)
@@ -317,7 +316,7 @@ pub fn Contract(comptime client_type: ClientType) type {
             const encoded = try function_item.abiFunction.encode(self.wallet.allocator, function_args);
             defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
 
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{encoded});
+            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
             defer self.wallet.allocator.free(concated);
 
             if (copy.to == null)
@@ -416,17 +415,17 @@ test "ReadContract" {
         const uri = try std.Uri.parse("http://localhost:8545/");
         var contract: Contract(.websocket) = .{ .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" } }}, .wallet = try Wallet(.websocket).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri }) };
         defer contract.deinit();
-        const ReturnType = std.meta.Tuple(&[_]type{[]const u8});
+        const ReturnType = std.meta.Tuple(&[_]type{[20]u8});
         const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .london = .{ .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"), .from = try contract.wallet.getWalletAddress() } });
-        try testing.expectEqual(result.values[0].len, 42);
+        try testing.expectEqual(result.values[0].len, 20);
     }
     {
         const uri = try std.Uri.parse("http://localhost:8545/");
         var contract: Contract(.http) = .{ .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" } }}, .wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri }) };
         defer contract.deinit();
-        const ReturnType = std.meta.Tuple(&[_]type{[]const u8});
+        const ReturnType = std.meta.Tuple(&[_]type{[20]u8});
         const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .london = .{ .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"), .from = try contract.wallet.getWalletAddress() } });
-        try testing.expectEqual(result.values[0].len, 42);
+        try testing.expectEqual(result.values[0].len, 20);
     }
     {
         const uri = try std.Uri.parse("http://localhost:8545/");
@@ -436,7 +435,7 @@ test "ReadContract" {
         var contract: ContractComptime(.http) = .{ .wallet = wallet };
         const result = try contract.readContractFunction(.{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" }, .{ .args = .{69}, .overrides = .{ .london = .{ .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"), .from = try wallet.getWalletAddress() } } });
 
-        try testing.expectEqual(result.values[0].len, 42);
+        try testing.expectEqual(result.values[0].len, 20);
     }
 }
 
@@ -451,7 +450,7 @@ test "WriteContract" {
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
         try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
 
-        const result = try contract.writeContractFunction("setApprovalForAll", .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6546", true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
+        const result = try contract.writeContractFunction("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
 
         try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
         try testing.expectEqual(result.len, 32);
@@ -466,7 +465,7 @@ test "WriteContract" {
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
         try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
 
-        const result = try contract.writeContractFunction("setApprovalForAll", .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6546", true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
+        const result = try contract.writeContractFunction("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
 
         try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
         try testing.expectEqual(result.len, 32);
@@ -482,7 +481,7 @@ test "WriteContract" {
         try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
         var contract: ContractComptime(.http) = .{ .wallet = wallet };
 
-        const result = try contract.writeContractFunction(.{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" }, .{ .args = .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6547", true }, .overrides = .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") } });
+        const result = try contract.writeContractFunction(.{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" }, .{ .args = .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6547"), true }, .overrides = .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") } });
 
         try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
         try testing.expectEqual(result.len, 32);
@@ -500,7 +499,7 @@ test "SimulateWriteCall" {
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
         try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
 
-        const result = try contract.simulateWriteCall("setApprovalForAll", .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6546", true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
+        const result = try contract.simulateWriteCall("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
 
         try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
         try testing.expect(result.len > 0);
@@ -515,7 +514,7 @@ test "SimulateWriteCall" {
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
         try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
 
-        const result = try contract.simulateWriteCall("setApprovalForAll", .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6546", true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
+        const result = try contract.simulateWriteCall("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
 
         try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
         try testing.expect(result.len > 0);
@@ -531,7 +530,7 @@ test "SimulateWriteCall" {
         try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
 
         var contract: ContractComptime(.http) = .{ .wallet = wallet };
-        const result = try contract.simulateWriteCall(.{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" }, .{ .args = .{ "0x19bb64b80CbF61E61965B0E5c2560CC7364c6547", true }, .overrides = .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") } });
+        const result = try contract.simulateWriteCall(.{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" }, .{ .args = .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6547"), true }, .overrides = .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") } });
 
         try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
         try testing.expect(result.len > 0);

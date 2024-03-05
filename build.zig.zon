@@ -15,8 +15,8 @@
     // Once all dependencies are fetched, `zig build` no longer requires
     // Internet connectivity.
     .dependencies = .{ .ws = .{
-        .url = "git+https://github.com/karlseguin/websocket.zig.git#1f2c4a56c642dab52fe12cdda1bd3f56865d1f86",
-        .hash = "1220ce168e550f8904364acd0a72f5cafd40caa08a50ba83aac50b97ba700d7bcf20",
+        .url = "git+https://github.com/karlseguin/websocket.zig.git#9e8944fa1ff7ca448aa42d80d3eef64c0d5c1a87",
+        .hash = "1220ca8602bc5ab392c9ed2295a7d092f48895ae6503bb5cdf14826e47ac80d71563",
     }, .secp256k1 = .{ .path = "./pkg/libsecp256k1" }, .@"c-kzg-4844" = .{ .path = "./pkg/c-kzg-4844" }, .blst = .{ .path = "./pkg/blst" } },
     .paths = .{
         // This makes *all* files, recursively, included in this package. It is generally

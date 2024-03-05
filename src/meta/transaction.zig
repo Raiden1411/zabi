@@ -1,3 +1,4 @@
+const kzg = @import("c-kzg-4844");
 const log = @import("log.zig");
 const meta = @import("meta.zig");
 const std = @import("std");
@@ -5,10 +6,14 @@ const types = @import("ethereum.zig");
 
 // Types
 const Address = types.Address;
+const Blob = kzg.Blob;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
+const KZGCommitment = kzg.KZGCommitment;
+const KZGProof = kzg.KZGProof;
 const Logs = log.Logs;
+const Merge = meta.Merge;
 const Omit = meta.Omit;
 const RequestParser = meta.RequestParser;
 const StructToTupleType = meta.StructToTupleType;
@@ -31,10 +36,10 @@ pub const LondonEnvelopeSigned = StructToTupleType(LondonTransactionEnvelopeSign
 pub const CancunEnvelope = StructToTupleType(CancunTransactionEnvelope);
 /// Tuple representig an encoded envelope for the London hardfork with the signature
 pub const CancunEnvelopeSigned = StructToTupleType(CancunTransactionEnvelopeSigned);
-// /// Signed cancun transaction converted to wrapper with blobs, commitments and proofs
-// pub const CancunSignedWrapper = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u64, []const Hex, u4, Hex, Hex, []const Hex, []const Hex, []const Hex });
-// /// Cancun transaction converted to wrapper with blobs, commitments and proofs
-// pub const CancunWrapper = std.meta.Tuple(&[_]type{ usize, u64, Gwei, Gwei, Gwei, ?Hex, Wei, ?Hex, []const EncodedAccessList, u64, []const Hex, []const Hex, []const Hex, []const Hex });
+/// Signed cancun transaction converted to wrapper with blobs, commitments and proofs
+pub const CancunSignedWrapper = Merge(StructToTupleType(CancunTransactionEnvelopeSigned), struct { []const Blob, []const KZGCommitment, []const KZGProof });
+/// Cancun transaction converted to wrapper with blobs, commitments and proofs
+pub const CancunWrapper = Merge(StructToTupleType(CancunTransactionEnvelope), struct { []const Blob, []const KZGCommitment, []const KZGProof });
 
 pub const TransactionTypes = enum(u8) { berlin = 1, london = 2, cancun = 3, _ };
 /// Some nodes represent pending transactions hashes like this.

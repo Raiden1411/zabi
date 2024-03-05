@@ -55,8 +55,7 @@ pub fn serializeTransaction(allocator: Allocator, tx: TransactionEnvelope, sig: 
 }
 /// Serializes a cancun type transactions without blobs.
 ///
-/// Please use `serializeCancunTransactionWithBlob` or
-/// `serializeCancunTransactionWithSidecars` if you want to
+/// Please use `serializeCancunTransactionWithSidecars` if you want to
 /// serialize them as a wrapper
 fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature) ![]u8 {
     const prep_access = try prepareAccessList(allocator, tx.accessList);
@@ -164,7 +163,7 @@ pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTr
 
     if (sig) |signature| {
         // zig fmt: off
-        const envelope_signed: CancunEnvelopeSigned = .{
+        const envelope_signed: CancunSignedWrapper = .{
             tx.chainId,
             tx.nonce,
             tx.maxPriorityFeePerGas,
@@ -197,7 +196,7 @@ pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTr
     }
 
     // zig fmt: off
-    const envelope: CancunEnvelope = .{ 
+    const envelope: CancunWrapper = .{ 
         tx.chainId,
         tx.nonce, 
         tx.maxPriorityFeePerGas,

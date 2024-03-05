@@ -864,6 +864,52 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
         }
     }
 }
+/// Returns the value from a storage position at a given address.
+///
+/// RPC Method: [eth_getStorageAt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getstorageat)
+pub fn getStorage(self: *WebSocketHandler, address: Address, storage_key: Hash, opts: BlockNumberRequest) !Hex {
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
+    const req_body = request: {
+        if (opts.block_number) |number| {
+            const request: EthereumRequest(struct { Address, Hash, u64 }) = .{ .params = .{ address, storage_key, number }, .method = .eth_getStorageAt, .id = self.chain_id };
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+        }
+        const request: EthereumRequest(struct { Address, Hash, BalanceBlockTag }) = .{ .params = .{ address, storage_key, tag }, .method = .eth_getStorageAt, .id = self.chain_id };
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+    };
+    defer self.allocator.free(req_body);
+
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
+
+        try self.write(req_body);
+        switch (self.channel.get()) {
+            .hex_event => |hex| return hex.result,
+            .hash_event => |hash| return try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash.result)}),
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
+
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
+            },
+            else => |eve| {
+                wslog.debug("Found incorrect event named: {s}. Expected a hex_event or hash_event", .{@tagName(eve)});
+                return error.InvalidEventFound;
+            },
+        }
+    }
+}
 /// Returns information about a transaction by block hash and transaction index position.
 ///
 /// RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblockhashandindex)
@@ -1238,7 +1284,7 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
                 }
             },
             else => |eve| {
-                wslog.err("Found incorrect event named: {s}. Expected a hex_event or hash_event", .{@tagName(eve)});
+                wslog.debug("Found incorrect event named: {s}. Expected a hex_event or hash_event", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1808,6 +1854,17 @@ test "getLogs" {
 
     const logs = try ws_client.getLogs(.{ .blockHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8") }, null);
     try testing.expect(logs.len != 0);
+}
+
+test "getStorage" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var ws_client: WebSocketHandler = undefined;
+    defer ws_client.deinit();
+    try ws_client.init(.{ .allocator = std.testing.allocator, .uri = uri });
+
+    const storage = try ws_client.getStorage(try utils.addressToBytes("0x295a70b2de5e3953354a6a8344e616ed314d7251"), try utils.hashToBytes("0x6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9"), .{ .block_number = 6662363 });
+
+    try testing.expectEqualStrings("0x0000000000000000000000000000000000000000000000000000000000000000", storage);
 }
 
 test "getTransactionByBlockNumberAndIndex" {

@@ -342,6 +342,23 @@ pub fn getLogs(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !Logs 
 
     return logs;
 }
+/// Returns the value from a storage position at a given address.
+///
+/// RPC Method: [eth_getStorageAt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getstorageat)
+pub fn getStorage(self: *PubClient, address: Address, storage_key: Hash, opts: BlockNumberRequest) !Hex {
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
+    const request = request: {
+        if (opts.block_number) |number| {
+            const request: EthereumRequest(struct { Address, Hash, u64 }) = .{ .params = .{ address, storage_key, number }, .method = .eth_getStorageAt, .id = self.chain_id };
+            break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+        }
+        const request: EthereumRequest(struct { Address, Hash, BalanceBlockTag }) = .{ .params = .{ address, storage_key, tag }, .method = .eth_getStorageAt, .id = self.chain_id };
+        break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+    };
+    defer self.alloc.free(request);
+
+    return self.sendRpcRequest(Hex, request);
+}
 /// Returns information about a transaction by block hash and transaction index position.
 ///
 /// RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblockhashandindex)
@@ -928,6 +945,16 @@ test "getLogs" {
 
     const logs = try pub_client.getLogs(.{ .blockHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8") }, null);
     try testing.expect(logs.len != 0);
+}
+
+test "getStorage" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    defer pub_client.deinit();
+
+    const storage = try pub_client.getStorage(try utils.addressToBytes("0x295a70b2de5e3953354a6a8344e616ed314d7251"), try utils.hashToBytes("0x6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9"), .{ .block_number = 6662363 });
+
+    try testing.expectEqualStrings("0x0000000000000000000000000000000000000000000000000000000000000000", storage);
 }
 
 test "getTransactionByBlockNumberAndIndex" {

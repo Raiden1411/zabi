@@ -30,6 +30,7 @@ const EthereumRequest = types.EthereumRequest;
 const EthereumRpcMethods = types.EthereumRpcMethods;
 const EstimateFeeReturn = transaction.EstimateFeeReturn;
 const Extract = meta.Extract;
+const FeeHistory = transaction.FeeHistory;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
@@ -128,6 +129,9 @@ pub fn deinit(self: *PubClient) void {
 pub fn blobBaseFee(self: *PubClient) !Gwei {
     return try self.sendBasicRequest(Gwei, .eth_blobBaseFee);
 }
+/// Create an accessList of addresses and storageKeys for an transaction to access
+///
+/// RPC Method: [eth_createAccessList](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_createaccesslist)
 pub fn createAccessList(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) !AccessListResult {
     return self.sendEthCallRequest(AccessListResult, call_object, opts, .eth_createAccessList);
 }
@@ -196,6 +200,25 @@ pub fn estimateMaxFeePerGasManual(self: *PubClient, know_block: ?Block) !Gwei {
 /// Only use this if the node you are currently using supports `eth_maxPriorityFeePerGas`.
 pub fn estimateMaxFeePerGas(self: *PubClient) !Gwei {
     return try self.sendBasicRequest(Gwei, .eth_maxPriorityFeePerGas);
+}
+/// Returns historical gas information, allowing you to track trends over time.
+///
+/// RPC Method: [eth_feeHistory](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_feehistory)
+pub fn feeHistory(self: *PubClient, blockCount: u64, newest_block: BlockNumberRequest, reward_percentil: ?[]const f64) !FeeHistory {
+    const tag: BalanceBlockTag = newest_block.tag orelse .latest;
+
+    const req_body = request: {
+        if (newest_block.block_number) |number| {
+            const request: EthereumRequest(struct { u64, u64, ?[]const f64 }) = .{ .params = .{ blockCount, number, reward_percentil }, .method = .eth_feeHistory, .id = self.chain_id };
+            break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+        }
+
+        const request: EthereumRequest(struct { u64, BalanceBlockTag, ?[]const f64 }) = .{ .params = .{ blockCount, tag, reward_percentil }, .method = .eth_feeHistory, .id = self.chain_id };
+        break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+    };
+    defer self.alloc.free(req_body);
+
+    return self.sendRpcRequest(FeeHistory, req_body);
 }
 /// Returns a list of addresses owned by client.
 ///
@@ -688,6 +711,8 @@ fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, 
 }
 
 fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !T {
+    httplog.debug("Preparing to send request body: {s}", .{request});
+
     var body = std.ArrayList(u8).init(self.alloc);
     defer body.deinit();
 
@@ -701,6 +726,7 @@ fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !T {
         const res_body = try body.toOwnedSlice();
         defer self.alloc.free(res_body);
 
+        httplog.debug("Got response from server: {s}", .{res_body});
         switch (req.status) {
             .ok => return try self.parseRPCEvent(T, res_body),
             .too_many_requests => {
@@ -789,6 +815,16 @@ test "CreateAccessList" {
     const accessList = try pub_client.createAccessList(.{ .london = .{ .from = try utils.addressToBytes("0xaeA8F8f781326bfE6A7683C2BD48Dd6AA4d3Ba63"), .data = "0x608060806080608155" } }, .{});
 
     try testing.expect(accessList.accessList.len != 0);
+}
+
+test "FeeHistory" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    defer pub_client.deinit();
+
+    const fee_history = try pub_client.feeHistory(5, .{}, &[_]f64{ 20, 30 });
+
+    try testing.expect(fee_history.reward != null);
 }
 
 test "GetBlockByHash" {

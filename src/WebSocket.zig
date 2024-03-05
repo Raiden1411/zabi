@@ -33,6 +33,7 @@ const EthereumRpcResponse = types.EthereumRpcResponse;
 const EthereumZigErrors = types.EthereumZigErrors;
 const EstimateFeeReturn = transaction.EstimateFeeReturn;
 const Extract = meta.Extract;
+const FeeHistory = transaction.FeeHistory;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
@@ -288,13 +289,18 @@ pub fn write(self: *WebSocketHandler, data: []u8) !void {
 pub fn getCurrentEvent(self: *WebSocketHandler) !EthereumEvents {
     return self.channel.get();
 }
-/// Estimate
+/// Grabs the current base blob fee.
+///
+/// RPC Method: [eth_blobBaseFee](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_blobbasefee)
 pub fn blobBaseFee(self: *WebSocketHandler) !Gwei {
     const req_body = try self.prepBasicRequest(.eth_blobBaseFee);
     defer self.allocator.free(req_body);
 
     return self.handleNumberEvent(Gwei, req_body);
 }
+/// Create an accessList of addresses and storageKeys for an transaction to access
+///
+/// RPC Method: [eth_createAccessList](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_createaccesslist)
 pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) !AccessListResult {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
     const req_body = request: {
@@ -331,12 +337,14 @@ pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: Blo
                 }
             },
             else => |eve| {
-                wslog.err("Found incorrect event named: {s}. Expected a access_list.", .{@tagName(eve)});
+                wslog.debug("Found incorrect event named: {s}. Expected a access_list.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
     }
 }
+/// Estimate the gas used for blobs
+/// Uses `blobBaseFee` and `gasPrice` to calculate this estimation
 pub fn estimateBlobMaxFeePerGas(self: *WebSocketHandler) !Gwei {
     const base = try self.blobBaseFee();
     const gas_price = try self.getGasPrice();
@@ -414,6 +422,53 @@ pub fn estimateMaxFeePerGas(self: *WebSocketHandler) !Gwei {
     defer self.allocator.free(req_body);
 
     return self.handleNumberEvent(Gwei, req_body);
+}
+/// Returns historical gas information, allowing you to track trends over time.
+///
+/// RPC Method: [eth_feeHistory](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_feehistory)
+pub fn feeHistory(self: *WebSocketHandler, blockCount: u64, newest_block: BlockNumberRequest, reward_percentil: ?[]const f64) !FeeHistory {
+    const tag: BalanceBlockTag = newest_block.tag orelse .latest;
+
+    const req_body = request: {
+        if (newest_block.block_number) |number| {
+            const request: EthereumRequest(struct { u64, u64, ?[]const f64 }) = .{ .params = .{ blockCount, number, reward_percentil }, .method = .eth_feeHistory, .id = self.chain_id };
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+        }
+
+        const request: EthereumRequest(struct { u64, BalanceBlockTag, ?[]const f64 }) = .{ .params = .{ blockCount, tag, reward_percentil }, .method = .eth_feeHistory, .id = self.chain_id };
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+    };
+    defer self.allocator.free(req_body);
+
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
+
+        try self.write(req_body);
+        switch (self.channel.get()) {
+            .fee_history => |fee_event| return fee_event.result,
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
+
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
+            },
+            else => |eve| {
+                wslog.debug("Found incorrect event named: {s}. Expected a accounts_event.", .{@tagName(eve)});
+                return error.InvalidEventFound;
+            },
+        }
+    }
 }
 /// Returns a list of addresses owned by client.
 ///
@@ -1631,6 +1686,17 @@ test "CreateAccessList" {
     const accessList = try ws_client.createAccessList(.{ .london = .{ .from = try utils.addressToBytes("0xaeA8F8f781326bfE6A7683C2BD48Dd6AA4d3Ba63"), .data = "0x608060806080608155" } }, .{});
 
     try testing.expect(accessList.accessList.len != 0);
+}
+
+test "FeeHistory" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var ws_client: WebSocketHandler = undefined;
+    defer ws_client.deinit();
+    try ws_client.init(.{ .allocator = std.testing.allocator, .uri = uri });
+
+    const fee_history = try ws_client.feeHistory(5, .{}, &[_]f64{ 20, 30 });
+
+    try testing.expect(fee_history.reward != null);
 }
 
 test "GetBlockByHash" {

@@ -6,6 +6,7 @@ const transaction = @import("transaction.zig");
 
 const AccessListResult = transaction.AccessListResult;
 const Block = block.Block;
+const FeeHistory = transaction.FeeHistory;
 const Log = log.Log;
 const Logs = log.Logs;
 const PendingTransactionsSubscription = transaction.PendingTransactionsSubscription;
@@ -23,7 +24,7 @@ pub const Hash = [32]u8;
 pub const Address = [20]u8;
 
 /// Set of public rpc actions.
-pub const EthereumRpcMethods = enum { eth_chainId, eth_gasPrice, eth_accounts, eth_getBalance, eth_getBlockByNumber, eth_getBlockByHash, eth_blockNumber, eth_getTransactionCount, eth_getBlockTransactionCountByHash, eth_getBlockTransactionCountByNumber, eth_getUncleCountByBlockHash, eth_getUncleCountByBlockNumber, eth_getCode, eth_getTransactionByHash, eth_getTransactionByBlockHashAndIndex, eth_getTransactionByBlockNumberAndIndex, eth_getTransactionReceipt, eth_getUncleByBlockHashAndIndex, eth_getUncleByBlockNumberAndIndex, eth_newFilter, eth_newBlockFilter, eth_newPendingTransactionFilter, eth_uninstallFilter, eth_getFilterChanges, eth_getFilterLogs, eth_getLogs, eth_sign, eth_signTransaction, eth_sendTransaction, eth_sendRawTransaction, eth_call, eth_estimateGas, eth_maxPriorityFeePerGas, eth_subscribe, eth_unsubscribe, eth_signTypedData_v4, eth_blobBaseFee, eth_createAccessList };
+pub const EthereumRpcMethods = enum { eth_chainId, eth_gasPrice, eth_accounts, eth_getBalance, eth_getBlockByNumber, eth_getBlockByHash, eth_blockNumber, eth_getTransactionCount, eth_getBlockTransactionCountByHash, eth_getBlockTransactionCountByNumber, eth_getUncleCountByBlockHash, eth_getUncleCountByBlockNumber, eth_getCode, eth_getTransactionByHash, eth_getTransactionByBlockHashAndIndex, eth_getTransactionByBlockNumberAndIndex, eth_getTransactionReceipt, eth_getUncleByBlockHashAndIndex, eth_getUncleByBlockNumberAndIndex, eth_newFilter, eth_newBlockFilter, eth_newPendingTransactionFilter, eth_uninstallFilter, eth_getFilterChanges, eth_getFilterLogs, eth_getLogs, eth_sign, eth_signTransaction, eth_sendTransaction, eth_sendRawTransaction, eth_call, eth_estimateGas, eth_maxPriorityFeePerGas, eth_subscribe, eth_unsubscribe, eth_signTypedData_v4, eth_blobBaseFee, eth_createAccessList, eth_feeHistory };
 
 /// Enum of know chains.
 /// More will be added in the future.
@@ -137,6 +138,7 @@ pub const EthereumEvents = union(enum) {
     logs_event: EthereumRpcResponse(?Logs),
     accounts_event: EthereumRpcResponse([]const Address),
     access_list: EthereumRpcResponse(AccessListResult),
+    fee_history: EthereumRpcResponse(FeeHistory),
     receipt_event: EthereumRpcResponse(?TransactionReceipt),
     transaction_event: EthereumRpcResponse(?Transaction),
     block_event: EthereumRpcResponse(?Block),

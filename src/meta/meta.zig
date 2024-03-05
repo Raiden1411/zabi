@@ -91,6 +91,11 @@ pub fn RequestParser(comptime T: type) type {
                     try stream_writer.stream.writeByte('\"');
                     stream_writer.next_punctuation = .comma;
                 },
+                .Float, .ComptimeFloat => {
+                    try valueStart(stream_writer);
+                    try stream_writer.stream.print("{d}", .{value});
+                    stream_writer.next_punctuation = .comma;
+                },
                 .Null => {
                     try valueStart(stream_writer);
                     try stream_writer.stream.writeAll("null");
@@ -334,13 +339,13 @@ pub fn RequestParser(comptime T: type) type {
                 },
                 .Float, .ComptimeFloat => {
                     switch (source) {
-                        .float => |f| return @as(T, @floatCast(f)),
-                        .integer => |i| return @as(T, @floatFromInt(i)),
-                        .number_string, .string => |s| return std.fmt.parseFloat(T, s),
+                        .float => |f| return @as(TT, @floatCast(f)),
+                        .integer => |i| return @as(TT, @floatFromInt(i)),
+                        .number_string, .string => |s| return std.fmt.parseFloat(TT, s),
                         else => return error.UnexpectedToken,
                     }
                 },
-                .Int => {
+                .Int, .ComptimeInt => {
                     switch (source) {
                         .number_string, .string => |str| return try std.fmt.parseInt(TT, str, 0),
                         else => return error.UnexpectedToken,
@@ -449,7 +454,7 @@ pub fn RequestParser(comptime T: type) type {
                         else => error.UnexpectedToken,
                     };
                 },
-                .Int => {
+                .Int, .ComptimeInt => {
                     const token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
                     const slice = switch (token) {
                         inline .number, .allocated_number, .string, .allocated_string => |slice| slice,

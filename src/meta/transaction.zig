@@ -515,3 +515,21 @@ pub const EstimateFeeReturn = union(enum) { london: struct {
     max_fee_gas: Gwei,
     max_fee_per_blob: Gwei,
 } };
+/// Provides recent fee market data that consumers can use to determine
+pub const FeeHistory = struct {
+    /// List of each block's base fee
+    baseFeePerGas: []const u256,
+    // TODO: Remove null after cancun
+    baseFeePerBlobGas: ?[]const u256 = null,
+    /// Ratio of gas used out of the total available limit
+    gasUsedRatio: []const f64,
+    // TODO: Remove null after cancun
+    blobGasUsedRation: ?[]const f64 = null,
+    /// Block corresponding to first response value
+    oldestBlock: u64,
+    /// List every txs priority fee per block
+    /// Depending on the blockCount or the newestBlock this can be null
+    reward: ?[]const []const u256 = null,
+
+    pub usingnamespace RequestParser(@This());
+};

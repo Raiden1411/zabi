@@ -532,26 +532,17 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations:
                     // Need to check if the transaction was replaced.
                     const current_block = try self.getBlockByNumber(.{ .include_transaction_objects = true });
 
-                    // TODO: Find cleaner way to do this.
-                    const replaced: ?Transaction = outer: {
-                        switch (tx.?) {
-                            inline else => |transactions| {
-                                switch (current_block) {
-                                    inline else => |pending| {
-                                        for (pending.transactions.objects) |pending_transaction| {
-                                            switch (pending_transaction) {
-                                                inline else => |tx_pending| {
-                                                    if (std.mem.eql(u8, &transactions.from, &tx_pending.from) and tx_pending.nonce == transactions.nonce)
-                                                        break :outer pending_transaction;
-                                                },
-                                            }
-                                        }
-                                        break :outer null;
-                                    },
-                                }
-                            },
-                        }
+                    const tx_info: struct { from: Hash, nonce: u64 } = switch (tx.?) {
+                        inline else => |transactions| .{ .from = transactions.from, .nonce = transactions.nonce },
                     };
+                    const pending_transaction = switch (current_block) {
+                        inline else => |blocks| blocks.transactions.objects,
+                    };
+
+                    const replaced: ?Transaction = for (pending_transaction) |pending| {
+                        if (std.mem.eql(u8, &tx_info.from, &pending.from) and pending.nonce == tx_info.nonce)
+                            break pending;
+                    } else null;
 
                     // If the transaction was replace return it's receipt. Otherwise try again.
                     if (replaced) |replaced_tx| {
@@ -723,7 +714,7 @@ fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !T {
     switch (parsed) {
         .success => |response| return response.result,
         .@"error" => |response| {
-            httplog.debug("RPC error response: {s}\n", .{response.@"error".message});
+            httplog.debug("RPC error response: {s}", .{response.@"error".message});
             switch (response.@"error".code) {
                 .ContractErrorCode => return error.EvmFailedToExecute,
                 // This will only affect WS connections but we need to handle it here too

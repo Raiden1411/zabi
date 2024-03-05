@@ -8,6 +8,7 @@ const types = @import("meta/ethereum.zig");
 const utils = @import("utils.zig");
 const ws = @import("ws");
 
+const AccessListResult = transaction.AccessListResult;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Anvil = @import("tests/Anvil.zig");
@@ -293,6 +294,48 @@ pub fn blobBaseFee(self: *WebSocketHandler) !Gwei {
     defer self.allocator.free(req_body);
 
     return self.handleNumberEvent(Gwei, req_body);
+}
+pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) !AccessListResult {
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
+    const req_body = request: {
+        if (opts.block_number) |number| {
+            const request: EthereumRequest(struct { EthCall, u64 }) = .{ .params = .{ call_object, number }, .method = .eth_createAccessList, .id = self.chain_id };
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+        }
+        const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{ .params = .{ call_object, tag }, .method = .eth_createAccessList, .id = self.chain_id };
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+    };
+    defer self.allocator.free(req_body);
+
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
+
+        try self.write(req_body);
+        switch (self.channel.get()) {
+            .access_list => |list_event| return list_event.result,
+            .error_event => |error_response| {
+                const err = self.handleErrorResponse(error_response);
+
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
+                }
+            },
+            else => |eve| {
+                wslog.err("Found incorrect event named: {s}. Expected a access_list.", .{@tagName(eve)});
+                return error.InvalidEventFound;
+            },
+        }
+    }
 }
 pub fn estimateBlobMaxFeePerGas(self: *WebSocketHandler) !Gwei {
     const base = try self.blobBaseFee();
@@ -1578,6 +1621,16 @@ test "GetBlock" {
 
     // const block_old = try ws_client.getBlockByNumber(.{ .block_number = 696969 });
     // try testing.expect(block_old == .legacy);
+}
+test "CreateAccessList" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var ws_client: WebSocketHandler = undefined;
+    defer ws_client.deinit();
+    try ws_client.init(.{ .allocator = std.testing.allocator, .uri = uri });
+
+    const accessList = try ws_client.createAccessList(.{ .london = .{ .from = try utils.addressToBytes("0xaeA8F8f781326bfE6A7683C2BD48Dd6AA4d3Ba63"), .data = "0x608060806080608155" } }, .{});
+
+    try testing.expect(accessList.accessList.len != 0);
 }
 
 test "GetBlockByHash" {

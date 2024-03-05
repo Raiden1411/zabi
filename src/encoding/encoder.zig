@@ -368,8 +368,8 @@ fn encodeAddress(allocator: Allocator, addr: Address) !PreEncodedParam {
     return .{ .dynamic = false, .encoded = padded };
 }
 
-fn encodeBool(alloc: Allocator, b: bool) !PreEncodedParam {
-    var padded = try alloc.alloc(u8, 32);
+fn encodeBool(allocator: Allocator, b: bool) !PreEncodedParam {
+    var padded = try allocator.alloc(u8, 32);
 
     @memset(padded, 0);
     padded[padded.len - 1] = @intFromBool(b);

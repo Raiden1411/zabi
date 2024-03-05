@@ -128,6 +128,13 @@ pub const AccessList = struct {
 
     pub usingnamespace RequestParser(@This());
 };
+/// Struct representing the result of create accessList
+pub const AccessListResult = struct {
+    accessList: []const AccessList,
+    gasUsed: Gwei,
+
+    pub usingnamespace RequestParser(@This());
+};
 /// Signed transaction envelope with the signature fields
 pub const TransactionEnvelopeSigned = union(enum) {
     berlin: BerlinTransactionEnvelopeSigned,

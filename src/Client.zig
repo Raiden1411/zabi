@@ -9,6 +9,7 @@ const types = @import("meta/ethereum.zig");
 const utils = @import("utils.zig");
 
 // Types
+const AccessListResult = transaction.AccessListResult;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Anvil = @import("tests/Anvil.zig");
@@ -126,6 +127,9 @@ pub fn deinit(self: *PubClient) void {
 /// RPC Method: [eth_blobBaseFee](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_blobbasefee)
 pub fn blobBaseFee(self: *PubClient) !Gwei {
     return try self.sendBasicRequest(Gwei, .eth_blobBaseFee);
+}
+pub fn createAccessList(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) !AccessListResult {
+    return self.sendEthCallRequest(AccessListResult, call_object, opts, .eth_createAccessList);
 }
 /// Estimate the gas used for blobs
 /// Uses `blobBaseFee` and `gasPrice` to calculate this estimation
@@ -628,6 +632,7 @@ fn sendBlockNumberRequest(self: *PubClient, opts: BlockNumberRequest, method: Et
         const request: EthereumRequest(struct { BalanceBlockTag }) = .{ .params = .{tag}, .method = method, .id = self.chain_id };
         break :request try std.json.stringifyAlloc(self.alloc, request, .{});
     };
+    defer self.alloc.free(request);
 
     return self.sendRpcRequest(usize, request);
 }
@@ -636,6 +641,7 @@ fn sendBlockHashRequest(self: *PubClient, block_hash: Hash, method: EthereumRpcM
     const request: EthereumRequest(struct { Hash }) = .{ .params = .{block_hash}, .method = method, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    defer self.alloc.free(req_body);
 
     return self.sendRpcRequest(usize, req_body);
 }
@@ -652,6 +658,7 @@ fn sendAddressRequest(self: *PubClient, comptime T: type, opts: BalanceRequest, 
         const request: EthereumRequest(struct { Address, BalanceBlockTag }) = .{ .params = .{ opts.address, tag }, .method = method, .id = self.chain_id };
         break :request try std.json.stringifyAlloc(self.alloc, request, .{});
     };
+    defer self.alloc.free(request);
 
     return self.sendRpcRequest(T, request);
 }
@@ -675,6 +682,7 @@ fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, 
         const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{ .params = .{ call_object, tag }, .method = method, .id = self.chain_id };
         break :request try std.json.stringifyAlloc(self.alloc, request, .{});
     };
+    defer self.alloc.free(request);
 
     return self.sendRpcRequest(T, request);
 }
@@ -771,6 +779,16 @@ test "GetBlock" {
 
     // const block_old = try pub_client.getBlockByNumber(.{ .block_number = 1 });
     // try testing.expect(block_old == .legacy);
+}
+
+test "CreateAccessList" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    defer pub_client.deinit();
+
+    const accessList = try pub_client.createAccessList(.{ .london = .{ .from = try utils.addressToBytes("0xaeA8F8f781326bfE6A7683C2BD48Dd6AA4d3Ba63"), .data = "0x608060806080608155" } }, .{});
+
+    try testing.expect(accessList.accessList.len != 0);
 }
 
 test "GetBlockByHash" {

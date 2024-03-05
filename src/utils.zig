@@ -32,7 +32,7 @@ pub inline fn isStaticType(comptime T: type) bool {
     unreachable;
 }
 /// Converts ethereum address to checksum
-pub fn toChecksum(alloc: Allocator, address: []const u8) ![]u8 {
+pub fn toChecksum(allocator: Allocator, address: []const u8) ![]u8 {
     var buf: [40]u8 = undefined;
     const lower = std.ascii.lowerString(&buf, if (std.mem.startsWith(u8, address, "0x")) address[2..] else address);
 
@@ -40,7 +40,7 @@ pub fn toChecksum(alloc: Allocator, address: []const u8) ![]u8 {
     Keccak256.hash(lower, &hashed, .{});
     const hex = std.fmt.bytesToHex(hashed, .lower);
 
-    const checksum = try alloc.alloc(u8, 42);
+    const checksum = try allocator.alloc(u8, 42);
     for (checksum[2..], 0..) |*c, i| {
         const char = lower[i];
 

@@ -227,7 +227,7 @@ pub const UnpreparedTransactionEnvelope = struct {
     accessList: ?[]const AccessList = null,
     blobVersionedHashes: ?[]const Hash = null,
 };
-/// The legacy representation of a London hardfork transaction.
+/// The representation of a London hardfork pending transaction.
 pub const LondonPendingTransaction = struct {
     hash: Hash,
     nonce: u64,
@@ -241,8 +241,12 @@ pub const LondonPendingTransaction = struct {
     gas: Gwei,
     input: Hex,
     v: u4,
-    r: Hash,
-    s: Hash,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    r: u256,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    s: u256,
     type: TransactionTypes,
     accessList: []const AccessList,
     maxPriorityFeePerGas: Gwei,
@@ -265,11 +269,15 @@ pub const LegacyPendingTransaction = struct {
     gasPrice: Gwei,
     gas: Gwei,
     input: Hex,
-    v: u4,
-    r: Hash,
-    s: Hash,
+    v: usize,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    r: u256,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    s: u256,
     type: TransactionTypes,
-    chainId: usize,
+    chainId: ?usize = null,
 
     pub usingnamespace RequestParser(@This());
 };
@@ -294,8 +302,12 @@ pub const CancunTransaction = struct {
     gas: Gwei,
     input: Hex,
     v: u4,
-    r: Hash,
-    s: Hash,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    r: u256,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    s: u256,
     sourceHash: ?Hash = null,
     isSystemTx: ?bool = null,
     type: TransactionTypes,
@@ -322,8 +334,12 @@ pub const LondonTransaction = struct {
     gas: Gwei,
     input: Hex,
     v: u4,
-    r: Hash,
-    s: Hash,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    r: u256,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    s: u256,
     sourceHash: ?Hash = null,
     isSystemTx: ?bool = null,
     type: TransactionTypes,
@@ -348,8 +364,12 @@ pub const BerlinTransaction = struct {
     gas: Gwei,
     input: Hex,
     v: u8,
-    r: Hash,
-    s: Hash,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    r: u256,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    s: u256,
     sourceHash: ?Hash = null,
     isSystemTx: ?bool = null,
     type: TransactionTypes,
@@ -372,8 +392,12 @@ pub const LegacyTransaction = struct {
     gas: Gwei,
     input: Hex,
     v: usize,
-    r: Hash,
-    s: Hash,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    r: u256,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    s: u256,
     sourceHash: ?Hash = null,
     isSystemTx: ?bool = null,
     type: TransactionTypes,
@@ -395,8 +419,12 @@ pub const UntypedTransaction = struct {
     gas: Gwei,
     input: Hex,
     v: usize,
-    r: Hash,
-    s: Hash,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    r: u256,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    s: u256,
     sourceHash: ?Hash = null,
     isSystemTx: ?bool = null,
     chainId: usize,

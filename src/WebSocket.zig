@@ -72,6 +72,8 @@ pub const InitOptions = struct {
     pooling_interval: u64 = 2_000,
     /// The base fee multiplier used to estimate the gas fees in a transaction
     base_fee_multiplier: f64 = 1.2,
+    /// Tell the client if the ws connection should be closed on error.
+    close_connection_on_error: bool = true,
 };
 
 /// Arena used to manage the socket connection
@@ -85,6 +87,8 @@ chain_id: usize,
 /// Channel used to communicate between threads.
 /// All events are set in this channel in a FIFO data structure. This is thread safe.
 channel: *Channel(EthereumEvents),
+/// Tell the client if the ws connection should be closed on error.
+close_connection_on_error: bool,
 /// Callback function for when the connection is closed.
 onClose: ?*const fn () void = null,
 /// Callback function that will run once a socket event is parsed
@@ -100,11 +104,12 @@ uri: std.Uri,
 /// The underlaying websocket client
 ws_client: *ws.Client,
 
-fn handleErrorResponse(self: *WebSocketHandler, event: EthereumErrorResponse) EthereumZigErrors {
+/// Converts ethereum error codes into Zig errors.
+fn handleErrorResponse(self: *WebSocketHandler, event: ErrorResponse) EthereumZigErrors {
     _ = self;
 
-    wslog.debug("RPC error response: {s}\n", .{event.@"error".message});
-    switch (event.@"error".code) {
+    wslog.debug("RPC error response: {s}\n", .{event.message});
+    switch (event.code) {
         .ContractErrorCode => return error.EvmFailedToExecute,
         .TooManyRequests => return error.TooManyRequests,
         .InvalidInput => return error.InvalidInput,
@@ -122,12 +127,35 @@ fn handleErrorResponse(self: *WebSocketHandler, event: EthereumErrorResponse) Et
         _ => return error.UnexpectedRpcErrorCode,
     }
 }
+/// Handles how an error event should behave.
+fn handleErrorEvent(self: *WebSocketHandler, error_event: EthereumErrorResponse, retries: usize) !void {
+    const err = self.handleErrorResponse(error_event.@"error");
+
+    switch (err) {
+        error.TooManyRequests => {
+            // Exponential backoff
+            const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+            wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+            std.time.sleep(std.time.ns_per_ms * backoff);
+        },
+        else => {
+            if (self.close_connection_on_error) {
+                wslog.debug("Closing the connection", .{});
+                self.ws_client.closeWithCode(1002);
+            }
+
+            return err;
+        },
+    }
+}
 /// Internal RPC event parser.
 fn parseRPCEvent(self: *WebSocketHandler, request: []const u8) !EthereumEvents {
     const parsed = std.json.parseFromSliceLeaky(EthereumEvents, self.allocator, request, .{ .allocate = .alloc_always }) catch |err| {
+        wslog.debug("Failed to parse request: {s}", .{request});
         const json_error: ErrorResponse = .{ .code = .ParseError, .message = try std.fmt.allocPrint(self.allocator, "Failed to parse json response. Error found: {s}", .{@errorName(err)}) };
 
-        return .{ .error_event = .{ .jsonrpc = "2.0", .id = null, .@"error" = json_error } };
+        return .{ .error_event = .{ .@"error" = json_error } };
     };
 
     return parsed;
@@ -148,8 +176,10 @@ pub fn handle(self: *WebSocketHandler, message: ws.Message) !void {
                     try onError(message.data);
                 }
 
-                wslog.debug("Closing the connection", .{});
-                self.ws_client.closeWithCode(1002);
+                if (self.close_connection_on_error) {
+                    wslog.debug("Closing the connection", .{});
+                    self.ws_client.closeWithCode(1002);
+                }
                 return error.FailedToConnect;
             };
 
@@ -183,6 +213,7 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
         .base_fee_multiplier = opts.base_fee_multiplier,
         .chain_id = @intFromEnum(chain),
         .channel = channel,
+        .close_connection_on_error = opts.close_connection_on_error,
         .onClose = opts.onClose,
         .onError = opts.onError,
         .onEvent = opts.onEvent,
@@ -321,21 +352,7 @@ pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: Blo
         try self.write(req_body);
         switch (self.channel.get()) {
             .access_list => |list_event| return list_event.result,
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a access_list.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -448,21 +465,7 @@ pub fn feeHistory(self: *WebSocketHandler, blockCount: u64, newest_block: BlockN
         try self.write(req_body);
         switch (self.channel.get()) {
             .fee_history => |fee_event| return fee_event.result,
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a accounts_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -485,21 +488,7 @@ pub fn getAccounts(self: *WebSocketHandler) ![]const Address {
         try self.write(req_body);
         switch (self.channel.get()) {
             .accounts_event => |accounts_event| return accounts_event.result,
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a accounts_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -522,21 +511,7 @@ pub fn getAddressBalance(self: *WebSocketHandler, opts: BalanceRequest) !Wei {
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |balance| return balance.result,
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -574,21 +549,7 @@ pub fn getBlockByHash(self: *WebSocketHandler, opts: BlockHashRequest) !Block {
                 const block_info = block_event.result orelse return error.InvalidBlockRequest;
                 return block_info;
             },
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -624,21 +585,7 @@ pub fn getBlockByNumber(self: *WebSocketHandler, opts: BlockRequest) !Block {
                 const block_info = block_event.result orelse return error.InvalidBlockRequest;
                 return block_info;
             },
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -705,21 +652,7 @@ pub fn getChainId(self: *WebSocketHandler) !usize {
 
                 return chain_id;
             },
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -742,21 +675,7 @@ pub fn getContractCode(self: *WebSocketHandler, opts: BalanceRequest) !Hex {
         try self.write(req_body);
         switch (self.channel.get()) {
             .hex_event => |hex| return hex.result,
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -784,21 +703,7 @@ pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: usize, method: 
                 const logs_info = logs_event.result orelse return error.InvalidFilterId;
                 return logs_info;
             },
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a logs_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -842,21 +747,7 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
                 const logs_info = logs_event.result orelse return error.InvalidLogRequest;
                 return logs_info;
             },
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a logs_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -888,21 +779,7 @@ pub fn getStorage(self: *WebSocketHandler, address: Address, storage_key: Hash, 
         switch (self.channel.get()) {
             .hex_event => |hex| return hex.result,
             .hash_event => |hash| return try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash.result)}),
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a hex_event or hash_event", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -929,21 +806,7 @@ pub fn getTransactionByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Ha
                 const transaction_info = tx_event.result orelse return error.TransactionNotFound;
                 return transaction_info;
             },
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -978,21 +841,7 @@ pub fn getTransactionByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockN
                 const transaction_info = tx_event.result orelse return error.TransactionNotFound;
                 return transaction_info;
             },
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -1020,21 +869,7 @@ pub fn getTransactionByHash(self: *WebSocketHandler, transaction_hash: Hash) !Tr
                 const transaction_info = tx_event.result orelse return error.TransactionNotFound;
                 return transaction_info;
             },
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -1062,21 +897,7 @@ pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: Hash) !T
                 const transaction_info = receipt_event.result orelse return error.TransactionReceiptNotFound;
                 return transaction_info;
             },
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a receipt_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -1103,21 +924,7 @@ pub fn getUncleByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Hash, in
                 const block_info = block_event.result orelse return error.InvalidBlockHashOrIndex;
                 return block_info;
             },
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -1151,21 +958,7 @@ pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberR
                 const block_info = block_event.result orelse return error.InvalidBlockNumberOrIndex;
                 return block_info;
             },
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -1268,21 +1061,7 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
         switch (self.channel.get()) {
             .hex_event => |hex| return hex.result,
             .hash_event => |hash| return try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash.result)}),
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a hex_event or hash_event", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -1308,21 +1087,7 @@ pub fn sendRawTransaction(self: *WebSocketHandler, serialized_hex_tx: Hex) !Hash
         try self.write(req_body);
         switch (self.channel.get()) {
             .hash_event => |hash| return hash.result,
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a hash_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -1348,21 +1113,7 @@ pub fn uninstalllFilter(self: *WebSocketHandler, id: usize) !bool {
         try self.write(req_body);
         switch (self.channel.get()) {
             .bool_event => |bool_event| return bool_event.result,
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a bool_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -1388,21 +1139,7 @@ pub fn unsubscribe(self: *WebSocketHandler, sub_id: u128) !bool {
         try self.write(req_body);
         switch (self.channel.get()) {
             .bool_event => |bool_event| return bool_event.result,
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a bool_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
@@ -1463,21 +1200,7 @@ pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []u8) !EthereumEven
         try self.write(request);
         const event = self.channel.get();
         switch (event) {
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => return event,
         }
     }
@@ -1641,21 +1364,7 @@ fn handleNumberEvent(self: *WebSocketHandler, comptime T: type, req_body: []u8) 
         try self.write(req_body);
         switch (self.channel.get()) {
             .number_event => |event| return @as(T, @truncate(event.result)),
-            .error_event => |error_response| {
-                const err = self.handleErrorResponse(error_response);
-
-                switch (err) {
-                    error.TooManyRequests => {
-                        // Exponential backoff
-                        const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                        std.time.sleep(std.time.ns_per_ms * backoff);
-                        continue;
-                    },
-                    else => return err,
-                }
-            },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;

@@ -347,7 +347,20 @@ pub fn RequestParser(comptime T: type) type {
                 },
                 .Int, .ComptimeInt => {
                     switch (source) {
-                        .number_string, .string => |str| return try std.fmt.parseInt(TT, str, 0),
+                        .number_string, .string => |str| {
+                            return try std.fmt.parseInt(TT, str, 0);
+                        },
+                        .float => |f| {
+                            if (@round(f) != f) return error.InvalidNumber;
+                            if (f > std.math.maxInt(TT)) return error.Overflow;
+                            if (f < std.math.minInt(TT)) return error.Overflow;
+                            return @as(TT, @intFromFloat(f));
+                        },
+                        .integer => |i| {
+                            if (i > std.math.maxInt(TT)) return error.Overflow;
+                            if (i < std.math.minInt(TT)) return error.Overflow;
+                            return @as(TT, @intCast(i));
+                        },
                         else => return error.UnexpectedToken,
                     }
                 },

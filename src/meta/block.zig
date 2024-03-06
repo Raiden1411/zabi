@@ -63,10 +63,10 @@ pub const LegacyBlock = struct {
     size: u64,
     stateRoot: Hash,
     timestamp: u64,
-    totalDifficulty: ?u256,
-    transactions: BlockTransactions,
+    totalDifficulty: ?u256 = null,
+    transactions: ?BlockTransactions = null,
     transactionsRoot: Hash,
-    uncles: []const Hash,
+    uncles: ?[]const Hash = null,
 
     pub usingnamespace RequestParser(@This());
 };
@@ -99,10 +99,42 @@ pub const BeaconBlock = struct {
     size: u64,
     stateRoot: Hash,
     timestamp: u64,
-    totalDifficulty: ?u256,
-    transactions: BlockTransactions,
+    totalDifficulty: ?u256 = null,
+    transactions: ?BlockTransactions = null,
     transactionsRoot: Hash,
-    uncles: []const Hash,
+    uncles: ?[]const Hash = null,
+    withdrawalsRoot: Hash,
+    withdrawals: []const Withdrawal,
+
+    pub usingnamespace RequestParser(@This());
+};
+/// Almost similar to `BeaconBlock` but with this support blob fields
+pub const BlobBlock = struct {
+    baseFeePerGas: ?Gwei,
+    blobGasUsed: Gwei,
+    difficulty: u256,
+    excessBlobGas: Gwei,
+    extraData: Hex,
+    gasLimit: Gwei,
+    gasUsed: Gwei,
+    hash: ?Hash,
+    logsBloom: ?Hex,
+    miner: Address,
+    mixHash: ?Hash = null,
+    nonce: ?u64,
+    number: ?u64,
+    parentBeaconBlockRoot: Hash,
+    parentHash: Hash,
+    receiptsRoot: Hash,
+    sealFields: ?[]const Hex = null,
+    sha3Uncles: Hash,
+    size: u64,
+    stateRoot: Hash,
+    timestamp: u64,
+    totalDifficulty: ?u256 = null,
+    transactions: ?BlockTransactions = null,
+    transactionsRoot: Hash,
+    uncles: ?[]const Hash = null,
     withdrawalsRoot: Hash,
     withdrawals: []const Withdrawal,
 
@@ -112,6 +144,7 @@ pub const BeaconBlock = struct {
 pub const Block = union(enum) {
     beacon: BeaconBlock,
     legacy: LegacyBlock,
+    cancun: BlobBlock,
 
     pub usingnamespace UnionParser(@This());
 };

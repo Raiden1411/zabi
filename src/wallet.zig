@@ -421,7 +421,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             const signed = try self.signer.sign(hash_buffer);
             const serialized_signed = try serialize.serializeTransaction(self.allocator, tx, signed);
 
-            const hex = try std.fmt.allocPrint(self.allocator, "{s}", .{std.fmt.fmtSliceHexLower(serialized_signed)});
+            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(serialized_signed)});
 
             return self.pub_client.sendRawTransaction(hex);
         }

@@ -47,6 +47,7 @@ pub const PublicChains = enum(usize) {
     arbitrum_nova = 42170,
     celo = 42220,
     avalanche = 43114,
+    sepolia = 11155111,
 };
 /// Zig struct representation of a RPC Request
 pub fn EthereumRequest(comptime T: type) type {
@@ -131,17 +132,18 @@ pub const EthereumErrorResponse = struct {
 };
 /// Know ethereum events emited by the websocket client
 pub const EthereumEvents = union(enum) {
+    null_event: EthereumRpcResponse(?ErrorResponse),
     new_heads_event: EthereumSubscribeResponse(Block),
     pending_transactions_event: EthereumSubscribeResponse(PendingTransaction),
     pending_transactions_hashes_event: EthereumSubscribeResponse(Hash),
     log_event: EthereumSubscribeResponse(Log),
-    logs_event: EthereumRpcResponse(?Logs),
+    logs_event: EthereumRpcResponse(Logs),
     accounts_event: EthereumRpcResponse([]const Address),
     access_list: EthereumRpcResponse(AccessListResult),
     fee_history: EthereumRpcResponse(FeeHistory),
-    receipt_event: EthereumRpcResponse(?TransactionReceipt),
-    transaction_event: EthereumRpcResponse(?Transaction),
-    block_event: EthereumRpcResponse(?Block),
+    receipt_event: EthereumRpcResponse(TransactionReceipt),
+    transaction_event: EthereumRpcResponse(Transaction),
+    block_event: EthereumRpcResponse(Block),
     hash_event: EthereumRpcResponse(Hash),
     number_event: EthereumRpcResponse(u256),
     bool_event: EthereumRpcResponse(bool),

@@ -546,9 +546,10 @@ pub fn getBlockByHash(self: *WebSocketHandler, opts: BlockHashRequest) !Block {
         try self.write(req_body);
         switch (self.channel.get()) {
             .block_event => |block_event| {
-                const block_info = block_event.result orelse return error.InvalidBlockRequest;
+                const block_info = block_event.result;
                 return block_info;
             },
+            .null_event => return error.InvalidBlockRequest,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
@@ -582,9 +583,10 @@ pub fn getBlockByNumber(self: *WebSocketHandler, opts: BlockRequest) !Block {
         try self.write(req_body);
         switch (self.channel.get()) {
             .block_event => |block_event| {
-                const block_info = block_event.result orelse return error.InvalidBlockRequest;
+                const block_info = block_event.result;
                 return block_info;
             },
+            .null_event => return error.InvalidBlockRequest,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
@@ -700,9 +702,10 @@ pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: usize, method: 
         try self.write(req_body);
         switch (self.channel.get()) {
             .logs_event => |logs_event| {
-                const logs_info = logs_event.result orelse return error.InvalidFilterId;
+                const logs_info = logs_event.result;
                 return logs_info;
             },
+            .null_event => return error.InvalidFilterId,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a logs_event.", .{@tagName(eve)});
@@ -744,9 +747,10 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
         try self.write(req_body);
         switch (self.channel.get()) {
             .logs_event => |logs_event| {
-                const logs_info = logs_event.result orelse return error.InvalidLogRequest;
+                const logs_info = logs_event.result;
                 return logs_info;
             },
+            .null_event => return error.InvalidLogRequest,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a logs_event.", .{@tagName(eve)});
@@ -803,9 +807,10 @@ pub fn getTransactionByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Ha
         try self.write(req_body);
         switch (self.channel.get()) {
             .transaction_event => |tx_event| {
-                const transaction_info = tx_event.result orelse return error.TransactionNotFound;
+                const transaction_info = tx_event.result;
                 return transaction_info;
             },
+            .null_event => return error.TransactionNotFound,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
@@ -838,9 +843,10 @@ pub fn getTransactionByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockN
         try self.write(req_body);
         switch (self.channel.get()) {
             .transaction_event => |tx_event| {
-                const transaction_info = tx_event.result orelse return error.TransactionNotFound;
+                const transaction_info = tx_event.result;
                 return transaction_info;
             },
+            .null_event => return error.TransactionNotFound,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
@@ -866,9 +872,10 @@ pub fn getTransactionByHash(self: *WebSocketHandler, transaction_hash: Hash) !Tr
         try self.write(req_body);
         switch (self.channel.get()) {
             .transaction_event => |tx_event| {
-                const transaction_info = tx_event.result orelse return error.TransactionNotFound;
+                const transaction_info = tx_event.result;
                 return transaction_info;
             },
+            .null_event => return error.TransactionNotFound,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
@@ -894,9 +901,10 @@ pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: Hash) !T
         try self.write(req_body);
         switch (self.channel.get()) {
             .receipt_event => |receipt_event| {
-                const transaction_info = receipt_event.result orelse return error.TransactionReceiptNotFound;
+                const transaction_info = receipt_event.result;
                 return transaction_info;
             },
+            .null_event => return error.TransactionReceiptNotFound,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a receipt_event.", .{@tagName(eve)});
@@ -921,9 +929,10 @@ pub fn getUncleByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Hash, in
         try self.write(req_body);
         switch (self.channel.get()) {
             .block_event => |block_event| {
-                const block_info = block_event.result orelse return error.InvalidBlockHashOrIndex;
+                const block_info = block_event.result;
                 return block_info;
             },
+            .null_event => return error.InvalidBlockHashOrIndex,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
@@ -955,9 +964,10 @@ pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberR
         try self.write(req_body);
         switch (self.channel.get()) {
             .block_event => |block_event| {
-                const block_info = block_event.result orelse return error.InvalidBlockNumberOrIndex;
+                const block_info = block_event.result;
                 return block_info;
             },
+            .null_event => return error.InvalidBlockNumberOrIndex,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
@@ -1126,7 +1136,7 @@ pub fn uninstalllFilter(self: *WebSocketHandler, id: usize) !bool {
 ///
 /// RPC Method: [`eth_unsubscribe`](https://docs.alchemy.com/reference/eth-unsubscribe)
 pub fn unsubscribe(self: *WebSocketHandler, sub_id: u128) !bool {
-    const request: EthereumRequest(struct { u128 }) = .{ .params = .{sub_id}, .method = .eth_unsubscribe, .id = self.allocator };
+    const request: EthereumRequest(struct { u128 }) = .{ .params = .{sub_id}, .method = .eth_unsubscribe, .id = self.chain_id };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -1232,7 +1242,7 @@ pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hash, confirm
 
     var retries: u8 = 0;
     var valid_confirmations: u8 = 0;
-    while (true) : (retries += 1) {
+    while (true) {
         if (retries - valid_confirmations > self.retries)
             return error.FailedToGetReceipt;
 
@@ -1242,7 +1252,6 @@ pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hash, confirm
             .new_heads_event => {},
             else => {
                 // Decrements the retries since we didn't get a block subscription
-                retries -= 1;
                 continue;
             },
         }
@@ -1257,6 +1266,7 @@ pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hash, confirm
                 break;
             } else {
                 valid_confirmations += 1;
+                retries += 1;
                 std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
                 continue;
             }
@@ -1265,80 +1275,94 @@ pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hash, confirm
         if (tx == null) {
             tx = self.getTransactionByHash(tx_hash) catch |err| switch (err) {
                 // If it fails we keep trying
-                error.TransactionNotFound => continue,
+                error.TransactionNotFound => {
+                    retries += 1;
+                    continue;
+                },
                 else => return err,
             };
+        }
 
-            switch (tx.?) {
-                // Changes the block search to the one of the found transaction
-                inline else => |tx_object| {
-                    if (tx_object.blockNumber) |number| block_number = number;
-                },
-            }
+        switch (tx.?) {
+            // Changes the block search to the one of the found transaction
+            inline else => |tx_object| {
+                if (tx_object.blockNumber) |number| block_number = number;
+            },
+        }
 
-            receipt = self.getTransactionReceipt(tx_hash) catch |err| switch (err) {
-                error.TransactionReceiptNotFound => {
-                    const current_block = try self.getBlockByNumber(.{ .include_transaction_objects = true });
+        receipt = self.getTransactionReceipt(tx_hash) catch |err| switch (err) {
+            error.TransactionReceiptNotFound => {
+                const current_block = try self.getBlockByNumber(.{ .include_transaction_objects = true });
 
-                    const tx_info: struct { from: Hash, nonce: u64 } = switch (tx.?) {
+                const tx_info: struct { from: Address, nonce: u64 } = switch (tx.?) {
+                    inline else => |transactions| .{ .from = transactions.from, .nonce = transactions.nonce },
+                };
+                const pending_transaction = switch (current_block) {
+                    inline else => |blocks| if (blocks.transactions) |block_txs| block_txs.objects else {
+                        retries += 1;
+                        continue;
+                    },
+                };
+
+                const replaced: ?Transaction = for (pending_transaction) |pending| {
+                    const pending_info: struct { from: Address, nonce: u64 } = switch (pending) {
                         inline else => |transactions| .{ .from = transactions.from, .nonce = transactions.nonce },
                     };
-                    const pending_transaction = switch (current_block) {
-                        inline else => |blocks| blocks.transactions.objects,
+
+                    if (std.mem.eql(u8, &tx_info.from, &pending_info.from) and pending_info.nonce == tx_info.nonce)
+                        break pending;
+                } else null;
+
+                // If the transaction was replace return it's receipt. Otherwise try again.
+                if (replaced) |replaced_tx| {
+                    receipt = switch (replaced_tx) {
+                        inline else => |tx_object| try self.getTransactionReceipt(tx_object.hash),
                     };
 
-                    const replaced: ?Transaction = for (pending_transaction) |pending| {
-                        if (std.mem.eql(u8, &tx_info.from, &pending.from) and pending.nonce == tx_info.nonce)
-                            break pending;
-                    } else null;
+                    wslog.debug("Transaction was replace by a newer one", .{});
 
-                    // If the transaction was replace return it's receipt. Otherwise try again.
-                    if (replaced) |replaced_tx| {
-                        receipt = switch (replaced_tx) {
-                            inline else => |tx_object| try self.getTransactionReceipt(tx_object.hash),
-                        };
+                    switch (replaced_tx) {
+                        inline else => |replacement| switch (tx.?) {
+                            inline else => |original| {
+                                if (std.mem.eql(u8, &replacement.from, &original.from) and replacement.value == original.value)
+                                    wslog.debug("Original transaction was repriced", .{});
 
-                        wslog.debug("Transaction was replace by a newer one", .{});
-
-                        switch (replaced_tx) {
-                            inline else => |replacement| switch (tx.?) {
-                                inline else => |original| {
-                                    if (std.mem.eql(u8, replacement.from, original.from) and replacement.value == original.value)
-                                        wslog.debug("Original transaction was repriced", .{});
-
-                                    if (replacement.to) |replaced_to| {
-                                        if (std.mem.eql(u8, replacement.from, replaced_to) and replacement.value == 0)
-                                            wslog.debug("Original transaction was canceled", .{});
-                                    }
-                                },
+                                if (replacement.to) |replaced_to| {
+                                    if (std.mem.eql(u8, &replacement.from, &replaced_to) and replacement.value == 0)
+                                        wslog.debug("Original transaction was canceled", .{});
+                                }
                             },
-                        }
-
-                        // Here we are sure to have a valid receipt.
-                        const valid_receipt = receipt.?;
-                        const number: ?u64 = switch (valid_receipt) {
-                            inline else => |all| all.blockNumber,
-                        };
-                        // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
-                        if (valid_confirmations > confirmations and (number != null or block_number - number.? + 1 < confirmations))
-                            break;
+                        },
                     }
-                },
-                else => return err,
-            };
 
-            const valid_receipt = receipt.?;
-            const number: ?u64 = switch (valid_receipt) {
-                inline else => |all| all.blockNumber,
-            };
-            // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
-            if (valid_confirmations > confirmations and (number != null or block_number - number.? + 1 < confirmations)) {
-                break;
-            } else {
-                valid_confirmations += 1;
-                std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                    // Here we are sure to have a valid receipt.
+                    const valid_receipt = receipt.?;
+                    const number: ?u64 = switch (valid_receipt) {
+                        inline else => |all| all.blockNumber,
+                    };
+                    // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
+                    if (valid_confirmations > confirmations and (number != null or block_number - number.? + 1 < confirmations))
+                        break;
+                }
+
+                retries += 1;
                 continue;
-            }
+            },
+            else => return err,
+        };
+
+        const valid_receipt = receipt.?;
+        const number: ?u64 = switch (valid_receipt) {
+            inline else => |all| all.blockNumber,
+        };
+        // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
+        if (valid_confirmations > confirmations and (number != null or block_number - number.? + 1 < confirmations)) {
+            break;
+        } else {
+            valid_confirmations += 1;
+            std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+            retries += 1;
+            continue;
         }
     }
     const success = try self.unsubscribe(sub_id);

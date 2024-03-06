@@ -563,81 +563,88 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations:
                 },
                 else => return err,
             };
+        }
 
-            switch (tx.?) {
-                // Changes the block search to the one of the found transaction
-                inline else => |tx_object| {
-                    if (tx_object.blockNumber) |number| block_number = number;
-                },
-            }
+        switch (tx.?) {
+            // Changes the block search to the one of the found transaction
+            inline else => |tx_object| {
+                if (tx_object.blockNumber) |number| block_number = number;
+            },
+        }
 
-            receipt = self.getTransactionReceipt(tx_hash) catch |err| switch (err) {
-                error.TransactionReceiptNotFound => {
-                    // Need to check if the transaction was replaced.
-                    const current_block = try self.getBlockByNumber(.{ .include_transaction_objects = true });
+        receipt = self.getTransactionReceipt(tx_hash) catch |err| switch (err) {
+            error.TransactionReceiptNotFound => {
+                // Need to check if the transaction was replaced.
+                const current_block = try self.getBlockByNumber(.{ .include_transaction_objects = true });
 
-                    const tx_info: struct { from: Hash, nonce: u64 } = switch (tx.?) {
+                const tx_info: struct { from: Address, nonce: u64 } = switch (tx.?) {
+                    inline else => |transactions| .{ .from = transactions.from, .nonce = transactions.nonce },
+                };
+                const pending_transaction = switch (current_block) {
+                    inline else => |blocks| if (blocks.transactions) |block_txs| block_txs.objects else {
+                        std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                        continue;
+                    },
+                };
+
+                const replaced: ?Transaction = for (pending_transaction) |pending| {
+                    const pending_info: struct { from: Address, nonce: u64 } = switch (pending) {
                         inline else => |transactions| .{ .from = transactions.from, .nonce = transactions.nonce },
                     };
-                    const pending_transaction = switch (current_block) {
-                        inline else => |blocks| blocks.transactions.objects,
+
+                    if (std.mem.eql(u8, &tx_info.from, &pending_info.from) and pending_info.nonce == tx_info.nonce)
+                        break pending;
+                } else null;
+
+                // If the transaction was replace return it's receipt. Otherwise try again.
+                if (replaced) |replaced_tx| {
+                    receipt = switch (replaced_tx) {
+                        inline else => |tx_object| try self.getTransactionReceipt(tx_object.hash),
                     };
 
-                    const replaced: ?Transaction = for (pending_transaction) |pending| {
-                        if (std.mem.eql(u8, &tx_info.from, &pending.from) and pending.nonce == tx_info.nonce)
-                            break pending;
-                    } else null;
+                    httplog.debug("Transaction was replace by a newer one", .{});
 
-                    // If the transaction was replace return it's receipt. Otherwise try again.
-                    if (replaced) |replaced_tx| {
-                        receipt = switch (replaced_tx) {
-                            inline else => |tx_object| try self.getTransactionReceipt(tx_object.hash),
-                        };
+                    switch (replaced_tx) {
+                        inline else => |replacement| switch (tx.?) {
+                            inline else => |original| {
+                                if (std.mem.eql(u8, &replacement.from, &original.from) and replacement.value == original.value)
+                                    httplog.debug("Original transaction was repriced", .{});
 
-                        httplog.debug("Transaction was replace by a newer one", .{});
-
-                        switch (replaced_tx) {
-                            inline else => |replacement| switch (tx.?) {
-                                inline else => |original| {
-                                    if (std.mem.eql(u8, &replacement.from, &original.from) and replacement.value == original.value)
-                                        httplog.debug("Original transaction was repriced", .{});
-
-                                    if (replacement.to) |replaced_to| {
-                                        if (std.mem.eql(u8, &replacement.from, &replaced_to) and replacement.value == 0)
-                                            httplog.debug("Original transaction was canceled", .{});
-                                    }
-                                },
+                                if (replacement.to) |replaced_to| {
+                                    if (std.mem.eql(u8, &replacement.from, &replaced_to) and replacement.value == 0)
+                                        httplog.debug("Original transaction was canceled", .{});
+                                }
                             },
-                        }
-
-                        // Here we are sure to have a valid receipt.
-                        const valid_receipt = receipt.?;
-                        const number: ?u64 = switch (valid_receipt) {
-                            inline else => |all| all.blockNumber,
-                        };
-                        // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
-                        if (valid_confirmations > confirmations and (number != null or block_number - number.? + 1 < confirmations))
-                            break;
+                        },
                     }
 
-                    std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
-                    continue;
-                },
-                else => return err,
-            };
+                    // Here we are sure to have a valid receipt.
+                    const valid_receipt = receipt.?;
+                    const number: ?u64 = switch (valid_receipt) {
+                        inline else => |all| all.blockNumber,
+                    };
+                    // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
+                    if (valid_confirmations > confirmations and (number != null or block_number - number.? + 1 < confirmations))
+                        break;
+                }
 
-            const valid_receipt = receipt.?;
-            const number: ?u64 = switch (valid_receipt) {
-                inline else => |all| all.blockNumber,
-            };
-            // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
-            if (valid_confirmations > confirmations and (number != null or block_number - number.? + 1 < confirmations)) {
-                break;
-            } else {
-                valid_confirmations += 1;
                 std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
                 continue;
-            }
+            },
+            else => return err,
+        };
+
+        const valid_receipt = receipt.?;
+        const number: ?u64 = switch (valid_receipt) {
+            inline else => |all| all.blockNumber,
+        };
+        // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
+        if (valid_confirmations > confirmations and (number != null or block_number - number.? + 1 < confirmations)) {
+            break;
+        } else {
+            valid_confirmations += 1;
+            std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+            continue;
         }
     }
 

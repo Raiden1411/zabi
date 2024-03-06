@@ -317,6 +317,7 @@ pub const CancunTransaction = struct {
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
     chainId: usize,
+    yParity: ?u1 = null,
 
     pub usingnamespace RequestParser(@This());
 };
@@ -347,6 +348,7 @@ pub const LondonTransaction = struct {
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
     chainId: usize,
+    yParity: ?u1 = null,
 
     pub usingnamespace RequestParser(@This());
 };
@@ -375,6 +377,7 @@ pub const BerlinTransaction = struct {
     type: TransactionTypes,
     accessList: []const AccessList,
     chainId: usize,
+    yParity: ?u1 = null,
 
     pub usingnamespace RequestParser(@This());
 };

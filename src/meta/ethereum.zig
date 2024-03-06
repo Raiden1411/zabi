@@ -70,8 +70,8 @@ pub fn EthereumResponse(comptime T: type) type {
 /// Zig struct representation of a RPC Response
 pub fn EthereumRpcResponse(comptime T: type) type {
     return struct {
-        jsonrpc: []const u8,
-        id: ?usize,
+        jsonrpc: []const u8 = "2.0",
+        id: ?usize = null,
         result: T,
 
         pub usingnamespace RequestParser(@This());
@@ -123,8 +123,8 @@ pub const EthereumErrorCodes = enum(isize) {
 pub const EthereumZigErrors = error{ EvmFailedToExecute, TooManyRequests, InvalidInput, ResourceNotFound, ResourceUnavailable, TransactionRejected, MethodNotSupported, LimitExceeded, RpcVersionNotSupported, InvalidRequest, MethodNotFound, InvalidParams, InternalError, ParseError, UnexpectedRpcErrorCode };
 /// Zig struct representation of a RPC error response
 pub const EthereumErrorResponse = struct {
-    jsonrpc: []const u8,
-    id: ?usize,
+    jsonrpc: []const u8 = "2.0",
+    id: ?usize = null,
     @"error": ErrorResponse,
 
     pub usingnamespace RequestParser(@This());
@@ -133,7 +133,7 @@ pub const EthereumErrorResponse = struct {
 pub const EthereumEvents = union(enum) {
     new_heads_event: EthereumSubscribeResponse(Block),
     pending_transactions_event: EthereumSubscribeResponse(PendingTransaction),
-    pending_transactions_hashes_event: EthereumSubscribeResponse(Hex),
+    pending_transactions_hashes_event: EthereumSubscribeResponse(Hash),
     log_event: EthereumSubscribeResponse(Log),
     logs_event: EthereumRpcResponse(?Logs),
     accounts_event: EthereumRpcResponse([]const Address),

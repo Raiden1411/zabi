@@ -155,7 +155,7 @@ fn parseRPCEvent(self: *WebSocketHandler, request: []const u8) !EthereumEvents {
         wslog.debug("Failed to parse request: {s}", .{request});
         const json_error: ErrorResponse = .{ .code = .ParseError, .message = try std.fmt.allocPrint(self.allocator, "Failed to parse json response. Error found: {s}", .{@errorName(err)}) };
 
-        return .{ .error_event = .{ .jsonrpc = "2.0", .id = 1, .@"error" = json_error } };
+        return .{ .error_event = .{ .@"error" = json_error } };
     };
 
     return parsed;

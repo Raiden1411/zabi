@@ -50,14 +50,12 @@ pub const TransactionEnvelopePool = struct {
         pool.mutex.lock();
         defer pool.mutex.unlock();
 
-        const last_tx_node = pool.pooled_envelopes.last;
+        var last_tx_node = pool.pooled_envelopes.last;
 
         while (last_tx_node) |tx_node| : (last_tx_node = tx_node.prev) {
-            switch (tx_node.data) {
-                inline else => |envelope| if (@intFromEnum(envelope.type) != @intFromEnum(search)) continue,
-            }
+            if (!std.mem.eql(u8, @tagName(tx_node.data), @tagName(search))) continue;
 
-            pool.releaseEnvelopeFromPool(tx_node);
+            pool.unsafeReleaseEnvelopeFromPool(tx_node);
             return tx_node.data;
         }
 
@@ -69,6 +67,10 @@ pub const TransactionEnvelopePool = struct {
         defer pool.mutex.unlock();
 
         pool.pooled_envelopes.append(node);
+    }
+    /// Removes a node from the pool. This is not thread safe.
+    pub fn unsafeReleaseEnvelopeFromPool(pool: *TransactionEnvelopePool, node: *Node) void {
+        pool.pooled_envelopes.remove(node);
     }
     /// Removes a node from the pool. This is thread safe.
     pub fn releaseEnvelopeFromPool(pool: *TransactionEnvelopePool, node: *Node) void {
@@ -99,8 +101,9 @@ pub const TransactionEnvelopePool = struct {
         pool.mutex.lock();
 
         var first = pool.pooled_envelopes.first;
-        while (first) |node| : (first = node.next) {
-            allocator.destroy(node);
+        while (first) |node| {
+            defer allocator.destroy(node);
+            first = node.next;
         }
 
         pool.* = undefined;
@@ -291,13 +294,13 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             return std.mem.eql(u8, &wallet_address, &address);
         }
         /// Find a specific prepared envelope from the pool based on the given search criteria.
-        pub fn findTransactionEnvelopeFromPool(self: *Wallet(client_type), search: TransactionEnvelopePool.SearchCriteria) ?TransactionEnvelopePool {
+        pub fn findTransactionEnvelopeFromPool(self: *Wallet(client_type), search: TransactionEnvelopePool.SearchCriteria) ?TransactionEnvelope {
             return self.envelopes_pool.findTransactionEnvelope(search);
         }
         /// Converts unprepared transaction envelopes and stores them in a pool.
         pub fn poolTransactionEnvelope(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !void {
             const envelope = try self.allocator.create(TransactionEnvelopePool.Node);
-            errdefer self.allocator.free(envelope);
+            errdefer self.allocator.destroy(envelope);
             envelope.* = .{ .data = undefined };
 
             envelope.data = try self.prepareTransaction(unprepared_envelope);
@@ -643,7 +646,7 @@ test "verifyTypedData" {
 
 test "sendTransaction" {
     // CI coverage runner dislikes this tests so for now we skip it.
-    if (true) return error.SkipZigTest;
+    // if (true) return error.SkipZigTest;
     const uri = try std.Uri.parse("http://localhost:8545/");
     var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
@@ -655,6 +658,20 @@ test "sendTransaction" {
 
     try testing.expect(tx_hash.len != 0);
     try testing.expect(receipt != null);
+}
+
+test "Pool transactions" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+    defer wallet.deinit();
+
+    var i: usize = 0;
+    while (i < 5) : (i += 1) {
+        try wallet.poolTransactionEnvelope(.{ .type = .london });
+    }
+
+    const env = wallet.findTransactionEnvelopeFromPool(.london);
+    try testing.expect(env != null);
 }
 
 test "assertTransaction" {

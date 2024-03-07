@@ -85,7 +85,7 @@ pub fn EthereumSubscribeResponse(comptime T: type) type {
         method: []const u8,
         params: struct {
             result: T,
-            subscription: Hex,
+            subscription: u128,
 
             pub usingnamespace RequestParser(@This());
         },
@@ -97,6 +97,7 @@ pub fn EthereumSubscribeResponse(comptime T: type) type {
 pub const ErrorResponse = struct {
     code: EthereumErrorCodes,
     message: []const u8,
+    data: ?[]const u8 = null,
 
     pub usingnamespace RequestParser(@This());
 };
@@ -131,12 +132,26 @@ pub const EthereumErrorResponse = struct {
     pub usingnamespace RequestParser(@This());
 };
 /// Know ethereum events emited by the websocket client
-pub const EthereumEvents = union(enum) {
-    null_event: EthereumRpcResponse(?ErrorResponse),
+pub const EthereumSubscribeEvents = union(enum) {
     new_heads_event: EthereumSubscribeResponse(Block),
     pending_transactions_event: EthereumSubscribeResponse(PendingTransaction),
     pending_transactions_hashes_event: EthereumSubscribeResponse(Hash),
     log_event: EthereumSubscribeResponse(Log),
+    mined_transaction_hashes_event: EthereumSubscribeResponse(PendingTransactionHashesSubscription),
+    mined_transaction_event: EthereumSubscribeResponse(PendingTransactionsSubscription),
+
+    pub usingnamespace UnionParser(@This());
+};
+
+pub const EthereumEvents = union(enum) {
+    subscribe_event: EthereumSubscribeEvents,
+    rpc_event: EthereumRpcEvents,
+
+    pub usingnamespace UnionParser(@This());
+};
+
+pub const EthereumRpcEvents = union(enum) {
+    null_event: EthereumRpcResponse(?ErrorResponse),
     logs_event: EthereumRpcResponse(Logs),
     accounts_event: EthereumRpcResponse([]const Address),
     access_list: EthereumRpcResponse(AccessListResult),
@@ -148,8 +163,6 @@ pub const EthereumEvents = union(enum) {
     number_event: EthereumRpcResponse(u256),
     bool_event: EthereumRpcResponse(bool),
     hex_event: EthereumRpcResponse(Hex),
-    mined_transaction_hashes_event: EthereumSubscribeResponse(PendingTransactionHashesSubscription),
-    mined_transaction_event: EthereumSubscribeResponse(PendingTransactionsSubscription),
     error_event: EthereumErrorResponse,
 
     pub usingnamespace UnionParser(@This());

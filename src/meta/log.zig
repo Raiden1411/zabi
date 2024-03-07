@@ -21,8 +21,9 @@ pub const Log = struct {
     blockNumber: ?u64,
     data: Hex,
     logIndex: ?usize,
-    transactionHash: ?Hash,
+    transactionLogIndex: ?usize = null,
     transactionIndex: ?usize,
+    transactionHash: ?Hash,
     removed: bool,
 
     pub usingnamespace RequestParser(@This());

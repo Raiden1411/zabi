@@ -16,13 +16,35 @@ pub fn main() !void {
     try socket.init(.{ .uri = uri, .allocator = gpa.allocator() });
     const id = try socket.watchTransactions();
 
+    std.debug.print("Sub id: 0x{x}\n", .{id});
     // There is currently a bug on the tls client that will cause index out of bound errors
     // https://github.com/ziglang/zig/issues/15226
     // Make sure that for now the data you are using is not big enough to cause these crashes.
     while (true) {
-        const event = try socket.getCurrentEvent();
-        std.debug.print("Pending transaction hash: {}\n", .{event.pending_transactions_hashes_event.params});
+        const event = try socket.getCurrentSubscriptionEvent();
+        switch (event) {
+            .pending_transactions_hashes_event => |response| {
+                const hash = response.params.result;
+                const transaction = socket.getTransactionByHash(hash) catch |err| switch (err) {
+                    error.TransactionNotFound => continue,
+                    else => return err,
+                };
+
+                switch (transaction) {
+                    .london => |tx_london| {
+                        if (tx_london.to) |to| {
+                            if (std.mem.eql(u8, &to, &try zabi.utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"))) {
+                                std.debug.print("Found usdc transaction in the value of {d} wei\n", .{tx_london.value});
+                                break;
+                            }
+                        }
+                    },
+                    else => {},
+                }
+            },
+            else => {},
+        }
     }
 
-    try socket.unsubscribe(id);
+    _ = try socket.unsubscribe(id);
 }

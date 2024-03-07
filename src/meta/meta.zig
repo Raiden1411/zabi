@@ -62,7 +62,6 @@ pub fn RequestParser(comptime T: type) type {
                     try valueStart(writer_stream);
                     try std.json.encodeJsonString(field.name, .{}, writer_stream.stream);
                     writer_stream.next_punctuation = .colon;
-                    // try writer_stream.stream.writeByte(':');
                     try innerStringfy(@field(self, field.name), writer_stream);
                 }
             }
@@ -145,18 +144,18 @@ pub fn RequestParser(comptime T: type) type {
                                     }
                                 }
                                 @memcpy(buffer[0..2], "0x");
-                                try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
+                                try std.json.encodeJsonString(buffer[0..], .{}, stream_writer.stream);
                             },
                             40 => {
                                 // We assume that this is a checksumed address with missing "0x" start.
                                 var buffer: [arr_info.len + 2]u8 = undefined;
                                 @memcpy(buffer[2..], value);
                                 @memcpy(buffer[0..2], "0x");
-                                try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
+                                try std.json.encodeJsonString(buffer[0..], .{}, stream_writer.stream);
                             },
                             42 => {
                                 // we just write the checksumed address
-                                try std.json.encodeJsonString(&value, .{}, stream_writer.stream);
+                                try std.json.encodeJsonString(value[0..], .{}, stream_writer.stream);
                             },
                             else => {
                                 // Treat the rest as a normal hex encoded value
@@ -164,7 +163,7 @@ pub fn RequestParser(comptime T: type) type {
                                 const hexed = std.fmt.bytesToHex(value, .lower);
                                 @memcpy(buffer[2..], hexed[0..]);
                                 @memcpy(buffer[0..2], "0x");
-                                try std.json.encodeJsonString(&buffer, .{}, stream_writer.stream);
+                                try std.json.encodeJsonString(buffer[0..], .{}, stream_writer.stream);
                             },
                         }
                         stream_writer.next_punctuation = .comma;

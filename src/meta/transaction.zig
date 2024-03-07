@@ -41,7 +41,7 @@ pub const CancunSignedWrapper = Merge(StructToTupleType(CancunTransactionEnvelop
 /// Cancun transaction converted to wrapper with blobs, commitments and proofs
 pub const CancunWrapper = Merge(StructToTupleType(CancunTransactionEnvelope), struct { []const Blob, []const KZGCommitment, []const KZGProof });
 
-pub const TransactionTypes = enum(u8) { berlin = 1, london = 2, cancun = 3, _ };
+pub const TransactionTypes = enum(u8) { legacy = 0, berlin = 1, london = 2, cancun = 3, _ };
 /// Some nodes represent pending transactions hashes like this.
 pub const PendingTransactionHashesSubscription = struct {
     removed: bool,
@@ -404,7 +404,7 @@ pub const LegacyTransaction = struct {
     sourceHash: ?Hash = null,
     isSystemTx: ?bool = null,
     type: TransactionTypes,
-    chainId: usize,
+    chainId: ?usize = null,
 
     pub usingnamespace RequestParser(@This());
 };

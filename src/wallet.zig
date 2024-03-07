@@ -213,6 +213,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 .cancun => {
                     // zig fmt: off
                     var request: LondonEthCall = .{
+                        .from = address,
                         .to = unprepared_envelope.to,
                         .gas = unprepared_envelope.gas,
                         .maxFeePerGas = unprepared_envelope.maxFeePerGas,
@@ -265,6 +266,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     // zig fmt: off
                     var request: LondonEthCall = .{
                         .to = unprepared_envelope.to,
+                        .from = address,
                         .gas = unprepared_envelope.gas,
                         .maxFeePerGas = unprepared_envelope.maxFeePerGas,
                         .maxPriorityFeePerGas = unprepared_envelope.maxPriorityFeePerGas,
@@ -344,6 +346,44 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .data = request.data,
                         .value = request.value.?,
                         .accessList = accessList,
+                    }};
+                    // zig fmt: on
+                },
+                .legacy => {
+                    // zig fmt: off
+                    var request: LegacyEthCall = .{ 
+                        .from = address, 
+                        .to = unprepared_envelope.to,
+                        .gas = unprepared_envelope.gas, 
+                        .gasPrice = unprepared_envelope.gasPrice, 
+                        .data = unprepared_envelope.data, 
+                        .value = unprepared_envelope.value orelse 0
+                    };
+                    // zig fmt: on
+
+                    const curr_block = try self.pub_client.getBlockByNumber(.{});
+                    const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
+
+                    const nonce: u64 = unprepared_envelope.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+
+                    if (unprepared_envelope.gasPrice == null) {
+                        const fees = try self.pub_client.estimateFeesPerGas(.{ .legacy = request }, curr_block);
+                        request.gasPrice = fees.legacy.gas_price;
+                    }
+
+                    if (unprepared_envelope.gas == null) {
+                        request.gas = try self.pub_client.estimateGas(.{ .legacy = request }, .{});
+                    }
+
+                    // zig fmt: off
+                    return .{ .legacy = .{
+                        .chainId = chain_id,
+                        .nonce = nonce,
+                        .gas = request.gas.?,
+                        .gasPrice = request.gasPrice.?,
+                        .to = request.to,
+                        .data = request.data,
+                        .value = request.value.?,
                     }};
                     // zig fmt: on
                 },

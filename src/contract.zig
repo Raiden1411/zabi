@@ -178,7 +178,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             const address = try self.wallet.getWalletAddress();
             const call: EthCall = switch (copy.type) {
                 .cancun, .london => .{ .london = .{ .from = address, .to = copy.to, .data = copy.data, .value = copy.value, .maxFeePerGas = copy.maxFeePerGas, .maxPriorityFeePerGas = copy.maxPriorityFeePerGas, .gas = copy.gas } },
-                .berlin => .{ .legacy = .{ .from = address, .value = copy.value, .to = copy.to, .data = copy.data, .gas = copy.gas, .gasPrice = copy.gasPrice } },
+                .berlin, .legacy => .{ .legacy = .{ .from = address, .value = copy.value, .to = copy.to, .data = copy.data, .gas = copy.gas, .gasPrice = copy.gasPrice } },
                 _ => .{ .legacy = .{ .from = address, .value = copy.value, .to = copy.to, .data = copy.data, .gas = copy.gas, .gasPrice = copy.gasPrice } },
             };
 
@@ -327,7 +327,7 @@ pub fn Contract(comptime client_type: ClientType) type {
             const address = try self.wallet.getWalletAddress();
             const call: EthCall = switch (copy.type) {
                 .cancun, .london => .{ .london = .{ .from = address, .to = copy.to, .data = copy.data, .value = copy.value, .maxFeePerGas = copy.maxFeePerGas, .maxPriorityFeePerGas = copy.maxPriorityFeePerGas, .gas = copy.gas } },
-                .berlin => .{ .legacy = .{ .from = address, .value = copy.value, .to = copy.to, .data = copy.data, .gas = copy.gas, .gasPrice = copy.gasPrice } },
+                .berlin, .legacy => .{ .legacy = .{ .from = address, .value = copy.value, .to = copy.to, .data = copy.data, .gas = copy.gas, .gasPrice = copy.gasPrice } },
                 _ => .{ .legacy = .{ .from = address, .value = copy.value, .to = copy.to, .data = copy.data, .gas = copy.gas, .gasPrice = copy.gasPrice } },
             };
 

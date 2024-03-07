@@ -1,15 +1,22 @@
 const meta = @import("../meta/meta.zig");
 const std = @import("std");
+const types = @import("../meta/ethereum.zig");
 const utils = @import("../utils.zig");
-const Allocator = std.mem.Allocator;
 
+const Address = types.Address;
+const Allocator = std.mem.Allocator;
 const Anvil = @This();
+const Hash = types.Hash;
+const Hex = types.Hex;
+const RequestParser = meta.RequestParser;
 
 pub const Reset = struct {
     forking: struct {
         jsonRpcUrl: []const u8,
         blockNumber: u64,
     },
+
+    pub usingnamespace RequestParser(@This());
 };
 
 pub fn AnvilRequest(comptime T: type) type {
@@ -18,6 +25,8 @@ pub fn AnvilRequest(comptime T: type) type {
         method: AnvilMethods,
         params: T,
         id: usize = 1,
+
+        pub usingnamespace RequestParser(@This());
     };
 }
 
@@ -97,215 +106,142 @@ pub fn killProcessAndDeinit(self: *Anvil) void {
 }
 
 /// Sets the balance of a anvil account
-pub fn setBalance(self: *Anvil, address: []const u8, balance: u256) !void {
-    if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
-    const hex_balance = try std.fmt.allocPrint(self.alloc, "0x{x}", .{balance});
-    defer self.alloc.free(hex_balance);
-
-    const request: AnvilRequest([]const []const u8) = .{ .params = &.{ address, hex_balance }, .method = .anvil_setBalance };
+pub fn setBalance(self: *Anvil, address: Address, balance: u256) !void {
+    const request: AnvilRequest(struct { Address, u256 }) = .{ .params = .{ address, balance }, .method = .anvil_setBalance };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var body = std.ArrayList(u8).init(self.alloc);
-    defer body.deinit();
-
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
-
-    if (req.status != .ok) return error.InvalidRequest;
+    return self.sendRpcRequest(req_body);
 }
 
 /// Changes the contract code of a address.
-pub fn setCode(self: *Anvil, address: []const u8, code: []const u8) !void {
-    if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
-
-    const request: AnvilRequest([]const []const u8) = .{ .params = &.{ address, code }, .method = .set_Code };
+pub fn setCode(self: *Anvil, address: Address, code: Hex) !void {
+    const request: AnvilRequest(struct { Address, Hex }) = .{ .params = .{ address, code }, .method = .set_Code };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var body = std.ArrayList(u8).init(self.alloc);
-    defer body.deinit();
-
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
-
-    if (req.status != .ok) return error.InvalidRequest;
+    return self.sendRpcRequest(req_body);
 }
 
 /// Changes the rpc of the anvil connection
 pub fn setRpcUrl(self: *Anvil, rpc_url: []const u8) !void {
-    const request: AnvilRequest([]const []const u8) = .{ .params = &.{rpc_url}, .method = .anvil_setRpcUrl };
+    const request: AnvilRequest(struct { []const u8 }) = .{ .params = .{rpc_url}, .method = .anvil_setRpcUrl };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var body = std.ArrayList(u8).init(self.alloc);
-    defer body.deinit();
-
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost }, .response_storage = .{ .dynamic = &body } });
-
-    if (req.status != .ok) return error.InvalidRequest;
+    return self.sendRpcRequest(req_body);
 }
 
 /// Changes the coinbase address
-pub fn setCoinbase(self: *Anvil, address: []const u8) !void {
-    if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
-
-    const request: AnvilRequest([]const []const u8) = .{ .params = &.{address}, .method = .set_Coinbase };
+pub fn setCoinbase(self: *Anvil, address: Address) !void {
+    const request: AnvilRequest(struct { Address }) = .{ .params = .{address}, .method = .set_Coinbase };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    var body = std.ArrayList(u8).init(self.alloc);
-    defer body.deinit();
-
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
-
-    if (req.status != .ok) return error.InvalidRequest;
+    return self.sendRpcRequest(req_body);
 }
 
 /// Enable anvil verbose logging for anvil.
 pub fn setLoggingEnable(self: *Anvil) !void {
-    const request: AnvilRequest(&[_]type{}) = .{ .params = &.{}, .method = .set_LoggingEnabled };
+    const request: AnvilRequest(struct {}) = .{ .params = .{}, .method = .set_LoggingEnabled };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
-
-    if (req.status != .ok) return error.InvalidRequest;
+    return self.sendRpcRequest(req_body);
 }
 
 /// Changes the min gasprice from the anvil fork
 pub fn setMinGasPrice(self: *Anvil, new_price: u64) !void {
-    const hex_balance = try std.fmt.allocPrint(self.alloc, "0x{x}", .{new_price});
-    defer self.alloc.free(hex_balance);
-
-    const request: AnvilRequest([]const []const u8) = .{ .params = &.{hex_balance}, .method = .anvil_setMinGasPrice };
+    const request: AnvilRequest(struct { u64 }) = .{ .params = .{new_price}, .method = .anvil_setMinGasPrice };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
-
-    if (req.status != .ok) return error.InvalidRequest;
+    return self.sendRpcRequest(req_body);
 }
 
 pub fn setNextBlockBaseFeePerGas(self: *Anvil, new_price: u64) !void {
-    const hex_balance = try std.fmt.allocPrint(self.alloc, "0x{x}", .{new_price});
-    defer self.alloc.free(hex_balance);
-
-    const request: AnvilRequest([]const []const u8) = .{ .params = &.{hex_balance}, .method = .anvil_setNextBlockBaseFeePerGas };
+    const request: AnvilRequest(struct { u64 }) = .{ .params = .{new_price}, .method = .anvil_setNextBlockBaseFeePerGas };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
-
-    if (req.status != .ok) return error.InvalidRequest;
+    return self.sendRpcRequest(req_body);
 }
 
 /// Changes the networks chainId
 pub fn setChainId(self: *Anvil, new_id: u64) !void {
-    const hex_id = try std.fmt.allocPrint(self.alloc, "0x{x}", .{new_id});
-    defer self.alloc.free(hex_id);
-
-    const request: AnvilRequest([]const []const u8) = .{ .params = &.{hex_id}, .method = .anvil_setChainId };
+    const request: AnvilRequest(struct { u64 }) = .{ .params = .{new_id}, .method = .anvil_setChainId };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
-
-    if (req.status != .ok) return error.InvalidRequest;
+    return self.sendRpcRequest(req_body);
 }
 
 /// Changes the nonce of a account
 pub fn setNonce(self: *Anvil, address: []const u8, new_nonce: u64) !void {
-    if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
-    const hex_id = try std.fmt.allocPrint(self.alloc, "0x{x}", .{new_nonce});
-    defer self.alloc.free(hex_id);
-
-    const request: AnvilRequest([]const []const u8) = .{ .params = &.{ address, hex_id }, .method = .anvil_setNonce };
+    const request: AnvilRequest(struct { Address, u64 }) = .{ .params = .{ address, new_nonce }, .method = .anvil_setNonce };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
-
-    if (req.status != .ok) return error.InvalidRequest;
+    return self.sendRpcRequest(req_body);
 }
 
 /// Drops a pending transaction from the mempool
-pub fn dropTransaction(self: *Anvil, tx_hash: []const u8) !void {
-    if (!try utils.isHash(self.alloc, tx_hash)) return error.InvalidAddress;
-
-    const request: AnvilRequest([]const []const u8) = .{ .params = &.{tx_hash}, .method = .anvil_dropTransaction };
+pub fn dropTransaction(self: *Anvil, tx_hash: Hash) !void {
+    const request: AnvilRequest(struct { Hash }) = .{ .params = .{tx_hash}, .method = .anvil_dropTransaction };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
-
-    if (req.status != .ok) return error.InvalidRequest;
+    return self.sendRpcRequest(req_body);
 }
 
 /// Mine a pending transaction
 pub fn mine(self: *Anvil, amount: u64, time_in_seconds: ?u64) !void {
-    const hex_amount = try std.fmt.allocPrint(self.alloc, "0x{x}", .{amount});
-    defer self.alloc.free(hex_amount);
+    const request: AnvilRequest(struct { u64, ?u64 }) = .{ .params = .{ amount, time_in_seconds }, .method = .anvil_mine };
 
-    const hex_time: ?[]const u8 = if (time_in_seconds) |time| try std.fmt.allocPrint(self.alloc, "0x{x}", .{time}) else null;
-    defer if (hex_time != null) self.alloc.free(hex_time);
-
-    const request: AnvilRequest(std.meta.Tuple(&[_]type{ []const u8, ?[]const u8 })) = .{ .params = &.{ hex_amount, hex_time }, .method = .anvil_mine };
-
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
-
-    if (req.status != .ok) return error.InvalidRequest;
+    return self.sendRpcRequest(req_body);
 }
 
 /// Reset the fork
 pub fn reset(self: *Anvil, reset_config: ?Reset) !void {
-    const request: AnvilRequest(?Reset) = .{ .params = &.{reset_config}, .method = .anvil_reset };
+    const request: AnvilRequest(struct { ?Reset }) = .{ .params = .{reset_config}, .method = .anvil_reset };
 
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{ .emit_null_optional_fields = false });
+    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
-
-    if (req.status != .ok) return error.InvalidRequest;
+    return self.sendRpcRequest(req_body);
 }
 
 /// Impersonate a EOA or contract. Call `stopImpersonatingAccount` after.
-pub fn impersonateAccount(self: *Anvil, address: []const u8) !void {
-    if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
-
-    const request: AnvilRequest([]const []const u8) = .{ .params = &.{address}, .method = .anvil_impersonateAccount };
+pub fn impersonateAccount(self: *Anvil, address: Address) !void {
+    const request: AnvilRequest(struct { Address }) = .{ .params = .{address}, .method = .anvil_impersonateAccount };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
-
-    if (req.status != .ok) return error.InvalidRequest;
+    return self.sendRpcRequest(req_body);
 }
 
 /// Stops impersonating a EOA or contract.
-pub fn stopImpersonatingAccount(self: *Anvil, address: []const u8) !void {
-    if (!try utils.isAddress(self.alloc, address)) return error.InvalidAddress;
-
-    const request: AnvilRequest([]const []const u8) = .{ .params = &.{address}, .method = .anvil_stopImpersonatingAccount };
+pub fn stopImpersonatingAccount(self: *Anvil, address: Address) !void {
+    const request: AnvilRequest(struct { Address }) = .{ .params = .{address}, .method = .anvil_impersonateAccount };
 
     const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
     defer self.alloc.free(req_body);
 
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost } });
-
-    if (req.status != .ok) return error.InvalidRequest;
+    return self.sendRpcRequest(req_body);
 }
 
 /// Start the child process. Use this with init if you want to use this in a seperate theread.
@@ -337,4 +273,13 @@ pub fn waitUntilReady(alloc: std.mem.Allocator, pooling_interval: u64) !void {
     }
 
     stream.close();
+}
+
+fn sendRpcRequest(self: *Anvil, req_body: []u8) !void {
+    var body = std.ArrayList(u8).init(self.alloc);
+    defer body.deinit();
+
+    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost }, .response_storage = .{ .dynamic = &body } });
+
+    if (req.status != .ok) return error.InvalidRequest;
 }

@@ -448,11 +448,11 @@ test "WriteContract" {
         defer anvil.deinit();
 
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
-        try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+        try anvil.impersonateAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
 
         const result = try contract.writeContractFunction("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
 
-        try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+        try anvil.stopImpersonatingAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
         try testing.expectEqual(result.len, 32);
     }
     {
@@ -463,11 +463,11 @@ test "WriteContract" {
         defer anvil.deinit();
 
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
-        try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+        try anvil.impersonateAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
 
         const result = try contract.writeContractFunction("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
 
-        try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+        try anvil.stopImpersonatingAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
         try testing.expectEqual(result.len, 32);
     }
     {
@@ -478,12 +478,12 @@ test "WriteContract" {
         defer anvil.deinit();
 
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
-        try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+        try anvil.impersonateAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
         var contract: ContractComptime(.http) = .{ .wallet = wallet };
 
         const result = try contract.writeContractFunction(.{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" }, .{ .args = .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6547"), true }, .overrides = .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") } });
 
-        try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+        try anvil.stopImpersonatingAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
         try testing.expectEqual(result.len, 32);
     }
 }
@@ -497,11 +497,11 @@ test "SimulateWriteCall" {
         defer anvil.deinit();
 
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
-        try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+        try anvil.impersonateAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
 
         const result = try contract.simulateWriteCall("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
 
-        try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+        try anvil.stopImpersonatingAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
         try testing.expect(result.len > 0);
     }
     {
@@ -512,11 +512,11 @@ test "SimulateWriteCall" {
         defer anvil.deinit();
 
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
-        try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+        try anvil.impersonateAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
 
         const result = try contract.simulateWriteCall("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
 
-        try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+        try anvil.stopImpersonatingAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
         try testing.expect(result.len > 0);
     }
     {
@@ -527,12 +527,12 @@ test "SimulateWriteCall" {
         defer anvil.deinit();
 
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
-        try anvil.impersonateAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+        try anvil.impersonateAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
 
         var contract: ContractComptime(.http) = .{ .wallet = wallet };
         const result = try contract.simulateWriteCall(.{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" }, .{ .args = .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6547"), true }, .overrides = .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") } });
 
-        try anvil.stopImpersonatingAccount("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18");
+        try anvil.stopImpersonatingAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
         try testing.expect(result.len > 0);
     }
 }

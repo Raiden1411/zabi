@@ -225,9 +225,9 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
         .allocator = undefined,
         .base_fee_multiplier = opts.base_fee_multiplier,
         .chain_id = @intFromEnum(chain),
+        .close_connection_on_error = opts.close_connection_on_error,
         .sub_channel = channel,
         .rpc_channel = rpc_channel,
-        .close_connection_on_error = opts.close_connection_on_error,
         .onClose = opts.onClose,
         .onError = opts.onError,
         .onEvent = opts.onEvent,
@@ -240,8 +240,8 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
     self._arena.* = ArenaAllocator.init(opts.allocator);
     self.allocator = self._arena.allocator();
 
-    self.sub_channel.* = Channel(types.EthereumSubscribeEvents).init(self.allocator);
     self.rpc_channel.* = Channel(types.EthereumRpcEvents).init(self.allocator);
+    self.sub_channel.* = Channel(types.EthereumSubscribeEvents).init(self.allocator);
     errdefer self._arena.deinit();
 
     self.ws_client.* = try self.connect();
@@ -249,8 +249,9 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
     const thread = try std.Thread.spawn(.{}, readLoopOwned, .{self});
     thread.detach();
 }
-
+/// All future interactions will deadlock
 pub fn deinit(self: *WebSocketHandler) void {
+    self.mutex.lock();
     while (@atomicRmw(bool, &self.ws_client._closed, .Xchg, true, .SeqCst)) {
         std.time.sleep(10 * std.time.ns_per_ms);
     }

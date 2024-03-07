@@ -21,6 +21,7 @@ const Hash = types.Hash;
 const InitOptsHttp = PubClient.InitOptions;
 const InitOptsWs = WebSocketClient.InitOptions;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
+const Mutex = std.Thread.Mutex;
 const PubClient = @import("Client.zig");
 const Signer = secp256k1.Signer;
 const Signature = secp256k1.Signature;
@@ -32,6 +33,79 @@ const WebSocketClient = @import("WebSocket.zig");
 
 /// The type of client used by the wallet instance.
 pub const WalletClients = enum { http, websocket };
+
+pub const TransactionEnvelopePool = struct {
+    mutex: Mutex = .{},
+    pooled_envelopes: TransactionEnvelopeQueue,
+
+    pub const Node = TransactionEnvelopeQueue.Node;
+
+    const SearchCriteria = transaction.TransactionTypes;
+    const TransactionEnvelopeQueue = std.DoublyLinkedList(TransactionEnvelope);
+
+    /// Finds a transaction envelope from the pool based on the
+    /// transaction type. This is thread safe.
+    /// Returns null if no transaction was found
+    pub fn findTransactionEnvelope(pool: *TransactionEnvelopePool, search: SearchCriteria) ?TransactionEnvelope {
+        pool.mutex.lock();
+        defer pool.mutex.unlock();
+
+        const last_tx_node = pool.pooled_envelopes.last;
+
+        while (last_tx_node) |tx_node| : (last_tx_node = tx_node.prev) {
+            switch (tx_node.data) {
+                inline else => |envelope| if (@intFromEnum(envelope.type) != @intFromEnum(search)) continue,
+            }
+
+            pool.releaseEnvelopeFromPool(tx_node);
+            return tx_node.data;
+        }
+
+        return null;
+    }
+    /// Adds a new node into the pool. This is thread safe.
+    pub fn addEnvelopeToPool(pool: *TransactionEnvelopePool, node: *Node) void {
+        pool.mutex.lock();
+        defer pool.mutex.unlock();
+
+        pool.pooled_envelopes.append(node);
+    }
+    /// Removes a node from the pool. This is thread safe.
+    pub fn releaseEnvelopeFromPool(pool: *TransactionEnvelopePool, node: *Node) void {
+        pool.mutex.lock();
+        defer pool.mutex.unlock();
+
+        pool.pooled_envelopes.remove(node);
+    }
+    /// Gets the last node from the pool and removes it.
+    /// This is thread safe.
+    pub fn getFirstElementFromPool(pool: *TransactionEnvelopePool) ?TransactionEnvelope {
+        pool.mutex.lock();
+        defer pool.mutex.unlock();
+
+        return if (pool.pooled_envelopes.popFirst()) |node| node.data else null;
+    }
+    /// Gets the last node from the pool and removes it.
+    /// This is thread safe.
+    pub fn getLastElementFromPool(pool: *TransactionEnvelopePool) ?TransactionEnvelope {
+        pool.mutex.lock();
+        defer pool.mutex.unlock();
+
+        return if (pool.pooled_envelopes.pop()) |node| node.data else null;
+    }
+    /// Destroys all created pointer. All future operations will deadlock.
+    /// This is thread safe.
+    pub fn deinit(pool: *TransactionEnvelopePool, allocator: Allocator) void {
+        pool.mutex.lock();
+
+        var first = pool.pooled_envelopes.first;
+        while (first) |node| : (first = node.next) {
+            allocator.destroy(node);
+        }
+
+        pool.* = undefined;
+    }
+};
 
 /// Creates a wallet instance based on which type of client defined in
 /// `WalletClients`. Depending on the type of client the underlaying methods
@@ -46,6 +120,9 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         allocator: Allocator,
         /// Arena used to manage allocated memory
         arena: *ArenaAllocator,
+        /// Pool to store all prepated transaction envelopes.
+        /// This is thread safe.
+        envelopes_pool: *TransactionEnvelopePool,
         /// Http client used to make request. Supports almost all rpc methods.
         pub_client: if (client_type == .http) *PubClient else *WebSocketClient,
         /// Signer that will sign transactions or ethereum messages.
@@ -61,7 +138,11 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             wallet.arena = try opts.allocator.create(ArenaAllocator);
             errdefer opts.allocator.destroy(wallet.arena);
 
+            wallet.envelopes_pool = try opts.allocator.create(TransactionEnvelopePool);
+            errdefer opts.allocator.destroy(wallet.envelopes_pool);
+
             wallet.arena.* = ArenaAllocator.init(opts.allocator);
+            wallet.envelopes_pool.* = .{ .pooled_envelopes = .{} };
 
             const client = client: {
                 switch (client_type) {
@@ -96,7 +177,11 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             wallet.arena = try opts.allocator.create(ArenaAllocator);
             errdefer opts.allocator.destroy(wallet.arena);
 
+            wallet.envelopes_pool = try opts.allocator.create(TransactionEnvelopePool);
+            errdefer opts.allocator.destroy(wallet.envelopes_pool);
+
             wallet.arena.* = ArenaAllocator.init(opts.allocator);
+            wallet.envelopes_pool.* = .{ .pooled_envelopes = .{} };
 
             const client = client: {
                 switch (client_type) {
@@ -124,12 +209,14 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         }
         /// Clears the arena and destroys any created pointers
         pub fn deinit(self: *Wallet(client_type)) void {
+            self.envelopes_pool.deinit(self.arena.allocator());
             self.pub_client.deinit();
-
-            const allocator = self.arena.child_allocator;
             self.signer.deinit();
             self.arena.deinit();
+
+            const allocator = self.arena.child_allocator;
             allocator.destroy(self.arena);
+            allocator.destroy(self.envelopes_pool);
             if (client_type == .websocket) allocator.destroy(self.pub_client);
             allocator.destroy(self);
         }
@@ -202,6 +289,19 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             const wallet_address = try self.getWalletAddress();
 
             return std.mem.eql(u8, &wallet_address, &address);
+        }
+        /// Find a specific prepared envelope from the pool based on the given search criteria.
+        pub fn findTransactionEnvelopeFromPool(self: *Wallet(client_type), search: TransactionEnvelopePool.SearchCriteria) ?TransactionEnvelopePool {
+            return self.envelopes_pool.findTransactionEnvelope(search);
+        }
+        /// Converts unprepared transaction envelopes and stores them in a pool.
+        pub fn poolTransactionEnvelope(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !void {
+            const envelope = try self.allocator.create(TransactionEnvelopePool.Node);
+            errdefer self.allocator.free(envelope);
+            envelope.* = .{ .data = undefined };
+
+            envelope.data = try self.prepareTransaction(unprepared_envelope);
+            self.envelopes_pool.addEnvelopeToPool(envelope);
         }
         /// Prepares a transaction based on it's type so that it can be sent through the network.
         /// Only the null struct properties will get changed.
@@ -466,9 +566,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             return self.pub_client.sendRawTransaction(hex);
         }
         /// Prepares, asserts, signs and sends the transaction via `eth_sendRawTransaction`.
-        /// Will return error if the envelope is incorrect
+        /// If any envelope is in the envelope pool it will use that instead in a LIFO order
+        /// Will return an error if the envelope is incorrect
         pub fn sendTransaction(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !Hash {
-            const prepared = try self.prepareTransaction(unprepared_envelope);
+            const prepared = self.envelopes_pool.getLastElementFromPool() orelse try self.prepareTransaction(unprepared_envelope);
 
             try self.assertTransaction(prepared);
 

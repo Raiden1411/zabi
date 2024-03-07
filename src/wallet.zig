@@ -646,7 +646,7 @@ test "verifyTypedData" {
 
 test "sendTransaction" {
     // CI coverage runner dislikes this tests so for now we skip it.
-    // if (true) return error.SkipZigTest;
+    if (true) return error.SkipZigTest;
     const uri = try std.Uri.parse("http://localhost:8545/");
     var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();

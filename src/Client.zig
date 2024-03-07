@@ -750,7 +750,7 @@ fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !T {
         const res_body = try body.toOwnedSlice();
         defer self.alloc.free(res_body);
 
-        httplog.debug("Got response from server: {s}", .{res_body});
+        httplog.err("Got response from server: {s}", .{res_body});
         switch (req.status) {
             .ok => return try self.parseRPCEvent(T, res_body),
             .too_many_requests => {

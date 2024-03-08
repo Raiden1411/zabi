@@ -119,6 +119,18 @@ pub const TransactionEnvelopePool = struct {
 /// The same goes for the signer and libsecp256k1.
 pub fn Wallet(comptime client_type: WalletClients) type {
     return struct {
+        /// The wallet underlaying rpc client type (ws or http)
+        const ClientType = switch (client_type) {
+            .http => PubClient,
+            .websocket => WebSocketClient,
+        };
+
+        /// The inital settings depending on the client type.
+        const InitOpts = switch (client_type) {
+            .http => InitOptsHttp,
+            .websocket => InitOptsWs,
+        };
+
         /// Allocator used by the wallet implementation
         allocator: Allocator,
         /// Arena used to manage allocated memory
@@ -127,88 +139,60 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// This is thread safe.
         envelopes_pool: *TransactionEnvelopePool,
         /// Http client used to make request. Supports almost all rpc methods.
-        pub_client: if (client_type == .http) *PubClient else *WebSocketClient,
+        pub_client: *ClientType,
         /// Signer that will sign transactions or ethereum messages.
         /// Its based on libsecp256k1.
         signer: Signer,
 
         /// Init wallet instance. Must call `deinit` to clean up.
         /// The init opts will depend on the `client_type`.
-        pub fn init(private_key: []const u8, opts: if (client_type == .http) InitOptsHttp else InitOptsWs) !*Wallet(client_type) {
-            var wallet = try opts.allocator.create(Wallet(client_type));
-            errdefer opts.allocator.destroy(wallet);
+        pub fn init(self: *Wallet(client_type), private_key: []const u8, opts: InitOpts) !void {
+            const arena = try opts.allocator.create(ArenaAllocator);
+            errdefer opts.allocator.destroy(arena);
 
-            wallet.arena = try opts.allocator.create(ArenaAllocator);
-            errdefer opts.allocator.destroy(wallet.arena);
+            const envelopes_pool = try opts.allocator.create(TransactionEnvelopePool);
+            errdefer opts.allocator.destroy(envelopes_pool);
 
-            wallet.envelopes_pool = try opts.allocator.create(TransactionEnvelopePool);
-            errdefer opts.allocator.destroy(wallet.envelopes_pool);
-
-            wallet.arena.* = ArenaAllocator.init(opts.allocator);
-            wallet.envelopes_pool.* = .{ .pooled_envelopes = .{} };
-
-            const client = client: {
-                switch (client_type) {
-                    .http => {
-                        break :client try PubClient.init(opts);
-                    },
-                    .websocket => {
-                        // We need to create the pointer so that we can init the client
-                        const ws_client = try opts.allocator.create(WebSocketClient);
-                        errdefer opts.allocator.destroy(ws_client);
-
-                        try ws_client.init(opts);
-
-                        break :client ws_client;
-                    },
-                }
-            };
             const signer = try Signer.init(private_key);
+            const client = client: {
+                // We need to create the pointer so that we can init the client
+                const client = try opts.allocator.create(ClientType);
+                errdefer opts.allocator.destroy(client);
 
-            wallet.pub_client = client;
-            wallet.allocator = wallet.arena.allocator();
-            wallet.signer = signer;
+                try client.init(opts);
 
-            return wallet;
+                break :client client;
+            };
+
+            self.* = .{ .allocator = undefined, .pub_client = client, .arena = arena, .signer = signer, .envelopes_pool = envelopes_pool };
+            self.arena.* = ArenaAllocator.init(opts.allocator);
+            self.envelopes_pool.* = .{ .pooled_envelopes = .{} };
+            self.allocator = self.arena.allocator();
         }
         /// Inits wallet from a random generated priv key. Must call `deinit` after.
         /// The init opts will depend on the `client_type`.
-        pub fn initFromRandomKey(opts: if (client_type == .http) InitOptsHttp else InitOptsWs) !*Wallet(client_type) {
-            var wallet = try opts.allocator.create(Wallet(client_type));
-            errdefer opts.allocator.destroy(wallet);
+        pub fn initFromRandomKey(self: *Wallet(client_type), opts: InitOpts) !void {
+            const arena = try opts.allocator.create(ArenaAllocator);
+            errdefer opts.allocator.destroy(arena);
 
-            wallet.arena = try opts.allocator.create(ArenaAllocator);
-            errdefer opts.allocator.destroy(wallet.arena);
+            const envelopes_pool = try opts.allocator.create(TransactionEnvelopePool);
+            errdefer opts.allocator.destroy(envelopes_pool);
 
-            wallet.envelopes_pool = try opts.allocator.create(TransactionEnvelopePool);
-            errdefer opts.allocator.destroy(wallet.envelopes_pool);
-
-            wallet.arena.* = ArenaAllocator.init(opts.allocator);
-            wallet.envelopes_pool.* = .{ .pooled_envelopes = .{} };
-
-            const client = client: {
-                switch (client_type) {
-                    .http => {
-                        break :client try PubClient.init(opts);
-                    },
-                    .websocket => {
-                        // We need to create the pointer so that we can init the client
-                        const ws_client = try opts.allocator.create(WebSocketClient);
-                        errdefer opts.allocator.destroy(ws_client);
-
-                        try ws_client.init(opts);
-
-                        break :client ws_client;
-                    },
-                }
-            };
             const signer = try Signer.generateRandomSigner();
+            const client = client: {
+                // We need to create the pointer so that we can init the client
+                const client = try opts.allocator.create(ClientType);
+                errdefer opts.allocator.destroy(client);
 
-            wallet.pub_client = client;
-            wallet.allocator = wallet.arena.allocator();
-            wallet.signer = signer;
+                try client.init(opts);
 
-            return wallet;
+                break :client client;
+            };
+
+            self.* = .{ .allocator = undefined, .pub_client = client, .arena = arena, .signer = signer, .envelopes_pool = envelopes_pool };
+            self.arena.* = ArenaAllocator.init(opts.allocator);
+            self.envelopes_pool.* = .{ .pooled_envelopes = .{} };
+            self.allocator = self.arena.allocator();
         }
         /// Clears the arena and destroys any created pointers
         pub fn deinit(self: *Wallet(client_type)) void {
@@ -220,8 +204,9 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             const allocator = self.arena.child_allocator;
             allocator.destroy(self.arena);
             allocator.destroy(self.envelopes_pool);
-            if (client_type == .websocket) allocator.destroy(self.pub_client);
-            allocator.destroy(self);
+            allocator.destroy(self.pub_client);
+
+            self.* = undefined;
         }
         /// Signs a ethereum message with the specified prefix.
         /// Uses libsecp256k1 to sign the message. This mirrors geth
@@ -588,7 +573,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
 test "Address match" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+    var wallet: Wallet(.http) = undefined;
+    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     try testing.expectEqualStrings(&try wallet.getWalletAddress(), &try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"));
@@ -596,7 +582,8 @@ test "Address match" {
 
 test "verifyMessage" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+    var wallet: Wallet(.http) = undefined;
+    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     var hash_buffer: [Keccak256.digest_length]u8 = undefined;
@@ -608,7 +595,8 @@ test "verifyMessage" {
 
 test "signMessage" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+    var wallet: Wallet(.http) = undefined;
+    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     const sig = try wallet.signEthereumMessage("hello world");
@@ -620,7 +608,8 @@ test "signMessage" {
 
 test "signTypedData" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+    var wallet: Wallet(.http) = undefined;
+    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     const sig = try wallet.signTypedData(.{ .EIP712Domain = &.{} }, "EIP712Domain", .{}, .{});
@@ -632,7 +621,8 @@ test "signTypedData" {
 
 test "verifyTypedData" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+    var wallet: Wallet(.http) = undefined;
+    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     const domain: eip712.TypedDataDomain = .{ .name = "Ether Mail", .version = "1", .chainId = 1, .verifyingContract = "0x0000000000000000000000000000000000000000" };
@@ -648,7 +638,8 @@ test "sendTransaction" {
     // CI coverage runner dislikes this tests so for now we skip it.
     if (true) return error.SkipZigTest;
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+    var wallet: Wallet(.http) = undefined;
+    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     const tx: UnpreparedTransactionEnvelope = .{ .type = .london, .value = try utils.parseEth(1), .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8") };
@@ -662,7 +653,8 @@ test "sendTransaction" {
 
 test "Pool transactions" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+    var wallet: Wallet(.http) = undefined;
+    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     var i: usize = 0;
@@ -678,7 +670,8 @@ test "assertTransaction" {
     var tx: TransactionEnvelope = undefined;
 
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+    var wallet: Wallet(.http) = undefined;
+    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     tx = .{ .london = .{
@@ -708,7 +701,8 @@ test "assertTransactionLegacy" {
     var tx: TransactionEnvelope = undefined;
 
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+    var wallet: Wallet(.http) = undefined;
+    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     tx = .{ .berlin = .{

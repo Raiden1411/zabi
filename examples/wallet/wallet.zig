@@ -14,7 +14,8 @@ pub fn main() !void {
     const host_url = iter.next().?;
 
     const uri = try std.Uri.parse(host_url);
-    var wallet = try Wallet.init(private_key, .{ .allocator = gpa.allocator(), .uri = uri });
+    var wallet: Wallet = undefined;
+    try wallet.init(private_key, .{ .allocator = gpa.allocator(), .uri = uri });
     defer wallet.deinit();
 
     const message = try wallet.signEthereumMessage("Hello World");

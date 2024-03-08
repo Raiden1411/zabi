@@ -16,7 +16,8 @@ pub fn main() !void {
     const host_url = iter.next().?;
 
     const uri = try std.Uri.parse(host_url);
-    var wallet = try Wallet.init(private_key, .{ .allocator = gpa.allocator(), .uri = uri, .chain_id = .sepolia, .pooling_interval = 4_000 });
+    var wallet: Wallet = undefined;
+    try wallet.init(private_key, .{ .allocator = gpa.allocator(), .uri = uri, .chain_id = .sepolia, .pooling_interval = 4_000 });
     defer wallet.deinit();
 
     const hash = try wallet.sendTransaction(.{ .type = .london, .to = try utils.addressToBytes("0x0000000000000000000000000000000000000000"), .value = 42069 });

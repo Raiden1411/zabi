@@ -35,6 +35,7 @@ const FetchResult = http.Client.FetchResult;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
+const HttpConnection = http.Client.Connection;
 const Log = log.Log;
 const LogRequest = log.LogRequest;
 const LogTagRequest = log.LogTagRequest;
@@ -74,7 +75,8 @@ base_fee_multiplier: f64,
 chain_id: usize,
 /// The underlaying http client used to manage all the calls.
 client: *http.Client,
-connection: *http.Client.Connection,
+/// Connection used as a reference for http client connections
+connection: *HttpConnection,
 /// The interval to retry the request. This will get multiplied in ns_per_ms.
 pooling_interval: u64,
 /// Retry count for failed requests.
@@ -128,8 +130,9 @@ pub fn deinit(self: *PubClient) void {
     allocator.destroy(self.arena);
     allocator.destroy(self.client);
 }
-
-pub fn connectRpcServer(self: *PubClient) !*http.Client.Connection {
+/// Connects to the RPC server and relases the connection from the client pool.
+/// This is done so that future fetchs can use the connection that is already freed.
+pub fn connectRpcServer(self: *PubClient) !*HttpConnection {
     const scheme = std.http.Client.protocol_map.get(self.uri.scheme) orelse return error.UnsupportedSchema;
     const port: u16 = self.uri.port orelse switch (scheme) {
         .plain => 80,
@@ -137,9 +140,9 @@ pub fn connectRpcServer(self: *PubClient) !*http.Client.Connection {
     };
 
     var retries: usize = 0;
-    const client = while (true) : (retries += 1) {
+    const connection = while (true) : (retries += 1) {
         if (retries > self.retries)
-            break error.FailedToConnect;
+            return error.FailedToConnect;
 
         switch (retries) {
             0...2 => {},
@@ -149,15 +152,29 @@ pub fn connectRpcServer(self: *PubClient) !*http.Client.Connection {
             },
         }
 
-        const client = self.client.connect(self.uri.host.?, port, scheme) catch |err| {
+        if (scheme == .tls and @atomicLoad(bool, &self.client.next_https_rescan_certs, .Acquire)) {
+            self.client.ca_bundle_mutex.lock();
+            defer self.client.ca_bundle_mutex.unlock();
+
+            if (self.client.next_https_rescan_certs) {
+                self.client.ca_bundle.rescan(self.allocator) catch |err| {
+                    httplog.debug("Failed to rescan certificate bundle: {s}", .{@errorName(err)});
+                    continue;
+                };
+                @atomicStore(bool, &self.client.next_https_rescan_certs, false, .Release);
+            }
+        }
+        const connection = self.client.connect(self.uri.host.?, port, scheme) catch |err| {
             httplog.debug("Connection failed: {s}", .{@errorName(err)});
             continue;
         };
 
-        break client;
+        break connection;
     };
 
-    return client;
+    self.client.connection_pool.release(self.allocator, connection);
+
+    return connection;
 }
 /// Grabs the current base blob fee.
 ///
@@ -769,7 +786,8 @@ fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, 
 
     return self.sendRpcRequest(T, request);
 }
-
+/// Writes request to RPC server and parses the response according to the provided type.
+/// Handles 429 errors but not the rest.
 fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !T {
     httplog.debug("Preparing to send request body: {s}", .{request});
 
@@ -783,16 +801,23 @@ fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !T {
 
         const req = try self.internalFetch(request, &body);
 
-        const res_body = try body.toOwnedSlice();
-        defer self.allocator.free(res_body);
-
-        httplog.debug("Got response from server: {s}", .{res_body});
         switch (req.status) {
-            .ok => return try self.parseRPCEvent(T, res_body),
+            .ok => {
+                const res_body = try body.toOwnedSlice();
+                defer self.allocator.free(res_body);
+
+                httplog.debug("Got response from server: {s}", .{res_body});
+
+                return try self.parseRPCEvent(T, res_body);
+            },
             .too_many_requests => {
                 // Exponential backoff
                 const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
                 httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                // Clears any message that was written
+                body.clearRetainingCapacity();
+                body.ensureTotalCapacity(0);
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;
@@ -801,7 +826,7 @@ fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !T {
         }
     }
 }
-
+/// Internal PubClient fetch. Optimized for our use case.
 fn internalFetch(self: *PubClient, payload: []const u8, body: *std.ArrayList(u8)) !FetchResult {
     var server_header_buffer: [16 * 1024]u8 = undefined;
 

@@ -817,7 +817,7 @@ fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !T {
 
                 // Clears any message that was written
                 body.clearRetainingCapacity();
-                body.ensureTotalCapacity(0);
+                try body.ensureTotalCapacity(0);
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;

@@ -21,7 +21,8 @@ You will also need a private key or you can also use `initFromRandomKey` to have
 
 ```zig
 const uri = try std.Uri.parse("http://localhost:8545/");
-var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+var wallet: Wallet(.http) = undefined;
+try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
 defer wallet.deinit();
 
 var tx: transaction.PrepareEnvelope = .{ .eip1559 = undefined };

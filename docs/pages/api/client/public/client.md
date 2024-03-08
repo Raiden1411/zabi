@@ -68,8 +68,9 @@ This also includes the error messages. In those case they will be converted to z
 
 ```zig [http.zig]
 const uri = try std.Uri.parse("http://localhost:8545/");
-var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
-defer pub_client.deinit();
+var client: PubClient = undefined;
+defer client.deinit();
+try client.init(.{ .allocator = std.testing.allocator, .uri = uri });
 
 const block_req = try pub_client.getBlockNumber();
 ```

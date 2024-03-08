@@ -39,7 +39,8 @@ pub fn main() !void {
     const uri = try std.Uri.parse(host_url);
  
     // The chain defaults to ethereum if it's not specified.
-    var wallet = try Wallet.init(priv_key, .{.allocator = gpa.allocator(), .uri = uri });
+    var wallet: Wallet = undefined;
+    try wallet.init(priv_key, .{.allocator = gpa.allocator(), .uri = uri });
     defer wallet.deinit();
  
     const message = try wallet.signEthereumMessage("Hello World");

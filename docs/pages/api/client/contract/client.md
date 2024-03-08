@@ -18,19 +18,28 @@ Like it was stated above you can use either runtime or comptime know abis. Depen
 :::code-group
 
 ```zig [runtime.zig]
+const abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }};
 const uri = try std.Uri.parse("http://localhost:8545/");
-var contract: Contract(.http) = .{ .abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" } }}, .wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri }) };
+
+var contract: Contract(.http) = undefined;
 defer contract.deinit();
+
+try contract.init(.{ .abi = abi, .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
+
 const ReturnType = std.meta.Tuple(&[_]type{[]const u8});
 const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try contract.wallet.getWalletAddress() } });
 ```
 
 ```zig [comptime.zig]
+const abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }};
 const uri = try std.Uri.parse("http://localhost:8545/");
-var wallet = try Wallet(.http).init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
-defer wallet.deinit();
 
-const result = try readContractFunction(.{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" }, .http, .{ .wallet = wallet, .args = .{69}, .overrides = .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try wallet.getWalletAddress() } } });
+var contract: ContractComptime(.http) = undefined;
+defer contract.deinit();
+
+try contract.init(.{ .abi = abi, .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
+
+const result = try contract.readContractFunction("ownerOf", .{69}, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try contract.wallet.getWalletAddress() } });
 ```
 
 :::

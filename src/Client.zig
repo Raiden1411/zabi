@@ -31,6 +31,7 @@ const EthereumRpcMethods = types.EthereumRpcMethods;
 const EstimateFeeReturn = transaction.EstimateFeeReturn;
 const Extract = meta.Extract;
 const FeeHistory = transaction.FeeHistory;
+const FetchResult = http.Client.FetchResult;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
@@ -64,7 +65,7 @@ pub const InitOptions = struct {
 };
 
 /// This allocator will get set by the arena.
-alloc: Allocator,
+allocator: Allocator,
 /// The arena where all allocations will be managed from.
 arena: *ArenaAllocator,
 /// The base fee multiplier used to estimate the gas fees in a transaction
@@ -73,6 +74,7 @@ base_fee_multiplier: f64,
 chain_id: usize,
 /// The underlaying http client used to manage all the calls.
 client: *http.Client,
+connection: *http.Client.Connection,
 /// The interval to retry the request. This will get multiplied in ns_per_ms.
 pooling_interval: u64,
 /// Retry count for failed requests.
@@ -85,43 +87,77 @@ const PubClient = @This();
 /// Init the client instance. Caller must call `deinit` to free the memory.
 /// Most of the client method are replicas of the JSON RPC methods name with the `eth_` start.
 /// The client will handle request with 429 errors via exponential backoff but not the rest.
-pub fn init(opts: InitOptions) !*PubClient {
-    var pub_client = try opts.allocator.create(PubClient);
-    errdefer opts.allocator.destroy(pub_client);
+pub fn init(self: *PubClient, opts: InitOptions) !void {
+    const arena = try opts.allocator.create(ArenaAllocator);
+    errdefer opts.allocator.destroy(arena);
 
-    pub_client.arena = try opts.allocator.create(ArenaAllocator);
-    errdefer opts.allocator.destroy(pub_client.arena);
-
-    pub_client.client = try opts.allocator.create(http.Client);
-    errdefer opts.allocator.destroy(pub_client.client);
-
-    pub_client.arena.* = ArenaAllocator.init(opts.allocator);
-    pub_client.alloc = pub_client.arena.allocator();
-    errdefer pub_client.arena.deinit();
-
-    pub_client.client.* = http.Client{ .allocator = pub_client.alloc };
-
-    pub_client.uri = opts.uri;
+    const client = try opts.allocator.create(http.Client);
+    errdefer opts.allocator.destroy(client);
 
     const chain: Chains = opts.chain_id orelse .ethereum;
     const id = switch (chain) {
         inline else => |id| @intFromEnum(id),
     };
 
-    pub_client.chain_id = id;
-    pub_client.retries = opts.retries;
-    pub_client.pooling_interval = opts.pooling_interval;
-    pub_client.base_fee_multiplier = opts.base_fee_multiplier;
+    self.* = .{
+        .uri = opts.uri,
+        .allocator = undefined,
+        .chain_id = id,
+        .retries = opts.retries,
+        .pooling_interval = opts.pooling_interval,
+        .base_fee_multiplier = opts.base_fee_multiplier,
+        .client = client,
+        .arena = arena,
+        .connection = undefined,
+    };
 
-    return pub_client;
+    self.arena.* = ArenaAllocator.init(opts.allocator);
+    errdefer self.arena.deinit();
+
+    self.allocator = self.arena.allocator();
+    self.client.* = http.Client{ .allocator = self.allocator };
+
+    self.connection = try self.connectRpcServer();
 }
 /// Clears the memory arena and destroys all pointers created
 pub fn deinit(self: *PubClient) void {
-    const allocator = self.arena.child_allocator;
+    self.connection.close(self.arena.allocator());
     self.arena.deinit();
+
+    const allocator = self.arena.child_allocator;
     allocator.destroy(self.arena);
     allocator.destroy(self.client);
-    allocator.destroy(self);
+}
+
+pub fn connectRpcServer(self: *PubClient) !*http.Client.Connection {
+    const scheme = std.http.Client.protocol_map.get(self.uri.scheme) orelse return error.UnsupportedSchema;
+    const port: u16 = self.uri.port orelse switch (scheme) {
+        .plain => 80,
+        .tls => 443,
+    };
+
+    var retries: usize = 0;
+    const client = while (true) : (retries += 1) {
+        if (retries > self.retries)
+            break error.FailedToConnect;
+
+        switch (retries) {
+            0...2 => {},
+            else => {
+                const sleep_timing: u64 = @min(10_000, self.pooling_interval * retries);
+                std.time.sleep(sleep_timing * std.time.ns_per_ms);
+            },
+        }
+
+        const client = self.client.connect(self.uri.host.?, port, scheme) catch |err| {
+            httplog.debug("Connection failed: {s}", .{@errorName(err)});
+            continue;
+        };
+
+        break client;
+    };
+
+    return client;
 }
 /// Grabs the current base blob fee.
 ///
@@ -210,13 +246,13 @@ pub fn feeHistory(self: *PubClient, blockCount: u64, newest_block: BlockNumberRe
     const req_body = request: {
         if (newest_block.block_number) |number| {
             const request: EthereumRequest(struct { u64, u64, ?[]const f64 }) = .{ .params = .{ blockCount, number, reward_percentil }, .method = .eth_feeHistory, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
         }
 
         const request: EthereumRequest(struct { u64, BalanceBlockTag, ?[]const f64 }) = .{ .params = .{ blockCount, tag, reward_percentil }, .method = .eth_feeHistory, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
     };
-    defer self.alloc.free(req_body);
+    defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(FeeHistory, req_body);
 }
@@ -245,7 +281,7 @@ pub fn getBlockByHash(self: *PubClient, opts: BlockHashRequest) !Block {
     const include = opts.include_transaction_objects orelse false;
 
     const request: EthereumRequest(struct { Hash, bool }) = .{ .params = .{ opts.block_hash, include }, .method = .eth_getBlockByHash, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
 
     const request_block = try self.sendRpcRequest(?Block, req_body);
     const block_info = request_block orelse return error.InvalidBlockHash;
@@ -262,10 +298,10 @@ pub fn getBlockByNumber(self: *PubClient, opts: BlockRequest) !Block {
     const request = request: {
         if (opts.block_number) |number| {
             const request: EthereumRequest(struct { u64, bool }) = .{ .params = .{ number, include }, .method = .eth_getBlockByNumber, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
         }
         const request: EthereumRequest(struct { BlockTag, bool }) = .{ .params = .{ tag, include }, .method = .eth_getBlockByNumber, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
     };
 
     const request_block = try self.sendRpcRequest(?Block, request);
@@ -309,7 +345,7 @@ pub fn getContractCode(self: *PubClient, opts: BalanceRequest) !Hex {
 /// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterlogs
 pub fn getFilterOrLogChanges(self: *PubClient, filter_id: usize, method: Extract(EthereumRpcMethods, "eth_getFilterChanges,eth_getFilterLogs")) !Logs {
     const request: EthereumRequest(struct { usize }) = .{ .params = .{filter_id}, .method = method, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
 
     const possible_filter = try self.sendRpcRequest(Logs, req_body);
     const filter = possible_filter orelse return error.InvalidFilterId;
@@ -330,11 +366,11 @@ pub fn getLogs(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !Logs 
     const request = request: {
         if (tag) |request_tag| {
             const request: EthereumRequest(struct { LogTagRequest }) = .{ .params = .{.{ .fromBlock = request_tag, .toBlock = request_tag, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_getLogs, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
         }
 
         const request: EthereumRequest(struct { LogRequest }) = .{ .params = .{opts}, .method = .eth_getLogs, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
     };
 
     const possible_logs = try self.sendRpcRequest(?Logs, request);
@@ -350,12 +386,12 @@ pub fn getStorage(self: *PubClient, address: Address, storage_key: Hash, opts: B
     const request = request: {
         if (opts.block_number) |number| {
             const request: EthereumRequest(struct { Address, Hash, u64 }) = .{ .params = .{ address, storage_key, number }, .method = .eth_getStorageAt, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
         }
         const request: EthereumRequest(struct { Address, Hash, BalanceBlockTag }) = .{ .params = .{ address, storage_key, tag }, .method = .eth_getStorageAt, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
     };
-    defer self.alloc.free(request);
+    defer self.allocator.free(request);
 
     return self.sendRpcRequest(Hex, request);
 }
@@ -364,7 +400,7 @@ pub fn getStorage(self: *PubClient, address: Address, storage_key: Hash, opts: B
 /// RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblockhashandindex)
 pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: usize) !Transaction {
     const request: EthereumRequest(struct { Hash, usize }) = .{ .params = .{ block_hash, index }, .method = .eth_getTransactionByBlockHashAndIndex, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
 
     const possible_tx = try self.sendRpcRequest(?Transaction, req_body);
     const tx = possible_tx orelse return error.TransactionNotFound;
@@ -380,10 +416,10 @@ pub fn getTransactionByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRe
     const request = request: {
         if (opts.block_number) |number| {
             const request: EthereumRequest(struct { u64, usize }) = .{ .params = .{ number, index }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
         }
         const request: EthereumRequest(struct { BalanceBlockTag, usize }) = .{ .params = .{ tag, index }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
     };
 
     const possible_tx = try self.sendRpcRequest(?Transaction, request);
@@ -397,7 +433,7 @@ pub fn getTransactionByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRe
 pub fn getTransactionByHash(self: *PubClient, transaction_hash: Hash) !Transaction {
     const request: EthereumRequest(struct { Hash }) = .{ .params = .{transaction_hash}, .method = .eth_getTransactionByHash, .id = self.chain_id };
 
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
 
     const possible_tx = try self.sendRpcRequest(?Transaction, req_body);
     const tx = possible_tx orelse return error.TransactionNotFound;
@@ -410,7 +446,7 @@ pub fn getTransactionByHash(self: *PubClient, transaction_hash: Hash) !Transacti
 pub fn getTransactionReceipt(self: *PubClient, transaction_hash: Hash) !TransactionReceipt {
     const request: EthereumRequest(struct { Hash }) = .{ .params = .{transaction_hash}, .method = .eth_getTransactionReceipt, .id = self.chain_id };
 
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
 
     const possible_receipt = try self.sendRpcRequest(?TransactionReceipt, req_body);
     const receipt = possible_receipt orelse return error.TransactionReceiptNotFound;
@@ -422,7 +458,7 @@ pub fn getTransactionReceipt(self: *PubClient, transaction_hash: Hash) !Transact
 /// RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblockhashandindex)
 pub fn getUncleByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: usize) !Block {
     const request: EthereumRequest(struct { Hash, usize }) = .{ .params = .{ block_hash, index }, .method = .eth_getUncleByBlockHashAndIndex, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
 
     const request_block = try self.sendRpcRequest(?Block, req_body);
     const block_info = request_block orelse return error.InvalidBlockHashOrIndex;
@@ -437,10 +473,10 @@ pub fn getUncleByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRequest,
     const request = request: {
         if (opts.block_number) |number| {
             const request: EthereumRequest(struct { u64, usize }) = .{ .params = .{ number, index }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
         }
         const request: EthereumRequest(struct { BlockTag, usize }) = .{ .params = .{ tag, index }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
     };
 
     const request_block = try self.sendRpcRequest(?Block, request);
@@ -475,11 +511,11 @@ pub fn newLogFilter(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !
     const request = request: {
         if (tag) |request_tag| {
             const request: EthereumRequest(struct { LogTagRequest }) = .{ .params = .{.{ .fromBlock = request_tag, .toBlock = request_tag, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_newFilter, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
         }
 
         const request: EthereumRequest(struct { LogRequest }) = .{ .params = .{opts}, .method = .eth_newFilter, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
     };
 
     return self.sendRpcRequest(usize, request);
@@ -509,7 +545,7 @@ pub fn sendEthCall(self: *PubClient, call_object: EthCall, opts: BlockNumberRequ
 pub fn sendRawTransaction(self: *PubClient, serialized_hex_tx: Hex) !Hash {
     const request: EthereumRequest(struct { Hex }) = .{ .params = .{serialized_hex_tx}, .method = .eth_sendRawTransaction, .id = self.chain_id };
 
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
 
     return self.sendRpcRequest(Hash, req_body);
 }
@@ -657,7 +693,7 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations:
 pub fn uninstalllFilter(self: *PubClient, id: usize) !bool {
     const request: EthereumRequest(struct { usize }) = .{ .params = .{id}, .method = .eth_uninstallFilter, .id = self.chain_id };
 
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
+    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
 
     return self.sendRpcRequest(bool, req_body);
 }
@@ -674,12 +710,12 @@ fn sendBlockNumberRequest(self: *PubClient, opts: BlockNumberRequest, method: Et
     const request = request: {
         if (opts.block_number) |number| {
             const request: EthereumRequest(struct { u64 }) = .{ .params = .{number}, .method = method, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
         }
         const request: EthereumRequest(struct { BalanceBlockTag }) = .{ .params = .{tag}, .method = method, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
     };
-    defer self.alloc.free(request);
+    defer self.allocator.free(request);
 
     return self.sendRpcRequest(usize, request);
 }
@@ -687,8 +723,8 @@ fn sendBlockNumberRequest(self: *PubClient, opts: BlockNumberRequest, method: Et
 fn sendBlockHashRequest(self: *PubClient, block_hash: Hash, method: EthereumRpcMethods) !usize {
     const request: EthereumRequest(struct { Hash }) = .{ .params = .{block_hash}, .method = method, .id = self.chain_id };
 
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    defer self.alloc.free(req_body);
+    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(usize, req_body);
 }
@@ -699,13 +735,13 @@ fn sendAddressRequest(self: *PubClient, comptime T: type, opts: BalanceRequest, 
     const request = request: {
         if (opts.block_number) |number| {
             const request: EthereumRequest(struct { Address, u64 }) = .{ .params = .{ opts.address, number }, .method = method, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
         }
 
         const request: EthereumRequest(struct { Address, BalanceBlockTag }) = .{ .params = .{ opts.address, tag }, .method = method, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
     };
-    defer self.alloc.free(request);
+    defer self.allocator.free(request);
 
     return self.sendRpcRequest(T, request);
 }
@@ -713,8 +749,8 @@ fn sendAddressRequest(self: *PubClient, comptime T: type, opts: BalanceRequest, 
 fn sendBasicRequest(self: *PubClient, comptime T: type, method: EthereumRpcMethods) !T {
     const request: EthereumRequest(Tuple(&[_]type{})) = .{ .params = .{}, .method = method, .id = self.chain_id };
 
-    const req_body = try std.json.stringifyAlloc(self.alloc, request, .{});
-    defer self.alloc.free(req_body);
+    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(T, req_body);
 }
@@ -724,12 +760,12 @@ fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, 
     const request = request: {
         if (opts.block_number) |number| {
             const request: EthereumRequest(struct { EthCall, u64 }) = .{ .params = .{ call_object, number }, .method = method, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
         }
         const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{ .params = .{ call_object, tag }, .method = method, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.alloc, request, .{});
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
     };
-    defer self.alloc.free(request);
+    defer self.allocator.free(request);
 
     return self.sendRpcRequest(T, request);
 }
@@ -737,7 +773,7 @@ fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, 
 fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !T {
     httplog.debug("Preparing to send request body: {s}", .{request});
 
-    var body = std.ArrayList(u8).init(self.alloc);
+    var body = std.ArrayList(u8).init(self.allocator);
     defer body.deinit();
 
     var retries: u8 = 0;
@@ -745,10 +781,10 @@ fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !T {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        const req = try self.client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = request, .location = .{ .uri = self.uri }, .response_storage = .{ .dynamic = &body } });
+        const req = try self.internalFetch(request, &body);
 
         const res_body = try body.toOwnedSlice();
-        defer self.alloc.free(res_body);
+        defer self.allocator.free(res_body);
 
         httplog.debug("Got response from server: {s}", .{res_body});
         switch (req.status) {
@@ -766,8 +802,43 @@ fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !T {
     }
 }
 
+fn internalFetch(self: *PubClient, payload: []const u8, body: *std.ArrayList(u8)) !FetchResult {
+    var server_header_buffer: [16 * 1024]u8 = undefined;
+
+    var request = try self.client.open(.POST, self.uri, .{
+        .server_header_buffer = &server_header_buffer,
+        .redirect_behavior = .unhandled,
+        .headers = .{ .content_type = .{ .override = "application/json" } },
+        .connection = self.connection,
+    });
+    defer {
+        if (!request.response.parser.done) {
+            self.connection.closing = true;
+        }
+        if (self.client.connection_pool.used.len != 0) {
+            self.client.connection_pool.release(self.allocator, self.connection);
+        }
+    }
+
+    request.transfer_encoding = .{ .content_length = payload.len };
+
+    try request.send(.{});
+
+    try request.writeAll(payload);
+
+    try request.finish();
+    try request.wait();
+
+    const max_size = 2 * 1024 * 1024;
+    try request.reader().readAllArrayList(body, max_size);
+
+    return .{
+        .status = request.response.status,
+    };
+}
+
 fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !T {
-    const parsed = std.json.parseFromSliceLeaky(EthereumResponse(T), self.alloc, request, .{ .allocate = .alloc_always }) catch return error.UnexpectedErrorFound;
+    const parsed = std.json.parseFromSliceLeaky(EthereumResponse(T), self.allocator, request, .{ .allocate = .alloc_always }) catch return error.UnexpectedErrorFound;
 
     switch (parsed) {
         .success => |response| return response.result,
@@ -797,8 +868,10 @@ fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !T {
 
 test "GetBlockNumber" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const block_req = try pub_client.getBlockNumber();
 
@@ -807,8 +880,10 @@ test "GetBlockNumber" {
 
 test "GetChainId" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const chain = try pub_client.getChainId();
 
@@ -817,8 +892,10 @@ test "GetChainId" {
 
 test "GetBlock" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const block_info = try pub_client.getBlockByNumber(.{});
     try testing.expect(block_info == .beacon);
@@ -833,8 +910,10 @@ test "GetBlock" {
 
 test "CreateAccessList" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const accessList = try pub_client.createAccessList(.{ .london = .{ .from = try utils.addressToBytes("0xaeA8F8f781326bfE6A7683C2BD48Dd6AA4d3Ba63"), .data = "0x608060806080608155" } }, .{});
 
@@ -843,8 +922,10 @@ test "CreateAccessList" {
 
 test "FeeHistory" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const fee_history = try pub_client.feeHistory(5, .{}, &[_]f64{ 20, 30 });
 
@@ -853,8 +934,10 @@ test "FeeHistory" {
 
 test "GetBlockByHash" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const slice = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8";
     const block_info = try pub_client.getBlockByHash(.{ .block_hash = try utils.hashToBytes(slice) });
@@ -864,8 +947,10 @@ test "GetBlockByHash" {
 
 test "GetBlockTransactionCountByHash" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const slice = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8";
     const block_info = try pub_client.getBlockTransactionCountByHash(try utils.hashToBytes(slice));
@@ -874,8 +959,10 @@ test "GetBlockTransactionCountByHash" {
 
 test "getBlockTransactionCountByNumber" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const block_info = try pub_client.getBlockTransactionCountByNumber(.{});
     try testing.expect(block_info != 0);
@@ -883,8 +970,10 @@ test "getBlockTransactionCountByNumber" {
 
 test "getBlockTransactionCountByHash" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const slice = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8";
     const block_info = try pub_client.getBlockTransactionCountByHash(try utils.hashToBytes(slice));
@@ -893,8 +982,10 @@ test "getBlockTransactionCountByHash" {
 
 test "getAccounts" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const accounts = try pub_client.getAccounts();
     try testing.expect(accounts.len != 0);
@@ -902,8 +993,10 @@ test "getAccounts" {
 
 test "gasPrice" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const gasPrice = try pub_client.getGasPrice();
     try testing.expect(gasPrice != 0);
@@ -911,8 +1004,10 @@ test "gasPrice" {
 
 test "getCode" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const code = try pub_client.getContractCode(.{ .address = try utils.addressToBytes("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2") });
     try testing.expectEqualStrings(code, "0x6060604052600436106100af576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806306fdde03146100b9578063095ea7b31461014757806318160ddd146101a157806323b872dd146101ca5780632e1a7d4d14610243578063313ce5671461026657806370a082311461029557806395d89b41146102e2578063a9059cbb14610370578063d0e30db0146103ca578063dd62ed3e146103d4575b6100b7610440565b005b34156100c457600080fd5b6100cc6104dd565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561010c5780820151818401526020810190506100f1565b50505050905090810190601f1680156101395780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b341561015257600080fd5b610187600480803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803590602001909190505061057b565b604051808215151515815260200191505060405180910390f35b34156101ac57600080fd5b6101b461066d565b6040518082815260200191505060405180910390f35b34156101d557600080fd5b610229600480803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803590602001909190505061068c565b604051808215151515815260200191505060405180910390f35b341561024e57600080fd5b61026460048080359060200190919050506109d9565b005b341561027157600080fd5b610279610b05565b604051808260ff1660ff16815260200191505060405180910390f35b34156102a057600080fd5b6102cc600480803573ffffffffffffffffffffffffffffffffffffffff16906020019091905050610b18565b6040518082815260200191505060405180910390f35b34156102ed57600080fd5b6102f5610b30565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561033557808201518184015260208101905061031a565b50505050905090810190601f1680156103625780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b341561037b57600080fd5b6103b0600480803573ffffffffffffffffffffffffffffffffffffffff16906020019091908035906020019091905050610bce565b604051808215151515815260200191505060405180910390f35b6103d2610440565b005b34156103df57600080fd5b61042a600480803573ffffffffffffffffffffffffffffffffffffffff1690602001909190803573ffffffffffffffffffffffffffffffffffffffff16906020019091905050610be3565b6040518082815260200191505060405180910390f35b34600360003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825401925050819055503373ffffffffffffffffffffffffffffffffffffffff167fe1fffcc4923d04b559f4d29a8bfc6cda04eb5b0d3c460751c2402c5c5cc9109c346040518082815260200191505060405180910390a2565b60008054600181600116156101000203166002900480601f0160208091040260200160405190810160405280929190818152602001828054600181600116156101000203166002900480156105735780601f1061054857610100808354040283529160200191610573565b820191906000526020600020905b81548152906001019060200180831161055657829003601f168201915b505050505081565b600081600460003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060008573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020819055508273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925846040518082815260200191505060405180910390a36001905092915050565b60003073ffffffffffffffffffffffffffffffffffffffff1631905090565b600081600360008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002054101515156106dc57600080fd5b3373ffffffffffffffffffffffffffffffffffffffff168473ffffffffffffffffffffffffffffffffffffffff16141580156107b457507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff600460008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205414155b156108cf5781600460008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020541015151561084457600080fd5b81600460008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825403925050819055505b81600360008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000828254039250508190555081600360008573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825401925050819055508273ffffffffffffffffffffffffffffffffffffffff168473ffffffffffffffffffffffffffffffffffffffff167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef846040518082815260200191505060405180910390a3600190509392505050565b80600360003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205410151515610a2757600080fd5b80600360003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825403925050819055503373ffffffffffffffffffffffffffffffffffffffff166108fc829081150290604051600060405180830381858888f193505050501515610ab457600080fd5b3373ffffffffffffffffffffffffffffffffffffffff167f7fcf532c15f0a6db0bd6d0e038bea71d30d808c7d98cb3bf7268a95bf5081b65826040518082815260200191505060405180910390a250565b600260009054906101000a900460ff1681565b60036020528060005260406000206000915090505481565b60018054600181600116156101000203166002900480601f016020809104026020016040519081016040528092919081815260200182805460018160011615610100020316600290048015610bc65780601f10610b9b57610100808354040283529160200191610bc6565b820191906000526020600020905b815481529060010190602001808311610ba957829003601f168201915b505050505081565b6000610bdb33848461068c565b905092915050565b60046020528160005260406000206020528060005260406000206000915091505054815600a165627a7a72305820deb4c2ccab3c2fdca32ab3f46728389c2fe2c165d5fafa07661e4e004f6c344a0029");
@@ -920,8 +1015,10 @@ test "getCode" {
 
 test "getAddressBalance" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const address = try pub_client.getAddressBalance(.{ .address = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266") });
     try testing.expectEqual(address, try utils.parseEth(10000));
@@ -929,8 +1026,10 @@ test "getAddressBalance" {
 
 test "getUncleCountByBlockHash" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const uncle = try pub_client.getUncleCountByBlockHash(try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"));
     try testing.expectEqual(uncle, 0);
@@ -938,8 +1037,10 @@ test "getUncleCountByBlockHash" {
 
 test "getUncleCountByBlockNumber" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const uncle = try pub_client.getUncleCountByBlockNumber(.{});
     try testing.expectEqual(uncle, 0);
@@ -947,8 +1048,10 @@ test "getUncleCountByBlockNumber" {
 
 test "getLogs" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const logs = try pub_client.getLogs(.{ .blockHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8") }, null);
     try testing.expect(logs.len != 0);
@@ -956,8 +1059,10 @@ test "getLogs" {
 
 test "getStorage" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const storage = try pub_client.getStorage(try utils.addressToBytes("0x295a70b2de5e3953354a6a8344e616ed314d7251"), try utils.hashToBytes("0x6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9"), .{ .block_number = 6662363 });
 
@@ -966,8 +1071,10 @@ test "getStorage" {
 
 test "getTransactionByBlockNumberAndIndex" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const tx = try pub_client.getTransactionByBlockNumberAndIndex(.{ .block_number = 16777213 }, 0);
     try testing.expect(tx == .london);
@@ -975,16 +1082,21 @@ test "getTransactionByBlockNumberAndIndex" {
 
 test "getTransactionByBlockHashAndIndex" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
+
     const tx = try pub_client.getTransactionByBlockHashAndIndex(try utils.hashToBytes("0x48f523d98b66742a258dedce6fe47b26867623e190a02c05d450e3f872b4ba49"), 0);
     try testing.expect(tx == .london);
 }
 
 test "getAddressTransactionCount" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const nonce = try pub_client.getAddressTransactionCount(.{ .address = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266") });
     try testing.expectEqual(nonce, 605);
@@ -992,8 +1104,10 @@ test "getAddressTransactionCount" {
 
 test "getTransactionByHash" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const eip1559 = try pub_client.getTransactionByHash(try utils.hashToBytes("0x72c2a1a82c48da81fac7b434cdb5662b5c92b76f85565e062196ca8a84f43ee5"));
     try testing.expect(eip1559 == .london);
@@ -1008,8 +1122,10 @@ test "getTransactionByHash" {
 
 test "getTransactionReceipt" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const receipt = try pub_client.getTransactionReceipt(try utils.hashToBytes("0x72c2a1a82c48da81fac7b434cdb5662b5c92b76f85565e062196ca8a84f43ee5"));
     try testing.expect(receipt.legacy.status != null);
@@ -1021,8 +1137,10 @@ test "getTransactionReceipt" {
 
 test "estimateGas" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const gas = try pub_client.estimateGas(.{ .london = .{ .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), .value = try utils.parseEth(1) } }, .{});
     try testing.expect(gas != 0);
@@ -1030,8 +1148,10 @@ test "estimateGas" {
 
 test "estimateFeesPerGas" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const gas = try pub_client.estimateFeesPerGas(.{ .london = .{ .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), .value = try utils.parseEth(1) } }, null);
     try testing.expect(gas.london.max_fee_gas != 0);
@@ -1040,8 +1160,10 @@ test "estimateFeesPerGas" {
 
 test "estimateMaxFeePerGasManual" {
     const uri = try std.Uri.parse("http://localhost:8545/");
-    var pub_client = try PubClient.init(.{ .allocator = std.testing.allocator, .uri = uri });
+    var pub_client: PubClient = undefined;
     defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
     const gas = try pub_client.estimateMaxFeePerGasManual(null);
     try testing.expect(gas != 0);

@@ -1,13 +1,13 @@
-const abitype = @import("abi/abi.zig");
-const block = @import("meta/block.zig");
-const decoder = @import("decoding/decoder.zig");
-const logs = @import("meta/log.zig");
-const meta = @import("meta/meta.zig");
+const abitype = @import("../abi/abi.zig");
+const block = @import("../meta/block.zig");
+const decoder = @import("../decoding/decoder.zig");
+const logs = @import("../meta/log.zig");
+const meta = @import("../meta/meta.zig");
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("meta/transaction.zig");
-const types = @import("meta/ethereum.zig");
-const utils = @import("utils.zig");
+const transaction = @import("../meta/transaction.zig");
+const types = @import("../meta/ethereum.zig");
+const utils = @import("../utils/utils.zig");
 
 // Types
 const Abi = abitype.Abi;
@@ -18,7 +18,7 @@ const AbiItem = abitype.AbiItem;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
-const Anvil = @import("tests/Anvil.zig");
+const Anvil = @import("../tests/Anvil.zig");
 const BlockNumberRequest = block.BlockNumberRequest;
 const ClientType = @import("wallet.zig").WalletClients;
 const Constructor = abitype.Constructor;

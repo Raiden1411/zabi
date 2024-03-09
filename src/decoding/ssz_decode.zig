@@ -4,7 +4,7 @@
 
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../utils.zig");
+const utils = @import("../utils/utils.zig");
 
 // Types
 const Allocator = std.mem.Allocator;

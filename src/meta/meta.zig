@@ -642,15 +642,15 @@ pub fn Extract(comptime T: type, comptime needle: []const u8) type {
     return @Type(.{ .Enum = .{ .tag_type = info.tag_type, .fields = &enumFields, .decls = &.{}, .is_exhaustive = true } });
 }
 /// Merge structs into a single one
-pub fn Merge(comptime T: type, comptime K: type) type {
+pub fn MergeStructs(comptime T: type, comptime K: type) type {
     const info_t = @typeInfo(T);
     const info_k = @typeInfo(K);
 
     if (info_t != .Struct or info_k != .Struct)
         @compileError("Expected struct type");
 
-    if (info_t.Struct.is_tuple != info_k.Struct.is_tuple)
-        @compileError("Structs must be of the same type. One of the structs is a tuple type");
+    if (info_t.Struct.is_tuple or info_k.Struct.is_tuple)
+        @compileError("Use `MergeTupleStructs` instead");
 
     var counter: usize = 0;
     var fields: [info_t.Struct.fields.len + info_k.Struct.fields.len]std.builtin.Type.StructField = undefined;
@@ -665,7 +665,33 @@ pub fn Merge(comptime T: type, comptime K: type) type {
         counter += 1;
     }
 
-    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = info_t.Struct.is_tuple } });
+    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
+}
+/// Merge tuple structs
+pub fn MergeTupleStructs(comptime T: type, comptime K: type) type {
+    const info_t = @typeInfo(T);
+    const info_k = @typeInfo(K);
+
+    if (info_t != .Struct or info_k != .Struct)
+        @compileError("Expected struct type");
+
+    if (!info_t.Struct.is_tuple or !info_k.Struct.is_tuple)
+        @compileError("Use `MergeStructs` instead");
+
+    var counter: usize = 0;
+    var fields: [info_t.Struct.fields.len + info_k.Struct.fields.len]std.builtin.Type.StructField = undefined;
+
+    for (info_t.Struct.fields) |field| {
+        fields[counter] = field;
+        counter += 1;
+    }
+
+    for (info_k.Struct.fields) |field| {
+        fields[counter] = .{ .name = std.fmt.comptimePrint("{d}", .{counter}), .type = field.type, .default_value = field.default_value, .alignment = field.alignment, .is_comptime = field.is_comptime };
+        counter += 1;
+    }
+
+    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
 }
 /// Convert a struct into a tuple type.
 pub fn StructToTupleType(comptime T: type) type {
@@ -859,8 +885,8 @@ test "Meta" {
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .dynamicArray = &.{ .bool = {} } }, .name = "foo" }), []const bool);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .fixedArray = .{ .child = &.{ .bool = {} }, .size = 2 } }, .name = "foo" }), [2]bool);
 
-    try expectEqualStructs(struct { foo: u32, jazz: bool }, Merge(struct { foo: u32 }, struct { jazz: bool }));
-    try expectEqualStructs(struct { u32, bool }, Merge(struct { u32 }, struct { bool }));
+    try expectEqualStructs(struct { foo: u32, jazz: bool }, MergeStructs(struct { foo: u32 }, struct { jazz: bool }));
+    try expectEqualStructs(struct { u32, bool }, MergeTupleStructs(struct { u32 }, struct { bool }));
     try expectEqualStructs(struct { foo: u32, jazz: bool }, Omit(struct { foo: u32, bar: u256, baz: i64, jazz: bool }, &.{ "bar", "baz" }));
     try expectEqualStructs(std.meta.Tuple(&[_]type{ u64, std.meta.Tuple(&[_]type{ u64, u256 }) }), StructToTupleType(struct { foo: u64, bar: struct { baz: u64, jazz: u256 } }));
     try expectEqualStructs(AbiParameterToPrimative(.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .bool = {} }, .name = "bar" }} }), struct { bar: bool });

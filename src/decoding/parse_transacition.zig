@@ -5,7 +5,7 @@ const rlp = @import("../decoding/rlp_decode.zig");
 const serialize = @import("../encoding/serialize.zig");
 const testing = std.testing;
 const transaction = @import("../meta/transaction.zig");
-const utils = @import("../utils.zig");
+const utils = @import("../utils/utils.zig");
 
 // Types
 const AccessList = transaction.AccessList;

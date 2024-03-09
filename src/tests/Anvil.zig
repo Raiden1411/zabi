@@ -1,7 +1,7 @@
 const meta = @import("../meta/meta.zig");
 const std = @import("std");
 const types = @import("../meta/ethereum.zig");
-const utils = @import("../utils.zig");
+const utils = @import("../utils/utils.zig");
 
 const Address = types.Address;
 const Allocator = std.mem.Allocator;

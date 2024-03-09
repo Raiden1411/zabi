@@ -3,7 +3,7 @@ const std = @import("std");
 const meta = @import("../meta/meta.zig");
 const testing = std.testing;
 const types = @import("../meta/ethereum.zig");
-const utils = @import("../utils.zig");
+const utils = @import("../utils/utils.zig");
 
 // Types
 const AbiParameter = @import("../abi/abi_parameter.zig").AbiParameter;

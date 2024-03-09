@@ -1,6 +1,6 @@
 pub const abi = @import("abi/abi.zig");
 pub const block = @import("meta/block.zig");
-pub const contract = @import("contract.zig");
+pub const contract = @import("clients/contract.zig");
 pub const decoder = @import("decoding/decoder.zig");
 pub const decoder_logs = @import("decoding/logs_decode.zig");
 pub const eip712 = @import("abi/eip712.zig");
@@ -26,20 +26,18 @@ pub const ssz_decode = @import("decoding/ssz_decode.zig");
 pub const transactions = @import("meta/transaction.zig");
 pub const tokens = @import("human-readable/tokens.zig");
 pub const types = @import("meta/ethereum.zig");
-pub const utils = @import("utils.zig");
-pub const wallet = @import("wallet.zig");
+pub const utils = @import("utils/utils.zig");
+pub const wallet = @import("clients/wallet.zig");
 
 pub const Anvil = @import("tests/Anvil.zig");
 pub const Parser = @import("human-readable/Parser.zig");
-pub const PubClient = @import("Client.zig");
-pub const WebSocket = @import("WebSocket.zig");
+pub const PubClient = @import("clients/Client.zig");
+pub const WebSocket = @import("clients/WebSocket.zig");
 
 test {
     const std = @import("std");
     try Anvil.waitUntilReady(std.testing.allocator, 2_000);
 
-    _ = @import("Client.zig");
-    _ = @import("WebSocket.zig");
     _ = @import("abi/param_type.zig");
     _ = @import("abi/abi_parameter.zig");
     _ = @import("abi/abi.zig");
@@ -49,6 +47,10 @@ test {
     _ = @import("decoding/parse_transacition.zig");
     _ = @import("decoding/rlp_decode.zig");
     _ = @import("decoding/ssz_decode.zig");
+    _ = @import("clients/Client.zig");
+    _ = @import("clients/WebSocket.zig");
+    _ = @import("clients/contract.zig");
+    _ = @import("clients/wallet.zig");
     _ = @import("encoding/encoder.zig");
     _ = @import("encoding/logs.zig");
     _ = @import("encoding/rlp.zig");
@@ -57,7 +59,5 @@ test {
     _ = @import("human-readable/abi_parsing.zig");
     _ = @import("human-readable/lexer.zig");
     _ = @import("meta/meta.zig");
-    _ = @import("utils.zig");
-    _ = @import("wallet.zig");
-    _ = @import("contract.zig");
+    _ = @import("utils/utils.zig");
 }

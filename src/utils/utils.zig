@@ -1,7 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("meta/transaction.zig");
-const types = @import("meta/ethereum.zig");
+const transaction = @import("../meta/transaction.zig");
+const types = @import("../meta/ethereum.zig");
 
 // Types
 const Address = types.Address;

@@ -1,17 +1,17 @@
-const eip712 = @import("abi/eip712.zig");
+const eip712 = @import("../abi/eip712.zig");
 const secp256k1 = @import("secp256k1");
-const serialize = @import("encoding/serialize.zig");
+const serialize = @import("../encoding/serialize.zig");
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("meta/transaction.zig");
-const types = @import("meta/ethereum.zig");
-const utils = @import("utils.zig");
+const transaction = @import("../meta/transaction.zig");
+const types = @import("../meta/ethereum.zig");
+const utils = @import("../utils/utils.zig");
 
 // Types
 const AccessList = transaction.AccessList;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
-const Anvil = @import("tests/Anvil.zig");
+const Anvil = @import("../tests/Anvil.zig");
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Chains = types.PublicChains;
 const LondonEthCall = transaction.LondonEthCall;

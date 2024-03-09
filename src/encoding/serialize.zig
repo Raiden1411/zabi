@@ -5,7 +5,7 @@ const rlp = @import("rlp.zig");
 const transaction = @import("../meta/transaction.zig");
 const testing = std.testing;
 const types = @import("../meta/ethereum.zig");
-const utils = @import("../utils.zig");
+const utils = @import("../utils/utils.zig");
 const kzg = @import("c-kzg-4844");
 
 // Types

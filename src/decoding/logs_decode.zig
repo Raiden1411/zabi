@@ -4,7 +4,7 @@ const abi_parameter = @import("../abi/abi_parameter.zig");
 const human = @import("../human-readable/abi_parsing.zig");
 const meta = @import("../meta/meta.zig");
 const testing = std.testing;
-const utils = @import("../utils.zig");
+const utils = @import("../utils/utils.zig");
 
 // Types
 const AbiEvent = abi.Event;

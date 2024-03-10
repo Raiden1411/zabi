@@ -22,6 +22,8 @@ fn DecodedResult(comptime T: type) type {
 fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position: u64) !DecodedResult(T) {
     const info = @typeInfo(T);
 
+    std.debug.assert(encoded.len > 0); // Cannot decode 0 length;
+
     switch (info) {
         .Bool => {
             switch (encoded[position]) {

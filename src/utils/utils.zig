@@ -329,8 +329,13 @@ pub inline fn computeSize(int: u256) u8 {
     return 32;
 }
 
-test "Checksum" {
+test "IsAddress" {
     const address = "0x407d73d8a49eeb85d32cf465507dd71d507100c1";
 
     try testing.expect(!try isAddress(testing.allocator, address));
+    try testing.expect(!try isAddress(testing.allocator, "0x"));
+    try testing.expect(!try isAddress(testing.allocator, ""));
+    try testing.expect(!try isAddress(testing.allocator, "0x00000000000000000000000000000000000000000000000000000000"));
+    try testing.expect(try isAddress(testing.allocator, "0x0000000000000000000000000000000000000000"));
+    try testing.expect(try isAddress(testing.allocator, "0x407D73d8a49eeb85D32Cf465507dd71d507100c1"));
 }

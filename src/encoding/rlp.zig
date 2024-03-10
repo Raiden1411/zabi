@@ -45,11 +45,8 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
             if (payload < 0) return error.NegativeNumber;
 
             if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intCast(payload)) else {
-                const size = comptime utils.computeSize(@intCast(payload));
-                try writer.writeByte(0x80 + size);
-                var buffer: [32]u8 = undefined;
-                const size_slice = utils.formatInt(@intCast(payload), &buffer);
-                try writer.writeAll(buffer[32 - size_slice ..]);
+                const IntType = std.math.IntFittingRange(payload, payload);
+                return try encodeItem(alloc, @as(IntType, @intCast(payload)), writer);
             }
         },
         .Float => |float_info| {
@@ -338,6 +335,14 @@ test "Vector" {
     defer testing.allocator.free(encoded);
 
     try testing.expectEqualSlices(u8, encoded, &[_]u8{ 0xc2, 0x01, 0x01 });
+
+    const Two = @Vector(255, bool);
+
+    const vec: Two = [_]bool{true} ** 255;
+    const encoded_big = try encodeRlp(testing.allocator, .{vec});
+    defer testing.allocator.free(encoded_big);
+
+    try testing.expectEqualSlices(u8, encoded_big, &[_]u8{ 0xf8, 0xFF } ++ &[_]u8{0x01} ** 255);
 }
 
 test "Arrays" {
@@ -514,4 +519,17 @@ test "Optionals" {
     defer testing.allocator.free(encoded);
 
     try testing.expectEqualSlices(u8, encoded, &[_]u8{0x83} ++ "foo" ++ &[_]u8{0x80});
+}
+
+test "Errors" {
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{-69}));
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{-69.420}));
+
+    const negative: i8 = -69;
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{negative}));
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{@as(f16, @floatFromInt(negative))}));
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{[_]i8{negative}}));
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{.{negative}}));
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{@Vector(1, i8){negative}}));
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{&[_]i8{negative}}));
 }

@@ -172,7 +172,7 @@ fn encodeLog(allocator: Allocator, param: AbiEventParameter, value: anytype) !?[
                             .string, .bytes => {
                                 var buffer: [32]u8 = undefined;
                                 Keccak256.hash(value, &buffer, .{});
-                                return try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(buffer)});
+                                return try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&buffer)});
                             },
                             else => return error.InvalidParamType,
                         }
@@ -245,16 +245,87 @@ test "With args string/bytes" {
 
         try testing.expectEqualDeep(slice, encoded.data);
     }
+    {
+        const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(string indexed message)");
+        defer event.deinit();
+
+        const str: []const u8 = "hello";
+        const encoded = try encodeLogs(testing.allocator, event.value, .{str});
+        defer encoded.deinit();
+
+        const slice: []const ?[]u8 = &.{ @constCast("0x9f0b7f1630bdb7d474466e2dfef0fb9dff65f7a50eec83935b68f77d0808f08a"), @constCast("0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8") };
+
+        try testing.expectEqualDeep(slice, encoded.data);
+    }
+    {
+        const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(bytes indexed message)");
+        defer event.deinit();
+
+        const str: []const u8 = "hello";
+        const encoded = try encodeLogs(testing.allocator, event.value, .{str});
+        defer encoded.deinit();
+
+        const slice: []const ?[]u8 = &.{ @constCast("0xefc9afd358f1472682cf8cc82e1d3ae36be2538ed858a4a604119399d6f22b48"), @constCast("0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8") };
+
+        try testing.expectEqualDeep(slice, encoded.data);
+    }
 }
 
 test "With remaing types" {
-    const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(uint indexed a, int indexed b, bool indexed c)");
+    const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(uint indexed a, int indexed b, bool indexed c, bytes5 indexed d)");
     defer event.deinit();
 
-    const encoded = try encodeLogs(testing.allocator, event.value, .{ 69, -420, true });
+    const encoded = try encodeLogs(testing.allocator, event.value, .{ 69, -420, true, "01234" });
     defer encoded.deinit();
 
-    const slice: []const ?[]u8 = &.{ @constCast("0x99cb3d24e259f33004405cf6e508105e2fd2885003235a6a7fcb843bd09728b1"), @constCast("0x0000000000000000000000000000000000000000000000000000000000000045"), @constCast("0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe5c"), @constCast("0x0000000000000000000000000000000000000000000000000000000000000001") };
+    const slice: []const ?[]u8 = &.{ @constCast("0x08056cee0ec7df6d2ab8d10ab36f1ac8be153e2a0001198ef7b4c17dde75cbc4"), @constCast("0x0000000000000000000000000000000000000000000000000000000000000045"), @constCast("0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe5c"), @constCast("0x0000000000000000000000000000000000000000000000000000000000000001"), @constCast("0x3031323334000000000000000000000000000000000000000000000000000000") };
 
     try testing.expectEqualDeep(slice, encoded.data);
+}
+
+test "Errors" {
+    {
+        const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(int a)");
+        defer event.deinit();
+
+        try testing.expectError(error.EncodingNonIndexedParameter, encodeLogs(testing.allocator, event.value, .{-69}));
+    }
+    {
+        const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(uint indexed a)");
+        defer event.deinit();
+
+        try testing.expectError(error.NegativeNumber, encodeLogs(testing.allocator, event.value, .{-69}));
+        try testing.expectError(error.InvalidParamType, encodeLogs(testing.allocator, event.value, .{false}));
+    }
+    {
+        const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(bool indexed a)");
+        defer event.deinit();
+
+        try testing.expectError(error.InvalidParamType, encodeLogs(testing.allocator, event.value, .{-69}));
+    }
+    {
+        const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(address indexed a)");
+        defer event.deinit();
+
+        try testing.expectError(error.InvalidAddressType, encodeLogs(testing.allocator, event.value, .{"0x00000000000000000000000000000000000"}));
+    }
+    {
+        const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(bytes5 indexed a)");
+        defer event.deinit();
+
+        try testing.expectError(error.InvalidFixedBytesType, encodeLogs(testing.allocator, event.value, .{"0x00000000000000000000000000000000000"}));
+    }
+    {
+        const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(uint indexed a)");
+        defer event.deinit();
+
+        const str: []const u8 = "hey";
+        try testing.expectError(error.InvalidParamType, encodeLogs(testing.allocator, event.value, .{str}));
+    }
+    {
+        const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(uint indexed a)");
+        defer event.deinit();
+
+        try testing.expectError(error.InvalidParamType, encodeLogs(testing.allocator, event.value, .{"hey"}));
+    }
 }

@@ -65,7 +65,6 @@ pub fn AbiSignatureDecoded(comptime params: []const AbiParameter) type {
             const allocator = self.arena.child_allocator;
             self.arena.deinit();
 
-            allocator.free(self.name);
             allocator.destroy(self.arena);
         }
     };
@@ -81,7 +80,6 @@ pub fn AbiSignatureDecodedRuntime(comptime T: type) type {
             const allocator = self.arena.child_allocator;
             self.arena.deinit();
 
-            allocator.free(self.name);
             allocator.destroy(self.arena);
         }
     };
@@ -116,15 +114,13 @@ pub fn decodeAbiFunctionRuntime(allocator: Allocator, comptime T: type, function
         return error.InvalidAbiSignature;
 
     const data = hex[8..];
-    const func_name = try std.mem.concat(allocator, u8, &.{ "0x", hashed_func_name });
-    errdefer allocator.free(func_name);
 
     if (data.len == 0 and function.inputs.len > 0)
         return error.InvalidDecodeDataSize;
 
     const decoded = try decodeAbiParametersRuntime(allocator, T, function.inputs, data, opts);
 
-    return .{ .arena = decoded.arena, .name = func_name, .values = decoded.values };
+    return .{ .arena = decoded.arena, .name = function.name, .values = decoded.values };
 }
 /// Decode the hex values based on the struct signature
 /// Caller owns the memory.
@@ -140,18 +136,17 @@ pub fn decodeAbiFunctionOutputsRuntime(allocator: Allocator, comptime T: type, f
 
     const hash_hex = std.fmt.bytesToHex(hashed, .lower);
 
-    if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8])) return error.InvalidAbiSignature;
+    if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8]))
+        return error.InvalidAbiSignature;
 
     const data = hex[8..];
-    const func_name = try std.mem.concat(allocator, u8, &.{ "0x", hashed_func_name });
-    errdefer allocator.free(func_name);
 
     if (data.len == 0 and function.outputs.len > 0)
         return error.InvalidDecodeDataSize;
 
     const decoded = try decodeAbiParametersRuntime(allocator, T, function.outputs, data, opts);
 
-    return .{ .arena = decoded.arena, .name = func_name, .values = decoded.values };
+    return .{ .arena = decoded.arena, .name = function.name, .values = decoded.values };
 }
 /// Decode the hex values based on the struct signature
 /// Caller owns the memory.
@@ -167,18 +162,17 @@ pub fn decodeAbiErrorRuntime(allocator: Allocator, comptime T: type, err: Error,
 
     const hash_hex = std.fmt.bytesToHex(hashed, .lower);
 
-    if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8])) return error.InvalidAbiSignature;
+    if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8]))
+        return error.InvalidAbiSignature;
 
     const data = hex[8..];
-    const func_name = try std.mem.concat(allocator, u8, &.{ "0x", hashed_func_name });
-    errdefer allocator.free(func_name);
 
     if (data.len == 0 and err.inputs.len > 0)
         return error.InvalidDecodeDataSize;
 
     const decoded = try decodeAbiParametersRuntime(allocator, T, err.inputs, data, opts);
 
-    return .{ .arena = decoded.arena, .name = func_name, .values = decoded.values };
+    return .{ .arena = decoded.arena, .name = err.name, .values = decoded.values };
 }
 /// Decode the hex values based on the struct signature
 /// Caller owns the memory.
@@ -501,15 +495,13 @@ pub fn decodeAbiFunction(allocator: Allocator, comptime function: Function, hex:
         return error.InvalidAbiSignature;
 
     const data = hex[8..];
-    const func_name = try std.mem.concat(allocator, u8, &.{ "0x", hashed_func_name });
-    errdefer allocator.free(func_name);
 
     if (data.len == 0 and function.inputs.len > 0)
         return error.InvalidDecodeDataSize;
 
     const decoded = try decodeAbiParameters(allocator, function.inputs, data, opts);
 
-    return .{ .arena = decoded.arena, .name = func_name, .values = decoded.values };
+    return .{ .arena = decoded.arena, .name = function.name, .values = decoded.values };
 }
 
 /// Decode the hex values based on the struct signature
@@ -529,15 +521,13 @@ pub fn decodeAbiFunctionOutputs(allocator: Allocator, comptime function: Functio
     if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8])) return error.InvalidAbiSignature;
 
     const data = hex[8..];
-    const func_name = try std.mem.concat(allocator, u8, &.{ "0x", hashed_func_name });
-    errdefer allocator.free(func_name);
 
     if (data.len == 0 and function.outputs.len > 0)
         return error.InvalidDecodeDataSize;
 
     const decoded = try decodeAbiParameters(allocator, function.outputs, data, opts);
 
-    return .{ .arena = decoded.arena, .name = func_name, .values = decoded.values };
+    return .{ .arena = decoded.arena, .name = function.name, .values = decoded.values };
 }
 
 /// Decode the hex values based on the struct signature
@@ -557,15 +547,13 @@ pub fn decodeAbiError(allocator: Allocator, comptime err: Error, hex: []const u8
     if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8])) return error.InvalidAbiSignature;
 
     const data = hex[8..];
-    const func_name = try std.mem.concat(allocator, u8, &.{ "0x", hashed_func_name });
-    errdefer allocator.free(func_name);
 
     if (data.len == 0 and err.inputs.len > 0)
         return error.InvalidDecodeDataSize;
 
     const decoded = try decodeAbiParameters(allocator, err.inputs, data, opts);
 
-    return .{ .arena = decoded.arena, .name = func_name, .values = decoded.values };
+    return .{ .arena = decoded.arena, .name = err.name, .values = decoded.values };
 }
 
 /// Decode the hex values based on the struct signature
@@ -862,7 +850,7 @@ test "Uint/Int" {
         defer decoded.deinit();
 
         try testInnerValues(.{69420}, decoded.values);
-        try testing.expectEqualStrings("0x22217e1f", decoded.name);
+        try testing.expectEqualStrings("Bar", decoded.name);
     }
     {
         const R1 = std.meta.Tuple(&[_]type{u8});
@@ -878,7 +866,7 @@ test "Uint/Int" {
         defer decoded.deinit();
 
         try testInnerValues(.{69420}, decoded.values);
-        try testing.expectEqualStrings("0x22217e1f", decoded.name);
+        try testing.expectEqualStrings("Bar", decoded.name);
     }
 }
 
@@ -891,7 +879,7 @@ test "Address" {
         defer decoded.deinit();
 
         try testInnerValues(.{try utils.addressToBytes("0x388C818CA8B9251b393131C08a736A67ccB19297")}, decoded.values);
-        try testing.expectEqualStrings("0xb0a378b0", decoded.name);
+        try testing.expectEqualStrings("Bar", decoded.name);
     }
     {
         const R1 = std.meta.Tuple(&[_]type{Address});
@@ -902,7 +890,7 @@ test "Address" {
         defer decoded.deinit();
 
         try testInnerValues(.{try utils.addressToBytes("0x388C818CA8B9251b393131C08a736A67ccB19297")}, decoded.values);
-        try testing.expectEqualStrings("0xb0a378b0", decoded.name);
+        try testing.expectEqualStrings("Bar", decoded.name);
     }
 }
 
@@ -914,7 +902,7 @@ test "Fixed Bytes" {
         const decoded = try decodeAbiError(testing.allocator, .{ .type = .@"error", .name = "Bar", .inputs = &.{} }, "b0a378b0", .{});
         defer decoded.deinit();
 
-        try testing.expectEqualStrings("0xb0a378b0", decoded.name);
+        try testing.expectEqualStrings("Bar", decoded.name);
     }
     {
         const R1 = std.meta.Tuple(&[_]type{[5]u8});
@@ -926,7 +914,7 @@ test "Fixed Bytes" {
         const decoded = try decodeAbiErrorRuntime(testing.allocator, R3, .{ .type = .@"error", .name = "Bar", .inputs = &.{} }, "b0a378b0", .{});
         defer decoded.deinit();
 
-        try testing.expectEqualStrings("0xb0a378b0", decoded.name);
+        try testing.expectEqualStrings("Bar", decoded.name);
     }
 }
 
@@ -939,7 +927,7 @@ test "Bytes/String" {
         defer decoded.deinit();
 
         try testInnerValues(.{"foo"}, decoded.values);
-        try testing.expectEqualStrings("0x4ec7c7ae", decoded.name);
+        try testing.expectEqualStrings("Bar", decoded.name);
     }
     {
         const R1 = std.meta.Tuple(&[_]type{[]const u8});
@@ -951,7 +939,7 @@ test "Bytes/String" {
         defer decoded.deinit();
 
         try testInnerValues(.{"foo"}, decoded.values);
-        try testing.expectEqualStrings("0x4ec7c7ae", decoded.name);
+        try testing.expectEqualStrings("Bar", decoded.name);
     }
 }
 

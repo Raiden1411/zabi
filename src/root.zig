@@ -35,8 +35,8 @@ pub const PubClient = @import("clients/Client.zig");
 pub const WebSocket = @import("clients/WebSocket.zig");
 
 test {
-    // const std = @import("std");
-    // try Anvil.waitUntilReady(std.testing.allocator, 2_000);
+    const std = @import("std");
+    try Anvil.waitUntilReady(std.testing.allocator, 2_000);
 
     _ = @import("abi/param_type.zig");
     _ = @import("abi/abi_parameter.zig");
@@ -47,10 +47,10 @@ test {
     _ = @import("decoding/parse_transacition.zig");
     _ = @import("decoding/rlp_decode.zig");
     _ = @import("decoding/ssz_decode.zig");
-    // _ = @import("clients/Client.zig");
-    // _ = @import("clients/WebSocket.zig");
-    // _ = @import("clients/contract.zig");
-    // _ = @import("clients/wallet.zig");
+    _ = @import("clients/Client.zig");
+    _ = @import("clients/WebSocket.zig");
+    _ = @import("clients/contract.zig");
+    _ = @import("clients/wallet.zig");
     _ = @import("encoding/encoder.zig");
     _ = @import("encoding/logs.zig");
     _ = @import("encoding/rlp.zig");

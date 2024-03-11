@@ -1,5 +1,4 @@
 const abi = @import("../abi/abi.zig");
-const bench = @import("../tests/Benchmark.zig");
 const param = @import("../abi/abi_parameter.zig");
 const std = @import("std");
 const testing = std.testing;

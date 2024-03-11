@@ -143,6 +143,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Signer that will sign transactions or ethereum messages.
         /// Its based on libsecp256k1.
         signer: Signer,
+        /// The wallet nonce that will be used to send transactions
+        wallet_nonce: u64 = 0,
 
         /// Init wallet instance. Must call `deinit` to clean up.
         /// The init opts will depend on the `client_type`.
@@ -168,6 +170,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             self.arena.* = ArenaAllocator.init(opts.allocator);
             self.envelopes_pool.* = .{ .pooled_envelopes = .{} };
             self.allocator = self.arena.allocator();
+            self.wallet_nonce = try self.pub_client.getAddressTransactionCount(.{ .address = try self.signer.getAddressFromPublicKey() });
         }
         /// Inits wallet from a random generated priv key. Must call `deinit` after.
         /// The init opts will depend on the `client_type`.
@@ -317,7 +320,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const max_fee_per_blob = unprepared_envelope.maxFeePerBlobGas orelse try self.pub_client.estimateBlobMaxFeePerGas();
                     const blob_version = unprepared_envelope.blobVersionedHashes orelse &.{};
 
-                    const nonce: u64 = unprepared_envelope.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+                    const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
 
                     if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
                         const fees = try self.pub_client.estimateFeesPerGas(.{ .london = request }, curr_block);
@@ -367,7 +370,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
                     const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
 
-                    const nonce: u64 = unprepared_envelope.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+                    const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
 
                     if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
                         const fees = try self.pub_client.estimateFeesPerGas(.{ .london = request }, curr_block);
@@ -413,7 +416,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
                     const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
 
-                    const nonce: u64 = unprepared_envelope.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+                    const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
 
                     if (unprepared_envelope.gasPrice == null) {
                         const fees = try self.pub_client.estimateFeesPerGas(.{ .legacy = request }, curr_block);
@@ -452,7 +455,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const curr_block = try self.pub_client.getBlockByNumber(.{});
                     const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
 
-                    const nonce: u64 = unprepared_envelope.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+                    const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
 
                     if (unprepared_envelope.gasPrice == null) {
                         const fees = try self.pub_client.estimateFeesPerGas(.{ .legacy = request }, curr_block);
@@ -540,6 +543,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         }
         /// Signs, serializes and send the transaction via `eth_sendRawTransaction`.
         /// Returns the transaction hash.
+        ///
+        /// Call `waitForTransactionReceipt` to update the wallet nonce or update it manually
         pub fn sendSignedTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !Hash {
             const serialized = try serialize.serializeTransaction(self.allocator, tx, null);
 
@@ -556,17 +561,29 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Prepares, asserts, signs and sends the transaction via `eth_sendRawTransaction`.
         /// If any envelope is in the envelope pool it will use that instead in a LIFO order
         /// Will return an error if the envelope is incorrect
+        ///
+        /// Call `waitForTransactionReceipt` to update the wallet nonce or update it manually
         pub fn sendTransaction(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !Hash {
             const prepared = self.envelopes_pool.getLastElementFromPool() orelse try self.prepareTransaction(unprepared_envelope);
 
             try self.assertTransaction(prepared);
 
-            return self.sendSignedTransaction(prepared);
+            const hash = try self.sendSignedTransaction(prepared);
+
+            return hash;
         }
         /// Waits until the transaction gets mined and we can grab the receipt.
         /// If fail if the retry counter is excedded.
+        ///
+        /// Nonce will only get updated if it's able to fetch the receipt.
+        /// Use the pub_client waitForTransactionReceipt if you don't want to update the wallet's nonce.
         pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: Hash, confirmations: u8) !?TransactionReceipt {
-            return try self.pub_client.waitForTransactionReceipt(tx_hash, confirmations);
+            const receipt = try self.pub_client.waitForTransactionReceipt(tx_hash, confirmations);
+
+            // Updates the wallet nonce to be ready for the next transaction.
+            self.wallet_nonce += 1;
+
+            return receipt;
         }
     };
 }

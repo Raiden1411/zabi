@@ -129,6 +129,8 @@ pub fn deinit(self: *PubClient) void {
     const allocator = self.arena.child_allocator;
     allocator.destroy(self.arena);
     allocator.destroy(self.client);
+
+    self.* = undefined;
 }
 /// Connects to the RPC server and relases the connection from the client pool.
 /// This is done so that future fetchs can use the connection that is already freed.
@@ -574,7 +576,7 @@ pub fn sendRawTransaction(self: *PubClient, serialized_hex_tx: Hex) !Hash {
 /// because some nodes might be slower to sync.
 ///
 /// RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
-pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations: u8) !?TransactionReceipt {
+pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations: u8) !TransactionReceipt {
     var tx: ?Transaction = null;
     var block_number = try self.getBlockNumber();
     var receipt: ?TransactionReceipt = self.getTransactionReceipt(tx_hash) catch |err| switch (err) {
@@ -582,12 +584,13 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations:
         else => return err,
     };
 
-    // The receipt can be null here
-    if (confirmations == 0)
-        return receipt;
+    if (receipt) |tx_receipt| {
+        if (confirmations == 0)
+            return tx_receipt;
+    }
 
     var retries: u8 = 0;
-    var valid_confirmations: u8 = 0;
+    var valid_confirmations: u8 = if (receipt != null) 1 else 0;
     while (true) : (retries += 1) {
         if (retries - valid_confirmations > self.retries)
             return error.FailedToGetReceipt;
@@ -701,7 +704,7 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations:
         }
     }
 
-    return receipt;
+    return if (receipt) |tx_receipt| tx_receipt else error.FailedToGetReceipt;
 }
 /// Uninstalls a filter with given id. Should always be called when watch is no longer needed.
 /// Additionally Filters timeout when they aren't requested with `getFilterOrLogChanges` for a period of time.

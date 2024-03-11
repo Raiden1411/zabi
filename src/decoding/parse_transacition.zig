@@ -1,10 +1,10 @@
-const meta = @import("../meta/meta.zig");
+const meta = @import("../meta/utils.zig");
 const signer = @import("secp256k1");
 const std = @import("std");
 const rlp = @import("../decoding/rlp_decode.zig");
 const serialize = @import("../encoding/serialize.zig");
 const testing = std.testing;
-const transaction = @import("../meta/transaction.zig");
+const transaction = @import("../types/transaction.zig");
 const utils = @import("../utils/utils.zig");
 
 // Types
@@ -28,6 +28,7 @@ const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
 const LondonTransactionEnvelopeSigned = transaction.LondonTransactionEnvelopeSigned;
 const Signature = signer.Signature;
+const Signer = signer.Signer;
 const StructToTupleType = meta.StructToTupleType;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const TransactionEnvelopeSigned = transaction.TransactionEnvelopeSigned;
@@ -87,7 +88,7 @@ pub fn parseTransactionLeaky(allocator: Allocator, serialized: []const u8) !Tran
 /// Parses unsigned serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseEip4844Transaction(allocator: Allocator, serialized: []const u8) !CancunTransactionEnvelope {
     if (serialized[0] != 3)
-        return error.InvaliTransactionType;
+        return error.InvalidTransactionType;
 
     // zig fmt: off
     const chainId, 
@@ -111,7 +112,7 @@ pub fn parseEip4844Transaction(allocator: Allocator, serialized: []const u8) !Ca
 /// Parses unsigned serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseEip1559Transaction(allocator: Allocator, serialized: []const u8) !LondonTransactionEnvelope {
     if (serialized[0] != 2)
-        return error.InvaliTransactionType;
+        return error.InvalidTransactionType;
 
     // zig fmt: off
     const chainId, 
@@ -134,7 +135,7 @@ pub fn parseEip1559Transaction(allocator: Allocator, serialized: []const u8) !Lo
 /// Parses unsigned serialized eip2930 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseEip2930Transaction(allocator: Allocator, serialized: []const u8) !BerlinTransactionEnvelope {
     if (serialized[0] != 1)
-        return error.InvaliTransactionType;
+        return error.InvalidTransactionType;
 
     // zig fmt: off
     const chainId, 
@@ -211,7 +212,7 @@ pub fn parseSignedTransactionLeaky(allocator: Allocator, serialized: []const u8)
 /// Parses signed serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseSignedEip4844Transaction(allocator: Allocator, serialized: []const u8) !CancunTransactionEnvelopeSigned {
     if (serialized[0] != 3)
-        return error.InvaliTransactionType;
+        return error.InvalidTransactionType;
 
     // zig fmt: off
     const chainId, 
@@ -239,7 +240,7 @@ pub fn parseSignedEip4844Transaction(allocator: Allocator, serialized: []const u
 /// Parses signed serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseSignedEip1559Transaction(allocator: Allocator, serialized: []const u8) !LondonTransactionEnvelopeSigned {
     if (serialized[0] != 2)
-        return error.InvaliTransactionType;
+        return error.InvalidTransactionType;
 
     // zig fmt: off
     const chainId, 
@@ -266,7 +267,7 @@ pub fn parseSignedEip1559Transaction(allocator: Allocator, serialized: []const u
 /// Parses signed serialized eip2930 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseSignedEip2930Transaction(allocator: Allocator, serialized: []const u8) !BerlinTransactionEnvelopeSigned {
     if (serialized[0] != 1)
-        return error.InvaliTransactionType;
+        return error.InvalidTransactionType;
 
     // zig fmt: off
     const chainId, 
@@ -619,8 +620,19 @@ test "Serialize legacy with signature" {
     try testing.expectEqualDeep(tx_signed, parsed.value.legacy);
 }
 
+test "Errors" {
+    try testing.expectError(error.InvalidTransactionType, parseSignedEip1559Transaction(testing.allocator, &[_]u8{0x03}));
+    try testing.expectError(error.InvalidTransactionType, parseSignedEip2930Transaction(testing.allocator, &[_]u8{0x03}));
+    try testing.expectError(error.InvalidTransactionType, parseSignedEip4844Transaction(testing.allocator, &[_]u8{0x02}));
+    try testing.expectError(error.InvalidTransactionType, parseEip4844Transaction(testing.allocator, &[_]u8{0x02}));
+    try testing.expectError(error.InvalidTransactionType, parseEip1559Transaction(testing.allocator, &[_]u8{0x03}));
+    try testing.expectError(error.InvalidTransactionType, parseEip2930Transaction(testing.allocator, &[_]u8{0x02}));
+    try testing.expectError(error.InvalidTransactionType, parseTransaction(testing.allocator, &[_]u8{0x04}));
+    try testing.expectError(error.InvalidTransactionType, parseSignedTransaction(testing.allocator, &[_]u8{0x04}));
+}
+
 fn generateSignature(message: []const u8) !signer.Signature {
-    const wallet = try signer.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+    const wallet = try Signer.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
     const buffer = try testing.allocator.alloc(u8, message.len / 2);
     defer testing.allocator.free(buffer);
 

@@ -1,10 +1,10 @@
-const meta = @import("../meta/meta.zig");
 const signer = @import("secp256k1");
+const meta = @import("../meta/utils.zig");
 const std = @import("std");
 const rlp = @import("rlp.zig");
-const transaction = @import("../meta/transaction.zig");
+const transaction = @import("../types/transaction.zig");
 const testing = std.testing;
-const types = @import("../meta/ethereum.zig");
+const types = @import("../types/ethereum.zig");
 const utils = @import("../utils/utils.zig");
 const kzg = @import("c-kzg-4844");
 
@@ -15,7 +15,7 @@ const Allocator = std.mem.Allocator;
 const BerlinEnvelope = transaction.BerlinEnvelope;
 const BerlinEnvelopeSigned = transaction.BerlinEnvelopeSigned;
 const BerlinTransactionEnvelope = transaction.BerlinTransactionEnvelope;
-const Blob = kzg.Blob;
+const Blob = kzg.KZG4844.Blob;
 const CancunEnvelope = transaction.CancunEnvelope;
 const CancunEnvelopeSigned = transaction.CancunEnvelopeSigned;
 const CancunSignedWrapper = transaction.CancunSignedWrapper;
@@ -24,17 +24,18 @@ const CancunTransactionEnvelope = transaction.CancunTransactionEnvelope;
 const Hash = types.Hash;
 const Hex = types.Hex;
 const KZG4844 = kzg.KZG4844;
-const KZGCommitment = kzg.KZGCommitment;
-const KZGProof = kzg.KZGProof;
+const KZGCommitment = kzg.KZG4844.KZGCommitment;
+const KZGProof = kzg.KZG4844.KZGProof;
 const LegacyEnvelope = transaction.LegacyEnvelope;
 const LegacyEnvelopeSigned = transaction.LegacyEnvelopeSigned;
 const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
 const LondonEnvelope = transaction.LondonEnvelope;
 const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
-const Sidecar = kzg.Sidecar;
-const Sidecars = kzg.Sidecar;
+const Sidecar = kzg.KZG4844.Sidecar;
+const Sidecars = kzg.KZG4844.Sidecars;
 const Signature = signer.Signature;
+const Signer = signer.Signer;
 const StructToTupleType = meta.StructToTupleType;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const Tuple = std.meta.Tuple;
@@ -688,7 +689,7 @@ test "Serialize legacy with signature" {
 }
 
 fn generateSignature(message: []const u8) !signer.Signature {
-    const wallet = try signer.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+    const wallet = try Signer.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
     const buffer = try testing.allocator.alloc(u8, message.len / 2);
     defer testing.allocator.free(buffer);
 

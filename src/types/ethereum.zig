@@ -1,5 +1,5 @@
 const std = @import("std");
-const meta = @import("meta.zig");
+const meta = @import("../meta/root.zig");
 const block = @import("block.zig");
 const log = @import("log.zig");
 const transaction = @import("transaction.zig");
@@ -12,10 +12,10 @@ const Logs = log.Logs;
 const PendingTransactionsSubscription = transaction.PendingTransactionsSubscription;
 const PendingTransactionHashesSubscription = transaction.PendingTransactionHashesSubscription;
 const PendingTransaction = transaction.PendingTransaction;
-const RequestParser = meta.RequestParser;
+const RequestParser = meta.json.RequestParser;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
-const UnionParser = meta.UnionParser;
+const UnionParser = meta.json.UnionParser;
 
 pub const Hex = []const u8;
 pub const Gwei = u64;

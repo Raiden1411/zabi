@@ -5,7 +5,7 @@ const testing = std.testing;
 const tokens = @import("tokens.zig");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
-const Extract = @import("../meta/meta.zig").Extract;
+const Extract = @import("../meta/utils.zig").Extract;
 const ParamType = @import("../abi/param_type.zig").ParamType;
 const StateMutability = @import("../abi/state_mutability.zig").StateMutability;
 const Lexer = @import("lexer.zig").Lexer;
@@ -45,7 +45,7 @@ pub fn parseHumanReadable(comptime T: type, alloc: Allocator, source: [:0]const 
 
     var lex = Lexer.init(source);
     var list = Parser.TokenList{};
-    errdefer list.deinit(allocator);
+    defer list.deinit(allocator);
 
     while (true) {
         const tok = lex.scan();
@@ -511,8 +511,6 @@ test "Seaport" {
     try testing.expectEqual(last.type, .@"error");
     try testing.expectEqualSlices(param.AbiParameter, &.{}, last.inputs);
     try testing.expectEqualStrings("UnusedItemParameters", last.name);
-
-    // try std.json.stringify(parsed.value, .{ .whitespace = .indent_2, .emit_null_optional_fields = false }, std.io.getStdErr().writer());
 }
 
 test "Parsing errors parameters" {

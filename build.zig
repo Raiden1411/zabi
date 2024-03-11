@@ -34,9 +34,10 @@ pub fn build(b: *std.Build) void {
 
     addDependencies(b, &lib_unit_tests.root_module, target, optimize);
     var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
+
     if (coverage) {
         const include = b.fmt("--include-pattern=/src", .{});
-        const args = &[_]std.Build.Step.Run.Arg{ .{ .bytes = b.dupe("kcov") }, .{ .bytes = b.dupe(include) }, .{ .bytes = b.dupe(coverage_output_dir) } };
+        const args = &[_]std.Build.Step.Run.Arg{ .{ .bytes = b.dupe("kcov") }, .{ .bytes = b.dupe("--collect-only") }, .{ .bytes = b.dupe(include) }, .{ .bytes = b.dupe(coverage_output_dir) } };
 
         // var tests_run = b.addRunArtifact(lib_unit_tests);
         run_lib_unit_tests.has_side_effects = true;

@@ -22,6 +22,8 @@ fn DecodedResult(comptime T: type) type {
 fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position: u64) !DecodedResult(T) {
     const info = @typeInfo(T);
 
+    std.debug.assert(encoded.len > 0); // Cannot decode 0 length;
+
     switch (info) {
         .Bool => {
             switch (encoded[position]) {
@@ -46,7 +48,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
             return .{ .consumed = len + 1, .data = if (slice.len != 0) try std.fmt.parseInt(T, slice, 16) else @intCast(0) };
         },
         .Float => {
-            if (encoded[position] < 0x80) return .{ .consumed = 1, .data = @floatCast(encoded[position]) };
+            if (encoded[position] < 0x80) return .{ .consumed = 1, .data = @as(T, @floatFromInt(encoded[position])) };
             const len = encoded[position] - 0x80;
             const hex_number = encoded[position + 1 .. position + len + 1];
 
@@ -57,7 +59,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
             const bits = info.Float.bits;
             const AsInt = @Type(.{ .Int = .{ .signedness = .unsigned, .bits = bits } });
             const parsed = try std.fmt.parseInt(AsInt, slice, 16);
-            return .{ .consumed = len + 1, .data = if (slice.len != 0) @floatCast(parsed) else @floatCast(0) };
+            return .{ .consumed = len + 1, .data = if (slice.len != 0) @as(T, @floatFromInt(parsed)) else @floatCast(0) };
         },
         .Null => if (encoded[position] != 0x80) return error.UnexpectedValue else return .{ .consumed = 1, .data = null },
         .Optional => |opt_info| {
@@ -320,6 +322,21 @@ test "Decoded Int" {
 
     try testing.expectEqual(std.math.maxInt(u64), decoded_big);
 }
+test "Decoded Float" {
+    const low = try encodeRlp(testing.allocator, .{127});
+    defer testing.allocator.free(low);
+    const decoded_low = try decodeRlp(testing.allocator, f16, low);
+
+    const float: f16 = 127;
+    try testing.expectEqual(float, decoded_low);
+
+    const medium = try encodeRlp(testing.allocator, .{69420});
+    defer testing.allocator.free(medium);
+    const decoded_medium = try decodeRlp(testing.allocator, f32, medium);
+
+    const float_med: f32 = 69420;
+    try testing.expectEqual(float_med, decoded_medium);
+}
 
 test "Decoded Strings < 56" {
     const str = try encodeRlp(testing.allocator, .{"dog"});
@@ -336,26 +353,53 @@ test "Decoded Strings < 56" {
 }
 
 test "Decoded Strings > 56" {
-    const lorem = try encodeRlp(testing.allocator, .{"Lorem ipsum dolor sit amet, consectetur adipisicing elit"});
-    defer testing.allocator.free(lorem);
-    const decoded_lorem = try decodeRlp(testing.allocator, []const u8, lorem);
+    {
+        const lorem = try encodeRlp(testing.allocator, .{"Lorem ipsum dolor sit amet, consectetur adipisicing elit"});
+        defer testing.allocator.free(lorem);
+        const decoded_lorem = try decodeRlp(testing.allocator, []const u8, lorem);
 
-    try testing.expectEqualStrings("Lorem ipsum dolor sit amet, consectetur adipisicing elit", decoded_lorem);
+        try testing.expectEqualStrings("Lorem ipsum dolor sit amet, consectetur adipisicing elit", decoded_lorem);
 
-    const big: []const u8 = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas vitae nibh fermentum, pretium urna sit amet, eleifend nunc. Integer pulvinar metus turpis, id euismod felis ullamcorper eu. Etiam at diam vel massa cursus venenatis eget quis lectus. Nullam commodo enim ut ex facilisis mattis. Donec convallis arcu molestie metus vestibulum, et laoreet neque vestibulum. Mauris felis velit, convallis vel pulvinar eget, ultrices eget sapien. Curabitur ut ultrices lectus. Maecenas condimentum erat lorem, dictum finibus orci commodo a. In pretium velit in sem lobortis condimentum quis a turpis. Suspendisse dignissim ullamcorper semper. Etiam lobortis nibh ac nibh porttitor imperdiet. Donec erat nisi, ullamcorper non metus fringilla, vehicula convallis tortor. Nullam egestas arcu ac nisl scelerisque molestie. Phasellus facilisis augue sit amet pretium congue. Etiam a erat maximus, mattis ex";
+        const big: []const u8 = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas vitae nibh fermentum, pretium urna sit amet, eleifend nunc. Integer pulvinar metus turpis, id euismod felis ullamcorper eu. Etiam at diam vel massa cursus venenatis eget quis lectus. Nullam commodo enim ut ex facilisis mattis. Donec convallis arcu molestie metus vestibulum, et laoreet neque vestibulum. Mauris felis velit, convallis vel pulvinar eget, ultrices eget sapien. Curabitur ut ultrices lectus. Maecenas condimentum erat lorem, dictum finibus orci commodo a. In pretium velit in sem lobortis condimentum quis a turpis. Suspendisse dignissim ullamcorper semper. Etiam lobortis nibh ac nibh porttitor imperdiet. Donec erat nisi, ullamcorper non metus fringilla, vehicula convallis tortor. Nullam egestas arcu ac nisl scelerisque molestie. Phasellus facilisis augue sit amet pretium congue. Etiam a erat maximus, mattis ex";
 
-    const encoded = try encodeRlp(testing.allocator, .{big});
-    defer testing.allocator.free(encoded);
-    const decoded_big = try decodeRlp(testing.allocator, []const u8, encoded);
+        const encoded = try encodeRlp(testing.allocator, .{big});
+        defer testing.allocator.free(encoded);
+        const decoded_big = try decodeRlp(testing.allocator, []const u8, encoded);
 
-    try testing.expectEqualStrings(big, decoded_big);
+        try testing.expectEqualStrings(big, decoded_big);
+    }
+    {
+        const lorem = try encodeRlp(testing.allocator, .{"Lorem ipsum dolor sit amet, consectetur adipisicing elit"});
+        defer testing.allocator.free(lorem);
+        const decoded_lorem = try decodeRlp(testing.allocator, [56]u8, lorem);
+
+        try testing.expectEqualStrings("Lorem ipsum dolor sit amet, consectetur adipisicing elit", &decoded_lorem);
+
+        const big = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas vitae nibh fermentum, pretium urna sit amet, eleifend nunc. Integer pulvinar metus turpis, id euismod felis ullamcorper eu. Etiam at diam vel massa cursus venenatis eget quis lectus. Nullam commodo enim ut ex facilisis mattis. Donec convallis arcu molestie metus vestibulum, et laoreet neque vestibulum. Mauris felis velit, convallis vel pulvinar eget, ultrices eget sapien. Curabitur ut ultrices lectus. Maecenas condimentum erat lorem, dictum finibus orci commodo a. In pretium velit in sem lobortis condimentum quis a turpis. Suspendisse dignissim ullamcorper semper. Etiam lobortis nibh ac nibh porttitor imperdiet. Donec erat nisi, ullamcorper non metus fringilla, vehicula convallis tortor. Nullam egestas arcu ac nisl scelerisque molestie. Phasellus facilisis augue sit amet pretium congue. Etiam a erat maximus, mattis ex";
+
+        const encoded = try encodeRlp(testing.allocator, .{big});
+        defer testing.allocator.free(encoded);
+        const decoded_big = try decodeRlp(testing.allocator, [895]u8, encoded);
+
+        try testing.expectEqualStrings(big, &decoded_big);
+    }
 }
 
 test "Decoded Vector" {
-    const one: @Vector(2, bool) = .{ true, true };
-    const decoded_one = try decodeRlp(testing.allocator, @Vector(2, bool), &[_]u8{ 0xc2, 0x01, 0x01 });
+    {
+        const one: @Vector(2, bool) = .{ true, true };
+        const decoded_one = try decodeRlp(testing.allocator, @Vector(2, bool), &[_]u8{ 0xc2, 0x01, 0x01 });
 
-    try testing.expectEqualDeep(&one, &decoded_one);
+        try testing.expectEqualDeep(&one, &decoded_one);
+    }
+    {
+        const bigs: @Vector(256, u32) = [_]u32{0xf8} ** 256;
+        const enc_bigs = try encodeRlp(testing.allocator, .{bigs});
+        defer testing.allocator.free(enc_bigs);
+        const decoded_bigs = try decodeRlp(testing.allocator, @Vector(256, u32), enc_bigs);
+
+        try testing.expectEqualDeep(bigs, decoded_bigs);
+    }
 }
 
 test "Decoded Arrays" {
@@ -442,18 +486,30 @@ test "Decoded Slices" {
 }
 
 test "Decoded Enums" {
-    const Enum = enum {
-        foo,
-        bar,
-        baz,
-    };
-    const tuple: std.meta.Tuple(&[_]type{Enum}) = .{.foo};
+    {
+        const Enum = enum {
+            foo,
+            bar,
+            baz,
+        };
+        const tuple: std.meta.Tuple(&[_]type{Enum}) = .{.foo};
 
-    const encoded = try encodeRlp(testing.allocator, tuple);
-    defer testing.allocator.free(encoded);
-    const decoded = try decodeRlp(testing.allocator, Enum, encoded);
+        const encoded = try encodeRlp(testing.allocator, tuple);
+        defer testing.allocator.free(encoded);
+        const decoded = try decodeRlp(testing.allocator, Enum, encoded);
 
-    try testing.expectEqual(Enum.foo, decoded);
+        try testing.expectEqual(Enum.foo, decoded);
+    }
+    {
+        const Enum = enum { qwertyuiopasdfghjklzxcvbnmqwertyuiopasdfghjklzxcvbnmasdfghjklwertyuiopzxcvbnmasdfghdsafgsadffbgnbhbfvgfjhdshsfghdfhbhgfjdvdsfhbfgh };
+        const tuple: std.meta.Tuple(&[_]type{Enum}) = .{.qwertyuiopasdfghjklzxcvbnmqwertyuiopasdfghjklzxcvbnmasdfghjklwertyuiopzxcvbnmasdfghdsafgsadffbgnbhbfvgfjhdshsfghdfhbhgfjdvdsfhbfgh};
+
+        const encoded = try encodeRlp(testing.allocator, tuple);
+        defer testing.allocator.free(encoded);
+        const decoded = try decodeRlp(testing.allocator, Enum, encoded);
+
+        try testing.expectEqual(Enum.qwertyuiopasdfghjklzxcvbnmqwertyuiopasdfghjklzxcvbnmasdfghjklwertyuiopzxcvbnmasdfghdsafgsadffbgnbhbfvgfjhdshsfghdfhbhgfjdvdsfhbfgh, decoded);
+    }
 }
 
 test "Decoded Optionals" {
@@ -527,4 +583,22 @@ test "Decoded Pointer" {
     defer testing.allocator.destroy(decoded_big);
 
     try testing.expectEqual(std.math.maxInt(u64), decoded_big.*);
+}
+
+test "Errors" {
+    try testing.expectError(error.UnexpectedValue, decodeRlp(testing.allocator, bool, &[_]u8{0x02}));
+
+    {
+        const lorem = try encodeRlp(testing.allocator, .{"Lorem ipsum dolor sit amet, consectetur adipisicing elit"});
+        defer testing.allocator.free(lorem);
+        const decoded_lorem = try decodeRlp(testing.allocator, [56]u8, lorem);
+
+        try testing.expectEqualStrings("Lorem ipsum dolor sit amet, consectetur adipisicing elit", &decoded_lorem);
+
+        const big = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas vitae nibh fermentum, pretium urna sit amet, eleifend nunc. Integer pulvinar metus turpis, id euismod felis ullamcorper eu. Etiam at diam vel massa cursus venenatis eget quis lectus. Nullam commodo enim ut ex facilisis mattis. Donec convallis arcu molestie metus vestibulum, et laoreet neque vestibulum. Mauris felis velit, convallis vel pulvinar eget, ultrices eget sapien. Curabitur ut ultrices lectus. Maecenas condimentum erat lorem, dictum finibus orci commodo a. In pretium velit in sem lobortis condimentum quis a turpis. Suspendisse dignissim ullamcorper semper. Etiam lobortis nibh ac nibh porttitor imperdiet. Donec erat nisi, ullamcorper non metus fringilla, vehicula convallis tortor. Nullam egestas arcu ac nisl scelerisque molestie. Phasellus facilisis augue sit amet pretium congue. Etiam a erat maximus, mattis ex";
+
+        const encoded = try encodeRlp(testing.allocator, .{big});
+        defer testing.allocator.free(encoded);
+        try testing.expectError(error.LengthMissmatch, decodeRlp(testing.allocator, [894]u8, encoded));
+    }
 }

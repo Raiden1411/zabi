@@ -1,7 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("../meta/transaction.zig");
-const types = @import("../meta/ethereum.zig");
+const transaction = @import("../types/transaction.zig");
+const types = @import("../types/ethereum.zig");
 
 // Types
 const Address = types.Address;
@@ -329,8 +329,23 @@ pub inline fn computeSize(int: u256) u8 {
     return 32;
 }
 
-test "Checksum" {
+test "IsAddress" {
     const address = "0x407d73d8a49eeb85d32cf465507dd71d507100c1";
 
     try testing.expect(!try isAddress(testing.allocator, address));
+    try testing.expect(!try isAddress(testing.allocator, "0x"));
+    try testing.expect(!try isAddress(testing.allocator, ""));
+    try testing.expect(!try isAddress(testing.allocator, "0x00000000000000000000000000000000000000000000000000000000"));
+    try testing.expect(try isAddress(testing.allocator, "0x0000000000000000000000000000000000000000"));
+    try testing.expect(try isAddress(testing.allocator, "0x407D73d8a49eeb85D32Cf465507dd71d507100c1"));
+}
+
+test "AddressToBytes" {
+    try testing.expectError(error.InvalidAddress, addressToBytes("0x000000000000000000000000"));
+    try testing.expectError(error.InvalidAddress, addressToBytes("000000000"));
+}
+
+test "HashToBytes" {
+    try testing.expectError(error.InvalidHash, hashToBytes("0x000000000000000000000000"));
+    try testing.expectError(error.InvalidHash, hashToBytes("000000000"));
 }

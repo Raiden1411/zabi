@@ -18,7 +18,7 @@ private_key: [Secp256k1.scalar.encoded_length]u8,
 // Public key in bytes
 public_key: [PublicKeyLength]u8,
 
-pub const Signer = @This();
+const Signer = @This();
 
 /// Iniates the signer and creates the needed context and the public key.
 pub fn init(key: []const u8) !Signer {

@@ -1,8 +1,8 @@
 const std = @import("std");
 const abi = @import("../abi/abi_parameter.zig");
-const meta = @import("../meta/meta.zig");
+const meta = @import("../meta/abi.zig");
 const testing = std.testing;
-const types = @import("../meta/ethereum.zig");
+const types = @import("../types/ethereum.zig");
 const utils = @import("../utils/utils.zig");
 const assert = std.debug.assert;
 

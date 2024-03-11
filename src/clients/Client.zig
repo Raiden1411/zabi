@@ -1,11 +1,11 @@
-const block = @import("../meta/block.zig");
+const block = @import("../types/block.zig");
 const http = std.http;
-const log = @import("../meta/log.zig");
-const meta = @import("../meta/meta.zig");
+const log = @import("../types/log.zig");
+const meta = @import("../meta/utils.zig");
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("../meta/transaction.zig");
-const types = @import("../meta/ethereum.zig");
+const transaction = @import("../types/transaction.zig");
+const types = @import("../types/ethereum.zig");
 const utils = @import("../utils/utils.zig");
 
 // Types

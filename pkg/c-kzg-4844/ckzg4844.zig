@@ -5,6 +5,8 @@ const Allocator = std.mem.Allocator;
 const Sha256 = std.crypto.hash.sha2.Sha256;
 const Tuple = std.meta.Tuple;
 
+const KZG4844 = @This();
+
 pub const Eip4844Errors = error{ ExpectedZByte, ExpectJsonFile, ExpectedBlobData, SetupMustBeInitialized, SetupAlreadyLoaded, InvalidProof, InvalidG1Length, InvalidG2Length, InvalidSize };
 
 pub const Blob = [c.BYTES_PER_BLOB]u8;
@@ -13,8 +15,6 @@ pub const KZGCommitment = [c.BYTES_PER_COMMITMENT]u8;
 pub const KZGSettings = c.KZGSettings;
 
 pub const KZGProofResult = struct { proof: KZGProof, y: [c.BYTES_PER_FIELD_ELEMENT]u8 };
-
-pub const KZG4844 = @This();
 
 pub const BYTES_PER_G1_POINT: usize = 48;
 

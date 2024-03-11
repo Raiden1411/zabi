@@ -2,7 +2,7 @@ const std = @import("std");
 const abi = @import("../abi/abi.zig");
 const abi_parameter = @import("../abi/abi_parameter.zig");
 const human = @import("../human-readable/abi_parsing.zig");
-const meta = @import("../meta/meta.zig");
+const meta = @import("../meta/abi.zig");
 const testing = std.testing;
 const utils = @import("../utils/utils.zig");
 

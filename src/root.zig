@@ -1,38 +1,16 @@
-pub const abi = @import("abi/abi.zig");
-pub const block = @import("meta/block.zig");
-pub const contract = @import("clients/contract.zig");
-pub const decoder = @import("decoding/decoder.zig");
-pub const decoder_logs = @import("decoding/logs_decode.zig");
-pub const eip712 = @import("abi/eip712.zig");
-pub const encoder = @import("encoding/encoder.zig");
-pub const encoder_logs = @import("encoding/logs.zig");
-pub const human = @import("human-readable/abi_parsing.zig");
-/// Enables support for EIP-4844
+pub const abi = @import("abi/root.zig");
+pub const clients = @import("clients/root.zig");
+pub const decoding = @import("decoding/root.zig");
+pub const encoding = @import("encoding/root.zig");
+pub const human_readable = @import("human-readable/root.zig");
+pub const meta = @import("meta/root.zig");
 pub const kzg4844 = @import("c-kzg-4844");
-pub const lexer = @import("human-readable/lexer.zig");
-pub const log = @import("meta/log.zig");
-pub const meta = @import("meta/meta.zig");
-pub const param = @import("abi/abi_parameter.zig");
-pub const param_type = @import("abi/param_type.zig");
-pub const parse_transacition = @import("decoding/parse_transacition.zig");
-pub const rlp = @import("encoding/rlp.zig");
-pub const rlp_decode = @import("decoding/rlp_decode.zig");
-/// Used to manage all the signer and signatures
-pub const secp256k1 = @import("secp256k1");
-pub const serialize = @import("encoding/serialize.zig");
-pub const state_mutability = @import("abi/state_mutability.zig");
-pub const ssz = @import("encoding/ssz.zig");
-pub const ssz_decode = @import("decoding/ssz_decode.zig");
-pub const transactions = @import("meta/transaction.zig");
-pub const tokens = @import("human-readable/tokens.zig");
-pub const types = @import("meta/ethereum.zig");
+pub const signer = @import("secp256k1");
+pub const types = @import("types/root.zig");
 pub const utils = @import("utils/utils.zig");
-pub const wallet = @import("clients/wallet.zig");
 
 pub const Anvil = @import("tests/Anvil.zig");
-pub const Parser = @import("human-readable/Parser.zig");
-pub const PubClient = @import("clients/Client.zig");
-pub const WebSocket = @import("clients/WebSocket.zig");
+pub const Hardhat = @import("tests/Hardhat.zig");
 
 test {
     const std = @import("std");
@@ -58,6 +36,7 @@ test {
     _ = @import("encoding/ssz.zig");
     _ = @import("human-readable/abi_parsing.zig");
     _ = @import("human-readable/lexer.zig");
-    _ = @import("meta/meta.zig");
+    _ = @import("meta/abi.zig");
+    _ = @import("meta/utils.zig");
     _ = @import("utils/utils.zig");
 }

@@ -1,4 +1,4 @@
-const meta = @import("meta.zig");
+const meta = @import("../meta/root.zig");
 const std = @import("std");
 const transactions = @import("transaction.zig");
 const types = @import("ethereum.zig");
@@ -6,17 +6,17 @@ const types = @import("ethereum.zig");
 // Types
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
-const Extract = meta.Extract;
+const Extract = meta.utils.Extract;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
 const ParserError = std.json.ParseError;
 const ParserOptions = std.json.ParseOptions;
-const RequestParser = meta.RequestParser;
+const RequestParser = meta.json.RequestParser;
 const Scanner = std.json.Scanner;
 const Token = std.json.Token;
 const Transaction = transactions.Transaction;
-const UnionParser = meta.UnionParser;
+const UnionParser = meta.json.UnionParser;
 const Wei = types.Wei;
 
 /// Block tag used for RPC requests.

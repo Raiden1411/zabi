@@ -3,8 +3,8 @@ const secp256k1 = @import("secp256k1");
 const serialize = @import("../encoding/serialize.zig");
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("../meta/transaction.zig");
-const types = @import("../meta/ethereum.zig");
+const transaction = @import("../types/transaction.zig");
+const types = @import("../types/ethereum.zig");
 const utils = @import("../utils/utils.zig");
 
 // Types
@@ -273,7 +273,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         pub fn verifyTypedData(self: *Wallet(client_type), sig: Signature, comptime eip712_types: anytype, comptime primary_type: []const u8, domain: ?TypedDataDomain, message: anytype) !bool {
             const hash = try eip712.hashTypedData(self.allocator, eip712_types, primary_type, domain, message);
 
-            const address = try secp256k1.recoverEthereumAddress(hash, sig);
+            const address = try Signer.recoverEthereumAddress(hash, sig);
             const wallet_address = try self.getWalletAddress();
 
             return std.mem.eql(u8, &wallet_address, &address);

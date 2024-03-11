@@ -1,6 +1,6 @@
-const meta = @import("../meta/meta.zig");
+const meta = @import("../meta/json.zig");
 const std = @import("std");
-const types = @import("../meta/ethereum.zig");
+const types = @import("../types/ethereum.zig");
 const utils = @import("../utils/utils.zig");
 
 const Address = types.Address;

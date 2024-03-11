@@ -1,10 +1,10 @@
-const meta = @import("../meta/meta.zig");
+const meta = @import("../meta/utils.zig");
 const signer = @import("secp256k1");
 const std = @import("std");
 const rlp = @import("../decoding/rlp_decode.zig");
 const serialize = @import("../encoding/serialize.zig");
 const testing = std.testing;
-const transaction = @import("../meta/transaction.zig");
+const transaction = @import("../types/transaction.zig");
 const utils = @import("../utils/utils.zig");
 
 // Types
@@ -28,6 +28,7 @@ const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
 const LondonTransactionEnvelopeSigned = transaction.LondonTransactionEnvelopeSigned;
 const Signature = signer.Signature;
+const Signer = signer.Signer;
 const StructToTupleType = meta.StructToTupleType;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const TransactionEnvelopeSigned = transaction.TransactionEnvelopeSigned;
@@ -631,7 +632,7 @@ test "Errors" {
 }
 
 fn generateSignature(message: []const u8) !signer.Signature {
-    const wallet = try signer.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+    const wallet = try Signer.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
     const buffer = try testing.allocator.alloc(u8, message.len / 2);
     defer testing.allocator.free(buffer);
 

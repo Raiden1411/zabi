@@ -1,24 +1,24 @@
 const kzg = @import("c-kzg-4844");
 const log = @import("log.zig");
-const meta = @import("meta.zig");
+const meta = @import("../meta/root.zig");
 const std = @import("std");
 const types = @import("ethereum.zig");
 
 // Types
 const Address = types.Address;
-const Blob = kzg.Blob;
+const Blob = kzg.KZG4844.Blob;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
-const KZGCommitment = kzg.KZGCommitment;
-const KZGProof = kzg.KZGProof;
+const KZGCommitment = kzg.KZG4844.KZGCommitment;
+const KZGProof = kzg.KZG4844.KZGProof;
 const Logs = log.Logs;
-const Merge = meta.MergeTupleStructs;
-const Omit = meta.Omit;
-const RequestParser = meta.RequestParser;
-const StructToTupleType = meta.StructToTupleType;
+const Merge = meta.utils.MergeTupleStructs;
+const Omit = meta.utils.Omit;
+const RequestParser = meta.json.RequestParser;
+const StructToTupleType = meta.utils.StructToTupleType;
 const Wei = types.Wei;
-const UnionParser = meta.UnionParser;
+const UnionParser = meta.json.UnionParser;
 
 /// Tuple representig an encoded envelope for the Berlin hardfork
 pub const BerlinEnvelope = StructToTupleType(BerlinTransactionEnvelope);

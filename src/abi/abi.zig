@@ -2,23 +2,23 @@ const encoder = @import("../encoding/encoder.zig");
 const encoder_logs = @import("../encoding/logs.zig");
 const decoder = @import("../decoding/decoder.zig");
 const decoder_logs = @import("../decoding/logs_decode.zig");
-const meta = @import("../meta/meta.zig");
+const meta = @import("../meta/root.zig");
 const std = @import("std");
 const testing = std.testing;
-const types = @import("../meta/ethereum.zig");
+const types = @import("../types/ethereum.zig");
 
 // Types
 const AbiEncoded = encoder.AbiEncoded;
 const AbiParameter = @import("abi_parameter.zig").AbiParameter;
 const AbiEventParameter = @import("abi_parameter.zig").AbiEventParameter;
 const Allocator = std.mem.Allocator;
-const DecodedLogs = encoder_logs.DecodedLogs;
-const Extract = meta.Extract;
+const DecodedLogs = decoder_logs.DecodedLogs;
+const Extract = meta.utils.Extract;
 const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const LogsEncoded = encoder_logs.LogsEncoded;
 const StateMutability = @import("state_mutability.zig").StateMutability;
-const UnionParser = meta.UnionParser;
+const UnionParser = meta.json.UnionParser;
 
 pub const Abitype = enum { function, @"error", event, constructor, fallback, receive };
 

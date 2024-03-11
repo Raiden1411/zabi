@@ -1,5 +1,5 @@
 const block = @import("block.zig");
-const meta = @import("meta.zig");
+const meta = @import("../meta/root.zig");
 const types = @import("ethereum.zig");
 
 // Types
@@ -9,8 +9,8 @@ const Extract = meta.Extract;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
-const RequestParser = meta.RequestParser;
-const UnionParser = meta.UnionParser;
+const RequestParser = meta.json.RequestParser;
+const UnionParser = meta.json.UnionParser;
 const Wei = types.Wei;
 
 /// Zig struct representation of the log RPC response.

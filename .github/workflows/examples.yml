@@ -1,4 +1,4 @@
-name: Benchmark
+name: Examples
 
 on:
   push:
@@ -17,9 +17,9 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
+        examples: [wallet, transfer, contract, watch]
     runs-on: ${{ matrix.os }}
     steps:
-
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
@@ -28,9 +28,9 @@ jobs:
           version: master
 
       - name: Run zig fmt
-        working-directory: ./bench
+        working-directory: ./examples/${{matrix.examples}}
         run: zig fmt --check .
 
-      - name: Run Benchmark
-        working-directory: ./bench
-        run: zig build bench
+      - name: Build examples
+        working-directory: ./examples/${{matrix.examples}}
+        run: zig build

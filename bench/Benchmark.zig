@@ -17,11 +17,11 @@ pub const BenchmarkResult = struct {
 
     pub fn printSummary(self: *const Self) void {
         std.debug.print("Benchmark summary for {d} trials:\n", .{self.opts.runs});
-        std.debug.print("Mean: \x1b[32m{s}\n", .{std.fmt.fmtDuration(self.mean)});
+        std.debug.print("Mean: {s}\n", .{std.fmt.fmtDuration(self.mean)});
     }
 };
 
-fn invoke(comptime func: anytype, args: std.meta.ArgsTuple(@TypeOf(func))) void {
+fn invoke(comptime func: anytype, args: anytype) void {
     const ReturnType = @typeInfo(@TypeOf(func)).Fn.return_type.?;
     switch (@typeInfo(ReturnType)) {
         .ErrorUnion => {
@@ -31,11 +31,20 @@ fn invoke(comptime func: anytype, args: std.meta.ArgsTuple(@TypeOf(func))) void 
                 }
                 return;
             };
+            const info = @typeInfo(@TypeOf(item));
+
+            if (info != .Struct)
+                return;
 
             if (@hasDecl(@TypeOf(item), "deinit")) item.deinit();
         },
         else => {
             const item = @call(.never_inline, func, args);
+            const info = @typeInfo(@TypeOf(item));
+
+            if (info != .Struct)
+                return;
+
             if (@hasDecl(@TypeOf(item), "deinit")) item.deinit();
             return;
         },
@@ -45,7 +54,7 @@ fn invoke(comptime func: anytype, args: std.meta.ArgsTuple(@TypeOf(func))) void 
 pub fn benchmark(
     allocator: Allocator,
     comptime func: anytype,
-    args: ArgsTuple(@TypeOf(func)),
+    args: anytype,
     opts: BenchmarkOptions,
 ) !BenchmarkResult {
     var count: usize = 0;

@@ -383,9 +383,7 @@ test "Decode with remaing types" {
     const encoded = try encodeLogs(testing.allocator, event.value, .{ 69, -420, true });
     defer encoded.deinit();
 
-    const slice: []const ?[]u8 = &.{ @constCast("0x99cb3d24e259f33004405cf6e508105e2fd2885003235a6a7fcb843bd09728b1"), @constCast("0x0000000000000000000000000000000000000000000000000000000000000045"), @constCast("0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe5c"), @constCast("0x0000000000000000000000000000000000000000000000000000000000000001") };
-
-    const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{ []const u8, u256, i256, bool }), event.value, slice);
+    const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{ []const u8, u256, i256, bool }), event.value, encoded.data);
     defer decoded.deinit();
 
     try testing.expectEqualDeep(.{ "0x99cb3d24e259f33004405cf6e508105e2fd2885003235a6a7fcb843bd09728b1", 69, -420, true }, decoded.result);

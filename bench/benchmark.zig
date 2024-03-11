@@ -8,7 +8,7 @@ pub fn main() !void {
     const allocator = std.heap.page_allocator;
 
     bench_log.debug("Starting benchmark runner...", .{});
-    bench_log.debug("Benchmarking parsing Seaport", .{});
+    bench_log.debug("Benchmarking parsing Seaport\n", .{});
 
     const slice =
         \\constructor(address conduitController)
@@ -96,6 +96,88 @@ pub fn main() !void {
         \\error UnusedItemParameters()
     ;
 
-    const result = try benchmark.benchmark(allocator, zabi_root.human_readable.parsing.parseHumanReadable, .{ zabi_root.abi.abitypes.Abi, allocator, slice }, .{ .warmup_runs = 5, .runs = 100 });
-    result.printSummary();
+    {
+        const result = try benchmark.benchmark(allocator, zabi_root.human_readable.parsing.parseHumanReadable, .{ zabi_root.abi.abitypes.Abi, allocator, slice }, .{ .warmup_runs = 5, .runs = 100 });
+        result.printSummary();
+    }
+
+    bench_log.debug("Steping throw encoding functions...", .{});
+    bench_log.debug("Serialize...", .{});
+    {
+        const access: []const zabi_root.types.transactions.AccessList = &.{};
+        const result = try benchmark.benchmark(allocator, zabi_root.encoding.serialize.serializeTransaction, .{ allocator, .{ .london = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try zabi_root.utils.parseGwei(2), .maxFeePerGas = try zabi_root.utils.parseGwei(2), .gas = 0, .to = try zabi_root.utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), .value = try zabi_root.utils.parseEth(1), .data = null, .accessList = access } }, null }, .{ .warmup_runs = 5, .runs = 100 });
+        result.printSummary();
+    }
+
+    bench_log.debug("RLP...", .{});
+    {
+        const result = try benchmark.benchmark(allocator, zabi_root.encoding.rlp.encodeRlp, .{ allocator, .{ 69, "FOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO" } }, .{ .warmup_runs = 5, .runs = 100 });
+        result.printSummary();
+    }
+
+    bench_log.debug("Abi...", .{});
+    {
+        const params: []const zabi_root.abi.abi_parameter.AbiParameter = &.{.{ .type = .{ .tuple = {} }, .name = "fizzbuzz", .components = &.{ .{ .type = .{ .dynamicArray = &.{ .string = {} } }, .name = "foo" }, .{ .type = .{ .uint = 256 }, .name = "bar" }, .{ .type = .{ .dynamicArray = &.{ .tuple = {} } }, .name = "baz", .components = &.{ .{ .type = .{ .dynamicArray = &.{ .bytes = {} } }, .name = "fizz" }, .{ .type = .{ .bool = {} }, .name = "buzz" }, .{ .type = .{ .dynamicArray = &.{ .int = 256 } }, .name = "jazz" } } } } }};
+        const items: zabi_root.meta.abi.AbiParametersToPrimative(params) = .{.{ .foo = &[_][]const u8{"fooooooooooooooooooooooooooo"}, .bar = 42069, .baz = &.{.{ .fizz = &.{"BOOOOOOOOOOOOOOOOOOOOOOO"}, .buzz = true, .jazz = &.{ 1, 2, 3, 4, 5, 6, 7, 8, 9 } }} }};
+
+        const result = try benchmark.benchmark(allocator, zabi_root.encoding.abi_encoding.encodeAbiParameters, .{ allocator, params, items }, .{ .warmup_runs = 5, .runs = 100 });
+        result.printSummary();
+    }
+
+    bench_log.debug("Abi Logs...", .{});
+    {
+        const event = try zabi_root.human_readable.parsing.parseHumanReadable(zabi_root.abi.abitypes.Event, allocator, "event Foo(uint indexed a, int indexed b, bool indexed c, bytes5 indexed d)");
+        defer event.deinit();
+
+        const result = try benchmark.benchmark(allocator, zabi_root.encoding.logs_encoding.encodeLogs, .{ allocator, event.value, .{ 69, -420, true, "01234" } }, .{ .warmup_runs = 5, .runs = 100 });
+        result.printSummary();
+    }
+
+    bench_log.debug("Steping throw decoding functions...", .{});
+    bench_log.debug("Parse...", .{});
+    {
+        const access: []const zabi_root.types.transactions.AccessList = &.{};
+        const encoded = try zabi_root.encoding.serialize.serializeTransaction(allocator, .{ .london = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try zabi_root.utils.parseGwei(2), .maxFeePerGas = try zabi_root.utils.parseGwei(2), .gas = 0, .to = try zabi_root.utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), .value = try zabi_root.utils.parseEth(1), .data = null, .accessList = access } }, null);
+        defer allocator.free(encoded);
+
+        const result = try benchmark.benchmark(allocator, zabi_root.decoding.parse_transacition.parseTransaction, .{ allocator, encoded }, .{ .warmup_runs = 5, .runs = 100 });
+        result.printSummary();
+    }
+
+    bench_log.debug("RLP...", .{});
+    {
+        const multi: std.meta.Tuple(&[_]type{ u8, bool, []const u8 }) = .{ 127, false, "foobar" };
+        const encoded = try zabi_root.encoding.rlp.encodeRlp(allocator, .{multi});
+        defer allocator.free(encoded);
+
+        const result = try benchmark.benchmark(allocator, zabi_root.decoding.rlp.decodeRlp, .{ allocator, struct { u8, bool, []const u8 }, encoded }, .{ .warmup_runs = 5, .runs = 100 });
+        result.printSummary();
+    }
+
+    bench_log.debug("Abi...", .{});
+    {
+        const params: []const zabi_root.abi.abi_parameter.AbiParameter = &.{.{ .type = .{ .tuple = {} }, .name = "fizzbuzz", .components = &.{ .{ .type = .{ .dynamicArray = &.{ .string = {} } }, .name = "foo" }, .{ .type = .{ .uint = 256 }, .name = "bar" }, .{ .type = .{ .dynamicArray = &.{ .tuple = {} } }, .name = "baz", .components = &.{ .{ .type = .{ .dynamicArray = &.{ .bytes = {} } }, .name = "fizz" }, .{ .type = .{ .bool = {} }, .name = "buzz" }, .{ .type = .{ .dynamicArray = &.{ .int = 256 } }, .name = "jazz" } } } } }};
+        const items: zabi_root.meta.abi.AbiParametersToPrimative(params) = .{.{ .foo = &[_][]const u8{"fooooooooooooooooooooooooooo"}, .bar = 42069, .baz = &.{.{ .fizz = &.{"BOOOOOOOOOOOOOOOOOOOOOOO"}, .buzz = true, .jazz = &.{ 1, 2, 3, 4, 5, 6, 7, 8, 9 } }} }};
+
+        const encoded = try zabi_root.encoding.abi_encoding.encodeAbiParameters(allocator, params, items);
+        defer encoded.deinit();
+
+        const hexed = try std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded.data)});
+        defer allocator.free(hexed);
+
+        const result = try benchmark.benchmark(allocator, zabi_root.decoding.abi_decoder.decodeAbiParameters, .{ allocator, params, hexed, .{} }, .{ .warmup_runs = 5, .runs = 100 });
+        result.printSummary();
+    }
+
+    bench_log.debug("Abi Logs...", .{});
+    {
+        const event = try zabi_root.human_readable.parsing.parseHumanReadable(zabi_root.abi.abitypes.Event, allocator, "event Foo(uint indexed a, int indexed b, bool indexed c, bytes5 indexed d)");
+        defer event.deinit();
+
+        const encoded = try zabi_root.encoding.logs_encoding.encodeLogs(allocator, event.value, .{ 69, -420, true, "01234" });
+        defer encoded.deinit();
+
+        const result = try benchmark.benchmark(allocator, zabi_root.decoding.logs_decoder.decodeLogs, .{ allocator, struct { []const u8, u256, i256, bool, [5]u8 }, event.value, encoded.data }, .{ .warmup_runs = 5, .runs = 100 });
+        result.printSummary();
+    }
 }

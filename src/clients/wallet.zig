@@ -1,3 +1,4 @@
+const ckzg4844 = @import("c-kzg-4844");
 const eip712 = @import("../abi/eip712.zig");
 const secp256k1 = @import("secp256k1");
 const serialize = @import("../encoding/serialize.zig");
@@ -13,7 +14,9 @@ const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Anvil = @import("../tests/Anvil.zig");
 const ArenaAllocator = std.heap.ArenaAllocator;
+const Blob = ckzg4844.KZG4844.Blob;
 const Chains = types.PublicChains;
+const KZG4844 = ckzg4844.KZG4844;
 const LondonEthCall = transaction.LondonEthCall;
 const LegacyEthCall = transaction.LegacyEthCall;
 const Hex = types.Hex;
@@ -23,6 +26,7 @@ const InitOptsWs = WebSocketClient.InitOptions;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Mutex = std.Thread.Mutex;
 const PubClient = @import("Client.zig");
+const Sidecar = ckzg4844.KZG4844.Sidecar;
 const Signer = secp256k1.Signer;
 const Signature = secp256k1.Signature;
 const TransactionEnvelope = transaction.TransactionEnvelope;
@@ -571,6 +575,53 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             const hash = try self.sendSignedTransaction(prepared);
 
             return hash;
+        }
+        /// Sends blob transaction to the network
+        /// Trusted setup must be loaded otherwise this will fail.
+        pub fn sendBlobTransaction(self: *Wallet(client_type), blobs: []const Blob, unprepared_envelope: UnpreparedTransactionEnvelope, trusted_setup: *KZG4844) !Hash {
+            if (unprepared_envelope.type != .cancun)
+                return error.InvalidTransactionType;
+
+            if (!trusted_setup.loaded)
+                return error.TrustedSetupNotLoaded;
+
+            const prepared = self.envelopes_pool.getLastElementFromPool() orelse try self.prepareTransaction(unprepared_envelope);
+
+            try self.assertTransaction(prepared);
+
+            const serialized = try serialize.serializeCancunTransactionWithBlobs(self.allocator, prepared, null, blobs, trusted_setup);
+
+            var hash_buffer: [Keccak256.digest_length]u8 = undefined;
+            Keccak256.hash(serialized, &hash_buffer, .{});
+
+            const signed = try self.signer.sign(hash_buffer);
+            const serialized_signed = try serialize.serializeCancunTransactionWithBlobs(self.allocator, prepared, signed, blobs, trusted_setup);
+
+            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(serialized_signed)});
+
+            return self.pub_client.sendRawTransaction(hex);
+        }
+        /// Sends blob transaction to the network
+        /// This uses and already prepared sidecar.
+        pub fn sendSidecarTransaction(self: *Wallet(client_type), sidecars: []const Sidecar, unprepared_envelope: UnpreparedTransactionEnvelope) !Hash {
+            if (unprepared_envelope.type != .cancun)
+                return error.InvalidTransactionType;
+
+            const prepared = self.envelopes_pool.getLastElementFromPool() orelse try self.prepareTransaction(unprepared_envelope);
+
+            try self.assertTransaction(prepared);
+
+            const serialized = try serialize.serializeCancunTransactionWithSidecars(self.allocator, prepared, null, sidecars);
+
+            var hash_buffer: [Keccak256.digest_length]u8 = undefined;
+            Keccak256.hash(serialized, &hash_buffer, .{});
+
+            const signed = try self.signer.sign(hash_buffer);
+            const serialized_signed = try serialize.serializeCancunTransactionWithSidecars(self.allocator, prepared, signed, sidecars);
+
+            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(serialized_signed)});
+
+            return self.pub_client.sendRawTransaction(hex);
         }
         /// Waits until the transaction gets mined and we can grab the receipt.
         /// If fail if the retry counter is excedded.

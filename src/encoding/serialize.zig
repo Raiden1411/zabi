@@ -56,7 +56,8 @@ pub fn serializeTransaction(allocator: Allocator, tx: TransactionEnvelope, sig: 
 }
 /// Serializes a cancun type transactions without blobs.
 ///
-/// Please use `serializeCancunTransactionWithSidecars` if you want to
+/// Please use `serializeCancunTransactionWithSidecars` or
+/// `serializeCancunTransactionWithBlobs` if you want to
 /// serialize them as a wrapper
 fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature) ![]u8 {
     const prep_access = try prepareAccessList(allocator, tx.accessList);
@@ -133,6 +134,96 @@ fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelop
 
     return serialized;
 }
+/// Serializes a cancun sidecars into the eip4844 wrapper.
+pub fn serializeCancunTransactionWithBlobs(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature, blobs: []const Blob, trusted_setup: *KZG4844) ![]u8 {
+    const prep_access = try prepareAccessList(allocator, tx.accessList);
+    defer allocator.free(prep_access);
+
+    const data: ?[]u8 = data: {
+        if (tx.data) |hex_data| {
+            const slice = if (std.mem.startsWith(u8, hex_data, "0x")) hex_data[2..] else return error.ExpectedHexString;
+
+            const buffer = try allocator.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
+
+            _ = try std.fmt.hexToBytes(buffer, slice);
+
+            break :data buffer;
+        } else break :data null;
+    };
+    defer if (data) |val| allocator.free(val);
+
+    const commitments = try trusted_setup.blobsToKZGCommitment(allocator, blobs);
+    defer allocator.free(commitments);
+
+    const proofs = try trusted_setup.blobsToKZGProofs(allocator, blobs, commitments);
+    defer allocator.free(proofs);
+
+    const blob_hashes = tx.blobVersionedHashes orelse try trusted_setup.commitmentsToVersionedHash(allocator, commitments, null);
+
+    if (sig) |signature| {
+        // zig fmt: off
+        const envelope_signed: CancunSignedWrapper = .{
+            tx.chainId,
+            tx.nonce,
+            tx.maxPriorityFeePerGas,
+            tx.maxFeePerGas,
+            tx.gas,
+            tx.to,
+            tx.value,
+            data,
+            prep_access,
+            tx.maxFeePerBlobGas,
+            blob_hashes,
+            signature.v,
+            signature.r,
+            signature.s,
+            blobs,
+            commitments,
+            proofs
+        };
+        // zig fmt: on
+
+        const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_signed});
+        defer allocator.free(encoded_sig);
+
+        var serialized = try allocator.alloc(u8, encoded_sig.len + 1);
+        // Add the transaction type;
+        serialized[0] = 3;
+        @memcpy(serialized[1..], encoded_sig);
+
+        return serialized;
+    }
+
+    // zig fmt: off
+    const envelope: CancunWrapper = .{ 
+        tx.chainId,
+        tx.nonce, 
+        tx.maxPriorityFeePerGas,
+        tx.maxFeePerGas,
+        tx.gas,
+        tx.to,
+        tx.value,
+        data,
+        prep_access,
+        tx.maxFeePerBlobGas,
+        blob_hashes,
+        blobs,
+        commitments,
+        proofs
+    };
+    // zig fmt: on
+
+    const encoded = try rlp.encodeRlp(allocator, .{envelope});
+    defer allocator.free(encoded);
+
+    var serialized = try allocator.alloc(u8, encoded.len + 1);
+    // Add the transaction type;
+    serialized[0] = 3;
+    @memcpy(serialized[1..], encoded);
+
+    return serialized;
+}
+/// Serializes a cancun sidecars into the eip4844 wrapper.
 pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature, sidecars: Sidecars) ![]u8 {
     const prep_access = try prepareAccessList(allocator, tx.accessList);
     defer allocator.free(prep_access);

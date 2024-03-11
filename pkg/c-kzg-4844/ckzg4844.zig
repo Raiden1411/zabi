@@ -294,13 +294,14 @@ pub fn commitmentToVersionedHash(self: *KZG4844, commitment: KZGCommitment, vers
 
     return buffer;
 }
-pub fn blobsToKZGProofs(self: *KZG4844, allocator: Allocator, blobs: []const Blob, z_bytes: []const [32]u8) ![]const KZGProof {
+/// Computes blobs proof bytes
+pub fn blobsToKZGProofs(self: *KZG4844, allocator: Allocator, blobs: []const Blob, commitments: []const KZGCommitment) ![]const KZGProof {
     var proofs = try std.ArrayList(KZGProof).initCapacity(allocator, blobs.len);
     errdefer proofs.deinit();
 
-    for (blobs, z_bytes) |blob, z_byte| {
-        const computed = try self.computeKZGProof(blob, z_byte);
-        try proofs.append(computed.proof);
+    for (blobs, commitments) |blob, commitment| {
+        const computed = try self.blobToKZGProof(blob, commitment);
+        try proofs.append(computed);
     }
 
     return proofs.toOwnedSlice();
@@ -316,6 +317,18 @@ pub fn blobToKZGCommitment(self: *KZG4844, blob: Blob) !KZGCommitment {
         return error.FailedToConvertBlobToCommitment;
 
     return commitment.bytes;
+}
+/// Computes blob proof.
+pub fn blobToKZGProof(self: *KZG4844, blob: Blob, commitment: KZGCommitment) !KZGProof {
+    if (!self.loaded)
+        return error.SetupMustBeInitialized;
+
+    var proof: c.KZGProof = .{ .bytes = undefined };
+
+    if (c.compute_blob_kzg_proof(&proof, &.{ .bytes = blob }, &.{ .bytes = commitment }, &self.settings) != c.C_KZG_OK)
+        return error.FailedToComputeBlobKZGProof;
+
+    return proof.bytes;
 }
 /// Computes a given KZGProof from a blob
 pub fn computeKZGProof(self: *KZG4844, blob: Blob, bytes: [32]u8) !KZGProofResult {
@@ -382,9 +395,13 @@ test "Compute Hash" {
     const commitments = try trusted.blobsToKZGCommitment(std.testing.allocator, blobs);
     defer std.testing.allocator.free(commitments);
 
+    const proofs = try trusted.blobsToKZGProofs(std.testing.allocator, blobs, commitments);
+    defer std.testing.allocator.free(proofs);
+
     const hashes = try trusted.commitmentsToVersionedHash(std.testing.allocator, commitments, null);
     defer std.testing.allocator.free(hashes);
 }
+
 test "BytesToBlob" {
     const bytes = "Baby don't hurt me no more" ** 10000;
     var trusted: KZG4844 = .{};

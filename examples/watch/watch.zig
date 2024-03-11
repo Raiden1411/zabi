@@ -10,7 +10,7 @@ pub fn main() !void {
     _ = iter.skip();
 
     const uri = try std.Uri.parse(iter.next() orelse return error.UnexpectArgument);
-    var socket: zabi.WebSocket = undefined;
+    var socket: zabi.clients.WebSocket = undefined;
     defer socket.deinit();
 
     try socket.init(.{ .uri = uri, .allocator = gpa.allocator() });

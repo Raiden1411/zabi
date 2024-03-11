@@ -1,6 +1,6 @@
 const std = @import("std");
 const zabi = @import("zabi");
-const Wallet = zabi.wallet.Wallet(.http);
+const Wallet = zabi.clients.wallet.Wallet(.http);
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

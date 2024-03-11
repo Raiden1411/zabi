@@ -1,4 +1,5 @@
 const abi = @import("../abi/abi.zig");
+const bench = @import("../tests/Benchmark.zig");
 const param = @import("../abi/abi_parameter.zig");
 const std = @import("std");
 const testing = std.testing;
@@ -45,7 +46,7 @@ pub fn parseHumanReadable(comptime T: type, alloc: Allocator, source: [:0]const 
 
     var lex = Lexer.init(source);
     var list = Parser.TokenList{};
-    errdefer list.deinit(allocator);
+    defer list.deinit(allocator);
 
     while (true) {
         const tok = lex.scan();
@@ -511,8 +512,6 @@ test "Seaport" {
     try testing.expectEqual(last.type, .@"error");
     try testing.expectEqualSlices(param.AbiParameter, &.{}, last.inputs);
     try testing.expectEqualStrings("UnusedItemParameters", last.name);
-
-    // try std.json.stringify(parsed.value, .{ .whitespace = .indent_2, .emit_null_optional_fields = false }, std.io.getStdErr().writer());
 }
 
 test "Parsing errors parameters" {

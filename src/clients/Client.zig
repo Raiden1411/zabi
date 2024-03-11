@@ -718,11 +718,34 @@ pub fn uninstalllFilter(self: *PubClient, id: usize) !bool {
     return self.sendRpcRequest(bool, req_body);
 }
 /// Switch the client network and chainId.
+/// Invalidates all of the client connections and pointers.
+///
+/// This will also try to automatically connect to the new RPC.
 pub fn switchNetwork(self: *PubClient, new_chain_id: Chains, new_url: []const u8) void {
     self.chain_id = @intFromEnum(new_chain_id);
 
     const uri = try Uri.parse(new_url);
     self.uri = uri;
+
+    var next_node = self.client.connection_pool.free.first;
+
+    while (next_node) |node| {
+        defer self.allocator.destroy(node);
+        next_node = node.next;
+
+        node.data.close(self.allocator);
+    }
+
+    next_node = self.client.connection_pool.used;
+
+    while (next_node) |node| {
+        defer self.allocator.destroy(node);
+        next_node = node.next;
+
+        node.data.close(self.allocator);
+    }
+
+    self.connection.* = try self.connectRpcServer();
 }
 
 fn sendBlockNumberRequest(self: *PubClient, opts: BlockNumberRequest, method: EthereumRpcMethods) !usize {

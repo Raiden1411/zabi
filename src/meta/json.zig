@@ -65,6 +65,7 @@ pub fn RequestParser(comptime T: type) type {
                 else => unreachable,
             }
             try writer_stream.stream.writeByte('}');
+            writer_stream.next_punctuation = .comma;
 
             return;
         }

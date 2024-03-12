@@ -15,16 +15,16 @@ const Wei = types.Wei;
 
 /// Zig struct representation of the log RPC response.
 pub const Log = struct {
-    address: Address,
-    topics: []const Hex,
     blockHash: ?Hash,
-    blockNumber: ?u64,
-    data: Hex,
+    address: Address,
     logIndex: ?usize,
+    data: Hex,
+    removed: bool,
+    topics: []const Hex,
+    blockNumber: ?u64,
     transactionLogIndex: ?usize = null,
     transactionIndex: ?usize,
     transactionHash: ?Hash,
-    removed: bool,
 
     pub usingnamespace RequestParser(@This());
 };

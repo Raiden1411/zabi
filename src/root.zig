@@ -29,6 +29,9 @@ test {
     _ = @import("clients/WebSocket.zig");
     _ = @import("clients/contract.zig");
     _ = @import("clients/wallet.zig");
+    // _ = @import("clients/optimism/clients/Optimism.zig");
+    _ = @import("clients/optimism/parse_deposit.zig");
+    _ = @import("clients/optimism/serialize_deposit.zig");
     _ = @import("encoding/encoder.zig");
     _ = @import("encoding/logs.zig");
     _ = @import("encoding/rlp.zig");

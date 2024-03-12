@@ -78,7 +78,7 @@ pub const InitOptions = struct {
 };
 
 /// Arena used to manage the socket connection
-_arena: *ArenaAllocator,
+arena: *ArenaAllocator,
 /// The allocator that will manage the connections memory
 allocator: std.mem.Allocator,
 /// The base fee multiplier used to estimate the gas fees in a transaction
@@ -221,7 +221,7 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
     const chain: Chains = opts.chain_id orelse .ethereum;
 
     self.* = .{
-        ._arena = arena,
+        .arena = arena,
         .allocator = undefined,
         .base_fee_multiplier = opts.base_fee_multiplier,
         .chain_id = @intFromEnum(chain),
@@ -237,12 +237,12 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
         .ws_client = ws_client,
     };
 
-    self._arena.* = ArenaAllocator.init(opts.allocator);
-    self.allocator = self._arena.allocator();
+    self.arena.* = ArenaAllocator.init(opts.allocator);
+    self.allocator = self.arena.allocator();
 
     self.rpc_channel.* = Channel(types.EthereumRpcEvents).init(self.allocator);
     self.sub_channel.* = Channel(types.EthereumSubscribeEvents).init(self.allocator);
-    errdefer self._arena.deinit();
+    errdefer self.arena.deinit();
 
     self.ws_client.* = try self.connect();
 
@@ -255,13 +255,13 @@ pub fn deinit(self: *WebSocketHandler) void {
     while (@atomicRmw(bool, &self.ws_client._closed, .Xchg, true, .SeqCst)) {
         std.time.sleep(10 * std.time.ns_per_ms);
     }
-    const allocator = self._arena.child_allocator;
+    const allocator = self.arena.child_allocator;
     self.ws_client.deinit();
-    self._arena.deinit();
+    self.arena.deinit();
 
     allocator.destroy(self.sub_channel);
     allocator.destroy(self.rpc_channel);
-    allocator.destroy(self._arena);
+    allocator.destroy(self.arena);
     if (@atomicLoad(bool, &self.ws_client._closed, .Acquire)) {
         allocator.destroy(self.ws_client);
     }

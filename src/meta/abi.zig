@@ -28,7 +28,7 @@ pub fn AbiParametersToPrimative(comptime paramters: []const AbiParameter) type {
         };
     }
 
-    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+    return @Type(.{ .Struct = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
 }
 /// Convert solidity ABI paramter to the representing Zig types.
 ///
@@ -71,7 +71,7 @@ pub fn AbiParameterToPrimative(comptime param: AbiParameter) type {
                     };
                 }
 
-                return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
+                return @Type(.{ .Struct = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
             } else @compileError("Expected components to not be null");
         },
         inline else => void,

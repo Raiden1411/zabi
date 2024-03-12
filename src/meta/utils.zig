@@ -62,7 +62,7 @@ pub fn MergeStructs(comptime T: type, comptime K: type) type {
         counter += 1;
     }
 
-    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
+    return @Type(.{ .Struct = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
 }
 /// Merge tuple structs
 pub fn MergeTupleStructs(comptime T: type, comptime K: type) type {
@@ -88,7 +88,7 @@ pub fn MergeTupleStructs(comptime T: type, comptime K: type) type {
         counter += 1;
     }
 
-    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+    return @Type(.{ .Struct = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
 }
 /// Convert a struct into a tuple type.
 pub fn StructToTupleType(comptime T: type) type {
@@ -171,7 +171,7 @@ pub fn StructToTupleType(comptime T: type) type {
         }
     }
 
-    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+    return @Type(.{ .Struct = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
 }
 /// Omits the selected keys from struct types.
 pub fn Omit(comptime T: type, comptime keys: []const []const u8) type {
@@ -199,7 +199,7 @@ pub fn Omit(comptime T: type, comptime keys: []const []const u8) type {
         counter += 1;
     }
 
-    return @Type(.{ .Struct = .{ .layout = .Auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
+    return @Type(.{ .Struct = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
 }
 
 test "Meta" {

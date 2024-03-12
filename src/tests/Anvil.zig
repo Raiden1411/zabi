@@ -89,7 +89,7 @@ pub fn initProcess(self: *Anvil, opts: StartUpOptions) !void {
 
 /// Cleans up the http client
 pub fn deinit(self: *Anvil) void {
-    if (@cmpxchgStrong(bool, &self.closed, false, true, .Monotonic, .Monotonic) == null) {
+    if (@cmpxchgStrong(bool, &self.closed, false, true, .monotonic, .monotonic) == null) {
         self.http_client.deinit();
     }
 }
@@ -97,7 +97,7 @@ pub fn deinit(self: *Anvil) void {
 /// Kills the anvil process and closes any connections.
 /// Only use this if a process was created before
 pub fn killProcessAndDeinit(self: *Anvil) void {
-    if (@cmpxchgStrong(bool, &self.closed, false, true, .Monotonic, .Monotonic) == null) {
+    if (@cmpxchgStrong(bool, &self.closed, false, true, .monotonic, .monotonic) == null) {
         _ = self.result.kill() catch |err| {
             std.io.getStdErr().writer().writeAll(@errorName(err)) catch {};
         };

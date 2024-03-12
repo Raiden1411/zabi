@@ -156,7 +156,7 @@ pub fn connectRpcServer(self: *PubClient) !*HttpConnection {
             },
         }
 
-        if (scheme == .tls and @atomicLoad(bool, &self.client.next_https_rescan_certs, .Acquire)) {
+        if (scheme == .tls and @atomicLoad(bool, &self.client.next_https_rescan_certs, .acquire)) {
             self.client.ca_bundle_mutex.lock();
             defer self.client.ca_bundle_mutex.unlock();
 
@@ -165,7 +165,7 @@ pub fn connectRpcServer(self: *PubClient) !*HttpConnection {
                     httplog.debug("Failed to rescan certificate bundle: {s}", .{@errorName(err)});
                     continue;
                 };
-                @atomicStore(bool, &self.client.next_https_rescan_certs, false, .Release);
+                @atomicStore(bool, &self.client.next_https_rescan_certs, false, .release);
             }
         }
         const connection = self.client.connect(self.uri.host.?, port, scheme) catch |err| {

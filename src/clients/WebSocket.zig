@@ -259,7 +259,7 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
 /// All future interactions will deadlock
 pub fn deinit(self: *WebSocketHandler) void {
     self.mutex.lock();
-    while (@atomicRmw(bool, &self.ws_client._closed, .Xchg, true, .SeqCst)) {
+    while (@atomicRmw(bool, &self.ws_client._closed, .Xchg, true, .seq_cst)) {
         std.time.sleep(10 * std.time.ns_per_ms);
     }
     const allocator = self.arena.child_allocator;
@@ -269,7 +269,7 @@ pub fn deinit(self: *WebSocketHandler) void {
     allocator.destroy(self.sub_channel);
     allocator.destroy(self.rpc_channel);
     allocator.destroy(self.arena);
-    if (@atomicLoad(bool, &self.ws_client._closed, .Acquire)) {
+    if (@atomicLoad(bool, &self.ws_client._closed, .acquire)) {
         allocator.destroy(self.ws_client);
     }
 }

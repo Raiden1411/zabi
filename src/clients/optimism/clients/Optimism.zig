@@ -22,8 +22,6 @@ const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Clients = @import("../../wallet.zig").WalletClients;
 const DepositData = op_transactions.DepositData;
-const Event = abi.Event;
-const Function = abi.Function;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
@@ -83,20 +81,9 @@ pub fn OptimismClient(comptime client_type: Clients) type {
         }
 
         pub fn estimateL1Gas(self: *Optimism, london_envelope: LondonTransactionEnvelope) !Wei {
-            // Abi representation of the gas price oracle `getL1GasUsed` function
-            const func: Function = .{
-                .type = .function,
-                .name = "getL1GasUsed",
-                .inputs = &.{.{ .type = .{ .bytes = {} }, .name = "_data" }},
-                .stateMutability = .view,
-                // Not the real outputs represented in the ABI but here we don't really care for it.
-                // The ABI returns a uint256 but we can just `parseInt` it
-                .outputs = &.{},
-            };
-
             const serialized = try serialize.serializeTransaction(self.client.allocator, .{ .london = london_envelope }, null);
 
-            const encoded = try func.encode(self.allocator, .{serialized});
+            const encoded = try abi_items.get_l1_gas_func.encode(self.allocator, .{serialized});
             const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
             defer self.allocator.free(hex);
 
@@ -109,20 +96,9 @@ pub fn OptimismClient(comptime client_type: Clients) type {
         }
 
         pub fn estimateL1GasFee(self: *Optimism, london_envelope: LondonTransactionEnvelope) !Wei {
-            // Abi representation of the gas price oracle `getL1Fee` function
-            const func: Function = .{
-                .type = .function,
-                .name = "getL1Fee",
-                .inputs = &.{.{ .type = .{ .bytes = {} }, .name = "_data" }},
-                .stateMutability = .view,
-                // Not the real outputs represented in the ABI but here we don't really care for it.
-                // The ABI returns a uint256 but we can just `parseInt` it
-                .outputs = &.{},
-            };
-
             const serialized = try serialize.serializeTransaction(self.allocator, .{ .london = london_envelope }, null);
 
-            const encoded = try func.encode(self.allocator, .{serialized});
+            const encoded = try abi_items.get_l1_fee.encode(self.allocator, .{serialized});
             const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
             defer self.allocator.free(hex);
 

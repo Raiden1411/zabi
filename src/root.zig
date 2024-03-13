@@ -30,6 +30,7 @@ test {
     // _ = @import("clients/contract.zig");
     // _ = @import("clients/wallet.zig");
     // _ = @import("clients/optimism/clients/Optimism.zig");
+    _ = @import("clients/optimism/clients/OptimismL1.zig");
     _ = @import("clients/optimism/parse_deposit.zig");
     _ = @import("clients/optimism/serialize_deposit.zig");
     _ = @import("encoding/encoder.zig");

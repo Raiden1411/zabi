@@ -26,5 +26,14 @@ pub const DepositData = struct {
     value: Wei,
     gas: Gwei,
     creation: bool,
-    data: Hex,
+    data: ?Hex,
+};
+
+pub const TransactionDeposited = struct {
+    from: Address,
+    to: Address,
+    version: u256,
+    opaqueData: Hex,
+    logIndex: usize,
+    blockHash: Hash,
 };

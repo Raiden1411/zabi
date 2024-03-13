@@ -20,7 +20,7 @@ pub const Log = struct {
     logIndex: ?usize,
     data: Hex,
     removed: bool,
-    topics: []const Hex,
+    topics: []const ?Hex,
     blockNumber: ?u64,
     transactionLogIndex: ?usize = null,
     transactionIndex: ?usize,
@@ -37,7 +37,7 @@ pub const LogRequest = struct {
     fromBlock: ?u64 = null,
     toBlock: ?u64 = null,
     address: ?Address = null,
-    topics: ?[]const Hex = null,
+    topics: ?[]const ?Hex = null,
     blockHash: ?Hash = null,
 
     pub usingnamespace RequestParser(@This());
@@ -46,7 +46,7 @@ pub const LogTagRequest = struct {
     fromBlock: ?BalanceBlockTag = null,
     toBlock: ?BalanceBlockTag = null,
     address: ?Address = null,
-    topics: ?[]const Hex = null,
+    topics: ?[]const ?Hex = null,
     blockHash: ?Hash = null,
 
     pub usingnamespace RequestParser(@This());

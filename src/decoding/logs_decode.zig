@@ -45,7 +45,7 @@ pub fn DecodedLogs(comptime T: type) type {
 /// const encoded = decodeLogs(testing.allocator, event, &.{@constCast("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")});
 ///
 /// Result: .{"0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0"}
-pub fn decodeLogs(allocator: Allocator, comptime T: type, event: AbiEvent, encoded: []const ?[]u8) !DecodedLogs(T) {
+pub fn decodeLogs(allocator: Allocator, comptime T: type, params: []const AbiEventParameter, encoded: []const ?[]const u8) !DecodedLogs(T) {
     var decoded: DecodedLogs(T) = .{ .arena = try allocator.create(ArenaAllocator), .result = undefined };
     errdefer allocator.destroy(decoded.arena);
 
@@ -54,21 +54,19 @@ pub fn decodeLogs(allocator: Allocator, comptime T: type, event: AbiEvent, encod
     const child_allocator = decoded.arena.allocator();
     errdefer decoded.arena.deinit();
 
-    decoded.result = try decodeLogsLeaky(child_allocator, T, event, encoded);
+    decoded.result = try decodeLogsLeaky(child_allocator, T, params, encoded);
 
     return decoded;
 }
 /// Recommened to use an ArenaAllocator or a similar allocator as not allocations
 /// will be freed. Caller owns the memory
-pub fn decodeLogsLeaky(allocator: Allocator, comptime T: type, event: AbiEvent, encoded: []const ?[]u8) !T {
+pub fn decodeLogsLeaky(allocator: Allocator, comptime T: type, params: []const AbiEventParameter, encoded: []const ?[]const u8) !T {
     const info = @typeInfo(T);
 
     if (info != .Struct or !info.Struct.is_tuple)
         @compileError("Expected return type to be a tuple");
 
     var result: T = undefined;
-    const params = event.inputs;
-
     // Just makes sure that the length is alligned.
     // This will get removed on non debug builds
     std.debug.assert(info.Struct.fields.len == encoded.len);
@@ -121,7 +119,7 @@ pub fn decodeLogsLeaky(allocator: Allocator, comptime T: type, event: AbiEvent, 
     return result;
 }
 
-fn decodeLog(allocator: Allocator, comptime T: type, param: AbiEventParameter, encoded: []u8) !T {
+fn decodeLog(allocator: Allocator, comptime T: type, param: AbiEventParameter, encoded: []const u8) !T {
     const info = @typeInfo(T);
 
     switch (info) {
@@ -240,8 +238,8 @@ test "Decode empty inputs" {
     const encoded = try encodeLogs(testing.allocator, event, .{});
     defer encoded.deinit();
 
-    const slice: []const ?[]u8 = &.{@constCast("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")};
-    const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{[]const u8}), event, slice);
+    const slice: []const ?[]const u8 = &.{"0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0"};
+    const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{[]const u8}), event.inputs, slice);
     defer decoded.deinit();
 
     try testing.expectEqualDeep(.{"0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0"}, decoded.result);
@@ -254,9 +252,9 @@ test "Decode empty args" {
     const encoded = try encodeLogs(testing.allocator, event.value, .{});
     defer encoded.deinit();
 
-    const slice: []const ?[]u8 = &.{@constCast("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")};
+    const slice: []const ?[]const u8 = &.{"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"};
 
-    const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{[]const u8}), event.value, slice);
+    const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{[]const u8}), event.value.inputs, slice);
     defer decoded.deinit();
 
     try testing.expectEqualDeep(.{"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"}, decoded.result);
@@ -269,9 +267,9 @@ test "Decode with args" {
     const encoded = try encodeLogs(testing.allocator, event.value, .{ null, try utils.addressToBytes("0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC") });
     defer encoded.deinit();
 
-    const slice: []const ?[]u8 = &.{ @constCast("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"), null, @constCast("0x000000000000000000000000a5cc3c03994db5b0d9a5eedd10cabab0813678ac") };
+    const slice: []const ?[]const u8 = &.{ "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", null, "0x000000000000000000000000a5cc3c03994db5b0d9a5eedd10cabab0813678ac" };
 
-    const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{ []const u8, ?[]const u8, [20]u8 }), event.value, slice);
+    const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{ []const u8, ?[]const u8, [20]u8 }), event.value.inputs, slice);
     defer decoded.deinit();
 
     try testing.expectEqualDeep(.{ "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", null, try utils.addressToBytes("0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC") }, decoded.result);
@@ -285,9 +283,9 @@ test "Decoded with args string/bytes" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
         defer encoded.deinit();
 
-        const slice: []const ?[]u8 = &.{ @constCast("0x9f0b7f1630bdb7d474466e2dfef0fb9dff65f7a50eec83935b68f77d0808f08a"), @constCast("0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8") };
+        const slice: []const ?[]const u8 = &.{ "0x9f0b7f1630bdb7d474466e2dfef0fb9dff65f7a50eec83935b68f77d0808f08a", "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8" };
 
-        const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{ []const u8, []const u8 }), event.value, slice);
+        const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{ []const u8, []const u8 }), event.value.inputs, slice);
         defer decoded.deinit();
 
         try testing.expectEqualDeep(.{ "0x9f0b7f1630bdb7d474466e2dfef0fb9dff65f7a50eec83935b68f77d0808f08a", "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8" }, decoded.result);
@@ -299,9 +297,9 @@ test "Decoded with args string/bytes" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
         defer encoded.deinit();
 
-        const slice: []const ?[]u8 = &.{ @constCast("0x9f0b7f1630bdb7d474466e2dfef0fb9dff65f7a50eec83935b68f77d0808f08a"), @constCast("0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8") };
+        const slice: []const ?[]const u8 = &.{ "0x9f0b7f1630bdb7d474466e2dfef0fb9dff65f7a50eec83935b68f77d0808f08a", "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8" };
 
-        const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{ []const u8, ?[]const u8 }), event.value, slice);
+        const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{ []const u8, ?[]const u8 }), event.value.inputs, slice);
         defer decoded.deinit();
 
         try testing.expectEqualDeep(.{ "0x9f0b7f1630bdb7d474466e2dfef0fb9dff65f7a50eec83935b68f77d0808f08a", "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8" }, decoded.result);
@@ -313,9 +311,9 @@ test "Decoded with args string/bytes" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
         defer encoded.deinit();
 
-        const slice: []const ?[]u8 = &.{ @constCast("0xefc9afd358f1472682cf8cc82e1d3ae36be2538ed858a4a604119399d6f22b48"), @constCast("0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8") };
+        const slice: []const ?[]const u8 = &.{ "0xefc9afd358f1472682cf8cc82e1d3ae36be2538ed858a4a604119399d6f22b48", "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8" };
 
-        const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{ []const u8, []const u8 }), event.value, slice);
+        const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{ []const u8, []const u8 }), event.value.inputs, slice);
         defer decoded.deinit();
 
         try testing.expectEqualDeep(.{ "0xefc9afd358f1472682cf8cc82e1d3ae36be2538ed858a4a604119399d6f22b48", "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8" }, decoded.result);
@@ -327,9 +325,9 @@ test "Decoded with args string/bytes" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
         defer encoded.deinit();
 
-        const slice: []const ?[]u8 = &.{ @constCast("0xefc9afd358f1472682cf8cc82e1d3ae36be2538ed858a4a604119399d6f22b48"), @constCast("0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8") };
+        const slice: []const ?[]const u8 = &.{ "0xefc9afd358f1472682cf8cc82e1d3ae36be2538ed858a4a604119399d6f22b48", "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8" };
 
-        const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{ []const u8, [32]u8 }), event.value, slice);
+        const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{ []const u8, [32]u8 }), event.value.inputs, slice);
         defer decoded.deinit();
 
         try testing.expectEqualDeep(.{ "0xefc9afd358f1472682cf8cc82e1d3ae36be2538ed858a4a604119399d6f22b48", try utils.hashToBytes("0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8") }, decoded.result);
@@ -344,7 +342,7 @@ test "Decode Arrays" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{try utils.addressToBytes("0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97")});
         defer encoded.deinit();
 
-        const decoded = try decodeLogs(testing.allocator, struct { []const u8, [20]u8 }, event.value, encoded.data);
+        const decoded = try decodeLogs(testing.allocator, struct { []const u8, [20]u8 }, event.value.inputs, encoded.data);
         defer decoded.deinit();
 
         try testing.expectEqualDeep(.{ encoded.data[0], try utils.addressToBytes("0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97") }, decoded.result);
@@ -357,10 +355,10 @@ test "Decode Arrays" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
         defer encoded.deinit();
 
-        const decoded = try decodeLogs(testing.allocator, struct { []const u8, [5]u8 }, event.value, encoded.data);
+        const decoded = try decodeLogs(testing.allocator, struct { []const u8, [5]u8 }, event.value.inputs, encoded.data);
         defer decoded.deinit();
 
-        try testing.expectEqualDeep(.{ encoded.data[0], @constCast("hello").* }, decoded.result);
+        try testing.expectEqualDeep(.{ encoded.data[0], "hello".* }, decoded.result);
     }
     {
         const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(bytes5 indexed a)");
@@ -369,7 +367,7 @@ test "Decode Arrays" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
         defer encoded.deinit();
 
-        const decoded = try decodeLogs(testing.allocator, struct { []const u8, *const [5]u8 }, event.value, encoded.data);
+        const decoded = try decodeLogs(testing.allocator, struct { []const u8, *const [5]u8 }, event.value.inputs, encoded.data);
         defer decoded.deinit();
 
         try testing.expectEqualDeep(.{ encoded.data[0], "hello" }, decoded.result);
@@ -383,7 +381,7 @@ test "Decode with remaing types" {
     const encoded = try encodeLogs(testing.allocator, event.value, .{ 69, -420, true });
     defer encoded.deinit();
 
-    const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{ []const u8, u256, i256, bool }), event.value, encoded.data);
+    const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{ []const u8, u256, i256, bool }), event.value.inputs, encoded.data);
     defer decoded.deinit();
 
     try testing.expectEqualDeep(.{ "0x99cb3d24e259f33004405cf6e508105e2fd2885003235a6a7fcb843bd09728b1", 69, -420, true }, decoded.result);
@@ -397,7 +395,7 @@ test "Errors" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{69});
         defer encoded.deinit();
 
-        try testing.expectError(error.ExpectedUnsignedInt, decodeLogs(testing.allocator, struct { []const u8, i256 }, event.value, encoded.data));
+        try testing.expectError(error.ExpectedUnsignedInt, decodeLogs(testing.allocator, struct { []const u8, i256 }, event.value.inputs, encoded.data));
     }
     {
         const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(int indexed a)");
@@ -406,7 +404,7 @@ test "Errors" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{69});
         defer encoded.deinit();
 
-        try testing.expectError(error.ExpectedSignedInt, decodeLogs(testing.allocator, struct { []const u8, u256 }, event.value, encoded.data));
+        try testing.expectError(error.ExpectedSignedInt, decodeLogs(testing.allocator, struct { []const u8, u256 }, event.value.inputs, encoded.data));
     }
     {
         const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(string indexed a)");
@@ -415,7 +413,7 @@ test "Errors" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
         defer encoded.deinit();
 
-        try testing.expectError(error.ExpectedHashString, decodeLogs(testing.allocator, struct { []const u8, [32]u8 }, event.value, &.{ encoded.data[0], @constCast("hello") }));
+        try testing.expectError(error.ExpectedHashString, decodeLogs(testing.allocator, struct { []const u8, [32]u8 }, event.value.inputs, &.{ encoded.data[0], "hello" }));
     }
     {
         const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(string indexed a)");
@@ -424,7 +422,7 @@ test "Errors" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
         defer encoded.deinit();
 
-        try testing.expectError(error.ExpectedHashSize, decodeLogs(testing.allocator, struct { []const u8, [2]u8 }, event.value, &.{ encoded.data[0], @constCast("hello") }));
+        try testing.expectError(error.ExpectedHashSize, decodeLogs(testing.allocator, struct { []const u8, [2]u8 }, event.value.inputs, &.{ encoded.data[0], "hello" }));
     }
     {
         const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(address indexed a)");
@@ -433,7 +431,7 @@ test "Errors" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{try utils.addressToBytes("0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97")});
         defer encoded.deinit();
 
-        try testing.expectError(error.ExpectedEncodedAddress, decodeLogs(testing.allocator, struct { []const u8, [20]u8 }, event.value, &.{ encoded.data[0], @constCast("hello") }));
+        try testing.expectError(error.ExpectedEncodedAddress, decodeLogs(testing.allocator, struct { []const u8, [20]u8 }, event.value.inputs, &.{ encoded.data[0], "hello" }));
     }
     {
         const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(address indexed a)");
@@ -442,7 +440,7 @@ test "Errors" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{try utils.addressToBytes("0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97")});
         defer encoded.deinit();
 
-        try testing.expectError(error.ExpectedAddressSize, decodeLogs(testing.allocator, struct { []const u8, [2]u8 }, event.value, &.{ encoded.data[0], @constCast("hello") }));
+        try testing.expectError(error.ExpectedAddressSize, decodeLogs(testing.allocator, struct { []const u8, [2]u8 }, event.value.inputs, &.{ encoded.data[0], "hello" }));
     }
 
     {
@@ -452,7 +450,7 @@ test "Errors" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
         defer encoded.deinit();
 
-        try testing.expectError(error.ExpectedEncodedBytes, decodeLogs(testing.allocator, struct { []const u8, [5]u8 }, event.value, &.{ encoded.data[0], @constCast("hello") }));
+        try testing.expectError(error.ExpectedEncodedBytes, decodeLogs(testing.allocator, struct { []const u8, [5]u8 }, event.value.inputs, &.{ encoded.data[0], "hello" }));
     }
     {
         const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(bytes5 indexed a)");
@@ -461,7 +459,7 @@ test "Errors" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
         defer encoded.deinit();
 
-        try testing.expectError(error.InvalidFixedBufferSize, decodeLogs(testing.allocator, struct { []const u8, [6]u8 }, event.value, &.{ encoded.data[0], @constCast("hello") }));
+        try testing.expectError(error.InvalidFixedBufferSize, decodeLogs(testing.allocator, struct { []const u8, [6]u8 }, event.value.inputs, &.{ encoded.data[0], "hello" }));
     }
 
     {
@@ -471,7 +469,7 @@ test "Errors" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{69});
         defer encoded.deinit();
 
-        try testing.expectError(error.InvalidParamType, decodeLogs(testing.allocator, struct { []const u8, [6]u8 }, event.value, &.{ encoded.data[0], @constCast("hello") }));
+        try testing.expectError(error.InvalidParamType, decodeLogs(testing.allocator, struct { []const u8, [6]u8 }, event.value.inputs, &.{ encoded.data[0], "hello" }));
     }
     {
         const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(uint indexed a)");
@@ -480,7 +478,7 @@ test "Errors" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{69});
         defer encoded.deinit();
 
-        try testing.expectError(error.InvalidParamType, decodeLogs(testing.allocator, struct { []const u8, []const u8 }, event.value, &.{ encoded.data[0], @constCast("hello") }));
+        try testing.expectError(error.InvalidParamType, decodeLogs(testing.allocator, struct { []const u8, []const u8 }, event.value.inputs, &.{ encoded.data[0], "hello" }));
     }
     {
         const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(string indexed a)");
@@ -489,12 +487,12 @@ test "Errors" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{"FOOO"});
         defer encoded.deinit();
 
-        try testing.expectError(error.ExpectedHashString, decodeLogs(testing.allocator, struct { []const u8, []const u8 }, event.value, &.{ encoded.data[0], @constCast("hello") }));
+        try testing.expectError(error.ExpectedHashString, decodeLogs(testing.allocator, struct { []const u8, []const u8 }, event.value.inputs, &.{ encoded.data[0], "hello" }));
     }
     {
         const event = try human.parseHumanReadable(abi.Event, testing.allocator, "event Foo(string a)");
         defer event.deinit();
 
-        try testing.expectError(error.NoIndexedParams, decodeLogs(testing.allocator, struct { []const u8, []const u8 }, event.value, &.{ "", "" }));
+        try testing.expectError(error.NoIndexedParams, decodeLogs(testing.allocator, struct { []const u8, []const u8 }, event.value.inputs, &.{ "", "" }));
     }
 }

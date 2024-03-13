@@ -92,6 +92,7 @@ pub const PublicChains = enum(usize) {
     celo = 42220,
     avalanche = 43114,
     sepolia = 11155111,
+    op_sepolia = 11155420,
 };
 /// Zig struct representation of a RPC Request
 pub fn EthereumRequest(comptime T: type) type {

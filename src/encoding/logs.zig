@@ -17,7 +17,7 @@ const Keccak256 = std.crypto.hash.sha3.Keccak256;
 /// Return type for logs encoded.
 pub const LogsEncoded = struct {
     arena: *ArenaAllocator,
-    data: []const ?[]u8,
+    data: []const ?[]const u8,
 
     pub fn deinit(self: @This()) void {
         const child_allocator = self.arena.child_allocator;
@@ -58,13 +58,13 @@ pub fn encodeLogs(allocator: Allocator, params: AbiEvent, values: anytype) !Logs
 }
 /// Recommened to use an ArenaAllocator or a similar allocator as not allocations
 /// will be freed. Caller owns the memory
-pub fn encodeLogsLeaky(allocator: Allocator, event: AbiEvent, values: anytype) ![]const ?[]u8 {
+pub fn encodeLogsLeaky(allocator: Allocator, event: AbiEvent, values: anytype) ![]const ?[]const u8 {
     const info = @typeInfo(@TypeOf(values));
 
     if (info != .Struct or !info.Struct.is_tuple)
         @compileError("Expected tuple type but found " ++ @typeName(@TypeOf(values)));
 
-    var list = try std.ArrayList(?[]u8).initCapacity(allocator, values.len + 1);
+    var list = try std.ArrayList(?[]const u8).initCapacity(allocator, values.len + 1);
     errdefer list.deinit();
 
     const hash = try event.encode(allocator);
@@ -89,7 +89,7 @@ pub fn encodeLogsLeaky(allocator: Allocator, event: AbiEvent, values: anytype) !
     return try list.toOwnedSlice();
 }
 
-fn encodeLog(allocator: Allocator, param: AbiEventParameter, value: anytype) !?[]u8 {
+fn encodeLog(allocator: Allocator, param: AbiEventParameter, value: anytype) !?[]const u8 {
     const info = @typeInfo(@TypeOf(value));
 
     switch (info) {
@@ -193,7 +193,7 @@ test "Empty inputs" {
     const encoded = try encodeLogs(testing.allocator, event, .{});
     defer encoded.deinit();
 
-    const slice: []const ?[]u8 = &.{@constCast("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")};
+    const slice: []const ?[]const u8 = &.{"0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0"};
 
     try testing.expectEqualDeep(slice, encoded.data);
 }
@@ -205,7 +205,7 @@ test "Empty args" {
     const encoded = try encodeLogs(testing.allocator, event.value, .{});
     defer encoded.deinit();
 
-    const slice: []const ?[]u8 = &.{@constCast("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")};
+    const slice: []const ?[]const u8 = &.{"0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"};
 
     try testing.expectEqualDeep(slice, encoded.data);
 }
@@ -217,7 +217,7 @@ test "With args" {
     const encoded = try encodeLogs(testing.allocator, event.value, .{ null, try utils.addressToBytes("0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC") });
     defer encoded.deinit();
 
-    const slice: []const ?[]u8 = &.{ @constCast("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"), null, @constCast("0x000000000000000000000000a5cc3c03994db5b0d9a5eedd10cabab0813678ac") };
+    const slice: []const ?[]const u8 = &.{ "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", null, "0x000000000000000000000000a5cc3c03994db5b0d9a5eedd10cabab0813678ac" };
 
     try testing.expectEqualDeep(slice, encoded.data);
 }
@@ -230,7 +230,7 @@ test "With args string/bytes" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
         defer encoded.deinit();
 
-        const slice: []const ?[]u8 = &.{ @constCast("0x9f0b7f1630bdb7d474466e2dfef0fb9dff65f7a50eec83935b68f77d0808f08a"), @constCast("0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8") };
+        const slice: []const ?[]const u8 = &.{ "0x9f0b7f1630bdb7d474466e2dfef0fb9dff65f7a50eec83935b68f77d0808f08a", "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8" };
 
         try testing.expectEqualDeep(slice, encoded.data);
     }
@@ -241,7 +241,7 @@ test "With args string/bytes" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
         defer encoded.deinit();
 
-        const slice: []const ?[]u8 = &.{ @constCast("0xefc9afd358f1472682cf8cc82e1d3ae36be2538ed858a4a604119399d6f22b48"), @constCast("0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8") };
+        const slice: []const ?[]const u8 = &.{ "0xefc9afd358f1472682cf8cc82e1d3ae36be2538ed858a4a604119399d6f22b48", "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8" };
 
         try testing.expectEqualDeep(slice, encoded.data);
     }
@@ -253,7 +253,7 @@ test "With args string/bytes" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{str});
         defer encoded.deinit();
 
-        const slice: []const ?[]u8 = &.{ @constCast("0x9f0b7f1630bdb7d474466e2dfef0fb9dff65f7a50eec83935b68f77d0808f08a"), @constCast("0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8") };
+        const slice: []const ?[]const u8 = &.{ "0x9f0b7f1630bdb7d474466e2dfef0fb9dff65f7a50eec83935b68f77d0808f08a", "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8" };
 
         try testing.expectEqualDeep(slice, encoded.data);
     }
@@ -265,7 +265,7 @@ test "With args string/bytes" {
         const encoded = try encodeLogs(testing.allocator, event.value, .{str});
         defer encoded.deinit();
 
-        const slice: []const ?[]u8 = &.{ @constCast("0xefc9afd358f1472682cf8cc82e1d3ae36be2538ed858a4a604119399d6f22b48"), @constCast("0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8") };
+        const slice: []const ?[]const u8 = &.{ "0xefc9afd358f1472682cf8cc82e1d3ae36be2538ed858a4a604119399d6f22b48", "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8" };
 
         try testing.expectEqualDeep(slice, encoded.data);
     }
@@ -278,7 +278,7 @@ test "With remaing types" {
     const encoded = try encodeLogs(testing.allocator, event.value, .{ 69, -420, true, "01234" });
     defer encoded.deinit();
 
-    const slice: []const ?[]u8 = &.{ @constCast("0x08056cee0ec7df6d2ab8d10ab36f1ac8be153e2a0001198ef7b4c17dde75cbc4"), @constCast("0x0000000000000000000000000000000000000000000000000000000000000045"), @constCast("0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe5c"), @constCast("0x0000000000000000000000000000000000000000000000000000000000000001"), @constCast("0x3031323334000000000000000000000000000000000000000000000000000000") };
+    const slice: []const ?[]const u8 = &.{ "0x08056cee0ec7df6d2ab8d10ab36f1ac8be153e2a0001198ef7b4c17dde75cbc4", "0x0000000000000000000000000000000000000000000000000000000000000045", "0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe5c", "0x0000000000000000000000000000000000000000000000000000000000000001", "0x3031323334000000000000000000000000000000000000000000000000000000" };
 
     try testing.expectEqualDeep(slice, encoded.data);
 }

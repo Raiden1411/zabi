@@ -8,4 +8,9 @@ const Hex = ethereum_types.Hex;
 const RequestParser = meta.RequestParser;
 const Wei = ethereum_types.Wei;
 
-pub const L2Output = struct { outputIndex: u256, outputRoot: Hash, timestamp: u128, l2BlockNumber: u128 };
+pub const L2Output = struct {
+    outputIndex: u256,
+    outputRoot: Hash,
+    timestamp: u128,
+    l2BlockNumber: u128,
+};

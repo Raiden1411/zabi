@@ -6,6 +6,7 @@ const types = @import("../../types/ethereum.zig");
 const DepositData = op_transactions.DepositData;
 const Hash = types.Hash;
 const Hex = types.Hex;
+const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
 /// This expects that the data was already decoded from hex
 pub fn opaqueToDepositData(hex_bytes: Hex) !DepositData {
@@ -34,4 +35,13 @@ pub fn opaqueToDepositData(hex_bytes: Hex) !DepositData {
     };
 }
 
-pub fn getSourceHash() !Hash {}
+pub fn getWithdrawlHashStorageSlot(hash: Hash) Hash {
+    var buffer: [64]u8 = [_]u8{0} ** 64;
+
+    @memcpy(buffer[0..32], hash);
+
+    var hash_buffer: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(&buffer, &hash_buffer, .{});
+
+    return hash_buffer;
+}

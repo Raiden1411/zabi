@@ -47,3 +47,66 @@ pub const transaction_deposited_event_args: []const AbiEventParameter = &.{
 pub const transaction_deposited_event_data: []const AbiParameter = &.{
     .{ .type = .{ .bytes = {} }, .name = "opaqueData" },
 };
+
+// Abi representation of the gas price oracle `getL2Output` function
+pub const get_l2_output_func: Function = .{
+    .type = .function,
+    .name = "getL2Output",
+    .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "_l2OutputIndex" }},
+    .stateMutability = .view,
+    .outputs = &.{
+        .{
+            .type = .{ .tuple = {} },
+            .name = "",
+            .components = &.{
+                .{ .type = .{ .fixedBytes = 32 }, .name = "outputRoot" },
+                .{ .type = .{ .uint = 128 }, .name = "timestamp" },
+                .{ .type = .{ .uint = 128 }, .name = "l2BlockNumber" },
+            },
+        },
+    },
+};
+// Abi representation of the gas price oracle `getL2Output` function
+pub const get_proven_withdrawal: Function = .{
+    .type = .function,
+    .name = "provenWithdrawals",
+    .inputs = &.{.{ .type = .{ .fixedBytes = 32 }, .name = "" }},
+    .stateMutability = .view,
+    .outputs = &.{
+        .{
+            .type = .{ .tuple = {} },
+            .name = "",
+            .components = &.{
+                .{ .type = .{ .fixedBytes = 32 }, .name = "outputRoot" },
+                .{ .type = .{ .uint = 128 }, .name = "timestamp" },
+                .{ .type = .{ .uint = 128 }, .name = "l2OutputIndex" },
+            },
+        },
+    },
+};
+
+// Abi representation of the gas price oracle `getL1GasUsed` function
+pub const get_l2_index_func: Function = .{
+    .type = .function,
+    .name = "getL2OutputIndexAfter",
+    .inputs = &.{
+        .{ .type = .{ .uint = 256 }, .name = "_l2BlockNumber" },
+    },
+    .stateMutability = .view,
+    // Not the real outputs represented in the ABI but here we don't really care for it.
+    // The ABI returns a uint256 but we can just `parseInt` it
+    .outputs = &.{},
+};
+
+// Abi representation of the gas price oracle `getL1GasUsed` function
+pub const get_finalized_withdrawl: Function = .{
+    .type = .function,
+    .name = "finalizedWithdrawals",
+    .inputs = &.{
+        .{ .type = .{ .fixedBytes = 32 }, .name = "" },
+    },
+    .stateMutability = .view,
+    // Not the real outputs represented in the ABI but here we don't really care for it.
+    // The ABI returns a uint256 but we can just `parseInt` it
+    .outputs = &.{},
+};

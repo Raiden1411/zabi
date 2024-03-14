@@ -40,3 +40,9 @@ pub const Proofs = struct {
 };
 
 pub const WithdrawlEnvelope = MergeStructs(WithdrawlNoHash, Proofs);
+
+pub const ProvenWithdrawl = struct {
+    outputRoot: Hash,
+    timestamp: u128,
+    l2OutputIndex: u128,
+};

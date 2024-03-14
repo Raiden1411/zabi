@@ -177,7 +177,7 @@ pub fn main() !void {
         const encoded = try zabi_root.encoding.logs_encoding.encodeLogs(allocator, event.value, .{ 69, -420, true, "01234" });
         defer encoded.deinit();
 
-        const result = try benchmark.benchmark(allocator, zabi_root.decoding.logs_decoder.decodeLogs, .{ allocator, struct { []const u8, u256, i256, bool, [5]u8 }, event.value, encoded.data }, .{ .warmup_runs = 5, .runs = 100 });
+        const result = try benchmark.benchmark(allocator, zabi_root.decoding.logs_decoder.decodeLogs, .{ allocator, struct { []const u8, u256, i256, bool, [5]u8 }, event.value.inputs, encoded.data }, .{ .warmup_runs = 5, .runs = 100 });
         result.printSummary();
     }
 }

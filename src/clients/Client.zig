@@ -901,6 +901,10 @@ fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !T {
         .success => |response| return response.result,
         .@"error" => |response| {
             httplog.debug("RPC error response: {s}", .{response.@"error".message});
+
+            if (response.@"error".data) |data|
+                httplog.debug("RPC error data response: {s}", .{data});
+
             switch (response.@"error".code) {
                 .ContractErrorCode => return error.EvmFailedToExecute,
                 // This will only affect WS connections but we need to handle it here too

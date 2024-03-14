@@ -110,3 +110,16 @@ pub const get_finalized_withdrawl: Function = .{
     // The ABI returns a uint256 but we can just `parseInt` it
     .outputs = &.{},
 };
+
+// Abi representation of the gas price oracle `getL1Fee` function
+pub const initiate_withdrawal: Function = .{
+    .type = .function,
+    .name = "initiateWithdrawal",
+    .inputs = &.{
+        .{ .type = .{ .address = {} }, .name = "_target" },
+        .{ .type = .{ .uint = 256 }, .name = "_gasLimit" },
+        .{ .type = .{ .bytes = {} }, .name = "_data" },
+    },
+    .stateMutability = .payable,
+    .outputs = &.{},
+};

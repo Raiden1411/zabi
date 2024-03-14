@@ -306,7 +306,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             switch (unprepared_envelope.type) {
                 .cancun => {
-                    // zig fmt: off
                     var request: LondonEthCall = .{
                         .from = address,
                         .to = unprepared_envelope.to,
@@ -316,7 +315,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .data = unprepared_envelope.data,
                         .value = unprepared_envelope.value orelse 0,
                     };
-                    // zig fmt: on
 
                     const curr_block = try self.pub_client.getBlockByNumber(.{});
                     const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
@@ -340,7 +338,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         request.gas = try self.pub_client.estimateGas(.{ .london = request }, .{});
                     }
 
-                    // zig fmt: off
                     return .{ .cancun = .{
                         .chainId = chain_id,
                         .nonce = nonce,
@@ -352,13 +349,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .data = request.data,
                         .value = request.value.?,
                         .accessList = accessList,
-                        .blobVersionedHashes = blob_version, 
-                    }};
-                    // zig fmt: on
-
+                        .blobVersionedHashes = blob_version,
+                    } };
                 },
                 .london => {
-                    // zig fmt: off
                     var request: LondonEthCall = .{
                         .to = unprepared_envelope.to,
                         .from = address,
@@ -368,7 +362,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .data = unprepared_envelope.data,
                         .value = unprepared_envelope.value orelse 0,
                     };
-                    // zig fmt: on
 
                     const curr_block = try self.pub_client.getBlockByNumber(.{});
                     const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
@@ -390,7 +383,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         request.gas = try self.pub_client.estimateGas(.{ .london = request }, .{});
                     }
 
-                    // zig fmt: off
                     return .{ .london = .{
                         .chainId = chain_id,
                         .nonce = nonce,
@@ -401,20 +393,17 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .data = request.data,
                         .value = request.value.?,
                         .accessList = accessList,
-                    }};
-                    // zig fmt: on
+                    } };
                 },
                 .berlin => {
-                    // zig fmt: off
-                    var request: LegacyEthCall = .{ 
-                        .from = address, 
+                    var request: LegacyEthCall = .{
+                        .from = address,
                         .to = unprepared_envelope.to,
-                        .gas = unprepared_envelope.gas, 
-                        .gasPrice = unprepared_envelope.gasPrice, 
-                        .data = unprepared_envelope.data, 
-                        .value = unprepared_envelope.value orelse 0
+                        .gas = unprepared_envelope.gas,
+                        .gasPrice = unprepared_envelope.gasPrice,
+                        .data = unprepared_envelope.data,
+                        .value = unprepared_envelope.value orelse 0,
                     };
-                    // zig fmt: on
 
                     const curr_block = try self.pub_client.getBlockByNumber(.{});
                     const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
@@ -431,7 +420,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         request.gas = try self.pub_client.estimateGas(.{ .legacy = request }, .{});
                     }
 
-                    // zig fmt: off
                     return .{ .berlin = .{
                         .chainId = chain_id,
                         .nonce = nonce,
@@ -441,20 +429,17 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .data = request.data,
                         .value = request.value.?,
                         .accessList = accessList,
-                    }};
-                    // zig fmt: on
+                    } };
                 },
                 .legacy => {
-                    // zig fmt: off
-                    var request: LegacyEthCall = .{ 
-                        .from = address, 
+                    var request: LegacyEthCall = .{
+                        .from = address,
                         .to = unprepared_envelope.to,
-                        .gas = unprepared_envelope.gas, 
-                        .gasPrice = unprepared_envelope.gasPrice, 
-                        .data = unprepared_envelope.data, 
-                        .value = unprepared_envelope.value orelse 0
+                        .gas = unprepared_envelope.gas,
+                        .gasPrice = unprepared_envelope.gasPrice,
+                        .data = unprepared_envelope.data,
+                        .value = unprepared_envelope.value orelse 0,
                     };
-                    // zig fmt: on
 
                     const curr_block = try self.pub_client.getBlockByNumber(.{});
                     const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
@@ -470,7 +455,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         request.gas = try self.pub_client.estimateGas(.{ .legacy = request }, .{});
                     }
 
-                    // zig fmt: off
                     return .{ .legacy = .{
                         .chainId = chain_id,
                         .nonce = nonce,
@@ -479,23 +463,20 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .to = request.to,
                         .data = request.data,
                         .value = request.value.?,
-                    }};
-                    // zig fmt: on
+                    } };
                 },
                 _ => {
                     if (@intFromEnum(unprepared_envelope.type) < @as(u8, @intCast(0xc0)))
                         return error.InvalidTransactionType;
 
-                    // zig fmt: off
-                    var request: LegacyEthCall = .{ 
-                        .from = address, 
+                    var request: LegacyEthCall = .{
+                        .from = address,
                         .to = unprepared_envelope.to,
-                        .gas = unprepared_envelope.gas, 
-                        .gasPrice = unprepared_envelope.gasPrice, 
-                        .data = unprepared_envelope.data, 
-                        .value = unprepared_envelope.value orelse 0
+                        .gas = unprepared_envelope.gas,
+                        .gasPrice = unprepared_envelope.gasPrice,
+                        .data = unprepared_envelope.data,
+                        .value = unprepared_envelope.value orelse 0,
                     };
-                    // zig fmt: on
 
                     const curr_block = try self.pub_client.getBlockByNumber(.{});
                     const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
@@ -511,7 +492,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         request.gas = try self.pub_client.estimateGas(.{ .legacy = request }, .{});
                     }
 
-                    // zig fmt: off
                     return .{ .legacy = .{
                         .chainId = chain_id,
                         .nonce = nonce,
@@ -520,8 +500,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .to = request.to,
                         .data = request.data,
                         .value = request.value.?,
-                    }};
-                    // zig fmt: on
+                    } };
                 },
             }
         }

@@ -26,7 +26,7 @@ const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
 const InitOptsHttp = clients.PubClient.InitOptions;
-const InitOptsWs = clients.PubClient.InitOptions;
+const InitOptsWs = clients.WebSocket.InitOptions;
 const LondonTransactionEnvelope = transactions.LondonTransactionEnvelope;
 const L2Output = op_types.L2Output;
 const Message = withdrawl_types.Message;
@@ -220,16 +220,16 @@ pub fn OptimismClient(comptime client_type: Clients) type {
     };
 }
 
-test "Small" {
-    const uri = try std.Uri.parse("https://sepolia.optimism.io");
-
-    var op: OptimismClient(.http) = undefined;
-    defer op.deinit();
-
-    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia });
-
-    const messages = try op.getWithdrawMessages(try utils.hashToBytes(""));
-    // const receipt = try op.rpc_client.getTransactionReceipt(try utils.hashToBytes("0x388351387ada803799bec92fd8566d4f3d23e2b1208e62eea154ab4d924a974c"));
-
-    std.debug.print("OP GAS: {any}\n\n", .{messages});
-}
+// test "Small" {
+//     const uri = try std.Uri.parse("https://sepolia.optimism.io");
+//
+//     var op: OptimismClient(.http) = undefined;
+//     defer op.deinit();
+//
+//     try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia });
+//
+//     const messages = try op.getWithdrawMessages(try utils.hashToBytes(""));
+//     // const receipt = try op.rpc_client.getTransactionReceipt(try utils.hashToBytes("0x388351387ada803799bec92fd8566d4f3d23e2b1208e62eea154ab4d924a974c"));
+//
+//     std.debug.print("OP GAS: {any}\n\n", .{messages});
+// }

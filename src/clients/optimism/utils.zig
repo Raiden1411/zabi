@@ -41,7 +41,7 @@ pub fn opaqueToDepositData(hex_bytes: Hex) DepositData {
     };
 }
 
-pub fn getWithdrawlHashStorageSlot(hash: Hash) Hash {
+pub fn getWithdrawalHashStorageSlot(hash: Hash) Hash {
     var buffer: [64]u8 = [_]u8{0} ** 64;
 
     @memcpy(buffer[0..32], hash);

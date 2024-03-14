@@ -11,10 +11,10 @@ const Wei = types.Wei;
 
 pub const Message = struct {
     blockNumber: u64,
-    messages: []const Withdrawl,
+    messages: []const Withdrawal,
 };
 
-pub const Withdrawl = struct {
+pub const Withdrawal = struct {
     nonce: Wei,
     sender: Address,
     target: Address,
@@ -24,9 +24,9 @@ pub const Withdrawl = struct {
     withdrawalHash: Hash,
 };
 
-pub const WithdrawlNoHash = Omit(Withdrawl, &.{"withdrawalHash"});
+pub const WithdrawalNoHash = Omit(Withdrawal, &.{"withdrawalHash"});
 
-pub const WithdrawlRootProof = struct {
+pub const WithdrawalRootProof = struct {
     version: Hash,
     stateRoot: Hash,
     messagePasserStorageRoot: Hash,
@@ -34,12 +34,12 @@ pub const WithdrawlRootProof = struct {
 };
 
 pub const Proofs = struct {
-    outputRootProof: WithdrawlRootProof,
+    outputRootProof: WithdrawalRootProof,
     withdrawalProof: []const Hex,
     l2OutputIndex: u256,
 };
 
-pub const WithdrawlEnvelope = MergeStructs(WithdrawlNoHash, Proofs);
+pub const WithdrawalEnvelope = MergeStructs(WithdrawalNoHash, Proofs);
 
 pub const ProvenWithdrawl = struct {
     outputRoot: Hash,

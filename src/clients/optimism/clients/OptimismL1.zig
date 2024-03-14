@@ -12,7 +12,7 @@ const op_transactions = @import("../types/transaction.zig");
 const op_utils = @import("../utils.zig");
 const types = @import("../../../types/ethereum.zig");
 const utils = @import("../../../utils/utils.zig");
-const withdrawl_types = @import("../types/withdrawl.zig");
+const withdrawal_types = @import("../types/withdrawl.zig");
 
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
@@ -23,10 +23,12 @@ const InitOptsWs = clients.PubClient.InitOptions;
 const Logs = log.Logs;
 const L2Output = op_types.L2Output;
 const OpMainNetContracts = contracts.OpMainNetContracts;
-const ProvenWithdrawl = withdrawl_types.ProvenWithdrawl;
+const ProvenWithdrawl = withdrawal_types.ProvenWithdrawl;
 const PubClient = clients.PubClient;
 const TransactionDeposited = op_transactions.TransactionDeposited;
 const WebSocketClient = clients.WebSocket;
+const Withdrawl = withdrawal_types.Withdrawl;
+const WithdrawlEnvelope = withdrawal_types.WithdrawlEnvelope;
 
 pub fn OptimismL1Client(comptime client_type: Clients) type {
     return struct {
@@ -72,7 +74,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
         }
 
         pub fn getFinalizedWithdrawals(self: *OptimismL1, withdrawal_hash: Hash) !bool {
-            const encoded = try abi_items.get_finalized_withdrawl.encode(self.allocator, .{withdrawal_hash});
+            const encoded = try abi_items.get_finalized_withdrawal.encode(self.allocator, .{withdrawal_hash});
             const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
             defer self.allocator.free(hex);
 
@@ -246,6 +248,37 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             }
 
             return try list.toOwnedSlice();
+        }
+
+        pub fn prepareWithdrawalProofTransaction(self: *OptimismL1, withdrawal: Withdrawl, l2_output: L2Output) !WithdrawlEnvelope {
+            const storage_slot = op_utils.getWithdrawlHashStorageSlot(withdrawal.withdrawalHash);
+            const proof = try self.rpc_client.getProof(.{
+                .address = self.contracts.l2ToL1MessagePasser,
+                .storageKeys = &.{storage_slot},
+                .blockNumber = l2_output.l2BlockNumber,
+            }, null);
+
+            const block = try self.rpc_client.getBlockByNumber(.{ .block_number = l2_output.l2BlockNumber });
+            const block_info: struct { stateRoot: Hash, hash: Hash } = switch (block) {
+                inline else => |block_info| .{ .stateRoot = block_info.stateRoot, .hash = block_info.hash.? },
+            };
+
+            return .{
+                .nonce = withdrawal.nonce,
+                .sender = withdrawal.sender,
+                .target = withdrawal.target,
+                .value = withdrawal.value,
+                .gasLimit = withdrawal.gasLimit,
+                .data = withdrawal.data,
+                .outputRootProof = .{
+                    .version = [_]u8{0} ** 32,
+                    .stateRoot = block_info.stateRoot,
+                    .messagePasserStorageRoot = proof.storageHash,
+                    .latestBlockHash = block_info.hash,
+                },
+                .withdrawalProof = proof.storageProof[0].proof,
+                .l2OutputIndex = l2_output.outputIndex,
+            };
         }
 
         pub fn waitForNextL2Output(self: *OptimismL1, latest_l2_block: u64) !L2Output {

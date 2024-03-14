@@ -14,7 +14,7 @@ const op_transactions = @import("../types/transaction.zig");
 const op_utils = @import("../utils.zig");
 const types = @import("../../../types/ethereum.zig");
 const utils = @import("../../../utils/utils.zig");
-const withdrawl_types = @import("../types/withdrawl.zig");
+const withdrawal_types = @import("../types/withdrawl.zig");
 
 const AbiParameter = abi_parameter.AbiParameter;
 const AbiEventParameter = abi_parameter.AbiEventParameter;
@@ -29,13 +29,12 @@ const InitOptsHttp = clients.PubClient.InitOptions;
 const InitOptsWs = clients.WebSocket.InitOptions;
 const LondonTransactionEnvelope = transactions.LondonTransactionEnvelope;
 const L2Output = op_types.L2Output;
-const Message = withdrawl_types.Message;
+const Message = withdrawal_types.Message;
 const OpMainNetContracts = contracts.OpMainNetContracts;
 const PubClient = clients.PubClient;
 const WebSocketClient = clients.WebSocket;
 const Wei = types.Wei;
-const Withdrawl = withdrawl_types.Withdrawl;
-const WithdrawlEnvelope = withdrawl_types.WithdrawlEnvelope;
+const Withdrawal = withdrawal_types.Withdrawal;
 
 pub fn OptimismClient(comptime client_type: Clients) type {
     return struct {
@@ -153,7 +152,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
             if (receipt != .optimism)
                 return error.InvalidTransactionHash;
 
-            var list = std.ArrayList(Withdrawl).init(self.allocator);
+            var list = std.ArrayList(Withdrawal).init(self.allocator);
             errdefer list.deinit();
 
             const hash: []const u8 = "0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054";
@@ -184,37 +183,6 @@ pub fn OptimismClient(comptime client_type: Clients) type {
             return .{
                 .blockNumber = receipt.optimism.blockNumber.?,
                 .messages = messages,
-            };
-        }
-
-        pub fn prepareWithdrawlProofTransaction(self: *Optimism, withdrawl: Withdrawl, l2_output: L2Output) !WithdrawlEnvelope {
-            const storage_slot = op_utils.getWithdrawlHashStorageSlot(withdrawl.withdrawalHash);
-            const proof = try self.rpc_client.getProof(.{
-                .address = self.contracts.l2ToL1MessagePasser,
-                .storageKeys = &.{storage_slot},
-                .blockNumber = l2_output.l2BlockNumber,
-            }, null);
-
-            const block = try self.rpc_client.getBlockByNumber(.{ .block_number = l2_output.l2BlockNumber });
-            const block_info: struct { stateRoot: Hash, hash: Hash } = switch (block) {
-                inline else => |block_info| .{ .stateRoot = block_info.stateRoot, .hash = block_info.hash.? },
-            };
-
-            return .{
-                .nonce = withdrawl.nonce,
-                .sender = withdrawl.sender,
-                .target = withdrawl.target,
-                .value = withdrawl.value,
-                .gasLimit = withdrawl.gasLimit,
-                .data = withdrawl.data,
-                .outputRootProof = .{
-                    .version = [_]u8{0} ** 32,
-                    .stateRoot = block_info.stateRoot,
-                    .messagePasserStorageRoot = proof.storageHash,
-                    .latestBlockHash = block_info.hash,
-                },
-                .withdrawlProof = proof.storageProof[0].proof,
-                .l2OutputIndex = l2_output.outputIndex,
             };
         }
     };

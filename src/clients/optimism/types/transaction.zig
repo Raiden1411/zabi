@@ -17,8 +17,6 @@ pub const DepositTransaction = struct {
     gas: Gwei,
     isSystemTx: bool,
     data: ?Hex,
-
-    pub usingnamespace RequestParser(@This());
 };
 
 pub const DepositData = struct {
@@ -36,4 +34,13 @@ pub const TransactionDeposited = struct {
     opaqueData: Hex,
     logIndex: usize,
     blockHash: Hash,
+};
+
+pub const DepositTransactionEnvelope = struct {
+    gas: ?Gwei = null,
+    mint: ?Wei = null,
+    value: ?Wei = null,
+    creation: bool = false,
+    data: ?Hex = null,
+    to: ?Address = null,
 };

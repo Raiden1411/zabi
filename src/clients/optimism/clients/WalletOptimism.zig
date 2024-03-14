@@ -149,7 +149,10 @@ pub fn WalletOptimismClient(client_type: Clients) type {
             const hexed = try std.fmt.allocPrint(self.op_client.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(signed_serialized)});
             defer self.op_client.allocator.free(hexed);
 
-            return self.op_client.rpc_client.sendRawTransaction(hexed);
+            const tx_hash = try self.op_client.rpc_client.sendRawTransaction(hexed);
+            self.wallet_nonce += 1;
+
+            return tx_hash;
         }
 
         pub fn prepareInitiateWithdrawal(self: *WalletOptimism, request: WithdrawalRequest) !PreparedWithdrawal {

@@ -99,7 +99,7 @@ pub const get_l2_index_func: Function = .{
 };
 
 // Abi representation of the gas price oracle `getL1GasUsed` function
-pub const get_finalized_withdrawl: Function = .{
+pub const get_finalized_withdrawal: Function = .{
     .type = .function,
     .name = "finalizedWithdrawals",
     .inputs = &.{
@@ -121,5 +121,54 @@ pub const initiate_withdrawal: Function = .{
         .{ .type = .{ .bytes = {} }, .name = "_data" },
     },
     .stateMutability = .payable,
+    .outputs = &.{},
+};
+
+// Abi representation of the gas price oracle `getL1Fee` function
+pub const deposit_transaction: Function = .{
+    .type = .function,
+    .name = "depositTransaction",
+    .inputs = &.{
+        .{ .type = .{ .address = {} }, .name = "_to" },
+        .{ .type = .{ .uint = 256 }, .name = "_value" },
+        .{ .type = .{ .uint = 64 }, .name = "_gasLimit" },
+        .{ .type = .{ .bool = {} }, .name = "_isCreation" },
+        .{ .type = .{ .bytes = {} }, .name = "_data" },
+    },
+    .stateMutability = .payable,
+    .outputs = &.{},
+};
+
+// Abi representation of the gas price oracle `getL2Output` function
+pub const prove_withdrawal: Function = .{
+    .type = .function,
+    .name = "proveWithdrawalTransaction",
+    .inputs = &.{
+        .{
+            .type = .{ .tuple = {} },
+            .name = "_tx",
+            .components = &.{
+                .{ .type = .{ .uint = 256 }, .name = "nonce" },
+                .{ .type = .{ .address = {} }, .name = "sender" },
+                .{ .type = .{ .address = {} }, .name = "target" },
+                .{ .type = .{ .uint = 256 }, .name = "value" },
+                .{ .type = .{ .uint = 256 }, .name = "gasLimit" },
+                .{ .type = .{ .bytes = {} }, .name = "data" },
+            },
+        },
+        .{ .type = .{ .uint = 256 }, .name = "_l2OutputIndex" },
+        .{
+            .type = .{ .tuple = {} },
+            .name = "_outputRootProof",
+            .components = &.{
+                .{ .type = .{ .fixedBytes = 32 }, .name = "version" },
+                .{ .type = .{ .fixedBytes = 32 }, .name = "stateRoot" },
+                .{ .type = .{ .fixedBytes = 32 }, .name = "messagePasserStorageRoot" },
+                .{ .type = .{ .fixedBytes = 32 }, .name = "latestBlockhash" },
+            },
+        },
+        .{ .type = .{ .dynamicArray = &.{ .bytes = {} } }, .name = "_withdrawalProof " },
+    },
+    .stateMutability = .nonpayable,
     .outputs = &.{},
 };

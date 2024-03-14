@@ -242,7 +242,7 @@ fn preEncodeParam(allocator: Allocator, param: AbiParameter, value: anytype) !Pr
                             .string => return try encodeString(allocator, slice),
                             .bytes => {
                                 const buffer = try allocator.alloc(u8, if (slice.len % 32 == 0) @divExact(slice.len, 2) else slice.len);
-                                const hex = try std.fmt.hexToBytes(&buffer, slice);
+                                const hex = try std.fmt.hexToBytes(buffer, slice);
 
                                 return try encodeString(allocator, hex);
                             },
@@ -331,7 +331,7 @@ fn preEncodeParam(allocator: Allocator, param: AbiParameter, value: anytype) !Pr
                             .string => try encodeString(allocator, slice),
                             .bytes => {
                                 const buffer = try allocator.alloc(u8, if (slice.len % 32 == 0) @divExact(slice.len, 2) else slice.len);
-                                const hex = try std.fmt.hexToBytes(&buffer, slice);
+                                const hex = try std.fmt.hexToBytes(buffer, slice);
 
                                 return try encodeString(allocator, hex);
                             },
@@ -342,14 +342,12 @@ fn preEncodeParam(allocator: Allocator, param: AbiParameter, value: anytype) !Pr
             }
             return switch (param.type) {
                 .fixedArray => |val| {
-                    // zig fmt: off
                     const new_parameter: AbiParameter = .{
                         .type = val.child.*,
                         .name = param.name,
                         .internalType = param.internalType,
-                        .components = param.components
+                        .components = param.components,
                     };
-                    // zig fmt: on
                     return try encodeArray(allocator, new_parameter, value, val.size);
                 },
                 else => return error.InvalidParamType,

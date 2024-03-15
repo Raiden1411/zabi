@@ -22,12 +22,13 @@ const InitOptsHttp = clients.PubClient.InitOptions;
 const InitOptsWs = clients.PubClient.InitOptions;
 const Logs = log.Logs;
 const L2Output = op_types.L2Output;
+const Message = withdrawal_types.Message;
 const OpMainNetContracts = contracts.OpMainNetContracts;
 const ProvenWithdrawal = withdrawal_types.ProvenWithdrawal;
 const PubClient = clients.PubClient;
 const TransactionDeposited = op_transactions.TransactionDeposited;
 const WebSocketClient = clients.WebSocket;
-const Withdrawl = withdrawal_types.Withdrawal;
+const Withdrawal = withdrawal_types.Withdrawal;
 const WithdrawlEnvelope = withdrawal_types.WithdrawalEnvelope;
 
 /// Optimism client used for L1 interactions.
@@ -262,6 +263,47 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             }
 
             return try list.toOwnedSlice();
+        }
+        /// Gets the decoded withdrawl event logs from a given transaction receipt hash.
+        pub fn getWithdrawMessages(self: *OptimismL1, tx_hash: Hash) !Message {
+            const receipt = try self.rpc_client.getTransactionReceipt(tx_hash);
+
+            if (receipt != .l2_receipt)
+                return error.InvalidTransactionHash;
+
+            var list = std.ArrayList(Withdrawal).init(self.allocator);
+            errdefer list.deinit();
+
+            // The hash for the event selector `MessagePassed`
+            const hash: []const u8 = "0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054";
+
+            const ReturnType = struct { []const u8, u256, Address, Address };
+            for (receipt.l2_receipt.logs) |logs| {
+                if (std.mem.eql(u8, hash, logs.topics[0] orelse return error.ExpectedTopicData)) {
+                    const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.message_passed_params, logs.data, .{});
+                    defer decoded.deinit();
+
+                    const decoded_logs = try decoder_logs.decodeLogs(self.allocator, ReturnType, abi_items.message_passed_indexed_params, logs.topics);
+                    defer decoded_logs.deinit();
+
+                    try list.append(.{
+                        .nonce = decoded_logs.result[1],
+                        .target = decoded_logs.result[2],
+                        .sender = decoded_logs.result[3],
+                        .value = decoded.values[0],
+                        .gasLimit = decoded.values[1],
+                        .data = decoded.values[2],
+                        .withdrawalHash = decoded.values[3],
+                    });
+                }
+            }
+
+            const messages = try list.toOwnedSlice();
+
+            return .{
+                .blockNumber = receipt.l2_receipt.blockNumber.?,
+                .messages = messages,
+            };
         }
         /// Waits until the next L2 output is posted.
         /// This will keep pooling until it can get the L2Output or it exceeds the max retries.

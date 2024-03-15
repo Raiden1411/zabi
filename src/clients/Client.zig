@@ -926,10 +926,10 @@ fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !T {
     switch (parsed) {
         .success => |response| return response.result,
         .@"error" => |response| {
-            httplog.debug("RPC error response: {s}", .{response.@"error".message});
+            httplog.err("RPC error response: {s}", .{response.@"error".message});
 
             if (response.@"error".data) |data|
-                httplog.debug("RPC error data response: {s}", .{data});
+                httplog.err("RPC error data response: {s}", .{data});
 
             switch (response.@"error".code) {
                 .ContractErrorCode => return error.EvmFailedToExecute,

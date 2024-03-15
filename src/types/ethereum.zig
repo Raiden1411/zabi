@@ -91,6 +91,7 @@ pub const PublicChains = enum(usize) {
     arbitrum_nova = 42170,
     celo = 42220,
     avalanche = 43114,
+    zora = 7777777,
     sepolia = 11155111,
     op_sepolia = 11155420,
 };

@@ -24,6 +24,7 @@ const LondonTransactionEnvelope = transactions.LondonTransactionEnvelope;
 const L2Output = op_types.L2Output;
 const Message = withdrawal_types.Message;
 const OpMainNetContracts = contracts.OpMainNetContracts;
+const ProvenWithdrawal = withdrawal_types.ProvenWithdrawal;
 const PubClient = clients.PubClient;
 const WebSocketClient = clients.WebSocket;
 const Wei = types.Wei;
@@ -59,6 +60,13 @@ pub fn OptimismClient(comptime client_type: Clients) type {
         pub fn init(self: *Optimism, opts: InitOpts) !void {
             const op_client = try opts.allocator.create(ClientType);
             errdefer opts.allocator.destroy(op_client);
+
+            if (opts.chain_id) |id| {
+                switch (id) {
+                    .op_mainnet, .op_sepolia, .base, .zora => {},
+                    else => return error.InvalidChain,
+                }
+            } else return error.ExpectedChainId;
 
             try op_client.init(opts);
 
@@ -142,6 +150,19 @@ pub fn OptimismClient(comptime client_type: Clients) type {
             } }, .{});
 
             return std.fmt.parseInt(u256, data, 0);
+        }
+        /// Returns if a withdrawal has finalized or not.
+        pub fn getFinalizedWithdrawals(self: *Optimism, withdrawal_hash: Hash) !bool {
+            const encoded = try abi_items.get_finalized_withdrawal.encode(self.allocator, .{withdrawal_hash});
+            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+            defer self.allocator.free(hex);
+
+            const data = try self.rpc_client.sendEthCall(.{ .london = .{
+                .to = self.contracts.portalAddress,
+                .data = hex,
+            } }, .{});
+
+            return try std.fmt.parseInt(u1, data, 0) != 0;
         }
         /// Gets the decoded withdrawl event logs from a given transaction receipt hash.
         pub fn getWithdrawMessages(self: *Optimism, tx_hash: Hash) !Message {

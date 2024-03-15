@@ -23,7 +23,7 @@ const InitOptsWs = clients.PubClient.InitOptions;
 const Logs = log.Logs;
 const L2Output = op_types.L2Output;
 const OpMainNetContracts = contracts.OpMainNetContracts;
-const ProvenWithdrawl = withdrawal_types.ProvenWithdrawl;
+const ProvenWithdrawal = withdrawal_types.ProvenWithdrawal;
 const PubClient = clients.PubClient;
 const TransactionDeposited = op_transactions.TransactionDeposited;
 const WebSocketClient = clients.WebSocket;
@@ -61,6 +61,13 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             const op_client = try opts.allocator.create(ClientType);
             errdefer opts.allocator.destroy(op_client);
 
+            if (opts.chain_id) |id| {
+                switch (id) {
+                    .ethereum => {},
+                    else => return error.InvalidChain,
+                }
+            }
+
             try op_client.init(opts);
 
             self.* = .{
@@ -76,19 +83,6 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             child_allocator.destroy(self.rpc_client);
 
             self.* = undefined;
-        }
-        /// Returns if a withdrawal has finalized or not.
-        pub fn getFinalizedWithdrawals(self: *OptimismL1, withdrawal_hash: Hash) !bool {
-            const encoded = try abi_items.get_finalized_withdrawal.encode(self.allocator, .{withdrawal_hash});
-            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-            defer self.allocator.free(hex);
-
-            const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.portalAddress,
-                .data = hex,
-            } }, .{});
-
-            return try std.fmt.parseInt(u1, data, 0) != 0;
         }
         /// Gets the latest proposed L2 block number from the Oracle.
         pub fn getLatestProposedL2BlockNumber(self: *OptimismL1) !u64 {
@@ -155,7 +149,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             return std.fmt.parseInt(u256, data, 0);
         }
         /// Gets a proven withdrawl.
-        pub fn getProvenWithdrawals(self: *OptimismL1, withdrawal_hash: Hash) !ProvenWithdrawl {
+        pub fn getProvenWithdrawals(self: *OptimismL1, withdrawal_hash: Hash) !ProvenWithdrawal {
             const encoded = try abi_items.get_proven_withdrawal.encode(self.allocator, .{withdrawal_hash});
             const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
             defer self.allocator.free(hex);
@@ -288,7 +282,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
     };
 }
 
-test "Small" {
+test "GetL2HashFromL1DepositInfo" {
     const uri = try std.Uri.parse("http://localhost:8545/");
 
     var op: OptimismL1Client(.http) = undefined;
@@ -296,9 +290,87 @@ test "Small" {
 
     try op.init(.{ .uri = uri, .allocator = testing.allocator });
 
-    // const messages = try op.getL2HashesForDepositTransaction(try utils.hashToBytes("0x33faeeee9c6d5e19edcdfc003f329c6652f05502ffbf3218d9093b92589a42c4"));
-    // const receipt = try op.rpc_client.getTransactionReceipt(try utils.hashToBytes("0x388351387ada803799bec92fd8566d4f3d23e2b1208e62eea154ab4d924a974c"));
+    const messages = try op.getL2HashesForDepositTransaction(try utils.hashToBytes("0x33faeeee9c6d5e19edcdfc003f329c6652f05502ffbf3218d9093b92589a42c4"));
 
-    const block = try op.getFinalizedWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
-    std.debug.print("OP GAS: {any}\n\n", .{block});
+    try testing.expectEqualSlices(u8, &try utils.hashToBytes("0xed88afbd3f126180bd5488c2212cd033c51a6f9b1765249bdb738dcac1d0cb41"), &messages[0]);
+    // const block = try op.getFinalizedWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
+    // std.debug.print("OP GAS: {any}\n\n", .{block});
+}
+
+test "GetL2Output" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+
+    var op: OptimismL1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator });
+
+    const l2_output = try op.getL2Output(2725977);
+
+    try testing.expectEqual(l2_output.timestamp, 1686075935);
+    try testing.expectEqual(l2_output.outputIndex, 0);
+    try testing.expectEqual(l2_output.l2BlockNumber, 105236863);
+}
+
+test "getSecondsToFinalize" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+
+    var op: OptimismL1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator });
+
+    const seconds = try op.getSecondsToFinalize(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
+    try testing.expectEqual(seconds, 0);
+}
+
+test "GetSecondsToNextL2Output" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+
+    var op: OptimismL1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator });
+
+    const block = try op.getLatestProposedL2BlockNumber();
+    const seconds = try op.getSecondsToNextL2Output(block);
+    try testing.expectEqual(seconds, 3600);
+}
+
+test "GetTransactionDepositEvents" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+
+    var op: OptimismL1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator });
+
+    const deposit_events = try op.getTransactionDepositEvents(try utils.hashToBytes("0xe94031c3174788c3fee7216465c50bb2b72e7a1963f5af807b3768da10827f5c"));
+
+    try testing.expect(deposit_events.len != 0);
+    try testing.expectEqual(deposit_events[0].to, try utils.addressToBytes("0xbc3ed6B537f2980e66f396Fe14210A56ba3f72C4"));
+}
+
+test "GetProvenWithdrawals" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+
+    var op: OptimismL1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator });
+
+    const proven = try op.getProvenWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
+
+    try testing.expectEqual(proven.l2OutputIndex, 1490);
+}
+
+test "Errors" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+
+    var op: OptimismL1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator });
+    try testing.expectError(error.InvalidBlockNumber, op.getSecondsToNextL2Output(1));
+    try testing.expectError(error.InvalidWithdrawalHash, op.getSecondsToFinalize(try utils.hashToBytes("0xe94031c3174788c3fee7216465c50bb2b72e7a1963f5af807b3768da10827f5c")));
 }

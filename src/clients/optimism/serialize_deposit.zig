@@ -25,7 +25,7 @@ pub fn serializeDepositTransaction(allocator: Allocator, tx: DepositTransaction)
             break :data buffer;
         } else break :data null;
     };
-    defer if (data) |val| allocator.free(val);
+    defer if (data) |val| if (tx.data.?[1] == 'x') allocator.free(val);
 
     // zig fmt: off
     const envelope: StructToTupleType(DepositTransaction) = .{

@@ -14,3 +14,19 @@ pub const L2Output = struct {
     timestamp: u128,
     l2BlockNumber: u128,
 };
+
+pub const Domain = enum(u8) {
+    user_deposit = 0,
+    l1_info_deposit = 1,
+};
+
+pub const GetDepositArgs = struct {
+    from: Address,
+    to: ?Address,
+    /// This expects that the data has already been hex decoded
+    opaque_data: Hex,
+    domain: Domain,
+    log_index: u256,
+    l1_blockhash: Hash,
+    source_hash: ?Hash = null,
+};

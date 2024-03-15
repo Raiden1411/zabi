@@ -84,6 +84,19 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
 
             self.* = undefined;
         }
+        /// Returns if a withdrawal has finalized or not.
+        pub fn getFinalizedWithdrawals(self: *OptimismL1, withdrawal_hash: Hash) !bool {
+            const encoded = try abi_items.get_finalized_withdrawal.encode(self.allocator, .{withdrawal_hash});
+            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+            defer self.allocator.free(hex);
+
+            const data = try self.rpc_client.sendEthCall(.{ .london = .{
+                .to = self.contracts.portalAddress,
+                .data = hex,
+            } }, .{});
+
+            return try std.fmt.parseInt(u1, data, 0) != 0;
+        }
         /// Gets the latest proposed L2 block number from the Oracle.
         pub fn getLatestProposedL2BlockNumber(self: *OptimismL1) !u64 {
             // Selector for `latestBlockNumber`
@@ -293,8 +306,6 @@ test "GetL2HashFromL1DepositInfo" {
     const messages = try op.getL2HashesForDepositTransaction(try utils.hashToBytes("0x33faeeee9c6d5e19edcdfc003f329c6652f05502ffbf3218d9093b92589a42c4"));
 
     try testing.expectEqualSlices(u8, &try utils.hashToBytes("0xed88afbd3f126180bd5488c2212cd033c51a6f9b1765249bdb738dcac1d0cb41"), &messages[0]);
-    // const block = try op.getFinalizedWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
-    // std.debug.print("OP GAS: {any}\n\n", .{block});
 }
 
 test "GetL2Output" {
@@ -362,6 +373,18 @@ test "GetProvenWithdrawals" {
     const proven = try op.getProvenWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
 
     try testing.expectEqual(proven.l2OutputIndex, 1490);
+}
+
+test "GetFinalizedWithdrawals" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+
+    var op: OptimismL1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator });
+
+    const finalized = try op.getFinalizedWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
+    try testing.expect(finalized);
 }
 
 test "Errors" {

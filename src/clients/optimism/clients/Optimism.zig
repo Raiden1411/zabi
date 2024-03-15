@@ -86,9 +86,11 @@ pub fn OptimismClient(comptime client_type: Clients) type {
         }
         /// Returns the L1 gas used to execute L2 transactions
         pub fn estimateL1Gas(self: *Optimism, london_envelope: LondonTransactionEnvelope) !Wei {
-            const serialized = try serialize.serializeTransaction(self.client.allocator, .{ .london = london_envelope }, null);
+            const serialized = try serialize.serializeTransaction(self.allocator, .{ .london = london_envelope }, null);
+            const serialize_hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(serialized)});
+            defer self.allocator.free(serialize_hex);
 
-            const encoded = try abi_items.get_l1_gas_func.encode(self.allocator, .{serialized});
+            const encoded = try abi_items.get_l1_gas_func.encode(self.allocator, .{serialize_hex});
             const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
             defer self.allocator.free(hex);
 
@@ -102,8 +104,10 @@ pub fn OptimismClient(comptime client_type: Clients) type {
         /// Returns the L1 fee used to execute L2 transactions
         pub fn estimateL1GasFee(self: *Optimism, london_envelope: LondonTransactionEnvelope) !Wei {
             const serialized = try serialize.serializeTransaction(self.allocator, .{ .london = london_envelope }, null);
+            const serialize_hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(serialized)});
+            defer self.allocator.free(serialize_hex);
 
-            const encoded = try abi_items.get_l1_fee.encode(self.allocator, .{serialized});
+            const encoded = try abi_items.get_l1_fee.encode(self.allocator, .{serialize_hex});
             const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
             defer self.allocator.free(hex);
 
@@ -151,24 +155,11 @@ pub fn OptimismClient(comptime client_type: Clients) type {
 
             return std.fmt.parseInt(u256, data, 0);
         }
-        /// Returns if a withdrawal has finalized or not.
-        pub fn getFinalizedWithdrawals(self: *Optimism, withdrawal_hash: Hash) !bool {
-            const encoded = try abi_items.get_finalized_withdrawal.encode(self.allocator, .{withdrawal_hash});
-            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-            defer self.allocator.free(hex);
-
-            const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.portalAddress,
-                .data = hex,
-            } }, .{});
-
-            return try std.fmt.parseInt(u1, data, 0) != 0;
-        }
         /// Gets the decoded withdrawl event logs from a given transaction receipt hash.
         pub fn getWithdrawMessages(self: *Optimism, tx_hash: Hash) !Message {
             const receipt = try self.rpc_client.getTransactionReceipt(tx_hash);
 
-            if (receipt != .optimism)
+            if (receipt != .l2_receipt)
                 return error.InvalidTransactionHash;
 
             var list = std.ArrayList(Withdrawal).init(self.allocator);
@@ -208,16 +199,118 @@ pub fn OptimismClient(comptime client_type: Clients) type {
     };
 }
 
-// test "Small" {
-//     const uri = try std.Uri.parse("https://sepolia.optimism.io");
-//
-//     var op: OptimismClient(.http) = undefined;
-//     defer op.deinit();
-//
-//     try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia });
-//
-//     const messages = try op.getWithdrawMessages(try utils.hashToBytes(""));
-//     // const receipt = try op.rpc_client.getTransactionReceipt(try utils.hashToBytes("0x388351387ada803799bec92fd8566d4f3d23e2b1208e62eea154ab4d924a974c"));
-//
-//     std.debug.print("OP GAS: {any}\n\n", .{messages});
-// }
+test "GetWithdrawMessages" {
+    const uri = try std.Uri.parse("https://sepolia.optimism.io");
+
+    var op: OptimismClient(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia });
+
+    const messages = try op.getWithdrawMessages(try utils.hashToBytes("0x078be3962b143952b4fd8567640b14c3682b8a941000c7d92394faf0e40cb1e8"));
+    const receipt = try op.rpc_client.getTransactionReceipt(try utils.hashToBytes("0x078be3962b143952b4fd8567640b14c3682b8a941000c7d92394faf0e40cb1e8"));
+
+    try testing.expect(messages.messages.len != 0);
+    try testing.expect(messages.blockNumber == receipt.l2_receipt.blockNumber.?);
+}
+
+test "GetBaseFee" {
+    const uri = try std.Uri.parse("https://sepolia.optimism.io");
+
+    var op: OptimismClient(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia });
+
+    const fee = try op.getBaseL1Fee();
+
+    try testing.expect(fee != 0);
+}
+
+test "EstimateL1Gas" {
+    const uri = try std.Uri.parse("https://sepolia.optimism.io");
+
+    var op: OptimismClient(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia });
+
+    const fee = try op.estimateL1Gas(.{
+        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+        .gas = 21000,
+        .maxFeePerGas = try utils.parseGwei(10),
+        .maxPriorityFeePerGas = try utils.parseGwei(2),
+        .chainId = 11155420,
+        .value = try utils.parseGwei(1),
+        .accessList = &.{},
+        .nonce = 69,
+    });
+
+    try testing.expect(fee != 0);
+}
+
+test "EstimateL1GasFee" {
+    const uri = try std.Uri.parse("https://sepolia.optimism.io");
+
+    var op: OptimismClient(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia });
+
+    const fee = try op.estimateL1GasFee(.{
+        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+        .gas = 21000,
+        .maxFeePerGas = try utils.parseGwei(10),
+        .maxPriorityFeePerGas = try utils.parseGwei(2),
+        .chainId = 11155420,
+        .value = try utils.parseGwei(1),
+        .accessList = &.{},
+        .nonce = 69,
+    });
+
+    try testing.expect(fee != 0);
+}
+
+test "EstimateTotalGas" {
+    const uri = try std.Uri.parse("https://sepolia.optimism.io");
+
+    var op: OptimismClient(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia });
+
+    const fee = try op.estimateTotalGas(.{
+        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+        .gas = 21000,
+        .maxFeePerGas = try utils.parseGwei(10),
+        .maxPriorityFeePerGas = try utils.parseGwei(2),
+        .chainId = 11155420,
+        .value = try utils.parseGwei(1),
+        .accessList = &.{},
+        .nonce = 69,
+    });
+
+    try testing.expect(fee != 0);
+}
+
+test "EstimateTotalFees" {
+    const uri = try std.Uri.parse("https://sepolia.optimism.io");
+
+    var op: OptimismClient(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia });
+
+    const fee = try op.estimateL1Gas(.{
+        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+        .gas = 21000,
+        .maxFeePerGas = try utils.parseGwei(10),
+        .maxPriorityFeePerGas = try utils.parseGwei(2),
+        .chainId = 11155420,
+        .value = try utils.parseGwei(1),
+        .accessList = &.{},
+        .nonce = 69,
+    });
+
+    try testing.expect(fee != 0);
+}

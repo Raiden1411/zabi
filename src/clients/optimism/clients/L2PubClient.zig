@@ -32,9 +32,9 @@ const Withdrawal = withdrawal_types.Withdrawal;
 
 /// Optimism client used for L2 interactions.
 /// Currently only supports OP and not other chains of the superchain.
-pub fn OptimismClient(comptime client_type: Clients) type {
+pub fn L2Client(comptime client_type: Clients) type {
     return struct {
-        const Optimism = @This();
+        const L2 = @This();
 
         /// The underlaying rpc client type (ws or http)
         const ClientType = switch (client_type) {
@@ -54,10 +54,11 @@ pub fn OptimismClient(comptime client_type: Clients) type {
         /// The http or ws client that will be use to query the rpc server
         rpc_client: *ClientType,
         /// List of know contracts from OP
-        contracts: OpMainNetContracts = .{},
+        contracts: OpMainNetContracts,
 
         /// Starts the RPC connection
-        pub fn init(self: *Optimism, opts: InitOpts) !void {
+        /// If the contracts are null it defaults to OP contracts.
+        pub fn init(self: *L2, opts: InitOpts, op_contracts: ?OpMainNetContracts) !void {
             const op_client = try opts.allocator.create(ClientType);
             errdefer opts.allocator.destroy(op_client);
 
@@ -73,10 +74,11 @@ pub fn OptimismClient(comptime client_type: Clients) type {
             self.* = .{
                 .rpc_client = op_client,
                 .allocator = op_client.allocator,
+                .contracts = op_contracts orelse .{},
             };
         }
         /// Frees and destroys any allocated memory
-        pub fn deinit(self: *Optimism) void {
+        pub fn deinit(self: *L2) void {
             const child_allocator = self.rpc_client.arena.child_allocator;
 
             self.rpc_client.deinit();
@@ -85,7 +87,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
             self.* = undefined;
         }
         /// Returns the L1 gas used to execute L2 transactions
-        pub fn estimateL1Gas(self: *Optimism, london_envelope: LondonTransactionEnvelope) !Wei {
+        pub fn estimateL1Gas(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
             const serialized = try serialize.serializeTransaction(self.allocator, .{ .london = london_envelope }, null);
             const serialize_hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(serialized)});
             defer self.allocator.free(serialize_hex);
@@ -102,7 +104,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
             return std.fmt.parseInt(u256, data, 0);
         }
         /// Returns the L1 fee used to execute L2 transactions
-        pub fn estimateL1GasFee(self: *Optimism, london_envelope: LondonTransactionEnvelope) !Wei {
+        pub fn estimateL1GasFee(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
             const serialized = try serialize.serializeTransaction(self.allocator, .{ .london = london_envelope }, null);
             const serialize_hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(serialized)});
             defer self.allocator.free(serialize_hex);
@@ -116,7 +118,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
             return std.fmt.parseInt(u256, data, 0);
         }
         /// Estimates the L1 + L2 fees to execute a transaction on L2
-        pub fn estimateTotalFees(self: *Optimism, london_envelope: LondonTransactionEnvelope) !Wei {
+        pub fn estimateTotalFees(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
             const l1_gas_fee = try self.estimateL1GasFee(london_envelope);
             const l2_gas = try self.rpc_client.estimateGas(.{ .london = .{
                 .to = london_envelope.to,
@@ -130,7 +132,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
             return l1_gas_fee + l2_gas * gas_price;
         }
         /// Estimates the L1 + L2 gas to execute a transaction on L2
-        pub fn estimateTotalGas(self: *Optimism, london_envelope: LondonTransactionEnvelope) !Wei {
+        pub fn estimateTotalGas(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
             const l1_gas_fee = try self.estimateL1GasFee(london_envelope);
             const l2_gas = try self.rpc_client.estimateGas(.{ .london = .{
                 .to = london_envelope.to,
@@ -143,7 +145,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
             return l1_gas_fee + l2_gas;
         }
         /// Returns the base fee on L1
-        pub fn getBaseL1Fee(self: *Optimism) !Wei {
+        pub fn getBaseL1Fee(self: *L2) !Wei {
             // Selector for l1BaseFee();
             // We can get away with it since the abi has no input args.
             const selector: []const u8 = "0x519b4bd3";
@@ -156,7 +158,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
             return std.fmt.parseInt(u256, data, 0);
         }
         /// Gets the decoded withdrawl event logs from a given transaction receipt hash.
-        pub fn getWithdrawMessages(self: *Optimism, tx_hash: Hash) !Message {
+        pub fn getWithdrawMessages(self: *L2, tx_hash: Hash) !Message {
             const receipt = try self.rpc_client.getTransactionReceipt(tx_hash);
 
             if (receipt != .l2_receipt)
@@ -202,10 +204,10 @@ pub fn OptimismClient(comptime client_type: Clients) type {
 test "GetWithdrawMessages" {
     const uri = try std.Uri.parse("https://sepolia.optimism.io");
 
-    var op: OptimismClient(.http) = undefined;
+    var op: L2Client(.http) = undefined;
     defer op.deinit();
 
-    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia });
+    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia }, null);
 
     const messages = try op.getWithdrawMessages(try utils.hashToBytes("0x078be3962b143952b4fd8567640b14c3682b8a941000c7d92394faf0e40cb1e8"));
     const receipt = try op.rpc_client.getTransactionReceipt(try utils.hashToBytes("0x078be3962b143952b4fd8567640b14c3682b8a941000c7d92394faf0e40cb1e8"));
@@ -217,10 +219,10 @@ test "GetWithdrawMessages" {
 test "GetBaseFee" {
     const uri = try std.Uri.parse("https://sepolia.optimism.io");
 
-    var op: OptimismClient(.http) = undefined;
+    var op: L2Client(.http) = undefined;
     defer op.deinit();
 
-    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia });
+    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia }, null);
 
     const fee = try op.getBaseL1Fee();
 
@@ -230,10 +232,10 @@ test "GetBaseFee" {
 test "EstimateL1Gas" {
     const uri = try std.Uri.parse("https://sepolia.optimism.io");
 
-    var op: OptimismClient(.http) = undefined;
+    var op: L2Client(.http) = undefined;
     defer op.deinit();
 
-    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia });
+    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia }, null);
 
     const fee = try op.estimateL1Gas(.{
         .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
@@ -252,10 +254,10 @@ test "EstimateL1Gas" {
 test "EstimateL1GasFee" {
     const uri = try std.Uri.parse("https://sepolia.optimism.io");
 
-    var op: OptimismClient(.http) = undefined;
+    var op: L2Client(.http) = undefined;
     defer op.deinit();
 
-    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia });
+    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia }, null);
 
     const fee = try op.estimateL1GasFee(.{
         .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
@@ -274,10 +276,10 @@ test "EstimateL1GasFee" {
 test "EstimateTotalGas" {
     const uri = try std.Uri.parse("https://sepolia.optimism.io");
 
-    var op: OptimismClient(.http) = undefined;
+    var op: L2Client(.http) = undefined;
     defer op.deinit();
 
-    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia });
+    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia }, null);
 
     const fee = try op.estimateTotalGas(.{
         .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
@@ -296,10 +298,10 @@ test "EstimateTotalGas" {
 test "EstimateTotalFees" {
     const uri = try std.Uri.parse("https://sepolia.optimism.io");
 
-    var op: OptimismClient(.http) = undefined;
+    var op: L2Client(.http) = undefined;
     defer op.deinit();
 
-    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia });
+    try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia }, null);
 
     const fee = try op.estimateL1Gas(.{
         .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),

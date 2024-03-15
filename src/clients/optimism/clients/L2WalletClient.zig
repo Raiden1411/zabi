@@ -1,5 +1,6 @@
 const abi_items = @import("../abi.zig");
 const clients = @import("../../root.zig");
+const contracts = @import("../contracts.zig");
 const serialize = @import("../../../encoding/serialize.zig");
 const std = @import("std");
 const testing = std.testing;
@@ -21,6 +22,7 @@ const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const LondonEthCall = transactions.LondonEthCall;
 const LondonTransactionEnvelope = transactions.LondonTransactionEnvelope;
 const L2Output = op_types.L2Output;
+const OpMainNetContracts = contracts.OpMainNetContracts;
 const PreparedWithdrawal = withdrawal_types.PreparedWithdrawal;
 const RootProof = withdrawal_types.WithdrawalRootProof;
 const Signer = signer.Signer;
@@ -29,16 +31,16 @@ const WithdrawalEnvelope = withdrawal_types.WithdrawalEnvelope;
 const WithdrawalNoHash = withdrawal_types.WithdrawalNoHash;
 const WithdrawalRequest = withdrawal_types.WithdrawalRequest;
 
-const OptimismClient = @import("Optimism.zig").OptimismClient;
+const L2Client = @import("L2PubClient.zig").L2Client;
 
 /// Optimism  wallet client used for L2 interactions.
 /// Currently only supports OP and not other chains of the superchain.
 /// This implementation is not as robust as the `Wallet` implementation.
-pub fn WalletOptimismClient(client_type: Clients) type {
+pub fn L2WalletClient(client_type: Clients) type {
     return struct {
-        const WalletOptimism = @This();
+        const L2Wallet = @This();
         /// The underlaying rpc client type (ws or http)
-        const ClientType = OptimismClient(client_type);
+        const ClientType = L2Client(client_type);
         /// The inital settings depending on the client type.
         const InitOpts = switch (client_type) {
             .http => InitOptsHttp,
@@ -54,13 +56,15 @@ pub fn WalletOptimismClient(client_type: Clients) type {
 
         /// Starts the wallet client. Init options depend on the client type.
         /// This has all the expected L2 actions. If you are looking for L1 actions
-        /// consider using `WalletOptimismL1Client`
+        /// consider using `L1WalletClient`
+        ///
+        /// If the contracts are null it defaults to OP contracts.
         /// Caller must deinit after use.
-        pub fn init(self: *WalletOptimism, priv_key: []const u8, opts: InitOpts) !void {
+        pub fn init(self: *L2Wallet, priv_key: []const u8, opts: InitOpts, op_contracts: ?OpMainNetContracts) !void {
             const op_client = try opts.allocator.create(ClientType);
             errdefer opts.allocator.destroy(op_client);
 
-            try op_client.init(opts);
+            try op_client.init(opts, op_contracts);
             errdefer op_client.deinit();
 
             const op_signer = try Signer.init(priv_key);
@@ -75,7 +79,7 @@ pub fn WalletOptimismClient(client_type: Clients) type {
             });
         }
         /// Frees and destroys any allocated memory
-        pub fn deinit(self: *WalletOptimism) void {
+        pub fn deinit(self: *L2Wallet) void {
             const child_allocator = self.op_client.rpc_client.arena.child_allocator;
 
             self.op_client.deinit();
@@ -86,21 +90,21 @@ pub fn WalletOptimismClient(client_type: Clients) type {
             self.* = undefined;
         }
         /// Estimates the gas cost for calling `finalizeWithdrawal`
-        pub fn estimateFinalizeWithdrawal(self: *WalletOptimism, data: Hex) !Gwei {
+        pub fn estimateFinalizeWithdrawal(self: *L2Wallet, data: Hex) !Gwei {
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
                 .to = self.op_client.contracts.portalAddress,
                 .data = data,
             } }, .{});
         }
         /// Estimates the gas cost for calling `initiateWithdrawal`
-        pub fn estimateInitiateWithdrawal(self: *WalletOptimism, data: Hex) !Gwei {
+        pub fn estimateInitiateWithdrawal(self: *L2Wallet, data: Hex) !Gwei {
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
                 .to = self.op_client.contracts.l2ToL1MessagePasser,
                 .data = data,
             } }, .{});
         }
         /// Estimates the gas cost for calling `proveWithdrawal`
-        pub fn estimateProveWithdrawal(self: *WalletOptimism, data: Hex) !Gwei {
+        pub fn estimateProveWithdrawal(self: *L2Wallet, data: Hex) !Gwei {
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
                 .to = self.op_client.contracts.portalAddress,
                 .data = data,
@@ -108,7 +112,7 @@ pub fn WalletOptimismClient(client_type: Clients) type {
         }
         /// Invokes the contract method to `initiateWithdrawal`. This will send
         /// a transaction to the network.
-        pub fn initiateWithdrawal(self: *WalletOptimism, request: WithdrawalRequest) !Hash {
+        pub fn initiateWithdrawal(self: *L2Wallet, request: WithdrawalRequest) !Hash {
             const address = try self.signer.getAddressFromPublicKey();
 
             const prepared = try self.prepareInitiateWithdrawal(request);
@@ -147,7 +151,7 @@ pub fn WalletOptimismClient(client_type: Clients) type {
             return self.sendTransaction(tx);
         }
         /// Prepares the interaction with the contract method to `initiateWithdrawal`.
-        pub fn prepareInitiateWithdrawal(self: *WalletOptimism, request: WithdrawalRequest) !PreparedWithdrawal {
+        pub fn prepareInitiateWithdrawal(self: *L2Wallet, request: WithdrawalRequest) !PreparedWithdrawal {
             const gas = request.gas orelse try self.op_client.rpc_client.estimateGas(.{ .london = .{
                 .to = request.to,
                 .data = request.data,
@@ -165,7 +169,7 @@ pub fn WalletOptimismClient(client_type: Clients) type {
         }
         /// Invokes the contract method to `finalizeWithdrawalTransaction`. This will send
         /// a transaction to the network.
-        pub fn finalizeWithdrawal(self: *WalletOptimism, withdrawal: WithdrawalNoHash) !Hash {
+        pub fn finalizeWithdrawal(self: *L2Wallet, withdrawal: WithdrawalNoHash) !Hash {
             const address = try self.signer.getAddressFromPublicKey();
             const data = try abi_items.finalize_withdrawal.encode(self.op_client.allocator, .{withdrawal});
 
@@ -199,7 +203,7 @@ pub fn WalletOptimismClient(client_type: Clients) type {
         }
         /// Invokes the contract method to `proveWithdrawalTransaction`. This will send
         /// a transaction to the network.
-        pub fn proveWithdrawal(self: *WalletOptimism, withdrawal: WithdrawalNoHash, l2_output_index: u256, outputRootProof: RootProof, withdrawal_proof: []const Hex) !Hash {
+        pub fn proveWithdrawal(self: *L2Wallet, withdrawal: WithdrawalNoHash, l2_output_index: u256, outputRootProof: RootProof, withdrawal_proof: []const Hex) !Hash {
             const address = try self.signer.getAddressFromPublicKey();
             const data = try abi_items.prove_withdrawal.encode(self.op_client.allocator, .{
                 withdrawal, l2_output_index, outputRootProof, withdrawal_proof,
@@ -234,7 +238,7 @@ pub fn WalletOptimismClient(client_type: Clients) type {
             return self.sendTransaction(tx);
         }
         /// Prepares a proof withdrawal transaction.
-        pub fn prepareWithdrawalProofTransaction(self: *WalletOptimism, withdrawal: Withdrawal, l2_output: L2Output) !WithdrawalEnvelope {
+        pub fn prepareWithdrawalProofTransaction(self: *L2Wallet, withdrawal: Withdrawal, l2_output: L2Output) !WithdrawalEnvelope {
             const storage_slot = op_utils.getWithdrawalHashStorageSlot(withdrawal.withdrawalHash);
             const proof = try self.op_client.rpc_client.getProof(.{
                 .address = self.op_client.contracts.l2ToL1MessagePasser,
@@ -266,7 +270,7 @@ pub fn WalletOptimismClient(client_type: Clients) type {
         }
         /// Sends a transaction envelope to the network. This serializes, hashes and signed before
         /// sending the transaction.
-        pub fn sendTransaction(self: *WalletOptimism, envelope: LondonTransactionEnvelope) !Hash {
+        pub fn sendTransaction(self: *L2Wallet, envelope: LondonTransactionEnvelope) !Hash {
             const serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = envelope }, null);
             defer self.op_client.allocator.free(serialized);
 
@@ -290,7 +294,7 @@ pub fn WalletOptimismClient(client_type: Clients) type {
 }
 
 test "InitiateWithdrawal" {
-    var wallet_op: WalletOptimismClient(.http) = undefined;
+    var wallet_op: L2WalletClient(.http) = undefined;
     defer wallet_op.deinit();
 
     const uri = try std.Uri.parse("http://localhost:8544/");
@@ -298,7 +302,7 @@ test "InitiateWithdrawal" {
         .allocator = testing.allocator,
         .uri = uri,
         .chain_id = .op_mainnet,
-    });
+    }, null);
 
     _ = try wallet_op.initiateWithdrawal(.{
         .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
@@ -307,7 +311,7 @@ test "InitiateWithdrawal" {
 
 test "PrepareWithdrawalProofTransaction" {
     std.time.sleep(std.time.ns_per_ms * 500);
-    var wallet_op: WalletOptimismClient(.http) = undefined;
+    var wallet_op: L2WalletClient(.http) = undefined;
     defer wallet_op.deinit();
 
     const uri = try std.Uri.parse("http://localhost:8544/");
@@ -315,7 +319,7 @@ test "PrepareWithdrawalProofTransaction" {
         .allocator = testing.allocator,
         .uri = uri,
         .chain_id = .op_mainnet,
-    });
+    }, null);
 
     const args: WithdrawalEnvelope = .{
         .l2OutputIndex = 4529,
@@ -360,7 +364,7 @@ test "PrepareWithdrawalProofTransaction" {
 
 test "ProveWithdrawal" {
     std.time.sleep(std.time.ns_per_ms * 500);
-    var wallet_op: WalletOptimismClient(.http) = undefined;
+    var wallet_op: L2WalletClient(.http) = undefined;
     defer wallet_op.deinit();
 
     const uri = try std.Uri.parse("http://localhost:8544/");
@@ -368,7 +372,7 @@ test "ProveWithdrawal" {
         .allocator = testing.allocator,
         .uri = uri,
         .chain_id = .op_mainnet,
-    });
+    }, null);
 
     const args = .{
         .l2_output_index = 4529,
@@ -400,7 +404,7 @@ test "ProveWithdrawal" {
 
 test "FinalizeWithdrawal" {
     std.time.sleep(std.time.ns_per_ms * 500);
-    var wallet_op: WalletOptimismClient(.http) = undefined;
+    var wallet_op: L2WalletClient(.http) = undefined;
     defer wallet_op.deinit();
 
     const uri = try std.Uri.parse("http://localhost:8544/");
@@ -408,7 +412,7 @@ test "FinalizeWithdrawal" {
         .allocator = testing.allocator,
         .uri = uri,
         .chain_id = .op_mainnet,
-    });
+    }, null);
 
     _ = try wallet_op.finalizeWithdrawal(.{
         .data = "0x01",

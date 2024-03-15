@@ -1,5 +1,6 @@
 const abi_items = @import("../abi.zig");
 const clients = @import("../../root.zig");
+const contracts = @import("../contracts.zig");
 const serialize = @import("../../../encoding/serialize.zig");
 const std = @import("std");
 const testing = std.testing;
@@ -23,19 +24,20 @@ const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const LondonEthCall = transactions.LondonEthCall;
 const LondonTransactionEnvelope = transactions.LondonTransactionEnvelope;
 const L2Output = op_types.L2Output;
+const OpMainNetContracts = contracts.OpMainNetContracts;
 const Signer = signer.Signer;
 
-const OptimismL1Client = @import("OptimismL1.zig").OptimismL1Client;
+const L1Client = @import("L1PubClient.zig").L1Client;
 
 /// Optimism wallet client used for L1 interactions.
 /// Currently only supports OP and not other chains of the superchain.
 /// This implementation is not as robust as the `Wallet` implementation.
-pub fn WalletOptimismL1Client(client_type: Clients) type {
+pub fn WalletL1Client(client_type: Clients) type {
     return struct {
-        const WalletOptimismL1 = @This();
+        const WalletL1 = @This();
 
         /// The underlaying rpc client type (ws or http)
-        const ClientType = OptimismL1Client(client_type);
+        const ClientType = L1Client(client_type);
         /// The inital settings depending on the client type.
         const InitOpts = switch (client_type) {
             .http => InitOptsHttp,
@@ -50,13 +52,15 @@ pub fn WalletOptimismL1Client(client_type: Clients) type {
 
         /// Starts the wallet client. Init options depend on the client type.
         /// This has all the expected L1 actions. If you are looking for L2 actions
-        /// consider using `WalletOptimismClient`
+        /// consider using `L2WalletClient`
+        ///
+        /// If the contracts are null it defaults to OP contracts.
         /// Caller must deinit after use.
-        pub fn init(self: *WalletOptimismL1, priv_key: []const u8, opts: InitOpts) !void {
+        pub fn init(self: *WalletL1, priv_key: []const u8, opts: InitOpts, op_contracts: ?OpMainNetContracts) !void {
             const op_client = try opts.allocator.create(ClientType);
             errdefer opts.allocator.destroy(op_client);
 
-            try op_client.init(opts);
+            try op_client.init(opts, op_contracts);
             errdefer op_client.deinit();
 
             const op_signer = try Signer.init(priv_key);
@@ -71,7 +75,7 @@ pub fn WalletOptimismL1Client(client_type: Clients) type {
             });
         }
         /// Frees and destroys any allocated memory
-        pub fn deinit(self: *WalletOptimismL1) void {
+        pub fn deinit(self: *WalletL1) void {
             const child_allocator = self.op_client.rpc_client.arena.child_allocator;
 
             self.op_client.deinit();
@@ -83,7 +87,7 @@ pub fn WalletOptimismL1Client(client_type: Clients) type {
         }
         /// Prepares the deposit transaction. Will error if its a creation transaction
         /// and a `to` address was given. It will also fail if the mint and value do not match.
-        pub fn prepareDepositTransaction(self: *WalletOptimismL1, deposit_envelope: DepositEnvelope) !DepositData {
+        pub fn prepareDepositTransaction(self: *WalletL1, deposit_envelope: DepositEnvelope) !DepositData {
             const mint = deposit_envelope.mint orelse 0;
             const value = deposit_envelope.value orelse 0;
             const data = deposit_envelope.data orelse "";
@@ -110,7 +114,7 @@ pub fn WalletOptimismL1Client(client_type: Clients) type {
         }
         /// Estimate the gas cost for the deposit transaction.
         /// Uses the portalAddress. The data is expected to be hex abi encoded data.
-        pub fn estimateDepositTransaction(self: *WalletOptimismL1, data: Hex) !Gwei {
+        pub fn estimateDepositTransaction(self: *WalletL1, data: Hex) !Gwei {
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
                 .to = self.op_client.contracts.portalAddress,
                 .data = data,
@@ -118,7 +122,7 @@ pub fn WalletOptimismL1Client(client_type: Clients) type {
         }
         /// Invokes the contract method to `depositTransaction`. This will send
         /// a transaction to the network.
-        pub fn depositTransaction(self: *WalletOptimismL1, deposit_envelope: DepositEnvelope) !Hash {
+        pub fn depositTransaction(self: *WalletL1, deposit_envelope: DepositEnvelope) !Hash {
             const address = try self.signer.getAddressFromPublicKey();
             const deposit_data = try self.prepareDepositTransaction(deposit_envelope);
 
@@ -165,7 +169,7 @@ pub fn WalletOptimismL1Client(client_type: Clients) type {
         }
         /// Sends a transaction envelope to the network. This serializes, hashes and signed before
         /// sending the transaction.
-        pub fn sendTransaction(self: *WalletOptimismL1, envelope: LondonTransactionEnvelope) !Hash {
+        pub fn sendTransaction(self: *WalletL1, envelope: LondonTransactionEnvelope) !Hash {
             const serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = envelope }, null);
             defer self.op_client.allocator.free(serialized);
 
@@ -189,14 +193,14 @@ pub fn WalletOptimismL1Client(client_type: Clients) type {
 }
 
 test "DepositTransaction" {
-    var wallet_op: WalletOptimismL1Client(.http) = undefined;
+    var wallet_op: WalletL1Client(.http) = undefined;
     defer wallet_op.deinit();
 
     const uri = try std.Uri.parse("http://localhost:8545/");
     try wallet_op.init("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{
         .allocator = testing.allocator,
         .uri = uri,
-    });
+    }, null);
 
     _ = try wallet_op.depositTransaction(.{
         .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),

@@ -33,9 +33,9 @@ const WithdrawlEnvelope = withdrawal_types.WithdrawalEnvelope;
 
 /// Optimism client used for L1 interactions.
 /// Currently only supports OP and not other chains of the superchain.
-pub fn OptimismL1Client(comptime client_type: Clients) type {
+pub fn L1Client(comptime client_type: Clients) type {
     return struct {
-        const OptimismL1 = @This();
+        const L1 = @This();
 
         /// The underlaying rpc client type (ws or http)
         const ClientType = switch (client_type) {
@@ -55,10 +55,11 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
         /// The http or ws client that will be use to query the rpc server
         rpc_client: *ClientType,
         /// List of know contracts from OP
-        contracts: OpMainNetContracts = .{},
+        contracts: OpMainNetContracts,
 
         /// Starts the RPC connection
-        pub fn init(self: *OptimismL1, opts: InitOpts) !void {
+        /// If the contracts are null it defaults to OP contracts.
+        pub fn init(self: *L1, opts: InitOpts, op_contracts: ?OpMainNetContracts) !void {
             const op_client = try opts.allocator.create(ClientType);
             errdefer opts.allocator.destroy(op_client);
 
@@ -74,10 +75,11 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             self.* = .{
                 .rpc_client = op_client,
                 .allocator = op_client.allocator,
+                .contracts = op_contracts orelse .{},
             };
         }
         /// Frees and destroys any allocated memory
-        pub fn deinit(self: *OptimismL1) void {
+        pub fn deinit(self: *L1) void {
             const child_allocator = self.rpc_client.arena.child_allocator;
 
             self.rpc_client.deinit();
@@ -86,7 +88,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             self.* = undefined;
         }
         /// Returns if a withdrawal has finalized or not.
-        pub fn getFinalizedWithdrawals(self: *OptimismL1, withdrawal_hash: Hash) !bool {
+        pub fn getFinalizedWithdrawals(self: *L1, withdrawal_hash: Hash) !bool {
             const encoded = try abi_items.get_finalized_withdrawal.encode(self.allocator, .{withdrawal_hash});
             const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
             defer self.allocator.free(hex);
@@ -99,7 +101,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             return try std.fmt.parseInt(u1, data, 0) != 0;
         }
         /// Gets the latest proposed L2 block number from the Oracle.
-        pub fn getLatestProposedL2BlockNumber(self: *OptimismL1) !u64 {
+        pub fn getLatestProposedL2BlockNumber(self: *L1) !u64 {
             // Selector for `latestBlockNumber`
             const selector: []const u8 = "0x4599c788";
 
@@ -111,7 +113,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             return try std.fmt.parseInt(u64, block, 0);
         }
 
-        pub fn getL2HashesForDepositTransaction(self: *OptimismL1, tx_hash: Hash) ![]const Hash {
+        pub fn getL2HashesForDepositTransaction(self: *L1, tx_hash: Hash) ![]const Hash {
             const deposit_data = try self.getTransactionDepositEvents(tx_hash);
 
             var list = try std.ArrayList(Hash).initCapacity(self.allocator, deposit_data.len);
@@ -131,7 +133,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             return try list.toOwnedSlice();
         }
         /// Calls to the L2OutputOracle contract on L1 to get the output for a given L2 block
-        pub fn getL2Output(self: *OptimismL1, l2_block_number: u256) !L2Output {
+        pub fn getL2Output(self: *L1, l2_block_number: u256) !L2Output {
             const index = try self.getL2OutputIndex(l2_block_number);
 
             const encoded = try abi_items.get_l2_output_func.encode(self.allocator, .{index});
@@ -151,7 +153,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             return .{ .outputIndex = index, .outputRoot = l2_output.outputRoot, .timestamp = l2_output.timestamp, .l2BlockNumber = l2_output.l2BlockNumber };
         }
         /// Calls to the L2OutputOracle on L1 to get the output index.
-        pub fn getL2OutputIndex(self: *OptimismL1, l2_block_number: u256) !u256 {
+        pub fn getL2OutputIndex(self: *L1, l2_block_number: u256) !u256 {
             const encoded = try abi_items.get_l2_index_func.encode(self.allocator, .{l2_block_number});
             const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
             defer self.allocator.free(hex);
@@ -163,7 +165,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             return std.fmt.parseInt(u256, data, 0);
         }
         /// Gets a proven withdrawl.
-        pub fn getProvenWithdrawals(self: *OptimismL1, withdrawal_hash: Hash) !ProvenWithdrawal {
+        pub fn getProvenWithdrawals(self: *L1, withdrawal_hash: Hash) !ProvenWithdrawal {
             const encoded = try abi_items.get_proven_withdrawal.encode(self.allocator, .{withdrawal_hash});
             const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
             defer self.allocator.free(hex);
@@ -184,7 +186,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             return .{ .outputRoot = proven.outputRoot, .timestamp = proven.timestamp, .l2OutputIndex = proven.l2OutputIndex };
         }
         /// Gets the amount of time to wait in ms until the next output is posted.
-        pub fn getSecondsToNextL2Output(self: *OptimismL1, latest_l2_block: u64) !u128 {
+        pub fn getSecondsToNextL2Output(self: *L1, latest_l2_block: u64) !u128 {
             const latest = try self.getLatestProposedL2BlockNumber();
 
             if (latest_l2_block < latest)
@@ -212,7 +214,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             return if (block_until < 0) @intCast(0) else @intCast(block_until * time);
         }
         /// Gets the amount of time to wait until a withdrawal is finalized.
-        pub fn getSecondsToFinalize(self: *OptimismL1, withdrawal_hash: Hash) !u64 {
+        pub fn getSecondsToFinalize(self: *L1, withdrawal_hash: Hash) !u64 {
             const proven = try self.getProvenWithdrawals(withdrawal_hash);
 
             const selector: []const u8 = "0xf4daa291";
@@ -227,7 +229,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             return if (time_since < 0) @intCast(0) else @intCast(time - time_since);
         }
         /// Gets the `TransactionDeposited` event logs from a transaction hash.
-        pub fn getTransactionDepositEvents(self: *OptimismL1, tx_hash: Hash) ![]const TransactionDeposited {
+        pub fn getTransactionDepositEvents(self: *L1, tx_hash: Hash) ![]const TransactionDeposited {
             const receipt = try self.rpc_client.getTransactionReceipt(tx_hash);
 
             const logs: Logs = switch (receipt) {
@@ -265,7 +267,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             return try list.toOwnedSlice();
         }
         /// Gets the decoded withdrawl event logs from a given transaction receipt hash.
-        pub fn getWithdrawMessages(self: *OptimismL1, tx_hash: Hash) !Message {
+        pub fn getWithdrawMessages(self: *L1, tx_hash: Hash) !Message {
             const receipt = try self.rpc_client.getTransactionReceipt(tx_hash);
 
             if (receipt != .l2_receipt)
@@ -307,7 +309,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
         }
         /// Waits until the next L2 output is posted.
         /// This will keep pooling until it can get the L2Output or it exceeds the max retries.
-        pub fn waitForNextL2Output(self: *OptimismL1, latest_l2_block: u64) !L2Output {
+        pub fn waitForNextL2Output(self: *L1, latest_l2_block: u64) !L2Output {
             const time = try self.getSecondsToNextL2Output(latest_l2_block);
             std.time.sleep(time * 1000);
 
@@ -330,7 +332,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             return l2_output;
         }
         /// Waits until the withdrawal has finalized.
-        pub fn waitToFinalize(self: *OptimismL1, withdrawal_hash: Hash) !void {
+        pub fn waitToFinalize(self: *L1, withdrawal_hash: Hash) !void {
             const time = try self.getSecondsToFinalize(withdrawal_hash);
             std.time.sleep(time * 1000);
         }
@@ -340,10 +342,10 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
 test "GetL2HashFromL1DepositInfo" {
     const uri = try std.Uri.parse("http://localhost:8545/");
 
-    var op: OptimismL1Client(.http) = undefined;
+    var op: L1Client(.http) = undefined;
     defer op.deinit();
 
-    try op.init(.{ .uri = uri, .allocator = testing.allocator });
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
 
     const messages = try op.getL2HashesForDepositTransaction(try utils.hashToBytes("0x33faeeee9c6d5e19edcdfc003f329c6652f05502ffbf3218d9093b92589a42c4"));
 
@@ -353,10 +355,10 @@ test "GetL2HashFromL1DepositInfo" {
 test "GetL2Output" {
     const uri = try std.Uri.parse("http://localhost:8545/");
 
-    var op: OptimismL1Client(.http) = undefined;
+    var op: L1Client(.http) = undefined;
     defer op.deinit();
 
-    try op.init(.{ .uri = uri, .allocator = testing.allocator });
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
 
     const l2_output = try op.getL2Output(2725977);
 
@@ -368,10 +370,10 @@ test "GetL2Output" {
 test "getSecondsToFinalize" {
     const uri = try std.Uri.parse("http://localhost:8545/");
 
-    var op: OptimismL1Client(.http) = undefined;
+    var op: L1Client(.http) = undefined;
     defer op.deinit();
 
-    try op.init(.{ .uri = uri, .allocator = testing.allocator });
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
 
     const seconds = try op.getSecondsToFinalize(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
     try testing.expectEqual(seconds, 0);
@@ -380,10 +382,10 @@ test "getSecondsToFinalize" {
 test "GetSecondsToNextL2Output" {
     const uri = try std.Uri.parse("http://localhost:8545/");
 
-    var op: OptimismL1Client(.http) = undefined;
+    var op: L1Client(.http) = undefined;
     defer op.deinit();
 
-    try op.init(.{ .uri = uri, .allocator = testing.allocator });
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
 
     const block = try op.getLatestProposedL2BlockNumber();
     const seconds = try op.getSecondsToNextL2Output(block);
@@ -393,10 +395,10 @@ test "GetSecondsToNextL2Output" {
 test "GetTransactionDepositEvents" {
     const uri = try std.Uri.parse("http://localhost:8545/");
 
-    var op: OptimismL1Client(.http) = undefined;
+    var op: L1Client(.http) = undefined;
     defer op.deinit();
 
-    try op.init(.{ .uri = uri, .allocator = testing.allocator });
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
 
     const deposit_events = try op.getTransactionDepositEvents(try utils.hashToBytes("0xe94031c3174788c3fee7216465c50bb2b72e7a1963f5af807b3768da10827f5c"));
 
@@ -407,10 +409,10 @@ test "GetTransactionDepositEvents" {
 test "GetProvenWithdrawals" {
     const uri = try std.Uri.parse("http://localhost:8545/");
 
-    var op: OptimismL1Client(.http) = undefined;
+    var op: L1Client(.http) = undefined;
     defer op.deinit();
 
-    try op.init(.{ .uri = uri, .allocator = testing.allocator });
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
 
     const proven = try op.getProvenWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
 
@@ -420,10 +422,10 @@ test "GetProvenWithdrawals" {
 test "GetFinalizedWithdrawals" {
     const uri = try std.Uri.parse("http://localhost:8545/");
 
-    var op: OptimismL1Client(.http) = undefined;
+    var op: L1Client(.http) = undefined;
     defer op.deinit();
 
-    try op.init(.{ .uri = uri, .allocator = testing.allocator });
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
 
     const finalized = try op.getFinalizedWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
     try testing.expect(finalized);
@@ -432,10 +434,10 @@ test "GetFinalizedWithdrawals" {
 test "Errors" {
     const uri = try std.Uri.parse("http://localhost:8545/");
 
-    var op: OptimismL1Client(.http) = undefined;
+    var op: L1Client(.http) = undefined;
     defer op.deinit();
 
-    try op.init(.{ .uri = uri, .allocator = testing.allocator });
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
     try testing.expectError(error.InvalidBlockNumber, op.getSecondsToNextL2Output(1));
     try testing.expectError(error.InvalidWithdrawalHash, op.getSecondsToFinalize(try utils.hashToBytes("0xe94031c3174788c3fee7216465c50bb2b72e7a1963f5af807b3768da10827f5c")));
 }

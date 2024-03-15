@@ -157,7 +157,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
             const hash: []const u8 = "0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054";
 
             const ReturnType = struct { []const u8, u256, Address, Address };
-            for (receipt.optimism.logs) |log| {
+            for (receipt.l2_receipt.logs) |log| {
                 if (std.mem.eql(u8, hash, log.topics[0] orelse return error.ExpectedTopicData)) {
                     const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.message_passed_params, log.data, .{});
                     defer decoded.deinit();
@@ -180,7 +180,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
             const messages = try list.toOwnedSlice();
 
             return .{
-                .blockNumber = receipt.optimism.blockNumber.?,
+                .blockNumber = receipt.l2_receipt.blockNumber.?,
                 .messages = messages,
             };
         }

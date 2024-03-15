@@ -494,8 +494,8 @@ pub const CancunReceipt = struct {
 
     pub usingnamespace RequestParser(@This());
 };
-/// Optimism transaction receipt representation
-pub const OptimismReceipt = struct {
+/// L2 transaction receipt representation
+pub const L2Receipt = struct {
     transactionHash: Hash,
     blockHash: Hash,
     blockNumber: ?u64,
@@ -523,7 +523,7 @@ pub const OptimismReceipt = struct {
 pub const TransactionReceipt = union(enum) {
     legacy: LegacyReceipt,
     cancun: CancunReceipt,
-    optimism: OptimismReceipt,
+    l2_receipt: L2Receipt,
 
     pub usingnamespace UnionParser(@This());
 };

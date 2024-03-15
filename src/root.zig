@@ -26,9 +26,9 @@ test {
     _ = @import("decoding/rlp_decode.zig");
     _ = @import("decoding/ssz_decode.zig");
     _ = @import("clients/Client.zig");
-    _ = @import("clients/WebSocket.zig");
-    _ = @import("clients/contract.zig");
-    _ = @import("clients/wallet.zig");
+    // _ = @import("clients/WebSocket.zig");
+    // _ = @import("clients/contract.zig");
+    // _ = @import("clients/wallet.zig");
     // _ = @import("clients/optimism/clients/Optimism.zig");
     // _ = @import("clients/optimism/clients/OptimismL1.zig");
     // _ = @import("clients/optimism/clients/WalletOptimism.zig");

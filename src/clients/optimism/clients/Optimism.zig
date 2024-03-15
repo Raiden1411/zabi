@@ -1,6 +1,4 @@
-const abi = @import("../../../abi/abi.zig");
 const abi_items = @import("../abi.zig");
-const abi_parameter = @import("../../../abi/abi_parameter.zig");
 const clients = @import("../../root.zig");
 const contracts = @import("../contracts.zig");
 const decoder = @import("../../../decoding/decoder.zig");
@@ -11,20 +9,15 @@ const testing = std.testing;
 const transactions = @import("../../../types/transaction.zig");
 const op_types = @import("../types/types.zig");
 const op_transactions = @import("../types/transaction.zig");
-const op_utils = @import("../utils.zig");
 const types = @import("../../../types/ethereum.zig");
 const utils = @import("../../../utils/utils.zig");
 const withdrawal_types = @import("../types/withdrawl.zig");
 
-const AbiParameter = abi_parameter.AbiParameter;
-const AbiEventParameter = abi_parameter.AbiEventParameter;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Clients = @import("../../wallet.zig").WalletClients;
-const DepositData = op_transactions.DepositData;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
-const Hex = types.Hex;
 const InitOptsHttp = clients.PubClient.InitOptions;
 const InitOptsWs = clients.WebSocket.InitOptions;
 const LondonTransactionEnvelope = transactions.LondonTransactionEnvelope;
@@ -36,6 +29,8 @@ const WebSocketClient = clients.WebSocket;
 const Wei = types.Wei;
 const Withdrawal = withdrawal_types.Withdrawal;
 
+/// Optimism client used for L2 interactions.
+/// Currently only supports OP and not other chains of the superchain.
 pub fn OptimismClient(comptime client_type: Clients) type {
     return struct {
         const Optimism = @This();
@@ -52,12 +47,15 @@ pub fn OptimismClient(comptime client_type: Clients) type {
             .websocket => InitOptsWs,
         };
 
+        /// This is the same allocator as the rpc_client.
+        /// Its a field mostly for convinience
         allocator: Allocator,
-
+        /// The http or ws client that will be use to query the rpc server
         rpc_client: *ClientType,
-
+        /// List of know contracts from OP
         contracts: OpMainNetContracts = .{},
 
+        /// Starts the RPC connection
         pub fn init(self: *Optimism, opts: InitOpts) !void {
             const op_client = try opts.allocator.create(ClientType);
             errdefer opts.allocator.destroy(op_client);
@@ -69,7 +67,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
                 .allocator = op_client.allocator,
             };
         }
-
+        /// Frees and destroys any allocated memory
         pub fn deinit(self: *Optimism) void {
             const child_allocator = self.rpc_client.arena.child_allocator;
 
@@ -78,7 +76,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
 
             self.* = undefined;
         }
-
+        /// Returns the L1 gas used to execute L2 transactions
         pub fn estimateL1Gas(self: *Optimism, london_envelope: LondonTransactionEnvelope) !Wei {
             const serialized = try serialize.serializeTransaction(self.client.allocator, .{ .london = london_envelope }, null);
 
@@ -93,7 +91,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
 
             return std.fmt.parseInt(u256, data, 0);
         }
-
+        /// Returns the L1 fee used to execute L2 transactions
         pub fn estimateL1GasFee(self: *Optimism, london_envelope: LondonTransactionEnvelope) !Wei {
             const serialized = try serialize.serializeTransaction(self.allocator, .{ .london = london_envelope }, null);
 
@@ -105,7 +103,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
 
             return std.fmt.parseInt(u256, data, 0);
         }
-
+        /// Estimates the L1 + L2 fees to execute a transaction on L2
         pub fn estimateTotalFees(self: *Optimism, london_envelope: LondonTransactionEnvelope) !Wei {
             const l1_gas_fee = try self.estimateL1GasFee(london_envelope);
             const l2_gas = try self.rpc_client.estimateGas(.{ .london = .{
@@ -119,7 +117,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
 
             return l1_gas_fee + l2_gas * gas_price;
         }
-
+        /// Estimates the L1 + L2 gas to execute a transaction on L2
         pub fn estimateTotalGas(self: *Optimism, london_envelope: LondonTransactionEnvelope) !Wei {
             const l1_gas_fee = try self.estimateL1GasFee(london_envelope);
             const l2_gas = try self.rpc_client.estimateGas(.{ .london = .{
@@ -132,7 +130,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
 
             return l1_gas_fee + l2_gas;
         }
-
+        /// Returns the base fee on L1
         pub fn getBaseL1Fee(self: *Optimism) !Wei {
             // Selector for l1BaseFee();
             // We can get away with it since the abi has no input args.
@@ -145,7 +143,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
 
             return std.fmt.parseInt(u256, data, 0);
         }
-
+        /// Gets the decoded withdrawl event logs from a given transaction receipt hash.
         pub fn getWithdrawMessages(self: *Optimism, tx_hash: Hash) !Message {
             const receipt = try self.rpc_client.getTransactionReceipt(tx_hash);
 
@@ -155,6 +153,7 @@ pub fn OptimismClient(comptime client_type: Clients) type {
             var list = std.ArrayList(Withdrawal).init(self.allocator);
             errdefer list.deinit();
 
+            // The hash for the event selector `MessagePassed`
             const hash: []const u8 = "0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054";
 
             const ReturnType = struct { []const u8, u256, Address, Address };

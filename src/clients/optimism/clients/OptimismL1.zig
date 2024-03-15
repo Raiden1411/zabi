@@ -27,9 +27,11 @@ const ProvenWithdrawl = withdrawal_types.ProvenWithdrawl;
 const PubClient = clients.PubClient;
 const TransactionDeposited = op_transactions.TransactionDeposited;
 const WebSocketClient = clients.WebSocket;
-const Withdrawl = withdrawal_types.Withdrawl;
-const WithdrawlEnvelope = withdrawal_types.WithdrawlEnvelope;
+const Withdrawl = withdrawal_types.Withdrawal;
+const WithdrawlEnvelope = withdrawal_types.WithdrawalEnvelope;
 
+/// Optimism client used for L1 interactions.
+/// Currently only supports OP and not other chains of the superchain.
 pub fn OptimismL1Client(comptime client_type: Clients) type {
     return struct {
         const OptimismL1 = @This();
@@ -46,12 +48,15 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             .websocket => InitOptsWs,
         };
 
+        /// This is the same allocator as the rpc_client.
+        /// Its a field mostly for convinience
         allocator: Allocator,
-
+        /// The http or ws client that will be use to query the rpc server
         rpc_client: *ClientType,
-
+        /// List of know contracts from OP
         contracts: OpMainNetContracts = .{},
 
+        /// Starts the RPC connection
         pub fn init(self: *OptimismL1, opts: InitOpts) !void {
             const op_client = try opts.allocator.create(ClientType);
             errdefer opts.allocator.destroy(op_client);
@@ -63,7 +68,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
                 .allocator = op_client.allocator,
             };
         }
-
+        /// Frees and destroys any allocated memory
         pub fn deinit(self: *OptimismL1) void {
             const child_allocator = self.rpc_client.arena.child_allocator;
 
@@ -72,7 +77,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
 
             self.* = undefined;
         }
-
+        /// Returns if a withdrawal has finalized or not.
         pub fn getFinalizedWithdrawals(self: *OptimismL1, withdrawal_hash: Hash) !bool {
             const encoded = try abi_items.get_finalized_withdrawal.encode(self.allocator, .{withdrawal_hash});
             const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
@@ -85,8 +90,9 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
 
             return try std.fmt.parseInt(u1, data, 0) != 0;
         }
-
+        /// Gets the latest proposed L2 block number from the Oracle.
         pub fn getLatestProposedL2BlockNumber(self: *OptimismL1) !u64 {
+            // Selector for `latestBlockNumber`
             const selector: []const u8 = "0x4599c788";
 
             const block = try self.rpc_client.sendEthCall(.{ .london = .{
@@ -116,7 +122,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
 
             return try list.toOwnedSlice();
         }
-
+        /// Calls to the L2OutputOracle contract on L1 to get the output for a given L2 block
         pub fn getL2Output(self: *OptimismL1, l2_block_number: u256) !L2Output {
             const index = try self.getL2OutputIndex(l2_block_number);
 
@@ -136,7 +142,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
 
             return .{ .outputIndex = index, .outputRoot = l2_output.outputRoot, .timestamp = l2_output.timestamp, .l2BlockNumber = l2_output.l2BlockNumber };
         }
-
+        /// Calls to the L2OutputOracle on L1 to get the output index.
         pub fn getL2OutputIndex(self: *OptimismL1, l2_block_number: u256) !u256 {
             const encoded = try abi_items.get_l2_index_func.encode(self.allocator, .{l2_block_number});
             const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
@@ -148,7 +154,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             } }, .{});
             return std.fmt.parseInt(u256, data, 0);
         }
-
+        /// Gets a proven withdrawl.
         pub fn getProvenWithdrawals(self: *OptimismL1, withdrawal_hash: Hash) !ProvenWithdrawl {
             const encoded = try abi_items.get_proven_withdrawal.encode(self.allocator, .{withdrawal_hash});
             const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
@@ -169,7 +175,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
 
             return .{ .outputRoot = proven.outputRoot, .timestamp = proven.timestamp, .l2OutputIndex = proven.l2OutputIndex };
         }
-
+        /// Gets the amount of time to wait in ms until the next output is posted.
         pub fn getSecondsToNextL2Output(self: *OptimismL1, latest_l2_block: u64) !u128 {
             const latest = try self.getLatestProposedL2BlockNumber();
 
@@ -197,7 +203,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
 
             return if (block_until < 0) @intCast(0) else @intCast(block_until * time);
         }
-
+        /// Gets the amount of time to wait until a withdrawal is finalized.
         pub fn getSecondsToFinalize(self: *OptimismL1, withdrawal_hash: Hash) !u64 {
             const proven = try self.getProvenWithdrawals(withdrawal_hash);
 
@@ -212,7 +218,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
 
             return if (time_since < 0) @intCast(0) else @intCast(time - time_since);
         }
-
+        /// Gets the `TransactionDeposited` event logs from a transaction hash.
         pub fn getTransactionDepositEvents(self: *OptimismL1, tx_hash: Hash) ![]const TransactionDeposited {
             const receipt = try self.rpc_client.getTransactionReceipt(tx_hash);
 
@@ -223,6 +229,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
             var list = std.ArrayList(TransactionDeposited).init(self.allocator);
             errdefer list.deinit();
 
+            // Event selector for `TransactionDeposited`.
             const hash: []const u8 = "0xb3813568d9991fc951961fcb4c784893574240a28925604d09fc577c55bb7c32";
             const ReturnType = struct { []const u8, Address, Address, u256 };
             for (logs) |log_event| {
@@ -249,38 +256,8 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
 
             return try list.toOwnedSlice();
         }
-
-        pub fn prepareWithdrawalProofTransaction(self: *OptimismL1, withdrawal: Withdrawl, l2_output: L2Output) !WithdrawlEnvelope {
-            const storage_slot = op_utils.getWithdrawlHashStorageSlot(withdrawal.withdrawalHash);
-            const proof = try self.rpc_client.getProof(.{
-                .address = self.contracts.l2ToL1MessagePasser,
-                .storageKeys = &.{storage_slot},
-                .blockNumber = l2_output.l2BlockNumber,
-            }, null);
-
-            const block = try self.rpc_client.getBlockByNumber(.{ .block_number = l2_output.l2BlockNumber });
-            const block_info: struct { stateRoot: Hash, hash: Hash } = switch (block) {
-                inline else => |block_info| .{ .stateRoot = block_info.stateRoot, .hash = block_info.hash.? },
-            };
-
-            return .{
-                .nonce = withdrawal.nonce,
-                .sender = withdrawal.sender,
-                .target = withdrawal.target,
-                .value = withdrawal.value,
-                .gasLimit = withdrawal.gasLimit,
-                .data = withdrawal.data,
-                .outputRootProof = .{
-                    .version = [_]u8{0} ** 32,
-                    .stateRoot = block_info.stateRoot,
-                    .messagePasserStorageRoot = proof.storageHash,
-                    .latestBlockHash = block_info.hash,
-                },
-                .withdrawalProof = proof.storageProof[0].proof,
-                .l2OutputIndex = l2_output.outputIndex,
-            };
-        }
-
+        /// Waits until the next L2 output is posted.
+        /// This will keep pooling until it can get the L2Output or it exceeds the max retries.
         pub fn waitForNextL2Output(self: *OptimismL1, latest_l2_block: u64) !L2Output {
             const time = try self.getSecondsToNextL2Output(latest_l2_block);
             std.time.sleep(time * 1000);
@@ -303,7 +280,7 @@ pub fn OptimismL1Client(comptime client_type: Clients) type {
 
             return l2_output;
         }
-
+        /// Waits until the withdrawal has finalized.
         pub fn waitToFinalize(self: *OptimismL1, withdrawal_hash: Hash) !void {
             const time = try self.getSecondsToFinalize(withdrawal_hash);
             std.time.sleep(time * 1000);

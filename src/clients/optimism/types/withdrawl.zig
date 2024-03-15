@@ -14,6 +14,20 @@ pub const Message = struct {
     messages: []const Withdrawal,
 };
 
+pub const WithdrawalRequest = struct {
+    data: ?Hex = null,
+    gas: ?Gwei = null,
+    to: Address,
+    value: ?Wei = null,
+};
+
+pub const PreparedWithdrawal = struct {
+    data: Hex,
+    gas: Gwei,
+    to: Address,
+    value: Wei,
+};
+
 pub const Withdrawal = struct {
     nonce: Wei,
     sender: Address,

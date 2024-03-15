@@ -6,14 +6,11 @@ const testing = std.testing;
 const transactions = @import("../../../types/transaction.zig");
 const op_types = @import("../types/types.zig");
 const op_transactions = @import("../types/transaction.zig");
-const op_utils = @import("../utils.zig");
 const signer = @import("secp256k1");
 const types = @import("../../../types/ethereum.zig");
 const utils = @import("../../../utils/utils.zig");
 const withdrawal_types = @import("../types/withdrawl.zig");
 
-const Address = types.Address;
-const Allocator = std.mem.Allocator;
 const Clients = clients.wallet.WalletClients;
 const DepositEnvelope = op_transactions.DepositTransactionEnvelope;
 const DepositData = op_transactions.DepositData;
@@ -26,29 +23,14 @@ const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const LondonEthCall = transactions.LondonEthCall;
 const LondonTransactionEnvelope = transactions.LondonTransactionEnvelope;
 const L2Output = op_types.L2Output;
-const RootProof = withdrawal_types.WithdrawalRootProof;
 const Signer = signer.Signer;
-const UnpreparedEnvelope = transactions.UnpreparedTransactionEnvelope;
-const WithdrawalNoHash = withdrawal_types.WithdrawalNoHash;
-const Wei = types.Wei;
 
 const OptimismL1Client = @import("OptimismL1.zig").OptimismL1Client;
 
-const WithdrawalRequest = struct {
-    data: ?Hex = null,
-    gas: ?Gwei = null,
-    to: Address,
-    value: ?Wei = null,
-};
-
-const PreparedWithdrawal = struct {
-    data: Hex,
-    gas: Gwei,
-    to: Address,
-    value: Wei,
-};
-
-pub fn WalletOptimismClient(client_type: Clients) type {
+/// Optimism wallet client used for L1 interactions.
+/// Currently only supports OP and not other chains of the superchain.
+/// This implementation is not as robust as the `Wallet` implementation.
+pub fn WalletOptimismL1Client(client_type: Clients) type {
     return struct {
         const WalletOptimismL1 = @This();
 
@@ -59,13 +41,17 @@ pub fn WalletOptimismClient(client_type: Clients) type {
             .http => InitOptsHttp,
             .websocket => InitOptsWs,
         };
-
+        /// The underlaying public op client. This contains the rpc_client
         op_client: *ClientType,
-
+        /// The signer used to sign transactions
         signer: Signer,
         /// The wallet nonce that will be used to send transactions
         wallet_nonce: u64 = 0,
 
+        /// Starts the wallet client. Init options depend on the client type.
+        /// This has all the expected L1 actions. If you are looking for L2 actions
+        /// consider using `WalletOptimismClient`
+        /// Caller must deinit after use.
         pub fn init(self: *WalletOptimismL1, priv_key: []const u8, opts: InitOpts) !void {
             const op_client = try opts.allocator.create(ClientType);
             errdefer opts.allocator.destroy(op_client);
@@ -84,7 +70,7 @@ pub fn WalletOptimismClient(client_type: Clients) type {
                 .address = try op_signer.getAddressFromPublicKey(),
             });
         }
-
+        /// Frees and destroys any allocated memory
         pub fn deinit(self: *WalletOptimismL1) void {
             const child_allocator = self.op_client.rpc_client.arena.child_allocator;
 
@@ -95,7 +81,8 @@ pub fn WalletOptimismClient(client_type: Clients) type {
 
             self.* = undefined;
         }
-
+        /// Prepares the deposit transaction. Will error if its a creation transaction
+        /// and a `to` address was given. It will also fail if the mint and value do not match.
         pub fn prepareDepositTransaction(self: *WalletOptimismL1, deposit_envelope: DepositEnvelope) !DepositData {
             const mint = deposit_envelope.mint orelse 0;
             const value = deposit_envelope.value orelse 0;
@@ -121,28 +108,16 @@ pub fn WalletOptimismClient(client_type: Clients) type {
                 .mint = mint,
             };
         }
-
+        /// Estimate the gas cost for the deposit transaction.
+        /// Uses the portalAddress. The data is expected to be hex abi encoded data.
         pub fn estimateDepositTransaction(self: *WalletOptimismL1, data: Hex) !Gwei {
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
                 .to = self.op_client.contracts.portalAddress,
                 .data = data,
             } }, .{});
         }
-
-        pub fn estimateFinalizeWithdrawal(self: *WalletOptimismL1, data: Hex) !Gwei {
-            return self.op_client.rpc_client.estimateGas(.{ .london = .{
-                .to = self.op_client.contracts.portalAddress,
-                .data = data,
-            } }, .{});
-        }
-
-        pub fn estimateProveWithdrawal(self: *WalletOptimismL1, data: Hex) !Gwei {
-            return self.op_client.rpc_client.estimateGas(.{ .london = .{
-                .to = self.op_client.contracts.portalAddress,
-                .data = data,
-            } }, .{});
-        }
-
+        /// Invokes the contract method to `depositTransaction`. This will send
+        /// a transaction to the network.
         pub fn depositTransaction(self: *WalletOptimismL1, deposit_envelope: DepositEnvelope) !Hash {
             const address = try self.signer.getAddressFromPublicKey();
             const deposit_data = try self.prepareDepositTransaction(deposit_envelope);
@@ -186,7 +161,12 @@ pub fn WalletOptimismClient(client_type: Clients) type {
                 .maxPriorityFeePerGas = fees.london.max_priority_fee,
             };
 
-            const serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = tx }, null);
+            return self.sendTransaction(tx);
+        }
+        /// Sends a transaction envelope to the network. This serializes, hashes and signed before
+        /// sending the transaction.
+        pub fn sendTransaction(self: *WalletOptimismL1, envelope: LondonTransactionEnvelope) !Hash {
+            const serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = envelope }, null);
             defer self.op_client.allocator.free(serialized);
 
             var hash: [Keccak256.digest_length]u8 = undefined;
@@ -194,7 +174,7 @@ pub fn WalletOptimismClient(client_type: Clients) type {
 
             const signed = try self.signer.sign(hash);
 
-            const signed_serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = tx }, signed);
+            const signed_serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = envelope }, signed);
             defer self.op_client.allocator.free(signed_serialized);
 
             const hexed = try std.fmt.allocPrint(self.op_client.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(signed_serialized)});
@@ -205,133 +185,11 @@ pub fn WalletOptimismClient(client_type: Clients) type {
 
             return tx_hash;
         }
-
-        pub fn proveWithdrawal(self: *WalletOptimismL1, withdrawal: WithdrawalNoHash, l2_output_index: u256, outputRootProof: RootProof, withdrawal_proof: []const Hex) !Hash {
-            const address = try self.signer.getAddressFromPublicKey();
-            const data = try abi_items.prove_withdrawal.encode(self.op_client.allocator, .{
-                withdrawal, l2_output_index, outputRootProof, withdrawal_proof,
-            });
-
-            const hex_data = try std.fmt.allocPrint(self.op_client.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(data)});
-            defer self.op_client.allocator.free(hex_data);
-
-            const gas = try self.estimateProveWithdrawal(hex_data);
-
-            const call: LondonEthCall = .{
-                .to = self.op_client.contracts.portalAddress,
-                .from = address,
-                .gas = gas,
-                .data = hex_data,
-            };
-
-            const fees = try self.op_client.rpc_client.estimateFeesPerGas(.{ .london = call }, null);
-
-            const tx: LondonTransactionEnvelope = .{
-                .gas = gas,
-                .data = hex_data,
-                .to = self.op_client.contracts.portalAddress,
-                .value = 0,
-                .accessList = &.{},
-                .nonce = self.wallet_nonce,
-                .chainId = self.op_client.rpc_client.chain_id,
-                .maxFeePerGas = fees.london.max_fee_gas,
-                .maxPriorityFeePerGas = fees.london.max_priority_fee,
-            };
-
-            const serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = tx }, null);
-            defer self.op_client.allocator.free(serialized);
-
-            var hash: [Keccak256.digest_length]u8 = undefined;
-            Keccak256.hash(serialized, &hash, .{});
-
-            const signed = try self.signer.sign(hash);
-
-            const signed_serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = tx }, signed);
-            defer self.op_client.allocator.free(signed_serialized);
-
-            const hexed = try std.fmt.allocPrint(self.op_client.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(signed_serialized)});
-            defer self.op_client.allocator.free(hexed);
-
-            const tx_hash = try self.op_client.rpc_client.sendRawTransaction(hexed);
-            self.wallet_nonce += 1;
-
-            return tx_hash;
-        }
-        //
-        // pub fn initiateWithdrawal(self: *WalletOptimism, request: WithdrawalRequest) !Hash {
-        //     const address = try self.signer.getAddressFromPublicKey();
-        //
-        //     const prepared = try self.prepareInitiateWithdrawal(request);
-        //     const data = try abi_items.initiate_withdrawal.encode(self.op_client.allocator, .{
-        //         prepared.to,
-        //         prepared.gas,
-        //         prepared.data,
-        //     });
-        //
-        //     const hex_data = try std.fmt.allocPrint(self.op_client.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(data)});
-        //     defer self.op_client.allocator.free(hex_data);
-        //
-        //     const gas = try self.estimateInitiateWithdrawal(hex_data);
-        //
-        //     const call: LondonEthCall = .{
-        //         .to = self.op_client.contracts.l2ToL1MessagePasser,
-        //         .from = address,
-        //         .gas = gas,
-        //         .data = data,
-        //         .value = prepared.value,
-        //     };
-        //     const fees = try self.op_client.rpc_client.estimateFeesPerGas(.{ .london = call }, null);
-        //
-        //     const tx: LondonTransactionEnvelope = .{
-        //         .gas = gas,
-        //         .data = hex_data,
-        //         .to = self.op_client.contracts.l2ToL1MessagePasser,
-        //         .value = prepared.value,
-        //         .accessList = &.{},
-        //         .nonce = self.wallet_nonce,
-        //         .chainId = self.op_client.rpc_client.chain_id,
-        //         .maxFeePerGas = fees.london.max_fee_gas,
-        //         .maxPriorityFeePerGas = fees.london.max_priority_fee,
-        //     };
-        //
-        //     const serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = tx }, null);
-        //     defer self.op_client.allocator.free(serialized);
-        //
-        //     var hash: [Keccak256.digest_length]u8 = undefined;
-        //     Keccak256.hash(serialized, &hash, .{});
-        //
-        //     const signed = try self.signer.sign(hash);
-        //
-        //     const signed_serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = tx }, signed);
-        //     defer self.op_client.allocator.free(signed_serialized);
-        //
-        //     const hexed = try std.fmt.allocPrint(self.op_client.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(signed_serialized)});
-        //     defer self.op_client.allocator.free(hexed);
-        //
-        //     return self.op_client.rpc_client.sendRawTransaction(hexed);
-        // }
-        //
-        // pub fn prepareInitiateWithdrawal(self: *WalletOptimism, request: WithdrawalRequest) !PreparedWithdrawal {
-        //     const gas = request.gas orelse try self.op_client.rpc_client.estimateGas(.{ .london = .{
-        //         .to = request.to,
-        //         .data = request.data,
-        //         .value = request.value,
-        //     } }, .{});
-        //     const data = request.data orelse "";
-        //     const value = request.value orelse 0;
-        //
-        //     return .{
-        //         .gas = gas,
-        //         .value = value,
-        //         .data = data,
-        //         .to = request.to,
-        //     };
-        // }
     };
 }
 
 test "Small" {
-    var wallet_op: WalletOptimismClient(.http) = undefined;
+    var wallet_op: WalletOptimismL1Client(.http) = undefined;
     defer wallet_op.deinit();
 
     const uri = try std.Uri.parse("http://localhost:8545/");
@@ -365,13 +223,23 @@ test "Small" {
         },
     };
 
-    const hash = try wallet_op.proveWithdrawal(args.withdrawal, args.l2_output_index, args.outputRootProof, args.withdrawalProof);
-    const hash_2 = try wallet_op.depositTransaction(.{
-        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
-        .value = 69420,
-        .mint = 69420,
+    _ = args;
+    // const hash = try wallet_op.proveWithdrawal(args.withdrawal, args.l2_output_index, args.outputRootProof, args.withdrawalProof);
+    // const hash_2 = try wallet_op.depositTransaction(.{
+    //     .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+    //     .value = 69420,
+    //     .mint = 69420,
+    // });
+    const hash_3 = try wallet_op.finalizeWithdrawal(.{
+        .data = "0x01",
+        .sender = try utils.addressToBytes("0x02f086dBC384d69b3041BC738F0a8af5e49dA181"),
+        .target = try utils.addressToBytes("0x02f086dBC384d69b3041BC738F0a8af5e49dA181"),
+        .value = 335000000000000000000,
+        .gasLimit = 100000,
+        .nonce = 1766847064778384329583297500742918515827483896875618958121606201292641795,
     });
 
-    std.debug.print("HASH: {s}\n", .{std.fmt.fmtSliceHexLower(&hash)});
-    std.debug.print("HASH: {s}\n", .{std.fmt.fmtSliceHexLower(&hash_2)});
+    // std.debug.print("HASH: {s}\n", .{std.fmt.fmtSliceHexLower(&hash)});
+    // std.debug.print("HASH: {s}\n", .{std.fmt.fmtSliceHexLower(&hash_2)});
+    std.debug.print("HASH: {s}\n", .{std.fmt.fmtSliceHexLower(&hash_3)});
 }

@@ -138,8 +138,28 @@ pub const deposit_transaction: Function = .{
     .stateMutability = .payable,
     .outputs = &.{},
 };
-
-// Abi representation of the gas price oracle `getL2Output` function
+/// Abi representation of the gas price oracle `finalizeWithdrawalTransaction` function
+pub const finalize_withdrawal: Function = .{
+    .type = .function,
+    .name = "finalizeWithdrawalTransaction",
+    .inputs = &.{
+        .{
+            .type = .{ .tuple = {} },
+            .name = "_tx",
+            .components = &.{
+                .{ .type = .{ .uint = 256 }, .name = "nonce" },
+                .{ .type = .{ .address = {} }, .name = "sender" },
+                .{ .type = .{ .address = {} }, .name = "target" },
+                .{ .type = .{ .uint = 256 }, .name = "value" },
+                .{ .type = .{ .uint = 256 }, .name = "gasLimit" },
+                .{ .type = .{ .bytes = {} }, .name = "data" },
+            },
+        },
+    },
+    .stateMutability = .nonpayable,
+    .outputs = &.{},
+};
+/// Abi representation of the gas price oracle `proveWithdrawalTransaction` function
 pub const prove_withdrawal: Function = .{
     .type = .function,
     .name = "proveWithdrawalTransaction",

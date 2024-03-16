@@ -1,7 +1,8 @@
-const std = @import("std");
-const meta = @import("../meta/root.zig");
 const block = @import("block.zig");
 const log = @import("log.zig");
+const meta = @import("../meta/root.zig");
+const proof = @import("proof.zig");
+const std = @import("std");
 const transaction = @import("transaction.zig");
 
 const AccessListResult = transaction.AccessListResult;
@@ -12,6 +13,7 @@ const Logs = log.Logs;
 const PendingTransactionsSubscription = transaction.PendingTransactionsSubscription;
 const PendingTransactionHashesSubscription = transaction.PendingTransactionHashesSubscription;
 const PendingTransaction = transaction.PendingTransaction;
+const ProofResult = proof.ProofResult;
 const RequestParser = meta.json.RequestParser;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
@@ -24,7 +26,49 @@ pub const Hash = [32]u8;
 pub const Address = [20]u8;
 
 /// Set of public rpc actions.
-pub const EthereumRpcMethods = enum { eth_chainId, eth_gasPrice, eth_accounts, eth_getBalance, eth_getBlockByNumber, eth_getBlockByHash, eth_blockNumber, eth_getTransactionCount, eth_getBlockTransactionCountByHash, eth_getBlockTransactionCountByNumber, eth_getUncleCountByBlockHash, eth_getUncleCountByBlockNumber, eth_getCode, eth_getTransactionByHash, eth_getTransactionByBlockHashAndIndex, eth_getTransactionByBlockNumberAndIndex, eth_getTransactionReceipt, eth_getUncleByBlockHashAndIndex, eth_getUncleByBlockNumberAndIndex, eth_newFilter, eth_newBlockFilter, eth_newPendingTransactionFilter, eth_uninstallFilter, eth_getFilterChanges, eth_getFilterLogs, eth_getLogs, eth_sign, eth_signTransaction, eth_sendTransaction, eth_sendRawTransaction, eth_call, eth_estimateGas, eth_maxPriorityFeePerGas, eth_subscribe, eth_unsubscribe, eth_signTypedData_v4, eth_blobBaseFee, eth_createAccessList, eth_feeHistory, eth_getStorageAt };
+pub const EthereumRpcMethods = enum {
+    eth_chainId,
+    eth_gasPrice,
+    eth_accounts,
+    eth_getBalance,
+    eth_getBlockByNumber,
+    eth_getBlockByHash,
+    eth_blockNumber,
+    eth_getTransactionCount,
+    eth_getBlockTransactionCountByHash,
+    eth_getBlockTransactionCountByNumber,
+    eth_getUncleCountByBlockHash,
+    eth_getUncleCountByBlockNumber,
+    eth_getCode,
+    eth_getTransactionByHash,
+    eth_getTransactionByBlockHashAndIndex,
+    eth_getTransactionByBlockNumberAndIndex,
+    eth_getTransactionReceipt,
+    eth_getUncleByBlockHashAndIndex,
+    eth_getUncleByBlockNumberAndIndex,
+    eth_newFilter,
+    eth_newBlockFilter,
+    eth_newPendingTransactionFilter,
+    eth_uninstallFilter,
+    eth_getFilterChanges,
+    eth_getFilterLogs,
+    eth_getLogs,
+    eth_sign,
+    eth_signTransaction,
+    eth_sendTransaction,
+    eth_sendRawTransaction,
+    eth_call,
+    eth_estimateGas,
+    eth_maxPriorityFeePerGas,
+    eth_subscribe,
+    eth_unsubscribe,
+    eth_signTypedData_v4,
+    eth_blobBaseFee,
+    eth_createAccessList,
+    eth_feeHistory,
+    eth_getStorageAt,
+    eth_getProof,
+};
 
 /// Enum of know chains.
 /// More will be added in the future.
@@ -47,7 +91,9 @@ pub const PublicChains = enum(usize) {
     arbitrum_nova = 42170,
     celo = 42220,
     avalanche = 43114,
+    zora = 7777777,
     sepolia = 11155111,
+    op_sepolia = 11155420,
 };
 /// Zig struct representation of a RPC Request
 pub fn EthereumRequest(comptime T: type) type {
@@ -122,7 +168,24 @@ pub const EthereumErrorCodes = enum(isize) {
     ParseError = -32700,
     _,
 };
-pub const EthereumZigErrors = error{ EvmFailedToExecute, TooManyRequests, InvalidInput, ResourceNotFound, ResourceUnavailable, TransactionRejected, MethodNotSupported, LimitExceeded, RpcVersionNotSupported, InvalidRequest, MethodNotFound, InvalidParams, InternalError, ParseError, UnexpectedRpcErrorCode };
+/// RPC errors in zig format
+pub const EthereumZigErrors = error{
+    EvmFailedToExecute,
+    TooManyRequests,
+    InvalidInput,
+    ResourceNotFound,
+    ResourceUnavailable,
+    TransactionRejected,
+    MethodNotSupported,
+    LimitExceeded,
+    RpcVersionNotSupported,
+    InvalidRequest,
+    MethodNotFound,
+    InvalidParams,
+    InternalError,
+    ParseError,
+    UnexpectedRpcErrorCode,
+};
 /// Zig struct representation of a RPC error response
 pub const EthereumErrorResponse = struct {
     jsonrpc: []const u8 = "2.0",
@@ -142,16 +205,17 @@ pub const EthereumSubscribeEvents = union(enum) {
 
     pub usingnamespace UnionParser(@This());
 };
-
+/// Type of WS events.
 pub const EthereumEvents = union(enum) {
     subscribe_event: EthereumSubscribeEvents,
     rpc_event: EthereumRpcEvents,
 
     pub usingnamespace UnionParser(@This());
 };
-
+/// RPC Websocket events to be used by the websocket channels
 pub const EthereumRpcEvents = union(enum) {
     null_event: EthereumRpcResponse(?ErrorResponse),
+    proof_event: EthereumRpcResponse(ProofResult),
     logs_event: EthereumRpcResponse(Logs),
     accounts_event: EthereumRpcResponse([]const Address),
     access_list: EthereumRpcResponse(AccessListResult),

@@ -1,6 +1,7 @@
 const block = @import("../types/block.zig");
 const meta = @import("../meta/utils.zig");
 const log = @import("../types/log.zig");
+const proof = @import("../types/proof.zig");
 const std = @import("std");
 const testing = std.testing;
 const transaction = @import("../types/transaction.zig");
@@ -42,6 +43,9 @@ const LogRequest = log.LogRequest;
 const LogTagRequest = log.LogTagRequest;
 const Logs = log.Logs;
 const Mutex = std.Thread.Mutex;
+const ProofResult = proof.ProofResult;
+const ProofBlockTag = block.ProofBlockTag;
+const ProofRequest = proof.ProofRequest;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
 const Tuple = std.meta.Tuple;
@@ -78,7 +82,7 @@ pub const InitOptions = struct {
 };
 
 /// Arena used to manage the socket connection
-_arena: *ArenaAllocator,
+arena: *ArenaAllocator,
 /// The allocator that will manage the connections memory
 allocator: std.mem.Allocator,
 /// The base fee multiplier used to estimate the gas fees in a transaction
@@ -160,7 +164,10 @@ fn parseRPCEvent(self: *WebSocketHandler, request: []const u8) !EthereumEvents {
 
     const parsed = std.json.parseFromSliceLeaky(EthereumEvents, self.allocator, request, .{ .allocate = .alloc_always }) catch |err| {
         wslog.debug("Failed to parse request: {s}", .{request});
-        const json_error: ErrorResponse = .{ .code = .ParseError, .message = try std.fmt.allocPrint(self.allocator, "Failed to parse json response. Error found: {s}", .{@errorName(err)}) };
+        const json_error: ErrorResponse = .{
+            .code = .ParseError,
+            .message = try std.fmt.allocPrint(self.allocator, "Failed to parse json response. Error found: {s}", .{@errorName(err)}),
+        };
 
         return .{ .rpc_event = .{ .error_event = .{ .@"error" = json_error } } };
     };
@@ -221,7 +228,7 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
     const chain: Chains = opts.chain_id orelse .ethereum;
 
     self.* = .{
-        ._arena = arena,
+        .arena = arena,
         .allocator = undefined,
         .base_fee_multiplier = opts.base_fee_multiplier,
         .chain_id = @intFromEnum(chain),
@@ -237,12 +244,12 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
         .ws_client = ws_client,
     };
 
-    self._arena.* = ArenaAllocator.init(opts.allocator);
-    self.allocator = self._arena.allocator();
+    self.arena.* = ArenaAllocator.init(opts.allocator);
+    self.allocator = self.arena.allocator();
 
     self.rpc_channel.* = Channel(types.EthereumRpcEvents).init(self.allocator);
     self.sub_channel.* = Channel(types.EthereumSubscribeEvents).init(self.allocator);
-    errdefer self._arena.deinit();
+    errdefer self.arena.deinit();
 
     self.ws_client.* = try self.connect();
 
@@ -252,18 +259,17 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
 /// All future interactions will deadlock
 pub fn deinit(self: *WebSocketHandler) void {
     self.mutex.lock();
-
-    while (@atomicRmw(bool, &self.ws_client._closed, .Xchg, true, .SeqCst)) {
+    while (@atomicRmw(bool, &self.ws_client._closed, .Xchg, true, .seq_cst)) {
         std.time.sleep(10 * std.time.ns_per_ms);
     }
-    const allocator = self._arena.child_allocator;
+    const allocator = self.arena.child_allocator;
     self.ws_client.deinit();
-    self._arena.deinit();
+    self.arena.deinit();
 
     allocator.destroy(self.sub_channel);
     allocator.destroy(self.rpc_channel);
-    allocator.destroy(self._arena);
-    if (@atomicLoad(bool, &self.ws_client._closed, .Acquire)) {
+    allocator.destroy(self.arena);
+    if (@atomicLoad(bool, &self.ws_client._closed, .acquire)) {
         allocator.destroy(self.ws_client);
     }
 
@@ -798,6 +804,51 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a logs_event.", .{@tagName(eve)});
+                return error.InvalidEventFound;
+            },
+        }
+    }
+}
+/// Returns the account and storage values, including the Merkle proof, of the specified account
+///
+/// RPC Method: [eth_getProof](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/eth_getproof)
+pub fn getProof(self: *WebSocketHandler, opts: ProofRequest, tag: ?ProofBlockTag) !ProofResult {
+    self.mutex.lock();
+
+    const request = request: {
+        if (tag) |request_tag| {
+            const request: EthereumRequest(struct { Address, []const Hash, block.ProofBlockTag }) = .{
+                .params = .{ opts.address, opts.storageKeys, request_tag },
+                .method = .eth_getProof,
+                .id = self.chain_id,
+            };
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+        }
+
+        const number = opts.blockNumber orelse return error.ExpectBlockNumberOrTag;
+
+        const request: EthereumRequest(struct { Address, []const Hash, u64 }) = .{
+            .params = .{ opts.address, opts.storageKeys, number },
+            .method = .eth_getProof,
+            .id = self.chain_id,
+        };
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+    };
+    defer self.allocator.free(request);
+
+    self.mutex.unlock();
+
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
+
+        try self.write(request);
+        switch (self.rpc_channel.get()) {
+            .proof_event => |proof_event| return proof_event.result,
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
+            else => |eve| {
+                wslog.debug("Found incorrect event named: {s}. Expected a hex_event or hash_event", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1693,6 +1744,21 @@ test "getLogs" {
 
     const logs = try ws_client.getLogs(.{ .blockHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8") }, null);
     try testing.expect(logs.len != 0);
+}
+
+test "GetProof" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var ws_client: WebSocketHandler = undefined;
+    defer ws_client.deinit();
+
+    try ws_client.init(.{ .allocator = testing.allocator, .uri = uri });
+
+    const proof_result = try ws_client.getProof(.{
+        .address = try utils.addressToBytes("0x7F0d15C7FAae65896648C8273B6d7E43f58Fa842"),
+        .storageKeys = &.{try utils.hashToBytes("0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")},
+    }, .latest);
+
+    try testing.expect(proof_result.accountProof.len != 0);
 }
 
 test "getStorage" {

@@ -23,6 +23,8 @@ const Wei = types.Wei;
 pub const BlockTag = enum { latest, earliest, pending, safe, finalized };
 /// Specific tags used in some RPC requests
 pub const BalanceBlockTag = Extract(BlockTag, "latest,pending,earliest");
+/// Specific tags used in some RPC requests
+pub const ProofBlockTag = Extract(BlockTag, "latest,earliest");
 /// Used in the RPC method requests
 pub const BlockRequest = struct { block_number: ?u64 = null, tag: ?BlockTag = .latest, include_transaction_objects: ?bool = false };
 /// Used in the RPC method requests

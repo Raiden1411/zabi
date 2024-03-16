@@ -494,10 +494,36 @@ pub const CancunReceipt = struct {
 
     pub usingnamespace RequestParser(@This());
 };
+/// L2 transaction receipt representation
+pub const L2Receipt = struct {
+    transactionHash: Hash,
+    blockHash: Hash,
+    blockNumber: ?u64,
+    logsBloom: Hex,
+    l1FeeScalar: f32,
+    l1GasUsed: Gwei,
+    l1Fee: Wei,
+    contractAddress: ?Address,
+    transactionIndex: u64,
+    l1GasPrice: Gwei,
+    type: TransactionTypes,
+    gasUsed: Gwei,
+    cumulativeGasUsed: Gwei,
+    from: Address,
+    to: ?Address,
+    effectiveGasPrice: Gwei,
+    logs: Logs,
+    root: ?Hex = null,
+    status: ?bool = null,
+    deposit_nonce: ?usize = null,
+
+    pub usingnamespace RequestParser(@This());
+};
 /// All possible transaction receipts
 pub const TransactionReceipt = union(enum) {
     legacy: LegacyReceipt,
     cancun: CancunReceipt,
+    l2_receipt: L2Receipt,
 
     pub usingnamespace UnionParser(@This());
 };

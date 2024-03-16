@@ -2,6 +2,7 @@ const block = @import("../types/block.zig");
 const http = std.http;
 const log = @import("../types/log.zig");
 const meta = @import("../meta/utils.zig");
+const proof = @import("../types/proof.zig");
 const std = @import("std");
 const testing = std.testing;
 const transaction = @import("../types/transaction.zig");
@@ -40,6 +41,9 @@ const Log = log.Log;
 const LogRequest = log.LogRequest;
 const LogTagRequest = log.LogTagRequest;
 const Logs = log.Logs;
+const ProofResult = proof.ProofResult;
+const ProofBlockTag = block.ProofBlockTag;
+const ProofRequest = proof.ProofRequest;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
 const Tuple = std.meta.Tuple;
@@ -154,7 +158,7 @@ pub fn connectRpcServer(self: *PubClient) !*HttpConnection {
             },
         }
 
-        if (scheme == .tls and @atomicLoad(bool, &self.client.next_https_rescan_certs, .Acquire)) {
+        if (scheme == .tls and @atomicLoad(bool, &self.client.next_https_rescan_certs, .acquire)) {
             self.client.ca_bundle_mutex.lock();
             defer self.client.ca_bundle_mutex.unlock();
 
@@ -163,7 +167,7 @@ pub fn connectRpcServer(self: *PubClient) !*HttpConnection {
                     httplog.debug("Failed to rescan certificate bundle: {s}", .{@errorName(err)});
                     continue;
                 };
-                @atomicStore(bool, &self.client.next_https_rescan_certs, false, .Release);
+                @atomicStore(bool, &self.client.next_https_rescan_certs, false, .release);
             }
         }
         const connection = self.client.connect(self.uri.host.?, port, scheme) catch |err| {
@@ -391,11 +395,39 @@ pub fn getLogs(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !Logs 
         const request: EthereumRequest(struct { LogRequest }) = .{ .params = .{opts}, .method = .eth_getLogs, .id = self.chain_id };
         break :request try std.json.stringifyAlloc(self.allocator, request, .{});
     };
+    defer self.allocator.free(request);
 
     const possible_logs = try self.sendRpcRequest(?Logs, request);
     const logs = possible_logs orelse return error.InvalidLogRequestParams;
 
     return logs;
+}
+/// Returns the account and storage values, including the Merkle proof, of the specified account
+///
+/// RPC Method: [eth_getProof](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/eth_getproof)
+pub fn getProof(self: *PubClient, opts: ProofRequest, tag: ?ProofBlockTag) !ProofResult {
+    const request = request: {
+        if (tag) |request_tag| {
+            const request: EthereumRequest(struct { Address, []const Hash, block.ProofBlockTag }) = .{
+                .params = .{ opts.address, opts.storageKeys, request_tag },
+                .method = .eth_getProof,
+                .id = self.chain_id,
+            };
+            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+        }
+
+        const number = opts.blockNumber orelse return error.ExpectBlockNumberOrTag;
+
+        const request: EthereumRequest(struct { Address, []const Hash, u64 }) = .{
+            .params = .{ opts.address, opts.storageKeys, number },
+            .method = .eth_getProof,
+            .id = self.chain_id,
+        };
+        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
+    };
+    defer self.allocator.free(request);
+
+    return self.sendRpcRequest(ProofResult, request);
 }
 /// Returns the value from a storage position at a given address.
 ///
@@ -894,7 +926,11 @@ fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !T {
     switch (parsed) {
         .success => |response| return response.result,
         .@"error" => |response| {
-            httplog.debug("RPC error response: {s}", .{response.@"error".message});
+            httplog.err("RPC error response: {s}", .{response.@"error".message});
+
+            if (response.@"error".data) |data|
+                httplog.err("RPC error data response: {s}", .{data});
+
             switch (response.@"error".code) {
                 .ContractErrorCode => return error.EvmFailedToExecute,
                 // This will only affect WS connections but we need to handle it here too
@@ -981,6 +1017,21 @@ test "FeeHistory" {
     const fee_history = try pub_client.feeHistory(5, .{}, &[_]f64{ 20, 30 });
 
     try testing.expect(fee_history.reward != null);
+}
+
+test "GetProof" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client: PubClient = undefined;
+    defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
+
+    const proof_result = try pub_client.getProof(.{
+        .address = try utils.addressToBytes("0x7F0d15C7FAae65896648C8273B6d7E43f58Fa842"),
+        .storageKeys = &.{try utils.hashToBytes("0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")},
+    }, .latest);
+
+    try testing.expect(proof_result.accountProof.len != 0);
 }
 
 test "GetBlockByHash" {

@@ -6,6 +6,7 @@ pub const human_readable = @import("human-readable/root.zig");
 pub const meta = @import("meta/root.zig");
 pub const kzg4844 = @import("c-kzg-4844");
 pub const signer = @import("secp256k1");
+pub const superchain = @import("clients/optimism/root.zig");
 pub const types = @import("types/root.zig");
 pub const utils = @import("utils/utils.zig");
 
@@ -29,6 +30,13 @@ test {
     _ = @import("clients/WebSocket.zig");
     _ = @import("clients/contract.zig");
     _ = @import("clients/wallet.zig");
+    _ = @import("clients/optimism/clients/L1PubClient.zig");
+    _ = @import("clients/optimism/clients/L1WalletClient.zig");
+    _ = @import("clients/optimism/clients/L2PubClient.zig");
+    _ = @import("clients/optimism/clients/L2WalletClient.zig");
+    _ = @import("clients/optimism/utils.zig");
+    _ = @import("clients/optimism/parse_deposit.zig");
+    _ = @import("clients/optimism/serialize_deposit.zig");
     _ = @import("encoding/encoder.zig");
     _ = @import("encoding/logs.zig");
     _ = @import("encoding/rlp.zig");

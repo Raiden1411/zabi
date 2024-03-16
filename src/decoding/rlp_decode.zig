@@ -24,6 +24,9 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
     std.debug.assert(encoded.len > 0); // Cannot decode 0 length;
 
+    if (position > encoded.len - 1)
+        return error.Overflow;
+
     switch (info) {
         .Bool => {
             switch (encoded[position]) {

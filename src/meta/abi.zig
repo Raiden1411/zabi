@@ -11,19 +11,32 @@ const ParamType = @import("../abi/param_type.zig").ParamType;
 
 /// Sames as `AbiParametersToPrimative` but for event parameter types.
 pub fn AbiEventParametersDataToPrimative(comptime paramters: []const AbiEventParameter) type {
-    if (paramters.len == 0) return void;
-    var fields: [paramters.len]std.builtin.Type.StructField = undefined;
+    if (paramters.len == 0) return @Type(.{ .Struct = .{ .layout = .auto, .fields = &.{}, .decls = &.{}, .is_tuple = true } });
 
-    for (paramters, 0..) |paramter, i| {
-        const FieldType = AbiParameterToPrimative(paramter);
+    var count: usize = 0;
 
-        fields[i] = .{
-            .name = std.fmt.comptimePrint("{d}", .{i}),
-            .type = FieldType,
-            .default_value = null,
-            .is_comptime = false,
-            .alignment = if (@sizeOf(FieldType) > 0) @alignOf(FieldType) else 0,
-        };
+    for (paramters) |param| {
+        const EventType = AbiEventParameterToPrimativeType(param);
+
+        if (EventType != void) count += 1;
+    }
+
+    var fields: [count]std.builtin.Type.StructField = undefined;
+
+    count = 0;
+    for (paramters) |paramter| {
+        const EventType = AbiEventParameterDataToPrimative(paramter);
+
+        if (EventType != void) {
+            fields[count] = .{
+                .name = std.fmt.comptimePrint("{d}", .{count}),
+                .type = EventType,
+                .default_value = null,
+                .is_comptime = false,
+                .alignment = if (@sizeOf(EventType) > 0) @alignOf(EventType) else 0,
+            };
+            count += 1;
+        }
     }
 
     return @Type(.{ .Struct = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });

@@ -10,12 +10,49 @@ const utils = @import("../utils/utils.zig");
 // Types
 const AbiEvent = abi.Event;
 const AbiEventParameter = abi_parameter.AbiEventParameter;
-const AbiParametersToPrimative = meta.AbiParametersToPrimative;
+const AbiEventParametersDataToPrimative = meta.AbiEventParametersDataToPrimative;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
+/// Encode event log topics were the abi event is comptime know.
+///
+/// `values` is expected to be a tuple of the values to encode.
+/// Array and tuples are encoded as the hash representing their values.
+///
+/// Example:
+///
+/// const event = .{
+///     .type = .event,
+///     .inputs = &.{},
+///     .name = "Transfer"
+/// }
+///
+/// const encoded = encodeLogTopicsComptime(testing.allocator, event, .{});
+///
+/// Result: &.{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")}
+pub fn encodeLogTopicsComptime(allocator: Allocator, comptime event: AbiEvent, values: AbiEventParametersDataToPrimative(event.inputs)) ![]const ?Hash {
+    var list = try std.ArrayList(?Hash).initCapacity(allocator, values.len + 1);
+    errdefer list.deinit();
+
+    const hash = try event.encode(allocator);
+
+    try list.append(hash);
+
+    if (values.len > 0) {
+        inline for (values, 0..) |value, i| {
+            const param = event.inputs[i];
+
+            if (param.indexed) {
+                const encoded = try encodeLog(allocator, param, value);
+                try list.append(encoded);
+            }
+        }
+    }
+
+    return try list.toOwnedSlice();
+}
 /// Encode event log topics
 ///
 /// `values` is expected to be a tuple of the values to encode.
@@ -365,9 +402,13 @@ test "Empty inputs" {
     const encoded = try encodeLogTopics(testing.allocator, event, .{});
     defer testing.allocator.free(encoded);
 
+    const encoded_comptime = try encodeLogTopicsComptime(testing.allocator, event, .{});
+    defer testing.allocator.free(encoded_comptime);
+
     const slice: []const ?Hash = &.{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")};
 
     try testing.expectEqualDeep(slice, encoded);
+    try testing.expectEqualDeep(encoded_comptime, encoded);
 }
 
 test "Empty args" {
@@ -392,6 +433,90 @@ test "With args" {
     const slice: []const ?Hash = &.{ try utils.hashToBytes("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"), null, try utils.hashToBytes("0x000000000000000000000000a5cc3c03994db5b0d9a5eedd10cabab0813678ac") };
 
     try testing.expectEqualDeep(slice, encoded);
+}
+
+test "Comptime Encoding" {
+    {
+        const event: abi.Event = .{
+            .type = .event,
+            .name = "Foo",
+            .inputs = &.{
+                .{
+                    .type = .{ .uint = 256 },
+                    .name = "bar",
+                    .indexed = true,
+                },
+            },
+        };
+        const encoded_comptime = try encodeLogTopicsComptime(testing.allocator, event, .{69});
+        defer testing.allocator.free(encoded_comptime);
+
+        const encoded = try encodeLogTopics(testing.allocator, event, .{69});
+        defer testing.allocator.free(encoded);
+
+        try testing.expectEqualDeep(encoded_comptime, encoded);
+    }
+    {
+        const event: abi.Event = .{
+            .type = .event,
+            .name = "Foo",
+            .inputs = &.{
+                .{
+                    .type = .{ .int = 256 },
+                    .name = "bar",
+                    .indexed = true,
+                },
+            },
+        };
+        const encoded_comptime = try encodeLogTopicsComptime(testing.allocator, event, .{-69});
+        defer testing.allocator.free(encoded_comptime);
+
+        const encoded = try encodeLogTopics(testing.allocator, event, .{-69});
+        defer testing.allocator.free(encoded);
+
+        try testing.expectEqualDeep(encoded_comptime, encoded);
+    }
+    {
+        const event: abi.Event = .{
+            .type = .event,
+            .name = "Foo",
+            .inputs = &.{
+                .{
+                    .type = .{ .string = {} },
+                    .name = "bar",
+                    .indexed = true,
+                },
+            },
+        };
+        const encoded_comptime = try encodeLogTopicsComptime(testing.allocator, event, .{"foo"});
+        defer testing.allocator.free(encoded_comptime);
+
+        const encoded = try encodeLogTopics(testing.allocator, event, .{"foo"});
+        defer testing.allocator.free(encoded);
+
+        try testing.expectEqualDeep(encoded_comptime, encoded);
+    }
+    {
+        const event: abi.Event = .{
+            .type = .event,
+            .name = "Foo",
+            .inputs = &.{
+                .{
+                    .type = .{ .dynamicArray = &.{ .uint = 256 } },
+                    .name = "bar",
+                    .indexed = true,
+                },
+            },
+        };
+        const value: []const u256 = &.{69};
+        const encoded_comptime = try encodeLogTopicsComptime(testing.allocator, event, .{value});
+        defer testing.allocator.free(encoded_comptime);
+
+        const encoded = try encodeLogTopics(testing.allocator, event, .{value});
+        defer testing.allocator.free(encoded);
+
+        try testing.expectEqualDeep(encoded_comptime, encoded);
+    }
 }
 
 test "With args string/bytes" {

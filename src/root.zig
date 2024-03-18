@@ -22,7 +22,7 @@ test {
     // _ = @import("abi/abi.zig");
     // _ = @import("abi/state_mutability.zig");
     // _ = @import("decoding/decoder.zig");
-    // _ = @import("decoding/logs_decode.zig");
+    _ = @import("decoding/logs_decode.zig");
     // _ = @import("decoding/parse_transacition.zig");
     // _ = @import("decoding/rlp_decode.zig");
     // _ = @import("decoding/ssz_decode.zig");

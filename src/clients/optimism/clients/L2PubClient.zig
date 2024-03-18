@@ -170,14 +170,13 @@ pub fn L2Client(comptime client_type: Clients) type {
             // The hash for the event selector `MessagePassed`
             const hash: Hash = comptime try utils.hashToBytes("0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054");
 
-            const ReturnType = struct { Hash, u256, Address, Address };
             for (receipt.l2_receipt.logs) |log| {
                 const topic_hash: Hash = log.topics[0] orelse return error.ExpectedTopicData;
                 if (std.mem.eql(u8, &hash, &topic_hash)) {
                     const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.message_passed_params, log.data, .{});
                     defer decoded.deinit();
 
-                    const decoded_logs = try decoder_logs.decodeLogs(self.allocator, ReturnType, abi_items.message_passed_indexed_params, log.topics);
+                    const decoded_logs = try decoder_logs.decodeLogsComptime(abi_items.message_passed_indexed_params, log.topics);
 
                     try list.append(.{
                         .nonce = decoded_logs[1],

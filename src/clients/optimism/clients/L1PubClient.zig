@@ -241,7 +241,7 @@ pub fn L1Client(comptime client_type: Clients) type {
 
             // Event selector for `TransactionDeposited`.
             const hash: Hash = comptime try utils.hashToBytes("0xb3813568d9991fc951961fcb4c784893574240a28925604d09fc577c55bb7c32");
-            const ReturnType = struct { Hash, Address, Address, u256 };
+
             for (logs) |log_event| {
                 const hash_topic: Hash = log_event.topics[0] orelse return error.ExpectedTopicData;
 
@@ -252,7 +252,7 @@ pub fn L1Client(comptime client_type: Clients) type {
                     const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.transaction_deposited_event_data, log_event.data, .{});
                     defer decoded.deinit();
 
-                    const decoded_logs = try decoder_logs.decodeLogs(self.allocator, ReturnType, abi_items.transaction_deposited_event_args, log_event.topics);
+                    const decoded_logs = try decoder_logs.decodeLogsComptime(abi_items.transaction_deposited_event_args, log_event.topics);
 
                     try list.append(.{
                         .from = decoded_logs[1],
@@ -280,7 +280,6 @@ pub fn L1Client(comptime client_type: Clients) type {
             // The hash for the event selector `MessagePassed`
             const hash: Hash = comptime try utils.hashToBytes("0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054");
 
-            const ReturnType = struct { Hash, u256, Address, Address };
             for (receipt.l2_receipt.logs) |logs| {
                 const hash_topic: Hash = logs.topics[0] orelse return error.ExpectedTopicData;
 
@@ -288,7 +287,7 @@ pub fn L1Client(comptime client_type: Clients) type {
                     const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.message_passed_params, logs.data, .{});
                     defer decoded.deinit();
 
-                    const decoded_logs = try decoder_logs.decodeLogs(self.allocator, ReturnType, abi_items.message_passed_indexed_params, logs.topics);
+                    const decoded_logs = try decoder_logs.decodeLogsComptime(abi_items.message_passed_indexed_params, logs.topics);
 
                     try list.append(.{
                         .nonce = decoded_logs[1],

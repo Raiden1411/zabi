@@ -159,7 +159,7 @@ pub fn main() !void {
         const event = try zabi_root.human_readable.parsing.parseHumanReadable(zabi_root.abi.abitypes.Event, allocator, "event Foo(uint indexed a, int indexed b, bool indexed c, bytes5 indexed d)");
         defer allocator.free(event);
 
-        const result = try benchmark.benchmark(allocator, zabi_root.encoding.logs_encoding.encodeLogs, .{
+        const result = try benchmark.benchmark(allocator, zabi_root.encoding.logs_encoding.encodeLogTopics, .{
             allocator,
             event.value,
             .{ 69, -420, true, "01234" },

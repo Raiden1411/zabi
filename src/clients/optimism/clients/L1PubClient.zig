@@ -240,10 +240,12 @@ pub fn L1Client(comptime client_type: Clients) type {
             errdefer list.deinit();
 
             // Event selector for `TransactionDeposited`.
-            const hash: []const u8 = "0xb3813568d9991fc951961fcb4c784893574240a28925604d09fc577c55bb7c32";
-            const ReturnType = struct { []const u8, Address, Address, u256 };
+            const hash: Hash = comptime try utils.hashToBytes("0xb3813568d9991fc951961fcb4c784893574240a28925604d09fc577c55bb7c32");
+            const ReturnType = struct { Hash, Address, Address, u256 };
             for (logs) |log_event| {
-                if (std.mem.eql(u8, hash, log_event.topics[0] orelse return error.ExpectedTopicData)) {
+                const hash_topic: Hash = log_event.topics[0] orelse return error.ExpectedTopicData;
+
+                if (std.mem.eql(u8, &hash, &hash_topic)) {
                     if (log_event.logIndex == null)
                         return error.UnexpectedNullIndex;
 
@@ -251,12 +253,11 @@ pub fn L1Client(comptime client_type: Clients) type {
                     defer decoded.deinit();
 
                     const decoded_logs = try decoder_logs.decodeLogs(self.allocator, ReturnType, abi_items.transaction_deposited_event_args, log_event.topics);
-                    defer decoded_logs.deinit();
 
                     try list.append(.{
-                        .from = decoded_logs.result[1],
-                        .to = decoded_logs.result[2],
-                        .version = decoded_logs.result[3],
+                        .from = decoded_logs[1],
+                        .to = decoded_logs[2],
+                        .version = decoded_logs[3],
                         .opaqueData = try self.allocator.dupe(u8, decoded.values[0]),
                         .logIndex = log_event.logIndex.?,
                         .blockHash = log_event.blockHash.?,
@@ -277,21 +278,22 @@ pub fn L1Client(comptime client_type: Clients) type {
             errdefer list.deinit();
 
             // The hash for the event selector `MessagePassed`
-            const hash: []const u8 = "0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054";
+            const hash: Hash = comptime try utils.hashToBytes("0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054");
 
-            const ReturnType = struct { []const u8, u256, Address, Address };
+            const ReturnType = struct { Hash, u256, Address, Address };
             for (receipt.l2_receipt.logs) |logs| {
-                if (std.mem.eql(u8, hash, logs.topics[0] orelse return error.ExpectedTopicData)) {
+                const hash_topic: Hash = logs.topics[0] orelse return error.ExpectedTopicData;
+
+                if (std.mem.eql(u8, &hash, &hash_topic)) {
                     const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.message_passed_params, logs.data, .{});
                     defer decoded.deinit();
 
                     const decoded_logs = try decoder_logs.decodeLogs(self.allocator, ReturnType, abi_items.message_passed_indexed_params, logs.topics);
-                    defer decoded_logs.deinit();
 
                     try list.append(.{
-                        .nonce = decoded_logs.result[1],
-                        .target = decoded_logs.result[2],
-                        .sender = decoded_logs.result[3],
+                        .nonce = decoded_logs[1],
+                        .target = decoded_logs[2],
+                        .sender = decoded_logs[3],
                         .value = decoded.values[0],
                         .gasLimit = decoded.values[1],
                         .data = decoded.values[2],

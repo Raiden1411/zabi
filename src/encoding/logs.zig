@@ -17,10 +17,9 @@ const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
 /// Encode event log topics
-/// **Currently non indexed topics are not supported**
 ///
 /// `values` is expected to be a tuple of the values to encode.
-/// By default the log encoding definition doesn't support ABI array types and tuple types.
+/// Array and tuples are encoded as the hash representing their values.
 ///
 /// Example:
 ///
@@ -32,7 +31,7 @@ const Keccak256 = std.crypto.hash.sha3.Keccak256;
 ///
 /// const encoded = encodeLogTopics(testing.allocator, event, .{});
 ///
-/// Result: &.{"0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0"}
+/// Result: &.{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")}
 pub fn encodeLogTopics(allocator: Allocator, event: AbiEvent, values: anytype) ![]const ?Hash {
     const info = @typeInfo(@TypeOf(values));
 

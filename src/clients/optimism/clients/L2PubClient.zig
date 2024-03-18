@@ -168,21 +168,21 @@ pub fn L2Client(comptime client_type: Clients) type {
             errdefer list.deinit();
 
             // The hash for the event selector `MessagePassed`
-            const hash: []const u8 = "0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054";
+            const hash: Hash = comptime try utils.hashToBytes("0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054");
 
-            const ReturnType = struct { []const u8, u256, Address, Address };
+            const ReturnType = struct { Hash, u256, Address, Address };
             for (receipt.l2_receipt.logs) |log| {
-                if (std.mem.eql(u8, hash, log.topics[0] orelse return error.ExpectedTopicData)) {
+                const topic_hash: Hash = log.topics[0] orelse return error.ExpectedTopicData;
+                if (std.mem.eql(u8, &hash, &topic_hash)) {
                     const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.message_passed_params, log.data, .{});
                     defer decoded.deinit();
 
                     const decoded_logs = try decoder_logs.decodeLogs(self.allocator, ReturnType, abi_items.message_passed_indexed_params, log.topics);
-                    defer decoded_logs.deinit();
 
                     try list.append(.{
-                        .nonce = decoded_logs.result[1],
-                        .target = decoded_logs.result[2],
-                        .sender = decoded_logs.result[3],
+                        .nonce = decoded_logs[1],
+                        .target = decoded_logs[2],
+                        .sender = decoded_logs[3],
                         .value = decoded.values[0],
                         .gasLimit = decoded.values[1],
                         .data = decoded.values[2],

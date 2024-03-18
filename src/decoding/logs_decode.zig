@@ -17,24 +17,11 @@ const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const encodeLogs = @import("../encoding/logs.zig").encodeLogTopics;
 
-/// Decoded logs return type.
-pub fn DecodedLogs(comptime T: type) type {
-    return struct {
-        result: T,
-        arena: *ArenaAllocator,
-
-        pub fn deinit(self: @This()) void {
-            const child_allocator = self.arena.child_allocator;
-            self.arena.deinit();
-
-            child_allocator.destroy(self.arena);
-        }
-    };
-}
 /// Decode event log topics
-/// **Currently non indexed topics are not supported**
 ///
-/// By default the log encoding definition doesn't support ABI array types and tuple types.
+/// String, bytes array and tuple types are not decoded but instead their hashed
+/// values are returned as we have no way to decode from the hash.
+/// It follows the solidity spec defined [here](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding)
 ///
 /// Example:
 ///
@@ -44,9 +31,9 @@ pub fn DecodedLogs(comptime T: type) type {
 ///     .name = "Transfer"
 /// }
 ///
-/// const encoded = decodeLogs(testing.allocator, event, &.{@constCast("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")});
+/// const encoded = decodeLogs(testing.allocator, event, &.{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")});
 ///
-/// Result: .{"0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0"}
+/// Result: .{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")}
 pub fn decodeLogs(allocator: Allocator, comptime T: type, params: []const AbiEventParameter, encoded: []const ?Hash) !T {
     const info = @typeInfo(T);
 

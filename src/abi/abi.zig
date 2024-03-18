@@ -12,11 +12,9 @@ const AbiEncoded = encoder.AbiEncoded;
 const AbiParameter = @import("abi_parameter.zig").AbiParameter;
 const AbiEventParameter = @import("abi_parameter.zig").AbiEventParameter;
 const Allocator = std.mem.Allocator;
-const DecodedLogs = decoder_logs.DecodedLogs;
 const Extract = meta.utils.Extract;
 const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
-const LogsEncoded = encoder_logs.LogsEncoded;
 const StateMutability = @import("state_mutability.zig").StateMutability;
 const UnionParser = meta.json.UnionParser;
 
@@ -282,20 +280,18 @@ pub const Event = struct {
     }
 
     /// Encode the struct signature based on the values provided.
-    /// Only indexed parameters are allowed to encode
     /// Runtime reflection based on the provided values will occur to determine
     /// what is the correct method to use to encode the values
     ///
     /// Caller owns the memory.
-    pub fn encodeLogs(self: @This(), allocator: Allocator, values: anytype) !LogsEncoded {
-        return try encoder_logs.encodeLogs(allocator, self, values);
+    pub fn encodeLogTopics(self: @This(), allocator: Allocator, values: anytype) ![]const ?Hash {
+        return try encoder_logs.encodeLogTopics(allocator, self, values);
     }
 
     /// Decode the encoded log topics based on the event signature and the provided type.
-    /// Only indexed parameters are allowed to encode
     ///
     /// Caller owns the memory.
-    pub fn decodeLogs(self: @This(), allocator: Allocator, comptime T: type, encoded: []const ?[]u8) !DecodedLogs(T) {
+    pub fn decodeLogTopics(self: @This(), allocator: Allocator, comptime T: type, encoded: []const ?Hash) !T {
         return try decoder_logs.decodeLogs(allocator, T, self, encoded);
     }
 

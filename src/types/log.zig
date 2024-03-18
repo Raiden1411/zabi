@@ -20,7 +20,7 @@ pub const Log = struct {
     logIndex: ?usize,
     data: Hex,
     removed: bool,
-    topics: []const ?Hex,
+    topics: []const ?Hash,
     blockNumber: ?u64,
     transactionLogIndex: ?usize = null,
     transactionIndex: ?usize,

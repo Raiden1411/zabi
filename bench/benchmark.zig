@@ -159,7 +159,7 @@ pub fn main() !void {
         const event = try zabi_root.human_readable.parsing.parseHumanReadable(zabi_root.abi.abitypes.Event, allocator, "event Foo(uint indexed a, int indexed b, bool indexed c, bytes5 indexed d)");
         defer event.deinit();
 
-        const result = try benchmark.benchmark(allocator, zabi_root.encoding.logs_encoding.encodeLogs, .{
+        const result = try benchmark.benchmark(allocator, zabi_root.encoding.logs_encoding.encodeLogTopics, .{
             allocator,
             event.value,
             .{ 69, -420, true, "01234" },
@@ -244,10 +244,10 @@ pub fn main() !void {
         const event = try zabi_root.human_readable.parsing.parseHumanReadable(zabi_root.abi.abitypes.Event, allocator, "event Foo(uint indexed a, int indexed b, bool indexed c, bytes5 indexed d)");
         defer event.deinit();
 
-        const encoded = try zabi_root.encoding.logs_encoding.encodeLogs(allocator, event.value, .{ 69, -420, true, "01234" });
-        defer encoded.deinit();
+        const encoded = try zabi_root.encoding.logs_encoding.encodeLogTopics(allocator, event.value, .{ 69, -420, true, "01234" });
+        defer allocator.free(encoded);
 
-        const result = try benchmark.benchmark(allocator, zabi_root.decoding.logs_decoder.decodeLogs, .{ allocator, struct { []const u8, u256, i256, bool, [5]u8 }, event.value.inputs, encoded.data }, .{ .warmup_runs = 5, .runs = 100 });
+        const result = try benchmark.benchmark(allocator, zabi_root.decoding.logs_decoder.decodeLogs, .{ allocator, struct { [32]u8, u256, i256, bool, [5]u8 }, event.value.inputs, encoded }, .{ .warmup_runs = 5, .runs = 100 });
         result.printSummary();
     }
 }

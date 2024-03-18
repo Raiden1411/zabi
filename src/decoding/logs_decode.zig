@@ -10,18 +10,24 @@ const utils = @import("../utils/utils.zig");
 // Types
 const AbiEvent = abi.Event;
 const AbiEventParameter = abi_parameter.AbiEventParameter;
-const AbiParametersToPrimative = meta.AbiParametersToPrimative;
+const AbiEventParametersToPrimativeType = meta.AbiEventParametersToPrimativeType;
+const AbiEventParameterToPrimativeType = meta.AbiEventParameterToPrimativeType;
 const Allocator = std.mem.Allocator;
-const ArenaAllocator = std.heap.ArenaAllocator;
 const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const encodeLogs = @import("../encoding/logs.zig").encodeLogTopics;
 
-/// Decode event log topics
+/// Decode event log topics where the event is comptime know.
+///
+/// This doesn't support null hash values because the types are generated at comptime and it doesnt assume
+/// null values. Use `decodeLogs` instead where you can provided the return type.
 ///
 /// String, bytes array and tuple types are not decoded but instead their hashed
 /// values are returned as we have no way to decode from the hash.
 /// It follows the solidity spec defined [here](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding)
+///
+/// You will only need to free memory if the provided type that you desire is a pointer. So you must
+/// call destroy on the tuple element.
 ///
 /// Example:
 ///
@@ -31,7 +37,55 @@ const encodeLogs = @import("../encoding/logs.zig").encodeLogTopics;
 ///     .name = "Transfer"
 /// }
 ///
-/// const encoded = decodeLogs(testing.allocator, event, &.{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")});
+/// const encoded = try decodeLogs(testing.allocator, event, &.{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")});
+///
+/// Result: .{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")}
+pub fn decodeLogsComptime(comptime params: []const AbiEventParameter, encoded: []const ?Hash) !AbiEventParametersToPrimativeType(params) {
+    var result: AbiEventParametersToPrimativeType(params) = undefined;
+
+    result[0] = encoded[0] orelse return error.MissingEventSignature;
+
+    if (encoded.len == 1)
+        return result;
+
+    var indexed_field = false;
+
+    comptime var counter: usize = 1;
+    inline for (params, 0..) |param, i| {
+        const enc = encoded[i + 1];
+
+        if (param.indexed) {
+            indexed_field = true;
+            result[counter] = try decodeLogComptime(param, enc orelse return error.UnsupportedNullValue);
+            counter += 1;
+        }
+    }
+
+    if (!indexed_field)
+        return error.NoIndexedParams;
+
+    return result;
+}
+/// Decode event log topics
+///
+/// The return type is expected to be a tuple.
+///
+/// String, bytes array and tuple types are not decoded but instead their hashed
+/// values are returned as we have no way to decode from the hash.
+/// It follows the solidity spec defined [here](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding)
+///
+/// You will only need to free memory if the provided type that you desire is a pointer. So you must
+/// call destroy on the tuple element.
+///
+/// Example:
+///
+/// const event = .{
+///     .type = .event,
+///     .inputs = &.{},
+///     .name = "Transfer"
+/// }
+///
+/// const encoded = try decodeLogs(testing.allocator, event, &.{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")});
 ///
 /// Result: .{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")}
 pub fn decodeLogs(allocator: Allocator, comptime T: type, params: []const AbiEventParameter, encoded: []const ?Hash) !T {
@@ -79,6 +133,69 @@ pub fn decodeLogs(allocator: Allocator, comptime T: type, params: []const AbiEve
         return error.NoIndexedParams;
 
     return result;
+}
+
+fn decodeLogComptime(comptime param: AbiEventParameter, encoded: Hash) !AbiEventParameterToPrimativeType(param) {
+    const info = @typeInfo(AbiEventParameterToPrimativeType(param));
+
+    switch (info) {
+        .Bool => switch (param.type) {
+            .bool => {
+                const decoded = std.mem.readInt(u256, &encoded, .big);
+
+                return @as(u1, @truncate(decoded)) != 0;
+            },
+            else => return error.InvalidParamType,
+        },
+        .Int => |int_info| {
+            switch (param.type) {
+                .uint => {
+                    if (int_info.signedness != .unsigned)
+                        return error.ExpectedUnsignedInt;
+                    const decoded = std.mem.readInt(u256, &encoded, .big);
+
+                    return @as(AbiEventParameterToPrimativeType(param), @truncate(decoded));
+                },
+                .int => {
+                    if (int_info.signedness != .signed)
+                        return error.ExpectedSignedInt;
+
+                    const decoded = std.mem.readInt(i256, &encoded, .big);
+
+                    return @as(AbiEventParameterToPrimativeType(param), @truncate(decoded));
+                },
+                else => return error.InvalidParamType,
+            }
+        },
+        .Array => |arr_info| {
+            if (arr_info.child == u8) {
+                switch (param.type) {
+                    .string, .bytes, .dynamicArray, .fixedArray, .tuple => {
+                        if (arr_info.len != 32)
+                            return error.ExpectedHashSize;
+
+                        return encoded;
+                    },
+                    .address => {
+                        if (arr_info.len != 20)
+                            return error.ExpectedAddressSize;
+
+                        return encoded[12..].*;
+                    },
+                    .fixedBytes => |size| {
+                        if (size != arr_info.len)
+                            return error.InvalidFixedBufferSize;
+
+                        return encoded[0..arr_info.len].*;
+                    },
+                    else => return error.InvalidParamType,
+                }
+            }
+
+            @compileError("Non u8 arrays are not supported");
+        },
+        else => @compileError("Unsupported type " ++ @typeName(AbiEventParameterToPrimativeType(param))),
+    }
 }
 
 fn decodeLog(allocator: Allocator, comptime T: type, param: AbiEventParameter, encoded: Hash) !T {
@@ -155,6 +272,7 @@ fn decodeLog(allocator: Allocator, comptime T: type, param: AbiEventParameter, e
         else => @compileError("Unsupported type " ++ @typeName(T)),
     }
 }
+
 test "Decode empty inputs" {
     const event = .{ .type = .event, .inputs = &.{}, .name = "Transfer" };
 
@@ -163,8 +281,10 @@ test "Decode empty inputs" {
 
     const slice: []const ?Hash = &.{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")};
     const decoded = try decodeLogs(testing.allocator, struct { Hash }, event.inputs, slice);
+    const decoded_comptime = try decodeLogsComptime(event.inputs, slice);
 
     try testing.expectEqualDeep(.{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")}, decoded);
+    try testing.expectEqualDeep(decoded_comptime, decoded);
 }
 
 test "Decode empty args" {
@@ -189,6 +309,88 @@ test "Decode with args" {
     const decoded = try decodeLogs(testing.allocator, std.meta.Tuple(&[_]type{ Hash, ?Hash, [20]u8 }), event.value.inputs, encoded);
 
     try testing.expectEqualDeep(.{ try utils.hashToBytes("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"), null, try utils.addressToBytes("0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC") }, decoded);
+}
+test "Comptime Encoding" {
+    {
+        const event: abi.Event = .{
+            .type = .event,
+            .name = "Foo",
+            .inputs = &.{
+                .{
+                    .type = .{ .uint = 256 },
+                    .name = "bar",
+                    .indexed = true,
+                },
+            },
+        };
+        const encoded = try encodeLogs(testing.allocator, event, .{69});
+        defer testing.allocator.free(encoded);
+
+        const decoded = try decodeLogs(testing.allocator, struct { Hash, u256 }, event.inputs, encoded);
+        const decoded_comptime = try decodeLogsComptime(event.inputs, encoded);
+        try testing.expectEqualDeep(decoded, decoded_comptime);
+    }
+    {
+        const event: abi.Event = .{
+            .type = .event,
+            .name = "Foo",
+            .inputs = &.{
+                .{
+                    .type = .{ .int = 256 },
+                    .name = "bar",
+                    .indexed = true,
+                },
+            },
+        };
+        const encoded = try encodeLogs(testing.allocator, event, .{-69});
+        defer testing.allocator.free(encoded);
+
+        const decoded = try decodeLogs(testing.allocator, struct { Hash, i256 }, event.inputs, encoded);
+        const decoded_comptime = try decodeLogsComptime(event.inputs, encoded);
+        try testing.expectEqualDeep(decoded, decoded_comptime);
+    }
+    {
+        const event: abi.Event = .{
+            .type = .event,
+            .name = "Foo",
+            .inputs = &.{
+                .{
+                    .type = .{ .string = {} },
+                    .name = "bar",
+                    .indexed = true,
+                },
+            },
+        };
+
+        const encoded = try encodeLogs(testing.allocator, event, .{"foo"});
+        defer testing.allocator.free(encoded);
+
+        const decoded = try decodeLogs(testing.allocator, struct { Hash, Hash }, event.inputs, encoded);
+        const decoded_comptime = try decodeLogsComptime(event.inputs, encoded);
+        try testing.expectEqualDeep(decoded, decoded_comptime);
+    }
+    {
+        const event: abi.Event = .{
+            .type = .event,
+            .name = "Foo",
+            .inputs = &.{
+                .{
+                    .type = .{ .dynamicArray = &.{ .uint = 256 } },
+                    .name = "bar",
+                    .indexed = true,
+                },
+            },
+        };
+
+        const value: []const u256 = &.{69};
+
+        const encoded = try encodeLogs(testing.allocator, event, .{value});
+        defer testing.allocator.free(encoded);
+
+        const decoded = try decodeLogs(testing.allocator, struct { Hash, Hash }, event.inputs, encoded);
+        const decoded_comptime = try decodeLogsComptime(event.inputs, encoded);
+        try testing.expectEqualDeep(decoded, decoded_comptime);
+    }
 }
 
 test "Decoded with args string/bytes" {

@@ -12,7 +12,6 @@ const AbiEvent = abi.Event;
 const AbiEventParameter = abi_parameter.AbiEventParameter;
 const AbiEventParametersDataToPrimative = meta.AbiEventParametersDataToPrimative;
 const Allocator = std.mem.Allocator;
-const ArenaAllocator = std.heap.ArenaAllocator;
 const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 

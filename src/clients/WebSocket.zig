@@ -338,7 +338,7 @@ pub fn readLoopOwned(self: *WebSocketHandler) !void {
 }
 /// Write messages to the websocket connections.
 pub fn write(self: *WebSocketHandler, data: []u8) !void {
-    return try self.ws_client.write(data);
+    return self.ws_client.write(data);
 }
 /// Get the first event of the channel.
 /// Only call this if you are sure that the channel has messages.
@@ -353,10 +353,20 @@ pub fn getCurrentSubscriptionEvent(self: *WebSocketHandler) !types.EthereumSubsc
 ///
 /// RPC Method: [eth_blobBaseFee](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_blobbasefee)
 pub fn blobBaseFee(self: *WebSocketHandler) !Gwei {
-    const req_body = try self.prepBasicRequest(.eth_blobBaseFee);
-    defer self.allocator.free(req_body);
+    self.mutex.lock();
+    const request: EthereumRequest(Tuple(&[_]type{})) = .{
+        .params = .{},
+        .method = .eth_blobBaseFee,
+        .id = self.chain_id,
+    };
 
-    return self.handleNumberEvent(Gwei, req_body);
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    self.mutex.unlock();
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    return self.handleNumberEvent(Gwei, buf_writter.getWritten());
 }
 /// Create an accessList of addresses and storageKeys for an transaction to access
 ///
@@ -365,15 +375,26 @@ pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: Blo
     const tag: BalanceBlockTag = opts.tag orelse .latest;
     self.mutex.lock();
 
-    const req_body = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { EthCall, u64 }) = .{ .params = .{ call_object, number }, .method = .eth_createAccessList, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{ .params = .{ call_object, tag }, .method = .eth_createAccessList, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(req_body);
+    var request_buffer: [8 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { EthCall, u64 }) = .{
+            .params = .{ call_object, number },
+            .method = .eth_createAccessList,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{
+            .params = .{ call_object, tag },
+            .method = .eth_createAccessList,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
 
     self.mutex.unlock();
     var retries: u8 = 0;
@@ -381,7 +402,7 @@ pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: Blo
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .access_list => |list_event| return list_event.result,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
@@ -435,18 +456,29 @@ pub fn estimateGas(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
     const tag: BalanceBlockTag = opts.tag orelse .latest;
     self.mutex.lock();
 
-    const req_body = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { EthCall, u64 }) = .{ .params = .{ call_object, number }, .method = .eth_estimateGas, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{ .params = .{ call_object, tag }, .method = .eth_estimateGas, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(req_body);
+    var request_buffer: [8 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { EthCall, u64 }) = .{
+            .params = .{ call_object, number },
+            .method = .eth_estimateGas,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{
+            .params = .{ call_object, tag },
+            .method = .eth_estimateGas,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
     self.mutex.unlock();
 
-    return self.handleNumberEvent(Gwei, req_body);
+    return self.handleNumberEvent(Gwei, buf_writter.getWritten());
 }
 /// Estimates maxPriorityFeePerGas manually. If the node you are currently using
 /// supports `eth_maxPriorityFeePerGas` consider using `estimateMaxFeePerGas`.
@@ -470,10 +502,20 @@ pub fn estimateMaxFeePerGasManual(self: *WebSocketHandler, know_block: ?Block) !
 }
 /// Only use this if the node you are currently using supports `eth_maxPriorityFeePerGas`.
 pub fn estimateMaxFeePerGas(self: *WebSocketHandler) !Gwei {
-    const req_body = try self.prepBasicRequest(.eth_maxPriorityFeePerGas);
-    defer self.allocator.free(req_body);
+    self.mutex.lock();
+    const request: EthereumRequest(Tuple(&[_]type{})) = .{
+        .params = .{},
+        .method = .eth_maxPriorityFeePerGas,
+        .id = self.chain_id,
+    };
 
-    return self.handleNumberEvent(Gwei, req_body);
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    self.mutex.unlock();
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    return self.handleNumberEvent(Gwei, buf_writter.getWritten());
 }
 /// Returns historical gas information, allowing you to track trends over time.
 ///
@@ -482,16 +524,25 @@ pub fn feeHistory(self: *WebSocketHandler, blockCount: u64, newest_block: BlockN
     const tag: BalanceBlockTag = newest_block.tag orelse .latest;
     self.mutex.lock();
 
-    const req_body = request: {
-        if (newest_block.block_number) |number| {
-            const request: EthereumRequest(struct { u64, u64, ?[]const f64 }) = .{ .params = .{ blockCount, number, reward_percentil }, .method = .eth_feeHistory, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-        const request: EthereumRequest(struct { u64, BalanceBlockTag, ?[]const f64 }) = .{ .params = .{ blockCount, tag, reward_percentil }, .method = .eth_feeHistory, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(req_body);
+    if (newest_block.block_number) |number| {
+        const request: EthereumRequest(struct { u64, u64, ?[]const f64 }) = .{
+            .params = .{ blockCount, number, reward_percentil },
+            .method = .eth_feeHistory,
+            .id = self.chain_id,
+        };
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { u64, BalanceBlockTag, ?[]const f64 }) = .{
+            .params = .{ blockCount, tag, reward_percentil },
+            .method = .eth_feeHistory,
+            .id = self.chain_id,
+        };
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+
     self.mutex.unlock();
 
     var retries: u8 = 0;
@@ -499,12 +550,12 @@ pub fn feeHistory(self: *WebSocketHandler, blockCount: u64, newest_block: BlockN
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .fee_history => |fee_event| return fee_event.result,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a accounts_event.", .{@tagName(eve)});
+                wslog.debug("Found incorrect event named: {s}. Expected a fee_history event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -514,15 +565,25 @@ pub fn feeHistory(self: *WebSocketHandler, blockCount: u64, newest_block: BlockN
 ///
 /// RPC Method: [eth_accounts](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_accounts)
 pub fn getAccounts(self: *WebSocketHandler) ![]const Address {
-    const req_body = try self.prepBasicRequest(.eth_accounts);
-    defer self.allocator.free(req_body);
+    self.mutex.lock();
+    const request: EthereumRequest(Tuple(&[_]type{})) = .{
+        .params = .{},
+        .method = .eth_accounts,
+        .id = self.chain_id,
+    };
+
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    self.mutex.unlock();
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
 
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .accounts_event => |accounts_event| return accounts_event.result,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
@@ -537,15 +598,37 @@ pub fn getAccounts(self: *WebSocketHandler) ![]const Address {
 ///
 /// RPC Method: [eth_getBalance](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getbalance)
 pub fn getAddressBalance(self: *WebSocketHandler, opts: BalanceRequest) !Wei {
-    const req_body = try self.prepAddressRequest(opts, .eth_getBalance);
-    defer self.allocator.free(req_body);
+    self.mutex.lock();
+
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { Address, u64 }) = .{
+            .params = .{ opts.address, number },
+            .method = .eth_getBalance,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { Address, BalanceBlockTag }) = .{
+            .params = .{ opts.address, tag },
+            .method = .eth_getBalance,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+    self.mutex.unlock();
 
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .number_event => |balance| return balance.result,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
@@ -560,10 +643,32 @@ pub fn getAddressBalance(self: *WebSocketHandler, opts: BalanceRequest) !Wei {
 ///
 /// RPC Method: [eth_getTransactionCount](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactioncount)
 pub fn getAddressTransactionCount(self: *WebSocketHandler, opts: BalanceRequest) !u64 {
-    const req_body = try self.prepAddressRequest(opts, .eth_getTransactionCount);
-    defer self.allocator.free(req_body);
+    self.mutex.lock();
 
-    return self.handleNumberEvent(Gwei, req_body);
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { Address, u64 }) = .{
+            .params = .{ opts.address, number },
+            .method = .eth_getTransactionCount,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { Address, BalanceBlockTag }) = .{
+            .params = .{ opts.address, tag },
+            .method = .eth_getTransactionCount,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+    self.mutex.unlock();
+
+    return self.handleNumberEvent(Gwei, buf_writter.getWritten());
 }
 /// Returns the number of most recent block.
 ///
@@ -572,17 +677,24 @@ pub fn getBlockByHash(self: *WebSocketHandler, opts: BlockHashRequest) !Block {
     const include = opts.include_transaction_objects orelse false;
     self.mutex.lock();
 
-    const request: EthereumRequest(struct { Hash, bool }) = .{ .params = .{ opts.block_hash, include }, .method = .eth_getBlockByHash, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-    defer self.allocator.free(req_body);
-    self.mutex.unlock();
+    const request: EthereumRequest(struct { Hash, bool }) = .{
+        .params = .{ opts.block_hash, include },
+        .method = .eth_getBlockByHash,
+        .id = self.chain_id,
+    };
 
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    self.mutex.unlock();
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .block_event => |block_event| {
                 const block_info = block_event.result;
@@ -605,23 +717,34 @@ pub fn getBlockByNumber(self: *WebSocketHandler, opts: BlockRequest) !Block {
     const include = opts.include_transaction_objects orelse false;
     self.mutex.lock();
 
-    const req_body = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { u64, bool }) = .{ .params = .{ number, include }, .method = .eth_getBlockByNumber, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { BlockTag, bool }) = .{ .params = .{ tag, include }, .method = .eth_getBlockByNumber, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(req_body);
-    self.mutex.unlock();
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { u64, bool }) = .{
+            .params = .{ number, include },
+            .method = .eth_getBlockByNumber,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { BlockTag, bool }) = .{
+            .params = .{ tag, include },
+            .method = .eth_getBlockByNumber,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+
+    self.mutex.unlock();
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .block_event => |block_event| {
                 const block_info = block_event.result;
@@ -640,23 +763,39 @@ pub fn getBlockByNumber(self: *WebSocketHandler, opts: BlockRequest) !Block {
 ///
 /// RPC Method: [eth_getBlockTransactionCountByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbynumber)
 pub fn getBlockNumber(self: *WebSocketHandler) !u64 {
-    const req_body = try self.prepBasicRequest(.eth_blockNumber);
-    defer self.allocator.free(req_body);
+    self.mutex.lock();
+    const request: EthereumRequest(Tuple(&[_]type{})) = .{
+        .params = .{},
+        .method = .eth_blockNumber,
+        .id = self.chain_id,
+    };
 
-    return self.handleNumberEvent(u64, req_body);
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    self.mutex.unlock();
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    return self.handleNumberEvent(u64, buf_writter.getWritten());
 }
 /// Returns the number of transactions in a block from a block matching the given block hash.
 ///
 /// RPC Method: [eth_getBlockTransactionCountByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbyhash)
 pub fn getBlockTransactionCountByHash(self: *WebSocketHandler, block_hash: Hash) !u64 {
-    const request: EthereumRequest(struct { Hash }) = .{ .params = .{block_hash}, .method = .eth_getBlockTransactionCountByHash, .id = self.chain_id };
+    const request: EthereumRequest(struct { Hash }) = .{
+        .params = .{block_hash},
+        .method = .eth_getBlockTransactionCountByHash,
+        .id = self.chain_id,
+    };
     self.mutex.lock();
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-    defer self.allocator.free(req_body);
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
     self.mutex.unlock();
 
-    return self.handleNumberEvent(u64, req_body);
+    return self.handleNumberEvent(u64, buf_writter.getWritten());
 }
 /// Returns the number of transactions in a block from a block matching the given block number.
 ///
@@ -665,32 +804,53 @@ pub fn getBlockTransactionCountByNumber(self: *WebSocketHandler, opts: BlockNumb
     const tag: BalanceBlockTag = opts.tag orelse .latest;
     self.mutex.lock();
 
-    const req_body = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { u64 }) = .{ .params = .{number}, .method = .eth_getBlockTransactionCountByNumber, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { BalanceBlockTag }) = .{ .params = .{tag}, .method = .eth_getBlockTransactionCountByNumber, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(req_body);
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { u64 }) = .{
+            .params = .{number},
+            .method = .eth_getBlockTransactionCountByNumber,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { BalanceBlockTag }) = .{
+            .params = .{tag},
+            .method = .eth_getBlockTransactionCountByNumber,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
     self.mutex.unlock();
 
-    return self.handleNumberEvent(u64, req_body);
+    return self.handleNumberEvent(u64, buf_writter.getWritten());
 }
 /// Returns the chain ID used for signing replay-protected transactions.
 ///
 /// RPC Method: [eth_chainId](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_chainid)
 pub fn getChainId(self: *WebSocketHandler) !usize {
-    const req_body = try self.prepBasicRequest(.eth_chainId);
-    defer self.allocator.free(req_body);
+    self.mutex.lock();
+    const request: EthereumRequest(Tuple(&[_]type{})) = .{
+        .params = .{},
+        .method = .eth_chainId,
+        .id = self.chain_id,
+    };
+
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    self.mutex.unlock();
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
 
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .number_event => |chain| {
                 const chain_id: usize = @truncate(chain.result);
@@ -712,15 +872,37 @@ pub fn getChainId(self: *WebSocketHandler) !usize {
 ///
 /// RPC Method: [eth_getCode](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getcode)
 pub fn getContractCode(self: *WebSocketHandler, opts: BalanceRequest) !Hex {
-    const req_body = try self.prepAddressRequest(opts, .eth_getCode);
-    defer self.allocator.free(req_body);
+    self.mutex.lock();
+
+    const tag: BalanceBlockTag = opts.tag orelse .latest;
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { Address, u64 }) = .{
+            .params = .{ opts.address, number },
+            .method = .eth_getCode,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { Address, BalanceBlockTag }) = .{
+            .params = .{ opts.address, tag },
+            .method = .eth_getCode,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+    self.mutex.unlock();
 
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .hex_event => |hex| return hex.result,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
@@ -737,17 +919,24 @@ pub fn getContractCode(self: *WebSocketHandler, opts: BalanceRequest) !Hex {
 /// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterlogs
 pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: usize, method: Extract(EthereumRpcMethods, "eth_getFilterChanges,eth_getFilterLogs")) !Logs {
     self.mutex.lock();
-    const request: EthereumRequest(struct { usize }) = .{ .params = .{filter_id}, .method = method, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-    defer self.allocator.free(req_body);
-    self.mutex.unlock();
+    const request: EthereumRequest(struct { usize }) = .{
+        .params = .{filter_id},
+        .method = method,
+        .id = self.chain_id,
+    };
 
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    self.mutex.unlock();
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .logs_event => |logs_event| {
                 const logs_info = logs_event.result;
@@ -767,26 +956,53 @@ pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: usize, method: 
 ///
 /// RPC Method: [eth_gasPrice](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gasprice)
 pub fn getGasPrice(self: *WebSocketHandler) !Gwei {
-    const req_body = try self.prepBasicRequest(.eth_gasPrice);
-    defer self.allocator.free(req_body);
+    self.mutex.lock();
+    const request: EthereumRequest(Tuple(&[_]type{})) = .{
+        .params = .{},
+        .method = .eth_gasPrice,
+        .id = self.chain_id,
+    };
 
-    return self.handleNumberEvent(Gwei, req_body);
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    self.mutex.unlock();
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    return self.handleNumberEvent(Gwei, buf_writter.getWritten());
 }
 /// Returns an array of all logs matching a given filter object.
 ///
 /// RPC Method: [eth_getLogs](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getlogs)
 pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag) !Logs {
     self.mutex.lock();
-    const req_body = request: {
-        if (tag) |request_tag| {
-            const request: EthereumRequest(struct { LogTagRequest }) = .{ .params = .{.{ .fromBlock = request_tag, .toBlock = request_tag, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_getLogs, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
 
-        const request: EthereumRequest(struct { LogRequest }) = .{ .params = .{opts}, .method = .eth_getLogs, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(req_body);
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    if (tag) |request_tag| {
+        const request: EthereumRequest(struct { LogTagRequest }) = .{
+            .params = .{.{
+                .fromBlock = request_tag,
+                .toBlock = request_tag,
+                .address = opts.address,
+                .blockHash = opts.blockHash,
+                .topics = opts.topics,
+            }},
+            .method = .eth_getLogs,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { LogRequest }) = .{
+            .params = .{opts},
+            .method = .eth_getLogs,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
     self.mutex.unlock();
 
     var retries: u8 = 0;
@@ -794,7 +1010,7 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .logs_event => |logs_event| {
                 const logs_info = logs_event.result;
@@ -815,16 +1031,17 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
 pub fn getProof(self: *WebSocketHandler, opts: ProofRequest, tag: ?ProofBlockTag) !ProofResult {
     self.mutex.lock();
 
-    const request = request: {
-        if (tag) |request_tag| {
-            const request: EthereumRequest(struct { Address, []const Hash, block.ProofBlockTag }) = .{
-                .params = .{ opts.address, opts.storageKeys, request_tag },
-                .method = .eth_getProof,
-                .id = self.chain_id,
-            };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
+    if (tag) |request_tag| {
+        const request: EthereumRequest(struct { Address, []const Hash, block.ProofBlockTag }) = .{
+            .params = .{ opts.address, opts.storageKeys, request_tag },
+            .method = .eth_getProof,
+            .id = self.chain_id,
+        };
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
         const number = opts.blockNumber orelse return error.ExpectBlockNumberOrTag;
 
         const request: EthereumRequest(struct { Address, []const Hash, u64 }) = .{
@@ -832,9 +1049,9 @@ pub fn getProof(self: *WebSocketHandler, opts: ProofRequest, tag: ?ProofBlockTag
             .method = .eth_getProof,
             .id = self.chain_id,
         };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(request);
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
 
     self.mutex.unlock();
 
@@ -843,7 +1060,7 @@ pub fn getProof(self: *WebSocketHandler, opts: ProofRequest, tag: ?ProofBlockTag
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(request);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .proof_event => |proof_event| return proof_event.result,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
@@ -860,16 +1077,28 @@ pub fn getProof(self: *WebSocketHandler, opts: ProofRequest, tag: ?ProofBlockTag
 pub fn getStorage(self: *WebSocketHandler, address: Address, storage_key: Hash, opts: BlockNumberRequest) !Hash {
     self.mutex.lock();
 
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
     const tag: BalanceBlockTag = opts.tag orelse .latest;
-    const req_body = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { Address, Hash, u64 }) = .{ .params = .{ address, storage_key, number }, .method = .eth_getStorageAt, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { Address, Hash, BalanceBlockTag }) = .{ .params = .{ address, storage_key, tag }, .method = .eth_getStorageAt, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(req_body);
+
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { Address, Hash, u64 }) = .{
+            .params = .{ address, storage_key, number },
+            .method = .eth_getStorageAt,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { Address, Hash, BalanceBlockTag }) = .{
+            .params = .{ address, storage_key, tag },
+            .method = .eth_getStorageAt,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
 
     self.mutex.unlock();
 
@@ -878,7 +1107,7 @@ pub fn getStorage(self: *WebSocketHandler, address: Address, storage_key: Hash, 
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .hash_event => |hash| return hash.result,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
@@ -895,9 +1124,16 @@ pub fn getStorage(self: *WebSocketHandler, address: Address, storage_key: Hash, 
 pub fn getTransactionByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Hash, index: usize) !Transaction {
     self.mutex.lock();
 
-    const request: EthereumRequest(struct { Hash, usize }) = .{ .params = .{ block_hash, index }, .method = .eth_getTransactionByBlockHashAndIndex, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-    defer self.allocator.free(req_body);
+    const request: EthereumRequest(struct { Hash, usize }) = .{
+        .params = .{ block_hash, index },
+        .method = .eth_getTransactionByBlockHashAndIndex,
+        .id = self.chain_id,
+    };
+
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
 
     self.mutex.unlock();
 
@@ -906,7 +1142,7 @@ pub fn getTransactionByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Ha
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .transaction_event => |tx_event| {
                 const transaction_info = tx_event.result;
@@ -926,17 +1162,27 @@ pub fn getTransactionByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Ha
 /// RPC Method: [eth_getTransactionByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblocknumberandindex)
 pub fn getTransactionByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberRequest, index: usize) !Transaction {
     self.mutex.lock();
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
     const tag: block.BalanceBlockTag = opts.tag orelse .latest;
-    const req_body = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { u64, usize }) = .{ .params = .{ number, index }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { BalanceBlockTag, usize }) = .{ .params = .{ tag, index }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(req_body);
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { u64, usize }) = .{
+            .params = .{ number, index },
+            .method = .eth_getTransactionByBlockNumberAndIndex,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { BalanceBlockTag, usize }) = .{
+            .params = .{ tag, index },
+            .method = .eth_getTransactionByBlockNumberAndIndex,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
 
     self.mutex.unlock();
 
@@ -945,7 +1191,7 @@ pub fn getTransactionByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockN
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .transaction_event => |tx_event| {
                 const transaction_info = tx_event.result;
@@ -966,19 +1212,24 @@ pub fn getTransactionByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockN
 pub fn getTransactionByHash(self: *WebSocketHandler, transaction_hash: Hash) !Transaction {
     self.mutex.lock();
 
-    const request: EthereumRequest(struct { Hash }) = .{ .params = .{transaction_hash}, .method = .eth_getTransactionByHash, .id = self.chain_id };
+    const request: EthereumRequest(struct { Hash }) = .{
+        .params = .{transaction_hash},
+        .method = .eth_getTransactionByHash,
+        .id = self.chain_id,
+    };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-    defer self.allocator.free(req_body);
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
 
     self.mutex.unlock();
-
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .transaction_event => |tx_event| {
                 const transaction_info = tx_event.result;
@@ -1000,10 +1251,16 @@ pub fn getTransactionByHash(self: *WebSocketHandler, transaction_hash: Hash) !Tr
 /// RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
 pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: Hash) !TransactionReceipt {
     self.mutex.lock();
-    const request: EthereumRequest(struct { Hash }) = .{ .params = .{transaction_hash}, .method = .eth_getTransactionReceipt, .id = self.chain_id };
+    const request: EthereumRequest(struct { Hash }) = .{
+        .params = .{transaction_hash},
+        .method = .eth_getTransactionReceipt,
+        .id = self.chain_id,
+    };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-    defer self.allocator.free(req_body);
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
 
     self.mutex.unlock();
 
@@ -1012,7 +1269,7 @@ pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: Hash) !T
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .receipt_event => |receipt_event| {
                 const transaction_info = receipt_event.result;
@@ -1032,19 +1289,24 @@ pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: Hash) !T
 /// RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblockhashandindex)
 pub fn getUncleByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Hash, index: usize) !Block {
     self.mutex.lock();
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    const request: EthereumRequest(struct { Hash, usize }) = .{ .params = .{ block_hash, index }, .method = .eth_getUncleByBlockHashAndIndex, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-    defer self.allocator.free(req_body);
+    const request: EthereumRequest(struct { Hash, usize }) = .{
+        .params = .{ block_hash, index },
+        .method = .eth_getUncleByBlockHashAndIndex,
+        .id = self.chain_id,
+    };
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
 
     self.mutex.unlock();
-
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .block_event => |block_event| {
                 const block_info = block_event.result;
@@ -1064,17 +1326,27 @@ pub fn getUncleByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Hash, in
 /// RPC Method: [eth_getUncleByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblocknumberandindex)
 pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberRequest, index: usize) !Block {
     self.mutex.lock();
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
     const tag: block.BalanceBlockTag = opts.tag orelse .latest;
-    const req_body = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { u64, usize }) = .{ .params = .{ number, index }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { BlockTag, usize }) = .{ .params = .{ tag, index }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(req_body);
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { u64, usize }) = .{
+            .params = .{ number, index },
+            .method = .eth_getTransactionByBlockNumberAndIndex,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { BlockTag, usize }) = .{
+            .params = .{ tag, index },
+            .method = .eth_getTransactionByBlockNumberAndIndex,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
 
     self.mutex.unlock();
 
@@ -1083,7 +1355,7 @@ pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberR
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .block_event => |block_event| {
                 const block_info = block_event.result;
@@ -1106,43 +1378,65 @@ pub fn getUncleCountByBlockHash(self: *WebSocketHandler, block_hash: Hash) !usiz
 
     const request: EthereumRequest(struct { Hash }) = .{ .params = .{block_hash}, .method = .eth_getUncleCountByBlockHash, .id = self.chain_id };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-    defer self.allocator.free(req_body);
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
 
     self.mutex.unlock();
 
-    return self.handleNumberEvent(usize, req_body);
+    return self.handleNumberEvent(usize, buf_writter.getWritten());
 }
 /// Returns the number of uncles in a block from a block matching the given block number.
 ///
 /// RPC Method: [`eth_getUncleCountByBlockNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclecountbyblocknumber)
 pub fn getUncleCountByBlockNumber(self: *WebSocketHandler, opts: BlockNumberRequest) !usize {
     self.mutex.lock();
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
     const tag: BalanceBlockTag = opts.tag orelse .latest;
-    const req_body = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { u64 }) = .{ .params = .{number}, .method = .eth_getUncleCountByBlockNumber, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { BalanceBlockTag }) = .{ .params = .{tag}, .method = .eth_getUncleCountByBlockNumber, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(req_body);
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { u64 }) = .{
+            .params = .{number},
+            .method = .eth_getUncleCountByBlockNumber,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { BalanceBlockTag }) = .{
+            .params = .{tag},
+            .method = .eth_getUncleCountByBlockNumber,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
 
     self.mutex.unlock();
 
-    return self.handleNumberEvent(usize, req_body);
+    return self.handleNumberEvent(usize, buf_writter.getWritten());
 }
 /// Creates a filter in the node, to notify when a new block arrives.
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newBlockFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newblockfilter)
 pub fn newBlockFilter(self: *WebSocketHandler) !usize {
-    const req_body = try self.prepBasicRequest(.eth_newBlockFilter);
-    defer self.allocator.free(req_body);
+    self.mutex.lock();
+    const request: EthereumRequest(Tuple(&[_]type{})) = .{
+        .params = .{},
+        .method = .eth_newBlockFilter,
+        .id = self.chain_id,
+    };
 
-    return self.handleNumberEvent(usize, req_body);
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    self.mutex.unlock();
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    return self.handleNumberEvent(usize, buf_writter.getWritten());
 }
 /// Creates a filter object, based on filter options, to notify when the state changes (logs).
 /// To check if the state has changed, call `getFilterOrLogChanges`.
@@ -1150,31 +1444,56 @@ pub fn newBlockFilter(self: *WebSocketHandler) !usize {
 /// RPC Method: [`eth_newFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newfilter)
 pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag) !usize {
     self.mutex.lock();
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    const req_body = request: {
-        if (tag) |request_tag| {
-            const request: EthereumRequest(struct { LogTagRequest }) = .{ .params = .{.{ .fromBlock = request_tag, .toBlock = request_tag, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_newFilter, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
+    if (tag) |request_tag| {
+        const request: EthereumRequest(struct { LogTagRequest }) = .{
+            .params = .{.{
+                .fromBlock = request_tag,
+                .toBlock = request_tag,
+                .address = opts.address,
+                .blockHash = opts.blockHash,
+                .topics = opts.topics,
+            }},
+            .method = .eth_newFilter,
+            .id = self.chain_id,
+        };
 
-        const request: EthereumRequest(struct { LogRequest }) = .{ .params = .{opts}, .method = .eth_newFilter, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(req_body);
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { LogRequest }) = .{
+            .params = .{opts},
+            .method = .eth_newFilter,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
 
     self.mutex.unlock();
 
-    return self.handleNumberEvent(usize, req_body);
+    return self.handleNumberEvent(usize, buf_writter.getWritten());
 }
 /// Creates a filter in the node, to notify when new pending transactions arrive.
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newPendingTransactionFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newpendingtransactionfilter)
 pub fn newPendingTransactionFilter(self: *WebSocketHandler) !usize {
-    const req_body = try self.prepBasicRequest(.eth_newPendingTransactionFilter);
-    defer self.allocator.free(req_body);
+    self.mutex.lock();
+    const request: EthereumRequest(Tuple(&[_]type{})) = .{
+        .params = .{},
+        .method = .eth_newPendingTransactionFilter,
+        .id = self.chain_id,
+    };
 
-    return self.handleNumberEvent(usize, req_body);
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    self.mutex.unlock();
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    return self.handleNumberEvent(usize, buf_writter.getWritten());
 }
 /// Executes a new message call immediately without creating a transaction on the block chain.
 /// Often used for executing read-only smart contract functions,
@@ -1186,17 +1505,27 @@ pub fn newPendingTransactionFilter(self: *WebSocketHandler) !usize {
 /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
 pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) !Hex {
     self.mutex.lock();
+    var request_buffer: [8 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
     const tag: BalanceBlockTag = opts.tag orelse .latest;
-    const req_body = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { EthCall, u64 }) = .{ .params = .{ call_object, number }, .method = .eth_call, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{ .params = .{ call_object, tag }, .method = .eth_call, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(req_body);
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { EthCall, u64 }) = .{
+            .params = .{ call_object, number },
+            .method = .eth_call,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{
+            .params = .{ call_object, tag },
+            .method = .eth_call,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
 
     self.mutex.unlock();
 
@@ -1205,7 +1534,7 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .hex_event => |hex| return hex.result,
             .hash_event => |hash| return @constCast(hash.result[0..]),
@@ -1221,22 +1550,27 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
 /// Transaction must be serialized and signed before hand.
 ///
 /// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
-pub fn sendRawTransaction(self: *WebSocketHandler, serialized_hex_tx: Hex) !Hash {
+pub fn sendRawTransaction(self: *WebSocketHandler, serialized_tx: Hex) !Hash {
     self.mutex.lock();
 
-    const request: EthereumRequest(struct { Hex }) = .{ .params = .{serialized_hex_tx}, .method = .eth_sendRawTransaction, .id = self.chain_id };
+    const request: EthereumRequest(struct { Hex }) = .{
+        .params = .{serialized_tx},
+        .method = .eth_sendRawTransaction,
+        .id = self.chain_id,
+    };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-    defer self.allocator.free(req_body);
+    var request_buffer: [8 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
 
     self.mutex.unlock();
-
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .hash_event => |hash| return hash.result,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
@@ -1253,19 +1587,24 @@ pub fn sendRawTransaction(self: *WebSocketHandler, serialized_hex_tx: Hex) !Hash
 /// RPC Method: [`eth_uninstallFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_uninstallfilter)
 pub fn uninstalllFilter(self: *WebSocketHandler, id: usize) !bool {
     self.mutex.lock();
-    const request: EthereumRequest(struct { usize }) = .{ .params = .{id}, .method = .eth_uninstallFilter, .id = self.chain_id };
+    const request: EthereumRequest(struct { usize }) = .{
+        .params = .{id},
+        .method = .eth_uninstallFilter,
+        .id = self.chain_id,
+    };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-    defer self.allocator.free(req_body);
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
 
     self.mutex.unlock();
-
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .bool_event => |bool_event| return bool_event.result,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
@@ -1283,19 +1622,24 @@ pub fn uninstalllFilter(self: *WebSocketHandler, id: usize) !bool {
 pub fn unsubscribe(self: *WebSocketHandler, sub_id: u128) !bool {
     self.mutex.lock();
 
-    const request: EthereumRequest(struct { u128 }) = .{ .params = .{sub_id}, .method = .eth_unsubscribe, .id = self.chain_id };
+    const request: EthereumRequest(struct { u128 }) = .{
+        .params = .{sub_id},
+        .method = .eth_unsubscribe,
+        .id = self.chain_id,
+    };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-    defer self.allocator.free(req_body);
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
 
     self.mutex.unlock();
-
     var retries: u8 = 0;
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.write(buf_writter.getWritten());
         switch (self.rpc_channel.get()) {
             .bool_event => |bool_event| return bool_event.result,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
@@ -1312,38 +1656,62 @@ pub fn unsubscribe(self: *WebSocketHandler, sub_id: u128) !bool {
 pub fn watchNewBlocks(self: *WebSocketHandler) !u128 {
     const request: EthereumRequest(struct { []const u8 }) = .{ .params = .{"newHeads"}, .method = .eth_subscribe, .id = self.chain_id };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-    defer self.allocator.free(req_body);
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    return self.handleNumberEvent(u128, req_body);
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    return self.handleNumberEvent(u128, buf_writter.getWritten());
 }
 /// Emits logs attached to a new block that match certain topic filters.
 ///
 /// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/logs)
 pub fn watchLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag) !u128 {
-    const req_body = request: {
-        if (tag) |request_tag| {
-            const request: EthereumRequest(struct { LogTagRequest }) = .{ .params = .{.{ .fromBlock = request_tag, .toBlock = request_tag, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_newFilter, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-        const request: EthereumRequest(struct { LogRequest }) = .{ .params = .{opts}, .method = .eth_newFilter, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(req_body);
+    if (tag) |request_tag| {
+        const request: EthereumRequest(struct { LogTagRequest }) = .{
+            .params = .{.{
+                .fromBlock = request_tag,
+                .toBlock = request_tag,
+                .address = opts.address,
+                .blockHash = opts.blockHash,
+                .topics = opts.topics,
+            }},
+            .method = .eth_newFilter,
+            .id = self.chain_id,
+        };
 
-    return self.handleNumberEvent(u128, req_body);
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { LogRequest }) = .{
+            .params = .{opts},
+            .method = .eth_newFilter,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+
+    return self.handleNumberEvent(u128, buf_writter.getWritten());
 }
 /// Emits transaction hashes that are sent to the network and marked as "pending".
 ///
 /// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/newpendingtransactions)
 pub fn watchTransactions(self: *WebSocketHandler) !u128 {
-    const request: EthereumRequest(struct { []const u8 }) = .{ .params = .{"newPendingTransactions"}, .method = .eth_subscribe, .id = self.chain_id };
+    const request: EthereumRequest(struct { []const u8 }) = .{
+        .params = .{"newPendingTransactions"},
+        .method = .eth_subscribe,
+        .id = self.chain_id,
+    };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-    defer self.allocator.free(req_body);
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    return self.handleNumberEvent(u128, req_body);
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    return self.handleNumberEvent(u128, buf_writter.getWritten());
 }
 /// Creates a new subscription for desired events. Sends data as soon as it occurs
 ///
@@ -1545,36 +1913,6 @@ fn handleNumberEvent(self: *WebSocketHandler, comptime T: type, req_body: []u8) 
             },
         }
     }
-}
-
-fn prepBasicRequest(self: *WebSocketHandler, method: EthereumRpcMethods) ![]u8 {
-    self.mutex.lock();
-    defer self.mutex.unlock();
-
-    const request: EthereumRequest(Tuple(&[_]type{})) = .{ .params = .{}, .method = method, .id = self.chain_id };
-
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-
-    return req_body;
-}
-
-fn prepAddressRequest(self: *WebSocketHandler, opts: BalanceRequest, method: EthereumRpcMethods) ![]u8 {
-    self.mutex.lock();
-    defer self.mutex.unlock();
-
-    const tag: BalanceBlockTag = opts.tag orelse .latest;
-
-    const req_body = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { Address, u64 }) = .{ .params = .{ opts.address, number }, .method = method, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-
-        const request: EthereumRequest(struct { Address, BalanceBlockTag }) = .{ .params = .{ opts.address, tag }, .method = method, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-
-    return req_body;
 }
 
 test "GetBlockNumber" {

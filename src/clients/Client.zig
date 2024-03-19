@@ -266,18 +266,28 @@ pub fn estimateMaxFeePerGas(self: *PubClient) !Gwei {
 pub fn feeHistory(self: *PubClient, blockCount: u64, newest_block: BlockNumberRequest, reward_percentil: ?[]const f64) !FeeHistory {
     const tag: BalanceBlockTag = newest_block.tag orelse .latest;
 
-    const req_body = request: {
-        if (newest_block.block_number) |number| {
-            const request: EthereumRequest(struct { u64, u64, ?[]const f64 }) = .{ .params = .{ blockCount, number, reward_percentil }, .method = .eth_feeHistory, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-        const request: EthereumRequest(struct { u64, BalanceBlockTag, ?[]const f64 }) = .{ .params = .{ blockCount, tag, reward_percentil }, .method = .eth_feeHistory, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(req_body);
+    if (newest_block.block_number) |number| {
+        const request: EthereumRequest(struct { u64, u64, ?[]const f64 }) = .{
+            .params = .{ blockCount, number, reward_percentil },
+            .method = .eth_feeHistory,
+            .id = self.chain_id,
+        };
 
-    return self.sendRpcRequest(FeeHistory, req_body);
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { u64, BalanceBlockTag, ?[]const f64 }) = .{
+            .params = .{ blockCount, tag, reward_percentil },
+            .method = .eth_feeHistory,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+
+    return self.sendRpcRequest(FeeHistory, buf_writter.getWritten());
 }
 /// Returns a list of addresses owned by client.
 ///
@@ -303,10 +313,18 @@ pub fn getAddressTransactionCount(self: *PubClient, opts: BalanceRequest) !u64 {
 pub fn getBlockByHash(self: *PubClient, opts: BlockHashRequest) !Block {
     const include = opts.include_transaction_objects orelse false;
 
-    const request: EthereumRequest(struct { Hash, bool }) = .{ .params = .{ opts.block_hash, include }, .method = .eth_getBlockByHash, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const request: EthereumRequest(struct { Hash, bool }) = .{
+        .params = .{ opts.block_hash, include },
+        .method = .eth_getBlockByHash,
+        .id = self.chain_id,
+    };
 
-    const request_block = try self.sendRpcRequest(?Block, req_body);
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    const request_block = try self.sendRpcRequest(?Block, buf_writter.getWritten());
     const block_info = request_block orelse return error.InvalidBlockHash;
 
     return block_info;
@@ -318,16 +336,28 @@ pub fn getBlockByNumber(self: *PubClient, opts: BlockRequest) !Block {
     const tag: BlockTag = opts.tag orelse .latest;
     const include = opts.include_transaction_objects orelse false;
 
-    const request = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { u64, bool }) = .{ .params = .{ number, include }, .method = .eth_getBlockByNumber, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { BlockTag, bool }) = .{ .params = .{ tag, include }, .method = .eth_getBlockByNumber, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    const request_block = try self.sendRpcRequest(?Block, request);
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { u64, bool }) = .{
+            .params = .{ number, include },
+            .method = .eth_getBlockByNumber,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { BlockTag, bool }) = .{
+            .params = .{ tag, include },
+            .method = .eth_getBlockByNumber,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+
+    const request_block = try self.sendRpcRequest(?Block, buf_writter.getWritten());
     const block_info = request_block orelse return error.InvalidBlockNumber;
 
     return block_info;
@@ -336,7 +366,7 @@ pub fn getBlockByNumber(self: *PubClient, opts: BlockRequest) !Block {
 ///
 /// RPC Method: [eth_blockNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_blocknumber)
 pub fn getBlockNumber(self: *PubClient) !u64 {
-    return try self.sendBasicRequest(u64, .eth_blockNumber);
+    return self.sendBasicRequest(u64, .eth_blockNumber);
 }
 /// Returns the number of transactions in a block from a block matching the given block hash.
 ///
@@ -367,10 +397,18 @@ pub fn getContractCode(self: *PubClient, opts: BalanceRequest) !Hex {
 /// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterchanges
 /// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterlogs
 pub fn getFilterOrLogChanges(self: *PubClient, filter_id: usize, method: Extract(EthereumRpcMethods, "eth_getFilterChanges,eth_getFilterLogs")) !Logs {
-    const request: EthereumRequest(struct { usize }) = .{ .params = .{filter_id}, .method = method, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    const possible_filter = try self.sendRpcRequest(Logs, req_body);
+    const request: EthereumRequest(struct { usize }) = .{
+        .params = .{filter_id},
+        .method = method,
+        .id = self.chain_id,
+    };
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    const possible_filter = try self.sendRpcRequest(Logs, buf_writter.getWritten());
     const filter = possible_filter orelse return error.InvalidFilterId;
 
     return filter;
@@ -386,18 +424,34 @@ pub fn getGasPrice(self: *PubClient) !Gwei {
 ///
 /// RPC Method: [eth_getLogs](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getlogs)
 pub fn getLogs(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !Logs {
-    const request = request: {
-        if (tag) |request_tag| {
-            const request: EthereumRequest(struct { LogTagRequest }) = .{ .params = .{.{ .fromBlock = request_tag, .toBlock = request_tag, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_getLogs, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-        const request: EthereumRequest(struct { LogRequest }) = .{ .params = .{opts}, .method = .eth_getLogs, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(request);
+    if (tag) |request_tag| {
+        const request: EthereumRequest(struct { LogTagRequest }) = .{
+            .params = .{.{
+                .fromBlock = request_tag,
+                .toBlock = request_tag,
+                .address = opts.address,
+                .blockHash = opts.blockHash,
+                .topics = opts.topics,
+            }},
+            .method = .eth_getLogs,
+            .id = self.chain_id,
+        };
 
-    const possible_logs = try self.sendRpcRequest(?Logs, request);
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { LogRequest }) = .{
+            .params = .{opts},
+            .method = .eth_getLogs,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+
+    const possible_logs = try self.sendRpcRequest(?Logs, buf_writter.getWritten());
     const logs = possible_logs orelse return error.InvalidLogRequestParams;
 
     return logs;
@@ -406,16 +460,18 @@ pub fn getLogs(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !Logs 
 ///
 /// RPC Method: [eth_getProof](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/eth_getproof)
 pub fn getProof(self: *PubClient, opts: ProofRequest, tag: ?ProofBlockTag) !ProofResult {
-    const request = request: {
-        if (tag) |request_tag| {
-            const request: EthereumRequest(struct { Address, []const Hash, block.ProofBlockTag }) = .{
-                .params = .{ opts.address, opts.storageKeys, request_tag },
-                .method = .eth_getProof,
-                .id = self.chain_id,
-            };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
+    if (tag) |request_tag| {
+        const request: EthereumRequest(struct { Address, []const Hash, block.ProofBlockTag }) = .{
+            .params = .{ opts.address, opts.storageKeys, request_tag },
+            .method = .eth_getProof,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
         const number = opts.blockNumber orelse return error.ExpectBlockNumberOrTag;
 
         const request: EthereumRequest(struct { Address, []const Hash, u64 }) = .{
@@ -423,37 +479,57 @@ pub fn getProof(self: *PubClient, opts: ProofRequest, tag: ?ProofBlockTag) !Proo
             .method = .eth_getProof,
             .id = self.chain_id,
         };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(request);
 
-    return self.sendRpcRequest(ProofResult, request);
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+
+    return self.sendRpcRequest(ProofResult, buf_writter.getWritten());
 }
 /// Returns the value from a storage position at a given address.
 ///
 /// RPC Method: [eth_getStorageAt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getstorageat)
 pub fn getStorage(self: *PubClient, address: Address, storage_key: Hash, opts: BlockNumberRequest) !Hash {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
-    const request = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { Address, Hash, u64 }) = .{ .params = .{ address, storage_key, number }, .method = .eth_getStorageAt, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { Address, Hash, BalanceBlockTag }) = .{ .params = .{ address, storage_key, tag }, .method = .eth_getStorageAt, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(request);
 
-    return self.sendRpcRequest(Hash, request);
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { Address, Hash, u64 }) = .{
+            .params = .{ address, storage_key, number },
+            .method = .eth_getStorageAt,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { Address, Hash, BalanceBlockTag }) = .{
+            .params = .{ address, storage_key, tag },
+            .method = .eth_getStorageAt,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+
+    return self.sendRpcRequest(Hash, buf_writter.getWritten());
 }
 /// Returns information about a transaction by block hash and transaction index position.
 ///
 /// RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblockhashandindex)
 pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: usize) !Transaction {
-    const request: EthereumRequest(struct { Hash, usize }) = .{ .params = .{ block_hash, index }, .method = .eth_getTransactionByBlockHashAndIndex, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const request: EthereumRequest(struct { Hash, usize }) = .{
+        .params = .{ block_hash, index },
+        .method = .eth_getTransactionByBlockHashAndIndex,
+        .id = self.chain_id,
+    };
 
-    const possible_tx = try self.sendRpcRequest(?Transaction, req_body);
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    const possible_tx = try self.sendRpcRequest(?Transaction, buf_writter.getWritten());
     const tx = possible_tx orelse return error.TransactionNotFound;
 
     return tx;
@@ -464,16 +540,28 @@ pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: Hash, ind
 pub fn getTransactionByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRequest, index: usize) !Transaction {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
-    const request = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { u64, usize }) = .{ .params = .{ number, index }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { BalanceBlockTag, usize }) = .{ .params = .{ tag, index }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    const possible_tx = try self.sendRpcRequest(?Transaction, request);
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { u64, usize }) = .{
+            .params = .{ number, index },
+            .method = .eth_getTransactionByBlockNumberAndIndex,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { BalanceBlockTag, usize }) = .{
+            .params = .{ tag, index },
+            .method = .eth_getTransactionByBlockNumberAndIndex,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+
+    const possible_tx = try self.sendRpcRequest(?Transaction, buf_writter.getWritten());
     const tx = possible_tx orelse return error.TransactionNotFound;
 
     return tx;
@@ -482,11 +570,18 @@ pub fn getTransactionByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRe
 ///
 /// RPC Method: [eth_getTransactionByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyhash)
 pub fn getTransactionByHash(self: *PubClient, transaction_hash: Hash) !Transaction {
-    const request: EthereumRequest(struct { Hash }) = .{ .params = .{transaction_hash}, .method = .eth_getTransactionByHash, .id = self.chain_id };
+    const request: EthereumRequest(struct { Hash }) = .{
+        .params = .{transaction_hash},
+        .method = .eth_getTransactionByHash,
+        .id = self.chain_id,
+    };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    const possible_tx = try self.sendRpcRequest(?Transaction, req_body);
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    const possible_tx = try self.sendRpcRequest(?Transaction, buf_writter.getWritten());
     const tx = possible_tx orelse return error.TransactionNotFound;
 
     return tx;
@@ -495,11 +590,18 @@ pub fn getTransactionByHash(self: *PubClient, transaction_hash: Hash) !Transacti
 ///
 /// RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
 pub fn getTransactionReceipt(self: *PubClient, transaction_hash: Hash) !TransactionReceipt {
-    const request: EthereumRequest(struct { Hash }) = .{ .params = .{transaction_hash}, .method = .eth_getTransactionReceipt, .id = self.chain_id };
+    const request: EthereumRequest(struct { Hash }) = .{
+        .params = .{transaction_hash},
+        .method = .eth_getTransactionReceipt,
+        .id = self.chain_id,
+    };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    const possible_receipt = try self.sendRpcRequest(?TransactionReceipt, req_body);
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    const possible_receipt = try self.sendRpcRequest(?TransactionReceipt, buf_writter.getWritten());
     const receipt = possible_receipt orelse return error.TransactionReceiptNotFound;
 
     return receipt;
@@ -508,10 +610,18 @@ pub fn getTransactionReceipt(self: *PubClient, transaction_hash: Hash) !Transact
 ///
 /// RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblockhashandindex)
 pub fn getUncleByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: usize) !Block {
-    const request: EthereumRequest(struct { Hash, usize }) = .{ .params = .{ block_hash, index }, .method = .eth_getUncleByBlockHashAndIndex, .id = self.chain_id };
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const request: EthereumRequest(struct { Hash, usize }) = .{
+        .params = .{ block_hash, index },
+        .method = .eth_getUncleByBlockHashAndIndex,
+        .id = self.chain_id,
+    };
 
-    const request_block = try self.sendRpcRequest(?Block, req_body);
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    const request_block = try self.sendRpcRequest(?Block, buf_writter.getWritten());
     const block_info = request_block orelse return error.InvalidBlockHashOrIndex;
 
     return block_info;
@@ -521,16 +631,29 @@ pub fn getUncleByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: us
 /// RPC Method: [eth_getUncleByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblocknumberandindex)
 pub fn getUncleByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRequest, index: usize) !Block {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
-    const request = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { u64, usize }) = .{ .params = .{ number, index }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { BlockTag, usize }) = .{ .params = .{ tag, index }, .method = .eth_getTransactionByBlockNumberAndIndex, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
 
-    const request_block = try self.sendRpcRequest(?Block, request);
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { u64, usize }) = .{
+            .params = .{ number, index },
+            .method = .eth_getTransactionByBlockNumberAndIndex,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { BlockTag, usize }) = .{
+            .params = .{ tag, index },
+            .method = .eth_getTransactionByBlockNumberAndIndex,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+
+    const request_block = try self.sendRpcRequest(?Block, buf_writter.getWritten());
     const block_info = request_block orelse return error.InvalidBlockNumberOrIndex;
 
     return block_info;
@@ -559,17 +682,34 @@ pub fn newBlockFilter(self: *PubClient) !usize {
 ///
 /// RPC Method: [`eth_newFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newfilter)
 pub fn newLogFilter(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !usize {
-    const request = request: {
-        if (tag) |request_tag| {
-            const request: EthereumRequest(struct { LogTagRequest }) = .{ .params = .{.{ .fromBlock = request_tag, .toBlock = request_tag, .address = opts.address, .blockHash = opts.blockHash, .topics = opts.topics }}, .method = .eth_newFilter, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
+    var request_buffer: [8 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-        const request: EthereumRequest(struct { LogRequest }) = .{ .params = .{opts}, .method = .eth_newFilter, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
+    if (tag) |request_tag| {
+        const request: EthereumRequest(struct { LogTagRequest }) = .{
+            .params = .{.{
+                .fromBlock = request_tag,
+                .toBlock = request_tag,
+                .address = opts.address,
+                .blockHash = opts.blockHash,
+                .topics = opts.topics,
+            }},
+            .method = .eth_newFilter,
+            .id = self.chain_id,
+        };
 
-    return self.sendRpcRequest(usize, request);
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { LogRequest }) = .{
+            .params = .{opts},
+            .method = .eth_newFilter,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+
+    return self.sendRpcRequest(usize, buf_writter.getWritten());
 }
 /// Creates a filter in the node, to notify when new pending transactions arrive.
 /// To check if the state has changed, call `getFilterOrLogChanges`.
@@ -593,12 +733,19 @@ pub fn sendEthCall(self: *PubClient, call_object: EthCall, opts: BlockNumberRequ
 /// Transaction must be serialized and signed before hand.
 ///
 /// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
-pub fn sendRawTransaction(self: *PubClient, serialized_hex_tx: Hex) !Hash {
-    const request: EthereumRequest(struct { Hex }) = .{ .params = .{serialized_hex_tx}, .method = .eth_sendRawTransaction, .id = self.chain_id };
+pub fn sendRawTransaction(self: *PubClient, serialized_tx: Hex) !Hash {
+    const request: EthereumRequest(struct { Hex }) = .{
+        .params = .{serialized_tx},
+        .method = .eth_sendRawTransaction,
+        .id = self.chain_id,
+    };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    var request_buffer: [8 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    return self.sendRpcRequest(Hash, req_body);
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    return self.sendRpcRequest(Hash, buf_writter.getWritten());
 }
 /// Waits until a transaction gets mined and the receipt can be grabbed.
 /// This is retry based on either the amount of `confirmations` given.
@@ -743,11 +890,18 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations:
 ///
 /// RPC Method: [`eth_uninstallFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_uninstallfilter)
 pub fn uninstalllFilter(self: *PubClient, id: usize) !bool {
-    const request: EthereumRequest(struct { usize }) = .{ .params = .{id}, .method = .eth_uninstallFilter, .id = self.chain_id };
+    const request: EthereumRequest(struct { usize }) = .{
+        .params = .{id},
+        .method = .eth_uninstallFilter,
+        .id = self.chain_id,
+    };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    return self.sendRpcRequest(bool, req_body);
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    return self.sendRpcRequest(bool, buf_writter.getWritten());
 }
 /// Switch the client network and chainId.
 /// Invalidates all of the client connections and pointers.
@@ -782,67 +936,113 @@ pub fn switchNetwork(self: *PubClient, new_chain_id: Chains, new_url: []const u8
 
 fn sendBlockNumberRequest(self: *PubClient, opts: BlockNumberRequest, method: EthereumRpcMethods) !usize {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
-    const request = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { u64 }) = .{ .params = .{number}, .method = method, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { BalanceBlockTag }) = .{ .params = .{tag}, .method = method, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(request);
 
-    return self.sendRpcRequest(usize, request);
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { u64 }) = .{
+            .params = .{number},
+            .method = method,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { BalanceBlockTag }) = .{
+            .params = .{tag},
+            .method = method,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+
+    return self.sendRpcRequest(usize, buf_writter.getWritten());
 }
 
 fn sendBlockHashRequest(self: *PubClient, block_hash: Hash, method: EthereumRpcMethods) !usize {
-    const request: EthereumRequest(struct { Hash }) = .{ .params = .{block_hash}, .method = method, .id = self.chain_id };
+    const request: EthereumRequest(struct { Hash }) = .{
+        .params = .{block_hash},
+        .method = method,
+        .id = self.chain_id,
+    };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-    defer self.allocator.free(req_body);
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    return self.sendRpcRequest(usize, req_body);
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    return self.sendRpcRequest(usize, buf_writter.getWritten());
 }
 
 fn sendAddressRequest(self: *PubClient, comptime T: type, opts: BalanceRequest, method: EthereumRpcMethods) !T {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
-    const request = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { Address, u64 }) = .{ .params = .{ opts.address, number }, .method = method, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
+    var request_buffer: [2 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-        const request: EthereumRequest(struct { Address, BalanceBlockTag }) = .{ .params = .{ opts.address, tag }, .method = method, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(request);
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { Address, u64 }) = .{
+            .params = .{ opts.address, number },
+            .method = method,
+            .id = self.chain_id,
+        };
 
-    return self.sendRpcRequest(T, request);
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { Address, BalanceBlockTag }) = .{
+            .params = .{ opts.address, tag },
+            .method = method,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+
+    return self.sendRpcRequest(T, buf_writter.getWritten());
 }
 
 fn sendBasicRequest(self: *PubClient, comptime T: type, method: EthereumRpcMethods) !T {
-    const request: EthereumRequest(Tuple(&[_]type{})) = .{ .params = .{}, .method = method, .id = self.chain_id };
+    const request: EthereumRequest(Tuple(&[_]type{})) = .{
+        .params = .{},
+        .method = method,
+        .id = self.chain_id,
+    };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
-    defer self.allocator.free(req_body);
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    return self.sendRpcRequest(T, req_body);
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    return self.sendRpcRequest(T, buf_writter.getWritten());
 }
 
 fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, opts: BlockNumberRequest, method: EthereumRpcMethods) !T {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
-    const request = request: {
-        if (opts.block_number) |number| {
-            const request: EthereumRequest(struct { EthCall, u64 }) = .{ .params = .{ call_object, number }, .method = method, .id = self.chain_id };
-            break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-        }
-        const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{ .params = .{ call_object, tag }, .method = method, .id = self.chain_id };
-        break :request try std.json.stringifyAlloc(self.allocator, request, .{});
-    };
-    defer self.allocator.free(request);
 
-    return self.sendRpcRequest(T, request);
+    var request_buffer: [8 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    if (opts.block_number) |number| {
+        const request: EthereumRequest(struct { EthCall, u64 }) = .{
+            .params = .{ call_object, number },
+            .method = method,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    } else {
+        const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{
+            .params = .{ call_object, tag },
+            .method = method,
+            .id = self.chain_id,
+        };
+
+        try std.json.stringify(request, .{}, buf_writter.writer());
+    }
+
+    return self.sendRpcRequest(T, buf_writter.getWritten());
 }
 /// Writes request to RPC server and parses the response according to the provided type.
 /// Handles 429 errors but not the rest.

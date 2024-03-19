@@ -1208,7 +1208,7 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
         try self.write(req_body);
         switch (self.rpc_channel.get()) {
             .hex_event => |hex| return hex.result,
-            .hash_event => |hash| return try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash.result)}),
+            .hash_event => |hash| return @constCast(hash.result[0..]),
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a hex_event or hash_event", .{@tagName(eve)});

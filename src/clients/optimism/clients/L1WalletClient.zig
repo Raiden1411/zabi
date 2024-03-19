@@ -90,7 +90,7 @@ pub fn WalletL1Client(client_type: Clients) type {
         pub fn prepareDepositTransaction(self: *WalletL1, deposit_envelope: DepositEnvelope) !DepositData {
             const mint = deposit_envelope.mint orelse 0;
             const value = deposit_envelope.value orelse 0;
-            const data = deposit_envelope.data orelse "";
+            const data = deposit_envelope.data orelse @constCast("");
 
             if (deposit_envelope.creation and deposit_envelope.to != null)
                 return error.CreatingContractToKnowAddress;
@@ -138,16 +138,13 @@ pub fn WalletL1Client(client_type: Clients) type {
             });
             defer self.op_client.allocator.free(data);
 
-            const hex_data = try std.fmt.allocPrint(self.op_client.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(data)});
-            defer self.op_client.allocator.free(hex_data);
-
-            const gas = try self.estimateDepositTransaction(hex_data);
+            const gas = try self.estimateDepositTransaction(data);
 
             const call: LondonEthCall = .{
                 .to = self.op_client.contracts.portalAddress,
                 .from = address,
                 .gas = gas,
-                .data = hex_data,
+                .data = data,
                 .value = deposit_data.value,
             };
 
@@ -155,7 +152,7 @@ pub fn WalletL1Client(client_type: Clients) type {
 
             const tx: LondonTransactionEnvelope = .{
                 .gas = gas,
-                .data = hex_data,
+                .data = data,
                 .to = self.op_client.contracts.portalAddress,
                 .value = deposit_data.value,
                 .accessList = &.{},
@@ -181,10 +178,7 @@ pub fn WalletL1Client(client_type: Clients) type {
             const signed_serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = envelope }, signed);
             defer self.op_client.allocator.free(signed_serialized);
 
-            const hexed = try std.fmt.allocPrint(self.op_client.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(signed_serialized)});
-            defer self.op_client.allocator.free(hexed);
-
-            const tx_hash = try self.op_client.rpc_client.sendRawTransaction(hexed);
+            const tx_hash = try self.op_client.rpc_client.sendRawTransaction(signed_serialized);
             self.wallet_nonce += 1;
 
             return tx_hash;

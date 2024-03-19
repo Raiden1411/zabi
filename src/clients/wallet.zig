@@ -19,7 +19,6 @@ const Chains = types.PublicChains;
 const KZG4844 = ckzg4844.KZG4844;
 const LondonEthCall = transaction.LondonEthCall;
 const LegacyEthCall = transaction.LegacyEthCall;
-const Hex = types.Hex;
 const Hash = types.Hash;
 const InitOptsHttp = PubClient.InitOptions;
 const InitOptsWs = WebSocketClient.InitOptions;
@@ -537,9 +536,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             const signed = try self.signer.sign(hash_buffer);
             const serialized_signed = try serialize.serializeTransaction(self.allocator, tx, signed);
 
-            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(serialized_signed)});
-
-            return self.pub_client.sendRawTransaction(hex);
+            return self.pub_client.sendRawTransaction(serialized_signed);
         }
         /// Prepares, asserts, signs and sends the transaction via `eth_sendRawTransaction`.
         /// If any envelope is in the envelope pool it will use that instead in a LIFO order
@@ -576,9 +573,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             const signed = try self.signer.sign(hash_buffer);
             const serialized_signed = try serialize.serializeCancunTransactionWithBlobs(self.allocator, prepared, signed, blobs, trusted_setup);
 
-            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(serialized_signed)});
-
-            return self.pub_client.sendRawTransaction(hex);
+            return self.pub_client.sendRawTransaction(serialized_signed);
         }
         /// Sends blob transaction to the network
         /// This uses and already prepared sidecar.
@@ -598,9 +593,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             const signed = try self.signer.sign(hash_buffer);
             const serialized_signed = try serialize.serializeCancunTransactionWithSidecars(self.allocator, prepared, signed, sidecars);
 
-            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(serialized_signed)});
-
-            return self.pub_client.sendRawTransaction(hex);
+            return self.pub_client.sendRawTransaction(serialized_signed);
         }
         /// Waits until the transaction gets mined and we can grab the receipt.
         /// If fail if the retry counter is excedded.

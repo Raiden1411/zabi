@@ -19,7 +19,7 @@ const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
 const UnionParser = meta.json.UnionParser;
 
-pub const Hex = []const u8;
+pub const Hex = []u8;
 pub const Gwei = u64;
 pub const Wei = u256;
 pub const Hash = [32]u8;

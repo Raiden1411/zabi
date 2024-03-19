@@ -14,20 +14,6 @@ const StructToTupleType = meta.StructToTupleType;
 /// Serializes an OP deposit transaction
 /// Caller owns the memory
 pub fn serializeDepositTransaction(allocator: Allocator, tx: DepositTransaction) ![]u8 {
-    const data: ?Hex = data: {
-        if (tx.data) |hex_data| {
-            const slice = if (std.mem.startsWith(u8, hex_data, "0x")) hex_data[2..] else break :data hex_data[0..];
-
-            const buffer = try allocator.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
-
-            _ = try std.fmt.hexToBytes(buffer, slice);
-
-            break :data buffer;
-        } else break :data null;
-    };
-    defer if (data) |val| if (tx.data.?[1] == 'x') allocator.free(val);
-
-    // zig fmt: off
     const envelope: StructToTupleType(DepositTransaction) = .{
         tx.sourceHash,
         tx.from,
@@ -36,9 +22,8 @@ pub fn serializeDepositTransaction(allocator: Allocator, tx: DepositTransaction)
         tx.value,
         tx.gas,
         tx.isSystemTx,
-        data
+        tx.data,
     };
-    // zig fmt: on
 
     const encoded_sig = try rlp.encodeRlp(allocator, .{envelope});
     defer allocator.free(encoded_sig);
@@ -72,7 +57,7 @@ test "With From" {
 }
 
 test "With Data" {
-    const encoded = try serializeDepositTransaction(testing.allocator, .{ .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), .sourceHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"), .data = "0x1234", .to = null, .isSystemTx = false, .mint = 0, .gas = 0, .value = 0 });
+    const encoded = try serializeDepositTransaction(testing.allocator, .{ .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), .sourceHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"), .data = @constCast(&[_]u8{ 0x12, 0x34 }), .to = null, .isSystemTx = false, .mint = 0, .gas = 0, .value = 0 });
     defer testing.allocator.free(encoded);
 
     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});

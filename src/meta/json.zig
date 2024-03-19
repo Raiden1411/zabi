@@ -182,8 +182,26 @@ pub fn RequestParser(comptime T: type) type {
 
                             try valueStart(stream_writer);
                             if (ptr_info.child == u8) {
-                                try std.json.encodeJsonString(value, .{}, stream_writer.stream);
-                                stream_writer.next_punctuation = .comma;
+                                if (ptr_info.is_const) {
+                                    try std.json.encodeJsonString(value, .{}, stream_writer.stream);
+                                    stream_writer.next_punctuation = .comma;
+                                } else {
+                                    // We assume that non const u8 slices are to be hex encoded.
+                                    try stream_writer.stream.writeByte('\"');
+                                    try stream_writer.stream.writeAll("0x");
+
+                                    var buf: [2]u8 = undefined;
+
+                                    const charset = "0123456789abcdef";
+                                    for (value) |c| {
+                                        buf[0] = charset[c >> 4];
+                                        buf[1] = charset[c & 15];
+                                        try stream_writer.stream.writeAll(&buf);
+                                    }
+
+                                    try stream_writer.stream.writeByte('\"');
+                                    stream_writer.next_punctuation = .comma;
+                                }
                             } else {
                                 try stream_writer.stream.writeByte('[');
                                 stream_writer.next_punctuation = .none;
@@ -431,7 +449,17 @@ pub fn RequestParser(comptime T: type) type {
                                 .string => |str| {
                                     if (ptr_info.child != u8) return error.UnexpectedToken;
 
-                                    return str;
+                                    if (ptr_info.is_const) return str;
+
+                                    if (str.len & 1 != 0)
+                                        return error.InvalidCharacter;
+
+                                    const slice = if (std.mem.startsWith(u8, str, "0x")) str[2..] else str[0..];
+                                    const result = try alloc.alloc(u8, @divExact(slice.len, 2));
+
+                                    _ = std.fmt.hexToBytes(result, slice) catch return error.UnexpectedToken;
+
+                                    return result;
                                 },
                                 else => return error.UnexpectedToken,
                             }
@@ -577,8 +605,18 @@ pub fn RequestParser(comptime T: type) type {
                                         }
                                     } else {
                                         // Have to allocate to get a mutable copy.
-                                        switch (try source.nextAllocMax(alloc, .alloc_always, alloc.max_value_len.?)) {
-                                            .allocated_string => |slice| return slice,
+                                        switch (try source.nextAllocMax(alloc, opts.allocate.?, alloc.max_value_len.?)) {
+                                            inline .string, .allocated_string => |str| {
+                                                if (str.len & 1 != 0)
+                                                    return error.InvalidHexString;
+
+                                                const slice = if (std.mem.startsWith(u8, str, "0x")) str[2..] else str[0..];
+                                                const result = try alloc.alloc(u8, @divExact(slice.len, 2));
+
+                                                _ = std.fmt.hexToBytes(result, slice);
+
+                                                return result;
+                                            },
                                             else => unreachable,
                                         }
                                     }

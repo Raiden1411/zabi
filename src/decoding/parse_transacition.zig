@@ -105,9 +105,20 @@ pub fn parseEip4844Transaction(allocator: Allocator, serialized: []const u8) !Ca
     // zig fmt: on
 
     const list = try parseAccessList(allocator, access_list);
-    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
 
-    return .{ .chainId = chainId, .nonce = nonce, .maxPriorityFeePerGas = max_priority, .maxFeePerGas = max_fee, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list, .maxFeePerBlobGas = max_blob_gas, .blobVersionedHashes = blob_hashes };
+    return .{
+        .chainId = chainId,
+        .nonce = nonce,
+        .maxPriorityFeePerGas = max_priority,
+        .maxFeePerGas = max_fee,
+        .gas = gas,
+        .to = address,
+        .value = value,
+        .data = data,
+        .accessList = list,
+        .maxFeePerBlobGas = max_blob_gas,
+        .blobVersionedHashes = blob_hashes,
+    };
 }
 /// Parses unsigned serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseEip1559Transaction(allocator: Allocator, serialized: []const u8) !LondonTransactionEnvelope {
@@ -127,9 +138,18 @@ pub fn parseEip1559Transaction(allocator: Allocator, serialized: []const u8) !Lo
     // zig fmt: on
 
     const list = try parseAccessList(allocator, access_list);
-    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
 
-    return .{ .chainId = chainId, .nonce = nonce, .maxPriorityFeePerGas = max_priority, .maxFeePerGas = max_fee, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list };
+    return .{
+        .chainId = chainId,
+        .nonce = nonce,
+        .maxPriorityFeePerGas = max_priority,
+        .maxFeePerGas = max_fee,
+        .gas = gas,
+        .to = address,
+        .value = value,
+        .data = data,
+        .accessList = list,
+    };
 }
 
 /// Parses unsigned serialized eip2930 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
@@ -149,9 +169,17 @@ pub fn parseEip2930Transaction(allocator: Allocator, serialized: []const u8) !Be
     // zig fmt: on
 
     const list = try parseAccessList(allocator, access_list);
-    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
 
-    return .{ .chainId = chainId, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list };
+    return .{
+        .chainId = chainId,
+        .nonce = nonce,
+        .gasPrice = gas_price,
+        .gas = gas,
+        .to = address,
+        .value = value,
+        .data = data,
+        .accessList = list,
+    };
 }
 
 /// Parses unsigned serialized legacy transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
@@ -165,9 +193,14 @@ pub fn parseLegacyTransaction(allocator: Allocator, serialized: []const u8) !Leg
     const data = try rlp.decodeRlp(allocator, LegacyEnvelope, serialized);
     // zig fmt: on
 
-    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
-
-    return .{ .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = address, .value = value, .data = data_hex };
+    return .{
+        .nonce = nonce,
+        .gasPrice = gas_price,
+        .gas = gas,
+        .to = address,
+        .value = value,
+        .data = data,
+    };
 }
 
 /// Parses signed serialized transactions. Creates and arena to manage memory.
@@ -233,9 +266,22 @@ pub fn parseSignedEip4844Transaction(allocator: Allocator, serialized: []const u
 
     const list = try parseAccessList(allocator, access_list);
 
-    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
-
-    return .{ .chainId = chainId, .nonce = nonce, .maxPriorityFeePerGas = max_priority, .maxFeePerGas = max_fee, .maxFeePerBlobGas = max_blob_gas, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list, .blobVersionedHashes = blob_hashes, .r = r, .s = s, .v = v };
+    return .{
+        .chainId = chainId,
+        .nonce = nonce,
+        .maxPriorityFeePerGas = max_priority,
+        .maxFeePerGas = max_fee,
+        .maxFeePerBlobGas = max_blob_gas,
+        .gas = gas,
+        .to = address,
+        .value = value,
+        .data = data,
+        .accessList = list,
+        .blobVersionedHashes = blob_hashes,
+        .r = r,
+        .s = s,
+        .v = v,
+    };
 }
 /// Parses signed serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseSignedEip1559Transaction(allocator: Allocator, serialized: []const u8) !LondonTransactionEnvelopeSigned {
@@ -259,9 +305,20 @@ pub fn parseSignedEip1559Transaction(allocator: Allocator, serialized: []const u
 
     const list = try parseAccessList(allocator, access_list);
 
-    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
-
-    return .{ .chainId = chainId, .nonce = nonce, .maxPriorityFeePerGas = max_priority, .maxFeePerGas = max_fee, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list, .r = r, .s = s, .v = v };
+    return .{
+        .chainId = chainId,
+        .nonce = nonce,
+        .maxPriorityFeePerGas = max_priority,
+        .maxFeePerGas = max_fee,
+        .gas = gas,
+        .to = address,
+        .value = value,
+        .data = data,
+        .accessList = list,
+        .r = r,
+        .s = s,
+        .v = v,
+    };
 }
 
 /// Parses signed serialized eip2930 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
@@ -285,9 +342,19 @@ pub fn parseSignedEip2930Transaction(allocator: Allocator, serialized: []const u
 
     const list = try parseAccessList(allocator, access_list);
 
-    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
-
-    return .{ .chainId = chainId, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = address, .value = value, .data = data_hex, .accessList = list, .r = r, .s = s, .v = v };
+    return .{
+        .chainId = chainId,
+        .nonce = nonce,
+        .gasPrice = gas_price,
+        .gas = gas,
+        .to = address,
+        .value = value,
+        .data = data,
+        .accessList = list,
+        .r = r,
+        .s = s,
+        .v = v,
+    };
 }
 
 /// Parses signed serialized legacy transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
@@ -304,24 +371,54 @@ pub fn parseSignedLegacyTransaction(allocator: Allocator, serialized: []const u8
     const s = try rlp.decodeRlp(allocator, LegacyEnvelopeSigned, serialized);
     // zig fmt: on
 
-    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
-
     const chainId = if (v > 0 and r.len == 0 and s.len == 0) v else 0;
 
     if (chainId != 0)
-        return .{ .chainId = chainId, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = address, .value = value, .data = data_hex, .r = r, .s = s, .v = v };
+        return .{
+            .chainId = chainId,
+            .nonce = nonce,
+            .gasPrice = gas_price,
+            .gas = gas,
+            .to = address,
+            .value = value,
+            .data = data,
+            .r = r,
+            .s = s,
+            .v = v,
+        };
 
     if (v < 0) return error.InvalidRecoveryId;
 
     const recover_with_id = @divExact(v - 35, 2);
 
     if (recover_with_id > 0)
-        return .{ .chainId = recover_with_id, .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = address, .value = value, .data = data_hex, .r = r, .s = s, .v = v };
+        return .{
+            .chainId = recover_with_id,
+            .nonce = nonce,
+            .gasPrice = gas_price,
+            .gas = gas,
+            .to = address,
+            .value = value,
+            .data = data,
+            .r = r,
+            .s = s,
+            .v = v,
+        };
 
     if (v != 27 or v != 28)
         return error.InvalidRecoveryId;
 
-    return .{ .nonce = nonce, .gasPrice = gas_price, .gas = gas, .to = address, .value = value, .data = data_hex, .r = r, .s = s, .v = v };
+    return .{
+        .nonce = nonce,
+        .gasPrice = gas_price,
+        .gas = gas,
+        .to = address,
+        .value = value,
+        .data = data,
+        .r = r,
+        .s = s,
+        .v = v,
+    };
 }
 
 /// Parses serialized transaction accessLists. Recommend to use an arena or similar otherwise its expected to leak memory.
@@ -415,7 +512,7 @@ test "Base eip1559 with accessList" {
 
 test "Base eip1559 with data" {
     const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
-    const tx: LondonTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = "0x1234", .accessList = &.{} };
+    const tx: LondonTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = @constCast(&[_]u8{ 0x12, 0x34 }), .accessList = &.{} };
     const base = try serialize.serializeTransaction(testing.allocator, .{ .london = tx }, null);
     defer testing.allocator.free(base);
 
@@ -486,7 +583,7 @@ test "Base eip2930 with accessList" {
 
 test "Base eip2930 with data" {
     const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
-    const tx: BerlinTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = "0x1234", .accessList = &.{} };
+    const tx: BerlinTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = @constCast(&[_]u8{ 0x12, 0x34 }), .accessList = &.{} };
     const base = try serialize.serializeTransaction(testing.allocator, .{ .berlin = tx }, null);
     defer testing.allocator.free(base);
 
@@ -545,7 +642,7 @@ test "Base legacy with gas" {
 
 test "Base legacy with data" {
     const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
-    const tx: LegacyTransactionEnvelope = .{ .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = "0x1234" };
+    const tx: LegacyTransactionEnvelope = .{ .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = @constCast(&[_]u8{ 0x12, 0x34 }) };
     const base = try serialize.serializeTransaction(testing.allocator, .{ .legacy = tx }, null);
     defer testing.allocator.free(base);
 

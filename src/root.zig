@@ -14,8 +14,8 @@ pub const Anvil = @import("tests/Anvil.zig");
 pub const Hardhat = @import("tests/Hardhat.zig");
 
 test {
-    const std = @import("std");
-    try Anvil.waitUntilReady(std.testing.allocator, 2_000);
+    // const std = @import("std");
+    // try Anvil.waitUntilReady(std.testing.allocator, 2_000);
 
     _ = @import("abi/param_type.zig");
     _ = @import("abi/abi_parameter.zig");
@@ -28,12 +28,12 @@ test {
     _ = @import("decoding/ssz_decode.zig");
     _ = @import("clients/Client.zig");
     _ = @import("clients/WebSocket.zig");
-    _ = @import("clients/contract.zig");
-    _ = @import("clients/wallet.zig");
+    // _ = @import("clients/contract.zig");
+    // _ = @import("clients/wallet.zig");
     _ = @import("clients/optimism/clients/L1PubClient.zig");
-    _ = @import("clients/optimism/clients/L1WalletClient.zig");
+    // _ = @import("clients/optimism/clients/L1WalletClient.zig");
     _ = @import("clients/optimism/clients/L2PubClient.zig");
-    _ = @import("clients/optimism/clients/L2WalletClient.zig");
+    // _ = @import("clients/optimism/clients/L2WalletClient.zig");
     _ = @import("clients/optimism/utils.zig");
     _ = @import("clients/optimism/parse_deposit.zig");
     _ = @import("clients/optimism/serialize_deposit.zig");

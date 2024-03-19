@@ -89,33 +89,32 @@ pub fn L2Client(comptime client_type: Clients) type {
         /// Returns the L1 gas used to execute L2 transactions
         pub fn estimateL1Gas(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
             const serialized = try serialize.serializeTransaction(self.allocator, .{ .london = london_envelope }, null);
-            const serialize_hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(serialized)});
-            defer self.allocator.free(serialize_hex);
+            defer self.allocator.free(serialized);
 
-            const encoded = try abi_items.get_l1_gas_func.encode(self.allocator, .{serialize_hex});
-            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-            defer self.allocator.free(hex);
+            const encoded = try abi_items.get_l1_gas_func.encode(self.allocator, .{serialized});
+            defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = self.contracts.gasPriceOracle,
-                .data = hex,
+                .data = encoded,
             } }, .{});
 
-            return std.fmt.parseInt(u256, data, 0);
+            return utils.bytesToInt(u256, data);
         }
         /// Returns the L1 fee used to execute L2 transactions
         pub fn estimateL1GasFee(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
             const serialized = try serialize.serializeTransaction(self.allocator, .{ .london = london_envelope }, null);
-            const serialize_hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(serialized)});
-            defer self.allocator.free(serialize_hex);
+            defer self.allocator.free(serialized);
 
-            const encoded = try abi_items.get_l1_fee.encode(self.allocator, .{serialize_hex});
-            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-            defer self.allocator.free(hex);
+            const encoded = try abi_items.get_l1_fee.encode(self.allocator, .{serialized});
+            defer self.allocator.free(encoded);
 
-            const data = try self.rpc_client.sendEthCall(.{ .london = .{ .to = self.contracts.gasPriceOracle, .data = hex } }, .{});
+            const data = try self.rpc_client.sendEthCall(.{ .london = .{
+                .to = self.contracts.gasPriceOracle,
+                .data = encoded,
+            } }, .{});
 
-            return std.fmt.parseInt(u256, data, 0);
+            return utils.bytesToInt(u256, data);
         }
         /// Estimates the L1 + L2 fees to execute a transaction on L2
         pub fn estimateTotalFees(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
@@ -148,14 +147,14 @@ pub fn L2Client(comptime client_type: Clients) type {
         pub fn getBaseL1Fee(self: *L2) !Wei {
             // Selector for l1BaseFee();
             // We can get away with it since the abi has no input args.
-            const selector: []const u8 = "0x519b4bd3";
+            const selector: []u8 = @constCast(&[_]u8{ 0x51, 0x9b, 0x4b, 0xd3 });
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = self.contracts.gasPriceOracle,
                 .data = selector,
             } }, .{});
 
-            return std.fmt.parseInt(u256, data, 0);
+            return utils.bytesToInt(u256, data);
         }
         /// Gets the decoded withdrawl event logs from a given transaction receipt hash.
         pub fn getWithdrawMessages(self: *L2, tx_hash: Hash) !Message {
@@ -174,18 +173,18 @@ pub fn L2Client(comptime client_type: Clients) type {
                 const topic_hash: Hash = log.topics[0] orelse return error.ExpectedTopicData;
                 if (std.mem.eql(u8, &hash, &topic_hash)) {
                     const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.message_passed_params, log.data, .{});
-                    defer decoded.deinit();
 
                     const decoded_logs = try decoder_logs.decodeLogsComptime(abi_items.message_passed_indexed_params, log.topics);
 
-                    try list.append(.{
+                    try list.ensureUnusedCapacity(1);
+                    list.appendAssumeCapacity(.{
                         .nonce = decoded_logs[1],
                         .target = decoded_logs[2],
                         .sender = decoded_logs[3],
-                        .value = decoded.values[0],
-                        .gasLimit = decoded.values[1],
-                        .data = decoded.values[2],
-                        .withdrawalHash = decoded.values[3],
+                        .value = decoded[0],
+                        .gasLimit = decoded[1],
+                        .data = decoded[2],
+                        .withdrawalHash = decoded[3],
                     });
                 }
             }

@@ -196,7 +196,8 @@ pub fn AbiParametersToPrimative(comptime paramters: []const AbiParameter) type {
 /// that the components array field has. If this field is null compilation will fail.
 pub fn AbiParameterToPrimative(comptime param: AbiParameter) type {
     return switch (param.type) {
-        .string, .bytes => []const u8,
+        .string => []const u8,
+        .bytes => []u8,
         .address => [20]u8,
         .fixedBytes => |fixed| [fixed]u8,
         .bool => bool,
@@ -241,7 +242,7 @@ test "Meta" {
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .fixedBytes = 31 }, .name = "foo" }), [31]u8);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .uint = 120 }, .name = "foo" }), u120);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .int = 48 }, .name = "foo" }), i48);
-    try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .bytes = {} }, .name = "foo" }), []const u8);
+    try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .bytes = {} }, .name = "foo" }), []u8);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .address = {} }, .name = "foo" }), [20]u8);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .bool = {} }, .name = "foo" }), bool);
     try testing.expectEqual(AbiParameterToPrimative(.{ .type = .{ .dynamicArray = &.{ .bool = {} } }, .name = "foo" }), []const bool);

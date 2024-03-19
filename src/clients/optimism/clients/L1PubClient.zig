@@ -90,27 +90,26 @@ pub fn L1Client(comptime client_type: Clients) type {
         /// Returns if a withdrawal has finalized or not.
         pub fn getFinalizedWithdrawals(self: *L1, withdrawal_hash: Hash) !bool {
             const encoded = try abi_items.get_finalized_withdrawal.encode(self.allocator, .{withdrawal_hash});
-            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-            defer self.allocator.free(hex);
+            defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = self.contracts.portalAddress,
-                .data = hex,
+                .data = encoded,
             } }, .{});
 
-            return try std.fmt.parseInt(u1, data, 0) != 0;
+            return data[data.len - 1] != 0;
         }
         /// Gets the latest proposed L2 block number from the Oracle.
         pub fn getLatestProposedL2BlockNumber(self: *L1) !u64 {
             // Selector for `latestBlockNumber`
-            const selector: []const u8 = "0x4599c788";
+            const selector: []u8 = @constCast(&[_]u8{ 0x45, 0x99, 0xc7, 0x88 });
 
             const block = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = self.contracts.l2OutputOracle,
                 .data = selector,
             } }, .{});
 
-            return try std.fmt.parseInt(u64, block, 0);
+            return utils.bytesToInt(u64, block);
         }
 
         pub fn getL2HashesForDepositTransaction(self: *L1, tx_hash: Hash) ![]const Hash {
@@ -137,53 +136,57 @@ pub fn L1Client(comptime client_type: Clients) type {
             const index = try self.getL2OutputIndex(l2_block_number);
 
             const encoded = try abi_items.get_l2_output_func.encode(self.allocator, .{index});
-            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-            defer self.allocator.free(hex);
+            defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = self.contracts.l2OutputOracle,
-                .data = hex,
+                .data = encoded,
             } }, .{});
 
             const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.get_l2_output_func.outputs, data, .{});
-            defer decoded.deinit();
 
-            const l2_output = decoded.values[0];
+            const l2_output = decoded[0];
 
-            return .{ .outputIndex = index, .outputRoot = l2_output.outputRoot, .timestamp = l2_output.timestamp, .l2BlockNumber = l2_output.l2BlockNumber };
+            return .{
+                .outputIndex = index,
+                .outputRoot = l2_output.outputRoot,
+                .timestamp = l2_output.timestamp,
+                .l2BlockNumber = l2_output.l2BlockNumber,
+            };
         }
         /// Calls to the L2OutputOracle on L1 to get the output index.
         pub fn getL2OutputIndex(self: *L1, l2_block_number: u256) !u256 {
             const encoded = try abi_items.get_l2_index_func.encode(self.allocator, .{l2_block_number});
-            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-            defer self.allocator.free(hex);
+            defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = self.contracts.l2OutputOracle,
-                .data = hex,
+                .data = encoded,
             } }, .{});
-            return std.fmt.parseInt(u256, data, 0);
+            return utils.bytesToInt(u256, data);
         }
         /// Gets a proven withdrawl.
         pub fn getProvenWithdrawals(self: *L1, withdrawal_hash: Hash) !ProvenWithdrawal {
             const encoded = try abi_items.get_proven_withdrawal.encode(self.allocator, .{withdrawal_hash});
-            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-            defer self.allocator.free(hex);
+            defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = self.contracts.portalAddress,
-                .data = hex,
+                .data = encoded,
             } }, .{});
 
             const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.get_proven_withdrawal.outputs, data, .{});
-            defer decoded.deinit();
 
-            const proven = decoded.values[0];
+            const proven = decoded[0];
 
             if (proven.timestamp == 0)
                 return error.InvalidWithdrawalHash;
 
-            return .{ .outputRoot = proven.outputRoot, .timestamp = proven.timestamp, .l2OutputIndex = proven.l2OutputIndex };
+            return .{
+                .outputRoot = proven.outputRoot,
+                .timestamp = proven.timestamp,
+                .l2OutputIndex = proven.l2OutputIndex,
+            };
         }
         /// Gets the amount of time to wait in ms until the next output is posted.
         pub fn getSecondsToNextL2Output(self: *L1, latest_l2_block: u64) !u128 {
@@ -192,22 +195,22 @@ pub fn L1Client(comptime client_type: Clients) type {
             if (latest_l2_block < latest)
                 return error.InvalidBlockNumber;
 
-            const selector: []const u8 = "0x529933df";
+            const selector: []u8 = @constCast(&[_]u8{ 0x52, 0x99, 0x33, 0xdf });
 
             const submission = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = self.contracts.l2OutputOracle,
                 .data = selector,
             } }, .{});
 
-            const interval = try std.fmt.parseInt(i128, submission, 0);
+            const interval = try utils.bytesToInt(i128, submission);
 
-            const selector_time: []const u8 = "0x002134cc";
+            const selector_time: []u8 = @constCast(&[_]u8{ 0x00, 0x21, 0x34, 0xcc });
             const block = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = self.contracts.l2OutputOracle,
                 .data = selector_time,
             } }, .{});
 
-            const time = try std.fmt.parseInt(i128, block, 0);
+            const time = try utils.bytesToInt(i128, block);
 
             const block_until: i128 = interval - (latest_l2_block - latest);
 
@@ -217,13 +220,13 @@ pub fn L1Client(comptime client_type: Clients) type {
         pub fn getSecondsToFinalize(self: *L1, withdrawal_hash: Hash) !u64 {
             const proven = try self.getProvenWithdrawals(withdrawal_hash);
 
-            const selector: []const u8 = "0xf4daa291";
+            const selector: []u8 = @constCast(&[_]u8{ 0xf4, 0xda, 0xa2, 0x91 });
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = self.contracts.l2OutputOracle,
                 .data = selector,
             } }, .{});
 
-            const time = try std.fmt.parseInt(i64, data, 0);
+            const time = try utils.bytesToInt(i64, data);
             const time_since: i64 = @divFloor(std.time.timestamp(), 1000) - @as(i64, @truncate(@as(i128, @intCast(proven.timestamp))));
 
             return if (time_since < 0) @intCast(0) else @intCast(time - time_since);
@@ -250,7 +253,6 @@ pub fn L1Client(comptime client_type: Clients) type {
                         return error.UnexpectedNullIndex;
 
                     const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.transaction_deposited_event_data, log_event.data, .{});
-                    defer decoded.deinit();
 
                     const decoded_logs = try decoder_logs.decodeLogsComptime(abi_items.transaction_deposited_event_args, log_event.topics);
 
@@ -258,7 +260,7 @@ pub fn L1Client(comptime client_type: Clients) type {
                         .from = decoded_logs[1],
                         .to = decoded_logs[2],
                         .version = decoded_logs[3],
-                        .opaqueData = try self.allocator.dupe(u8, decoded.values[0]),
+                        .opaqueData = decoded[0],
                         .logIndex = log_event.logIndex.?,
                         .blockHash = log_event.blockHash.?,
                     });
@@ -285,7 +287,6 @@ pub fn L1Client(comptime client_type: Clients) type {
 
                 if (std.mem.eql(u8, &hash, &hash_topic)) {
                     const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.message_passed_params, logs.data, .{});
-                    defer decoded.deinit();
 
                     const decoded_logs = try decoder_logs.decodeLogsComptime(abi_items.message_passed_indexed_params, logs.topics);
 
@@ -293,10 +294,10 @@ pub fn L1Client(comptime client_type: Clients) type {
                         .nonce = decoded_logs[1],
                         .target = decoded_logs[2],
                         .sender = decoded_logs[3],
-                        .value = decoded.values[0],
-                        .gasLimit = decoded.values[1],
-                        .data = decoded.values[2],
-                        .withdrawalHash = decoded.values[3],
+                        .value = decoded[0],
+                        .gasLimit = decoded[1],
+                        .data = decoded[2],
+                        .withdrawalHash = decoded[3],
                     });
                 }
             }

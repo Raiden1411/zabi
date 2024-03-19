@@ -64,21 +64,8 @@ fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelop
     defer allocator.free(prep_access);
 
     const blob_hashes: []const Hash = tx.blobVersionedHashes orelse &.{};
-    const data: ?[]u8 = data: {
-        if (tx.data) |hex_data| {
-            const slice = if (std.mem.startsWith(u8, hex_data, "0x")) hex_data[2..] else return error.ExpectedHexString;
-
-            const buffer = try allocator.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
-
-            _ = try std.fmt.hexToBytes(buffer, slice);
-
-            break :data buffer;
-        } else break :data null;
-    };
-    defer if (data) |val| allocator.free(val);
 
     if (sig) |signature| {
-        // zig fmt: off
         const envelope_signed: CancunEnvelopeSigned = .{
             tx.chainId,
             tx.nonce,
@@ -87,15 +74,14 @@ fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelop
             tx.gas,
             tx.to,
             tx.value,
-            data,
+            tx.data,
             prep_access,
             tx.maxFeePerBlobGas,
             blob_hashes,
             signature.v,
             signature.r,
-            signature.s
+            signature.s,
         };
-        // zig fmt: on
 
         const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_signed});
         defer allocator.free(encoded_sig);
@@ -108,21 +94,19 @@ fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelop
         return serialized;
     }
 
-    // zig fmt: off
-    const envelope: CancunEnvelope = .{ 
+    const envelope: CancunEnvelope = .{
         tx.chainId,
-        tx.nonce, 
+        tx.nonce,
         tx.maxPriorityFeePerGas,
         tx.maxFeePerGas,
         tx.gas,
         tx.to,
         tx.value,
-        data,
+        tx.data,
         prep_access,
         tx.maxFeePerBlobGas,
-        blob_hashes
+        blob_hashes,
     };
-    // zig fmt: on
 
     const encoded = try rlp.encodeRlp(allocator, .{envelope});
     defer allocator.free(encoded);
@@ -139,19 +123,6 @@ pub fn serializeCancunTransactionWithBlobs(allocator: Allocator, tx: CancunTrans
     const prep_access = try prepareAccessList(allocator, tx.accessList);
     defer allocator.free(prep_access);
 
-    const data: ?[]u8 = data: {
-        if (tx.data) |hex_data| {
-            const slice = if (std.mem.startsWith(u8, hex_data, "0x")) hex_data[2..] else return error.ExpectedHexString;
-
-            const buffer = try allocator.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
-
-            _ = try std.fmt.hexToBytes(buffer, slice);
-
-            break :data buffer;
-        } else break :data null;
-    };
-    defer if (data) |val| allocator.free(val);
-
     const commitments = try trusted_setup.blobsToKZGCommitment(allocator, blobs);
     defer allocator.free(commitments);
 
@@ -161,7 +132,6 @@ pub fn serializeCancunTransactionWithBlobs(allocator: Allocator, tx: CancunTrans
     const blob_hashes = tx.blobVersionedHashes orelse try trusted_setup.commitmentsToVersionedHash(allocator, commitments, null);
 
     if (sig) |signature| {
-        // zig fmt: off
         const envelope_signed: CancunSignedWrapper = .{
             tx.chainId,
             tx.nonce,
@@ -170,7 +140,7 @@ pub fn serializeCancunTransactionWithBlobs(allocator: Allocator, tx: CancunTrans
             tx.gas,
             tx.to,
             tx.value,
-            data,
+            tx.data,
             prep_access,
             tx.maxFeePerBlobGas,
             blob_hashes,
@@ -179,9 +149,8 @@ pub fn serializeCancunTransactionWithBlobs(allocator: Allocator, tx: CancunTrans
             signature.s,
             blobs,
             commitments,
-            proofs
+            proofs,
         };
-        // zig fmt: on
 
         const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_signed});
         defer allocator.free(encoded_sig);
@@ -194,24 +163,22 @@ pub fn serializeCancunTransactionWithBlobs(allocator: Allocator, tx: CancunTrans
         return serialized;
     }
 
-    // zig fmt: off
-    const envelope: CancunWrapper = .{ 
+    const envelope: CancunWrapper = .{
         tx.chainId,
-        tx.nonce, 
+        tx.nonce,
         tx.maxPriorityFeePerGas,
         tx.maxFeePerGas,
         tx.gas,
         tx.to,
         tx.value,
-        data,
+        tx.data,
         prep_access,
         tx.maxFeePerBlobGas,
         blob_hashes,
         blobs,
         commitments,
-        proofs
+        proofs,
     };
-    // zig fmt: on
 
     const encoded = try rlp.encodeRlp(allocator, .{envelope});
     defer allocator.free(encoded);
@@ -228,19 +195,6 @@ pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTr
     const prep_access = try prepareAccessList(allocator, tx.accessList);
     defer allocator.free(prep_access);
 
-    const data: ?[]u8 = data: {
-        if (tx.data) |hex_data| {
-            const slice = if (std.mem.startsWith(u8, hex_data, "0x")) hex_data[2..] else return error.ExpectedHexString;
-
-            const buffer = try allocator.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
-
-            _ = try std.fmt.hexToBytes(buffer, slice);
-
-            break :data buffer;
-        } else break :data null;
-    };
-    defer if (data) |val| allocator.free(val);
-
     var list_sidecar: std.MultiArrayList(Sidecar) = .{};
     defer list_sidecar.deinit(allocator);
 
@@ -254,7 +208,6 @@ pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTr
     const blob_hashes = tx.blobVersionedHashes orelse try trusted.commitmentsToVersionedHash(allocator, commitments, null);
 
     if (sig) |signature| {
-        // zig fmt: off
         const envelope_signed: CancunSignedWrapper = .{
             tx.chainId,
             tx.nonce,
@@ -263,7 +216,7 @@ pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTr
             tx.gas,
             tx.to,
             tx.value,
-            data,
+            tx.data,
             prep_access,
             tx.maxFeePerBlobGas,
             blob_hashes,
@@ -274,7 +227,6 @@ pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTr
             commitments,
             list_sidecar.items(.proof),
         };
-        // zig fmt: on
 
         const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_signed});
         defer allocator.free(encoded_sig);
@@ -287,16 +239,15 @@ pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTr
         return serialized;
     }
 
-    // zig fmt: off
-    const envelope: CancunWrapper = .{ 
+    const envelope: CancunWrapper = .{
         tx.chainId,
-        tx.nonce, 
+        tx.nonce,
         tx.maxPriorityFeePerGas,
         tx.maxFeePerGas,
         tx.gas,
         tx.to,
         tx.value,
-        data,
+        tx.data,
         prep_access,
         tx.maxFeePerBlobGas,
         blob_hashes,
@@ -304,7 +255,6 @@ pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTr
         commitments,
         list_sidecar.items(.proof),
     };
-    // zig fmt: on
 
     const encoded = try rlp.encodeRlp(allocator, .{envelope});
     defer allocator.free(encoded);
@@ -322,22 +272,8 @@ fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEnvelo
     const prep_access = try prepareAccessList(allocator, tx.accessList);
     defer allocator.free(prep_access);
 
-    const data: ?[]u8 = data: {
-        if (tx.data) |hex_data| {
-            const slice = if (std.mem.startsWith(u8, hex_data, "0x")) hex_data[2..] else return error.ExpectedHexString;
-
-            const buffer = try allocator.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
-
-            _ = try std.fmt.hexToBytes(buffer, slice);
-
-            break :data buffer;
-        } else break :data null;
-    };
-    defer if (data) |val| allocator.free(val);
-
     if (sig) |signature| {
-        // zig fmt: off
-        const envelope_sig: LondonEnvelopeSigned = .{ 
+        const envelope_sig: LondonEnvelopeSigned = .{
             tx.chainId,
             tx.nonce,
             tx.maxPriorityFeePerGas,
@@ -345,13 +281,12 @@ fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEnvelo
             tx.gas,
             tx.to,
             tx.value,
-            data,
+            tx.data,
             prep_access,
             signature.v,
             signature.r,
-            signature.s
+            signature.s,
         };
-        // zig fmt: on
 
         const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_sig});
         defer allocator.free(encoded_sig);
@@ -364,8 +299,7 @@ fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEnvelo
         return serialized;
     }
 
-    // zig fmt: off
-    const envelope: LondonEnvelope = .{ 
+    const envelope: LondonEnvelope = .{
         tx.chainId,
         tx.nonce,
         tx.maxPriorityFeePerGas,
@@ -373,10 +307,9 @@ fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEnvelo
         tx.gas,
         tx.to,
         tx.value,
-        data,
-        prep_access
+        tx.data,
+        prep_access,
     };
-    // zig fmt: on
 
     const encoded = try rlp.encodeRlp(allocator, .{envelope});
     defer allocator.free(encoded);
@@ -394,35 +327,20 @@ fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEnvelo
     const prep_access = try prepareAccessList(allocator, tx.accessList);
     defer allocator.free(prep_access);
 
-    const data: ?[]u8 = data: {
-        if (tx.data) |hex_data| {
-            const slice = if (std.mem.startsWith(u8, hex_data, "0x")) hex_data[2..] else return error.ExpectedHexString;
-
-            const buffer = try allocator.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
-
-            _ = try std.fmt.hexToBytes(buffer, slice);
-
-            break :data buffer;
-        } else break :data null;
-    };
-    defer if (data) |val| allocator.free(val);
-
     if (sig) |signature| {
-        // zig fmt: off
-        const envelope_sig: BerlinEnvelopeSigned = .{ 
+        const envelope_sig: BerlinEnvelopeSigned = .{
             tx.chainId,
             tx.nonce,
             tx.gasPrice,
             tx.gas,
             tx.to,
             tx.value,
-            data,
+            tx.data,
             prep_access,
             signature.v,
             signature.r,
-            signature.s
+            signature.s,
         };
-        // zig fmt: on
 
         const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_sig});
         defer allocator.free(encoded_sig);
@@ -435,18 +353,16 @@ fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEnvelo
         return serialized;
     }
 
-    // zig fmt: off
-    const envelope: BerlinEnvelope = .{ 
+    const envelope: BerlinEnvelope = .{
         tx.chainId,
         tx.nonce,
         tx.gasPrice,
         tx.gas,
         tx.to,
         tx.value,
-        data,
-        prep_access
+        tx.data,
+        prep_access,
     };
-    // zig fmt: on
 
     const encoded = try rlp.encodeRlp(allocator, .{envelope});
     defer allocator.free(encoded);
@@ -461,19 +377,6 @@ fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEnvelo
 /// Function to serialize legacy transactions.
 /// Caller ownes the memory
 fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnvelope, sig: ?Signature) ![]u8 {
-    const data: ?[]u8 = data: {
-        if (tx.data) |hex_data| {
-            const slice = if (std.mem.startsWith(u8, hex_data, "0x")) hex_data[2..] else return error.ExpectedHexString;
-
-            const buffer = try allocator.alloc(u8, if (@mod(slice.len, 2) == 0) @divExact(slice.len, 2) else slice.len);
-
-            _ = try std.fmt.hexToBytes(buffer, slice);
-
-            break :data buffer;
-        } else break :data null;
-    };
-    defer if (data) |val| allocator.free(val);
-
     if (sig) |signature| {
         const v: usize = chainId: {
             if (tx.chainId > 0) break :chainId @intCast((tx.chainId * 2) + (35 + @as(u8, @intCast(signature.v))));
@@ -492,14 +395,31 @@ fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnvelop
             break :chainId v;
         };
 
-        const envelope_sig: LegacyEnvelopeSigned = .{ tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, data, v, signature.r, signature.s };
+        const envelope_sig: LegacyEnvelopeSigned = .{
+            tx.nonce,
+            tx.gasPrice,
+            tx.gas,
+            tx.to,
+            tx.value,
+            tx.data,
+            v,
+            signature.r,
+            signature.s,
+        };
 
         const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_sig});
 
         return encoded_sig;
     }
 
-    const envelope: LegacyEnvelope = .{ tx.nonce, tx.gasPrice, tx.gas, tx.to, tx.value, data };
+    const envelope: LegacyEnvelope = .{
+        tx.nonce,
+        tx.gasPrice,
+        tx.gas,
+        tx.to,
+        tx.value,
+        tx.data,
+    };
 
     const encoded = try rlp.encodeRlp(allocator, .{envelope});
 
@@ -585,7 +505,7 @@ test "Base eip1559 with accessList" {
 
 test "Base eip1559 with data" {
     const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
-    const base = try serializeTransactionEIP1559(testing.allocator, .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = "0x1234", .accessList = &.{} }, null);
+    const base = try serializeTransactionEIP1559(testing.allocator, .{ .chainId = 1, .nonce = 69, .maxPriorityFeePerGas = try utils.parseGwei(2), .maxFeePerGas = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = @constCast(&[_]u8{ 0x12, 0x34 }), .accessList = &.{} }, null);
     defer testing.allocator.free(base);
 
     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
@@ -650,7 +570,7 @@ test "Base eip2930 with accessList" {
 
 test "Base eip2930 with data" {
     const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
-    const base = try serializeTransactionEIP2930(testing.allocator, .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = "0x1234", .accessList = &.{} }, null);
+    const base = try serializeTransactionEIP2930(testing.allocator, .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = @constCast(&[_]u8{ 0x12, 0x34 }), .accessList = &.{} }, null);
     defer testing.allocator.free(base);
 
     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
@@ -704,7 +624,7 @@ test "Base legacy with gas" {
 
 test "Base legacy with data" {
     const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
-    const base = try serializeTransactionLegacy(testing.allocator, .{ .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = "0x1234" }, null);
+    const base = try serializeTransactionLegacy(testing.allocator, .{ .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = @constCast(&[_]u8{ 0x12, 0x34 }) }, null);
     defer testing.allocator.free(base);
 
     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});

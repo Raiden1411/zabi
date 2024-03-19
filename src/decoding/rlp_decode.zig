@@ -169,7 +169,8 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                             const str_len = size - 0x80;
                             const slice = encoded[position + 1 .. position + str_len + 1];
 
-                            return .{ .consumed = str_len + 1, .data = slice };
+                            if (ptr_info.is_const) return .{ .consumed = str_len + 1, .data = slice };
+                            return .{ .consumed = str_len + 1, .data = @constCast(slice) };
                         }
                         const len_size = size - 0xb7;
                         const len = encoded[position + 1 .. position + len_size + 1];
@@ -179,7 +180,9 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
                         const parsed = try std.fmt.parseInt(usize, len_slice, 16);
 
-                        return .{ .consumed = 2 + len_size + parsed, .data = encoded[position + 1 + len_size .. position + parsed + 1 + len_size] };
+                        if (ptr_info.is_const) return .{ .consumed = 2 + len_size + parsed, .data = encoded[position + 1 + len_size .. position + parsed + 1 + len_size] };
+
+                        return .{ .consumed = 2 + len_size + parsed, .data = @constCast(encoded[position + 1 + len_size .. position + parsed + 1 + len_size]) };
                     }
                     const arr_size = encoded[position];
 

@@ -165,6 +165,22 @@ pub inline fn computeSize(int: u256) u8 {
     unreachable;
 }
 
+pub fn bytesToInt(comptime T: type, slice: []u8) !T {
+    const info = @typeInfo(T);
+    const IntType = std.meta.Int(info.Int.signedness, @max(8, info.Int.bits));
+    var x: IntType = 0;
+
+    const len: usize = slice.len - 1;
+    for (slice, 0..) |bit, i| {
+        x += std.math.shl(T, bit, (len - i) * 8);
+    }
+
+    return if (T == IntType)
+        x
+    else
+        std.math.cast(T, x) orelse return error.Overflow;
+}
+
 test "IsAddress" {
     const address = "0x407d73d8a49eeb85d32cf465507dd71d507100c1";
 
@@ -184,4 +200,11 @@ test "AddressToBytes" {
 test "HashToBytes" {
     try testing.expectError(error.InvalidHash, hashToBytes("0x000000000000000000000000"));
     try testing.expectError(error.InvalidHash, hashToBytes("000000000"));
+}
+
+test "BytesToInt" {
+    const a = try bytesToInt(u256, @constCast(&[_]u8{ 0x12, 0x34, 0x56 }));
+    const b = try std.fmt.parseInt(u256, "123456", 16);
+
+    try testing.expectEqual(a, b);
 }

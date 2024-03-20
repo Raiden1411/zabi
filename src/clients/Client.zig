@@ -831,7 +831,7 @@ pub fn sendRawTransaction(self: *PubClient, serialized_tx: Hex) !RPCResponse(Has
 /// because some nodes might be slower to sync.
 ///
 /// RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
-pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt) {
+pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations: u8) !?RPCResponse(TransactionReceipt) {
     var tx: ?RPCResponse(Transaction) = null;
     defer if (tx) |tx_res| tx_res.deinit();
 
@@ -844,14 +844,14 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations:
         error.TransactionReceiptNotFound => null,
         else => return err,
     };
-    defer if (receipt) |tx_receipt| tx_receipt.deinit();
+    errdefer if (receipt) |tx_receipt| tx_receipt.deinit();
 
     if (receipt) |tx_receipt| {
         if (confirmations == 0)
             return tx_receipt;
     }
 
-    var retries: u8 = 0;
+    var retries: u8 = if (receipt != null) 1 else 0;
     var valid_confirmations: u8 = if (receipt != null) 1 else 0;
     while (true) : (retries += 1) {
         if (retries - valid_confirmations > self.retries)

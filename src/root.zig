@@ -29,7 +29,7 @@ test {
     _ = @import("clients/Client.zig");
     // _ = @import("clients/WebSocket.zig");
     // _ = @import("clients/contract.zig");
-    // _ = @import("clients/wallet.zig");
+    _ = @import("clients/wallet.zig");
     // _ = @import("clients/optimism/clients/L1PubClient.zig");
     // _ = @import("clients/optimism/clients/L1WalletClient.zig");
     // _ = @import("clients/optimism/clients/L2PubClient.zig");

@@ -14,7 +14,6 @@ const AccessListResult = transaction.AccessListResult;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Anvil = @import("../tests/Anvil.zig");
-const ArenaAllocator = std.heap.ArenaAllocator;
 const BalanceBlockTag = block.BalanceBlockTag;
 const BalanceRequest = block.BalanceRequest;
 const Block = block.Block;
@@ -44,6 +43,7 @@ const Logs = log.Logs;
 const ProofResult = proof.ProofResult;
 const ProofBlockTag = block.ProofBlockTag;
 const ProofRequest = proof.ProofRequest;
+const RPCResponse = types.RPCResponse;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
 const Tuple = std.meta.Tuple;
@@ -87,28 +87,6 @@ retries: u8,
 uri: Uri,
 
 const PubClient = @This();
-
-pub fn RPCResponse(comptime T: type) type {
-    return struct {
-        arena: *ArenaAllocator,
-        response: T,
-
-        pub fn deinit(self: @This()) void {
-            const child_allocator = self.arena.child_allocator;
-
-            self.arena.deinit();
-
-            child_allocator.destroy(self.arena);
-        }
-
-        pub fn fromJson(arena: *ArenaAllocator, value: T) @This() {
-            return .{
-                .arena = arena,
-                .response = value,
-            };
-        }
-    };
-}
 
 /// Init the client instance. Caller must call `deinit` to free the memory.
 /// Most of the client method are replicas of the JSON RPC methods name with the `eth_` start.

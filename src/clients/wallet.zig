@@ -24,6 +24,7 @@ const InitOptsWs = WebSocketClient.InitOptions;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Mutex = std.Thread.Mutex;
 const PubClient = @import("Client.zig");
+const RPCResponse = types.RPCResponse;
 const Sidecar = ckzg4844.KZG4844.Sidecar;
 const Signer = secp256k1.Signer;
 const Signature = secp256k1.Signature;
@@ -32,8 +33,6 @@ const TransactionReceipt = transaction.TransactionReceipt;
 const TypedDataDomain = eip712.TypedDataDomain;
 const UnpreparedTransactionEnvelope = transaction.UnpreparedTransactionEnvelope;
 const WebSocketClient = @import("WebSocket.zig");
-
-const RPCResponse = PubClient.RPCResponse;
 
 /// The type of client used by the wallet instance.
 pub const WalletClients = enum { http, websocket };

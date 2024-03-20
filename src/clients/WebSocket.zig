@@ -13,7 +13,6 @@ const AccessListResult = transaction.AccessListResult;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Anvil = @import("../tests/Anvil.zig");
-const ArenaAllocator = std.heap.ArenaAllocator;
 const BalanceBlockTag = block.BalanceBlockTag;
 const BalanceRequest = block.BalanceRequest;
 const Block = block.Block;
@@ -48,6 +47,7 @@ const Mutex = std.Thread.Mutex;
 const ProofResult = proof.ProofResult;
 const ProofBlockTag = block.ProofBlockTag;
 const ProofRequest = proof.ProofRequest;
+const RPCResponse = types.RPCResponse;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
 const Tuple = std.meta.Tuple;
@@ -59,28 +59,6 @@ const WebSocketHandler = @This();
 const wslog = std.log.scoped(.ws);
 
 pub const WebSocketHandlerErrors = error{ FailedToConnect, UnsupportedSchema, InvalidChainId, FailedToGetReceipt, FailedToUnsubscribe, InvalidFilterId, InvalidEventFound, InvalidBlockRequest, InvalidLogRequest, TransactionNotFound, TransactionReceiptNotFound, InvalidHash, UnableToFetchFeeInfoFromBlock, InvalidAddress, InvalidBlockHash, InvalidBlockHashOrIndex, InvalidBlockNumberOrIndex, InvalidBlockNumber, ReachedMaxRetryLimit } || Allocator.Error || std.fmt.ParseIntError || std.Uri.ParseError || EthereumZigErrors;
-
-pub fn RPCResponse(comptime T: type) type {
-    return struct {
-        arena: *ArenaAllocator,
-        response: T,
-
-        pub fn deinit(self: @This()) void {
-            const child_allocator = self.arena.child_allocator;
-
-            self.arena.deinit();
-
-            child_allocator.destroy(self.arena);
-        }
-
-        pub fn fromJson(arena: *ArenaAllocator, value: T) @This() {
-            return .{
-                .arena = arena,
-                .response = value,
-            };
-        }
-    };
-}
 
 pub const InitOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
@@ -394,7 +372,7 @@ pub fn getCurrentSubscriptionEvent(self: *WebSocketHandler) !EthereumSubscribeEv
 /// Grabs the current base blob fee.
 ///
 /// RPC Method: [eth_blobBaseFee](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_blobbasefee)
-pub fn blobBaseFee(self: *WebSocketHandler) !Gwei {
+pub fn blobBaseFee(self: *WebSocketHandler) !RPCResponse(Gwei) {
     self.mutex.lock();
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
         .params = .{},
@@ -1642,7 +1620,8 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
         errdefer hash_message.deinit();
 
         switch (hash_message.response) {
-            .hash_event => |hash| return .{ .arena = hash_message.arena, .response = hash.result },
+            .hex_event => |hex| return .{ .arena = hash_message.arena, .response = hex.result },
+            .hash_event => |hash| return .{ .arena = hash_message.arena, .response = std.mem.bytesAsSlice(u8, @constCast(hash.result[0..])) },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a hash_event", .{@tagName(eve)});

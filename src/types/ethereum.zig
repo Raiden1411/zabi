@@ -6,6 +6,7 @@ const std = @import("std");
 const transaction = @import("transaction.zig");
 
 const AccessListResult = transaction.AccessListResult;
+const ArenaAllocator = std.heap.ArenaAllocator;
 const Block = block.Block;
 const FeeHistory = transaction.FeeHistory;
 const Log = log.Log;
@@ -95,6 +96,28 @@ pub const PublicChains = enum(usize) {
     sepolia = 11155111,
     op_sepolia = 11155420,
 };
+/// Wrapper around std.json.Parsed(T). Response for any of the RPC clients
+pub fn RPCResponse(comptime T: type) type {
+    return struct {
+        arena: *ArenaAllocator,
+        response: T,
+
+        pub fn deinit(self: @This()) void {
+            const child_allocator = self.arena.child_allocator;
+
+            self.arena.deinit();
+
+            child_allocator.destroy(self.arena);
+        }
+
+        pub fn fromJson(arena: *ArenaAllocator, value: T) @This() {
+            return .{
+                .arena = arena,
+                .response = value,
+            };
+        }
+    };
+}
 /// Zig struct representation of a RPC Request
 pub fn EthereumRequest(comptime T: type) type {
     return struct {

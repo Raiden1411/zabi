@@ -74,16 +74,14 @@ pub fn L1Client(comptime client_type: Clients) type {
 
             self.* = .{
                 .rpc_client = op_client,
-                .allocator = op_client.allocator,
+                .allocator = opts.allocator,
                 .contracts = op_contracts orelse .{},
             };
         }
         /// Frees and destroys any allocated memory
         pub fn deinit(self: *L1) void {
-            const child_allocator = self.rpc_client.arena.child_allocator;
-
             self.rpc_client.deinit();
-            child_allocator.destroy(self.rpc_client);
+            self.allocator.destroy(self.rpc_client);
 
             self.* = undefined;
         }
@@ -96,8 +94,9 @@ pub fn L1Client(comptime client_type: Clients) type {
                 .to = self.contracts.portalAddress,
                 .data = encoded,
             } }, .{});
+            defer data.deinit();
 
-            return data[data.len - 1] != 0;
+            return data.response[data.response.len - 1] != 0;
         }
         /// Gets the latest proposed L2 block number from the Oracle.
         pub fn getLatestProposedL2BlockNumber(self: *L1) !u64 {
@@ -108,17 +107,21 @@ pub fn L1Client(comptime client_type: Clients) type {
                 .to = self.contracts.l2OutputOracle,
                 .data = selector,
             } }, .{});
+            defer block.deinit();
 
-            return utils.bytesToInt(u64, block);
+            return utils.bytesToInt(u64, block.response);
         }
 
         pub fn getL2HashesForDepositTransaction(self: *L1, tx_hash: Hash) ![]const Hash {
             const deposit_data = try self.getTransactionDepositEvents(tx_hash);
+            defer self.allocator.free(deposit_data);
 
             var list = try std.ArrayList(Hash).initCapacity(self.allocator, deposit_data.len);
             errdefer list.deinit();
 
             for (deposit_data) |data| {
+                defer self.allocator.free(data.opaqueData);
+
                 try list.append(try op_utils.getL2HashFromL1DepositInfo(self.allocator, .{
                     .to = data.to,
                     .from = data.from,
@@ -142,8 +145,9 @@ pub fn L1Client(comptime client_type: Clients) type {
                 .to = self.contracts.l2OutputOracle,
                 .data = encoded,
             } }, .{});
+            defer data.deinit();
 
-            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.get_l2_output_func.outputs, data, .{});
+            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.get_l2_output_func.outputs, data.response, .{});
 
             const l2_output = decoded[0];
 
@@ -163,7 +167,9 @@ pub fn L1Client(comptime client_type: Clients) type {
                 .to = self.contracts.l2OutputOracle,
                 .data = encoded,
             } }, .{});
-            return utils.bytesToInt(u256, data);
+            defer data.deinit();
+
+            return utils.bytesToInt(u256, data.response);
         }
         /// Gets a proven withdrawl.
         pub fn getProvenWithdrawals(self: *L1, withdrawal_hash: Hash) !ProvenWithdrawal {
@@ -174,8 +180,9 @@ pub fn L1Client(comptime client_type: Clients) type {
                 .to = self.contracts.portalAddress,
                 .data = encoded,
             } }, .{});
+            defer data.deinit();
 
-            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.get_proven_withdrawal.outputs, data, .{});
+            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.get_proven_withdrawal.outputs, data.response, .{});
 
             const proven = decoded[0];
 
@@ -201,16 +208,18 @@ pub fn L1Client(comptime client_type: Clients) type {
                 .to = self.contracts.l2OutputOracle,
                 .data = selector,
             } }, .{});
+            defer submission.deinit();
 
-            const interval = try utils.bytesToInt(i128, submission);
+            const interval = try utils.bytesToInt(i128, submission.response);
 
             const selector_time: []u8 = @constCast(&[_]u8{ 0x00, 0x21, 0x34, 0xcc });
             const block = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = self.contracts.l2OutputOracle,
                 .data = selector_time,
             } }, .{});
+            defer block.deinit();
 
-            const time = try utils.bytesToInt(i128, block);
+            const time = try utils.bytesToInt(i128, block.response);
 
             const block_until: i128 = interval - (latest_l2_block - latest);
 
@@ -225,17 +234,24 @@ pub fn L1Client(comptime client_type: Clients) type {
                 .to = self.contracts.l2OutputOracle,
                 .data = selector,
             } }, .{});
+            defer data.deinit();
 
-            const time = try utils.bytesToInt(i64, data);
+            const time = try utils.bytesToInt(i64, data.response);
             const time_since: i64 = @divFloor(std.time.timestamp(), 1000) - @as(i64, @truncate(@as(i128, @intCast(proven.timestamp))));
 
             return if (time_since < 0) @intCast(0) else @intCast(time - time_since);
         }
         /// Gets the `TransactionDeposited` event logs from a transaction hash.
+        ///
+        /// To free the memory of this slice you will also need to loop through the
+        /// returned slice and free the `opaqueData` field. Memory will be duped
+        /// on that field because we destroy the Arena from the RPC request that owns
+        /// the original piece of memory that contains the data.
         pub fn getTransactionDepositEvents(self: *L1, tx_hash: Hash) ![]const TransactionDeposited {
             const receipt = try self.rpc_client.getTransactionReceipt(tx_hash);
+            defer receipt.deinit();
 
-            const logs: Logs = switch (receipt) {
+            const logs: Logs = switch (receipt.response) {
                 inline else => |tx_receipt| tx_receipt.logs,
             };
 
@@ -260,7 +276,8 @@ pub fn L1Client(comptime client_type: Clients) type {
                         .from = decoded_logs[1],
                         .to = decoded_logs[2],
                         .version = decoded_logs[3],
-                        .opaqueData = decoded[0],
+                        // Needs to be duped because the arena owns this memory.
+                        .opaqueData = try self.allocator.dupe(u8, decoded[0]),
                         .logIndex = log_event.logIndex.?,
                         .blockHash = log_event.blockHash.?,
                     });
@@ -271,7 +288,10 @@ pub fn L1Client(comptime client_type: Clients) type {
         }
         /// Gets the decoded withdrawl event logs from a given transaction receipt hash.
         pub fn getWithdrawMessages(self: *L1, tx_hash: Hash) !Message {
-            const receipt = try self.rpc_client.getTransactionReceipt(tx_hash);
+            const receipt_response = try self.rpc_client.getTransactionReceipt(tx_hash);
+            defer receipt_response.deinit();
+
+            const receipt = receipt_response.response;
 
             if (receipt != .l2_receipt)
                 return error.InvalidTransactionHash;
@@ -350,6 +370,7 @@ test "GetL2HashFromL1DepositInfo" {
     try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
 
     const messages = try op.getL2HashesForDepositTransaction(try utils.hashToBytes("0x33faeeee9c6d5e19edcdfc003f329c6652f05502ffbf3218d9093b92589a42c4"));
+    defer testing.allocator.free(messages);
 
     try testing.expectEqualSlices(u8, &try utils.hashToBytes("0xed88afbd3f126180bd5488c2212cd033c51a6f9b1765249bdb738dcac1d0cb41"), &messages[0]);
 }
@@ -403,6 +424,10 @@ test "GetTransactionDepositEvents" {
     try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
 
     const deposit_events = try op.getTransactionDepositEvents(try utils.hashToBytes("0xe94031c3174788c3fee7216465c50bb2b72e7a1963f5af807b3768da10827f5c"));
+    defer {
+        for (deposit_events) |event| testing.allocator.free(event.opaqueData);
+        testing.allocator.free(deposit_events);
+    }
 
     try testing.expect(deposit_events.len != 0);
     try testing.expectEqual(deposit_events[0].to, try utils.addressToBytes("0xbc3ed6B537f2980e66f396Fe14210A56ba3f72C4"));

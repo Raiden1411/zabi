@@ -9,14 +9,11 @@ pub fn main() !void {
 
     _ = iter.skip();
 
-    var arena = std.heap.ArenaAllocator.init(gpa.allocator());
-    defer arena.deinit();
-
     const uri = try std.Uri.parse(iter.next() orelse return error.UnexpectArgument);
     var socket: zabi.clients.WebSocket = undefined;
     defer socket.deinit();
 
-    try socket.init(.{ .uri = uri, .allocator = arena.allocator() });
+    try socket.init(.{ .uri = uri, .allocator = gpa.allocator() });
 
     const id = try socket.watchTransactions();
     defer id.deinit();

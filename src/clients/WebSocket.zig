@@ -250,6 +250,8 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
     thread.detach();
 }
 /// All future interactions will deadlock
+/// If you are using the subscription channel this operation can take time
+/// as it will need to cleanup each node.
 pub fn deinit(self: *WebSocketHandler) void {
     self.mutex.lock();
 
@@ -257,6 +259,17 @@ pub fn deinit(self: *WebSocketHandler) void {
         std.time.sleep(10 * std.time.ns_per_ms);
     }
 
+    // There may be lingering memory parsed data in the channels
+    // so we must clean then up.
+    while (self.sub_channel.getOrNull()) |node| {
+        node.deinit();
+    }
+
+    while (self.rpc_channel.getOrNull()) |node| {
+        node.deinit();
+    }
+
+    // Deinits client and destroys any created pointers.
     self.ws_client.deinit();
     self.sub_channel.deinit();
     self.rpc_channel.deinit();

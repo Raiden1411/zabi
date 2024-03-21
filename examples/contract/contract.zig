@@ -34,22 +34,31 @@ pub fn main() !void {
     defer contract.deinit();
 
     const approve = try contract.writeContractFunction("transfer", .{ try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), 69421 }, .{ .type = .london, .to = try utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") });
-    var receipt = try contract.wallet.waitForTransactionReceipt(approve, 1);
+    defer approve.deinit();
 
-    if (receipt) |tx_receipt| {
-        std.debug.print("Transaction receipt: {}", .{tx_receipt});
-    } else std.process.exit(1);
+    var receipt = try contract.wallet.waitForTransactionReceipt(approve.response, 1);
+    defer receipt.deinit();
 
-    const balance = try contract.readContractFunction(struct { u256 }, "balanceOf", .{try contract.wallet.getWalletAddress()}, .{ .london = .{ .to = try utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") } });
-    defer balance.deinit();
-    std.debug.print("BALANCE: {d}\n", .{balance.values[0]});
+    std.debug.print("Transaction receipt: {}", .{receipt.response});
 
-    if (balance.values[0] > 0) {
-        const transfer = try contract.writeContractFunction("transfer", .{ try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"), balance.values[0] - 1 }, .{ .type = .london, .to = try utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") });
-        receipt = try contract.wallet.waitForTransactionReceipt(transfer, 1);
+    const balance = try contract.readContractFunction(struct { u256 }, "balanceOf", .{try contract.wallet.getWalletAddress()}, .{
+        .london = .{ .to = try utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") },
+    });
+    std.debug.print("BALANCE: {d}\n", .{balance[0]});
 
-        if (receipt) |tx_receipt| {
-            std.debug.print("Transaction receipt: {}", .{tx_receipt});
-        } else std.process.exit(1);
+    if (balance[0] > 0) {
+        const transfer = try contract.writeContractFunction("transfer", .{
+            try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+            balance[0] - 1,
+        }, .{
+            .type = .london,
+            .to = try utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+        });
+        defer transfer.deinit();
+
+        receipt = try contract.wallet.waitForTransactionReceipt(transfer.response, 1);
+        defer receipt.deinit();
+
+        std.debug.print("Transaction receipt: {}", .{receipt.response});
     }
 }

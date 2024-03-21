@@ -809,7 +809,7 @@ pub fn sendRawTransaction(self: *PubClient, serialized_tx: Hex) !RPCResponse(Has
 /// because some nodes might be slower to sync.
 ///
 /// RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
-pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations: u8) !?RPCResponse(TransactionReceipt) {
+pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt) {
     var tx: ?RPCResponse(Transaction) = null;
     defer if (tx) |tx_res| tx_res.deinit();
 

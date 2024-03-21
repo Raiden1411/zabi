@@ -232,10 +232,7 @@ pub fn main() !void {
         const encoded = try zabi_root.encoding.abi_encoding.encodeAbiParameters(allocator, params, items);
         defer encoded.deinit();
 
-        const hexed = try std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded.data)});
-        defer allocator.free(hexed);
-
-        const result = try benchmark.benchmark(allocator, zabi_root.decoding.abi_decoder.decodeAbiParameters, .{ allocator, params, hexed, .{} }, .{ .warmup_runs = 5, .runs = 100 });
+        const result = try benchmark.benchmark(allocator, zabi_root.decoding.abi_decoder.decodeAbiParameters, .{ allocator, params, encoded.data, .{} }, .{ .warmup_runs = 5, .runs = 100 });
         result.printSummary();
     }
 

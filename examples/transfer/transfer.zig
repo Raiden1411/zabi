@@ -16,14 +16,16 @@ pub fn main() !void {
     const host_url = iter.next().?;
 
     const uri = try std.Uri.parse(host_url);
+
     var wallet: Wallet = undefined;
     try wallet.init(private_key, .{ .allocator = gpa.allocator(), .uri = uri, .chain_id = .sepolia, .pooling_interval = 12_000 });
     defer wallet.deinit();
 
     const hash = try wallet.sendTransaction(.{ .type = .london, .to = try utils.addressToBytes("0x0000000000000000000000000000000000000000"), .value = 42069 });
-    const receipt = try wallet.waitForTransactionReceipt(hash, 0);
+    defer hash.deinit();
 
-    if (receipt) |tx_receipt| {
-        std.debug.print("Transaction receipt: {}", .{tx_receipt});
-    } else std.process.exit(1);
+    const receipt = try wallet.waitForTransactionReceipt(hash.response, 0);
+    defer receipt.deinit();
+
+    std.debug.print("Transaction receipt: {}", .{receipt.response});
 }

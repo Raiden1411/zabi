@@ -652,7 +652,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         ///
         /// Nonce will only get updated if it's able to fetch the receipt.
         /// Use the rpc_client waitForTransactionReceipt if you don't want to update the wallet's nonce.
-        pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: Hash, confirmations: u8) !?RPCResponse(TransactionReceipt) {
+        pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt) {
             const receipt = try self.rpc_client.waitForTransactionReceipt(tx_hash, confirmations);
 
             // Updates the wallet nonce to be ready for the next transaction.

@@ -158,7 +158,7 @@ fn handleErrorEvent(self: *WebSocketHandler, error_event: EthereumErrorResponse,
     }
 }
 /// Internal RPC event parser.
-fn parseRPCEvent(self: *WebSocketHandler, request: []const u8) !std.json.Parsed(EthereumEvents) {
+fn parseRPCEvent(self: *WebSocketHandler, request: []const u8) !RPCResponse(EthereumEvents) {
     self.mutex.lock();
     defer self.mutex.unlock();
 
@@ -168,7 +168,7 @@ fn parseRPCEvent(self: *WebSocketHandler, request: []const u8) !std.json.Parsed(
         return err;
     };
 
-    return parsed;
+    return RPCResponse(EthereumEvents).fromJson(parsed.arena, parsed.value);
 }
 /// This will get run everytime a socket message is found.
 /// All messages are parsed and put into the handlers channel.
@@ -192,32 +192,13 @@ pub fn handle(self: *WebSocketHandler, message: ws.Message) !void {
                 }
                 return error.FailedToConnect;
             };
-            // const parsed = std.json.parseFromSlice(EthereumEvents, self.allocator, message.data, .{ .allocate = .alloc_always }) catch {
-            //     wslog.debug("Failed to parse request: {s}", .{message.data});
-            //     const json_error: ErrorResponse = .{
-            //         .code = .ParseError,
-            //         .message = "Failed to parse json response!",
-            //     };
-            //
-            //     self.rpc_channel.put(.{ .arena = undefined, .response = .{ .error_event = .{ .@"error" = json_error } } });
-            //
-            //     if (self.onError) |onError| {
-            //         try onError(message.data);
-            //     }
-            //
-            //     if (self.close_connection_on_error) {
-            //         wslog.debug("Closing the connection", .{});
-            //         self.ws_client.closeWithCode(1002);
-            //     }
-            //
-            //     return error.FailedToConnect;
-            // };
+            errdefer parsed.deinit();
 
             if (self.onEvent) |onEvent| {
-                try onEvent(RPCResponse(EthereumEvents).fromJson(parsed.arena, parsed.value));
+                try onEvent(parsed);
             }
 
-            switch (parsed.value) {
+            switch (parsed.response) {
                 .subscribe_event => |sub_event| self.sub_channel.put(.{ .arena = parsed.arena, .response = sub_event }),
                 .rpc_event => |rpc_event| self.rpc_channel.put(.{ .arena = parsed.arena, .response = rpc_event }),
             }
@@ -332,7 +313,7 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
         };
         defer if (scheme == .tls) self.allocator.free(path);
 
-        client.handshake(path, .{ .headers = headers, .timeout_ms = 5_000 }) catch |err| {
+        client.handshake(self.uri.path, .{ .headers = headers, .timeout_ms = 5_000 }) catch |err| {
             wslog.debug("Handshake failed: {s}", .{@errorName(err)});
             continue;
         };
@@ -360,13 +341,13 @@ pub fn write(self: *WebSocketHandler, data: []u8) !void {
 /// Get the first event of the rpc channel.
 /// Only call this if you are sure that the channel has messages.
 /// Otherwise this will run in a infinite loop.
-pub fn getCurrentRpcEvent(self: *WebSocketHandler) !EthereumRpcEvents {
+pub fn getCurrentRpcEvent(self: *WebSocketHandler) !RPCResponse(EthereumRpcEvents) {
     return self.rpc_channel.get();
 }
 /// Get the first event of the subscription channel.
 /// Only call this if you are sure that the channel has messages.
 /// Otherwise this will run in a infinite loop.
-pub fn getCurrentSubscriptionEvent(self: *WebSocketHandler) !EthereumSubscribeEvents {
+pub fn getCurrentSubscriptionEvent(self: *WebSocketHandler) !RPCResponse(EthereumSubscribeEvents) {
     return self.sub_channel.get();
 }
 /// Grabs the current base blob fee.

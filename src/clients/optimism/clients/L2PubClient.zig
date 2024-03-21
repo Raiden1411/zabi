@@ -79,7 +79,7 @@ pub fn L2Client(comptime client_type: Clients) type {
         }
         /// Frees and destroys any allocated memory
         pub fn deinit(self: *L2) void {
-            const child_allocator = self.rpc_client.arena.child_allocator;
+            const child_allocator = self.rpc_client.allocator;
 
             self.rpc_client.deinit();
             child_allocator.destroy(self.rpc_client);
@@ -98,8 +98,9 @@ pub fn L2Client(comptime client_type: Clients) type {
                 .to = self.contracts.gasPriceOracle,
                 .data = encoded,
             } }, .{});
+            defer data.deinit();
 
-            return utils.bytesToInt(u256, data);
+            return utils.bytesToInt(u256, data.response);
         }
         /// Returns the L1 fee used to execute L2 transactions
         pub fn estimateL1GasFee(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
@@ -113,8 +114,9 @@ pub fn L2Client(comptime client_type: Clients) type {
                 .to = self.contracts.gasPriceOracle,
                 .data = encoded,
             } }, .{});
+            defer data.deinit();
 
-            return utils.bytesToInt(u256, data);
+            return utils.bytesToInt(u256, data.response);
         }
         /// Estimates the L1 + L2 fees to execute a transaction on L2
         pub fn estimateTotalFees(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
@@ -126,9 +128,12 @@ pub fn L2Client(comptime client_type: Clients) type {
                 .maxPriorityFeePerGas = london_envelope.maxPriorityFeePerGas,
                 .value = london_envelope.value,
             } }, .{});
-            const gas_price = try self.rpc_client.getGasPrice();
+            defer l2_gas.deinit();
 
-            return l1_gas_fee + l2_gas * gas_price;
+            const gas_price = try self.rpc_client.getGasPrice();
+            defer gas_price.deinit();
+
+            return l1_gas_fee + l2_gas.response * gas_price.response;
         }
         /// Estimates the L1 + L2 gas to execute a transaction on L2
         pub fn estimateTotalGas(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
@@ -140,8 +145,9 @@ pub fn L2Client(comptime client_type: Clients) type {
                 .maxPriorityFeePerGas = london_envelope.maxPriorityFeePerGas,
                 .value = london_envelope.value,
             } }, .{});
+            defer l2_gas.deinit();
 
-            return l1_gas_fee + l2_gas;
+            return l1_gas_fee + l2_gas.response;
         }
         /// Returns the base fee on L1
         pub fn getBaseL1Fee(self: *L2) !Wei {
@@ -153,12 +159,16 @@ pub fn L2Client(comptime client_type: Clients) type {
                 .to = self.contracts.gasPriceOracle,
                 .data = selector,
             } }, .{});
+            defer data.deinit();
 
-            return utils.bytesToInt(u256, data);
+            return utils.bytesToInt(u256, data.response);
         }
         /// Gets the decoded withdrawl event logs from a given transaction receipt hash.
         pub fn getWithdrawMessages(self: *L2, tx_hash: Hash) !Message {
-            const receipt = try self.rpc_client.getTransactionReceipt(tx_hash);
+            const receipt_message = try self.rpc_client.getTransactionReceipt(tx_hash);
+            defer receipt_message.deinit();
+
+            const receipt = receipt_message.response;
 
             if (receipt != .l2_receipt)
                 return error.InvalidTransactionHash;
@@ -208,10 +218,13 @@ test "GetWithdrawMessages" {
     try op.init(.{ .uri = uri, .allocator = testing.allocator, .chain_id = .op_sepolia }, null);
 
     const messages = try op.getWithdrawMessages(try utils.hashToBytes("0x078be3962b143952b4fd8567640b14c3682b8a941000c7d92394faf0e40cb1e8"));
+    defer testing.allocator.free(messages.messages);
+
     const receipt = try op.rpc_client.getTransactionReceipt(try utils.hashToBytes("0x078be3962b143952b4fd8567640b14c3682b8a941000c7d92394faf0e40cb1e8"));
+    defer receipt.deinit();
 
     try testing.expect(messages.messages.len != 0);
-    try testing.expect(messages.blockNumber == receipt.l2_receipt.blockNumber.?);
+    try testing.expect(messages.blockNumber == receipt.response.l2_receipt.blockNumber.?);
 }
 
 test "GetBaseFee" {

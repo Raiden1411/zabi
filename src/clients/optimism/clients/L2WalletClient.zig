@@ -25,6 +25,7 @@ const L2Output = op_types.L2Output;
 const OpMainNetContracts = contracts.OpMainNetContracts;
 const PreparedWithdrawal = withdrawal_types.PreparedWithdrawal;
 const RootProof = withdrawal_types.WithdrawalRootProof;
+const RPCResponse = types.RPCResponse;
 const Signer = signer.Signer;
 const Withdrawal = withdrawal_types.Withdrawal;
 const WithdrawalEnvelope = withdrawal_types.WithdrawalEnvelope;
@@ -74,13 +75,16 @@ pub fn L2WalletClient(client_type: Clients) type {
                 .signer = op_signer,
             };
 
-            self.wallet_nonce = try self.op_client.rpc_client.getAddressTransactionCount(.{
+            const nonce = try self.op_client.rpc_client.getAddressTransactionCount(.{
                 .address = try op_signer.getAddressFromPublicKey(),
             });
+            defer nonce.deinit();
+
+            self.wallet_nonce = nonce.response;
         }
         /// Frees and destroys any allocated memory
         pub fn deinit(self: *L2Wallet) void {
-            const child_allocator = self.op_client.rpc_client.arena.child_allocator;
+            const child_allocator = self.op_client.allocator;
 
             self.op_client.deinit();
             self.signer.deinit();
@@ -90,21 +94,21 @@ pub fn L2WalletClient(client_type: Clients) type {
             self.* = undefined;
         }
         /// Estimates the gas cost for calling `finalizeWithdrawal`
-        pub fn estimateFinalizeWithdrawal(self: *L2Wallet, data: Hex) !Gwei {
+        pub fn estimateFinalizeWithdrawal(self: *L2Wallet, data: Hex) !RPCResponse(Gwei) {
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
                 .to = self.op_client.contracts.portalAddress,
                 .data = data,
             } }, .{});
         }
         /// Estimates the gas cost for calling `initiateWithdrawal`
-        pub fn estimateInitiateWithdrawal(self: *L2Wallet, data: Hex) !Gwei {
+        pub fn estimateInitiateWithdrawal(self: *L2Wallet, data: Hex) !RPCResponse(Gwei) {
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
                 .to = self.op_client.contracts.l2ToL1MessagePasser,
                 .data = data,
             } }, .{});
         }
         /// Estimates the gas cost for calling `proveWithdrawal`
-        pub fn estimateProveWithdrawal(self: *L2Wallet, data: Hex) !Gwei {
+        pub fn estimateProveWithdrawal(self: *L2Wallet, data: Hex) !RPCResponse(Gwei) {
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
                 .to = self.op_client.contracts.portalAddress,
                 .data = data,
@@ -112,7 +116,7 @@ pub fn L2WalletClient(client_type: Clients) type {
         }
         /// Invokes the contract method to `initiateWithdrawal`. This will send
         /// a transaction to the network.
-        pub fn initiateWithdrawal(self: *L2Wallet, request: WithdrawalRequest) !Hash {
+        pub fn initiateWithdrawal(self: *L2Wallet, request: WithdrawalRequest) !RPCResponse(Hash) {
             const address = try self.signer.getAddressFromPublicKey();
 
             const prepared = try self.prepareInitiateWithdrawal(request);
@@ -124,18 +128,19 @@ pub fn L2WalletClient(client_type: Clients) type {
             defer self.op_client.allocator.free(data);
 
             const gas = try self.estimateInitiateWithdrawal(data);
+            defer gas.deinit();
 
             const call: LondonEthCall = .{
                 .to = self.op_client.contracts.l2ToL1MessagePasser,
                 .from = address,
-                .gas = gas,
+                .gas = gas.response,
                 .data = data,
                 .value = prepared.value,
             };
             const fees = try self.op_client.rpc_client.estimateFeesPerGas(.{ .london = call }, null);
 
             const tx: LondonTransactionEnvelope = .{
-                .gas = gas,
+                .gas = gas.response,
                 .data = data,
                 .to = self.op_client.contracts.l2ToL1MessagePasser,
                 .value = prepared.value,
@@ -150,11 +155,19 @@ pub fn L2WalletClient(client_type: Clients) type {
         }
         /// Prepares the interaction with the contract method to `initiateWithdrawal`.
         pub fn prepareInitiateWithdrawal(self: *L2Wallet, request: WithdrawalRequest) !PreparedWithdrawal {
-            const gas = request.gas orelse try self.op_client.rpc_client.estimateGas(.{ .london = .{
-                .to = request.to,
-                .data = request.data,
-                .value = request.value,
-            } }, .{});
+            const gas = gas: {
+                if (request.gas) |gas| break :gas gas;
+
+                const gas = try self.op_client.rpc_client.estimateGas(.{ .london = .{
+                    .to = request.to,
+                    .data = request.data,
+                    .value = request.value,
+                } }, .{});
+                defer gas.deinit();
+
+                break :gas gas.response;
+            };
+
             const data = request.data orelse @constCast("");
             const value = request.value orelse 0;
 
@@ -167,24 +180,25 @@ pub fn L2WalletClient(client_type: Clients) type {
         }
         /// Invokes the contract method to `finalizeWithdrawalTransaction`. This will send
         /// a transaction to the network.
-        pub fn finalizeWithdrawal(self: *L2Wallet, withdrawal: WithdrawalNoHash) !Hash {
+        pub fn finalizeWithdrawal(self: *L2Wallet, withdrawal: WithdrawalNoHash) !RPCResponse(Hash) {
             const address = try self.signer.getAddressFromPublicKey();
             const data = try abi_items.finalize_withdrawal.encode(self.op_client.allocator, .{withdrawal});
             defer self.op_client.allocator.free(data);
 
             const gas = try self.estimateFinalizeWithdrawal(data);
+            defer gas.deinit();
 
             const call: LondonEthCall = .{
                 .to = self.op_client.contracts.portalAddress,
                 .from = address,
-                .gas = gas,
+                .gas = gas.response,
                 .data = data,
             };
 
             const fees = try self.op_client.rpc_client.estimateFeesPerGas(.{ .london = call }, null);
 
             const tx: LondonTransactionEnvelope = .{
-                .gas = gas,
+                .gas = gas.response,
                 .data = data,
                 .to = self.op_client.contracts.portalAddress,
                 .value = 0,
@@ -199,7 +213,7 @@ pub fn L2WalletClient(client_type: Clients) type {
         }
         /// Invokes the contract method to `proveWithdrawalTransaction`. This will send
         /// a transaction to the network.
-        pub fn proveWithdrawal(self: *L2Wallet, withdrawal: WithdrawalNoHash, l2_output_index: u256, outputRootProof: RootProof, withdrawal_proof: []const Hex) !Hash {
+        pub fn proveWithdrawal(self: *L2Wallet, withdrawal: WithdrawalNoHash, l2_output_index: u256, outputRootProof: RootProof, withdrawal_proof: []const Hex) !RPCResponse(Hash) {
             const address = try self.signer.getAddressFromPublicKey();
             const data = try abi_items.prove_withdrawal.encode(self.op_client.allocator, .{
                 withdrawal, l2_output_index, outputRootProof, withdrawal_proof,
@@ -207,18 +221,19 @@ pub fn L2WalletClient(client_type: Clients) type {
             defer self.op_client.allocator.free(data);
 
             const gas = try self.estimateProveWithdrawal(data);
+            defer gas.deinit();
 
             const call: LondonEthCall = .{
                 .to = self.op_client.contracts.portalAddress,
                 .from = address,
-                .gas = gas,
+                .gas = gas.response,
                 .data = data,
             };
 
             const fees = try self.op_client.rpc_client.estimateFeesPerGas(.{ .london = call }, null);
 
             const tx: LondonTransactionEnvelope = .{
-                .gas = gas,
+                .gas = gas.response,
                 .data = data,
                 .to = self.op_client.contracts.portalAddress,
                 .value = 0,
@@ -239,11 +254,21 @@ pub fn L2WalletClient(client_type: Clients) type {
                 .storageKeys = &.{storage_slot},
                 .blockNumber = @intCast(l2_output.l2BlockNumber),
             }, null);
+            defer proof.deinit();
 
             const block = try self.op_client.rpc_client.getBlockByNumber(.{ .block_number = @intCast(l2_output.l2BlockNumber) });
-            const block_info: struct { stateRoot: Hash, hash: Hash } = switch (block) {
+            defer block.deinit();
+
+            const block_info: struct { stateRoot: Hash, hash: Hash } = switch (block.response) {
                 inline else => |block_info| .{ .stateRoot = block_info.stateRoot, .hash = block_info.hash.? },
             };
+
+            var proofs = try std.ArrayList([]u8).initCapacity(self.op_client.allocator, proof.response.storageProof[0].proof.len);
+            errdefer proofs.deinit();
+
+            for (proof.response.storageProof[0].proof) |p| {
+                proofs.appendAssumeCapacity(try self.op_client.allocator.dupe(u8, p));
+            }
 
             return .{
                 .nonce = withdrawal.nonce,
@@ -255,16 +280,16 @@ pub fn L2WalletClient(client_type: Clients) type {
                 .outputRootProof = .{
                     .version = [_]u8{0} ** 32,
                     .stateRoot = block_info.stateRoot,
-                    .messagePasserStorageRoot = proof.storageHash,
+                    .messagePasserStorageRoot = proof.response.storageHash,
                     .latestBlockhash = block_info.hash,
                 },
-                .withdrawalProof = proof.storageProof[0].proof,
+                .withdrawalProof = try proofs.toOwnedSlice(),
                 .l2OutputIndex = l2_output.outputIndex,
             };
         }
         /// Sends a transaction envelope to the network. This serializes, hashes and signed before
         /// sending the transaction.
-        pub fn sendTransaction(self: *L2Wallet, envelope: LondonTransactionEnvelope) !Hash {
+        pub fn sendTransaction(self: *L2Wallet, envelope: LondonTransactionEnvelope) !RPCResponse(Hash) {
             const serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = envelope }, null);
             defer self.op_client.allocator.free(serialized);
 
@@ -295,9 +320,10 @@ test "InitiateWithdrawal" {
         .chain_id = .op_mainnet,
     }, null);
 
-    _ = try wallet_op.initiateWithdrawal(.{
+    const inital = try wallet_op.initiateWithdrawal(.{
         .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
     });
+    defer inital.deinit();
 }
 
 test "PrepareWithdrawalProofTransaction" {
@@ -361,6 +387,10 @@ test "PrepareWithdrawalProofTransaction" {
         .l2BlockNumber = 113388533,
         .timestamp = 1702377887,
     });
+    defer {
+        for (prepared.withdrawalProof) |p| testing.allocator.free(p);
+        testing.allocator.free(prepared.withdrawalProof);
+    }
 
     try testing.expectEqualDeep(args, prepared);
 }
@@ -406,7 +436,8 @@ test "ProveWithdrawal" {
         },
     };
 
-    _ = try wallet_op.proveWithdrawal(args.withdrawal, args.l2_output_index, args.outputRootProof, args.withdrawalProof);
+    const proven = try wallet_op.proveWithdrawal(args.withdrawal, args.l2_output_index, args.outputRootProof, args.withdrawalProof);
+    defer proven.deinit();
 }
 
 test "FinalizeWithdrawal" {
@@ -421,7 +452,7 @@ test "FinalizeWithdrawal" {
         .chain_id = .op_mainnet,
     }, null);
 
-    _ = try wallet_op.finalizeWithdrawal(.{
+    const final = try wallet_op.finalizeWithdrawal(.{
         .data = @constCast(&[_]u8{0x01}),
         .sender = try utils.addressToBytes("0x02f086dBC384d69b3041BC738F0a8af5e49dA181"),
         .target = try utils.addressToBytes("0x02f086dBC384d69b3041BC738F0a8af5e49dA181"),
@@ -429,4 +460,5 @@ test "FinalizeWithdrawal" {
         .gasLimit = 100000,
         .nonce = 1766847064778384329583297500742918515827483896875618958121606201292641795,
     });
+    defer final.deinit();
 }

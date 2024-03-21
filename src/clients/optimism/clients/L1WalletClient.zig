@@ -25,6 +25,7 @@ const LondonEthCall = transactions.LondonEthCall;
 const LondonTransactionEnvelope = transactions.LondonTransactionEnvelope;
 const L2Output = op_types.L2Output;
 const OpMainNetContracts = contracts.OpMainNetContracts;
+const RPCResponse = types.RPCResponse;
 const Signer = signer.Signer;
 
 const L1Client = @import("L1PubClient.zig").L1Client;
@@ -70,13 +71,16 @@ pub fn WalletL1Client(client_type: Clients) type {
                 .signer = op_signer,
             };
 
-            self.wallet_nonce = try self.op_client.rpc_client.getAddressTransactionCount(.{
+            const nonce = try self.op_client.rpc_client.getAddressTransactionCount(.{
                 .address = try op_signer.getAddressFromPublicKey(),
             });
+            defer nonce.deinit();
+
+            self.wallet_nonce = nonce.response;
         }
         /// Frees and destroys any allocated memory
         pub fn deinit(self: *WalletL1) void {
-            const child_allocator = self.op_client.rpc_client.arena.child_allocator;
+            const child_allocator = self.op_client.allocator;
 
             self.op_client.deinit();
             self.signer.deinit();
@@ -98,11 +102,18 @@ pub fn WalletL1Client(client_type: Clients) type {
             if (mint != value)
                 return error.InvalidMintValue;
 
-            const gas = deposit_envelope.gas orelse try self.op_client.rpc_client.estimateGas(.{ .london = .{
-                .value = value,
-                .to = deposit_envelope.to,
-                .from = try self.signer.getAddressFromPublicKey(),
-            } }, .{});
+            const gas = gas: {
+                if (deposit_envelope.gas) |gas| break :gas gas;
+
+                const gas = try self.op_client.rpc_client.estimateGas(.{ .london = .{
+                    .value = value,
+                    .to = deposit_envelope.to,
+                    .from = try self.signer.getAddressFromPublicKey(),
+                } }, .{});
+                defer gas.deinit();
+
+                break :gas gas.response;
+            };
 
             return .{
                 .value = value,
@@ -114,7 +125,7 @@ pub fn WalletL1Client(client_type: Clients) type {
         }
         /// Estimate the gas cost for the deposit transaction.
         /// Uses the portalAddress. The data is expected to be hex abi encoded data.
-        pub fn estimateDepositTransaction(self: *WalletL1, data: Hex) !Gwei {
+        pub fn estimateDepositTransaction(self: *WalletL1, data: Hex) !RPCResponse(Gwei) {
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
                 .to = self.op_client.contracts.portalAddress,
                 .data = data,
@@ -122,7 +133,7 @@ pub fn WalletL1Client(client_type: Clients) type {
         }
         /// Invokes the contract method to `depositTransaction`. This will send
         /// a transaction to the network.
-        pub fn depositTransaction(self: *WalletL1, deposit_envelope: DepositEnvelope) !Hash {
+        pub fn depositTransaction(self: *WalletL1, deposit_envelope: DepositEnvelope) !RPCResponse(Hash) {
             const address = try self.signer.getAddressFromPublicKey();
             const deposit_data = try self.prepareDepositTransaction(deposit_envelope);
 
@@ -139,11 +150,12 @@ pub fn WalletL1Client(client_type: Clients) type {
             defer self.op_client.allocator.free(data);
 
             const gas = try self.estimateDepositTransaction(data);
+            defer gas.deinit();
 
             const call: LondonEthCall = .{
                 .to = self.op_client.contracts.portalAddress,
                 .from = address,
-                .gas = gas,
+                .gas = gas.response,
                 .data = data,
                 .value = deposit_data.value,
             };
@@ -151,7 +163,7 @@ pub fn WalletL1Client(client_type: Clients) type {
             const fees = try self.op_client.rpc_client.estimateFeesPerGas(.{ .london = call }, null);
 
             const tx: LondonTransactionEnvelope = .{
-                .gas = gas,
+                .gas = gas.response,
                 .data = data,
                 .to = self.op_client.contracts.portalAddress,
                 .value = deposit_data.value,
@@ -166,7 +178,7 @@ pub fn WalletL1Client(client_type: Clients) type {
         }
         /// Sends a transaction envelope to the network. This serializes, hashes and signed before
         /// sending the transaction.
-        pub fn sendTransaction(self: *WalletL1, envelope: LondonTransactionEnvelope) !Hash {
+        pub fn sendTransaction(self: *WalletL1, envelope: LondonTransactionEnvelope) !RPCResponse(Hash) {
             const serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = envelope }, null);
             defer self.op_client.allocator.free(serialized);
 
@@ -191,12 +203,14 @@ test "DepositTransaction" {
     defer wallet_op.deinit();
 
     const uri = try std.Uri.parse("http://localhost:8545/");
+
     try wallet_op.init("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{
         .allocator = testing.allocator,
         .uri = uri,
     }, null);
 
-    _ = try wallet_op.depositTransaction(.{
+    const response = try wallet_op.depositTransaction(.{
         .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
     });
+    defer response.deinit();
 }

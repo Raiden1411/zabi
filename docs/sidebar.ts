@@ -28,7 +28,7 @@ export const sidebar = {
 				},
 				{
 					text: "OP Stack",
-					link: "/api/client/op-stack/client",
+					link: "/api/client/op-stack/clients",
 				},
 			],
 		},

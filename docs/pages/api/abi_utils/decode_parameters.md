@@ -11,7 +11,8 @@ This takes in 5 arguments:
 - the abi encoded hex string.
 - the options used for decoding (Checkout the options here: [DecodeOptions](/api/abi_utils/types#decodedoptions))
 
-**You must call `deinit()` after to free any allocated memory.**
+You will only need to free memory if the abi parameter is of `dynamicArray` type as it internally will use an `Arraylist` so that memory must be freed.
+For logs decoding you not need to free any memory as it will all be made on the stack.
 
 ```zig
 const std = @import("std");

@@ -26,6 +26,10 @@ export const sidebar = {
 					text: "Contract",
 					link: "/api/client/contract/client",
 				},
+				{
+					text: "OP Stack",
+					link: "/api/client/op-stack/client",
+				},
 			],
 		},
 		{

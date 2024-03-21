@@ -12,8 +12,6 @@ const utils = @import("../utils/utils.zig");
 // Types
 const Abi = abitype.Abi;
 const Abitype = abitype.Abitype;
-const AbiDecoded = decoder.AbiDecoded;
-const AbiDecodedRuntime = decoder.AbiDecodedRuntime;
 const AbiItem = abitype.AbiItem;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
 const Address = types.Address;
@@ -29,6 +27,7 @@ const Hex = types.Hex;
 const Hash = types.Hash;
 const InitOptsHttp = @import("Client.zig").InitOptions;
 const InitOptsWs = @import("WebSocket.zig").InitOptions;
+const RPCResponse = types.RPCResponse;
 const UnpreparedTransactionEnvelope = transaction.UnpreparedTransactionEnvelope;
 const Wallet = @import("wallet.zig").Wallet;
 
@@ -57,7 +56,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
 
         /// The contract settings depending on the client type.
         const ContractInitOpts = struct {
-            private_key: Hex,
+            private_key: []const u8,
             wallet_opts: InitOpts,
         };
 
@@ -76,7 +75,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         }
         /// Deinits the wallet instance.
         pub fn deinit(self: *ContractComptime(client_type)) void {
-            const child_allocator = self.wallet.arena.child_allocator;
+            const child_allocator = self.wallet.allocator;
 
             self.wallet.deinit();
             child_allocator.destroy(self.wallet);
@@ -85,14 +84,13 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         }
         /// Creates a contract on the network.
         /// If the constructor abi contains inputs it will encode `constructor_args` accordingly.
-        pub fn deployContract(self: *ContractComptime(client_type), comptime constructor: Constructor, opts: ConstructorOpts(constructor)) !Hash {
+        pub fn deployContract(self: *ContractComptime(client_type), comptime constructor: Constructor, opts: ConstructorOpts(constructor)) !RPCResponse(Hash) {
             var copy = opts.overrides;
-            const code = if (std.mem.startsWith(u8, opts.bytecode, "0x")) opts.bytecode[2..] else opts.bytecode;
 
             const encoded = try constructor.encode(self.wallet.allocator, opts.args);
             defer encoded.deinit();
 
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}{s}", .{ code, std.fmt.fmtSliceHexLower(encoded.data) });
+            const concated = try std.mem.concat(self.wallet.allocator, u8, &.{ opts.bytecode, encoded.data });
             defer self.wallet.allocator.free(concated);
 
             if (copy.to != null)
@@ -114,7 +112,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         /// It won't commit a transaction to the network.
         ///
         /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
-        pub fn readContractFunction(self: *ContractComptime(client_type), comptime func: Function, opts: FunctionOpts(func, EthCall)) !AbiDecoded(func.outputs) {
+        pub fn readContractFunction(self: *ContractComptime(client_type), comptime func: Function, opts: FunctionOpts(func, EthCall)) !AbiParametersToPrimative(func.outputs) {
             var copy = opts.overrides;
 
             switch (func.stateMutability) {
@@ -125,20 +123,19 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             const encoded = try func.encode(self.wallet.allocator, opts.args);
             defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
 
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-            defer self.wallet.allocator.free(concated);
-
             switch (copy) {
                 inline else => |*tx| {
                     if (tx.to == null)
                         return error.InvalidRequestTarget;
 
-                    tx.data = concated;
+                    tx.data = encoded;
                 },
             }
 
-            const data = try self.wallet.pub_client.sendEthCall(copy, .{});
-            const decoded = try decoder.decodeAbiParameters(self.wallet.allocator, func.outputs, data, .{});
+            const data = try self.wallet.rpc_client.sendEthCall(copy, .{});
+            defer data.deinit();
+
+            const decoded = try decoder.decodeAbiParameters(self.wallet.allocator, func.outputs, data.response, .{});
 
             return decoded;
         }
@@ -147,7 +144,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         /// It will send the transaction to the network and return the transaction hash.
         ///
         /// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
-        pub fn writeContractFunction(self: *ContractComptime(client_type), comptime func: Function, opts: FunctionOpts(func, UnpreparedTransactionEnvelope)) !Hash {
+        pub fn writeContractFunction(self: *ContractComptime(client_type), comptime func: Function, opts: FunctionOpts(func, UnpreparedTransactionEnvelope)) !RPCResponse(Hash) {
             var copy = opts.overrides;
 
             switch (func.stateMutability) {
@@ -156,10 +153,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             }
 
             const encoded = try func.encode(self.wallet.allocator, opts.args);
-            defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
-
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-            defer self.wallet.allocator.free(concated);
+            defer self.wallet.allocator.free(encoded);
 
             if (copy.to == null)
                 return error.InvalidRequestTarget;
@@ -172,9 +166,9 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
                 inline else => return error.InvalidFunctionMutability,
             }
 
-            copy.data = concated;
+            copy.data = encoded;
 
-            return try self.wallet.sendTransaction(copy);
+            return self.wallet.sendTransaction(copy);
         }
         /// Generates and returns an estimate of how much gas is necessary to allow the transaction to complete.
         /// The transaction will not be added to the blockchain.
@@ -182,8 +176,8 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         /// for a variety of reasons including EVM mechanics and node performance.
         ///
         /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
-        pub fn estimateGas(self: *ContractComptime(client_type), call_object: EthCall, opts: BlockNumberRequest) !Gwei {
-            return try self.wallet.pub_client.estimateGas(call_object, opts);
+        pub fn estimateGas(self: *ContractComptime(client_type), call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Gwei) {
+            return self.wallet.rpc_client.estimateGas(call_object, opts);
         }
         /// Uses eth_call to simulate a contract interaction.
         /// Only abi items that are either `view` or `pure` will be allowed.
@@ -191,28 +185,47 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         /// I recommend watching this talk to better grasp this: https://www.youtube.com/watch?v=bEUtGLnCCYM (I promise it's not a rick roll)
         ///
         /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
-        pub fn simulateWriteCall(self: *ContractComptime(client_type), comptime func: Function, opts: FunctionOpts(func, UnpreparedTransactionEnvelope)) !Hex {
+        pub fn simulateWriteCall(self: *ContractComptime(client_type), comptime func: Function, opts: FunctionOpts(func, UnpreparedTransactionEnvelope)) !RPCResponse(Hex) {
             var copy = opts.overrides;
 
             const encoded = try func.encode(self.wallet.allocator, opts.args);
             defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
 
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-            defer self.wallet.allocator.free(concated);
-
             if (copy.to == null)
                 return error.InvalidRequestTarget;
 
-            copy.data = concated;
+            copy.data = encoded;
 
             const address = try self.wallet.getWalletAddress();
             const call: EthCall = switch (copy.type) {
-                .cancun, .london => .{ .london = .{ .from = address, .to = copy.to, .data = copy.data, .value = copy.value, .maxFeePerGas = copy.maxFeePerGas, .maxPriorityFeePerGas = copy.maxPriorityFeePerGas, .gas = copy.gas } },
-                .berlin, .legacy => .{ .legacy = .{ .from = address, .value = copy.value, .to = copy.to, .data = copy.data, .gas = copy.gas, .gasPrice = copy.gasPrice } },
-                _ => .{ .legacy = .{ .from = address, .value = copy.value, .to = copy.to, .data = copy.data, .gas = copy.gas, .gasPrice = copy.gasPrice } },
+                .cancun, .london => .{ .london = .{
+                    .from = address,
+                    .to = copy.to,
+                    .data = copy.data,
+                    .value = copy.value,
+                    .maxFeePerGas = copy.maxFeePerGas,
+                    .maxPriorityFeePerGas = copy.maxPriorityFeePerGas,
+                    .gas = copy.gas,
+                } },
+                .berlin, .legacy => .{ .legacy = .{
+                    .from = address,
+                    .value = copy.value,
+                    .to = copy.to,
+                    .data = copy.data,
+                    .gas = copy.gas,
+                    .gasPrice = copy.gasPrice,
+                } },
+                _ => .{ .legacy = .{
+                    .from = address,
+                    .value = copy.value,
+                    .to = copy.to,
+                    .data = copy.data,
+                    .gas = copy.gas,
+                    .gasPrice = copy.gasPrice,
+                } },
             };
 
-            return try self.wallet.pub_client.sendEthCall(call, .{});
+            return self.wallet.rpc_client.sendEthCall(call, .{});
         }
     };
 }
@@ -229,7 +242,7 @@ pub fn Contract(comptime client_type: ClientType) type {
         /// The contract settings depending on the client type.
         const ContractInitOpts = struct {
             abi: Abi,
-            private_key: Hex,
+            private_key: []const u8,
             wallet_opts: InitOpts,
         };
 
@@ -251,7 +264,7 @@ pub fn Contract(comptime client_type: ClientType) type {
         }
         /// Deinits the wallet instance.
         pub fn deinit(self: *Contract(client_type)) void {
-            const child_allocator = self.wallet.arena.child_allocator;
+            const child_allocator = self.wallet.allocator;
 
             self.wallet.deinit();
             child_allocator.destroy(self.wallet);
@@ -260,15 +273,15 @@ pub fn Contract(comptime client_type: ClientType) type {
         }
         /// Creates a contract on the network.
         /// If the constructor abi contains inputs it will encode `constructor_args` accordingly.
-        pub fn deployContract(self: *Contract(client_type), constructor_args: anytype, bytecode: []const u8, overrides: UnpreparedTransactionEnvelope) !Hash {
+        pub fn deployContract(self: *Contract(client_type), constructor_args: anytype, bytecode: Hex, overrides: UnpreparedTransactionEnvelope) !RPCResponse(Hash) {
             var copy = overrides;
             const constructor = try getAbiItem(self.abi, .constructor, null);
-            const code = if (std.mem.startsWith(u8, bytecode, "0x")) bytecode[2..] else bytecode;
 
             const encoded = try constructor.abiConstructor.encode(self.wallet.allocator, constructor_args);
             defer encoded.deinit();
 
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}{s}", .{ code, std.fmt.fmtSliceHexLower(encoded.data) });
+            const concated = try std.mem.concat(self.wallet.allocator, u8, &.{ bytecode, encoded.data });
+            defer self.wallet.allocator.free(concated);
 
             if (copy.to != null)
                 return error.CreatingContractToKnowAddress;
@@ -282,14 +295,14 @@ pub fn Contract(comptime client_type: ClientType) type {
 
             copy.data = concated;
 
-            return try self.wallet.sendTransaction(copy);
+            return self.wallet.sendTransaction(copy);
         }
         /// Uses eth_call to query an contract information.
         /// Only abi items that are either `view` or `pure` will be allowed.
         /// It won't commit a transaction to the network.
         ///
         /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
-        pub fn readContractFunction(self: *Contract(client_type), comptime T: type, function_name: []const u8, function_args: anytype, overrides: EthCall) !AbiDecodedRuntime(T) {
+        pub fn readContractFunction(self: *Contract(client_type), comptime T: type, function_name: []const u8, function_args: anytype, overrides: EthCall) !T {
             const function_item = try getAbiItem(self.abi, .function, function_name);
             var copy = overrides;
 
@@ -299,22 +312,21 @@ pub fn Contract(comptime client_type: ClientType) type {
             }
 
             const encoded = try function_item.abiFunction.encode(self.wallet.allocator, function_args);
-            defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
-
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-            defer self.wallet.allocator.free(concated);
+            defer self.wallet.allocator.free(encoded);
 
             switch (copy) {
                 inline else => |*tx| {
                     if (tx.to == null)
                         return error.InvalidRequestTarget;
 
-                    tx.data = concated;
+                    tx.data = encoded;
                 },
             }
 
-            const data = try self.wallet.pub_client.sendEthCall(copy, .{});
-            const decoded = try decoder.decodeAbiParametersRuntime(self.wallet.allocator, T, function_item.abiFunction.outputs, data, .{});
+            const data = try self.wallet.rpc_client.sendEthCall(copy, .{});
+            defer data.deinit();
+
+            const decoded = try decoder.decodeAbiParametersRuntime(self.wallet.allocator, T, function_item.abiFunction.outputs, data.response, .{});
 
             return decoded;
         }
@@ -323,7 +335,7 @@ pub fn Contract(comptime client_type: ClientType) type {
         /// It will send the transaction to the network and return the transaction hash.
         ///
         /// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
-        pub fn writeContractFunction(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: UnpreparedTransactionEnvelope) !Hash {
+        pub fn writeContractFunction(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: UnpreparedTransactionEnvelope) !RPCResponse(Hash) {
             const function_item = try getAbiItem(self.abi, .function, function_name);
             var copy = overrides;
 
@@ -333,10 +345,7 @@ pub fn Contract(comptime client_type: ClientType) type {
             }
 
             const encoded = try function_item.abiFunction.encode(self.wallet.allocator, function_args);
-            defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
-
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-            defer self.wallet.allocator.free(concated);
+            defer self.wallet.allocator.free(encoded);
 
             if (copy.to == null)
                 return error.InvalidRequestTarget;
@@ -349,9 +358,9 @@ pub fn Contract(comptime client_type: ClientType) type {
                 inline else => return error.InvalidFunctionMutability,
             }
 
-            copy.data = concated;
+            copy.data = encoded;
 
-            return try self.wallet.sendTransaction(copy);
+            return self.wallet.sendTransaction(copy);
         }
         /// Generates and returns an estimate of how much gas is necessary to allow the transaction to complete.
         /// The transaction will not be added to the blockchain.
@@ -359,8 +368,8 @@ pub fn Contract(comptime client_type: ClientType) type {
         /// for a variety of reasons including EVM mechanics and node performance.
         ///
         /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
-        pub fn estimateGas(self: *Contract, call_object: EthCall, opts: BlockNumberRequest) !Gwei {
-            return try self.wallet.pub_client.estimateGas(call_object, opts);
+        pub fn estimateGas(self: *Contract, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Gwei) {
+            return self.wallet.rpc_client.estimateGas(call_object, opts);
         }
         /// Uses eth_call to simulate a contract interaction.
         /// Only abi items that are either `view` or `pure` will be allowed.
@@ -368,20 +377,17 @@ pub fn Contract(comptime client_type: ClientType) type {
         /// I recommend watching this talk to better grasp this: https://www.youtube.com/watch?v=bEUtGLnCCYM (I promise it's not a rick roll)
         ///
         /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
-        pub fn simulateWriteCall(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: UnpreparedTransactionEnvelope) !Hex {
+        pub fn simulateWriteCall(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: UnpreparedTransactionEnvelope) !RPCResponse(Hex) {
             const function_item = try getAbiItem(self.abi, .function, function_name);
             var copy = overrides;
 
             const encoded = try function_item.abiFunction.encode(self.wallet.allocator, function_args);
             defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
 
-            const concated = try std.fmt.allocPrint(self.wallet.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-            defer self.wallet.allocator.free(concated);
-
             if (copy.to == null)
                 return error.InvalidRequestTarget;
 
-            copy.data = concated;
+            copy.data = encoded;
 
             const address = try self.wallet.getWalletAddress();
             const call: EthCall = switch (copy.type) {
@@ -390,7 +396,7 @@ pub fn Contract(comptime client_type: ClientType) type {
                 _ => .{ .legacy = .{ .from = address, .value = copy.value, .to = copy.to, .data = copy.data, .gas = copy.gas, .gasPrice = copy.gasPrice } },
             };
 
-            return try self.wallet.pub_client.sendEthCall(call, .{});
+            return self.wallet.rpc_client.sendEthCall(call, .{});
         }
     };
 }
@@ -450,7 +456,15 @@ fn getAbiItem(abi: Abi, abi_type: Abitype, name: ?[]const u8) !AbiItem {
 
 test "DeployContract" {
     {
-        const abi = &.{.{ .abiConstructor = .{ .type = .constructor, .inputs = &.{}, .stateMutability = .nonpayable } }};
+        const abi = &.{
+            .{
+                .abiConstructor = .{
+                    .type = .constructor,
+                    .inputs = &.{},
+                    .stateMutability = .nonpayable,
+                },
+            },
+        };
         const uri = try std.Uri.parse("http://localhost:8545/");
 
         var contract: Contract(.websocket) = undefined;
@@ -458,12 +472,23 @@ test "DeployContract" {
 
         try contract.init(.{ .abi = abi, .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
 
-        const hash = try contract.deployContract(.{}, "0x608060405260358060116000396000f3006080604052600080fd00a165627a7a72305820f86ff341f0dff29df244305f8aa88abaf10e3a0719fa6ea1dcdd01b8b7d750970029", .{ .type = .london });
+        var buffer: [1024]u8 = undefined;
+        const bytes = try std.fmt.hexToBytes(&buffer, "608060405260358060116000396000f3006080604052600080fd00a165627a7a72305820f86ff341f0dff29df244305f8aa88abaf10e3a0719fa6ea1dcdd01b8b7d750970029");
+        const hash = try contract.deployContract(.{}, bytes, .{ .type = .london });
+        defer hash.deinit();
 
-        try testing.expectEqual(hash.len, 32);
+        try testing.expectEqual(hash.response.len, 32);
     }
     {
-        const abi = &.{.{ .abiConstructor = .{ .type = .constructor, .inputs = &.{}, .stateMutability = .nonpayable } }};
+        const abi = &.{
+            .{
+                .abiConstructor = .{
+                    .type = .constructor,
+                    .inputs = &.{},
+                    .stateMutability = .nonpayable,
+                },
+            },
+        };
         const uri = try std.Uri.parse("http://localhost:8545/");
 
         var contract: Contract(.http) = undefined;
@@ -471,38 +496,85 @@ test "DeployContract" {
 
         try contract.init(.{ .abi = abi, .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
 
-        const hash = try contract.deployContract(.{}, "0x608060405260358060116000396000f3006080604052600080fd00a165627a7a72305820f86ff341f0dff29df244305f8aa88abaf10e3a0719fa6ea1dcdd01b8b7d750970029", .{ .type = .london });
+        var buffer: [1024]u8 = undefined;
+        const bytes = try std.fmt.hexToBytes(&buffer, "608060405260358060116000396000f3006080604052600080fd00a165627a7a72305820f86ff341f0dff29df244305f8aa88abaf10e3a0719fa6ea1dcdd01b8b7d750970029");
+        const hash = try contract.deployContract(.{}, bytes, .{ .type = .london });
+        defer hash.deinit();
 
-        try testing.expectEqual(hash.len, 32);
+        try testing.expectEqual(hash.response.len, 32);
     }
 }
 
 test "ReadContract" {
     {
-        const abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" } }};
+        const abi = &.{
+            .{
+                .abiFunction = .{
+                    .type = .function,
+                    .inputs = &.{
+                        .{ .type = .{ .uint = 256 }, .name = "tokenId" },
+                    },
+                    .stateMutability = .view,
+                    .outputs = &.{
+                        .{ .type = .{ .address = {} }, .name = "" },
+                    },
+                    .name = "ownerOf",
+                },
+            },
+        };
         const uri = try std.Uri.parse("http://localhost:8545/");
 
         var contract: Contract(.websocket) = undefined;
         defer contract.deinit();
 
-        try contract.init(.{ .abi = abi, .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
+        try contract.init(.{
+            .abi = abi,
+            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+        });
 
-        const ReturnType = std.meta.Tuple(&[_]type{[20]u8});
-        const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .london = .{ .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"), .from = try contract.wallet.getWalletAddress() } });
-        try testing.expectEqual(result.values[0].len, 20);
+        const ReturnType = struct { Address };
+        const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .london = .{
+            .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"),
+            .from = try contract.wallet.getWalletAddress(),
+        } });
+
+        try testing.expectEqual(result[0].len, 20);
     }
     {
-        const abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" } }};
+        const abi = &.{
+            .{
+                .abiFunction = .{
+                    .type = .function,
+                    .inputs = &.{
+                        .{ .type = .{ .uint = 256 }, .name = "tokenId" },
+                    },
+                    .stateMutability = .view,
+                    .outputs = &.{
+                        .{ .type = .{ .address = {} }, .name = "" },
+                    },
+                    .name = "ownerOf",
+                },
+            },
+        };
         const uri = try std.Uri.parse("http://localhost:8545/");
 
         var contract: Contract(.http) = undefined;
         defer contract.deinit();
 
-        try contract.init(.{ .abi = abi, .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
+        try contract.init(.{
+            .abi = abi,
+            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+        });
 
-        const ReturnType = std.meta.Tuple(&[_]type{[20]u8});
-        const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .london = .{ .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"), .from = try contract.wallet.getWalletAddress() } });
-        try testing.expectEqual(result.values[0].len, 20);
+        const ReturnType = struct { Address };
+        const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .london = .{
+            .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"),
+            .from = try contract.wallet.getWalletAddress(),
+        } });
+
+        try testing.expectEqual(result[0].len, 20);
     }
     {
         const uri = try std.Uri.parse("http://localhost:8545/");
@@ -512,21 +584,52 @@ test "ReadContract" {
 
         try contract.init(.{ .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
 
-        const result = try contract.readContractFunction(.{ .type = .function, .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }}, .stateMutability = .view, .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }}, .name = "ownerOf" }, .{ .args = .{69}, .overrides = .{ .london = .{ .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"), .from = try contract.wallet.getWalletAddress() } } });
+        const result = try contract.readContractFunction(.{
+            .type = .function,
+            .inputs = &.{.{ .type = .{ .uint = 256 }, .name = "tokenId" }},
+            .stateMutability = .view,
+            .outputs = &.{.{ .type = .{ .address = {} }, .name = "" }},
+            .name = "ownerOf",
+        }, .{
+            .args = .{69},
+            .overrides = .{
+                .london = .{
+                    .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"),
+                    .from = try contract.wallet.getWalletAddress(),
+                },
+            },
+        });
 
-        try testing.expectEqual(result.values[0].len, 20);
+        try testing.expectEqual(result[0].len, 20);
     }
 }
 
 test "WriteContract" {
     {
-        const abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }};
+        const abi = &.{
+            .{
+                .abiFunction = .{
+                    .type = .function,
+                    .inputs = &.{
+                        .{ .type = .{ .address = {} }, .name = "operator" },
+                        .{ .type = .{ .bool = {} }, .name = "approved" },
+                    },
+                    .stateMutability = .nonpayable,
+                    .outputs = &.{},
+                    .name = "setApprovalForAll",
+                },
+            },
+        };
         const uri = try std.Uri.parse("http://localhost:8545/");
 
         var contract: Contract(.websocket) = undefined;
         defer contract.deinit();
 
-        try contract.init(.{ .abi = abi, .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
+        try contract.init(.{
+            .abi = abi,
+            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+        });
 
         var anvil: Anvil = undefined;
         defer anvil.deinit();
@@ -534,19 +637,43 @@ test "WriteContract" {
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
         try anvil.impersonateAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
 
-        const result = try contract.writeContractFunction("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
+        const result = try contract.writeContractFunction("setApprovalForAll", .{
+            try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"),
+            true,
+        }, .{
+            .type = .london,
+            .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"),
+        });
+        defer result.deinit();
 
         try anvil.stopImpersonatingAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
-        try testing.expectEqual(result.len, 32);
+        try testing.expectEqual(result.response.len, 32);
     }
     {
-        const abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }};
+        const abi = &.{
+            .{
+                .abiFunction = .{
+                    .type = .function,
+                    .inputs = &.{
+                        .{ .type = .{ .address = {} }, .name = "operator" },
+                        .{ .type = .{ .bool = {} }, .name = "approved" },
+                    },
+                    .stateMutability = .nonpayable,
+                    .outputs = &.{},
+                    .name = "setApprovalForAll",
+                },
+            },
+        };
         const uri = try std.Uri.parse("http://localhost:8545/");
 
         var contract: Contract(.http) = undefined;
         defer contract.deinit();
 
-        try contract.init(.{ .abi = abi, .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
+        try contract.init(.{
+            .abi = abi,
+            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+        });
 
         var anvil: Anvil = undefined;
         defer anvil.deinit();
@@ -554,10 +681,14 @@ test "WriteContract" {
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
         try anvil.impersonateAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
 
-        const result = try contract.writeContractFunction("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
+        const result = try contract.writeContractFunction("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{
+            .type = .london,
+            .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"),
+        });
+        defer result.deinit();
 
         try anvil.stopImpersonatingAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
-        try testing.expectEqual(result.len, 32);
+        try testing.expectEqual(result.response.len, 32);
     }
     {
         const uri = try std.Uri.parse("http://localhost:8545/");
@@ -565,7 +696,10 @@ test "WriteContract" {
         var contract: ContractComptime(.http) = undefined;
         defer contract.deinit();
 
-        try contract.init(.{ .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
+        try contract.init(.{
+            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+        });
 
         var anvil: Anvil = undefined;
         defer anvil.deinit();
@@ -573,22 +707,55 @@ test "WriteContract" {
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
         try anvil.impersonateAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
 
-        const result = try contract.writeContractFunction(.{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" }, .{ .args = .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6547"), true }, .overrides = .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") } });
+        const result = try contract.writeContractFunction(.{
+            .type = .function,
+            .inputs = &.{
+                .{ .type = .{ .address = {} }, .name = "operator" },
+                .{ .type = .{ .bool = {} }, .name = "approved" },
+            },
+            .stateMutability = .nonpayable,
+            .outputs = &.{},
+            .name = "setApprovalForAll",
+        }, .{
+            .args = .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6547"), true },
+            .overrides = .{
+                .type = .london,
+                .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"),
+            },
+        });
+        defer result.deinit();
 
         try anvil.stopImpersonatingAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
-        try testing.expectEqual(result.len, 32);
+        try testing.expectEqual(result.response.len, 32);
     }
 }
 
 test "SimulateWriteCall" {
     {
-        const abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }};
+        const abi = &.{
+            .{
+                .abiFunction = .{
+                    .type = .function,
+                    .inputs = &.{
+                        .{ .type = .{ .address = {} }, .name = "operator" },
+                        .{ .type = .{ .bool = {} }, .name = "approved" },
+                    },
+                    .stateMutability = .nonpayable,
+                    .outputs = &.{},
+                    .name = "setApprovalForAll",
+                },
+            },
+        };
         const uri = try std.Uri.parse("http://localhost:8545/");
 
         var contract: Contract(.http) = undefined;
         defer contract.deinit();
 
-        try contract.init(.{ .abi = abi, .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
+        try contract.init(.{
+            .abi = abi,
+            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+        });
 
         var anvil: Anvil = undefined;
         defer anvil.deinit();
@@ -596,19 +763,40 @@ test "SimulateWriteCall" {
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
         try anvil.impersonateAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
 
-        const result = try contract.simulateWriteCall("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
+        const result = try contract.simulateWriteCall("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{
+            .type = .london,
+            .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"),
+        });
+        defer result.deinit();
 
         try anvil.stopImpersonatingAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
-        try testing.expect(result.len > 0);
+        try testing.expect(result.response.len == 0);
     }
     {
-        const abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }};
+        const abi = &.{
+            .{
+                .abiFunction = .{
+                    .type = .function,
+                    .inputs = &.{
+                        .{ .type = .{ .address = {} }, .name = "operator" },
+                        .{ .type = .{ .bool = {} }, .name = "approved" },
+                    },
+                    .stateMutability = .nonpayable,
+                    .outputs = &.{},
+                    .name = "setApprovalForAll",
+                },
+            },
+        };
         const uri = try std.Uri.parse("http://localhost:8545/");
 
         var contract: Contract(.http) = undefined;
         defer contract.deinit();
 
-        try contract.init(.{ .abi = abi, .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
+        try contract.init(.{
+            .abi = abi,
+            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+        });
 
         var anvil: Anvil = undefined;
         defer anvil.deinit();
@@ -617,9 +805,10 @@ test "SimulateWriteCall" {
         try anvil.impersonateAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
 
         const result = try contract.simulateWriteCall("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });
+        defer result.deinit();
 
         try anvil.stopImpersonatingAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
-        try testing.expect(result.len > 0);
+        try testing.expect(result.response.len == 0);
     }
     {
         const uri = try std.Uri.parse("http://localhost:8545/");
@@ -627,7 +816,10 @@ test "SimulateWriteCall" {
         var contract: ContractComptime(.http) = undefined;
         defer contract.deinit();
 
-        try contract.init(.{ .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
+        try contract.init(.{
+            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+        });
 
         var anvil: Anvil = undefined;
         defer anvil.deinit();
@@ -635,9 +827,25 @@ test "SimulateWriteCall" {
         try anvil.initClient(.{ .fork_url = "", .alloc = testing.allocator });
         try anvil.impersonateAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
 
-        const result = try contract.simulateWriteCall(.{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" }, .{ .args = .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6547"), true }, .overrides = .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") } });
+        const result = try contract.simulateWriteCall(.{
+            .type = .function,
+            .inputs = &.{
+                .{ .type = .{ .address = {} }, .name = "operator" },
+                .{ .type = .{ .bool = {} }, .name = "approved" },
+            },
+            .stateMutability = .nonpayable,
+            .outputs = &.{},
+            .name = "setApprovalForAll",
+        }, .{ .args = .{
+            try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6547"),
+            true,
+        }, .overrides = .{
+            .type = .london,
+            .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"),
+        } });
+        defer result.deinit();
 
         try anvil.stopImpersonatingAccount(try utils.addressToBytes("0xA207CDAf9b660960F819466BA69c28E7Cc8aEd18"));
-        try testing.expect(result.len > 0);
+        try testing.expect(result.response.len == 0);
     }
 }

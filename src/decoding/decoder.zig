@@ -22,66 +22,17 @@ pub fn Decoded(comptime T: type) type {
     return struct { consumed: usize, data: T, bytes_read: u16 };
 }
 
-pub fn AbiDecoded(comptime params: []const AbiParameter) type {
-    return struct {
-        arena: *ArenaAllocator,
-        values: AbiParametersToPrimative(params),
-
-        pub fn deinit(self: @This()) void {
-            const allocator = self.arena.child_allocator;
-            self.arena.deinit();
-
-            allocator.destroy(self.arena);
-        }
-    };
-}
-
-pub fn AbiDecodedRuntime(comptime T: type) type {
-    const info = @typeInfo(T);
-
-    if (info != .Struct and !info.Struct.is_tuple)
-        @compileError("Expected tuple return type");
-
-    return struct {
-        arena: *ArenaAllocator,
-        values: T,
-
-        pub fn deinit(self: @This()) void {
-            const allocator = self.arena.child_allocator;
-            self.arena.deinit();
-
-            allocator.destroy(self.arena);
-        }
-    };
-}
-
 pub fn AbiSignatureDecoded(comptime params: []const AbiParameter) type {
     return struct {
-        arena: *ArenaAllocator,
         name: []const u8,
         values: AbiParametersToPrimative(params),
-
-        pub fn deinit(self: @This()) void {
-            const allocator = self.arena.child_allocator;
-            self.arena.deinit();
-
-            allocator.destroy(self.arena);
-        }
     };
 }
 
 pub fn AbiSignatureDecodedRuntime(comptime T: type) type {
     return struct {
-        arena: *ArenaAllocator,
         name: []const u8,
         values: T,
-
-        pub fn deinit(self: @This()) void {
-            const allocator = self.arena.child_allocator;
-            self.arena.deinit();
-
-            allocator.destroy(self.arena);
-        }
     };
 }
 
@@ -97,116 +48,97 @@ pub const DecodeOptions = struct {
 pub const DecodedErrors = error{ InvalidBits, InvalidEnumType, InvalidAbiParameter, InvalidSignedness, InvalidArraySize, JunkData, InvalidAbiSignature, BufferOverrun, InvalidLength, NoSpaceLeft, InvalidDecodeDataSize } || Allocator.Error || std.fmt.ParseIntError;
 
 /// Decode the hex values based on the struct signature
-/// Caller owns the memory.
-pub fn decodeAbiFunctionRuntime(allocator: Allocator, comptime T: type, function: Function, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
-    std.debug.assert(hex.len > 7);
+///
+/// Caller owns the memory only if the param type is a dynamicArray otherwise
+/// no other allocations are made.
+pub fn decodeAbiFunctionRuntime(allocator: Allocator, comptime T: type, function: Function, hex: []u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
+    std.debug.assert(hex.len > 3);
 
-    const hashed_func_name = hex[0..8];
+    const hashed_func_name = hex[0..4];
     const prepare = try function.allocPrepare(allocator);
     defer allocator.free(prepare);
 
     var hashed: [Keccak256.digest_length]u8 = undefined;
     Keccak256.hash(prepare, &hashed, .{});
 
-    const hash_hex = std.fmt.bytesToHex(hashed, .lower);
-
-    if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8]))
+    if (!std.mem.eql(u8, hashed_func_name, hashed[0..4]))
         return error.InvalidAbiSignature;
 
-    const data = hex[8..];
+    const data = hex[4..];
 
     if (data.len == 0 and function.inputs.len > 0)
         return error.InvalidDecodeDataSize;
 
     const decoded = try decodeAbiParametersRuntime(allocator, T, function.inputs, data, opts);
 
-    return .{ .arena = decoded.arena, .name = function.name, .values = decoded.values };
+    return .{ .name = function.name, .values = decoded };
 }
 /// Decode the hex values based on the struct signature
-/// Caller owns the memory.
-pub fn decodeAbiFunctionOutputsRuntime(allocator: Allocator, comptime T: type, function: Function, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
-    std.debug.assert(hex.len > 7);
+///
+/// Caller owns the memory only if the param type is a dynamicArray otherwise
+/// no other allocations are made.
+pub fn decodeAbiFunctionOutputsRuntime(allocator: Allocator, comptime T: type, function: Function, hex: []u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
+    std.debug.assert(hex.len > 3);
 
-    const hashed_func_name = hex[0..8];
+    const hashed_func_name = hex[0..4];
     const prepare = try function.allocPrepare(allocator);
     defer allocator.free(prepare);
 
     var hashed: [Keccak256.digest_length]u8 = undefined;
     Keccak256.hash(prepare, &hashed, .{});
 
-    const hash_hex = std.fmt.bytesToHex(hashed, .lower);
-
-    if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8]))
+    if (!std.mem.eql(u8, hashed_func_name, hashed[0..4]))
         return error.InvalidAbiSignature;
 
-    const data = hex[8..];
+    const data = hex[4..];
 
     if (data.len == 0 and function.outputs.len > 0)
         return error.InvalidDecodeDataSize;
 
     const decoded = try decodeAbiParametersRuntime(allocator, T, function.outputs, data, opts);
 
-    return .{ .arena = decoded.arena, .name = function.name, .values = decoded.values };
+    return .{ .name = function.name, .values = decoded };
 }
 /// Decode the hex values based on the struct signature
-/// Caller owns the memory.
-pub fn decodeAbiErrorRuntime(allocator: Allocator, comptime T: type, err: Error, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
-    std.debug.assert(hex.len > 7);
+///
+/// Caller owns the memory only if the param type is a dynamicArray otherwise
+/// no other allocations are made.
+pub fn decodeAbiErrorRuntime(allocator: Allocator, comptime T: type, err: Error, hex: []u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
+    std.debug.assert(hex.len > 3);
 
-    const hashed_func_name = hex[0..8];
+    const hashed_func_name = hex[0..4];
     const prepare = try err.allocPrepare(allocator);
     defer allocator.free(prepare);
 
     var hashed: [Keccak256.digest_length]u8 = undefined;
     Keccak256.hash(prepare, &hashed, .{});
 
-    const hash_hex = std.fmt.bytesToHex(hashed, .lower);
-
-    if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8]))
+    if (!std.mem.eql(u8, hashed_func_name, hashed[0..4]))
         return error.InvalidAbiSignature;
 
-    const data = hex[8..];
+    const data = hex[4..];
 
     if (data.len == 0 and err.inputs.len > 0)
         return error.InvalidDecodeDataSize;
 
     const decoded = try decodeAbiParametersRuntime(allocator, T, err.inputs, data, opts);
 
-    return .{ .arena = decoded.arena, .name = err.name, .values = decoded.values };
+    return .{ .name = err.name, .values = decoded };
 }
 /// Decode the hex values based on the struct signature
 /// Caller owns the memory.
-pub fn decodeAbiConstructorRuntime(allocator: Allocator, comptime T: type, constructor: Constructor, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
+pub fn decodeAbiConstructorRuntime(allocator: Allocator, comptime T: type, constructor: Constructor, hex: []u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecodedRuntime(T) {
     const decoded = try decodeAbiParametersRuntime(allocator, T, constructor.inputs, hex, opts);
 
-    return .{ .arena = decoded.arena, .name = "", .values = decoded.values };
+    return .{ .name = "", .values = decoded };
 }
 /// Main function that will be used to decode the hex values based on the abi paramters.
-/// This will allocate and a ArenaAllocator will be used to manage the memory.
 ///
-/// Caller owns the memory.
+/// Caller owns the memory only if the param type is a dynamicArray otherwise
+/// no other allocations are made.
 ///
 /// If the abi parameters are comptime know use `decodeAbiParameters`
-pub fn decodeAbiParametersRuntime(allocator: Allocator, comptime T: type, params: []const AbiParameter, hex: []const u8, opts: DecodeOptions) !AbiDecodedRuntime(T) {
-    var decoded: AbiDecodedRuntime(T) = .{ .arena = try allocator.create(ArenaAllocator), .values = undefined };
-    errdefer allocator.destroy(decoded.arena);
-
-    decoded.arena.* = ArenaAllocator.init(allocator);
-    errdefer decoded.arena.deinit();
-
-    const arena_allocator = decoded.arena.allocator();
-    decoded.values = try decodeAbiParametersLeakyRuntime(arena_allocator, T, params, hex, opts);
-
-    return decoded;
-}
-/// Subset function used for decoding. Its highly recommend to use an ArenaAllocator
-/// or a FixedBufferAllocator to manage memory since allocations will not be freed when done,
-/// and with those all of the memory can be freed at once.
-///
-/// Caller owns the memory.
-///
-/// If the abi parameters are comptime know use `decodeAbiParametersLeaky`
-pub fn decodeAbiParametersLeakyRuntime(allocator: Allocator, comptime T: type, params: []const AbiParameter, hex: []const u8, opts: DecodeOptions) !T {
+pub fn decodeAbiParametersRuntime(allocator: Allocator, comptime T: type, params: []const AbiParameter, hex: []u8, opts: DecodeOptions) !T {
     const info = @typeInfo(T);
 
     if (info != .Struct and !info.Struct.is_tuple)
@@ -219,13 +151,9 @@ pub fn decodeAbiParametersLeakyRuntime(allocator: Allocator, comptime T: type, p
         return error.InvalidLength;
     }
 
-    std.debug.assert(hex.len > 63 and hex.len % 2 == 0);
+    std.debug.assert(hex.len > 31 and hex.len % 2 == 0);
 
-    const hex_buffer = if (std.mem.startsWith(u8, hex, "0x")) hex[2..] else hex;
-    const buffer = try allocator.alloc(u8, @divExact(hex_buffer.len, 2));
-    const bytes = try std.fmt.hexToBytes(buffer, hex_buffer);
-
-    return try decodeItems(allocator, T, params, bytes, opts);
+    return try decodeItems(allocator, T, params, hex, opts);
 }
 /// Reflects on the provided type and decodes based on it
 /// and also based on the provided `[]const AbiParameter`
@@ -241,6 +169,8 @@ fn decodeItems(allocator: Allocator, comptime T: type, params: []const AbiParame
 
     inline for (info, 0..) |field, i| {
         const decoded = try decodeItem(allocator, field.type, params[i], hex, pos, opts);
+        errdefer if (params[i].type == .dynamicArray and @typeInfo(field.type) == .Pointer) allocator.free(decoded.data);
+
         pos += decoded.consumed;
         result[i] = decoded.data;
         read += decoded.bytes_read;
@@ -249,6 +179,15 @@ fn decodeItems(allocator: Allocator, comptime T: type, params: []const AbiParame
             return error.BufferOverrun;
     }
 
+    errdefer {
+        inline for (result) |data| {
+            const res_info = @typeInfo(@TypeOf(data));
+            if (res_info == .Pointer) {
+                if (res_info.Pointer.size == .Slice and res_info.Pointer.child != u8)
+                    allocator.free(data);
+            }
+        }
+    }
     if (!opts.allow_junk_data and hex.len > read)
         return error.JunkData;
 
@@ -288,7 +227,7 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
         },
         .Enum => {
             const decoded = switch (param.type) {
-                .string, .bytes => try decodeString(allocator, hex, position),
+                .string, .bytes => try decodeString(hex, position),
                 else => return error.InvalidAbiParameter,
             };
             if (decoded.bytes_read > opts.max_bytes)
@@ -349,6 +288,8 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
 
                 for (0..arr_info.len) |i| {
                     const decoded = try decodeItem(allocator, arr_info.child, abi_param, hex[offset.data..], if (!child) pos else i * 32, opts);
+                    errdefer if (abi_param.type == .dynamicArray and @typeInfo(arr_info.child) == .Pointer) allocator.free(decoded.data);
+
                     pos += decoded.consumed;
                     result[i] = decoded.data;
                     read += decoded.bytes_read;
@@ -366,6 +307,8 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
             var result: T = undefined;
             for (0..arr_info.len) |i| {
                 const decoded = try decodeItem(allocator, arr_info.child, abi_param, hex, pos + position, opts);
+                errdefer if (abi_param.type == .dynamicArray and @typeInfo(arr_info.child) == .Pointer) allocator.free(decoded.data);
+
                 pos += decoded.consumed;
                 result[i] = decoded.data;
                 read += decoded.bytes_read;
@@ -402,9 +345,12 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
                     var read: u16 = 0;
 
                     var list = std.ArrayList(ptr_info.child).init(allocator);
+                    errdefer list.deinit();
 
                     for (0..length.data) |_| {
                         const decoded = try decodeItem(allocator, ptr_info.child, abi_param, hex[offset.data + 32 ..], pos, opts);
+                        errdefer if (abi_param.type == .dynamicArray and @typeInfo(ptr_info.child) == .Pointer) allocator.free(decoded.data);
+
                         pos += decoded.consumed;
                         read += decoded.bytes_read;
 
@@ -435,6 +381,8 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
                         for (components) |component| {
                             if (std.mem.eql(u8, field.name, component.name)) {
                                 const decoded = try decodeItem(allocator, field.type, component, hex[offset.data..], pos, opts);
+                                errdefer if (component.type == .dynamicArray and @typeInfo(field.type) == .Pointer) allocator.free(decoded.data);
+
                                 pos += decoded.consumed;
                                 read += decoded.bytes_read;
 
@@ -456,6 +404,8 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
                     for (components) |component| {
                         if (std.mem.eql(u8, field.name, component.name)) {
                             const decoded = try decodeItem(allocator, field.type, component, hex, position + pos, opts);
+                            errdefer if (component.type == .dynamicArray and @typeInfo(field.type) == .Pointer) allocator.free(decoded.data);
+
                             pos += decoded.consumed;
                             read += decoded.bytes_read;
 
@@ -478,123 +428,105 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
 // Comptime
 
 /// Decode the hex values based on the struct signature
-/// Caller owns the memory.
-pub fn decodeAbiFunction(allocator: Allocator, comptime function: Function, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(function.inputs) {
-    std.debug.assert(hex.len > 7);
+///
+/// Caller owns the memory only if the param type is a dynamicArray otherwise
+/// no other allocations are made.
+pub fn decodeAbiFunction(allocator: Allocator, comptime function: Function, hex: []u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(function.inputs) {
+    std.debug.assert(hex.len > 3);
 
-    const hashed_func_name = hex[0..8];
+    const hashed_func_name = hex[0..4];
     const prepare = try function.allocPrepare(allocator);
     defer allocator.free(prepare);
 
     var hashed: [Keccak256.digest_length]u8 = undefined;
     Keccak256.hash(prepare, &hashed, .{});
 
-    const hash_hex = std.fmt.bytesToHex(hashed, .lower);
-
-    if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8]))
+    if (!std.mem.eql(u8, hashed_func_name, hashed[0..4]))
         return error.InvalidAbiSignature;
 
-    const data = hex[8..];
+    const data = hex[4..];
 
     if (data.len == 0 and function.inputs.len > 0)
         return error.InvalidDecodeDataSize;
 
     const decoded = try decodeAbiParameters(allocator, function.inputs, data, opts);
 
-    return .{ .arena = decoded.arena, .name = function.name, .values = decoded.values };
+    return .{ .name = function.name, .values = decoded };
 }
 
 /// Decode the hex values based on the struct signature
-/// Caller owns the memory.
-pub fn decodeAbiFunctionOutputs(allocator: Allocator, comptime function: Function, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(function.outputs) {
-    std.debug.assert(hex.len > 7);
+///
+/// Caller owns the memory only if the param type is a dynamicArray otherwise
+/// no other allocations are made.
+pub fn decodeAbiFunctionOutputs(allocator: Allocator, comptime function: Function, hex: []u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(function.outputs) {
+    std.debug.assert(hex.len > 3);
 
-    const hashed_func_name = hex[0..8];
+    const hashed_func_name = hex[0..4];
     const prepare = try function.allocPrepare(allocator);
     defer allocator.free(prepare);
 
     var hashed: [Keccak256.digest_length]u8 = undefined;
     Keccak256.hash(prepare, &hashed, .{});
 
-    const hash_hex = std.fmt.bytesToHex(hashed, .lower);
+    if (!std.mem.eql(u8, hashed_func_name, hashed[0..4]))
+        return error.InvalidAbiSignature;
 
-    if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8])) return error.InvalidAbiSignature;
-
-    const data = hex[8..];
+    const data = hex[4..];
 
     if (data.len == 0 and function.outputs.len > 0)
         return error.InvalidDecodeDataSize;
 
     const decoded = try decodeAbiParameters(allocator, function.outputs, data, opts);
 
-    return .{ .arena = decoded.arena, .name = function.name, .values = decoded.values };
+    return .{ .name = function.name, .values = decoded };
 }
 
 /// Decode the hex values based on the struct signature
-/// Caller owns the memory.
-pub fn decodeAbiError(allocator: Allocator, comptime err: Error, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(err.inputs) {
-    std.debug.assert(hex.len > 7);
+///
+/// Caller owns the memory only if the param type is a dynamicArray otherwise
+/// no other allocations are made.
+pub fn decodeAbiError(allocator: Allocator, comptime err: Error, hex: []u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(err.inputs) {
+    std.debug.assert(hex.len > 3);
 
-    const hashed_func_name = hex[0..8];
+    const hashed_func_name = hex[0..4];
     const prepare = try err.allocPrepare(allocator);
     defer allocator.free(prepare);
 
     var hashed: [Keccak256.digest_length]u8 = undefined;
     Keccak256.hash(prepare, &hashed, .{});
 
-    const hash_hex = std.fmt.bytesToHex(hashed, .lower);
+    if (!std.mem.eql(u8, hashed_func_name, hashed[0..4]))
+        return error.InvalidAbiSignature;
 
-    if (!std.mem.eql(u8, hashed_func_name, hash_hex[0..8])) return error.InvalidAbiSignature;
-
-    const data = hex[8..];
+    const data = hex[4..];
 
     if (data.len == 0 and err.inputs.len > 0)
         return error.InvalidDecodeDataSize;
 
     const decoded = try decodeAbiParameters(allocator, err.inputs, data, opts);
 
-    return .{ .arena = decoded.arena, .name = err.name, .values = decoded.values };
+    return .{ .name = err.name, .values = decoded };
 }
 
 /// Decode the hex values based on the struct signature
-/// Caller owns the memory.
-pub fn decodeAbiConstructor(allocator: Allocator, comptime constructor: Constructor, hex: []const u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(constructor.inputs) {
+///
+/// Caller owns the memory only if the param type is a dynamicArray otherwise
+/// no other allocations are made.
+pub fn decodeAbiConstructor(allocator: Allocator, comptime constructor: Constructor, hex: []u8, opts: DecodeOptions) DecodedErrors!AbiSignatureDecoded(constructor.inputs) {
     const decoded = try decodeAbiParameters(allocator, constructor.inputs, hex, opts);
 
-    return .{ .arena = decoded.arena, .name = "", .values = decoded.values };
+    return .{ .name = "", .values = decoded };
 }
 
 /// Main function that will be used to decode the hex values based on the abi paramters.
-/// This will allocate and a ArenaAllocator will be used to manage the memory.
 ///
-/// Caller owns the memory.
-pub fn decodeAbiParameters(allocator: Allocator, comptime params: []const AbiParameter, hex: []const u8, opts: DecodeOptions) !AbiDecoded(params) {
-    var decoded: AbiDecoded(params) = .{ .arena = try allocator.create(ArenaAllocator), .values = undefined };
-    errdefer allocator.destroy(decoded.arena);
-
-    decoded.arena.* = ArenaAllocator.init(allocator);
-    errdefer decoded.arena.deinit();
-
-    const arena_allocator = decoded.arena.allocator();
-    decoded.values = try decodeAbiParametersLeaky(arena_allocator, params, hex, opts);
-
-    return decoded;
-}
-
-/// Subset function used for decoding. Its highly recommend to use an ArenaAllocator
-/// or a FixedBufferAllocator to manage memory since allocations will not be freed when done,
-/// and with those all of the memory can be freed at once.
-///
-/// Caller owns the memory.
-pub fn decodeAbiParametersLeaky(allocator: Allocator, comptime params: []const AbiParameter, hex: []const u8, opts: DecodeOptions) !AbiParametersToPrimative(params) {
+/// Caller owns the memory only if the param type is a dynamicArray otherwise
+/// no other allocations are made.
+pub fn decodeAbiParameters(allocator: Allocator, comptime params: []const AbiParameter, hex: []u8, opts: DecodeOptions) !AbiParametersToPrimative(params) {
     if (params.len == 0) return;
-    std.debug.assert(hex.len > 63 and hex.len % 2 == 0);
+    std.debug.assert(hex.len > 31 and hex.len % 2 == 0);
 
-    const hex_buffer = if (std.mem.startsWith(u8, hex, "0x")) hex[2..] else hex;
-    const buffer = try allocator.alloc(u8, @divExact(hex_buffer.len, 2));
-    const bytes = try std.fmt.hexToBytes(buffer, hex_buffer);
-
-    return decodeParameters(allocator, params, bytes, opts);
+    return decodeParameters(allocator, params, hex, opts);
 }
 
 fn decodeParameters(allocator: Allocator, comptime params: []const AbiParameter, hex: []u8, opts: DecodeOptions) !AbiParametersToPrimative(params) {
@@ -604,6 +536,8 @@ fn decodeParameters(allocator: Allocator, comptime params: []const AbiParameter,
     var result: AbiParametersToPrimative(params) = undefined;
     inline for (params, 0..) |param, i| {
         const decoded = try decodeParameter(allocator, param, hex, pos, opts);
+        errdefer if (param.type == .dynamicArray) allocator.free(decoded.data);
+
         pos += decoded.consumed;
         result[i] = decoded.data;
         read += decoded.bytes_read;
@@ -612,6 +546,15 @@ fn decodeParameters(allocator: Allocator, comptime params: []const AbiParameter,
             return error.BufferOverrun;
     }
 
+    errdefer {
+        inline for (result) |data| {
+            const info = @typeInfo(@TypeOf(data));
+            if (info == .Pointer) {
+                if (info.Pointer.size == .Slice and info.Pointer.child != u8)
+                    allocator.free(data);
+            }
+        }
+    }
     if (!opts.allow_junk_data and hex.len > read)
         return error.JunkData;
 
@@ -621,7 +564,8 @@ fn decodeParameters(allocator: Allocator, comptime params: []const AbiParameter,
 fn decodeParameter(allocator: Allocator, comptime param: AbiParameter, hex: []u8, position: usize, opts: DecodeOptions) !Decoded(AbiParameterToPrimative(param)) {
     const decoded = outer: {
         break :outer switch (param.type) {
-            .string, .bytes => try decodeString(hex, position),
+            .string => try decodeString(hex, position),
+            .bytes => try decodeBytes(hex, position),
             .address => try decodeAddress(hex, position),
             .fixedBytes => |val| {
                 const decoded = try decodeFixedBytes(val, hex, position);
@@ -637,6 +581,7 @@ fn decodeParameter(allocator: Allocator, comptime param: AbiParameter, hex: []u8
             inline else => @compileError("Not implemented " ++ @tagName(param.type)),
         };
     };
+    errdefer if (param.type == .dynamicArray) allocator.free(decoded.data);
 
     if (decoded.bytes_read > opts.max_bytes)
         return error.BufferOverrun;
@@ -685,6 +630,17 @@ fn decodeString(hex: []u8, position: usize) !Decoded([]const u8) {
     return .{ .consumed = 32, .data = slice, .bytes_read = @intCast(len_padded + 64) };
 }
 
+fn decodeBytes(hex: []u8, position: usize) !Decoded([]u8) {
+    const offset = try decodeNumber(usize, hex, position);
+    const length = try decodeNumber(usize, hex, offset.data);
+
+    const slice = hex[offset.data + 32 .. offset.data + 32 + length.data];
+    const remainder = length.data % 32;
+    const len_padded = length.data + 32 - remainder;
+
+    return .{ .consumed = 32, .data = slice, .bytes_read = @intCast(len_padded + 64) };
+}
+
 fn decodeFixedBytes(size: usize, hex: []u8, position: usize) !Decoded([]u8) {
     const slice = hex[position .. position + size];
     return .{ .consumed = 32, .data = slice, .bytes_read = 32 };
@@ -698,9 +654,12 @@ fn decodeArray(allocator: Allocator, comptime param: AbiParameter, hex: []u8, po
     var read: u16 = 0;
 
     var list = std.ArrayList(AbiParameterToPrimative(param)).init(allocator);
+    errdefer list.deinit();
 
     for (0..length.data) |_| {
         const decoded = try decodeParameter(allocator, param, hex[offset.data + 32 ..], pos, opts);
+        errdefer if (param.type == .dynamicArray) allocator.free(decoded.data);
+
         pos += decoded.consumed;
         read += decoded.bytes_read;
 
@@ -729,6 +688,8 @@ fn decodeFixedArray(allocator: Allocator, comptime param: AbiParameter, comptime
 
         for (0..size) |i| {
             const decoded = try decodeParameter(allocator, param, hex[offset.data..], if (@TypeOf(child) != void) pos else i * 32, opts);
+            errdefer if (@TypeOf(child) != void) allocator.free(decoded.data);
+
             pos += decoded.consumed;
             result[i] = decoded.data;
             read += decoded.bytes_read;
@@ -746,6 +707,7 @@ fn decodeFixedArray(allocator: Allocator, comptime param: AbiParameter, comptime
     var result: [size]AbiParameterToPrimative(param) = undefined;
     for (0..size) |i| {
         const decoded = try decodeParameter(allocator, param, hex, pos + position, opts);
+
         pos += decoded.consumed;
         result[i] = decoded.data;
         read += decoded.bytes_read;
@@ -768,6 +730,8 @@ fn decodeTuple(allocator: Allocator, comptime param: AbiParameter, hex: []u8, po
 
             inline for (components) |component| {
                 const decoded = try decodeParameter(allocator, component, hex[offset.data..], pos, opts);
+                errdefer if (component.type == .dynamicArray) allocator.free(decoded.data);
+
                 pos += decoded.consumed;
                 read += decoded.bytes_read;
 
@@ -784,6 +748,8 @@ fn decodeTuple(allocator: Allocator, comptime param: AbiParameter, hex: []u8, po
         var read: u16 = 0;
         inline for (components) |component| {
             const decoded = try decodeParameter(allocator, component, hex, position + pos, opts);
+            errdefer if (component.type == .dynamicArray) allocator.free(decoded.data);
+
             pos += decoded.consumed;
             read += decoded.bytes_read;
 
@@ -822,8 +788,7 @@ test "Bool" {
         try testDecode("0000000000000000000000000000000000000000000000000000000000000001", &.{.{ .type = .{ .bool = {} }, .name = "foo" }}, .{true});
         try testDecode("0000000000000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .bool = {} }, .name = "foo" }}, .{false});
 
-        const decoded = try decodeAbiConstructor(testing.allocator, .{ .type = .constructor, .stateMutability = .nonpayable, .inputs = &.{.{ .type = .{ .bool = {} }, .name = "foo" }} }, "0000000000000000000000000000000000000000000000000000000000000000", .{});
-        defer decoded.deinit();
+        const decoded = try decodeAbiConstructor(testing.allocator, .{ .type = .constructor, .stateMutability = .nonpayable, .inputs = &.{.{ .type = .{ .bool = {} }, .name = "foo" }} }, @constCast(&[_]u8{0} ** 32), .{});
 
         try testInnerValues(.{false}, decoded.values);
     }
@@ -832,8 +797,7 @@ test "Bool" {
         try testDecodeRuntime("0000000000000000000000000000000000000000000000000000000000000001", ReturnType, &.{.{ .type = .{ .bool = {} }, .name = "foo" }}, .{true});
         try testDecodeRuntime("0000000000000000000000000000000000000000000000000000000000000000", ReturnType, &.{.{ .type = .{ .bool = {} }, .name = "foo" }}, .{false});
 
-        const decoded = try decodeAbiConstructorRuntime(testing.allocator, ReturnType, .{ .type = .constructor, .stateMutability = .nonpayable, .inputs = &.{.{ .type = .{ .bool = {} }, .name = "foo" }} }, "0000000000000000000000000000000000000000000000000000000000000000", .{});
-        defer decoded.deinit();
+        const decoded = try decodeAbiConstructorRuntime(testing.allocator, ReturnType, .{ .type = .constructor, .stateMutability = .nonpayable, .inputs = &.{.{ .type = .{ .bool = {} }, .name = "foo" }} }, @constCast(&[_]u8{0} ** 32), .{});
 
         try testInnerValues(.{false}, decoded.values);
     }
@@ -846,8 +810,16 @@ test "Uint/Int" {
         try testDecode("fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffb", &.{.{ .type = .{ .int = 256 }, .name = "foo" }}, .{-5});
         try testDecode("fffffffffffffffffffffffffffffffffffffffffffffffffffffffff8a432eb", &.{.{ .type = .{ .int = 64 }, .name = "foo" }}, .{-123456789});
 
-        const decoded = try decodeAbiError(testing.allocator, .{ .type = .@"error", .name = "Bar", .inputs = &.{.{ .type = .{ .int = 256 }, .name = "foo" }} }, "22217e1f0000000000000000000000000000000000000000000000000000000000010f2c", .{});
-        defer decoded.deinit();
+        var buffer: [1024]u8 = undefined;
+        const bytes = try std.fmt.hexToBytes(&buffer, "22217e1f0000000000000000000000000000000000000000000000000000000000010f2c");
+
+        const decoded = try decodeAbiError(testing.allocator, .{
+            .type = .@"error",
+            .name = "Bar",
+            .inputs = &.{
+                .{ .type = .{ .int = 256 }, .name = "foo" },
+            },
+        }, bytes, .{});
 
         try testInnerValues(.{69420}, decoded.values);
         try testing.expectEqualStrings("Bar", decoded.name);
@@ -862,8 +834,17 @@ test "Uint/Int" {
         const R4 = std.meta.Tuple(&[_]type{i64});
         try testDecodeRuntime("fffffffffffffffffffffffffffffffffffffffffffffffffffffffff8a432eb", R4, &.{.{ .type = .{ .int = 64 }, .name = "foo" }}, .{-123456789});
 
-        const decoded = try decodeAbiErrorRuntime(testing.allocator, R3, .{ .type = .@"error", .name = "Bar", .inputs = &.{.{ .type = .{ .int = 256 }, .name = "foo" }} }, "22217e1f0000000000000000000000000000000000000000000000000000000000010f2c", .{});
-        defer decoded.deinit();
+        var buffer: [1024]u8 = undefined;
+        const bytes = try std.fmt.hexToBytes(&buffer, "22217e1f0000000000000000000000000000000000000000000000000000000000010f2c");
+
+        const decoded = try decodeAbiErrorRuntime(testing.allocator, R3, .{
+            .type = .@"error",
+            .name = "Bar",
+            .inputs = &.{.{
+                .type = .{ .int = 256 },
+                .name = "foo",
+            }},
+        }, bytes, .{});
 
         try testInnerValues(.{69420}, decoded.values);
         try testing.expectEqualStrings("Bar", decoded.name);
@@ -875,8 +856,16 @@ test "Address" {
         try testDecode("0000000000000000000000004648451b5f87ff8f0f7d622bd40574bb97e25980", &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{try utils.addressToBytes("0x4648451b5F87FF8F0F7D622bD40574bb97E25980")});
         try testDecode("000000000000000000000000388c818ca8b9251b393131c08a736a67ccb19297", &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{try utils.addressToBytes("0x388C818CA8B9251b393131C08a736A67ccB19297")});
 
-        const decoded = try decodeAbiFunctionOutputs(testing.allocator, .{ .type = .function, .name = "Bar", .inputs = &.{}, .stateMutability = .nonpayable, .outputs = &.{.{ .type = .{ .address = {} }, .name = "foo" }} }, "b0a378b0000000000000000000000000388c818ca8b9251b393131c08a736a67ccb19297", .{});
-        defer decoded.deinit();
+        var buffer: [1024]u8 = undefined;
+        const bytes = try std.fmt.hexToBytes(&buffer, "b0a378b0000000000000000000000000388c818ca8b9251b393131c08a736a67ccb19297");
+
+        const decoded = try decodeAbiFunctionOutputs(testing.allocator, .{
+            .type = .function,
+            .name = "Bar",
+            .inputs = &.{},
+            .stateMutability = .nonpayable,
+            .outputs = &.{.{ .type = .{ .address = {} }, .name = "foo" }},
+        }, bytes, .{});
 
         try testInnerValues(.{try utils.addressToBytes("0x388C818CA8B9251b393131C08a736A67ccB19297")}, decoded.values);
         try testing.expectEqualStrings("Bar", decoded.name);
@@ -886,8 +875,16 @@ test "Address" {
         try testDecodeRuntime("0000000000000000000000004648451b5f87ff8f0f7d622bd40574bb97e25980", R1, &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{try utils.addressToBytes("0x4648451b5F87FF8F0F7D622bD40574bb97E25980")});
         try testDecodeRuntime("000000000000000000000000388c818ca8b9251b393131c08a736a67ccb19297", R1, &.{.{ .type = .{ .address = {} }, .name = "foo" }}, .{try utils.addressToBytes("0x388C818CA8B9251b393131C08a736A67ccB19297")});
 
-        const decoded = try decodeAbiFunctionOutputsRuntime(testing.allocator, R1, .{ .type = .function, .name = "Bar", .inputs = &.{}, .stateMutability = .nonpayable, .outputs = &.{.{ .type = .{ .address = {} }, .name = "foo" }} }, "b0a378b0000000000000000000000000388c818ca8b9251b393131c08a736a67ccb19297", .{});
-        defer decoded.deinit();
+        var buffer: [1024]u8 = undefined;
+        const bytes = try std.fmt.hexToBytes(&buffer, "b0a378b0000000000000000000000000388c818ca8b9251b393131c08a736a67ccb19297");
+
+        const decoded = try decodeAbiFunctionOutputsRuntime(testing.allocator, R1, .{
+            .type = .function,
+            .name = "Bar",
+            .inputs = &.{},
+            .stateMutability = .nonpayable,
+            .outputs = &.{.{ .type = .{ .address = {} }, .name = "foo" }},
+        }, bytes, .{});
 
         try testInnerValues(.{try utils.addressToBytes("0x388C818CA8B9251b393131C08a736A67ccB19297")}, decoded.values);
         try testing.expectEqualStrings("Bar", decoded.name);
@@ -899,8 +896,7 @@ test "Fixed Bytes" {
         try testDecode("0123456789000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .fixedBytes = 5 }, .name = "foo" }}, .{[_]u8{ 0x01, 0x23, 0x45, 0x67, 0x89 }});
         try testDecode("0123456789012345678900000000000000000000000000000000000000000000", &.{.{ .type = .{ .fixedBytes = 10 }, .name = "foo" }}, .{[_]u8{ 0x01, 0x23, 0x45, 0x67, 0x89 } ** 2});
 
-        const decoded = try decodeAbiError(testing.allocator, .{ .type = .@"error", .name = "Bar", .inputs = &.{} }, "b0a378b0", .{});
-        defer decoded.deinit();
+        const decoded = try decodeAbiError(testing.allocator, .{ .type = .@"error", .name = "Bar", .inputs = &.{} }, @constCast(&[_]u8{ 0xb0, 0xa3, 0x78, 0xb0 }), .{});
 
         try testing.expectEqualStrings("Bar", decoded.name);
     }
@@ -911,8 +907,7 @@ test "Fixed Bytes" {
         try testDecodeRuntime("0123456789012345678900000000000000000000000000000000000000000000", R2, &.{.{ .type = .{ .fixedBytes = 10 }, .name = "foo" }}, .{[_]u8{ 0x01, 0x23, 0x45, 0x67, 0x89 } ** 2});
 
         const R3 = std.meta.Tuple(&[_]type{});
-        const decoded = try decodeAbiErrorRuntime(testing.allocator, R3, .{ .type = .@"error", .name = "Bar", .inputs = &.{} }, "b0a378b0", .{});
-        defer decoded.deinit();
+        const decoded = try decodeAbiErrorRuntime(testing.allocator, R3, .{ .type = .@"error", .name = "Bar", .inputs = &.{} }, @constCast(&[_]u8{ 0xb0, 0xa3, 0x78, 0xb0 }), .{});
 
         try testing.expectEqualStrings("Bar", decoded.name);
     }
@@ -923,8 +918,10 @@ test "Bytes/String" {
         try testDecode("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .{"foo"});
         try testDecode("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", &.{.{ .type = .{ .bytes = {} }, .name = "foo" }}, .{&[_]u8{ 0x66, 0x6f, 0x6f }});
 
-        const decoded = try decodeAbiFunction(testing.allocator, .{ .type = .function, .name = "Bar", .inputs = &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .stateMutability = .nonpayable, .outputs = &.{} }, "4ec7c7ae00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", .{});
-        defer decoded.deinit();
+        var buffer: [1024]u8 = undefined;
+        const bytes = try std.fmt.hexToBytes(&buffer, "4ec7c7ae00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000");
+
+        const decoded = try decodeAbiFunction(testing.allocator, .{ .type = .function, .name = "Bar", .inputs = &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .stateMutability = .nonpayable, .outputs = &.{} }, bytes, .{});
 
         try testInnerValues(.{"foo"}, decoded.values);
         try testing.expectEqualStrings("Bar", decoded.name);
@@ -935,8 +932,10 @@ test "Bytes/String" {
         try testDecodeRuntime("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", R1, &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .{"foo"});
         try testDecodeRuntime("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", R1, &.{.{ .type = .{ .bytes = {} }, .name = "foo" }}, .{&[_]u8{ 0x66, 0x6f, 0x6f }});
 
-        const decoded = try decodeAbiFunctionRuntime(testing.allocator, R1, .{ .type = .function, .name = "Bar", .inputs = &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .stateMutability = .nonpayable, .outputs = &.{} }, "4ec7c7ae00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", .{});
-        defer decoded.deinit();
+        var buffer: [1024]u8 = undefined;
+        const bytes = try std.fmt.hexToBytes(&buffer, "4ec7c7ae00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000");
+
+        const decoded = try decodeAbiFunctionRuntime(testing.allocator, R1, .{ .type = .function, .name = "Bar", .inputs = &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .stateMutability = .nonpayable, .outputs = &.{} }, bytes, .{});
 
         try testInnerValues(.{"foo"}, decoded.values);
         try testing.expectEqualStrings("Bar", decoded.name);
@@ -944,10 +943,58 @@ test "Bytes/String" {
 }
 
 test "Errors" {
-    try testing.expectError(error.InvalidAbiSignature, decodeAbiFunction(testing.allocator, .{ .type = .function, .name = "Bar", .inputs = &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .stateMutability = .nonpayable, .outputs = &.{} }, "4ec7c7af00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000", .{}));
-    try testing.expectError(error.InvalidDecodeDataSize, decodeAbiFunction(testing.allocator, .{ .type = .function, .name = "Bar", .inputs = &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .stateMutability = .nonpayable, .outputs = &.{} }, "4ec7c7ae", .{}));
-    try testing.expectError(error.BufferOverrun, decodeAbiParameters(testing.allocator, &.{.{ .type = .{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .dynamicArray = &.{ .uint = 256 } } } } } } } } } } }, .name = "" }}, "0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020", .{}));
-    try testing.expectError(error.JunkData, decodeAbiParameters(testing.allocator, &.{ .{ .type = .{ .uint = 256 }, .name = "foo" }, .{ .type = .{ .dynamicArray = &.{ .address = {} } }, .name = "bar" }, .{ .type = .{ .address = {} }, .name = "baz" }, .{ .type = .{ .uint = 256 }, .name = "fizz" } }, "0000000000000000000000000000000000000000000000164054d8356b4f5c2800000000000000000000000000000000000000000000000000000000000000800000000000000000000000006994ece772cc4abb5c9993c065a34c94544a40870000000000000000000000000000000000000000000000000000000062b348620000000000000000000000000000000000000000000000000000000000000002000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000106d3c66d22d2dd0446df23d7f5960752994d6007a6572696f6e", .{}));
+    try testing.expectError(error.InvalidAbiSignature, decodeAbiFunction(testing.allocator, .{
+        .type = .function,
+        .name = "Bar",
+        .inputs = &.{.{ .type = .{ .string = {} }, .name = "foo" }},
+        .stateMutability = .nonpayable,
+        .outputs = &.{},
+    }, @constCast("4ec7c7af00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003666f6f0000000000000000000000000000000000000000000000000000000000"), .{}));
+
+    try testing.expectError(error.InvalidDecodeDataSize, decodeAbiFunction(testing.allocator, .{
+        .type = .function,
+        .name = "Bar",
+        .inputs = &.{.{ .type = .{ .string = {} }, .name = "foo" }},
+        .stateMutability = .nonpayable,
+        .outputs = &.{},
+    }, @constCast(&[_]u8{ 0x4e, 0xc7, 0xc7, 0xae }), .{}));
+
+    var buffer: [4096]u8 = undefined;
+    const bytes = try std.fmt.hexToBytes(&buffer, "0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020");
+    try testing.expectError(error.BufferOverrun, decodeAbiParameters(testing.allocator, &.{.{
+        .type = .{
+            .dynamicArray = &.{
+                .dynamicArray = &.{
+                    .dynamicArray = &.{
+                        .dynamicArray = &.{
+                            .dynamicArray = &.{
+                                .dynamicArray = &.{
+                                    .dynamicArray = &.{
+                                        .dynamicArray = &.{
+                                            .dynamicArray = &.{
+                                                .dynamicArray = &.{ .uint = 256 },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        .name = "",
+    }}, bytes, .{}));
+
+    var buffer_2: [2048]u8 = undefined;
+    const bytes_2 = try std.fmt.hexToBytes(&buffer_2, "0000000000000000000000000000000000000000000000164054d8356b4f5c2800000000000000000000000000000000000000000000000000000000000000800000000000000000000000006994ece772cc4abb5c9993c065a34c94544a40870000000000000000000000000000000000000000000000000000000062b348620000000000000000000000000000000000000000000000000000000000000002000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000106d3c66d22d2dd0446df23d7f5960752994d6007a6572696f6e");
+
+    try testing.expectError(error.JunkData, decodeAbiParameters(testing.allocator, &.{
+        .{ .type = .{ .uint = 256 }, .name = "foo" },
+        .{ .type = .{ .dynamicArray = &.{ .address = {} } }, .name = "bar" },
+        .{ .type = .{ .address = {} }, .name = "baz" },
+        .{ .type = .{ .uint = 256 }, .name = "fizz" },
+    }, bytes_2, .{}));
 }
 
 test "Arrays" {
@@ -979,7 +1026,7 @@ test "Arrays" {
         try testDecodeRuntime("0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000001e00000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001400000000000000000000000000000000000000000000000000000000000000003666f6f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000036261720000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000666697a7a7a7a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000362757a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000466697a7a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000462757a7a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000662757a7a7a7a0000000000000000000000000000000000000000000000000000", R6, &.{.{ .type = .{ .fixedArray = .{ .child = &.{ .dynamicArray = &.{ .string = {} } }, .size = 2 } }, .name = "foo" }}, .{[2][]const []const u8{ &.{ "foo", "bar", "fizzzz", "buz" }, &.{ "fizz", "buzz", "buzzzz" } }});
     }
 }
-//
+
 test "Tuples" {
     {
         try testDecode("0000000000000000000000000000000000000000000000000000000000000001", &.{.{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .bool = {} }, .name = "bar" }} }}, .{.{ .bar = true }});
@@ -1007,7 +1054,7 @@ test "Multiple" {
         try testDecode("0000000000000000000000000000000000000000000000000000000000000045000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000004500000000000000000000000000000000000000000000000000000000000001a40000000000000000000000000000000000000000000000000000000000010f2c", &.{ .{ .type = .{ .uint = 256 }, .name = "foo" }, .{ .type = .{ .bool = {} }, .name = "bar" }, .{ .type = .{ .dynamicArray = &.{ .int = 120 } }, .name = "baz" } }, .{ 69, true, &[_]i120{ 69, 420, 69420 } });
 
         const params: []const AbiParameter = &.{.{ .type = .{ .tuple = {} }, .name = "fizzbuzz", .components = &.{ .{ .type = .{ .dynamicArray = &.{ .string = {} } }, .name = "foo" }, .{ .type = .{ .uint = 256 }, .name = "bar" }, .{ .type = .{ .dynamicArray = &.{ .tuple = {} } }, .name = "baz", .components = &.{ .{ .type = .{ .dynamicArray = &.{ .string = {} } }, .name = "fizz" }, .{ .type = .{ .bool = {} }, .name = "buzz" }, .{ .type = .{ .dynamicArray = &.{ .int = 256 } }, .name = "jazz" } } } } }};
-        //
+
         try testDecode("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000a45500000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001c666f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f00000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000018424f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f00000000000000000000000000000000000000000000000000000000000000000000000000000009000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000009", params, .{.{ .foo = &[_][]const u8{"fooooooooooooooooooooooooooo"}, .bar = 42069, .baz = &.{.{ .fizz = &.{"BOOOOOOOOOOOOOOOOOOOOOOO"}, .buzz = true, .jazz = &.{ 1, 2, 3, 4, 5, 6, 7, 8, 9 } }} }});
     }
     {
@@ -1022,24 +1069,34 @@ test "Multiple" {
 }
 
 fn testDecode(hex: []const u8, comptime params: []const AbiParameter, comptime expected: anytype) !void {
-    const decoded = try decodeAbiParameters(testing.allocator, params, hex, .{});
-    defer decoded.deinit();
+    var buffer: [2048]u8 = undefined;
 
-    try testing.expectEqual(decoded.values.len, expected.len);
+    var arena = ArenaAllocator.init(testing.allocator);
+
+    const bytes = try std.fmt.hexToBytes(&buffer, hex);
+    const decoded = try decodeAbiParameters(arena.allocator(), params, bytes, .{});
+    defer arena.deinit();
+
+    try testing.expectEqual(decoded.len, expected.len);
 
     inline for (expected, 0..) |e, i| {
-        try testInnerValues(e, decoded.values[i]);
+        try testInnerValues(e, decoded[i]);
     }
 }
 
 fn testDecodeRuntime(hex: []const u8, comptime T: type, params: []const AbiParameter, expected: anytype) !void {
-    const decoded = try decodeAbiParametersRuntime(testing.allocator, T, params, hex, .{});
-    defer decoded.deinit();
+    var buffer: [2048]u8 = undefined;
 
-    try testing.expectEqual(decoded.values.len, expected.len);
+    var arena = ArenaAllocator.init(testing.allocator);
+
+    const bytes = try std.fmt.hexToBytes(&buffer, hex);
+    const decoded = try decodeAbiParametersRuntime(arena.allocator(), T, params, bytes, .{});
+    defer arena.deinit();
+
+    try testing.expectEqual(decoded.len, expected.len);
 
     inline for (expected, 0..) |e, i| {
-        try testInnerValues(e, decoded.values[i]);
+        try testInnerValues(e, decoded[i]);
     }
 }
 

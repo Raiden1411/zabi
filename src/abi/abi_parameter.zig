@@ -44,11 +44,11 @@ pub const AbiParameter = struct {
     /// Runtime reflection based on the provided values will occur to determine
     /// what is the correct method to use to encode the values
     ///
-    /// Caller owns the memory.
+    /// Caller owns the memory only if the param type is a dynamic array
     ///
     /// Consider using `decodeAbiParameters` if the parameter is
     /// comptime know and you want better typesafety from the compiler
-    pub fn decode(self: @This(), allocator: Allocator, comptime T: type, encoded: []const u8, opts: decoder.DecodeOptions) !decoder.AbiDecodedRuntime(T) {
+    pub fn decode(self: @This(), allocator: Allocator, comptime T: type, encoded: []const u8, opts: decoder.DecodeOptions) !T {
         const decoded = try decoder.decodeAbiParametersRuntime(allocator, T, &.{self}, encoded, opts);
 
         return decoded;

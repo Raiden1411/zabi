@@ -13,19 +13,18 @@ const AccessList = transaction.AccessList;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Anvil = @import("../tests/Anvil.zig");
-const ArenaAllocator = std.heap.ArenaAllocator;
 const Blob = ckzg4844.KZG4844.Blob;
 const Chains = types.PublicChains;
 const KZG4844 = ckzg4844.KZG4844;
 const LondonEthCall = transaction.LondonEthCall;
 const LegacyEthCall = transaction.LegacyEthCall;
-const Hex = types.Hex;
 const Hash = types.Hash;
 const InitOptsHttp = PubClient.InitOptions;
 const InitOptsWs = WebSocketClient.InitOptions;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Mutex = std.Thread.Mutex;
 const PubClient = @import("Client.zig");
+const RPCResponse = types.RPCResponse;
 const Sidecar = ckzg4844.KZG4844.Sidecar;
 const Signer = secp256k1.Signer;
 const Signature = secp256k1.Signature;
@@ -50,7 +49,7 @@ pub const TransactionEnvelopePool = struct {
     /// Finds a transaction envelope from the pool based on the
     /// transaction type. This is thread safe.
     /// Returns null if no transaction was found
-    pub fn findTransactionEnvelope(pool: *TransactionEnvelopePool, search: SearchCriteria) ?TransactionEnvelope {
+    pub fn findTransactionEnvelope(pool: *TransactionEnvelopePool, allocator: Allocator, search: SearchCriteria) ?TransactionEnvelope {
         pool.mutex.lock();
         defer pool.mutex.unlock();
 
@@ -58,6 +57,7 @@ pub const TransactionEnvelopePool = struct {
 
         while (last_tx_node) |tx_node| : (last_tx_node = tx_node.prev) {
             if (!std.mem.eql(u8, @tagName(tx_node.data), @tagName(search))) continue;
+            defer allocator.destroy(tx_node);
 
             pool.unsafeReleaseEnvelopeFromPool(tx_node);
             return tx_node.data;
@@ -116,10 +116,10 @@ pub const TransactionEnvelopePool = struct {
 
 /// Creates a wallet instance based on which type of client defined in
 /// `WalletClients`. Depending on the type of client the underlaying methods
-/// of `pub_client` can be changed. The http and websocket client do not
+/// of `rpc_client` can be changed. The http and websocket client do not
 /// mirror 100% in terms of their methods.
 ///
-/// The client's methods can all be accessed under `pub_client`.
+/// The client's methods can all be accessed under `rpc_client`.
 /// The same goes for the signer and libsecp256k1.
 pub fn Wallet(comptime client_type: WalletClients) type {
     return struct {
@@ -137,13 +137,11 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
         /// Allocator used by the wallet implementation
         allocator: Allocator,
-        /// Arena used to manage allocated memory
-        arena: *ArenaAllocator,
         /// Pool to store all prepated transaction envelopes.
         /// This is thread safe.
         envelopes_pool: *TransactionEnvelopePool,
         /// Http client used to make request. Supports almost all rpc methods.
-        pub_client: *ClientType,
+        rpc_client: *ClientType,
         /// Signer that will sign transactions or ethereum messages.
         /// Its based on libsecp256k1.
         signer: Signer,
@@ -153,9 +151,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Init wallet instance. Must call `deinit` to clean up.
         /// The init opts will depend on the `client_type`.
         pub fn init(self: *Wallet(client_type), private_key: []const u8, opts: InitOpts) !void {
-            const arena = try opts.allocator.create(ArenaAllocator);
-            errdefer opts.allocator.destroy(arena);
-
             const envelopes_pool = try opts.allocator.create(TransactionEnvelopePool);
             errdefer opts.allocator.destroy(envelopes_pool);
 
@@ -170,18 +165,22 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 break :client client;
             };
 
-            self.* = .{ .allocator = undefined, .pub_client = client, .arena = arena, .signer = signer, .envelopes_pool = envelopes_pool };
-            self.arena.* = ArenaAllocator.init(opts.allocator);
+            self.* = .{
+                .allocator = opts.allocator,
+                .rpc_client = client,
+                .signer = signer,
+                .envelopes_pool = envelopes_pool,
+            };
             self.envelopes_pool.* = .{ .pooled_envelopes = .{} };
-            self.allocator = self.arena.allocator();
-            self.wallet_nonce = try self.pub_client.getAddressTransactionCount(.{ .address = try self.signer.getAddressFromPublicKey() });
+
+            const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = try self.signer.getAddressFromPublicKey() });
+            defer nonce.deinit();
+
+            self.wallet_nonce = nonce.response;
         }
         /// Inits wallet from a random generated priv key. Must call `deinit` after.
         /// The init opts will depend on the `client_type`.
         pub fn initFromRandomKey(self: *Wallet(client_type), opts: InitOpts) !void {
-            const arena = try opts.allocator.create(ArenaAllocator);
-            errdefer opts.allocator.destroy(arena);
-
             const envelopes_pool = try opts.allocator.create(TransactionEnvelopePool);
             errdefer opts.allocator.destroy(envelopes_pool);
 
@@ -196,22 +195,22 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 break :client client;
             };
 
-            self.* = .{ .allocator = undefined, .pub_client = client, .arena = arena, .signer = signer, .envelopes_pool = envelopes_pool };
-            self.arena.* = ArenaAllocator.init(opts.allocator);
+            self.* = .{
+                .allocator = opts.allocator,
+                .rpc_client = client,
+                .signer = signer,
+                .envelopes_pool = envelopes_pool,
+            };
             self.envelopes_pool.* = .{ .pooled_envelopes = .{} };
-            self.allocator = self.arena.allocator();
         }
-        /// Clears the arena and destroys any created pointers
+        /// Clears memory and destroys any created pointers
         pub fn deinit(self: *Wallet(client_type)) void {
-            self.envelopes_pool.deinit(self.arena.allocator());
-            self.pub_client.deinit();
+            self.envelopes_pool.deinit(self.allocator);
+            self.rpc_client.deinit();
             self.signer.deinit();
-            self.arena.deinit();
 
-            const allocator = self.arena.child_allocator;
-            allocator.destroy(self.arena);
-            allocator.destroy(self.envelopes_pool);
-            allocator.destroy(self.pub_client);
+            self.allocator.destroy(self.envelopes_pool);
+            self.allocator.destroy(self.rpc_client);
 
             self.* = undefined;
         }
@@ -219,7 +218,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Uses libsecp256k1 to sign the message. This mirrors geth
         /// The Signatures recoverId doesn't include the chain_id
         pub fn signEthereumMessage(self: *Wallet(client_type), message: []const u8) !Signature {
-            return try self.signer.signMessage(self.allocator, message);
+            return self.signer.signMessage(self.allocator, message);
         }
         /// Signs a EIP712 message according to the expecification
         /// https://eips.ethereum.org/EIPS/eip-712
@@ -287,12 +286,13 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         }
         /// Find a specific prepared envelope from the pool based on the given search criteria.
         pub fn findTransactionEnvelopeFromPool(self: *Wallet(client_type), search: TransactionEnvelopePool.SearchCriteria) ?TransactionEnvelope {
-            return self.envelopes_pool.findTransactionEnvelope(search);
+            return self.envelopes_pool.findTransactionEnvelope(self.allocator, search);
         }
         /// Converts unprepared transaction envelopes and stores them in a pool.
         pub fn poolTransactionEnvelope(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !void {
             const envelope = try self.allocator.create(TransactionEnvelopePool.Node);
             errdefer self.allocator.destroy(envelope);
+
             envelope.* = .{ .data = undefined };
 
             envelope.data = try self.prepareTransaction(unprepared_envelope);
@@ -316,16 +316,22 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .value = unprepared_envelope.value orelse 0,
                     };
 
-                    const curr_block = try self.pub_client.getBlockByNumber(.{});
-                    const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
+                    const curr_block = try self.rpc_client.getBlockByNumber(.{});
+                    defer curr_block.deinit();
+
+                    const base_fee = switch (curr_block.response) {
+                        inline else => |block_info| block_info.baseFeePerGas,
+                    };
+
+                    const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
                     const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
-                    const max_fee_per_blob = unprepared_envelope.maxFeePerBlobGas orelse try self.pub_client.estimateBlobMaxFeePerGas();
+                    const max_fee_per_blob = unprepared_envelope.maxFeePerBlobGas orelse try self.rpc_client.estimateBlobMaxFeePerGas();
                     const blob_version = unprepared_envelope.blobVersionedHashes orelse &.{};
 
                     const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
 
                     if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
-                        const fees = try self.pub_client.estimateFeesPerGas(.{ .london = request }, curr_block);
+                        const fees = try self.rpc_client.estimateFeesPerGas(.{ .london = request }, base_fee);
                         request.maxPriorityFeePerGas = unprepared_envelope.maxPriorityFeePerGas orelse fees.london.max_priority_fee;
                         request.maxFeePerGas = unprepared_envelope.maxFeePerGas orelse fees.london.max_fee_gas;
 
@@ -335,7 +341,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     }
 
                     if (unprepared_envelope.gas == null) {
-                        request.gas = try self.pub_client.estimateGas(.{ .london = request }, .{});
+                        const gas = try self.rpc_client.estimateGas(.{ .london = request }, .{});
+                        defer gas.deinit();
+
+                        request.gas = gas.response;
                     }
 
                     return .{ .cancun = .{
@@ -363,14 +372,20 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .value = unprepared_envelope.value orelse 0,
                     };
 
-                    const curr_block = try self.pub_client.getBlockByNumber(.{});
-                    const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
+                    const curr_block = try self.rpc_client.getBlockByNumber(.{});
+                    defer curr_block.deinit();
+
+                    const base_fee = switch (curr_block.response) {
+                        inline else => |block_info| block_info.baseFeePerGas,
+                    };
+
+                    const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
                     const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
 
                     const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
 
                     if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
-                        const fees = try self.pub_client.estimateFeesPerGas(.{ .london = request }, curr_block);
+                        const fees = try self.rpc_client.estimateFeesPerGas(.{ .london = request }, base_fee);
                         request.maxPriorityFeePerGas = unprepared_envelope.maxPriorityFeePerGas orelse fees.london.max_priority_fee;
                         request.maxFeePerGas = unprepared_envelope.maxFeePerGas orelse fees.london.max_fee_gas;
 
@@ -380,7 +395,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     }
 
                     if (unprepared_envelope.gas == null) {
-                        request.gas = try self.pub_client.estimateGas(.{ .london = request }, .{});
+                        const gas = try self.rpc_client.estimateGas(.{ .london = request }, .{});
+                        defer gas.deinit();
+
+                        request.gas = gas.response;
                     }
 
                     return .{ .london = .{
@@ -405,19 +423,28 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .value = unprepared_envelope.value orelse 0,
                     };
 
-                    const curr_block = try self.pub_client.getBlockByNumber(.{});
-                    const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
+                    const curr_block = try self.rpc_client.getBlockByNumber(.{});
+                    defer curr_block.deinit();
+
+                    const base_fee = switch (curr_block.response) {
+                        inline else => |block_info| block_info.baseFeePerGas,
+                    };
+
+                    const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
                     const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
 
                     const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
 
                     if (unprepared_envelope.gasPrice == null) {
-                        const fees = try self.pub_client.estimateFeesPerGas(.{ .legacy = request }, curr_block);
+                        const fees = try self.rpc_client.estimateFeesPerGas(.{ .legacy = request }, base_fee);
                         request.gasPrice = fees.legacy.gas_price;
                     }
 
                     if (unprepared_envelope.gas == null) {
-                        request.gas = try self.pub_client.estimateGas(.{ .legacy = request }, .{});
+                        const gas = try self.rpc_client.estimateGas(.{ .legacy = request }, .{});
+                        defer gas.deinit();
+
+                        request.gas = gas.response;
                     }
 
                     return .{ .berlin = .{
@@ -441,18 +468,27 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .value = unprepared_envelope.value orelse 0,
                     };
 
-                    const curr_block = try self.pub_client.getBlockByNumber(.{});
-                    const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
+                    const curr_block = try self.rpc_client.getBlockByNumber(.{});
+                    defer curr_block.deinit();
+
+                    const base_fee = switch (curr_block.response) {
+                        inline else => |block_info| block_info.baseFeePerGas,
+                    };
+
+                    const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
 
                     const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
 
                     if (unprepared_envelope.gasPrice == null) {
-                        const fees = try self.pub_client.estimateFeesPerGas(.{ .legacy = request }, curr_block);
+                        const fees = try self.rpc_client.estimateFeesPerGas(.{ .legacy = request }, base_fee);
                         request.gasPrice = fees.legacy.gas_price;
                     }
 
                     if (unprepared_envelope.gas == null) {
-                        request.gas = try self.pub_client.estimateGas(.{ .legacy = request }, .{});
+                        const gas = try self.rpc_client.estimateGas(.{ .legacy = request }, .{});
+                        defer gas.deinit();
+
+                        request.gas = gas.response;
                     }
 
                     return .{ .legacy = .{
@@ -478,18 +514,27 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .value = unprepared_envelope.value orelse 0,
                     };
 
-                    const curr_block = try self.pub_client.getBlockByNumber(.{});
-                    const chain_id = unprepared_envelope.chainId orelse self.pub_client.chain_id;
+                    const curr_block = try self.rpc_client.getBlockByNumber(.{});
+                    defer curr_block.deinit();
 
-                    const nonce: u64 = unprepared_envelope.nonce orelse try self.pub_client.getAddressTransactionCount(.{ .address = address });
+                    const base_fee = switch (curr_block.response) {
+                        inline else => |block_info| block_info.baseFeePerGas,
+                    };
+
+                    const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
+
+                    const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
 
                     if (unprepared_envelope.gasPrice == null) {
-                        const fees = try self.pub_client.estimateFeesPerGas(.{ .legacy = request }, curr_block);
+                        const fees = try self.rpc_client.estimateFeesPerGas(.{ .legacy = request }, base_fee);
                         request.gasPrice = fees.legacy.gas_price;
                     }
 
                     if (unprepared_envelope.gas == null) {
-                        request.gas = try self.pub_client.estimateGas(.{ .legacy = request }, .{});
+                        const gas = try self.rpc_client.estimateGas(.{ .legacy = request }, .{});
+                        defer gas.deinit();
+
+                        request.gas = gas.response;
                     }
 
                     return .{ .legacy = .{
@@ -509,18 +554,18 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         pub fn assertTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !void {
             switch (tx) {
                 .london => |tx_eip1559| {
-                    if (tx_eip1559.chainId != self.pub_client.chain_id) return error.InvalidChainId;
+                    if (tx_eip1559.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
                     if (tx_eip1559.maxPriorityFeePerGas > tx_eip1559.maxFeePerGas) return error.TransactionTipToHigh;
                 },
                 .cancun => |tx_eip4844| {
-                    if (tx_eip4844.chainId != self.pub_client.chain_id) return error.InvalidChainId;
+                    if (tx_eip4844.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
                     if (tx_eip4844.maxPriorityFeePerGas > tx_eip4844.maxFeePerGas) return error.TransactionTipToHigh;
                 },
                 .berlin => |tx_eip2930| {
-                    if (tx_eip2930.chainId != self.pub_client.chain_id) return error.InvalidChainId;
+                    if (tx_eip2930.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
                 },
                 .legacy => |tx_legacy| {
-                    if (tx_legacy.chainId != 0 and tx_legacy.chainId != self.pub_client.chain_id) return error.InvalidChainId;
+                    if (tx_legacy.chainId != 0 and tx_legacy.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
                 },
             }
         }
@@ -528,25 +573,25 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Returns the transaction hash.
         ///
         /// Call `waitForTransactionReceipt` to update the wallet nonce or update it manually
-        pub fn sendSignedTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !Hash {
+        pub fn sendSignedTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !RPCResponse(Hash) {
             const serialized = try serialize.serializeTransaction(self.allocator, tx, null);
+            defer self.allocator.free(serialized);
 
             var hash_buffer: [Keccak256.digest_length]u8 = undefined;
             Keccak256.hash(serialized, &hash_buffer, .{});
 
             const signed = try self.signer.sign(hash_buffer);
             const serialized_signed = try serialize.serializeTransaction(self.allocator, tx, signed);
+            defer self.allocator.free(serialized_signed);
 
-            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(serialized_signed)});
-
-            return self.pub_client.sendRawTransaction(hex);
+            return self.rpc_client.sendRawTransaction(serialized_signed);
         }
         /// Prepares, asserts, signs and sends the transaction via `eth_sendRawTransaction`.
         /// If any envelope is in the envelope pool it will use that instead in a LIFO order
         /// Will return an error if the envelope is incorrect
         ///
         /// Call `waitForTransactionReceipt` to update the wallet nonce or update it manually
-        pub fn sendTransaction(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !Hash {
+        pub fn sendTransaction(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !RPCResponse(Hash) {
             const prepared = self.envelopes_pool.getLastElementFromPool() orelse try self.prepareTransaction(unprepared_envelope);
 
             try self.assertTransaction(prepared);
@@ -557,7 +602,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         }
         /// Sends blob transaction to the network
         /// Trusted setup must be loaded otherwise this will fail.
-        pub fn sendBlobTransaction(self: *Wallet(client_type), blobs: []const Blob, unprepared_envelope: UnpreparedTransactionEnvelope, trusted_setup: *KZG4844) !Hash {
+        pub fn sendBlobTransaction(self: *Wallet(client_type), blobs: []const Blob, unprepared_envelope: UnpreparedTransactionEnvelope, trusted_setup: *KZG4844) !RPCResponse(Hash) {
             if (unprepared_envelope.type != .cancun)
                 return error.InvalidTransactionType;
 
@@ -569,20 +614,20 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             try self.assertTransaction(prepared);
 
             const serialized = try serialize.serializeCancunTransactionWithBlobs(self.allocator, prepared, null, blobs, trusted_setup);
+            defer self.allocator.free(serialized);
 
             var hash_buffer: [Keccak256.digest_length]u8 = undefined;
             Keccak256.hash(serialized, &hash_buffer, .{});
 
             const signed = try self.signer.sign(hash_buffer);
             const serialized_signed = try serialize.serializeCancunTransactionWithBlobs(self.allocator, prepared, signed, blobs, trusted_setup);
+            defer self.allocator.free(serialized_signed);
 
-            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(serialized_signed)});
-
-            return self.pub_client.sendRawTransaction(hex);
+            return self.rpc_client.sendRawTransaction(serialized_signed);
         }
         /// Sends blob transaction to the network
         /// This uses and already prepared sidecar.
-        pub fn sendSidecarTransaction(self: *Wallet(client_type), sidecars: []const Sidecar, unprepared_envelope: UnpreparedTransactionEnvelope) !Hash {
+        pub fn sendSidecarTransaction(self: *Wallet(client_type), sidecars: []const Sidecar, unprepared_envelope: UnpreparedTransactionEnvelope) !RPCResponse(Hash) {
             if (unprepared_envelope.type != .cancun)
                 return error.InvalidTransactionType;
 
@@ -591,24 +636,24 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             try self.assertTransaction(prepared);
 
             const serialized = try serialize.serializeCancunTransactionWithSidecars(self.allocator, prepared, null, sidecars);
+            defer self.allocator.free(serialized);
 
             var hash_buffer: [Keccak256.digest_length]u8 = undefined;
             Keccak256.hash(serialized, &hash_buffer, .{});
 
             const signed = try self.signer.sign(hash_buffer);
             const serialized_signed = try serialize.serializeCancunTransactionWithSidecars(self.allocator, prepared, signed, sidecars);
+            defer self.allocator.free(serialized_signed);
 
-            const hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(serialized_signed)});
-
-            return self.pub_client.sendRawTransaction(hex);
+            return self.rpc_client.sendRawTransaction(serialized_signed);
         }
         /// Waits until the transaction gets mined and we can grab the receipt.
         /// If fail if the retry counter is excedded.
         ///
         /// Nonce will only get updated if it's able to fetch the receipt.
-        /// Use the pub_client waitForTransactionReceipt if you don't want to update the wallet's nonce.
-        pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: Hash, confirmations: u8) !?TransactionReceipt {
-            const receipt = try self.pub_client.waitForTransactionReceipt(tx_hash, confirmations);
+        /// Use the rpc_client waitForTransactionReceipt if you don't want to update the wallet's nonce.
+        pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt) {
+            const receipt = try self.rpc_client.waitForTransactionReceipt(tx_hash, confirmations);
 
             // Updates the wallet nonce to be ready for the next transaction.
             self.wallet_nonce += 1;
@@ -689,12 +734,19 @@ test "sendTransaction" {
     try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
-    const tx: UnpreparedTransactionEnvelope = .{ .type = .london, .value = try utils.parseEth(1), .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8") };
+    const tx: UnpreparedTransactionEnvelope = .{
+        .type = .london,
+        .value = try utils.parseEth(1),
+        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+    };
 
     const tx_hash = try wallet.sendTransaction(tx);
-    const receipt = try wallet.waitForTransactionReceipt(tx_hash, 1);
+    defer tx_hash.deinit();
 
-    try testing.expect(tx_hash.len != 0);
+    const receipt = try wallet.waitForTransactionReceipt(tx_hash.response, 1);
+    defer if (receipt) |tx_receipt| tx_receipt.deinit();
+
+    try testing.expect(tx_hash.response.len != 0);
     try testing.expect(receipt != null);
 }
 

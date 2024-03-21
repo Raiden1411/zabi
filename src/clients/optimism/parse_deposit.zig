@@ -28,9 +28,7 @@ pub fn parseDepositTransaction(allocator: Allocator, encoded: []u8) !DepositTran
     const data = try rlp.decodeRlp(allocator, StructToTupleType(DepositTransaction), encoded[1..]);
     // zig fmt: on
 
-    const data_hex = if (data) |d| try std.fmt.allocPrint(allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(d)}) else null;
-
-    return .{ .sourceHash = source_hash, .isSystemTx = is_system, .gas = gas, .from = from, .to = to, .value = value, .data = data_hex, .mint = mint };
+    return .{ .sourceHash = source_hash, .isSystemTx = is_system, .gas = gas, .from = from, .to = to, .value = value, .data = data, .mint = mint };
 }
 
 test "Base" {
@@ -56,13 +54,12 @@ test "To" {
 }
 
 test "Data" {
-    const tx: DepositTransaction = .{ .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), .sourceHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"), .data = "0x1234", .to = null, .isSystemTx = false, .mint = 0, .gas = 0, .value = 0 };
+    const tx: DepositTransaction = .{ .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), .sourceHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"), .data = @constCast(&[_]u8{ 0x12, 0x34 }), .to = null, .isSystemTx = false, .mint = 0, .gas = 0, .value = 0 };
 
     const encoded = try serializeDepositTransaction(testing.allocator, tx);
     defer testing.allocator.free(encoded);
 
     const decoded = try parseDepositTransaction(testing.allocator, encoded);
-    defer if (decoded.data) |data| testing.allocator.free(data);
 
     try testing.expectEqualDeep(tx, decoded);
 }

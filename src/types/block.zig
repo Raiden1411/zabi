@@ -26,13 +26,27 @@ pub const BalanceBlockTag = Extract(BlockTag, "latest,pending,earliest");
 /// Specific tags used in some RPC requests
 pub const ProofBlockTag = Extract(BlockTag, "latest,earliest");
 /// Used in the RPC method requests
-pub const BlockRequest = struct { block_number: ?u64 = null, tag: ?BlockTag = .latest, include_transaction_objects: ?bool = false };
+pub const BlockRequest = struct {
+    block_number: ?u64 = null,
+    tag: ?BlockTag = .latest,
+    include_transaction_objects: ?bool = false,
+};
 /// Used in the RPC method requests
-pub const BlockHashRequest = struct { block_hash: Hash, include_transaction_objects: ?bool = false };
+pub const BlockHashRequest = struct {
+    block_hash: Hash,
+    include_transaction_objects: ?bool = false,
+};
 /// Used in the RPC method requests
-pub const BalanceRequest = struct { address: Address, block_number: ?u64 = null, tag: ?BalanceBlockTag = .latest };
+pub const BalanceRequest = struct {
+    address: Address,
+    block_number: ?u64 = null,
+    tag: ?BalanceBlockTag = .latest,
+};
 /// Used in the RPC method requests
-pub const BlockNumberRequest = struct { block_number: ?u64 = null, tag: ?BalanceBlockTag = .latest };
+pub const BlockNumberRequest = struct {
+    block_number: ?u64 = null,
+    tag: ?BalanceBlockTag = .latest,
+};
 
 /// Withdrawal field struct type.
 pub const Withdrawal = struct {

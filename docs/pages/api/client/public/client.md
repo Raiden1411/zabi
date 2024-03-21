@@ -9,7 +9,10 @@ The http and websocket client do not mirror 100% in terms of their methods. So d
 
 The websocket client will run the read loop in a seperate thread. Both of these clients support debug logging for you to better understand possible errors in case they happen.
 
-All allocations are manage by a `ArenaAllocator` and you must call `deinit()` after to free any allocated memory.
+RPC request will return an `RPCResponse` type that is essentially a json parsed value. The caller now owns the memory and it no longer the job of the rpc client to manage that memory.
+You can still use an `ArenaAllocator` if you want to mimic the previous behaviour or use a previous version of zabi.
+
+Zabi also support custom client for the op-stack that follow this same principle.
 
 ## Usage
 
@@ -73,6 +76,7 @@ defer client.deinit();
 try client.init(.{ .allocator = std.testing.allocator, .uri = uri });
 
 const block_req = try pub_client.getBlockNumber();
+defer block_req.deinit();
 ```
 
 ```zig [websocket.zig]
@@ -82,6 +86,7 @@ defer ws_client.deinit();
 try ws_client.init(.{ .allocator = std.testing.allocator, .uri = uri });
 
 const block_req = try ws_client.getBlockNumber();`
+defer block_req.deinit();
 ```
 
 :::

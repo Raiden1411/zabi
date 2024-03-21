@@ -239,13 +239,7 @@ fn preEncodeParam(allocator: Allocator, param: AbiParameter, value: anytype) !Pr
                         };
 
                         switch (param.type) {
-                            .string => return try encodeString(allocator, slice),
-                            .bytes => {
-                                const buffer = try allocator.alloc(u8, if (slice.len % 32 == 0) @divExact(slice.len, 2) else slice.len);
-                                const hex = try std.fmt.hexToBytes(buffer, slice);
-
-                                return try encodeString(allocator, hex);
-                            },
+                            .string, .bytes => return try encodeString(allocator, slice),
                             inline else => return error.InvalidParamType,
                         }
                     }

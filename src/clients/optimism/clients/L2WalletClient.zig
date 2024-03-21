@@ -25,6 +25,7 @@ const L2Output = op_types.L2Output;
 const OpMainNetContracts = contracts.OpMainNetContracts;
 const PreparedWithdrawal = withdrawal_types.PreparedWithdrawal;
 const RootProof = withdrawal_types.WithdrawalRootProof;
+const RPCResponse = types.RPCResponse;
 const Signer = signer.Signer;
 const Withdrawal = withdrawal_types.Withdrawal;
 const WithdrawalEnvelope = withdrawal_types.WithdrawalEnvelope;
@@ -74,13 +75,16 @@ pub fn L2WalletClient(client_type: Clients) type {
                 .signer = op_signer,
             };
 
-            self.wallet_nonce = try self.op_client.rpc_client.getAddressTransactionCount(.{
+            const nonce = try self.op_client.rpc_client.getAddressTransactionCount(.{
                 .address = try op_signer.getAddressFromPublicKey(),
             });
+            defer nonce.deinit();
+
+            self.wallet_nonce = nonce.response;
         }
         /// Frees and destroys any allocated memory
         pub fn deinit(self: *L2Wallet) void {
-            const child_allocator = self.op_client.rpc_client.arena.child_allocator;
+            const child_allocator = self.op_client.allocator;
 
             self.op_client.deinit();
             self.signer.deinit();
@@ -90,21 +94,21 @@ pub fn L2WalletClient(client_type: Clients) type {
             self.* = undefined;
         }
         /// Estimates the gas cost for calling `finalizeWithdrawal`
-        pub fn estimateFinalizeWithdrawal(self: *L2Wallet, data: Hex) !Gwei {
+        pub fn estimateFinalizeWithdrawal(self: *L2Wallet, data: Hex) !RPCResponse(Gwei) {
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
                 .to = self.op_client.contracts.portalAddress,
                 .data = data,
             } }, .{});
         }
         /// Estimates the gas cost for calling `initiateWithdrawal`
-        pub fn estimateInitiateWithdrawal(self: *L2Wallet, data: Hex) !Gwei {
+        pub fn estimateInitiateWithdrawal(self: *L2Wallet, data: Hex) !RPCResponse(Gwei) {
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
                 .to = self.op_client.contracts.l2ToL1MessagePasser,
                 .data = data,
             } }, .{});
         }
         /// Estimates the gas cost for calling `proveWithdrawal`
-        pub fn estimateProveWithdrawal(self: *L2Wallet, data: Hex) !Gwei {
+        pub fn estimateProveWithdrawal(self: *L2Wallet, data: Hex) !RPCResponse(Gwei) {
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
                 .to = self.op_client.contracts.portalAddress,
                 .data = data,
@@ -112,7 +116,7 @@ pub fn L2WalletClient(client_type: Clients) type {
         }
         /// Invokes the contract method to `initiateWithdrawal`. This will send
         /// a transaction to the network.
-        pub fn initiateWithdrawal(self: *L2Wallet, request: WithdrawalRequest) !Hash {
+        pub fn initiateWithdrawal(self: *L2Wallet, request: WithdrawalRequest) !RPCResponse(Hash) {
             const address = try self.signer.getAddressFromPublicKey();
 
             const prepared = try self.prepareInitiateWithdrawal(request);
@@ -121,24 +125,23 @@ pub fn L2WalletClient(client_type: Clients) type {
                 prepared.gas,
                 prepared.data,
             });
+            defer self.op_client.allocator.free(data);
 
-            const hex_data = try std.fmt.allocPrint(self.op_client.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(data)});
-            defer self.op_client.allocator.free(hex_data);
-
-            const gas = try self.estimateInitiateWithdrawal(hex_data);
+            const gas = try self.estimateInitiateWithdrawal(data);
+            defer gas.deinit();
 
             const call: LondonEthCall = .{
                 .to = self.op_client.contracts.l2ToL1MessagePasser,
                 .from = address,
-                .gas = gas,
+                .gas = gas.response,
                 .data = data,
                 .value = prepared.value,
             };
             const fees = try self.op_client.rpc_client.estimateFeesPerGas(.{ .london = call }, null);
 
             const tx: LondonTransactionEnvelope = .{
-                .gas = gas,
-                .data = hex_data,
+                .gas = gas.response,
+                .data = data,
                 .to = self.op_client.contracts.l2ToL1MessagePasser,
                 .value = prepared.value,
                 .accessList = &.{},
@@ -152,12 +155,20 @@ pub fn L2WalletClient(client_type: Clients) type {
         }
         /// Prepares the interaction with the contract method to `initiateWithdrawal`.
         pub fn prepareInitiateWithdrawal(self: *L2Wallet, request: WithdrawalRequest) !PreparedWithdrawal {
-            const gas = request.gas orelse try self.op_client.rpc_client.estimateGas(.{ .london = .{
-                .to = request.to,
-                .data = request.data,
-                .value = request.value,
-            } }, .{});
-            const data = request.data orelse "";
+            const gas = gas: {
+                if (request.gas) |gas| break :gas gas;
+
+                const gas = try self.op_client.rpc_client.estimateGas(.{ .london = .{
+                    .to = request.to,
+                    .data = request.data,
+                    .value = request.value,
+                } }, .{});
+                defer gas.deinit();
+
+                break :gas gas.response;
+            };
+
+            const data = request.data orelse @constCast("");
             const value = request.value orelse 0;
 
             return .{
@@ -169,27 +180,26 @@ pub fn L2WalletClient(client_type: Clients) type {
         }
         /// Invokes the contract method to `finalizeWithdrawalTransaction`. This will send
         /// a transaction to the network.
-        pub fn finalizeWithdrawal(self: *L2Wallet, withdrawal: WithdrawalNoHash) !Hash {
+        pub fn finalizeWithdrawal(self: *L2Wallet, withdrawal: WithdrawalNoHash) !RPCResponse(Hash) {
             const address = try self.signer.getAddressFromPublicKey();
             const data = try abi_items.finalize_withdrawal.encode(self.op_client.allocator, .{withdrawal});
+            defer self.op_client.allocator.free(data);
 
-            const hex_data = try std.fmt.allocPrint(self.op_client.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(data)});
-            defer self.op_client.allocator.free(hex_data);
-
-            const gas = try self.estimateFinalizeWithdrawal(hex_data);
+            const gas = try self.estimateFinalizeWithdrawal(data);
+            defer gas.deinit();
 
             const call: LondonEthCall = .{
                 .to = self.op_client.contracts.portalAddress,
                 .from = address,
-                .gas = gas,
-                .data = hex_data,
+                .gas = gas.response,
+                .data = data,
             };
 
             const fees = try self.op_client.rpc_client.estimateFeesPerGas(.{ .london = call }, null);
 
             const tx: LondonTransactionEnvelope = .{
-                .gas = gas,
-                .data = hex_data,
+                .gas = gas.response,
+                .data = data,
                 .to = self.op_client.contracts.portalAddress,
                 .value = 0,
                 .accessList = &.{},
@@ -203,29 +213,28 @@ pub fn L2WalletClient(client_type: Clients) type {
         }
         /// Invokes the contract method to `proveWithdrawalTransaction`. This will send
         /// a transaction to the network.
-        pub fn proveWithdrawal(self: *L2Wallet, withdrawal: WithdrawalNoHash, l2_output_index: u256, outputRootProof: RootProof, withdrawal_proof: []const Hex) !Hash {
+        pub fn proveWithdrawal(self: *L2Wallet, withdrawal: WithdrawalNoHash, l2_output_index: u256, outputRootProof: RootProof, withdrawal_proof: []const Hex) !RPCResponse(Hash) {
             const address = try self.signer.getAddressFromPublicKey();
             const data = try abi_items.prove_withdrawal.encode(self.op_client.allocator, .{
                 withdrawal, l2_output_index, outputRootProof, withdrawal_proof,
             });
+            defer self.op_client.allocator.free(data);
 
-            const hex_data = try std.fmt.allocPrint(self.op_client.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(data)});
-            defer self.op_client.allocator.free(hex_data);
-
-            const gas = try self.estimateProveWithdrawal(hex_data);
+            const gas = try self.estimateProveWithdrawal(data);
+            defer gas.deinit();
 
             const call: LondonEthCall = .{
                 .to = self.op_client.contracts.portalAddress,
                 .from = address,
-                .gas = gas,
-                .data = hex_data,
+                .gas = gas.response,
+                .data = data,
             };
 
             const fees = try self.op_client.rpc_client.estimateFeesPerGas(.{ .london = call }, null);
 
             const tx: LondonTransactionEnvelope = .{
-                .gas = gas,
-                .data = hex_data,
+                .gas = gas.response,
+                .data = data,
                 .to = self.op_client.contracts.portalAddress,
                 .value = 0,
                 .accessList = &.{},
@@ -245,11 +254,21 @@ pub fn L2WalletClient(client_type: Clients) type {
                 .storageKeys = &.{storage_slot},
                 .blockNumber = @intCast(l2_output.l2BlockNumber),
             }, null);
+            defer proof.deinit();
 
             const block = try self.op_client.rpc_client.getBlockByNumber(.{ .block_number = @intCast(l2_output.l2BlockNumber) });
-            const block_info: struct { stateRoot: Hash, hash: Hash } = switch (block) {
+            defer block.deinit();
+
+            const block_info: struct { stateRoot: Hash, hash: Hash } = switch (block.response) {
                 inline else => |block_info| .{ .stateRoot = block_info.stateRoot, .hash = block_info.hash.? },
             };
+
+            var proofs = try std.ArrayList([]u8).initCapacity(self.op_client.allocator, proof.response.storageProof[0].proof.len);
+            errdefer proofs.deinit();
+
+            for (proof.response.storageProof[0].proof) |p| {
+                proofs.appendAssumeCapacity(try self.op_client.allocator.dupe(u8, p));
+            }
 
             return .{
                 .nonce = withdrawal.nonce,
@@ -261,16 +280,16 @@ pub fn L2WalletClient(client_type: Clients) type {
                 .outputRootProof = .{
                     .version = [_]u8{0} ** 32,
                     .stateRoot = block_info.stateRoot,
-                    .messagePasserStorageRoot = proof.storageHash,
+                    .messagePasserStorageRoot = proof.response.storageHash,
                     .latestBlockhash = block_info.hash,
                 },
-                .withdrawalProof = proof.storageProof[0].proof,
+                .withdrawalProof = try proofs.toOwnedSlice(),
                 .l2OutputIndex = l2_output.outputIndex,
             };
         }
         /// Sends a transaction envelope to the network. This serializes, hashes and signed before
         /// sending the transaction.
-        pub fn sendTransaction(self: *L2Wallet, envelope: LondonTransactionEnvelope) !Hash {
+        pub fn sendTransaction(self: *L2Wallet, envelope: LondonTransactionEnvelope) !RPCResponse(Hash) {
             const serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = envelope }, null);
             defer self.op_client.allocator.free(serialized);
 
@@ -282,10 +301,7 @@ pub fn L2WalletClient(client_type: Clients) type {
             const signed_serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = envelope }, signed);
             defer self.op_client.allocator.free(signed_serialized);
 
-            const hexed = try std.fmt.allocPrint(self.op_client.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(signed_serialized)});
-            defer self.op_client.allocator.free(hexed);
-
-            const tx_hash = try self.op_client.rpc_client.sendRawTransaction(hexed);
+            const tx_hash = try self.op_client.rpc_client.sendRawTransaction(signed_serialized);
             self.wallet_nonce += 1;
 
             return tx_hash;
@@ -304,9 +320,10 @@ test "InitiateWithdrawal" {
         .chain_id = .op_mainnet,
     }, null);
 
-    _ = try wallet_op.initiateWithdrawal(.{
+    const inital = try wallet_op.initiateWithdrawal(.{
         .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
     });
+    defer inital.deinit();
 }
 
 test "PrepareWithdrawalProofTransaction" {
@@ -321,6 +338,24 @@ test "PrepareWithdrawalProofTransaction" {
         .chain_id = .op_mainnet,
     }, null);
 
+    var buffer: [4096]u8 = undefined;
+    const bytes = try std.fmt.hexToBytes(&buffer, "f90211a07dd255038ced20e27bd9c823d53dff05dab9b56f47efec4d1373c6af4fef5989a0a72a37936fd968f361c541a4d5374d3862f0c3e6125b095158982b8eca440da0a0bb0cf61ec3b7954fa2f09263e712f1b9ed681dcab015932294512ad8b288b90da0d91dbd89baf8206e4952fa0f183cb76fee20ad8ab6d0c200053c4ed3e64d1b32a0ab94dcdd454eb74ece1d1fc6bee90a2cc9468a9be3500d774328cced5dd136dca0b1264c351be909f6c5a5e77ead04ba06fb2d63eba010106407459f26de11810aa0a7ad5e83e3e1b8d2e85dc249a99fbcff1673cf55c9915c879ac139ac0bf26dd5a06e3f37c44aa84556026bb48e6246eecfc33171ebcfe58947b031bafe17ae5a00a073b391a00e484b6729f77c11aa424511c8618c34a23dddbfc0fe0265dc4eb4cfa01b50892e8e4ecbfd5bc0cf53604f6f23cd706dc79719972d62be28e627ae287ca05658e252128bfb8ff743644e9610400bebc0264a5a1511469e9d35088c601437a0801f808739c855673327108f22e24fb63c4be593bb1c1bc4e3cd6ea104679e76a098a631fd53cccaaafc3b2e217a85cc4243fec1de269dab5135dede898a56993da0b72713ea8fc5cf977ed19945cd080171f40ea428fe438b99ffa70e086f2e38a1a0be5a3eadca25a2ed6a9b09f8d4203ad9bf76627a241756240cb241a5d7bfd422a0453403dd41482ab5064f94fa2d2e96182fb8b3b9f85473d300689c63f46f244180");
+
+    var buffer_1: [4096]u8 = undefined;
+    const bytes1 = try std.fmt.hexToBytes(&buffer_1, "f90211a0a0ab3e1601d6549af5c32a5c38fef42f0866f24fc16ce70f5d6119733b32ce1ba0f92fcd0021c63ab9136e6df54db3ab735dc267ca8e5725c1c127c107c0d3fc83a0efeb2ad3839ca38f72fbb877c158ade23d7d62b49971abbbe874ae4d44298cdba0d5435ee90a9a1f4c369a0228fcef2d70f8e45d11bdb7bd7b823eb2e265824ac1a033a919415c4532290ca370f71492f352c9c729e4012955d461d525cb8b0faa3ca05cc9620184e8a396cacd0c4f76d25fd4ef80831b3717bfe1d89a0753c544a46fa059baaf0e765b6ff0c9488f7afa06071b9eda81a13b2db2762287c26623f8b27ca04735c39e8cd3d267e6e91f867c2b7120c86ff0c98c4cccd67dfa634f0870f6eda02a80ec76fee519323b8b553e071480d28ca693f95a21b82a48c70adc8155dcbba07809ffaff9ca0875ef1f6e1f84584e2fc79fc2054a47c150aea03f02dabf5cfaa00775eb64cd0add1462a1d0d762424f60fd5faed324f51d48d709ed564cc6d494a011c3b1c19b83e86d587900cfe3a3e2d8534a5c705bad96e68ef3ca0126cbe6a0a0459db754e27d481108d0bfe242f492f06e317437700d860d8a171b961acb3be1a058c7be7e1965ecae30b844bf8676adc851d6af299c6bccaf0856bec60776b01fa05a5ddb72a2a98858c0b4120d728947537bdcc9ab061c4b8da0f684576822bebca07e38f091de1b9e0fcf00f9fdfdec18eb34bfd3996c88329c4cd2d916dbf29cdc80");
+
+    var buffer_2: [4096]u8 = undefined;
+    const bytes2 = try std.fmt.hexToBytes(&buffer_2, "f90211a091e1c27400a43c5a5c197c19c9f9762fa99615f751f093ec268dcde5a0e46363a07c4dff1acc35fa31805556cda36b9618263faecf49a5b287b97fe39a13408c8da03c37d2c5a2f388350546e74c4593236849543f6476aa70f034d88ecc43e1d190a0abaf9651fa71053aa953bdc895c75969f82ed3569d9f001a7f7be66a92b1e6c9a04dfc96da68c1d49908f89f5a9bed4f65c514d1e2193ff1126f9700952e4daceda0ceb6d263009c644f0a348d951e12185bafe238e985432fb5a0deb94fa9a3b2b3a0eb493209507df91c53c45366178061b03226000cf2a8c4ef88fc4e809ae82cd0a064006be53d6f88a198080f749ffb1d6743843c63d3e6f6e395f103c572c73796a0466c8bea652668720b53de631bc1d16935bfaa85c730f6f7d19fcbe4704ab047a0c2792da5608db91851be4114546902cb4cbebea053665b1329c1e73f24e72d48a05fdd0ade55a0571d508274576bcd7a2ced913e77534ff267b3e60368b2ee95c5a0b574398c5e6640048b26a7ca2298105f027dd3561652a1f1fa9ba1c01ed0057fa0d1a98317c3dee409a6178771fc67378e3a14197f4f9f9e5aed1c6b05584d3f48a0e9abf8d9df852a45a5310777b46fbdfa0876e83063a94bc91096c4d5bb8385dba0f831723d52c0b60b61bb830c9a33c9f9b2d83830c3ed570e5da44ae6ee80a953a0333636ac068b435c011fd4e7d30dc52a8bbaf8e9d861a95eee4d3e512ff839c580");
+
+    var buffer_3: [4096]u8 = undefined;
+    const bytes3 = try std.fmt.hexToBytes(&buffer_3, "f901b1a0e480ad00d97a48b6ecdbf027135399615123578f3de7e572259000b946f4c87080a09d2298b1328a8afd6b47f0bd57a1332011ab02614a86ef6b544baf61e425ba9ea05713276bc96f85c79bb9f4e4ef517d5bafe56db6775fd27f757981fe94846aa4a02f787118beba540f07c1fd3b488628ee0fa47694aa5eb1d86405ff25b3d6f66b80a09a628c00eebfe343a8f4a7072aa6ee968eea22a6dde4ac3a29d65bdaae854758a01ffd70ab795cbc879376990fad07f95ec2bf6dc9a51ae3603bfd5f321dc7474aa0cf82883dc01744467fa15bec5689b559b70aa63c6d341548676605e927a102cba0fdb90a7114f2137e15ac8915bf54727cd5d0dead26962eefe4ab2499ec6b5c65a00909bea4f700704cda454c330e2a88f73ebd6a7d7e8fef4204397e154953de99a0bbab7f75e0804aaee0f2761a49579f08820eb074f5ff9320ff5f48383975079880a0b3663141987995925fed9ef86f8fc02a44a42136645714891831ccdf1e08c68ea00a23286f92dbcd146255c6c2cc880990cbd694894653701169c07f6098d9573da0d8a58420dc5d85d4150c2bc6fcae28eb3a843d92aaba1274161e12554c389b8d80");
+
+    var buffer_4: [4096]u8 = undefined;
+    const bytes4 = try std.fmt.hexToBytes(&buffer_4, "e19f20418ffb24ba711dfecd671b4054aa2e87efe3d10484b88078ceef79373c6001");
+
+    var buffer_5: [4096]u8 = undefined;
+    const bytes5 = try std.fmt.hexToBytes(&buffer_5, "d764ad0b0001000000000000000000000000000000000000000000000000000000002d49000000000000000000000000420000000000000000000000000000000000001000000000000000000000000099c9fc46f92e8a1c0dec1b1747d010903e884be1000000000000000000000000000000000000000000000000002e2f6e5e148000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000a41635f5fd000000000000000000000000bcce5f55dfda11600e48e91598ad0f8645466142000000000000000000000000bcce5f55dfda11600e48e91598ad0f8645466142000000000000000000000000000000000000000000000000002e2f6e5e1480000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+
     const args: WithdrawalEnvelope = .{
         .l2OutputIndex = 4529,
         .outputRootProof = .{
@@ -329,14 +364,8 @@ test "PrepareWithdrawalProofTransaction" {
             .messagePasserStorageRoot = try utils.hashToBytes("0x5203022804e44a6b8e2ff945b383a6c83c0dae38a412291afed3fdc8b7d3ceb9"),
             .latestBlockhash = try utils.hashToBytes("0x54e494ad9b3cd1425e5bc1e5e6b623fb13fcc2c2d672cb1b6014e50c9d881b31"),
         },
-        .withdrawalProof = &.{
-            "0xf90211a07dd255038ced20e27bd9c823d53dff05dab9b56f47efec4d1373c6af4fef5989a0a72a37936fd968f361c541a4d5374d3862f0c3e6125b095158982b8eca440da0a0bb0cf61ec3b7954fa2f09263e712f1b9ed681dcab015932294512ad8b288b90da0d91dbd89baf8206e4952fa0f183cb76fee20ad8ab6d0c200053c4ed3e64d1b32a0ab94dcdd454eb74ece1d1fc6bee90a2cc9468a9be3500d774328cced5dd136dca0b1264c351be909f6c5a5e77ead04ba06fb2d63eba010106407459f26de11810aa0a7ad5e83e3e1b8d2e85dc249a99fbcff1673cf55c9915c879ac139ac0bf26dd5a06e3f37c44aa84556026bb48e6246eecfc33171ebcfe58947b031bafe17ae5a00a073b391a00e484b6729f77c11aa424511c8618c34a23dddbfc0fe0265dc4eb4cfa01b50892e8e4ecbfd5bc0cf53604f6f23cd706dc79719972d62be28e627ae287ca05658e252128bfb8ff743644e9610400bebc0264a5a1511469e9d35088c601437a0801f808739c855673327108f22e24fb63c4be593bb1c1bc4e3cd6ea104679e76a098a631fd53cccaaafc3b2e217a85cc4243fec1de269dab5135dede898a56993da0b72713ea8fc5cf977ed19945cd080171f40ea428fe438b99ffa70e086f2e38a1a0be5a3eadca25a2ed6a9b09f8d4203ad9bf76627a241756240cb241a5d7bfd422a0453403dd41482ab5064f94fa2d2e96182fb8b3b9f85473d300689c63f46f244180",
-            "0xf90211a0a0ab3e1601d6549af5c32a5c38fef42f0866f24fc16ce70f5d6119733b32ce1ba0f92fcd0021c63ab9136e6df54db3ab735dc267ca8e5725c1c127c107c0d3fc83a0efeb2ad3839ca38f72fbb877c158ade23d7d62b49971abbbe874ae4d44298cdba0d5435ee90a9a1f4c369a0228fcef2d70f8e45d11bdb7bd7b823eb2e265824ac1a033a919415c4532290ca370f71492f352c9c729e4012955d461d525cb8b0faa3ca05cc9620184e8a396cacd0c4f76d25fd4ef80831b3717bfe1d89a0753c544a46fa059baaf0e765b6ff0c9488f7afa06071b9eda81a13b2db2762287c26623f8b27ca04735c39e8cd3d267e6e91f867c2b7120c86ff0c98c4cccd67dfa634f0870f6eda02a80ec76fee519323b8b553e071480d28ca693f95a21b82a48c70adc8155dcbba07809ffaff9ca0875ef1f6e1f84584e2fc79fc2054a47c150aea03f02dabf5cfaa00775eb64cd0add1462a1d0d762424f60fd5faed324f51d48d709ed564cc6d494a011c3b1c19b83e86d587900cfe3a3e2d8534a5c705bad96e68ef3ca0126cbe6a0a0459db754e27d481108d0bfe242f492f06e317437700d860d8a171b961acb3be1a058c7be7e1965ecae30b844bf8676adc851d6af299c6bccaf0856bec60776b01fa05a5ddb72a2a98858c0b4120d728947537bdcc9ab061c4b8da0f684576822bebca07e38f091de1b9e0fcf00f9fdfdec18eb34bfd3996c88329c4cd2d916dbf29cdc80",
-            "0xf90211a091e1c27400a43c5a5c197c19c9f9762fa99615f751f093ec268dcde5a0e46363a07c4dff1acc35fa31805556cda36b9618263faecf49a5b287b97fe39a13408c8da03c37d2c5a2f388350546e74c4593236849543f6476aa70f034d88ecc43e1d190a0abaf9651fa71053aa953bdc895c75969f82ed3569d9f001a7f7be66a92b1e6c9a04dfc96da68c1d49908f89f5a9bed4f65c514d1e2193ff1126f9700952e4daceda0ceb6d263009c644f0a348d951e12185bafe238e985432fb5a0deb94fa9a3b2b3a0eb493209507df91c53c45366178061b03226000cf2a8c4ef88fc4e809ae82cd0a064006be53d6f88a198080f749ffb1d6743843c63d3e6f6e395f103c572c73796a0466c8bea652668720b53de631bc1d16935bfaa85c730f6f7d19fcbe4704ab047a0c2792da5608db91851be4114546902cb4cbebea053665b1329c1e73f24e72d48a05fdd0ade55a0571d508274576bcd7a2ced913e77534ff267b3e60368b2ee95c5a0b574398c5e6640048b26a7ca2298105f027dd3561652a1f1fa9ba1c01ed0057fa0d1a98317c3dee409a6178771fc67378e3a14197f4f9f9e5aed1c6b05584d3f48a0e9abf8d9df852a45a5310777b46fbdfa0876e83063a94bc91096c4d5bb8385dba0f831723d52c0b60b61bb830c9a33c9f9b2d83830c3ed570e5da44ae6ee80a953a0333636ac068b435c011fd4e7d30dc52a8bbaf8e9d861a95eee4d3e512ff839c580",
-            "0xf901b1a0e480ad00d97a48b6ecdbf027135399615123578f3de7e572259000b946f4c87080a09d2298b1328a8afd6b47f0bd57a1332011ab02614a86ef6b544baf61e425ba9ea05713276bc96f85c79bb9f4e4ef517d5bafe56db6775fd27f757981fe94846aa4a02f787118beba540f07c1fd3b488628ee0fa47694aa5eb1d86405ff25b3d6f66b80a09a628c00eebfe343a8f4a7072aa6ee968eea22a6dde4ac3a29d65bdaae854758a01ffd70ab795cbc879376990fad07f95ec2bf6dc9a51ae3603bfd5f321dc7474aa0cf82883dc01744467fa15bec5689b559b70aa63c6d341548676605e927a102cba0fdb90a7114f2137e15ac8915bf54727cd5d0dead26962eefe4ab2499ec6b5c65a00909bea4f700704cda454c330e2a88f73ebd6a7d7e8fef4204397e154953de99a0bbab7f75e0804aaee0f2761a49579f08820eb074f5ff9320ff5f48383975079880a0b3663141987995925fed9ef86f8fc02a44a42136645714891831ccdf1e08c68ea00a23286f92dbcd146255c6c2cc880990cbd694894653701169c07f6098d9573da0d8a58420dc5d85d4150c2bc6fcae28eb3a843d92aaba1274161e12554c389b8d80",
-            "0xe19f20418ffb24ba711dfecd671b4054aa2e87efe3d10484b88078ceef79373c6001",
-        },
-        .data = "0xd764ad0b0001000000000000000000000000000000000000000000000000000000002d49000000000000000000000000420000000000000000000000000000000000001000000000000000000000000099c9fc46f92e8a1c0dec1b1747d010903e884be1000000000000000000000000000000000000000000000000002e2f6e5e148000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000a41635f5fd000000000000000000000000bcce5f55dfda11600e48e91598ad0f8645466142000000000000000000000000bcce5f55dfda11600e48e91598ad0f8645466142000000000000000000000000000000000000000000000000002e2f6e5e1480000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        .withdrawalProof = &.{ bytes, bytes1, bytes2, bytes3, bytes4 },
+        .data = bytes5,
         .gasLimit = 287624,
         .nonce = 1766847064778384329583297500742918515827483896875618958121606201292631369,
         .sender = try utils.addressToBytes("0x4200000000000000000000000000000000000007"),
@@ -358,6 +387,10 @@ test "PrepareWithdrawalProofTransaction" {
         .l2BlockNumber = 113388533,
         .timestamp = 1702377887,
     });
+    defer {
+        for (prepared.withdrawalProof) |p| testing.allocator.free(p);
+        testing.allocator.free(prepared.withdrawalProof);
+    }
 
     try testing.expectEqualDeep(args, prepared);
 }
@@ -374,6 +407,14 @@ test "ProveWithdrawal" {
         .chain_id = .op_mainnet,
     }, null);
 
+    var buffer: [4096]u8 = undefined;
+    const bytes = try std.fmt.hexToBytes(&buffer, "f90211a07dd255038ced20e27bd9c823d53dff05dab9b56f47efec4d1373c6af4fef5989a0a72a37936fd968f361c541a4d5374d3862f0c3e6125b095158982b8eca440da0a0bb0cf61ec3b7954fa2f09263e712f1b9ed681dcab015932294512ad8b288b90da0d91dbd89baf8206e4952fa0f183cb76fee20ad8ab6d0c200053c4ed3e64d1b32a0ab94dcdd454eb74ece1d1fc6bee90a2cc9468a9be3500d774328cced5dd136dca0fa51148073d2fd37bea62e78e31d2f29f95bacdd72ee987ecbbce8fa98433681a0a7ad5e83e3e1b8d2e85dc249a99fbcff1673cf55c9915c879ac139ac0bf26dd5a0c5766a7cdac0498fd865d735ab9085a3a4163e2338c422e33c4a6b4d1ad0e9afa073b391a00e484b6729f77c11aa424511c8618c34a23dddbfc0fe0265dc4eb4cfa01b50892e8e4ecbfd5bc0cf53604f6f23cd706dc79719972d62be28e627ae287ca05658e252128bfb8ff743644e9610400bebc0264a5a1511469e9d35088c601437a06b5301e3158ca1288125e03b486e99d23baaa5706858ed39488854e197de81bba098a631fd53cccaaafc3b2e217a85cc4243fec1de269dab5135dede898a56993da0b72713ea8fc5cf977ed19945cd080171f40ea428fe438b99ffa70e086f2e38a1a0be5a3eadca25a2ed6a9b09f8d4203ad9bf76627a241756240cb241a5d7bfd422a0453403dd41482ab5064f94fa2d2e96182fb8b3b9f85473d300689c63f46f244180");
+    const bytes1 = try std.fmt.hexToBytes(&buffer, "f90211a0a0ab3e1601d6549af5c32a5c38fef42f0866f24fc16ce70f5d6119733b32ce1ba0f92fcd0021c63ab9136e6df54db3ab735dc267ca8e5725c1c127c107c0d3fc83a0efeb2ad3839ca38f72fbb877c158ade23d7d62b49971abbbe874ae4d44298cdba0d5435ee90a9a1f4c369a0228fcef2d70f8e45d11bdb7bd7b823eb2e265824ac1a033a919415c4532290ca370f71492f352c9c729e4012955d461d525cb8b0faa3ca05cc9620184e8a396cacd0c4f76d25fd4ef80831b3717bfe1d89a0753c544a46fa059baaf0e765b6ff0c9488f7afa06071b9eda81a13b2db2762287c26623f8b27ca04735c39e8cd3d267e6e91f867c2b7120c86ff0c98c4cccd67dfa634f0870f6eda02a80ec76fee519323b8b553e071480d28ca693f95a21b82a48c70adc8155dcbba07809ffaff9ca0875ef1f6e1f84584e2fc79fc2054a47c150aea03f02dabf5cfaa00775eb64cd0add1462a1d0d762424f60fd5faed324f51d48d709ed564cc6d494a011c3b1c19b83e86d587900cfe3a3e2d8534a5c705bad96e68ef3ca0126cbe6a0a0459db754e27d481108d0bfe242f492f06e317437700d860d8a171b961acb3be1a058c7be7e1965ecae30b844bf8676adc851d6af299c6bccaf0856bec60776b01fa05a5ddb72a2a98858c0b4120d728947537bdcc9ab061c4b8da0f684576822bebca07e38f091de1b9e0fcf00f9fdfdec18eb34bfd3996c88329c4cd2d916dbf29cdc80");
+    const bytes2 = try std.fmt.hexToBytes(&buffer, "f90211a091e1c27400a43c5a5c197c19c9f9762fa99615f751f093ec268dcde5a0e46363a07c4dff1acc35fa31805556cda36b9618263faecf49a5b287b97fe39a13408c8da03c37d2c5a2f388350546e74c4593236849543f6476aa70f034d88ecc43e1d190a0abaf9651fa71053aa953bdc895c75969f82ed3569d9f001a7f7be66a92b1e6c9a04dfc96da68c1d49908f89f5a9bed4f65c514d1e2193ff1126f9700952e4daceda0ceb6d263009c644f0a348d951e12185bafe238e985432fb5a0deb94fa9a3b2b3a0eb493209507df91c53c45366178061b03226000cf2a8c4ef88fc4e809ae82cd0a064006be53d6f88a198080f749ffb1d6743843c63d3e6f6e395f103c572c73796a0466c8bea652668720b53de631bc1d16935bfaa85c730f6f7d19fcbe4704ab047a0c2792da5608db91851be4114546902cb4cbebea053665b1329c1e73f24e72d48a05fdd0ade55a0571d508274576bcd7a2ced913e77534ff267b3e60368b2ee95c5a0b574398c5e6640048b26a7ca2298105f027dd3561652a1f1fa9ba1c01ed0057fa0d1a98317c3dee409a6178771fc67378e3a14197f4f9f9e5aed1c6b05584d3f48a0e9abf8d9df852a45a5310777b46fbdfa0876e83063a94bc91096c4d5bb8385dba0f831723d52c0b60b61bb830c9a33c9f9b2d83830c3ed570e5da44ae6ee80a953a0333636ac068b435c011fd4e7d30dc52a8bbaf8e9d861a95eee4d3e512ff839c580");
+    const bytes3 = try std.fmt.hexToBytes(&buffer, "f901b1a0e480ad00d97a48b6ecdbf027135399615123578f3de7e572259000b946f4c87080a09d2298b1328a8afd6b47f0bd57a1332011ab02614a86ef6b544baf61e425ba9ea05713276bc96f85c79bb9f4e4ef517d5bafe56db6775fd27f757981fe94846aa4a02f787118beba540f07c1fd3b488628ee0fa47694aa5eb1d86405ff25b3d6f66b80a09a628c00eebfe343a8f4a7072aa6ee968eea22a6dde4ac3a29d65bdaae854758a01ffd70ab795cbc879376990fad07f95ec2bf6dc9a51ae3603bfd5f321dc7474aa0cf82883dc01744467fa15bec5689b559b70aa63c6d341548676605e927a102cba0fdb90a7114f2137e15ac8915bf54727cd5d0dead26962eefe4ab2499ec6b5c65a00909bea4f700704cda454c330e2a88f73ebd6a7d7e8fef4204397e154953de99a0bbab7f75e0804aaee0f2761a49579f08820eb074f5ff9320ff5f48383975079880a0b3663141987995925fed9ef86f8fc02a44a42136645714891831ccdf1e08c68ea00a23286f92dbcd146255c6c2cc880990cbd694894653701169c07f6098d9573da0d8a58420dc5d85d4150c2bc6fcae28eb3a843d92aaba1274161e12554c389b8d80");
+    const bytes4 = try std.fmt.hexToBytes(&buffer, "e19f20418ffb24ba711dfecd671b4054aa2e87efe3d10484b88078ceef79373c6001");
+    const bytes5 = try std.fmt.hexToBytes(&buffer, "d764ad0b0001000000000000000000000000000000000000000000000000000000002d49000000000000000000000000420000000000000000000000000000000000001000000000000000000000000099c9fc46f92e8a1c0dec1b1747d010903e884be1000000000000000000000000000000000000000000000000002e2f6e5e148000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000a41635f5fd000000000000000000000000bcce5f55dfda11600e48e91598ad0f8645466142000000000000000000000000bcce5f55dfda11600e48e91598ad0f8645466142000000000000000000000000000000000000000000000000002e2f6e5e1480000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+
     const args = .{
         .l2_output_index = 4529,
         .outputRootProof = .{
@@ -383,14 +424,10 @@ test "ProveWithdrawal" {
             .latestBlockhash = try utils.hashToBytes("0x67319b70138527b1087a535099cf8a4db4692ca7cee16b7a3ebd950408ed610a"),
         },
         .withdrawalProof = &.{
-            "0xf90211a07dd255038ced20e27bd9c823d53dff05dab9b56f47efec4d1373c6af4fef5989a0a72a37936fd968f361c541a4d5374d3862f0c3e6125b095158982b8eca440da0a0bb0cf61ec3b7954fa2f09263e712f1b9ed681dcab015932294512ad8b288b90da0d91dbd89baf8206e4952fa0f183cb76fee20ad8ab6d0c200053c4ed3e64d1b32a0ab94dcdd454eb74ece1d1fc6bee90a2cc9468a9be3500d774328cced5dd136dca0fa51148073d2fd37bea62e78e31d2f29f95bacdd72ee987ecbbce8fa98433681a0a7ad5e83e3e1b8d2e85dc249a99fbcff1673cf55c9915c879ac139ac0bf26dd5a0c5766a7cdac0498fd865d735ab9085a3a4163e2338c422e33c4a6b4d1ad0e9afa073b391a00e484b6729f77c11aa424511c8618c34a23dddbfc0fe0265dc4eb4cfa01b50892e8e4ecbfd5bc0cf53604f6f23cd706dc79719972d62be28e627ae287ca05658e252128bfb8ff743644e9610400bebc0264a5a1511469e9d35088c601437a06b5301e3158ca1288125e03b486e99d23baaa5706858ed39488854e197de81bba098a631fd53cccaaafc3b2e217a85cc4243fec1de269dab5135dede898a56993da0b72713ea8fc5cf977ed19945cd080171f40ea428fe438b99ffa70e086f2e38a1a0be5a3eadca25a2ed6a9b09f8d4203ad9bf76627a241756240cb241a5d7bfd422a0453403dd41482ab5064f94fa2d2e96182fb8b3b9f85473d300689c63f46f244180",
-            "0xf90211a0a0ab3e1601d6549af5c32a5c38fef42f0866f24fc16ce70f5d6119733b32ce1ba0f92fcd0021c63ab9136e6df54db3ab735dc267ca8e5725c1c127c107c0d3fc83a0efeb2ad3839ca38f72fbb877c158ade23d7d62b49971abbbe874ae4d44298cdba0d5435ee90a9a1f4c369a0228fcef2d70f8e45d11bdb7bd7b823eb2e265824ac1a033a919415c4532290ca370f71492f352c9c729e4012955d461d525cb8b0faa3ca05cc9620184e8a396cacd0c4f76d25fd4ef80831b3717bfe1d89a0753c544a46fa059baaf0e765b6ff0c9488f7afa06071b9eda81a13b2db2762287c26623f8b27ca04735c39e8cd3d267e6e91f867c2b7120c86ff0c98c4cccd67dfa634f0870f6eda02a80ec76fee519323b8b553e071480d28ca693f95a21b82a48c70adc8155dcbba07809ffaff9ca0875ef1f6e1f84584e2fc79fc2054a47c150aea03f02dabf5cfaa00775eb64cd0add1462a1d0d762424f60fd5faed324f51d48d709ed564cc6d494a011c3b1c19b83e86d587900cfe3a3e2d8534a5c705bad96e68ef3ca0126cbe6a0a0459db754e27d481108d0bfe242f492f06e317437700d860d8a171b961acb3be1a058c7be7e1965ecae30b844bf8676adc851d6af299c6bccaf0856bec60776b01fa05a5ddb72a2a98858c0b4120d728947537bdcc9ab061c4b8da0f684576822bebca07e38f091de1b9e0fcf00f9fdfdec18eb34bfd3996c88329c4cd2d916dbf29cdc80",
-            "0xf90211a091e1c27400a43c5a5c197c19c9f9762fa99615f751f093ec268dcde5a0e46363a07c4dff1acc35fa31805556cda36b9618263faecf49a5b287b97fe39a13408c8da03c37d2c5a2f388350546e74c4593236849543f6476aa70f034d88ecc43e1d190a0abaf9651fa71053aa953bdc895c75969f82ed3569d9f001a7f7be66a92b1e6c9a04dfc96da68c1d49908f89f5a9bed4f65c514d1e2193ff1126f9700952e4daceda0ceb6d263009c644f0a348d951e12185bafe238e985432fb5a0deb94fa9a3b2b3a0eb493209507df91c53c45366178061b03226000cf2a8c4ef88fc4e809ae82cd0a064006be53d6f88a198080f749ffb1d6743843c63d3e6f6e395f103c572c73796a0466c8bea652668720b53de631bc1d16935bfaa85c730f6f7d19fcbe4704ab047a0c2792da5608db91851be4114546902cb4cbebea053665b1329c1e73f24e72d48a05fdd0ade55a0571d508274576bcd7a2ced913e77534ff267b3e60368b2ee95c5a0b574398c5e6640048b26a7ca2298105f027dd3561652a1f1fa9ba1c01ed0057fa0d1a98317c3dee409a6178771fc67378e3a14197f4f9f9e5aed1c6b05584d3f48a0e9abf8d9df852a45a5310777b46fbdfa0876e83063a94bc91096c4d5bb8385dba0f831723d52c0b60b61bb830c9a33c9f9b2d83830c3ed570e5da44ae6ee80a953a0333636ac068b435c011fd4e7d30dc52a8bbaf8e9d861a95eee4d3e512ff839c580",
-            "0xf901b1a0e480ad00d97a48b6ecdbf027135399615123578f3de7e572259000b946f4c87080a09d2298b1328a8afd6b47f0bd57a1332011ab02614a86ef6b544baf61e425ba9ea05713276bc96f85c79bb9f4e4ef517d5bafe56db6775fd27f757981fe94846aa4a02f787118beba540f07c1fd3b488628ee0fa47694aa5eb1d86405ff25b3d6f66b80a09a628c00eebfe343a8f4a7072aa6ee968eea22a6dde4ac3a29d65bdaae854758a01ffd70ab795cbc879376990fad07f95ec2bf6dc9a51ae3603bfd5f321dc7474aa0cf82883dc01744467fa15bec5689b559b70aa63c6d341548676605e927a102cba0fdb90a7114f2137e15ac8915bf54727cd5d0dead26962eefe4ab2499ec6b5c65a00909bea4f700704cda454c330e2a88f73ebd6a7d7e8fef4204397e154953de99a0bbab7f75e0804aaee0f2761a49579f08820eb074f5ff9320ff5f48383975079880a0b3663141987995925fed9ef86f8fc02a44a42136645714891831ccdf1e08c68ea00a23286f92dbcd146255c6c2cc880990cbd694894653701169c07f6098d9573da0d8a58420dc5d85d4150c2bc6fcae28eb3a843d92aaba1274161e12554c389b8d80",
-            "0xe19f20418ffb24ba711dfecd671b4054aa2e87efe3d10484b88078ceef79373c6001",
+            bytes, bytes1, bytes2, bytes3, bytes4,
         },
         .withdrawal = .{
-            .data = "0xd764ad0b0001000000000000000000000000000000000000000000000000000000002d49000000000000000000000000420000000000000000000000000000000000001000000000000000000000000099c9fc46f92e8a1c0dec1b1747d010903e884be1000000000000000000000000000000000000000000000000002e2f6e5e148000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000a41635f5fd000000000000000000000000bcce5f55dfda11600e48e91598ad0f8645466142000000000000000000000000bcce5f55dfda11600e48e91598ad0f8645466142000000000000000000000000000000000000000000000000002e2f6e5e1480000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            .data = bytes5,
             .gasLimit = 287624,
             .nonce = 1766847064778384329583297500742918515827483896875618958121606201292631369,
             .sender = try utils.addressToBytes("0x4200000000000000000000000000000000000007"),
@@ -399,7 +436,8 @@ test "ProveWithdrawal" {
         },
     };
 
-    _ = try wallet_op.proveWithdrawal(args.withdrawal, args.l2_output_index, args.outputRootProof, args.withdrawalProof);
+    const proven = try wallet_op.proveWithdrawal(args.withdrawal, args.l2_output_index, args.outputRootProof, args.withdrawalProof);
+    defer proven.deinit();
 }
 
 test "FinalizeWithdrawal" {
@@ -414,12 +452,13 @@ test "FinalizeWithdrawal" {
         .chain_id = .op_mainnet,
     }, null);
 
-    _ = try wallet_op.finalizeWithdrawal(.{
-        .data = "0x01",
+    const final = try wallet_op.finalizeWithdrawal(.{
+        .data = @constCast(&[_]u8{0x01}),
         .sender = try utils.addressToBytes("0x02f086dBC384d69b3041BC738F0a8af5e49dA181"),
         .target = try utils.addressToBytes("0x02f086dBC384d69b3041BC738F0a8af5e49dA181"),
         .value = 335000000000000000000,
         .gasLimit = 100000,
         .nonce = 1766847064778384329583297500742918515827483896875618958121606201292641795,
     });
+    defer final.deinit();
 }

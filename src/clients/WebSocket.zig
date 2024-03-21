@@ -1833,6 +1833,7 @@ pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hash, confirm
         error.TransactionReceiptNotFound => null,
         else => return err,
     };
+    errdefer if (receipt) |tx_receipt| tx_receipt.deinit();
 
     if (receipt) |tx_receipt| {
         if (confirmations == 0)
@@ -1840,6 +1841,7 @@ pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hash, confirm
     }
 
     const sub_id = try self.watchNewBlocks();
+    defer sub_id.deinit();
 
     var retries: u8 = 0;
     var valid_confirmations: u8 = if (receipt != null) 1 else 0;
@@ -1848,6 +1850,7 @@ pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hash, confirm
             return error.FailedToGetReceipt;
 
         const event = self.sub_channel.get();
+        defer event.deinit();
 
         switch (event.response) {
             .new_heads_event => {},
@@ -1925,7 +1928,7 @@ pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hash, confirm
                     wslog.debug("Transaction was replace by a newer one", .{});
 
                     switch (replaced_tx) {
-                        inline else => |replacement| switch (tx.?) {
+                        inline else => |replacement| switch (tx.?.response) {
                             inline else => |original| {
                                 if (std.mem.eql(u8, &replacement.from, &original.from) and replacement.value == original.value)
                                     wslog.debug("Original transaction was repriced", .{});
@@ -1968,9 +1971,10 @@ pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hash, confirm
             continue;
         }
     }
-    const success = try self.unsubscribe(sub_id);
+    const success = try self.unsubscribe(sub_id.response);
+    defer success.deinit();
 
-    if (!success)
+    if (!success.response)
         return error.FailedToUnsubscribe;
 
     return if (receipt) |tx_receipt| tx_receipt else error.FailedToGetReceipt;

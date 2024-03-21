@@ -2,7 +2,7 @@ const std = @import("std");
 const utils = zabi.utils;
 const zabi = @import("zabi");
 
-const Wallet = zabi.clients.wallet.Wallet(.http);
+const Wallet = zabi.clients.wallet.Wallet(.websocket);
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

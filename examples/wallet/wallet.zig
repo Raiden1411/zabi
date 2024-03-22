@@ -19,5 +19,7 @@ pub fn main() !void {
     defer wallet.deinit();
 
     const message = try wallet.signEthereumMessage("Hello World");
-    std.debug.print("Ethereum message: {s}\n", .{try message.toHex(wallet.allocator)});
+    const hexed = try message.toHex(wallet.allocator);
+    defer gpa.allocator().free(hexed);
+    std.debug.print("Ethereum message: {s}\n", .{hexed});
 }

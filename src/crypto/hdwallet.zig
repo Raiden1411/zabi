@@ -70,9 +70,6 @@ pub const HDWalletNode = struct {
     /// Derive a child node based on the index
     /// If the index is higher than std.math.maxInt(u32) this will error.
     pub fn deriveChild(self: Node, index: u32) !Node {
-        if (index > comptime std.math.maxInt(u32))
-            return error.InvalidIndex;
-
         return if (index & HARDNED_BIT != 0) self.deriveHarnedChild(index) else self.deriveNonHarnedChild(index);
     }
     /// Castrates a HDWalletNode. This essentially returns the node without the private key.
@@ -268,4 +265,19 @@ test "Anvil/Hardhat" {
 
         try testing.expectEqualStrings("0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6", hex);
     }
+}
+
+test "Errors" {
+    const seed = "test test test test test test test test test test test junk";
+    var hashed: [64]u8 = undefined;
+
+    try std.crypto.pwhash.pbkdf2(&hashed, seed, "mnemonic", 2048, HmacSha512);
+
+    const node = try HDWalletNode.fromSeedAndPath(hashed, "m/44'/60'/0'/0/0");
+    try testing.expectError(error.InvalidPath, node.derivePath("foo"));
+    try testing.expectError(error.InvalidPath, node.derivePath("m/"));
+
+    const castrated = node.castrateNode();
+    try testing.expectError(error.InvalidIndex, castrated.deriveChild(std.math.maxInt(u32)));
+    try testing.expectError(error.InvalidCharacter, castrated.derivePath("m/44'"));
 }

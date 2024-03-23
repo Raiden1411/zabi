@@ -2,6 +2,8 @@ const std = @import("std");
 
 const HmacSha512 = std.crypto.auth.hmac.sha2.HmacSha512;
 
+pub const English = Wordlist.loadRawList(@embedFile("path_to_file.txt"));
+
 pub fn mnemonicToSeed(password: []const u8) ![64]u8 {
     var buffer: [64]u8 = undefined;
     try std.crypto.pwhash.pbkdf2(buffer[0..], password, "mnemonic", 2048, HmacSha512);

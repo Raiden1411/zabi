@@ -1,6 +1,7 @@
 const block = @import("../types/block.zig");
 const meta = @import("../meta/utils.zig");
 const log = @import("../types/log.zig");
+const pipe = @import("../utils/pipe.zig");
 const proof = @import("../types/proof.zig");
 const std = @import("std");
 const testing = std.testing;
@@ -340,7 +341,7 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
 /// Call this in a seperate thread.
 pub fn readLoopOwned(self: *WebSocketHandler) !void {
     errdefer self.deinit();
-    std.os.maybeIgnoreSigpipe();
+    pipe.maybeIgnoreSigpipe();
 
     self.ws_client.readLoop(self) catch |err| {
         wslog.debug("Read loop reported error: {s}", .{@errorName(err)});

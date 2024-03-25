@@ -3,14 +3,16 @@
 
 const std = @import("std");
 const testing = std.testing;
+const utils = @import("../utils/utils.zig");
 
 const HmacSha512 = std.crypto.auth.hmac.sha2.HmacSha512;
 
+// TODO: Support more languages
 /// Wordlist of valid english mnemonic words.
 pub const english = Wordlist.loadRawList(@embedFile("wordlists/english.txt"));
 
 /// The array of entropy bytes of an mnemonic passphrase
-/// Compilation will fail if the counts is not 12/15/18/21/24
+/// Compilation will fail if the count is not 12/15/18/21/24
 pub fn EntropyArray(comptime word_count: comptime_int) type {
     switch (word_count) {
         12, 15, 18, 21, 24 => {},
@@ -67,6 +69,61 @@ pub fn toEntropy(comptime word_count: comptime_int, password: []const u8, wordli
     return entropy[0 .. entropy_bytes / 8].*;
 }
 
+pub fn fromEntropy(allocator: std.mem.Allocator, comptime word_count: comptime_int, entropy_bytes: EntropyArray(word_count), word_list: ?Wordlist) ![]const u8 {
+    const list = word_list orelse english;
+
+    var mnemonic = std.ArrayList(u8).init(allocator);
+    errdefer mnemonic.deinit();
+
+    var writer = mnemonic.writer();
+
+    var indices = std.ArrayList(u16).init(allocator);
+    errdefer indices.deinit();
+
+    try indices.append(0);
+
+    var remainder: u8 = 11;
+    for (entropy_bytes) |bit| {
+        if (remainder > 8) {
+            indices.items[indices.items.len - 1] <<= 8;
+            indices.items[indices.items.len - 1] |= bit;
+
+            remainder -= 8;
+        } else {
+            indices.items[indices.items.len - 1] <<= @truncate(remainder);
+
+            indices.items[indices.items.len - 1] |= std.math.shr(u16, bit, 8 - remainder);
+
+            try indices.append(bit & (std.math.shl(u8, 1, 8 - remainder) - 1) & 0xFF);
+            remainder += 3;
+        }
+    }
+
+    const checksum_bits = comptime entropy_bytes.len / 4;
+
+    var buffer: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(&entropy_bytes, &buffer, .{});
+
+    const checksum = try utils.bytesToInt(u16, buffer[0..1]);
+    const checksum_mask = checksum & ((1 << checksum_bits) - 1) << (8 - checksum_bits) & 0xFF;
+
+    indices.items[indices.items.len - 1] <<= checksum_bits;
+    indices.items[indices.items.len - 1] |= checksum_mask >> (8 - checksum_bits);
+
+    const indices_slice = try indices.toOwnedSlice();
+    defer allocator.free(indices_slice);
+
+    for (indices_slice, 0..) |indice, i| {
+        try writer.writeAll(list.word_list[indice]);
+        if (i < indices_slice.len - 1)
+            try writer.writeByte(' ');
+    }
+
+    return try mnemonic.toOwnedSlice();
+}
+
+// TODO: Normalize words from list.
+/// The word lists that are valid for mnemonic passphrases.
 pub const Wordlist = struct {
     const List = @This();
 
@@ -79,7 +136,6 @@ pub const Wordlist = struct {
     pub fn loadRawList(raw_list: []const u8) List {
         return .{ .word_list = loadList(raw_list) };
     }
-
     /// Performs binary search on the word list
     /// as we assume that the list is alphabetically ordered.
     ///
@@ -107,7 +163,7 @@ pub const Wordlist = struct {
     }
 
     fn loadList(raw_list: []const u8) [Wordlist.list_count][]const u8 {
-        @setEvalBranchQuota(50000);
+        @setEvalBranchQuota(100000);
 
         var iter = std.mem.tokenize(u8, raw_list, "\n");
         var list_buffer: [Wordlist.list_count][]const u8 = undefined;
@@ -123,10 +179,31 @@ pub const Wordlist = struct {
 };
 
 test "Index" {
-    const index = english.getIndex("actor");
+    {
+        const index = english.getIndex("actor");
 
-    try testing.expectEqual(index.?, 21);
+        try testing.expectEqual(index.?, 21);
+    }
+}
 
-    // const seed = "test test test test test test test test test test test junk";
-    // const entropy = try toEntropy(12, seed, null);
+test "English" {
+    {
+        const seed = "test test test test test test test test test test test junk";
+        const entropy = try toEntropy(12, seed, null);
+
+        const bar = try fromEntropy(testing.allocator, 12, entropy, null);
+        defer testing.allocator.free(bar);
+
+        try testing.expectEqualStrings(seed, bar);
+    }
+    {
+        const seed = "test test test test test test test test test test test test";
+
+        try testing.expectError(error.InvalidMnemonicChecksum, toEntropy(12, seed, null));
+    }
+    {
+        const seed = "asdasdas test test test test test test test test test test test";
+
+        try testing.expectError(error.InvalidMnemonicWord, toEntropy(12, seed, null));
+    }
 }

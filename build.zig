@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const min_zig_string = "0.12.0-dev.3247+26e895e3d";
+const min_zig_string = "0.12.0-dev.3405+31791ae15";
 
 pub fn build(b: *std.Build) void {
     comptime {
@@ -68,10 +68,15 @@ fn addDependencies(b: *std.Build, mod: *std.Build.Module, target: std.Build.Reso
         .optimize = optimize,
     });
     const ws = b.dependency("ws", .{ .target = target, .optimize = optimize });
+    const ziglyph = b.dependency("ziglyph", .{
+        .target = target,
+        .optimize = optimize,
+    });
 
     mod.addImport("secp256k1", secp256k1_dep.module("secp256k1"));
     mod.addImport("c-kzg-4844", c_kzg_4844_dep.module("c-kzg-4844"));
     mod.addImport("ws", ws.module("websocket"));
+    mod.addImport("ziglyph", ziglyph.module("ziglyph"));
     mod.linkLibrary(secp256k1_dep.artifact("secp256k1"));
     mod.linkLibrary(c_kzg_4844_dep.artifact("c-kzg-4844"));
     mod.linkLibrary(blst_dep.artifact("blst"));

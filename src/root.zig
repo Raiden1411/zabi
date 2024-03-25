@@ -9,6 +9,8 @@ pub const signer = @import("secp256k1");
 pub const superchain = @import("clients/optimism/root.zig");
 pub const types = @import("types/root.zig");
 pub const utils = @import("utils/utils.zig");
+pub const hdwallet = @import("crypto/hdwallet.zig");
+pub const mnemonic = @import("crypto/mnemonic.zig");
 
 pub const Anvil = @import("tests/Anvil.zig");
 pub const Hardhat = @import("tests/Hardhat.zig");
@@ -37,6 +39,8 @@ test {
     _ = @import("clients/optimism/utils.zig");
     _ = @import("clients/optimism/parse_deposit.zig");
     _ = @import("clients/optimism/serialize_deposit.zig");
+    _ = @import("crypto/hdwallet.zig");
+    _ = @import("crypto/mnemonic.zig");
     _ = @import("encoding/encoder.zig");
     _ = @import("encoding/logs.zig");
     _ = @import("encoding/rlp.zig");

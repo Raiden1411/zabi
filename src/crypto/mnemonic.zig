@@ -5,7 +5,9 @@ const std = @import("std");
 const testing = std.testing;
 const utils = @import("../utils/utils.zig");
 
+const Allocator = std.mem.Allocator;
 const HmacSha512 = std.crypto.auth.hmac.sha2.HmacSha512;
+const Sha256 = std.crypto.hash.sha2.Sha256;
 
 // TODO: Support more languages
 /// Wordlist of valid english mnemonic words.
@@ -59,7 +61,7 @@ pub fn toEntropy(comptime word_count: comptime_int, password: []const u8, wordli
     const checksum_mask = ((1 << checksum_bytes) - 1) << (8 - checksum_bytes) & 0xFF;
 
     var buffer: [32]u8 = undefined;
-    std.crypto.hash.sha2.Sha256.hash(entropy[0 .. entropy_bytes / 8], &buffer, .{});
+    Sha256.hash(entropy[0 .. entropy_bytes / 8], &buffer, .{});
 
     const checksum = buffer[0] & checksum_mask;
 
@@ -69,7 +71,7 @@ pub fn toEntropy(comptime word_count: comptime_int, password: []const u8, wordli
     return entropy[0 .. entropy_bytes / 8].*;
 }
 
-pub fn fromEntropy(allocator: std.mem.Allocator, comptime word_count: comptime_int, entropy_bytes: EntropyArray(word_count), word_list: ?Wordlist) ![]const u8 {
+pub fn fromEntropy(allocator: Allocator, comptime word_count: comptime_int, entropy_bytes: EntropyArray(word_count), word_list: ?Wordlist) ![]const u8 {
     const list = word_list orelse english;
 
     var mnemonic = std.ArrayList(u8).init(allocator);
@@ -102,7 +104,7 @@ pub fn fromEntropy(allocator: std.mem.Allocator, comptime word_count: comptime_i
     const checksum_bits = comptime entropy_bytes.len / 4;
 
     var buffer: [32]u8 = undefined;
-    std.crypto.hash.sha2.Sha256.hash(&entropy_bytes, &buffer, .{});
+    Sha256.hash(&entropy_bytes, &buffer, .{});
 
     const checksum = try utils.bytesToInt(u16, buffer[0..1]);
     const checksum_mask = checksum & ((1 << checksum_bits) - 1) << (8 - checksum_bits) & 0xFF;

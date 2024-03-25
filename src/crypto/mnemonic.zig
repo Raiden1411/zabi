@@ -1,15 +1,70 @@
+//! Experimental and unaudited code. Use with caution.
+//! Reference: https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki
+
 const std = @import("std");
 const testing = std.testing;
 
 const HmacSha512 = std.crypto.auth.hmac.sha2.HmacSha512;
 
-pub const English = Wordlist.loadRawList(@embedFile("wordlists/english.txt"));
+/// Wordlist of valid english mnemonic words.
+pub const english = Wordlist.loadRawList(@embedFile("wordlists/english.txt"));
 
+/// The array of entropy bytes of an mnemonic passphrase
+/// Compilation will fail if the counts is not 12/15/18/21/24
+pub fn EntropyArray(comptime word_count: comptime_int) type {
+    switch (word_count) {
+        12, 15, 18, 21, 24 => {},
+        else => @compileError(std.fmt.comptimePrint("Unsupported word count of {d}", .{word_count})),
+    }
+
+    const entropy_bytes = 32 * word_count / 3;
+    return [entropy_bytes / 8]u8;
+}
+/// Converts a mnemonic passphrase into a hashed seed that
+/// can be used later for HDWallets.
+///
+/// Uses `pbkdf2` for the hashing with `HmacSha512` for the
+/// pseudo random function to use
 pub fn mnemonicToSeed(password: []const u8) ![64]u8 {
     var buffer: [64]u8 = undefined;
     try std.crypto.pwhash.pbkdf2(buffer[0..], password, "mnemonic", 2048, HmacSha512);
 
     return buffer;
+}
+/// Converts the mnemonic phrase into it's entropy representation.
+pub fn toEntropy(comptime word_count: comptime_int, password: []const u8, wordlist: ?Wordlist) !EntropyArray(word_count) {
+    const words = wordlist orelse english;
+
+    var iter = std.mem.tokenizeAny(u8, password, " ");
+    const size = comptime std.math.divCeil(u16, 11 * word_count, 8) catch @compileError("Invalid word_count size");
+
+    var entropy: [size]u8 = [_]u8{0} ** size;
+
+    var count: usize = 0;
+    while (iter.next()) |word| {
+        const index = words.getIndex(word) orelse return error.InvalidMnemonicWord;
+
+        for (0..11) |bit| {
+            if (index & std.math.shl(u16, 1, 10 - bit) != 0) {
+                entropy[count >> 3] |= std.math.shl(u8, 1, 7 - (count % 8));
+            }
+            count += 1;
+        }
+    }
+
+    const entropy_bytes = comptime 32 * word_count / 3;
+    const checksum_bytes = comptime word_count / 3;
+    const checksum_mask = ((1 << checksum_bytes) - 1) << (8 - checksum_bytes) & 0xFF;
+
+    var buffer: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(entropy[0 .. entropy_bytes / 8], &buffer, .{});
+
+    const checksum = buffer[0] & checksum_mask;
+
+    if (checksum != entropy[entropy.len - 1] & checksum)
+        return error.InvalidMnemonicChecksum;
+
+    return entropy[0 .. entropy_bytes / 8].*;
 }
 
 pub const Wordlist = struct {
@@ -37,15 +92,14 @@ pub const Wordlist = struct {
         var right: u16 = 2047;
 
         while (left <= right) {
-            const ceil = std.math.divCeil(u16, right - left, 2) catch unreachable;
-            const middle = left + ceil;
+            const middle = left + @divFloor(right - left, 2);
 
             const compare = std.mem.order(u8, self.word_list[middle], word);
 
             switch (compare) {
                 .eq => return middle,
-                .gt => right = middle + 1,
-                .lt => left = middle - 1,
+                .gt => right = middle - 1,
+                .lt => left = middle + 1,
             }
         }
 
@@ -69,7 +123,10 @@ pub const Wordlist = struct {
 };
 
 test "Index" {
-    const index = English.getIndex("actor");
+    const index = english.getIndex("actor");
 
     try testing.expectEqual(index.?, 21);
+
+    // const seed = "test test test test test test test test test test test junk";
+    // const entropy = try toEntropy(12, seed, null);
 }

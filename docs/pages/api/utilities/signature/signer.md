@@ -2,20 +2,19 @@
 
 ## Definition
 
-This is essentially a wrapper for `libsecp256k1`.
-This is the same library that powers `geth`.
+This is a custom zig implementation of ecdsa signers with the `Secp256k1` curve.
 
 ## Usage
 
-This is expecting you to pass in a private key of you could use the `generateRandomSigner` that uses Zigs to generate a random `Secp256k1` scalar that will be used as the private key.
+This is expecting you to pass in a private key or `null` if you passed in `null` we will generate a random `Secp256k1` scalar that will be used as the private key.
 
 ## getAddressFromPublicKey
 
 Gets the ethereum address from the signers public key.
 
 ```zig
-const signer = @import("zabi").secp256k1
-const random = try signer.generateRandomSigner();
+const Signer = @import("zabi").Signer
+const random = try signer.init(null);
 
 try random.getAddressFromPublicKey();
 ```
@@ -29,8 +28,8 @@ Type: `[20]u8` -> This is not checksumed.
 Signs a message using the signer. This expected that the message was previously hashed.
 
 ```zig
-const signer = @import("zabi").secp256k1
-const random = try signer.generateRandomSigner();
+const Signer = @import("zabi").Signer
+const random = try signer.init(null);
 
 try random.sign([_]u8{0} ** 32);
 ```
@@ -44,8 +43,8 @@ Type: `Signature`
 Recovers a public key from a message and signature. This expected that the message was previously hashed.
 
 ```zig
-const signer = @import("zabi").secp256k1
-const random = try signer.generateRandomSigner();
+const Signer = @import("zabi").Signer
+const random = try signer.init(null);
 
 try random.recoverPublicKey([_]u8{0} ** 32, .{.r = [_]u8{0} ** 32, .s =[_]u8{0} ** 32, .v = 0 });
 ```
@@ -60,8 +59,8 @@ Recovers a ethereum from a message and signature. This expected that the message
 The address will already be checksumed.
 
 ```zig
-const signer = @import("zabi").secp256k1
-const random = try signer.generateRandomSigner();
+const Signer = @import("zabi").Signer
+const random = try signer.init(null);
 
 try random.recoverEthereumAddress([_]u8{0} ** 32, .{.r = [_]u8{0} ** 32, .s =[_]u8{0} ** 32, .v = 0 });
 ```
@@ -76,8 +75,8 @@ Exactly the same as above but the message will be hashed.
 The address will already be checksumed.
 
 ```zig
-const signer = @import("zabi").secp256k1
-const random = try signer.generateRandomSigner();
+const Signer = @import("zabi").Signer
+const random = try signer.init(null);
 
 try random.recoverMessageAddress([_]u8{0} ** 32, .{.r = [_]u8{0} ** 32, .s =[_]u8{0} ** 32, .v = 0 });
 ```
@@ -92,8 +91,8 @@ Signs an ethereum message.
 Follows the specification so it prepends \x19Ethereum Signed Message:\n to the start of the message.
 
 ```zig
-const signer = @import("zabi").secp256k1
-const random = try signer.generateRandomSigner();
+const Signer = @import("zabi").Signer
+const random = try signer.init(null);
 
 try random.signMessage(testing.allocator, [_]u8{0} ** 32);
 ```
@@ -107,8 +106,8 @@ Type: `Signature`
 Verifies if a given message was sent by the current signer.
 
 ```zig
-const signer = @import("zabi").secp256k1
-const random = try signer.generateRandomSigner();
+const Signer = @import("zabi").Signer
+const random = try signer.init(null);
 
 try random.verifyMessage(testing.allocator, .{.r = [_]u8{0} ** 32, .s =[_]u8{0} ** 32, .v = 0 }, [_]u8{0} ** 32);
 ```

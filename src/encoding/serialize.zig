@@ -1,4 +1,3 @@
-const signer = @import("secp256k1");
 const meta = @import("../meta/utils.zig");
 const std = @import("std");
 const rlp = @import("rlp.zig");
@@ -34,8 +33,8 @@ const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
 const Sidecar = kzg.KZG4844.Sidecar;
 const Sidecars = kzg.KZG4844.Sidecars;
-const Signature = signer.Signature;
-const Signer = signer.Signer;
+const Signature = @import("../crypto/signature.zig").Signature;
+const Signer = @import("../crypto/signer.zig");
 const StructToTupleType = meta.StructToTupleType;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const Tuple = std.meta.Tuple;
@@ -699,8 +698,11 @@ test "Serialize legacy with signature" {
     try testing.expectEqualStrings("f86d8084773594008252099470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a76400008082f4f5a0a918ad4845f590df2667eceacdb621dcedf9c3efefd7f783d5f45840131c338da059a2e246acdab8cfdc51b764ec20e4a59ca1998d8a101dba01cd1cb34c1179a0", hex);
 }
 
-fn generateSignature(message: []const u8) !signer.Signature {
-    const wallet = try Signer.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+fn generateSignature(message: []const u8) !Signature {
+    var buffer_hex: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer_hex, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    const wallet = try Signer.init(buffer_hex);
     const buffer = try testing.allocator.alloc(u8, message.len / 2);
     defer testing.allocator.free(buffer);
 

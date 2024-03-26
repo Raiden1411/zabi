@@ -7,7 +7,6 @@ const testing = std.testing;
 const transactions = @import("../../../types/transaction.zig");
 const op_types = @import("../types/types.zig");
 const op_utils = @import("../utils.zig");
-const signer = @import("secp256k1");
 const types = @import("../../../types/ethereum.zig");
 const utils = @import("../../../utils/utils.zig");
 const withdrawal_types = @import("../types/withdrawl.zig");
@@ -26,7 +25,7 @@ const OpMainNetContracts = contracts.OpMainNetContracts;
 const PreparedWithdrawal = withdrawal_types.PreparedWithdrawal;
 const RootProof = withdrawal_types.WithdrawalRootProof;
 const RPCResponse = types.RPCResponse;
-const Signer = signer.Signer;
+const Signer = @import("../../../crypto/signer.zig");
 const Withdrawal = withdrawal_types.Withdrawal;
 const WithdrawalEnvelope = withdrawal_types.WithdrawalEnvelope;
 const WithdrawalNoHash = withdrawal_types.WithdrawalNoHash;
@@ -61,7 +60,7 @@ pub fn L2WalletClient(client_type: Clients) type {
         ///
         /// If the contracts are null it defaults to OP contracts.
         /// Caller must deinit after use.
-        pub fn init(self: *L2Wallet, priv_key: []const u8, opts: InitOpts, op_contracts: ?OpMainNetContracts) !void {
+        pub fn init(self: *L2Wallet, priv_key: ?Hash, opts: InitOpts, op_contracts: ?OpMainNetContracts) !void {
             const op_client = try opts.allocator.create(ClientType);
             errdefer opts.allocator.destroy(op_client);
 
@@ -76,7 +75,7 @@ pub fn L2WalletClient(client_type: Clients) type {
             };
 
             const nonce = try self.op_client.rpc_client.getAddressTransactionCount(.{
-                .address = try op_signer.getAddressFromPublicKey(),
+                .address = op_signer.address_bytes,
             });
             defer nonce.deinit();
 
@@ -87,7 +86,6 @@ pub fn L2WalletClient(client_type: Clients) type {
             const child_allocator = self.op_client.allocator;
 
             self.op_client.deinit();
-            self.signer.deinit();
 
             child_allocator.destroy(self.op_client);
 
@@ -117,7 +115,7 @@ pub fn L2WalletClient(client_type: Clients) type {
         /// Invokes the contract method to `initiateWithdrawal`. This will send
         /// a transaction to the network.
         pub fn initiateWithdrawal(self: *L2Wallet, request: WithdrawalRequest) !RPCResponse(Hash) {
-            const address = try self.signer.getAddressFromPublicKey();
+            const address = self.signer.address_bytes;
 
             const prepared = try self.prepareInitiateWithdrawal(request);
             const data = try abi_items.initiate_withdrawal.encode(self.op_client.allocator, .{
@@ -181,7 +179,7 @@ pub fn L2WalletClient(client_type: Clients) type {
         /// Invokes the contract method to `finalizeWithdrawalTransaction`. This will send
         /// a transaction to the network.
         pub fn finalizeWithdrawal(self: *L2Wallet, withdrawal: WithdrawalNoHash) !RPCResponse(Hash) {
-            const address = try self.signer.getAddressFromPublicKey();
+            const address = self.signer.address_bytes;
             const data = try abi_items.finalize_withdrawal.encode(self.op_client.allocator, .{withdrawal});
             defer self.op_client.allocator.free(data);
 
@@ -214,7 +212,7 @@ pub fn L2WalletClient(client_type: Clients) type {
         /// Invokes the contract method to `proveWithdrawalTransaction`. This will send
         /// a transaction to the network.
         pub fn proveWithdrawal(self: *L2Wallet, withdrawal: WithdrawalNoHash, l2_output_index: u256, outputRootProof: RootProof, withdrawal_proof: []const Hex) !RPCResponse(Hash) {
-            const address = try self.signer.getAddressFromPublicKey();
+            const address = self.signer.address_bytes;
             const data = try abi_items.prove_withdrawal.encode(self.op_client.allocator, .{
                 withdrawal, l2_output_index, outputRootProof, withdrawal_proof,
             });
@@ -314,7 +312,11 @@ test "InitiateWithdrawal" {
     defer wallet_op.deinit();
 
     const uri = try std.Uri.parse("http://localhost:8544/");
-    try wallet_op.init("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{
+
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(buffer[0..], "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet_op.init(buffer, .{
         .allocator = testing.allocator,
         .uri = uri,
         .chain_id = .op_mainnet,
@@ -332,7 +334,11 @@ test "PrepareWithdrawalProofTransaction" {
     defer wallet_op.deinit();
 
     const uri = try std.Uri.parse("http://localhost:8544/");
-    try wallet_op.init("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{
+
+    var buffer_hex: Hash = undefined;
+    _ = try std.fmt.hexToBytes(buffer_hex[0..], "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet_op.init(buffer_hex, .{
         .allocator = testing.allocator,
         .uri = uri,
         .chain_id = .op_mainnet,
@@ -401,7 +407,10 @@ test "ProveWithdrawal" {
     defer wallet_op.deinit();
 
     const uri = try std.Uri.parse("http://localhost:8544/");
-    try wallet_op.init("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{
+    var buffer_hex: Hash = undefined;
+    _ = try std.fmt.hexToBytes(buffer_hex[0..], "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet_op.init(buffer_hex, .{
         .allocator = testing.allocator,
         .uri = uri,
         .chain_id = .op_mainnet,
@@ -446,7 +455,10 @@ test "FinalizeWithdrawal" {
     defer wallet_op.deinit();
 
     const uri = try std.Uri.parse("http://localhost:8544/");
-    try wallet_op.init("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{
+    var buffer_hex: Hash = undefined;
+    _ = try std.fmt.hexToBytes(buffer_hex[0..], "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet_op.init(buffer_hex, .{
         .allocator = testing.allocator,
         .uri = uri,
         .chain_id = .op_mainnet,

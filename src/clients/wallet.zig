@@ -177,31 +177,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             self.wallet_nonce = nonce.response;
         }
-        /// Inits wallet from a random generated priv key. Must call `deinit` after.
-        /// The init opts will depend on the `client_type`.
-        pub fn initFromRandomKey(self: *Wallet(client_type), opts: InitOpts) !void {
-            const envelopes_pool = try opts.allocator.create(TransactionEnvelopePool);
-            errdefer opts.allocator.destroy(envelopes_pool);
-
-            const signer = try Signer.generateRandomSigner();
-            const client = client: {
-                // We need to create the pointer so that we can init the client
-                const client = try opts.allocator.create(ClientType);
-                errdefer opts.allocator.destroy(client);
-
-                try client.init(opts);
-
-                break :client client;
-            };
-
-            self.* = .{
-                .allocator = opts.allocator,
-                .rpc_client = client,
-                .signer = signer,
-                .envelopes_pool = envelopes_pool,
-            };
-            self.envelopes_pool.* = .{ .pooled_envelopes = .{} };
-        }
         /// Clears memory and destroys any created pointers
         pub fn deinit(self: *Wallet(client_type)) void {
             self.envelopes_pool.deinit(self.allocator);

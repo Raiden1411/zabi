@@ -56,7 +56,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
 
         /// The contract settings depending on the client type.
         const ContractInitOpts = struct {
-            private_key: []const u8,
+            private_key: ?Hash,
             wallet_opts: InitOpts,
         };
 
@@ -242,7 +242,7 @@ pub fn Contract(comptime client_type: ClientType) type {
         /// The contract settings depending on the client type.
         const ContractInitOpts = struct {
             abi: Abi,
-            private_key: []const u8,
+            private_key: ?Hash,
             wallet_opts: InitOpts,
         };
 
@@ -470,7 +470,10 @@ test "DeployContract" {
         var contract: Contract(.websocket) = undefined;
         defer contract.deinit();
 
-        try contract.init(.{ .abi = abi, .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
+        var buffer_hex: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer_hex, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+        try contract.init(.{ .abi = abi, .private_key = buffer_hex, .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
 
         var buffer: [1024]u8 = undefined;
         const bytes = try std.fmt.hexToBytes(&buffer, "608060405260358060116000396000f3006080604052600080fd00a165627a7a72305820f86ff341f0dff29df244305f8aa88abaf10e3a0719fa6ea1dcdd01b8b7d750970029");
@@ -494,7 +497,10 @@ test "DeployContract" {
         var contract: Contract(.http) = undefined;
         defer contract.deinit();
 
-        try contract.init(.{ .abi = abi, .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
+        var buffer_hex: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer_hex, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+        try contract.init(.{ .abi = abi, .private_key = buffer_hex, .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
 
         var buffer: [1024]u8 = undefined;
         const bytes = try std.fmt.hexToBytes(&buffer, "608060405260358060116000396000f3006080604052600080fd00a165627a7a72305820f86ff341f0dff29df244305f8aa88abaf10e3a0719fa6ea1dcdd01b8b7d750970029");
@@ -527,9 +533,12 @@ test "ReadContract" {
         var contract: Contract(.websocket) = undefined;
         defer contract.deinit();
 
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
         try contract.init(.{
             .abi = abi,
-            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .private_key = buffer,
             .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
         });
 
@@ -562,9 +571,12 @@ test "ReadContract" {
         var contract: Contract(.http) = undefined;
         defer contract.deinit();
 
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
         try contract.init(.{
             .abi = abi,
-            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .private_key = buffer,
             .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
         });
 
@@ -582,7 +594,13 @@ test "ReadContract" {
         var contract: ContractComptime(.http) = undefined;
         defer contract.deinit();
 
-        try contract.init(.{ .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+        try contract.init(.{
+            .private_key = buffer,
+            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+        });
 
         const result = try contract.readContractFunction(.{
             .type = .function,
@@ -625,9 +643,12 @@ test "WriteContract" {
         var contract: Contract(.websocket) = undefined;
         defer contract.deinit();
 
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
         try contract.init(.{
             .abi = abi,
-            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .private_key = buffer,
             .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
         });
 
@@ -669,9 +690,12 @@ test "WriteContract" {
         var contract: Contract(.http) = undefined;
         defer contract.deinit();
 
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
         try contract.init(.{
             .abi = abi,
-            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .private_key = buffer,
             .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
         });
 
@@ -696,8 +720,11 @@ test "WriteContract" {
         var contract: ContractComptime(.http) = undefined;
         defer contract.deinit();
 
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
         try contract.init(.{
-            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .private_key = buffer,
             .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
         });
 
@@ -751,9 +778,12 @@ test "SimulateWriteCall" {
         var contract: Contract(.http) = undefined;
         defer contract.deinit();
 
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
         try contract.init(.{
             .abi = abi,
-            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .private_key = buffer,
             .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
         });
 
@@ -792,9 +822,12 @@ test "SimulateWriteCall" {
         var contract: Contract(.http) = undefined;
         defer contract.deinit();
 
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
         try contract.init(.{
             .abi = abi,
-            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .private_key = buffer,
             .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
         });
 
@@ -816,8 +849,11 @@ test "SimulateWriteCall" {
         var contract: ContractComptime(.http) = undefined;
         defer contract.deinit();
 
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
         try contract.init(.{
-            .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            .private_key = buffer,
             .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
         });
 

@@ -5,13 +5,14 @@ pub const encoding = @import("encoding/root.zig");
 pub const human_readable = @import("human-readable/root.zig");
 pub const meta = @import("meta/root.zig");
 pub const kzg4844 = @import("c-kzg-4844");
-pub const signer = @import("secp256k1");
+pub const signature = @import("crypto/signature.zig");
 pub const superchain = @import("clients/optimism/root.zig");
 pub const types = @import("types/root.zig");
 pub const utils = @import("utils/utils.zig");
 pub const hdwallet = @import("crypto/hdwallet.zig");
 pub const mnemonic = @import("crypto/mnemonic.zig");
 
+pub const Signer = @import("crypto/signer.zig");
 pub const Anvil = @import("tests/Anvil.zig");
 pub const Hardhat = @import("tests/Hardhat.zig");
 

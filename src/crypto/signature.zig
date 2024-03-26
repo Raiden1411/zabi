@@ -1,4 +1,6 @@
 const std = @import("std");
+
+const Allocator = std.mem.Allocator;
 const Secp256k1 = std.crypto.ecc.Secp256k1;
 
 /// Zig representation of a ethereum signature.
@@ -27,10 +29,12 @@ pub const Signature = struct {
         return signed;
     }
     /// Converts the struct signature into a hex string.
-    pub fn toHex(sig: Signature, alloc: std.mem.Allocator) ![]u8 {
+    ///
+    /// Caller owns the memory
+    pub fn toHex(sig: Signature, allocator: Allocator) ![]u8 {
         const bytes = sig.toBytes();
 
-        return std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});
+        return std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});
     }
     /// Converts a hex signature into it's struct representation.
     pub fn fromHex(hex: []const u8) !Signature {
@@ -78,10 +82,12 @@ pub const CompactSignature = struct {
         return signed;
     }
     /// Converts the struct signature into a hex string.
-    pub fn toHex(sig: CompactSignature, alloc: std.mem.Allocator) ![]u8 {
+    ///
+    /// Caller owns the memory
+    pub fn toHex(sig: CompactSignature, allocator: Allocator) ![]u8 {
         const bytes = sig.toBytes();
 
-        return std.fmt.allocPrint(alloc, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});
+        return std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});
     }
     /// Converts a hex signature into it's struct representation.
     pub fn fromHex(hex: []const u8) CompactSignature {

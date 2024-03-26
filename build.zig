@@ -35,16 +35,6 @@ pub fn build(b: *std.Build) void {
     addDependencies(b, &lib_unit_tests.root_module, target, optimize);
     var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
-    if (coverage) {
-        const include = b.fmt("--include-pattern=/src", .{});
-        const args = &[_]std.Build.Step.Run.Arg{ .{ .bytes = b.dupe("kcov") }, .{ .bytes = b.dupe("--collect-only") }, .{ .bytes = b.dupe(include) }, .{ .bytes = b.dupe(coverage_output_dir) } };
-
-        // var tests_run = b.addRunArtifact(lib_unit_tests);
-        run_lib_unit_tests.has_side_effects = true;
-        run_lib_unit_tests.argv.insertSlice(0, args) catch @panic("OutOfMemory");
-        // test_step.dependOn(&tests_run.step);
-    }
-
     // Similar to creating the run step earlier, this exposes a `test` step to
     // the `zig build --help` menu, providing a way for the user to request
     // running the unit tests.
@@ -52,13 +42,18 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_lib_unit_tests.step);
 
     // Coverage build option with kcov
+    if (coverage) {
+        const include = b.fmt("--include-pattern=/src", .{});
+        const args = &[_]std.Build.Step.Run.Arg{ .{ .bytes = b.dupe("kcov") }, .{ .bytes = b.dupe("--collect-only") }, .{ .bytes = b.dupe(include) }, .{ .bytes = b.dupe(coverage_output_dir) } };
+
+        var tests_run = b.addRunArtifact(lib_unit_tests);
+        run_lib_unit_tests.has_side_effects = true;
+        run_lib_unit_tests.argv.insertSlice(0, args) catch @panic("OutOfMemory");
+        test_step.dependOn(&tests_run.step);
+    }
 }
 
 fn addDependencies(b: *std.Build, mod: *std.Build.Module, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
-    const secp256k1_dep = b.dependency("secp256k1", .{
-        .target = target,
-        .optimize = optimize,
-    });
     const c_kzg_4844_dep = b.dependency("c-kzg-4844", .{
         .target = target,
         .optimize = optimize,
@@ -73,11 +68,9 @@ fn addDependencies(b: *std.Build, mod: *std.Build.Module, target: std.Build.Reso
         .optimize = optimize,
     });
 
-    mod.addImport("secp256k1", secp256k1_dep.module("secp256k1"));
     mod.addImport("c-kzg-4844", c_kzg_4844_dep.module("c-kzg-4844"));
     mod.addImport("ws", ws.module("websocket"));
     mod.addImport("ziglyph", ziglyph.module("ziglyph"));
-    mod.linkLibrary(secp256k1_dep.artifact("secp256k1"));
     mod.linkLibrary(c_kzg_4844_dep.artifact("c-kzg-4844"));
     mod.linkLibrary(blst_dep.artifact("blst"));
 }

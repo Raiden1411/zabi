@@ -19,6 +19,9 @@ pub fn main() !void {
     const private_key = iter.next().?;
     const host_url = iter.next().?;
 
+    var buffer: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(buffer[0..], private_key);
+
     const uri = try std.Uri.parse(host_url);
 
     const slice =
@@ -30,7 +33,7 @@ pub fn main() !void {
     defer abi_parsed.deinit();
 
     var contract: Contract = undefined;
-    try contract.init(.{ .private_key = private_key, .abi = abi_parsed.value, .wallet_opts = .{ .allocator = gpa.allocator(), .uri = uri } });
+    try contract.init(.{ .private_key = buffer, .abi = abi_parsed.value, .wallet_opts = .{ .allocator = gpa.allocator(), .uri = uri } });
     defer contract.deinit();
 
     const approve = try contract.writeContractFunction("transfer", .{ try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), 69421 }, .{ .type = .london, .to = try utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") });

@@ -17,12 +17,16 @@ In a future release it's expected that you will be able to pool prepared transac
 ## Usage
 
 Much like the public clients depending on which type of client you want to have on the wallet a set of different init options will be available. Have a look [here](/api/client/public/client#http-client) to find out more.
-You will also need a private key or you can also use `initFromRandomKey` to have it be generated for you.
+You will also need a private key or you can pass in `null` and it generate a key for you.
 
 ```zig
 const uri = try std.Uri.parse("http://localhost:8545/");
 var wallet: Wallet(.http) = undefined;
-try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+
+var buffer: [32]u8 = undefined;
+_ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
 defer wallet.deinit();
 
 var tx: transaction.PrepareEnvelope = .{ .eip1559 = undefined };

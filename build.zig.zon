@@ -2,7 +2,7 @@
     .name = "zabi",
     // This is a [Semantic Version](https://semver.org/).
     // In a future version of Zig it will be used for package deduplication.
-    .version = "0.7.0",
+    .version = "0.8.0",
 
     // This field is optional.
     // This is currently advisory only; Zig does not yet do anything
@@ -23,7 +23,6 @@
             .url = "git+https://codeberg.org/dude_the_builder/ziglyph.git#947ed39203bf90412e3d16cbcf936518b6f23af0",
             .hash = "12208b23d1eb6dcb929e85346524db8f8b8aa1401bdf8a97dee1e0cfb55da8d5fb42",
         },
-        .secp256k1 = .{ .path = "./pkg/libsecp256k1" },
         .@"c-kzg-4844" = .{ .path = "./pkg/c-kzg-4844" },
         .blst = .{ .path = "./pkg/blst" },
     },

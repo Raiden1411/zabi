@@ -13,9 +13,12 @@ pub fn main() !void {
     const private_key = iter.next().?;
     const host_url = iter.next().?;
 
+    var buffer: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(buffer[0..], private_key);
+
     const uri = try std.Uri.parse(host_url);
     var wallet: Wallet = undefined;
-    try wallet.init(private_key, .{ .allocator = gpa.allocator(), .uri = uri });
+    try wallet.init(buffer, .{ .allocator = gpa.allocator(), .uri = uri });
     defer wallet.deinit();
 
     const message = try wallet.signEthereumMessage("Hello World");

@@ -1,5 +1,4 @@
 const meta = @import("../meta/utils.zig");
-const signer = @import("secp256k1");
 const std = @import("std");
 const rlp = @import("../decoding/rlp_decode.zig");
 const serialize = @import("../encoding/serialize.zig");
@@ -27,8 +26,8 @@ const LondonEnvelope = transaction.LondonEnvelope;
 const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
 const LondonTransactionEnvelopeSigned = transaction.LondonTransactionEnvelopeSigned;
-const Signature = signer.Signature;
-const Signer = signer.Signer;
+const Signature = @import("../crypto/signature.zig").Signature;
+const Signer = @import("../crypto/signer.zig");
 const StructToTupleType = meta.StructToTupleType;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const TransactionEnvelopeSigned = transaction.TransactionEnvelopeSigned;
@@ -728,8 +727,10 @@ test "Errors" {
     try testing.expectError(error.InvalidTransactionType, parseSignedTransaction(testing.allocator, &[_]u8{0x04}));
 }
 
-fn generateSignature(message: []const u8) !signer.Signature {
-    const wallet = try Signer.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+fn generateSignature(message: []const u8) !Signature {
+    var buffer_hex: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(buffer_hex[0..], "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+    const wallet = try Signer.init(buffer_hex);
     const buffer = try testing.allocator.alloc(u8, message.len / 2);
     defer testing.allocator.free(buffer);
 

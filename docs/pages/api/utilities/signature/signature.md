@@ -2,7 +2,7 @@
 
 ## Definition
 
-This is essentially a wrapper for the signature that `libsecp256k1` uses.
+This is uses a custom implemention of ecdsa signer using the `Secp256k1` curve.
 Zabi supports both normal signatures and compact ones.
 
 ```zig

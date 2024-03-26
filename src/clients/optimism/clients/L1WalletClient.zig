@@ -7,7 +7,6 @@ const testing = std.testing;
 const transactions = @import("../../../types/transaction.zig");
 const op_types = @import("../types/types.zig");
 const op_transactions = @import("../types/transaction.zig");
-const signer = @import("secp256k1");
 const types = @import("../../../types/ethereum.zig");
 const utils = @import("../../../utils/utils.zig");
 const withdrawal_types = @import("../types/withdrawl.zig");
@@ -26,7 +25,7 @@ const LondonTransactionEnvelope = transactions.LondonTransactionEnvelope;
 const L2Output = op_types.L2Output;
 const OpMainNetContracts = contracts.OpMainNetContracts;
 const RPCResponse = types.RPCResponse;
-const Signer = signer.Signer;
+const Signer = @import("../../../crypto/signer.zig");
 
 const L1Client = @import("L1PubClient.zig").L1Client;
 
@@ -57,7 +56,7 @@ pub fn WalletL1Client(client_type: Clients) type {
         ///
         /// If the contracts are null it defaults to OP contracts.
         /// Caller must deinit after use.
-        pub fn init(self: *WalletL1, priv_key: []const u8, opts: InitOpts, op_contracts: ?OpMainNetContracts) !void {
+        pub fn init(self: *WalletL1, priv_key: ?Hash, opts: InitOpts, op_contracts: ?OpMainNetContracts) !void {
             const op_client = try opts.allocator.create(ClientType);
             errdefer opts.allocator.destroy(op_client);
 
@@ -72,7 +71,7 @@ pub fn WalletL1Client(client_type: Clients) type {
             };
 
             const nonce = try self.op_client.rpc_client.getAddressTransactionCount(.{
-                .address = try op_signer.getAddressFromPublicKey(),
+                .address = op_signer.address_bytes,
             });
             defer nonce.deinit();
 
@@ -83,7 +82,6 @@ pub fn WalletL1Client(client_type: Clients) type {
             const child_allocator = self.op_client.allocator;
 
             self.op_client.deinit();
-            self.signer.deinit();
 
             child_allocator.destroy(self.op_client);
 
@@ -108,7 +106,7 @@ pub fn WalletL1Client(client_type: Clients) type {
                 const gas = try self.op_client.rpc_client.estimateGas(.{ .london = .{
                     .value = value,
                     .to = deposit_envelope.to,
-                    .from = try self.signer.getAddressFromPublicKey(),
+                    .from = self.signer.address_bytes,
                 } }, .{});
                 defer gas.deinit();
 
@@ -134,7 +132,7 @@ pub fn WalletL1Client(client_type: Clients) type {
         /// Invokes the contract method to `depositTransaction`. This will send
         /// a transaction to the network.
         pub fn depositTransaction(self: *WalletL1, deposit_envelope: DepositEnvelope) !RPCResponse(Hash) {
-            const address = try self.signer.getAddressFromPublicKey();
+            const address = self.signer.address_bytes;
             const deposit_data = try self.prepareDepositTransaction(deposit_envelope);
 
             const data = try abi_items.deposit_transaction.encode(self.op_client.allocator, .{
@@ -204,7 +202,10 @@ test "DepositTransaction" {
 
     const uri = try std.Uri.parse("http://localhost:8545/");
 
-    try wallet_op.init("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(buffer[0..], "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet_op.init(buffer, .{
         .allocator = testing.allocator,
         .uri = uri,
     }, null);

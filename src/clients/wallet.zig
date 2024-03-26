@@ -1,6 +1,5 @@
 const ckzg4844 = @import("c-kzg-4844");
 const eip712 = @import("../abi/eip712.zig");
-const secp256k1 = @import("secp256k1");
 const serialize = @import("../encoding/serialize.zig");
 const std = @import("std");
 const testing = std.testing;
@@ -26,8 +25,8 @@ const Mutex = std.Thread.Mutex;
 const PubClient = @import("Client.zig");
 const RPCResponse = types.RPCResponse;
 const Sidecar = ckzg4844.KZG4844.Sidecar;
-const Signer = secp256k1.Signer;
-const Signature = secp256k1.Signature;
+const Signer = @import("../crypto/signer.zig");
+const Signature = @import("../crypto/signature.zig").Signature;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const TransactionReceipt = transaction.TransactionReceipt;
 const TypedDataDomain = eip712.TypedDataDomain;
@@ -120,7 +119,7 @@ pub const TransactionEnvelopePool = struct {
 /// mirror 100% in terms of their methods.
 ///
 /// The client's methods can all be accessed under `rpc_client`.
-/// The same goes for the signer and libsecp256k1.
+/// The same goes for the signer.
 pub fn Wallet(comptime client_type: WalletClients) type {
     return struct {
         /// The wallet underlaying rpc client type (ws or http)
@@ -143,14 +142,14 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Http client used to make request. Supports almost all rpc methods.
         rpc_client: *ClientType,
         /// Signer that will sign transactions or ethereum messages.
-        /// Its based on libsecp256k1.
+        /// Its based on a custom implementation meshed with zig's source code.
         signer: Signer,
         /// The wallet nonce that will be used to send transactions
         wallet_nonce: u64 = 0,
 
         /// Init wallet instance. Must call `deinit` to clean up.
         /// The init opts will depend on the `client_type`.
-        pub fn init(self: *Wallet(client_type), private_key: []const u8, opts: InitOpts) !void {
+        pub fn init(self: *Wallet(client_type), private_key: ?Hash, opts: InitOpts) !void {
             const envelopes_pool = try opts.allocator.create(TransactionEnvelopePool);
             errdefer opts.allocator.destroy(envelopes_pool);
 
@@ -173,41 +172,15 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             };
             self.envelopes_pool.* = .{ .pooled_envelopes = .{} };
 
-            const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = try self.signer.getAddressFromPublicKey() });
+            const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes });
             defer nonce.deinit();
 
             self.wallet_nonce = nonce.response;
-        }
-        /// Inits wallet from a random generated priv key. Must call `deinit` after.
-        /// The init opts will depend on the `client_type`.
-        pub fn initFromRandomKey(self: *Wallet(client_type), opts: InitOpts) !void {
-            const envelopes_pool = try opts.allocator.create(TransactionEnvelopePool);
-            errdefer opts.allocator.destroy(envelopes_pool);
-
-            const signer = try Signer.generateRandomSigner();
-            const client = client: {
-                // We need to create the pointer so that we can init the client
-                const client = try opts.allocator.create(ClientType);
-                errdefer opts.allocator.destroy(client);
-
-                try client.init(opts);
-
-                break :client client;
-            };
-
-            self.* = .{
-                .allocator = opts.allocator,
-                .rpc_client = client,
-                .signer = signer,
-                .envelopes_pool = envelopes_pool,
-            };
-            self.envelopes_pool.* = .{ .pooled_envelopes = .{} };
         }
         /// Clears memory and destroys any created pointers
         pub fn deinit(self: *Wallet(client_type)) void {
             self.envelopes_pool.deinit(self.allocator);
             self.rpc_client.deinit();
-            self.signer.deinit();
 
             self.allocator.destroy(self.envelopes_pool);
             self.allocator.destroy(self.rpc_client);
@@ -215,10 +188,17 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             self.* = undefined;
         }
         /// Signs a ethereum message with the specified prefix.
-        /// Uses libsecp256k1 to sign the message. This mirrors geth
+        ///
         /// The Signatures recoverId doesn't include the chain_id
         pub fn signEthereumMessage(self: *Wallet(client_type), message: []const u8) !Signature {
-            return self.signer.signMessage(self.allocator, message);
+            const start = "\x19Ethereum Signed Message:\n";
+            const concated_message = try std.fmt.allocPrint(self.allocator, "{s}{d}{s}", .{ start, message.len, message });
+            defer self.allocator.free(concated_message);
+
+            var hash: [Keccak256.digest_length]u8 = undefined;
+            Keccak256.hash(concated_message, &hash, .{});
+
+            return self.signer.sign(hash);
         }
         /// Signs a EIP712 message according to the expecification
         /// https://eips.ethereum.org/EIPS/eip-712
@@ -239,7 +219,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// In the future work will be done where the compiler will offer more clearer types
         /// base on a meta programming type function.
         ///
-        /// Returns the libsecp256k1 signature type.
+        /// Returns the signature type.
         pub fn signTypedData(self: *Wallet(client_type), comptime eip_types: anytype, comptime primary_type: []const u8, domain: ?TypedDataDomain, message: anytype) !Signature {
             return try self.signer.sign(try eip712.hashTypedData(self.allocator, eip_types, primary_type, domain, message));
         }
@@ -247,10 +227,9 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Uses the wallet public key to generate the address.
         /// This will allocate and the returned address is already checksumed
         pub fn getWalletAddress(self: *Wallet(client_type)) !Address {
-            return self.signer.getAddressFromPublicKey();
+            return self.signer.address_bytes;
         }
         /// Verifies if a given signature was signed by the current wallet.
-        /// Uses libsecp256k1 to enable this.
         pub fn verifyMessage(self: *Wallet(client_type), sig: Signature, message: []const u8) !bool {
             var hash_buffer: [Keccak256.digest_length]u8 = undefined;
             Keccak256.hash(message, &hash_buffer, .{});
@@ -275,11 +254,11 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// In the future work will be done where the compiler will offer more clearer types
         /// base on a meta programming type function.
         ///
-        /// Returns the libsecp256k1 signature type.
+        /// Returns the signature type.
         pub fn verifyTypedData(self: *Wallet(client_type), sig: Signature, comptime eip712_types: anytype, comptime primary_type: []const u8, domain: ?TypedDataDomain, message: anytype) !bool {
             const hash = try eip712.hashTypedData(self.allocator, eip712_types, primary_type, domain, message);
 
-            const address = try Signer.recoverEthereumAddress(hash, sig);
+            const address = try Signer.recoverAddress(sig, hash);
             const wallet_address = try self.getWalletAddress();
 
             return std.mem.eql(u8, &wallet_address, &address);
@@ -666,7 +645,11 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 test "Address match" {
     const uri = try std.Uri.parse("http://localhost:8545/");
     var wallet: Wallet(.http) = undefined;
-    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     try testing.expectEqualStrings(&try wallet.getWalletAddress(), &try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"));
@@ -675,20 +658,28 @@ test "Address match" {
 test "verifyMessage" {
     const uri = try std.Uri.parse("http://localhost:8545/");
     var wallet: Wallet(.http) = undefined;
-    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     var hash_buffer: [Keccak256.digest_length]u8 = undefined;
     Keccak256.hash("02f1827a6980847735940084773594008252099470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a764000080c0", &hash_buffer, .{});
     const sign = try wallet.signer.sign(hash_buffer);
 
-    try testing.expect(wallet.signer.verifyMessage(sign, hash_buffer));
+    try testing.expect(wallet.signer.verifyMessage(hash_buffer, sign));
 }
 
 test "signMessage" {
     const uri = try std.Uri.parse("http://localhost:8545/");
     var wallet: Wallet(.http) = undefined;
-    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     const sig = try wallet.signEthereumMessage("hello world");
@@ -701,7 +692,11 @@ test "signMessage" {
 test "signTypedData" {
     const uri = try std.Uri.parse("http://localhost:8545/");
     var wallet: Wallet(.http) = undefined;
-    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     const sig = try wallet.signTypedData(.{ .EIP712Domain = &.{} }, "EIP712Domain", .{}, .{});
@@ -714,7 +709,11 @@ test "signTypedData" {
 test "verifyTypedData" {
     const uri = try std.Uri.parse("http://localhost:8545/");
     var wallet: Wallet(.http) = undefined;
-    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     const domain: eip712.TypedDataDomain = .{ .name = "Ether Mail", .version = "1", .chainId = 1, .verifyingContract = "0x0000000000000000000000000000000000000000" };
@@ -731,7 +730,11 @@ test "sendTransaction" {
     if (true) return error.SkipZigTest;
     const uri = try std.Uri.parse("http://localhost:8545/");
     var wallet: Wallet(.http) = undefined;
-    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     const tx: UnpreparedTransactionEnvelope = .{
@@ -743,17 +746,20 @@ test "sendTransaction" {
     const tx_hash = try wallet.sendTransaction(tx);
     defer tx_hash.deinit();
 
-    const receipt = try wallet.waitForTransactionReceipt(tx_hash.response, 1);
-    defer if (receipt) |tx_receipt| tx_receipt.deinit();
+    const receipt = try wallet.waitForTransactionReceipt(tx_hash.response, 0);
+    defer receipt.deinit();
 
     try testing.expect(tx_hash.response.len != 0);
-    try testing.expect(receipt != null);
 }
 
 test "Pool transactions" {
     const uri = try std.Uri.parse("http://localhost:8545/");
     var wallet: Wallet(.http) = undefined;
-    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     var i: usize = 0;
@@ -770,7 +776,11 @@ test "assertTransaction" {
 
     const uri = try std.Uri.parse("http://localhost:8545/");
     var wallet: Wallet(.http) = undefined;
-    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     tx = .{ .london = .{
@@ -801,7 +811,11 @@ test "assertTransactionLegacy" {
 
     const uri = try std.Uri.parse("http://localhost:8545/");
     var wallet: Wallet(.http) = undefined;
-    try wallet.init("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .{ .allocator = testing.allocator, .uri = uri });
+
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
     tx = .{ .berlin = .{

@@ -7,7 +7,7 @@ export default defineConfig({
 	description:
 		"Zig interface for interacting with ethereum and other EVM based chains",
 	editLink: {
-		pattern: "",
+		pattern: "https://github.com/Raiden1411/zabi/edit/main/docs/:path",
 		text: "Suggest changes to this page",
 	},
 	rootDir: ".",
@@ -24,11 +24,13 @@ export default defineConfig({
 	],
 	head: (
 		<>
-			<script
-				src="https://cdn.usefathom.com/script.js"
-				data-site="BYCJMNBD"
-				defer
+			<meta
+				name="keywords"
+				content="ethereum, abi, zig, evm, eip-712, web3, optimism"
 			/>
+			<meta property="og:url" content="https://zabi.sh/" />
+			<meta property="twitter:image" content="https://zabi.sh/zabi.svg" />
+			<meta name="twitter:card" content="summary_large_image" />
 		</>
 	),
 	ogImageUrl: {
@@ -42,7 +44,7 @@ export default defineConfig({
 	topNav: [
 		{ text: "Init", link: "/" },
 		{
-			text: "v0.4",
+			text: "v0.8",
 			items: [
 				{
 					text: "Releases",

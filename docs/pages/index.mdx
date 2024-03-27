@@ -11,7 +11,7 @@ title: 'Zabi: Interact with ethereum via zig'
 </p>
 
 <p align="center">
-  Interact with ethereum via Zig!
+  Interact with ethereum and other EVM based chains via Zig!
 </p>
 
 # Overview
@@ -25,25 +25,33 @@ Explore our documentation to find out what zabi can offer for your development n
 const std = @import("std");
 const zabi = @import("zabi");
 const Wallet = zabi.wallet.Wallet(.http);
-
+ 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     var iter = try std.process.ArgIterator.initWithAllocator(gpa.allocator());
     defer iter.deinit();
-
+ 
     _ = iter.skip();
-
+ 
     const priv_key = iter.next().?
     const host_url = iter.next().?
+
     const uri = try std.Uri.parse(host_url);
-
+    var bytes_priv_key: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&bytes_priv_key, priv_key);
+ 
     // The chain defaults to ethereum if it's not specified.
-    var wallet = try Wallet.init(priv_key, .{.allocator = gpa.allocator(), .uri = uri });
+    var wallet: Wallet = undefined;
+    try wallet.init(bytes_priv_key, .{.allocator = gpa.allocator(), .uri = uri });
     defer wallet.deinit();
-
+ 
     const message = try wallet.signEthereumMessage("Hello World");
-    std.debug.print("Ethereum message: {s}\n", .{try message.toHex(wallet.allocator)});
+
+    const hex_sig = try message.toHex(wallet.allocator);
+    defer wallet.allocator.free(hex_sig);
+
+    std.debug.print("Ethereum message: 0x{s}\n", .{hex_sig});
 }
 ```
 

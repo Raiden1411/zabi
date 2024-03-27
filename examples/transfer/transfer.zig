@@ -22,7 +22,12 @@ pub fn main() !void {
     var buffer: [32]u8 = undefined;
     _ = try std.fmt.hexToBytes(buffer[0..], private_key);
 
-    try wallet.init(buffer, .{ .allocator = gpa.allocator(), .uri = uri, .chain_id = .sepolia, .pooling_interval = 12_000 });
+    try wallet.init(buffer, .{
+        .allocator = gpa.allocator(),
+        .uri = uri,
+        .chain_id = .sepolia,
+        .base_fee_multiplier = 6.9,
+    });
     defer wallet.deinit();
 
     const hash = try wallet.sendTransaction(.{ .type = .london, .to = try utils.addressToBytes("0x0000000000000000000000000000000000000000"), .value = 42069 });

@@ -212,7 +212,9 @@ pub fn estimateFeesPerGas(self: *PubClient, call_object: EthCall, base_fee_per_g
         .london => |tx| {
             const base_fee = current_fee orelse return error.UnableToFetchFeeInfoFromBlock;
             const max_priority = if (tx.maxPriorityFeePerGas) |max| max else try self.estimateMaxFeePerGasManual(base_fee);
-            const max_fee = if (tx.maxFeePerGas) |max| max else base_fee + max_priority;
+
+            const mutiplier = std.math.ceil(@as(f64, @floatFromInt(base_fee)) * self.base_fee_multiplier);
+            const max_fee = if (tx.maxFeePerGas) |max| max else @as(Gwei, @intFromFloat(mutiplier)) + max_priority;
 
             return .{
                 .london = .{
@@ -878,11 +880,19 @@ pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations:
                     inline else => |transactions| .{ .from = transactions.from, .nonce = transactions.nonce },
                 };
 
-                const pending_transaction = switch (current_block.response) {
-                    inline else => |blocks| if (blocks.transactions) |block_txs| block_txs.objects else {
+                const block_transactions = switch (current_block.response) {
+                    inline else => |blocks| if (blocks.transactions) |block_txs| block_txs else {
                         std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
                         continue;
                     },
+                };
+
+                const pending_transaction = switch (block_transactions) {
+                    .hashes => {
+                        std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                        continue;
+                    },
+                    .objects => |tx_objects| tx_objects,
                 };
 
                 const replaced: ?Transaction = for (pending_transaction) |pending| {

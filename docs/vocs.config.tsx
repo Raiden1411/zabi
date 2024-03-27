@@ -7,7 +7,7 @@ export default defineConfig({
 	description:
 		"Zig interface for interacting with ethereum and other EVM based chains",
 	editLink: {
-		pattern: "https://github.com/Raiden1411/zabi/edit/main/docs/:path",
+		pattern: "https://github.com/Raiden1411/zabi/edit/main/docs/pages/:path",
 		text: "Suggest changes to this page",
 	},
 	rootDir: ".",

@@ -36,15 +36,22 @@ pub fn main() !void {
  
     const priv_key = iter.next().?
     const host_url = iter.next().?
+
     const uri = try std.Uri.parse(host_url);
+    var bytes_priv_key: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&bytes_priv_key, priv_key);
  
     // The chain defaults to ethereum if it's not specified.
     var wallet: Wallet = undefined;
-    try wallet.init(priv_key, .{.allocator = gpa.allocator(), .uri = uri });
+    try wallet.init(bytes_priv_key, .{.allocator = gpa.allocator(), .uri = uri });
     defer wallet.deinit();
  
     const message = try wallet.signEthereumMessage("Hello World");
-    std.debug.print("Ethereum message: {s}\n", .{try message.toHex(wallet.allocator)});
+
+    const hex_sig = try message.toHex(wallet.allocator);
+    defer wallet.allocator.free(hex_sig);
+
+    std.debug.print("Ethereum message: 0x{s}\n", .{hex_sig});
 }
 ```
 

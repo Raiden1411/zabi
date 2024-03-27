@@ -94,14 +94,13 @@ pub fn sign(self: Signer, hash: Hash) !Signature {
     const p = try Secp256k1.basePoint.mul(k.toBytes(.big), .big);
     const p_affine = p.affineCoordinates();
     const xs = p_affine.x.toBytes(.big);
-
-    // Find the yParity
-    var y_int: u2 = @truncate(p_affine.y.toInt() & 1);
-
     const r = reduceToScalar(Secp256k1.Fe.encoded_length, xs);
 
     if (r.isZero())
         return error.IdentityElement;
+
+    // Find the yParity
+    var y_int: u2 = @truncate(p_affine.y.toInt() & 1);
 
     // Generate S
     const k_inv = k.invert();
@@ -115,16 +114,20 @@ pub fn sign(self: Signer, hash: Hash) !Signature {
     // chains only accept signatures with low s so we need to see
     // which of the s in the curve is the lowest.
     const s_bytes = s_malliable.toBytes(.little);
-    const s_scalar = std.mem.readInt(u256, &s_bytes, .little);
+    const s_int = std.mem.readInt(u256, &s_bytes, .little);
 
     // If high S then invert the yParity bits.
-    if (s_scalar > Secp256k1.scalar.field_order / 2)
+    var field_order_buffer: [32]u8 = undefined;
+    std.mem.writeInt(u256, &field_order_buffer, Secp256k1.scalar.field_order / 2, .little);
+
+    const cmp = std.crypto.utils.timingSafeCompare(u8, &s_bytes, &field_order_buffer, .little);
+    if (cmp.compare(.gt))
         y_int ^= 1;
 
     const s_neg_bytes = s_malliable.neg().toBytes(.little);
-    const s_neg_scalar = std.mem.readInt(u256, &s_neg_bytes, .little);
+    const s_neg_int = std.mem.readInt(u256, &s_neg_bytes, .little);
 
-    const scalar = @min(s_scalar, s_neg_scalar % Secp256k1.scalar.field_order);
+    const scalar = @min(s_int, s_neg_int % Secp256k1.scalar.field_order);
 
     var s_buffer: [32]u8 = undefined;
     std.mem.writeInt(u256, &s_buffer, scalar, .little);

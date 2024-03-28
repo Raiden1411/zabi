@@ -44,6 +44,9 @@ pub fn RequestParser(comptime T: type) type {
         pub fn jsonStringify(self: T, writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
             const info = @typeInfo(T);
 
+            try valueStart(writer_stream);
+            writer_stream.next_punctuation = .the_beginning;
+
             try writer_stream.stream.writeByte('{');
             inline for (info.Struct.fields) |field| {
                 var emit_field = true;
@@ -184,7 +187,6 @@ pub fn RequestParser(comptime T: type) type {
                             if (ptr_info.child == u8) {
                                 if (ptr_info.is_const) {
                                     try std.json.encodeJsonString(value, .{}, stream_writer.stream);
-                                    stream_writer.next_punctuation = .comma;
                                 } else {
                                     // We assume that non const u8 slices are to be hex encoded.
                                     try stream_writer.stream.writeByte('\"');
@@ -200,8 +202,8 @@ pub fn RequestParser(comptime T: type) type {
                                     }
 
                                     try stream_writer.stream.writeByte('\"');
-                                    stream_writer.next_punctuation = .comma;
                                 }
+                                stream_writer.next_punctuation = .comma;
                             } else {
                                 try stream_writer.stream.writeByte('[');
                                 stream_writer.next_punctuation = .none;

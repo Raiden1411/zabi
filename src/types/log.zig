@@ -42,12 +42,21 @@ pub const LogRequest = struct {
 
     pub usingnamespace RequestParser(@This());
 };
+/// Same as `LogRequest` but `fromBlock` and
+/// `toBlock` are tags.
 pub const LogTagRequest = struct {
     fromBlock: ?BalanceBlockTag = null,
     toBlock: ?BalanceBlockTag = null,
     address: ?Address = null,
     topics: ?[]const ?Hex = null,
     blockHash: ?Hash = null,
+
+    pub usingnamespace RequestParser(@This());
+};
+/// Options for `watchLogs` websocket request.
+pub const WatchLogsRequest = struct {
+    address: Address,
+    topics: ?[]const ?Hex = null,
 
     pub usingnamespace RequestParser(@This());
 };

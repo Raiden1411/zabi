@@ -203,6 +203,15 @@ test "Anvil/Hardhat" {
         try testing.expectEqualStrings("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", hex);
     }
     {
+        const node = try HDWalletNode.fromSeedAndPath(hashed, "m/44'/60'/0'/0/0");
+        const castrated = node.castrateNode();
+        const eunuch = try castrated.derivePath("m/44/60/0/0/0");
+        const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&eunuch.pub_key)});
+        defer testing.allocator.free(hex);
+
+        try testing.expect(hex.len == 68);
+    }
+    {
         const node = try HDWalletNode.fromSeedAndPath(hashed, "m/44'/60'/0'/0/1");
         const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&node.priv_key)});
         defer testing.allocator.free(hex);

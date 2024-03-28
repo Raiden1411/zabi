@@ -196,7 +196,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
 
             copy.data = encoded;
 
-            const address = try self.wallet.getWalletAddress();
+            const address = self.wallet.getWalletAddress();
             const call: EthCall = switch (copy.type) {
                 .cancun, .london => .{ .london = .{
                     .from = address,
@@ -215,14 +215,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
                     .gas = copy.gas,
                     .gasPrice = copy.gasPrice,
                 } },
-                _ => .{ .legacy = .{
-                    .from = address,
-                    .value = copy.value,
-                    .to = copy.to,
-                    .data = copy.data,
-                    .gas = copy.gas,
-                    .gasPrice = copy.gasPrice,
-                } },
+                _ => return error.UnsupportedTransactionType,
             };
 
             return self.wallet.rpc_client.sendEthCall(call, .{});
@@ -389,11 +382,26 @@ pub fn Contract(comptime client_type: ClientType) type {
 
             copy.data = encoded;
 
-            const address = try self.wallet.getWalletAddress();
+            const address = self.wallet.getWalletAddress();
             const call: EthCall = switch (copy.type) {
-                .cancun, .london => .{ .london = .{ .from = address, .to = copy.to, .data = copy.data, .value = copy.value, .maxFeePerGas = copy.maxFeePerGas, .maxPriorityFeePerGas = copy.maxPriorityFeePerGas, .gas = copy.gas } },
-                .berlin, .legacy => .{ .legacy = .{ .from = address, .value = copy.value, .to = copy.to, .data = copy.data, .gas = copy.gas, .gasPrice = copy.gasPrice } },
-                _ => .{ .legacy = .{ .from = address, .value = copy.value, .to = copy.to, .data = copy.data, .gas = copy.gas, .gasPrice = copy.gasPrice } },
+                .cancun, .london => .{ .london = .{
+                    .from = address,
+                    .to = copy.to,
+                    .data = copy.data,
+                    .value = copy.value,
+                    .maxFeePerGas = copy.maxFeePerGas,
+                    .maxPriorityFeePerGas = copy.maxPriorityFeePerGas,
+                    .gas = copy.gas,
+                } },
+                .berlin, .legacy => .{ .legacy = .{
+                    .from = address,
+                    .value = copy.value,
+                    .to = copy.to,
+                    .data = copy.data,
+                    .gas = copy.gas,
+                    .gasPrice = copy.gasPrice,
+                } },
+                _ => return error.UnsupportedTransactionType,
             };
 
             return self.wallet.rpc_client.sendEthCall(call, .{});
@@ -432,6 +440,8 @@ fn getAbiItem(abi: Abi, abi_type: Abitype, name: ?[]const u8) !AbiItem {
                     .abiEvent => |event| {
                         if (std.mem.eql(u8, name.?, event.name))
                             return abi_item;
+
+                        continue;
                     },
                     inline else => continue,
                 }
@@ -443,6 +453,8 @@ fn getAbiItem(abi: Abi, abi_type: Abitype, name: ?[]const u8) !AbiItem {
                     .abiError => |err| {
                         if (std.mem.eql(u8, name.?, err.name))
                             return abi_item;
+
+                        continue;
                     },
                     inline else => continue,
                 }
@@ -545,7 +557,7 @@ test "ReadContract" {
         const ReturnType = struct { Address };
         const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .london = .{
             .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"),
-            .from = try contract.wallet.getWalletAddress(),
+            .from = contract.wallet.getWalletAddress(),
         } });
 
         try testing.expectEqual(result[0].len, 20);
@@ -583,7 +595,7 @@ test "ReadContract" {
         const ReturnType = struct { Address };
         const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .london = .{
             .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"),
-            .from = try contract.wallet.getWalletAddress(),
+            .from = contract.wallet.getWalletAddress(),
         } });
 
         try testing.expectEqual(result[0].len, 20);
@@ -613,7 +625,7 @@ test "ReadContract" {
             .overrides = .{
                 .london = .{
                     .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"),
-                    .from = try contract.wallet.getWalletAddress(),
+                    .from = contract.wallet.getWalletAddress(),
                 },
             },
         });

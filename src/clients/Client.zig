@@ -174,7 +174,7 @@ pub fn connectRpcServer(self: *PubClient) !*HttpConnection {
 ///
 /// RPC Method: [eth_blobBaseFee](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_blobbasefee)
 pub fn blobBaseFee(self: *PubClient) !RPCResponse(Gwei) {
-    return try self.sendBasicRequest(Gwei, .eth_blobBaseFee);
+    return self.sendBasicRequest(Gwei, .eth_blobBaseFee);
 }
 /// Create an accessList of addresses and storageKeys for an transaction to access
 ///
@@ -229,9 +229,10 @@ pub fn estimateFeesPerGas(self: *PubClient, call_object: EthCall, base_fee_per_g
                 const gas_price = try self.getGasPrice();
                 defer gas_price.deinit();
 
-                break :gas gas_price.response * std.math.pow(u64, 10, 9);
+                break :gas gas_price.response;
             };
-            const price = @divExact(gas_price * @as(u64, @intFromFloat(std.math.ceil(self.base_fee_multiplier * std.math.pow(f64, 10, 1)))), std.math.pow(u64, 10, 1));
+            const mutiplier = std.math.ceil(@as(f64, @floatFromInt(gas_price)) * self.base_fee_multiplier);
+            const price: u64 = @intFromFloat(mutiplier);
             return .{
                 .legacy = .{ .gas_price = price },
             };
@@ -724,14 +725,14 @@ pub fn getUncleCountByBlockHash(self: *PubClient, block_hash: Hash) !RPCResponse
 ///
 /// RPC Method: [`eth_getUncleCountByBlockNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclecountbyblocknumber)
 pub fn getUncleCountByBlockNumber(self: *PubClient, opts: BlockNumberRequest) !RPCResponse(usize) {
-    return try self.sendBlockNumberRequest(opts, .eth_getUncleCountByBlockNumber);
+    return self.sendBlockNumberRequest(opts, .eth_getUncleCountByBlockNumber);
 }
 /// Creates a filter in the node, to notify when a new block arrives.
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newBlockFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newblockfilter)
 pub fn newBlockFilter(self: *PubClient) !RPCResponse(usize) {
-    return try self.sendBasicRequest(usize, .eth_newBlockFilter);
+    return self.sendBasicRequest(usize, .eth_newBlockFilter);
 }
 /// Creates a filter object, based on filter options, to notify when the state changes (logs).
 /// To check if the state has changed, call `getFilterOrLogChanges`.
@@ -1006,6 +1007,46 @@ pub fn switchNetwork(self: *PubClient, new_chain_id: Chains, new_url: []const u8
 
     self.connection.* = try self.connectRpcServer();
 }
+/// Writes request to RPC server and parses the response according to the provided type.
+/// Handles 429 errors but not the rest.
+pub fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !RPCResponse(T) {
+    httplog.debug("Preparing to send request body: {s}", .{request});
+
+    var body = std.ArrayList(u8).init(self.allocator);
+    defer body.deinit();
+
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
+
+        const req = try self.internalFetch(request, &body);
+
+        switch (req.status) {
+            .ok => {
+                const res_body = try body.toOwnedSlice();
+                defer self.allocator.free(res_body);
+
+                httplog.debug("Got response from server: {s}", .{res_body});
+
+                return self.parseRPCEvent(T, res_body);
+            },
+            .too_many_requests => {
+                // Exponential backoff
+                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                // Clears any message that was written
+                body.clearRetainingCapacity();
+                try body.ensureTotalCapacity(0);
+
+                std.time.sleep(std.time.ns_per_ms * backoff);
+                continue;
+            },
+            else => return error.InvalidRequest,
+        }
+    }
+}
 
 fn sendBlockNumberRequest(self: *PubClient, opts: BlockNumberRequest, method: EthereumRpcMethods) !RPCResponse(usize) {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
@@ -1117,46 +1158,6 @@ fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, 
 
     return self.sendRpcRequest(T, buf_writter.getWritten());
 }
-/// Writes request to RPC server and parses the response according to the provided type.
-/// Handles 429 errors but not the rest.
-fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !RPCResponse(T) {
-    httplog.debug("Preparing to send request body: {s}", .{request});
-
-    var body = std.ArrayList(u8).init(self.allocator);
-    defer body.deinit();
-
-    var retries: u8 = 0;
-    while (true) : (retries += 1) {
-        if (retries > self.retries)
-            return error.ReachedMaxRetryLimit;
-
-        const req = try self.internalFetch(request, &body);
-
-        switch (req.status) {
-            .ok => {
-                const res_body = try body.toOwnedSlice();
-                defer self.allocator.free(res_body);
-
-                httplog.debug("Got response from server: {s}", .{res_body});
-
-                return self.parseRPCEvent(T, res_body);
-            },
-            .too_many_requests => {
-                // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
-                httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                // Clears any message that was written
-                body.clearRetainingCapacity();
-                try body.ensureTotalCapacity(0);
-
-                std.time.sleep(std.time.ns_per_ms * backoff);
-                continue;
-            },
-            else => return error.InvalidRequest,
-        }
-    }
-}
 /// Internal PubClient fetch. Optimized for our use case.
 fn internalFetch(self: *PubClient, payload: []const u8, body: *std.ArrayList(u8)) !FetchResult {
     var server_header_buffer: [16 * 1024]u8 = undefined;
@@ -1260,16 +1261,25 @@ test "GetBlock" {
 
     try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
-    const block_request = try pub_client.getBlockByNumber(.{});
-    defer block_request.deinit();
+    {
+        const block_request = try pub_client.getBlockByNumber(.{});
+        defer block_request.deinit();
 
-    const block_info = block_request.response;
+        const block_info = block_request.response;
 
-    try testing.expect(block_info == .beacon);
-    try testing.expectEqual(block_info.beacon.number.?, 19062632);
+        try testing.expect(block_info == .beacon);
+        try testing.expectEqual(block_info.beacon.number.?, 19062632);
 
-    const slice = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8";
-    try testing.expectEqualSlices(u8, &block_info.beacon.hash.?, &try utils.hashToBytes(slice));
+        const slice = "0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8";
+        try testing.expectEqualSlices(u8, &block_info.beacon.hash.?, &try utils.hashToBytes(slice));
+    }
+    {
+        const block_request = try pub_client.getBlockByNumber(.{ .include_transaction_objects = true });
+        defer block_request.deinit();
+
+        try testing.expect(block_request.response.beacon.transactions != null);
+        try testing.expect(block_request.response.beacon.transactions.? == .objects);
+    }
 
     // const block_old = try pub_client.getBlockByNumber(.{ .block_number = 1 });
     // try testing.expect(block_old == .legacy);
@@ -1284,10 +1294,24 @@ test "CreateAccessList" {
 
     var buffer: [100]u8 = undefined;
     const bytes = try std.fmt.hexToBytes(&buffer, "608060806080608155");
-    const accessList = try pub_client.createAccessList(.{ .london = .{ .from = try utils.addressToBytes("0xaeA8F8f781326bfE6A7683C2BD48Dd6AA4d3Ba63"), .data = bytes } }, .{});
-    defer accessList.deinit();
+    {
+        const accessList = try pub_client.createAccessList(
+            .{ .london = .{ .from = try utils.addressToBytes("0xaeA8F8f781326bfE6A7683C2BD48Dd6AA4d3Ba63"), .data = bytes } },
+            .{},
+        );
+        defer accessList.deinit();
 
-    try testing.expect(accessList.response.accessList.len != 0);
+        try testing.expect(accessList.response.accessList.len != 0);
+    }
+    {
+        const accessList = try pub_client.createAccessList(
+            .{ .london = .{ .from = try utils.addressToBytes("0xaeA8F8f781326bfE6A7683C2BD48Dd6AA4d3Ba63"), .data = bytes } },
+            .{ .block_number = 19062632 },
+        );
+        defer accessList.deinit();
+
+        try testing.expect(accessList.response.accessList.len != 0);
+    }
 }
 
 test "FeeHistory" {
@@ -1297,10 +1321,18 @@ test "FeeHistory" {
 
     try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
-    const fee_history = try pub_client.feeHistory(5, .{}, &[_]f64{ 20, 30 });
-    defer fee_history.deinit();
+    {
+        const fee_history = try pub_client.feeHistory(5, .{}, &[_]f64{ 20, 30 });
+        defer fee_history.deinit();
 
-    try testing.expect(fee_history.response.reward != null);
+        try testing.expect(fee_history.response.reward != null);
+    }
+    {
+        const fee_history = try pub_client.feeHistory(5, .{ .block_number = 19062632 }, &[_]f64{ 20, 30 });
+        defer fee_history.deinit();
+
+        try testing.expect(fee_history.response.reward != null);
+    }
 }
 
 test "GetProof" {
@@ -1310,13 +1342,25 @@ test "GetProof" {
 
     try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
-    const proof_result = try pub_client.getProof(.{
-        .address = try utils.addressToBytes("0x7F0d15C7FAae65896648C8273B6d7E43f58Fa842"),
-        .storageKeys = &.{try utils.hashToBytes("0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")},
-    }, .latest);
-    defer proof_result.deinit();
+    {
+        const proof_result = try pub_client.getProof(.{
+            .address = try utils.addressToBytes("0x7F0d15C7FAae65896648C8273B6d7E43f58Fa842"),
+            .storageKeys = &.{try utils.hashToBytes("0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")},
+        }, .latest);
+        defer proof_result.deinit();
 
-    try testing.expect(proof_result.response.accountProof.len != 0);
+        try testing.expect(proof_result.response.accountProof.len != 0);
+    }
+    {
+        const proof_result = try pub_client.getProof(.{
+            .address = try utils.addressToBytes("0x7F0d15C7FAae65896648C8273B6d7E43f58Fa842"),
+            .storageKeys = &.{try utils.hashToBytes("0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")},
+            .blockNumber = 19062632,
+        }, null);
+        defer proof_result.deinit();
+
+        try testing.expect(proof_result.response.accountProof.len != 0);
+    }
 }
 
 test "GetBlockByHash" {
@@ -1355,10 +1399,18 @@ test "getBlockTransactionCountByNumber" {
 
     try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
-    const block_info = try pub_client.getBlockTransactionCountByNumber(.{});
-    defer block_info.deinit();
+    {
+        const block_info = try pub_client.getBlockTransactionCountByNumber(.{});
+        defer block_info.deinit();
 
-    try testing.expect(block_info.response != 0);
+        try testing.expect(block_info.response != 0);
+    }
+    {
+        const block_info = try pub_client.getBlockTransactionCountByNumber(.{ .block_number = 19062632 });
+        defer block_info.deinit();
+
+        try testing.expect(block_info.response != 0);
+    }
 }
 
 test "getBlockTransactionCountByHash" {
@@ -1465,10 +1517,24 @@ test "getLogs" {
 
     try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
-    const logs = try pub_client.getLogs(.{ .blockHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8") }, null);
-    defer logs.deinit();
+    {
+        const logs = try pub_client.getLogs(.{ .fromBlock = 19062632 }, null);
+        defer logs.deinit();
 
-    try testing.expect(logs.response.len != 0);
+        try testing.expect(logs.response.len == 0);
+    }
+    {
+        const logs = try pub_client.getLogs(.{}, .latest);
+        defer logs.deinit();
+
+        try testing.expect(logs.response.len == 0);
+    }
+    {
+        const logs = try pub_client.getLogs(.{ .blockHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8") }, null);
+        defer logs.deinit();
+
+        try testing.expect(logs.response.len != 0);
+    }
 }
 
 test "getStorage" {
@@ -1478,10 +1544,26 @@ test "getStorage" {
 
     try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
 
-    const storage = try pub_client.getStorage(try utils.addressToBytes("0x295a70b2de5e3953354a6a8344e616ed314d7251"), try utils.hashToBytes("0x6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9"), .{ .block_number = 6662363 });
-    defer storage.deinit();
+    {
+        const storage = try pub_client.getStorage(
+            try utils.addressToBytes("0x295a70b2de5e3953354a6a8344e616ed314d7251"),
+            try utils.hashToBytes("0x6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9"),
+            .{ .block_number = 6662363 },
+        );
+        defer storage.deinit();
 
-    try testing.expectEqualSlices(u8, &try utils.hashToBytes("0x0000000000000000000000000000000000000000000000000000000000000000"), &storage.response);
+        try testing.expectEqualSlices(u8, &try utils.hashToBytes("0x0000000000000000000000000000000000000000000000000000000000000000"), &storage.response);
+    }
+    {
+        const storage = try pub_client.getStorage(
+            try utils.addressToBytes("0x295a70b2de5e3953354a6a8344e616ed314d7251"),
+            try utils.hashToBytes("0x6661e9d6d8b923d5bbaab1b96e1dd51ff6ea2a93520fdc9eb75d059238b8c5e9"),
+            .{},
+        );
+        defer storage.deinit();
+
+        try testing.expectEqualSlices(u8, &try utils.hashToBytes("0x0000000000000000000000000000000000000000000000000000000000000000"), &storage.response);
+    }
 }
 
 test "getTransactionByBlockNumberAndIndex" {
@@ -1597,4 +1679,54 @@ test "estimateMaxFeePerGasManual" {
 
     const gas = try pub_client.estimateMaxFeePerGasManual(null);
     try testing.expect(gas != 0);
+}
+
+test "Errors" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var pub_client: PubClient = undefined;
+    defer pub_client.deinit();
+
+    try pub_client.init(.{ .allocator = testing.allocator, .uri = uri });
+
+    try testing.expectError(error.InvalidBlockHash, pub_client.getBlockByHash(.{ .block_hash = [_]u8{0} ** 32 }));
+    try testing.expectError(error.InvalidBlockNumber, pub_client.getBlockByNumber(.{ .block_number = 6969696969696969 }));
+    try testing.expectError(error.TransactionReceiptNotFound, pub_client.getTransactionReceipt([_]u8{0} ** 32));
+    {
+        const request =
+            \\{"method":"eth_blockNumber","params":["0x6C22BF5",false],"id":1,"jsonrpc":"2.0"}
+        ;
+        try testing.expectError(error.InvalidParams, pub_client.sendRpcRequest(Gwei, request));
+    }
+    {
+        const request =
+            \\{"method":"eth_foo","params":["0x6C22BF5",false],"id":1,"jsonrpc":"2.0"}
+        ;
+        try testing.expectError(error.MethodNotFound, pub_client.sendRpcRequest(Gwei, request));
+    }
+    {
+        const request =
+            \\{"method":"eth_blockNumber","params":[],"id":1,"jsonrpc":"1.0"}
+        ;
+        try testing.expectError(error.InvalidRequest, pub_client.sendRpcRequest(Gwei, request));
+    }
+    {
+        const request =
+            \\{"method":"eth_sendRawTransaction","params":["0x02f8a00182025d84aa5781ed85042135a28a82fcb88080b846608060405260358060116000396000f3006080604052600080fd00a165627a7a72305820f86ff341f0dff29df244305f8aa88abaf10e3a0719fa6ea1dcdd01b8b7d750970029c080a0450d28b8b3e1d5bd0bf99140ffb60059fc55c5ed184a62bf7e46a93f0a733553a012bfec695102b9ef50d21e607bdd01d4dbbd3e50461d9d43451fea330bf299a8"],"id":1,"jsonrpc":"2.0"}
+        ;
+        try testing.expectError(error.TransactionRejected, pub_client.sendRpcRequest(Gwei, request));
+    }
+    {
+        // Not supported on all RPC providers :/
+        try testing.expectError(error.MethodNotFound, pub_client.blobBaseFee());
+        try testing.expectError(error.MethodNotFound, pub_client.estimateBlobMaxFeePerGas());
+    }
+    {
+        const request =
+            \\{"jsonrpc":"2.0","method":"eth_call","params": [{"from": "0x49989f8c3F9Ba9260DEc65272dD411c8F8c8ec4A","to": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "gas": "0xe324343242", "data":"0xa9059cbb00000000000000000000000099870de8ae594e6e8705fc6689e89b4d039af1e2000000000000000000000000000000000000000000000000000000181d2963cb3a940c0cf4f61682f62abd4c30e374369ba8fc88fcaf47fc79c46122732f19d0"}, "latest"],"id":1} 
+        ;
+        try testing.expectError(error.EvmFailedToExecute, pub_client.sendRpcRequest(Hex, request));
+    }
+    // CI coverage runner dislikes this tests so for now we skip it.
+    if (true) return error.SkipZigTest;
+    try testing.expectError(error.TransactionNotFound, pub_client.getTransactionByHash([_]u8{0} ** 32));
 }

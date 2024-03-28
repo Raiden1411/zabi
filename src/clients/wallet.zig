@@ -84,19 +84,27 @@ pub const TransactionEnvelopePool = struct {
     }
     /// Gets the last node from the pool and removes it.
     /// This is thread safe.
-    pub fn getFirstElementFromPool(pool: *TransactionEnvelopePool) ?TransactionEnvelope {
+    pub fn getFirstElementFromPool(pool: *TransactionEnvelopePool, allocator: Allocator) ?TransactionEnvelope {
         pool.mutex.lock();
         defer pool.mutex.unlock();
 
-        return if (pool.pooled_envelopes.popFirst()) |node| node.data else null;
+        if (pool.pooled_envelopes.popFirst()) |node| {
+            defer allocator.destroy(node);
+
+            return node.data;
+        } else return null;
     }
     /// Gets the last node from the pool and removes it.
     /// This is thread safe.
-    pub fn getLastElementFromPool(pool: *TransactionEnvelopePool) ?TransactionEnvelope {
+    pub fn getLastElementFromPool(pool: *TransactionEnvelopePool, allocator: Allocator) ?TransactionEnvelope {
         pool.mutex.lock();
         defer pool.mutex.unlock();
 
-        return if (pool.pooled_envelopes.pop()) |node| node.data else null;
+        if (pool.pooled_envelopes.pop()) |node| {
+            defer allocator.destroy(node);
+
+            return node.data;
+        } else return null;
     }
     /// Destroys all created pointer. All future operations will deadlock.
     /// This is thread safe.
@@ -221,19 +229,19 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         ///
         /// Returns the signature type.
         pub fn signTypedData(self: *Wallet(client_type), comptime eip_types: anytype, comptime primary_type: []const u8, domain: ?TypedDataDomain, message: anytype) !Signature {
-            return try self.signer.sign(try eip712.hashTypedData(self.allocator, eip_types, primary_type, domain, message));
+            return self.signer.sign(try eip712.hashTypedData(self.allocator, eip_types, primary_type, domain, message));
         }
         /// Get the wallet address.
         /// Uses the wallet public key to generate the address.
         /// This will allocate and the returned address is already checksumed
-        pub fn getWalletAddress(self: *Wallet(client_type)) !Address {
+        pub fn getWalletAddress(self: *Wallet(client_type)) Address {
             return self.signer.address_bytes;
         }
         /// Verifies if a given signature was signed by the current wallet.
-        pub fn verifyMessage(self: *Wallet(client_type), sig: Signature, message: []const u8) !bool {
+        pub fn verifyMessage(self: *Wallet(client_type), sig: Signature, message: []const u8) bool {
             var hash_buffer: [Keccak256.digest_length]u8 = undefined;
             Keccak256.hash(message, &hash_buffer, .{});
-            return try self.signer.verifyMessage(sig, hash_buffer);
+            return self.signer.verifyMessage(hash_buffer, sig);
         }
         /// Verifies a EIP712 message according to the expecification
         /// https://eips.ethereum.org/EIPS/eip-712
@@ -259,7 +267,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             const hash = try eip712.hashTypedData(self.allocator, eip712_types, primary_type, domain, message);
 
             const address = try Signer.recoverAddress(sig, hash);
-            const wallet_address = try self.getWalletAddress();
+            const wallet_address = self.getWalletAddress();
 
             return std.mem.eql(u8, &wallet_address, &address);
         }
@@ -281,7 +289,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Only the null struct properties will get changed.
         /// Everything that gets set before will not be touched.
         pub fn prepareTransaction(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !TransactionEnvelope {
-            const address = try self.getWalletAddress();
+            const address = self.getWalletAddress();
 
             switch (unprepared_envelope.type) {
                 .cancun => {
@@ -480,52 +488,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .value = request.value.?,
                     } };
                 },
-                _ => {
-                    if (@intFromEnum(unprepared_envelope.type) < @as(u8, @intCast(0xc0)))
-                        return error.InvalidTransactionType;
-
-                    var request: LegacyEthCall = .{
-                        .from = address,
-                        .to = unprepared_envelope.to,
-                        .gas = unprepared_envelope.gas,
-                        .gasPrice = unprepared_envelope.gasPrice,
-                        .data = unprepared_envelope.data,
-                        .value = unprepared_envelope.value orelse 0,
-                    };
-
-                    const curr_block = try self.rpc_client.getBlockByNumber(.{});
-                    defer curr_block.deinit();
-
-                    const base_fee = switch (curr_block.response) {
-                        inline else => |block_info| block_info.baseFeePerGas,
-                    };
-
-                    const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
-
-                    const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
-
-                    if (unprepared_envelope.gasPrice == null) {
-                        const fees = try self.rpc_client.estimateFeesPerGas(.{ .legacy = request }, base_fee);
-                        request.gasPrice = fees.legacy.gas_price;
-                    }
-
-                    if (unprepared_envelope.gas == null) {
-                        const gas = try self.rpc_client.estimateGas(.{ .legacy = request }, .{});
-                        defer gas.deinit();
-
-                        request.gas = gas.response;
-                    }
-
-                    return .{ .legacy = .{
-                        .chainId = chain_id,
-                        .nonce = nonce,
-                        .gas = request.gas.?,
-                        .gasPrice = request.gasPrice.?,
-                        .to = request.to,
-                        .data = request.data,
-                        .value = request.value.?,
-                    } };
-                },
+                _ => return error.UnsupportedTransactionType,
             }
         }
         /// Asserts that the transactions is ready to be sent.
@@ -571,7 +534,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         ///
         /// Call `waitForTransactionReceipt` to update the wallet nonce or update it manually
         pub fn sendTransaction(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !RPCResponse(Hash) {
-            const prepared = self.envelopes_pool.getLastElementFromPool() orelse try self.prepareTransaction(unprepared_envelope);
+            const prepared = self.envelopes_pool.getLastElementFromPool(self.allocator) orelse try self.prepareTransaction(unprepared_envelope);
 
             try self.assertTransaction(prepared);
 
@@ -588,7 +551,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             if (!trusted_setup.loaded)
                 return error.TrustedSetupNotLoaded;
 
-            const prepared = self.envelopes_pool.getLastElementFromPool() orelse try self.prepareTransaction(unprepared_envelope);
+            const prepared = self.envelopes_pool.getLastElementFromPool(self.allocator) orelse try self.prepareTransaction(unprepared_envelope);
 
             try self.assertTransaction(prepared);
 
@@ -610,7 +573,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             if (unprepared_envelope.type != .cancun)
                 return error.InvalidTransactionType;
 
-            const prepared = self.envelopes_pool.getLastElementFromPool() orelse try self.prepareTransaction(unprepared_envelope);
+            const prepared = self.envelopes_pool.getLastElementFromPool(self.allocator) orelse try self.prepareTransaction(unprepared_envelope);
 
             try self.assertTransaction(prepared);
 
@@ -652,7 +615,7 @@ test "Address match" {
     try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
-    try testing.expectEqualStrings(&try wallet.getWalletAddress(), &try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"));
+    try testing.expectEqualStrings(&wallet.getWalletAddress(), &try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"));
 }
 
 test "verifyMessage" {
@@ -670,6 +633,7 @@ test "verifyMessage" {
     const sign = try wallet.signer.sign(hash_buffer);
 
     try testing.expect(wallet.signer.verifyMessage(hash_buffer, sign));
+    try testing.expect(wallet.verifyMessage(sign, "02f1827a6980847735940084773594008252099470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a764000080c0"));
 }
 
 test "signMessage" {
@@ -762,13 +726,42 @@ test "Pool transactions" {
     try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
-    var i: usize = 0;
-    while (i < 5) : (i += 1) {
-        try wallet.poolTransactionEnvelope(.{ .type = .london });
-    }
+    try wallet.poolTransactionEnvelope(.{ .type = .london });
+    try wallet.poolTransactionEnvelope(.{ .type = .berlin });
+    try wallet.poolTransactionEnvelope(.{ .type = .legacy });
 
     const env = wallet.findTransactionEnvelopeFromPool(.london);
     try testing.expect(env != null);
+}
+
+test "Get First element" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+    var wallet: Wallet(.http) = undefined;
+
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
+    defer wallet.deinit();
+
+    {
+        const first = wallet.envelopes_pool.getFirstElementFromPool(wallet.allocator);
+        const last = wallet.envelopes_pool.getLastElementFromPool(wallet.allocator);
+        try testing.expect(first == null);
+        try testing.expect(last == null);
+    }
+
+    var i: usize = 0;
+    while (i < 3) : (i += 1) {
+        try wallet.poolTransactionEnvelope(.{ .type = .london });
+    }
+
+    {
+        const first = wallet.envelopes_pool.getFirstElementFromPool(wallet.allocator);
+        const last = wallet.envelopes_pool.getLastElementFromPool(wallet.allocator);
+        try testing.expect(first != null);
+        try testing.expect(last != null);
+    }
 }
 
 test "assertTransaction" {
@@ -783,27 +776,54 @@ test "assertTransaction" {
     try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
     defer wallet.deinit();
 
-    tx = .{ .london = .{
-        .nonce = 0,
-        .gas = 21001,
-        .maxPriorityFeePerGas = 2,
-        .maxFeePerGas = 2,
-        .chainId = 1,
-        .accessList = &.{},
-        .value = 0,
-        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
-        .data = null,
-    } };
-    try wallet.assertTransaction(tx);
+    {
+        tx = .{ .london = .{
+            .nonce = 0,
+            .gas = 21001,
+            .maxPriorityFeePerGas = 2,
+            .maxFeePerGas = 2,
+            .chainId = 1,
+            .accessList = &.{},
+            .value = 0,
+            .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+            .data = null,
+        } };
+        try wallet.assertTransaction(tx);
 
-    tx.london.chainId = 2;
-    try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
+        tx.london.chainId = 2;
+        try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
 
-    tx.london.chainId = 1;
+        tx.london.chainId = 1;
 
-    tx.london.maxPriorityFeePerGas = 69;
-    tx.london.to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
-    try testing.expectError(error.TransactionTipToHigh, wallet.assertTransaction(tx));
+        tx.london.maxPriorityFeePerGas = 69;
+        tx.london.to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
+        try testing.expectError(error.TransactionTipToHigh, wallet.assertTransaction(tx));
+    }
+    {
+        tx = .{ .cancun = .{
+            .nonce = 0,
+            .gas = 21001,
+            .maxPriorityFeePerGas = 2,
+            .maxFeePerGas = 2,
+            .chainId = 1,
+            .accessList = &.{},
+            .value = 0,
+            .maxFeePerBlobGas = 2,
+            .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+            .data = null,
+            .blobVersionedHashes = &.{},
+        } };
+        try wallet.assertTransaction(tx);
+
+        tx.cancun.chainId = 2;
+        try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
+
+        tx.cancun.chainId = 1;
+
+        tx.cancun.maxPriorityFeePerGas = 69;
+        tx.cancun.to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
+        try testing.expectError(error.TransactionTipToHigh, wallet.assertTransaction(tx));
+    }
 }
 
 test "assertTransactionLegacy" {

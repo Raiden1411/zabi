@@ -53,6 +53,7 @@ const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
 const Tuple = std.meta.Tuple;
 const Uri = std.Uri;
+const WatchLogsRequest = log.WatchLogsRequest;
 const Wei = types.Wei;
 
 const WebSocketHandler = @This();
@@ -1747,7 +1748,11 @@ pub fn unsubscribe(self: *WebSocketHandler, sub_id: u128) !RPCResponse(bool) {
 ///
 /// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/eth-subscribe)
 pub fn watchNewBlocks(self: *WebSocketHandler) !RPCResponse(u128) {
-    const request: EthereumRequest(struct { []const u8 }) = .{ .params = .{"newHeads"}, .method = .eth_subscribe, .id = self.chain_id };
+    const request: EthereumRequest(struct { []const u8 }) = .{
+        .params = .{"newHeads"},
+        .method = .eth_subscribe,
+        .id = self.chain_id,
+    };
 
     var request_buffer: [1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
@@ -1756,36 +1761,20 @@ pub fn watchNewBlocks(self: *WebSocketHandler) !RPCResponse(u128) {
 
     return self.handleNumberEvent(u128, buf_writter.getWritten());
 }
-/// Emits logs attached to a new block that match certain topic filters.
+/// Emits logs attached to a new block that match certain topic filters and address.
 ///
 /// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/logs)
-pub fn watchLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag) !u128 {
+pub fn watchLogs(self: *WebSocketHandler, opts: WatchLogsRequest) !RPCResponse(u128) {
     var request_buffer: [4 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    if (tag) |request_tag| {
-        const request: EthereumRequest(struct { LogTagRequest }) = .{
-            .params = .{.{
-                .fromBlock = request_tag,
-                .toBlock = request_tag,
-                .address = opts.address,
-                .blockHash = opts.blockHash,
-                .topics = opts.topics,
-            }},
-            .method = .eth_newFilter,
-            .id = self.chain_id,
-        };
+    const request: EthereumRequest(struct { []const u8, WatchLogsRequest }) = .{
+        .params = .{ "logs", opts },
+        .method = .eth_subscribe,
+        .id = self.chain_id,
+    };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
-    } else {
-        const request: EthereumRequest(struct { LogRequest }) = .{
-            .params = .{opts},
-            .method = .eth_newFilter,
-            .id = self.chain_id,
-        };
-
-        try std.json.stringify(request, .{}, buf_writter.writer());
-    }
+    try std.json.stringify(request, .{}, buf_writter.writer());
 
     return self.handleNumberEvent(u128, buf_writter.getWritten());
 }
@@ -1810,20 +1799,10 @@ pub fn watchTransactions(self: *WebSocketHandler) !RPCResponse(u128) {
 ///
 /// This expects the request to already be prepared beforehand.
 /// Since we have no way of knowing all possible or custom RPC methods that nodes can provide.
-/// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/eth-subscribe)
-pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []u8) !RPCResponse(EthereumEvents) {
-    var retries: u8 = 0;
-    while (true) : (retries += 1) {
-        if (retries > self.retries)
-            return error.ReachedMaxRetryLimit;
-
-        try self.write(request);
-        const event = self.channel.get(self.rpc_channel.get());
-        switch (event) {
-            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
-            else => return event,
-        }
-    }
+///
+/// Returns the subscription Id.
+pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []u8) !RPCResponse(u128) {
+    return self.handleNumberEvent(u128, request);
 }
 /// Waits until a transaction gets mined and the receipt can be grabbed.
 /// This is retry based on either the amount of `confirmations` given.

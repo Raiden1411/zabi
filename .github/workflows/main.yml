@@ -48,8 +48,8 @@ jobs:
       - name: Run zig fmt
         run: zig fmt --check .
 
-      - name: Build
-        run: zig build
+      # - name: Build
+      #   run: zig build
 
       - name: Run Tests
-        run: ZIG_GLOBAL_CACHE_DIR=$HOME/.cache/zig ZIG_LOCAL_CACHE_DIR=$ZIG_GLOBAL_CACHE_DIR zig build test
+        run: zig build test

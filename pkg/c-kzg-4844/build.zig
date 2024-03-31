@@ -30,7 +30,7 @@ pub fn build(b: *std.Build) !void {
 }
 
 fn buildKzg(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !*std.Build.Step.Compile {
-    const lib = b.addStaticLibrary(.{ .name = "c-kzg-4844", .target = target, .optimize = optimize });
+    const lib = b.addSharedLibrary(.{ .name = "c-kzg-4844", .target = target, .optimize = optimize });
     const blst_dep = b.dependency("blst", .{
         .target = target,
         .optimize = optimize,
@@ -49,11 +49,6 @@ fn buildKzg(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.Re
     lib.installHeadersDirectoryOptions(.{ .source_dir = upstream.path("src"), .install_dir = .header, .install_subdir = "", .include_extensions = &.{".h"} });
     lib.installHeadersDirectoryOptions(.{ .source_dir = .{ .path = "" }, .install_dir = .header, .install_subdir = "", .include_extensions = &.{".h"} });
     lib.linkLibC();
-
-    if (target.result.isDarwin()) {
-        const apple_sdk = @import("apple_sdk");
-        try apple_sdk.addPaths(b, &lib.root_module);
-    }
 
     return lib;
 }

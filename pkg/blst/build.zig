@@ -15,7 +15,7 @@ pub fn build(b: *std.Build) !void {
 }
 
 fn buildBlst(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !*std.Build.Step.Compile {
-    const lib = b.addStaticLibrary(.{ .name = "blst", .target = target, .optimize = optimize });
+    const lib = b.addSharedLibrary(.{ .name = "blst", .target = target, .optimize = optimize });
 
     lib.addIncludePath(upstream.path("src"));
     lib.addIncludePath(upstream.path("build"));
@@ -26,9 +26,7 @@ fn buildBlst(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.R
     try flags.appendSlice(&.{ "-D__BLST_PORTABLE__", "-fno-builtin", "-fPIC" });
 
     if (target.result.isDarwin()) {
-        const apple_sdk = @import("apple_sdk");
-        try apple_sdk.addPaths(b, &lib.root_module);
-        try flags.appendSlice(&.{"-D__APPLE__"});
+        try flags.append("-D__BLST_NO_ASM__");
     }
 
     lib.addCSourceFiles(.{ .root = upstream.path("."), .flags = flags.items, .files = &.{ "src/server.c", "build/assembly.S" } });

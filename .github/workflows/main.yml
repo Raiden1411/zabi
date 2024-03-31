@@ -52,4 +52,4 @@ jobs:
       #   run: zig build
 
       - name: Run Tests
-        run: zig build test
+        run: ZIG_LOCAL_CACHE_DIR=/var/tmp/zig-cache ZIG_GLOBAL_CACHE_DIR=/var/tmp/zig-cache zig build test --summary all -freference-trace

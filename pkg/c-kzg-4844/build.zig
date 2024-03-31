@@ -30,7 +30,7 @@ pub fn build(b: *std.Build) !void {
 }
 
 fn buildKzg(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !*std.Build.Step.Compile {
-    const lib = b.addSharedLibrary(.{ .name = "c-kzg-4844", .target = target, .optimize = optimize });
+    const lib = b.addStaticLibrary(.{ .name = "c-kzg-4844", .target = target, .optimize = optimize });
     const blst_dep = b.dependency("blst", .{
         .target = target,
         .optimize = optimize,
@@ -44,7 +44,6 @@ fn buildKzg(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.Re
     var flags = std.ArrayList([]const u8).init(b.allocator);
     defer flags.deinit();
 
-    try flags.appendSlice(&.{"-fPIC"});
     lib.addCSourceFiles(.{ .root = upstream.path("."), .flags = flags.items, .files = &.{"src/c_kzg_4844.c"} });
     lib.installHeadersDirectoryOptions(.{ .source_dir = upstream.path("src"), .install_dir = .header, .install_subdir = "", .include_extensions = &.{".h"} });
     lib.installHeadersDirectoryOptions(.{ .source_dir = .{ .path = "" }, .install_dir = .header, .install_subdir = "", .include_extensions = &.{".h"} });

@@ -37,20 +37,19 @@ jobs:
           fetch-depth: 0
       - uses: goto-bus-stop/setup-zig@v2
         with:
-          path: /var/tmp/
           version: master
 
-      # - name: Get Zig version
-      #   id: zig_version
-      #   run: echo "zig_version=$(zig version)" >> $GITHUB_OUTPUT
-      #
-      # - run: zig env
-      #
-      # - name: Run zig fmt
-      #   run: zig fmt --check .
+      - name: Get Zig version
+        id: zig_version
+        run: echo "zig_version=$(zig version)" >> $GITHUB_OUTPUT
 
-      # - name: Build
-      #   run: zig build
+      - run: zig env
+
+      - name: Run zig fmt
+        run: zig fmt --check .
+
+      - name: Build
+        run: zig build
 
       - name: Run Tests
         run: zig build test --summary all -freference-trace

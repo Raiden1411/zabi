@@ -23,7 +23,7 @@ fn buildBlst(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.R
     var flags = std.ArrayList([]const u8).init(b.allocator);
     defer flags.deinit();
 
-    try flags.appendSlice(&.{"-D__BLST_PORTABLE__"});
+    try flags.appendSlice(&.{ "-D__BLST_PORTABLE__", "-fno-builtin", "-fPIC", "-Wall", "-Wextra", "-Werror", "-D__ADX__" });
 
     lib.addCSourceFiles(.{ .root = upstream.path(""), .flags = flags.items, .files = &.{ "src/server.c", "build/assembly.S" } });
 

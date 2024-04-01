@@ -6,17 +6,12 @@ on:
       - ".github/workflows/main.yml"
       - "**.zig"
       - "build.zig.zon"
-  pull_request:
-    paths:
-      - ".github/workflows/main.yml"
-      - "**.zig"
-      - "build.zig.zon"
 
 jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Install Anvil
@@ -52,4 +47,4 @@ jobs:
         run: zig build
 
       - name: Run Tests
-        run: zig build test
+        run: zig build test --summary all -freference-trace

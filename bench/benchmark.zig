@@ -1,4 +1,4 @@
-const benchmark = @import("Benchmark.zig");
+const benchmark = @import("BenchmarkType.zig");
 const std = @import("std");
 const zabi_root = @import("zabi");
 

@@ -23,15 +23,12 @@ fn buildBlst(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.R
     var flags = std.ArrayList([]const u8).init(b.allocator);
     defer flags.deinit();
 
-    try flags.appendSlice(&.{ "-D__BLST_PORTABLE__", "-fno-builtin", "-fPIC" });
-
-    if (target.result.isDarwin()) {
-        const apple_sdk = @import("apple_sdk");
-        try apple_sdk.addPaths(b, &lib.root_module);
-        try flags.appendSlice(&.{"-D__APPLE__"});
+    if (!target.result.isDarwin()) {
+        try flags.appendSlice(&.{"-D__BLST_PORTABLE__"});
     }
 
-    lib.addCSourceFiles(.{ .root = upstream.path("."), .flags = flags.items, .files = &.{ "src/server.c", "build/assembly.S" } });
+    lib.addCSourceFiles(.{ .root = upstream.path(""), .flags = flags.items, .files = &.{ "src/server.c", "build/assembly.S" } });
+
     lib.installHeadersDirectoryOptions(.{ .source_dir = upstream.path("src"), .install_dir = .header, .install_subdir = "", .include_extensions = &.{".h"} });
     lib.linkLibC();
 

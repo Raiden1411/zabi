@@ -3,12 +3,7 @@ name: Benchmark
 on:
   push:
     paths:
-      - ".github/workflows/main.yml"
-      - "**.zig"
-      - "build.zig.zon"
-  pull_request:
-    paths:
-      - ".github/workflows/main.yml"
+      - ".github/workflows/benchmark.yml"
       - "**.zig"
       - "build.zig.zon"
 
@@ -16,7 +11,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
 

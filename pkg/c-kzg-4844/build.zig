@@ -44,16 +44,10 @@ fn buildKzg(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.Re
     var flags = std.ArrayList([]const u8).init(b.allocator);
     defer flags.deinit();
 
-    try flags.appendSlice(&.{"-fPIC"});
     lib.addCSourceFiles(.{ .root = upstream.path("."), .flags = flags.items, .files = &.{"src/c_kzg_4844.c"} });
     lib.installHeadersDirectoryOptions(.{ .source_dir = upstream.path("src"), .install_dir = .header, .install_subdir = "", .include_extensions = &.{".h"} });
     lib.installHeadersDirectoryOptions(.{ .source_dir = .{ .path = "" }, .install_dir = .header, .install_subdir = "", .include_extensions = &.{".h"} });
     lib.linkLibC();
-
-    if (target.result.isDarwin()) {
-        const apple_sdk = @import("apple_sdk");
-        try apple_sdk.addPaths(b, &lib.root_module);
-    }
 
     return lib;
 }

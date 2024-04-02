@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+/// Copied from std since it's no longer exposed.
 pub fn maybeIgnoreSigpipe() void {
     const have_sigpipe_support = switch (builtin.os.tag) {
         .linux,

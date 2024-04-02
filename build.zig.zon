@@ -19,10 +19,6 @@
             .url = "git+https://github.com/karlseguin/websocket.zig.git#dabf2310783000482ceb959e49e4be222cab02ed",
             .hash = "1220376acac4a7fa2c1772d0bd2a1d030513fb3599322552f11c5bd743de58d0e486",
         },
-        .ziglyph = .{
-            .url = "git+https://codeberg.org/dude_the_builder/ziglyph.git#947ed39203bf90412e3d16cbcf936518b6f23af0",
-            .hash = "12208b23d1eb6dcb929e85346524db8f8b8aa1401bdf8a97dee1e0cfb55da8d5fb42",
-        },
         .@"c-kzg-4844" = .{ .path = "./pkg/c-kzg-4844" },
         .blst = .{ .path = "./pkg/blst" },
     },

@@ -69,6 +69,13 @@ export default defineConfig({
 						image: "https://avatars.githubusercontent.com/u/6759464?v=4",
 					},
 				],
+				[
+					{
+						name: "merkleplant",
+						link: "https://github.com/pmerkleplant",
+						image: "https://avatars.githubusercontent.com/u/85061506?v=4",
+					},
+				],
 			],
 		},
 	],

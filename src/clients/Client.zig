@@ -1047,7 +1047,7 @@ pub fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !
         }
     }
 }
-
+// Sends specific block_number requests.
 fn sendBlockNumberRequest(self: *PubClient, opts: BlockNumberRequest, method: EthereumRpcMethods) !RPCResponse(usize) {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
@@ -1074,7 +1074,7 @@ fn sendBlockNumberRequest(self: *PubClient, opts: BlockNumberRequest, method: Et
 
     return self.sendRpcRequest(usize, buf_writter.getWritten());
 }
-
+// Sends specific block_hash requests.
 fn sendBlockHashRequest(self: *PubClient, block_hash: Hash, method: EthereumRpcMethods) !RPCResponse(usize) {
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{block_hash},
@@ -1089,7 +1089,7 @@ fn sendBlockHashRequest(self: *PubClient, block_hash: Hash, method: EthereumRpcM
 
     return self.sendRpcRequest(usize, buf_writter.getWritten());
 }
-
+// Sends request specific for addresses.
 fn sendAddressRequest(self: *PubClient, comptime T: type, opts: BalanceRequest, method: EthereumRpcMethods) !RPCResponse(T) {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
@@ -1116,7 +1116,7 @@ fn sendAddressRequest(self: *PubClient, comptime T: type, opts: BalanceRequest, 
 
     return self.sendRpcRequest(T, buf_writter.getWritten());
 }
-
+// Sends requests where the params are empty.
 fn sendBasicRequest(self: *PubClient, comptime T: type, method: EthereumRpcMethods) !RPCResponse(T) {
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
         .params = .{},
@@ -1131,7 +1131,7 @@ fn sendBasicRequest(self: *PubClient, comptime T: type, method: EthereumRpcMetho
 
     return self.sendRpcRequest(T, buf_writter.getWritten());
 }
-
+// Sends eth_call request
 fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, opts: BlockNumberRequest, method: EthereumRpcMethods) !RPCResponse(T) {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 

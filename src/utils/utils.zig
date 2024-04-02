@@ -56,15 +56,37 @@ pub fn toChecksum(allocator: Allocator, address: []const u8) ![]u8 {
     return checksum;
 }
 /// Checks if the given address is a valid ethereum address.
-pub fn isAddress(alloc: Allocator, addr: []const u8) !bool {
-    if (!std.mem.startsWith(u8, addr, "0x")) return false;
+pub fn isAddress(addr: []const u8) bool {
+    if (!std.mem.startsWith(u8, addr, "0x"))
+        return false;
+
     const address = addr[2..];
 
-    if (address.len != 40) return false;
-    const checksumed = try toChecksum(alloc, address);
-    defer alloc.free(checksumed);
+    if (address.len != 40)
+        return false;
 
-    return std.mem.eql(u8, addr, checksumed);
+    var buf: [40]u8 = undefined;
+    const lower = std.ascii.lowerString(&buf, address);
+
+    var hashed: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(lower, &hashed, .{});
+    const hex = std.fmt.bytesToHex(hashed, .lower);
+
+    var checksum: [42]u8 = undefined;
+    for (checksum[2..], 0..) |*c, i| {
+        const char = lower[i];
+
+        const char_digit = std.fmt.charToDigit(hex[i], 16) catch return false;
+        if (char_digit > 7) {
+            c.* = std.ascii.toUpper(char);
+        } else {
+            c.* = char;
+        }
+    }
+
+    @memcpy(checksum[0..2], "0x");
+
+    return std.mem.eql(u8, addr, checksum[0..]);
 }
 /// Convert address to its representing bytes
 pub fn addressToBytes(address: []const u8) !Address {
@@ -164,7 +186,8 @@ pub inline fn computeSize(int: u256) u8 {
     // It should never be reached
     unreachable;
 }
-
+/// Similar to `parseInt` but handles the hex bytes and not the
+/// hex represented string.
 pub fn bytesToInt(comptime T: type, slice: []u8) !T {
     const info = @typeInfo(T);
     const IntType = std.meta.Int(info.Int.signedness, @max(8, info.Int.bits));
@@ -184,12 +207,12 @@ pub fn bytesToInt(comptime T: type, slice: []u8) !T {
 test "IsAddress" {
     const address = "0x407d73d8a49eeb85d32cf465507dd71d507100c1";
 
-    try testing.expect(!try isAddress(testing.allocator, address));
-    try testing.expect(!try isAddress(testing.allocator, "0x"));
-    try testing.expect(!try isAddress(testing.allocator, ""));
-    try testing.expect(!try isAddress(testing.allocator, "0x00000000000000000000000000000000000000000000000000000000"));
-    try testing.expect(try isAddress(testing.allocator, "0x0000000000000000000000000000000000000000"));
-    try testing.expect(try isAddress(testing.allocator, "0x407D73d8a49eeb85D32Cf465507dd71d507100c1"));
+    try testing.expect(!isAddress(address));
+    try testing.expect(!isAddress("0x"));
+    try testing.expect(!isAddress(""));
+    try testing.expect(!isAddress("0x00000000000000000000000000000000000000000000000000000000"));
+    try testing.expect(isAddress("0x0000000000000000000000000000000000000000"));
+    try testing.expect(isAddress("0x407D73d8a49eeb85D32Cf465507dd71d507100c1"));
 }
 
 test "AddressToBytes" {

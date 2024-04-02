@@ -10,6 +10,7 @@ const BIP32_SECRET_KEY = "Bitcoin seed";
 
 const HARDNED_BIT = std.math.maxInt(i32) + 1;
 
+// TODO: Support extended keys.
 /// Implementation of BIP32 HDWallets
 /// It doesnt have support yet for extended keys.
 pub const HDWalletNode = struct {

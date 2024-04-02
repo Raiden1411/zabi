@@ -61,7 +61,7 @@ pub const Withdrawal = struct {
 /// ethereum merge. Doesn't contain the `withdrawals` or
 /// `withdrawalsRoot` fields.
 pub const LegacyBlock = struct {
-    baseFeePerGas: ?Gwei,
+    baseFeePerGas: ?Gwei = null,
     difficulty: u256,
     extraData: Hex,
     gasLimit: Gwei,

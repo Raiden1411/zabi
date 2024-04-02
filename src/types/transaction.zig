@@ -403,42 +403,14 @@ pub const LegacyTransaction = struct {
     s: u256,
     sourceHash: ?Hash = null,
     isSystemTx: ?bool = null,
-    type: TransactionTypes,
+    type: ?TransactionTypes = null,
     chainId: ?usize = null,
-
-    pub usingnamespace RequestParser(@This());
-};
-/// The representation of an untyped transaction.
-pub const UntypedTransaction = struct {
-    hash: Hash,
-    nonce: u64,
-    blockHash: ?Hash,
-    blockNumber: ?u64,
-    transactionIndex: ?u64,
-    from: Address,
-    to: ?Address,
-    value: Wei,
-    gasPrice: Gwei,
-    gas: Gwei,
-    input: Hex,
-    v: usize,
-    /// Represented as values instead of the hash because
-    /// a valid signature is not guaranteed to be 32 bits
-    r: u256,
-    /// Represented as values instead of the hash because
-    /// a valid signature is not guaranteed to be 32 bits
-    s: u256,
-    sourceHash: ?Hash = null,
-    isSystemTx: ?bool = null,
-    chainId: usize,
 
     pub usingnamespace RequestParser(@This());
 };
 /// All transactions objects that one might find whilest interaction
 /// with the JSON RPC server.
 pub const Transaction = union(enum) {
-    /// Some transactions might not have the type field.
-    untyped: UntypedTransaction,
     /// Legacy type transactions.
     legacy: LegacyTransaction,
     /// Berlin hardfork transactions that might have the accessList.

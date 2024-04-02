@@ -41,6 +41,24 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
 
+    // Runs the rpc client http/s test runner.
+    {
+        const http = b.addExecutable(.{
+            .name = "http_test",
+            .root_source_file = .{ .path = "src/http_test.zig" },
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        });
+        addDependencies(b, &http.root_module, target, optimize);
+
+        var http_run = b.addRunArtifact(http);
+        http_run.has_side_effects = true;
+
+        const http_step = b.step("http_test", "Run the http client tests");
+        http_step.dependOn(&http_run.step);
+    }
+
     // Coverage build option with kcov
     if (coverage) {
         const include = b.fmt("--include-pattern=/src", .{});

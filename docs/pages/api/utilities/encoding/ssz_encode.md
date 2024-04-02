@@ -8,7 +8,7 @@ Encodes values into a Simple Serialize (SSZ) encoded value.
 
 It takes 2 argument.
 
-- a allocator that is used to manage memory allocations.
+- an allocator that is used to manage memory allocations.
 - the value to be encoded. This can be almost any zig type.
 
 ```zig

@@ -68,11 +68,11 @@ try self.prepare(&writer);
 
 ## Encode Inputs
 
-Generates Abi encoded data using the [contract ABI specification](https://docs.soliditylang.org/en/latest/abi-spec.html#json) by a given set of of inputs and the associated values.
+Generates Abi encoded data using the [contract ABI specification](https://docs.soliditylang.org/en/latest/abi-spec.html#json) by a given set of inputs and the associated values.
 
 This takes in 2 arguments:
 
-- a allocator used to manage the memory allocations
+- an allocator used to manage the memory allocations
 - the values that will be encoded.
 
 **Memory must be freed after calling this method.**
@@ -99,7 +99,7 @@ Decoded the generated Abi encoded data into decoded native types using the [cont
 
 This takes in 4 arguments:
 
-- a allocator used to manage the memory allocations
+- an allocator used to manage the memory allocations
 - a `type` that is used as the expected return type of this call.
 - the abi encoded hex string.
 - the options used for decoding (Checkout the options here: [DecodeOptions](/api/abi_utils/types#decodedoptions))

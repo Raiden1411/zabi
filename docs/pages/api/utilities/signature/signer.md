@@ -55,7 +55,7 @@ Type: `[65]u8`
 
 ## RecoverEthereumAddress
 
-Recovers a ethereum from a message and signature. This expected that the message was previously hashed.
+Recovers an ethereum from a message and signature. This expected that the message was previously hashed.
 The address will already be checksumed.
 
 ```zig

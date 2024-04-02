@@ -1,7 +1,7 @@
 # Encode Abi Parameters
 
 ## Definition
-Generates Abi encoded data using the [contract ABI specification](https://docs.soliditylang.org/en/latest/abi-spec.html#json) by a given set of of inputs or outputs and the associated values.
+Generates Abi encoded data using the [contract ABI specification](https://docs.soliditylang.org/en/latest/abi-spec.html#json) by a given set of inputs or outputs and the associated values.
 
 Zabi supports encoding `AbiParameters` that are either comptime know or runtime know. It is advised that if you know the specification you are working with is comptime know to use `encodeAbiParametersComptime`.
 
@@ -9,7 +9,7 @@ Zabi supports encoding `AbiParameters` that are either comptime know or runtime 
 
 `encodeAbiParameters` takes in 3 parameters.
 
-- a allocator used to perform any sort of memory allocations.
+- an allocator used to perform any sort of memory allocations.
 - a set of Abi Parameters.
 - a tuple of values that the type corresponds to the given set of parameters.
 

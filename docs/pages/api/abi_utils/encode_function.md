@@ -3,7 +3,7 @@
 ## Definition
 
 Generates Abi encoded data using the [contract ABI specification](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
- by a given set of of inputs or outputs and the associated values.
+ by a given set of inputs or outputs and the associated values.
 
 Zabi supports encoding `AbiFunction` that are either comptime know or runtime know. It is advised that if you know the specification you are working with is comptime know to use `encodeAbiFunctionComptime`.
 
@@ -11,7 +11,7 @@ Zabi supports encoding `AbiFunction` that are either comptime know or runtime kn
 
 `encodeAbiFunction` takes in 3 parameters.
 
-- a allocator used to perform any sort of memory allocations.
+- an allocator used to perform any sort of memory allocations.
 - a ABI function specification.
 - a tuple of values that the type corresponds to the given set of parameters.
 

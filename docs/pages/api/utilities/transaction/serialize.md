@@ -7,7 +7,7 @@ Serializes a transaction. Supports signed & unsigned Berlin, London and Legacy T
 
 The function takes in 2 arguments
 
-- a allocator used to manage memory allocations
+- an allocator used to manage memory allocations
 - The transaction you want to serialize.
 
 ```zig

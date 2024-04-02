@@ -5,7 +5,7 @@ Decoded the generated Abi encoded data into decoded native types using the [cont
 
 This takes in 5 arguments:
 
-- a allocator used to manage the memory allocations
+- an allocator used to manage the memory allocations
 - a `type` that is used as the expected return type of this call.
 - the function struct signature to decode against.
 - the abi encoded hex string.
@@ -53,7 +53,7 @@ This expects that the function struct is comptime know. With this we don't need 
 
 This takes in 5 arguments:
 
-- a allocator used to manage the memory allocations
+- an allocator used to manage the memory allocations
 - the function struct signature to decode against.
 - the abi encoded hex string.
 - the options used for decoding (Checkout the options here: [DecodeOptions](/api/abi_utils/types#decodedoptions))

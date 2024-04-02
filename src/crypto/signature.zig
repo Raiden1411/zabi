@@ -3,7 +3,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Secp256k1 = std.crypto.ecc.Secp256k1;
 
-/// Zig representation of a ethereum signature.
+/// Zig representation of an ethereum signature.
 pub const Signature = struct {
     r: [Secp256k1.scalar.encoded_length]u8,
     s: [Secp256k1.scalar.encoded_length]u8,

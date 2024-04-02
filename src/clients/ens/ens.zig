@@ -1,113 +1,300 @@
+const abi_ens = @import("abi.zig");
+const block = @import("../../types/block.zig");
+const clients = @import("../../root.zig");
+const decoder = @import("../../decoding/decoder.zig");
+const ens_utils = @import("ens_utils.zig");
 const std = @import("std");
 const testing = std.testing;
 const types = @import("../../types/ethereum.zig");
 const utils = @import("../../utils/utils.zig");
 
-const Hash = types.Hash;
-const Keccak256 = std.crypto.hash.sha3.Keccak256;
+const Address = types.Address;
+const Allocator = std.mem.Allocator;
+const BlockNumberRequest = block.BlockNumberRequest;
+const Clients = clients.clients.wallet.WalletClients;
+const EnsContracts = @import("contracts.zig").EnsContracts;
+const Hex = types.Hex;
+const InitOptsHttp = PubClient.InitOptions;
+const InitOptsWs = WebSocketClient.InitOptions;
+const PubClient = clients.clients.PubClient;
+const RPCResponse = types.RPCResponse;
+const WebSocketClient = clients.clients.WebSocket;
 
-pub fn convertToHash(label: []const u8) !Hash {
-    var hashed: Hash = undefined;
+/// A public client that interacts with the ENS contracts.
+///
+/// Currently ENSAvatar is not supported but will be in future versions.
+pub fn ENSClient(comptime client_type: Clients) type {
+    return struct {
+        const ENS = @This();
 
-    if (label.len == 0) {
-        hashed = [_]u8{0} ** 32;
-        return hashed;
-    }
+        /// The underlaying rpc client type (ws or http)
+        const ClientType = switch (client_type) {
+            .http => PubClient,
+            .websocket => WebSocketClient,
+        };
 
-    if (isLabelHash(label)) {
-        const hex_label = label[1..65];
-        _ = try std.fmt.hexToBytes(hashed[0..], hex_label);
+        /// The inital settings depending on the client type.
+        const InitOpts = switch (client_type) {
+            .http => InitOptsHttp,
+            .websocket => InitOptsWs,
+        };
 
-        return hashed;
-    }
+        /// This is the same allocator as the rpc_client.
+        /// Its a field mostly for convinience
+        allocator: Allocator,
+        /// The http or ws client that will be use to query the rpc server
+        rpc_client: *ClientType,
+        /// ENS contracts to be used by this client.
+        ens_contracts: EnsContracts,
 
-    Keccak256.hash(label, &hashed, .{});
+        /// Starts the RPC connection
+        /// If the contracts are null it defaults to mainnet contracts.
+        pub fn init(self: *ENS, opts: InitOpts, ens_contracts: ?EnsContracts) !void {
+            const ens_client = try opts.allocator.create(ClientType);
+            errdefer opts.allocator.destroy(ens_client);
 
-    return hashed;
-}
+            if (opts.chain_id) |id| {
+                switch (id) {
+                    .ethereum, .sepolia => {},
+                    else => return error.InvalidChain,
+                }
+            }
 
-pub fn isLabelHash(label: []const u8) bool {
-    if (label.len != 66)
-        return false;
+            try ens_client.init(opts);
 
-    if (label[0] != '[')
-        return false;
-
-    if (label[65] != ']')
-        return false;
-
-    return utils.isHexString(label);
-}
-
-pub fn hashName(name: []const u8) !Hash {
-    var hashed_result: Hash = [_]u8{0} ** 32;
-
-    if (name.len == 0)
-        return hashed_result;
-
-    var iter = std.mem.splitBackwards(u8, name, ".");
-
-    while (iter.next()) |label| {
-        var bytes: Hash = undefined;
-
-        if (isLabelHash(label)) {
-            _ = try std.fmt.hexToBytes(bytes[0..], label[1..65]);
-        } else Keccak256.hash(label, &bytes, .{});
-
-        var concated: [64]u8 = undefined;
-        @memcpy(concated[0..32], hashed_result[0..]);
-        @memcpy(concated[32..64], bytes[0..]);
-
-        Keccak256.hash(concated[0..], &hashed_result, .{});
-    }
-
-    return hashed_result;
-}
-
-pub fn convertEnsToBytes(out: []u8, label: []const u8) usize {
-    if (label.len == 0) {
-        out[0] = 1;
-        return @intCast(0);
-    }
-
-    var iter = std.mem.tokenizeSequence(u8, label, ".");
-
-    var position: usize = 0;
-    while (iter.next()) |name| {
-        if (name.len > 255) {
-            out[position] = 32;
-            position += 1;
-
-            var hash: Hash = undefined;
-            Keccak256.hash(name, &hash, .{});
-
-            @memcpy(out[position .. 32 + position], hash[0..]);
-            position += 32;
-        } else {
-            out[position] = @truncate(name.len);
-            position += 1;
-
-            @memcpy(out[position .. position + name.len], name[0..]);
-            position += name.len;
+            self.* = .{
+                .rpc_client = ens_client,
+                .allocator = opts.allocator,
+                .ens_contracts = ens_contracts orelse .{},
+            };
         }
+        /// Frees and destroys any allocated memory
+        pub fn deinit(self: *ENS) void {
+            self.rpc_client.deinit();
+            self.allocator.destroy(self.rpc_client);
+
+            self.* = undefined;
+        }
+        /// Gets the ENS address associated with the ENS name.
+        ///
+        /// Caller owns the memory if the request is successfull.
+        /// Calls the resolver address and decodes with address resolver.
+        ///
+        /// The names are not normalized so make sure that the names are normalized before hand.
+        pub fn getEnsAddress(self: *ENS, name: []const u8, opts: BlockNumberRequest) !RPCResponse(Address) {
+            const hash = try ens_utils.hashName(name);
+
+            const encoded = try abi_ens.addr_resolver.encode(self.allocator, .{hash});
+            defer self.allocator.free(encoded);
+
+            var buffer: [1024]u8 = undefined;
+            const bytes_read = ens_utils.convertEnsToBytes(buffer[0..], name);
+
+            const resolver_encoded = try abi_ens.resolver.encode(self.allocator, .{ buffer[0..bytes_read], encoded });
+            defer self.allocator.free(resolver_encoded);
+
+            const value = try self.rpc_client.sendEthCall(.{ .london = .{
+                .to = self.ens_contracts.ensUniversalResolver,
+                .data = resolver_encoded,
+            } }, opts);
+            errdefer value.deinit();
+
+            if (value.response.len == 0)
+                return error.EvmFailedToExecute;
+
+            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_ens.resolver.outputs, value.response, .{ .allow_junk_data = true });
+
+            if (decoded[0].len == 0)
+                return error.FailedToDecodeResponse;
+
+            const decoded_result = try decoder.decodeAbiParameters(self.allocator, abi_ens.addr_resolver.outputs, decoded[0], .{ .allow_junk_data = true });
+
+            if (decoded_result[0].len == 0)
+                return error.FailedToDecodeResponse;
+
+            return RPCResponse(Address).fromJson(value.arena, decoded_result[0]);
+        }
+        /// Gets the ENS name associated with the address.
+        ///
+        /// Caller owns the memory if the request is successfull.
+        /// Calls the reverse resolver and decodes with the same.
+        ///
+        /// This will fail if its not a valid checksumed address.
+        pub fn getEnsName(self: *ENS, address: []const u8, opts: BlockNumberRequest) !RPCResponse([]const u8) {
+            if (!utils.isAddress(address))
+                return error.InvalidAddress;
+
+            var address_reverse: [53]u8 = undefined;
+            var buf: [40]u8 = undefined;
+            _ = std.ascii.lowerString(&buf, address[2..]);
+
+            @memcpy(address_reverse[0..40], buf[0..40]);
+            @memcpy(address_reverse[40..], ".addr.reverse");
+
+            var buffer: [100]u8 = undefined;
+            const bytes_read = ens_utils.convertEnsToBytes(buffer[0..], address_reverse[0..]);
+
+            const encoded = try abi_ens.reverse_resolver.encode(self.allocator, .{buffer[0..bytes_read]});
+            defer self.allocator.free(encoded);
+
+            const value = try self.rpc_client.sendEthCall(.{ .london = .{
+                .to = self.ens_contracts.ensUniversalResolver,
+                .data = encoded,
+            } }, opts);
+            errdefer value.deinit();
+
+            const address_bytes = try utils.addressToBytes(address);
+
+            if (value.response.len == 0)
+                return error.EvmFailedToExecute;
+
+            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_ens.reverse_resolver.outputs, value.response, .{});
+
+            if (!std.mem.eql(u8, &address_bytes, &decoded[1]))
+                return error.InvalidAddress;
+
+            return RPCResponse([]const u8).fromJson(value.arena, decoded[0]);
+        }
+        /// Gets the ENS resolver associated with the name.
+        ///
+        /// Caller owns the memory if the request is successfull.
+        /// Calls the find resolver and decodes with the same one.
+        ///
+        /// The names are not normalized so make sure that the names are normalized before hand.
+        pub fn getEnsResolver(self: *ENS, name: []const u8, opts: BlockNumberRequest) !Address {
+            var buffer: [1024]u8 = undefined;
+            const bytes_read = ens_utils.convertEnsToBytes(buffer[0..], name);
+
+            const encoded = try abi_ens.find_resolver.encode(self.allocator, .{buffer[0..bytes_read]});
+            defer self.allocator.free(encoded);
+
+            const value = try self.rpc_client.sendEthCall(.{ .london = .{
+                .to = self.ens_contracts.ensUniversalResolver,
+                .data = encoded,
+            } }, opts);
+            defer value.deinit();
+
+            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_ens.find_resolver.outputs, value.response, .{ .allow_junk_data = true });
+
+            var address: Address = undefined;
+            @memcpy(address[0..], decoded[0][0..]);
+
+            return address;
+        }
+        /// Gets a text record for a specific ENS name.
+        ///
+        /// Caller owns the memory if the request is successfull.
+        /// Calls the resolver and decodes with the text resolver.
+        ///
+        /// The names are not normalized so make sure that the names are normalized before hand.
+        pub fn getEnsText(self: *ENS, name: []const u8, key: []const u8, opts: BlockNumberRequest) !RPCResponse([]const u8) {
+            var buffer: [1024]u8 = undefined;
+            const bytes_read = ens_utils.convertEnsToBytes(buffer[0..], name);
+
+            const hash = try ens_utils.hashName(name);
+            const text_encoded = try abi_ens.text_resolver.encode(self.allocator, .{ hash, key });
+            defer self.allocator.free(text_encoded);
+
+            const encoded = try abi_ens.resolver.encode(self.allocator, .{ buffer[0..bytes_read], text_encoded });
+            defer self.allocator.free(encoded);
+
+            const value = try self.rpc_client.sendEthCall(.{ .london = .{
+                .to = self.ens_contracts.ensUniversalResolver,
+                .data = encoded,
+            } }, opts);
+            errdefer value.deinit();
+
+            if (value.response.len == 0)
+                return error.EvmFailedToExecute;
+
+            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_ens.resolver.outputs, value.response, .{});
+            const decoded_text = try decoder.decodeAbiParameters(self.allocator, abi_ens.text_resolver.outputs, decoded[0], .{});
+
+            if (decoded_text[0].len == 0)
+                return error.FailedToDecodeResponse;
+
+            return RPCResponse([]const u8).fromJson(value.arena, decoded_text[0]);
+        }
+    };
+}
+
+test "ENS Text" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+
+    var ens: ENSClient(.http) = undefined;
+    defer ens.deinit();
+
+    try ens.init(
+        .{ .uri = uri, .allocator = testing.allocator },
+        .{ .ensUniversalResolver = try utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") },
+    );
+
+    try testing.expectError(error.EvmFailedToExecute, ens.getEnsText("zzabi.eth", "com.twitter", .{}));
+}
+
+test "ENS Name" {
+    {
+        const uri = try std.Uri.parse("http://localhost:8545/");
+
+        var ens: ENSClient(.http) = undefined;
+        defer ens.deinit();
+
+        try ens.init(
+            .{ .uri = uri, .allocator = testing.allocator },
+            .{ .ensUniversalResolver = try utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") },
+        );
+
+        const value = try ens.getEnsName("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", .{});
+        defer value.deinit();
+
+        try testing.expectEqualStrings(value.response, "vitalik.eth");
+        try testing.expectError(error.EvmFailedToExecute, ens.getEnsName("0xD9DA6Bf26964af9d7Eed9e03e53415D37aa96045", .{}));
     }
+    {
+        const uri = try std.Uri.parse("http://localhost:8545/");
 
-    return position;
+        var ens: ENSClient(.http) = undefined;
+        defer ens.deinit();
+
+        try ens.init(
+            .{ .uri = uri, .allocator = testing.allocator },
+            .{ .ensUniversalResolver = try utils.addressToBytes("0x9cab227b1162f03b8338331adaad7aadc83b895e") },
+        );
+
+        try testing.expectError(error.EvmFailedToExecute, ens.getEnsName("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", .{}));
+    }
 }
 
-test "Namehash" {
-    const hash = try hashName("zzabi.eth");
-    const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash)});
-    defer testing.allocator.free(hex);
+test "ENS Address" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
 
-    try testing.expectEqualStrings("0x5ebecd8698825286699948626f12835f42f21c118e164aba567ede63911000c8", hex);
+    var ens: ENSClient(.http) = undefined;
+    defer ens.deinit();
+
+    try ens.init(
+        .{ .uri = uri, .allocator = testing.allocator },
+        .{ .ensUniversalResolver = try utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") },
+    );
+
+    const value = try ens.getEnsAddress("vitalik.eth", .{});
+    defer value.deinit();
+
+    try testing.expectEqualSlices(u8, &value.response, &try utils.addressToBytes("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"));
+    try testing.expectError(error.EvmFailedToExecute, ens.getEnsAddress("zzabi.eth", .{}));
 }
 
-test "EnsToBytes" {
-    const name = "zzabi.eth";
-    var buffer: [512]u8 = undefined;
+test "ENS Resolver" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
 
-    const bytes_read = convertEnsToBytes(buffer[0..], name);
+    var ens: ENSClient(.http) = undefined;
+    defer ens.deinit();
 
-    std.debug.print("FOOO: 0x{s}\n", .{std.fmt.fmtSliceHexLower(buffer[0..bytes_read])});
+    try ens.init(
+        .{ .uri = uri, .allocator = testing.allocator },
+        .{ .ensUniversalResolver = try utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") },
+    );
+
+    const value = try ens.getEnsResolver("vitalik.eth", .{});
+
+    try testing.expectEqualSlices(u8, &try utils.addressToBytes("0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBaBa41"), &value);
 }

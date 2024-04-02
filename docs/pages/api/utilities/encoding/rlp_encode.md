@@ -9,7 +9,7 @@ Encodes values into a Recursive-Length Prefix (RLP) encoded value.
 
 It takes 2 argument.
 
-- a allocator that is used to manage memory allocations.
+- an allocator that is used to manage memory allocations.
 - the values to be encoded. This is expected to be a tuple of possible values
 
 ```zig

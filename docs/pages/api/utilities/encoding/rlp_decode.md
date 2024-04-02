@@ -9,7 +9,7 @@ Encodes values into a Recursive-Length Prefix (RLP) encoded value.
 
 It takes 3 argument.
 
-- a allocator that is used to manage memory allocations.
+- an allocator that is used to manage memory allocations.
 - the expected return type that will be used to reflect upon it.
 - the values to be encoded. This is expected to be a tuple of possible values
 

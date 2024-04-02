@@ -195,7 +195,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             self.* = undefined;
         }
-        /// Signs a ethereum message with the specified prefix.
+        /// Signs an ethereum message with the specified prefix.
         ///
         /// The Signatures recoverId doesn't include the chain_id
         pub fn signEthereumMessage(self: *Wallet(client_type), message: []const u8) !Signature {

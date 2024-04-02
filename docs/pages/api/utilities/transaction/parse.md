@@ -7,7 +7,7 @@ Parses a serialized RLP-encoded transaction. Supports signed & unsigned Berlin, 
 
 The function takes in 2 arguments
 
-- a allocator used to manage memory allocations
+- an allocator used to manage memory allocations
 - The hex encoded serialized transaction.
 
 All allocation will be managed by a `ArenaAllocator`. You must call `deinit()` to free the memory.

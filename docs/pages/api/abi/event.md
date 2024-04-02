@@ -16,7 +16,7 @@ const Event = struct {
 }
 ```
 
-This type also includes methods that can be used for formating/encoding.
+This type also includes methods that can be used for formatting/encoding.
 
 ## Prepare
 
@@ -58,7 +58,7 @@ Same exact method the difference is that it takes an allocator and returns the e
 
 This takes in 2 arguments:
 
-- a allocator used to manage the memory allocations
+- an allocator used to manage the memory allocations
 - any writer from the std or custom writer.
 
 **Memory must be freed after calling this method.**
@@ -90,13 +90,13 @@ try self.allocPrepare(std.testing.allocator, &writer);
 
 ## Encode Inputs
 
-Generates Abi encoded data using the [contract ABI specification](https://docs.soliditylang.org/en/latest/abi-spec.html#json) by a given set of of inputs and the associated values.
+Generates Abi encoded data using the [contract ABI specification](https://docs.soliditylang.org/en/latest/abi-spec.html#json) by a given set of inputs and the associated values.
 
 **Current we don't support encoding the values. But expect this to change in a future release.**
 
 This takes in 1 arguments:
 
-- a allocator used to manage the memory allocations
+- an allocator used to manage the memory allocations
 
 **Memory must be freed after calling this method.**
 

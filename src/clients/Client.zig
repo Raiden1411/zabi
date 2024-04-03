@@ -418,11 +418,16 @@ pub fn getContractCode(self: *PubClient, opts: BalanceRequest) !RPCResponse(Hex)
 /// Returns an array of all logs matching filter with given id depending on the selected method
 /// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterchanges
 /// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterlogs
-pub fn getFilterOrLogChanges(self: *PubClient, filter_id: usize, method: Extract(EthereumRpcMethods, "eth_getFilterChanges,eth_getFilterLogs")) !RPCResponse(Logs) {
+pub fn getFilterOrLogChanges(self: *PubClient, filter_id: u128, method: EthereumRpcMethods) !RPCResponse(Logs) {
     var request_buffer: [1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    const request: EthereumRequest(struct { usize }) = .{
+    switch (method) {
+        .eth_getFilterLogs, .eth_getFilterChanges => {},
+        else => return error.InvalidRpcMethod,
+    }
+
+    const request: EthereumRequest(struct { u128 }) = .{
         .params = .{filter_id},
         .method = method,
         .id = self.chain_id,
@@ -430,10 +435,13 @@ pub fn getFilterOrLogChanges(self: *PubClient, filter_id: usize, method: Extract
 
     try std.json.stringify(request, .{}, buf_writter.writer());
 
-    const possible_filter = try self.sendRpcRequest(Logs, buf_writter.getWritten());
-    const filter = possible_filter orelse return error.InvalidFilterId;
+    const possible_filter = try self.sendRpcRequest(?Logs, buf_writter.getWritten());
+    const filter = possible_filter.response orelse return error.InvalidFilterId;
 
-    return filter;
+    return .{
+        .arena = possible_filter.arena,
+        .response = filter,
+    };
 }
 /// Returns an estimate of the current price per gas in wei.
 /// For example, the Besu client examines the last 100 blocks and returns the median gas unit price by default.
@@ -731,14 +739,14 @@ pub fn getUncleCountByBlockNumber(self: *PubClient, opts: BlockNumberRequest) !R
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newBlockFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newblockfilter)
-pub fn newBlockFilter(self: *PubClient) !RPCResponse(usize) {
-    return self.sendBasicRequest(usize, .eth_newBlockFilter);
+pub fn newBlockFilter(self: *PubClient) !RPCResponse(u128) {
+    return self.sendBasicRequest(u128, .eth_newBlockFilter);
 }
 /// Creates a filter object, based on filter options, to notify when the state changes (logs).
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newfilter)
-pub fn newLogFilter(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !RPCResponse(usize) {
+pub fn newLogFilter(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !RPCResponse(u128) {
     var request_buffer: [8 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
@@ -766,14 +774,14 @@ pub fn newLogFilter(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !
         try std.json.stringify(request, .{}, buf_writter.writer());
     }
 
-    return self.sendRpcRequest(usize, buf_writter.getWritten());
+    return self.sendRpcRequest(u128, buf_writter.getWritten());
 }
 /// Creates a filter in the node, to notify when new pending transactions arrive.
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newPendingTransactionFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newpendingtransactionfilter)
-pub fn newPendingTransactionFilter(self: *PubClient) !RPCResponse(usize) {
-    return try self.sendBasicRequest(usize, .eth_newPendingTransactionFilter);
+pub fn newPendingTransactionFilter(self: *PubClient) !RPCResponse(u128) {
+    return try self.sendBasicRequest(u128, .eth_newPendingTransactionFilter);
 }
 /// Executes a new message call immediately without creating a transaction on the block chain.
 /// Often used for executing read-only smart contract functions,

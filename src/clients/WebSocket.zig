@@ -979,8 +979,14 @@ pub fn getContractCode(self: *WebSocketHandler, opts: BalanceRequest) !RPCRespon
 /// Returns an array of all logs matching filter with given id depending on the selected method
 /// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterchanges
 /// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterlogs
-pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: usize, method: Extract(EthereumRpcMethods, "eth_getFilterChanges,eth_getFilterLogs")) !RPCResponse(Logs) {
+pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: usize, method: EthereumRpcMethods) !RPCResponse(Logs) {
+    switch (method) {
+        .eth_getFilterLogs, .eth_getFilterChanges => {},
+        else => return error.InvalidRpcMethod,
+    }
+
     self.mutex.lock();
+
     const request: EthereumRequest(struct { usize }) = .{
         .params = .{filter_id},
         .method = method,
@@ -1404,7 +1410,7 @@ pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberR
     if (opts.block_number) |number| {
         const request: EthereumRequest(struct { u64, usize }) = .{
             .params = .{ number, index },
-            .method = .eth_getTransactionByBlockNumberAndIndex,
+            .method = .eth_getUncleByBlockNumberAndIndex,
             .id = self.chain_id,
         };
 
@@ -1412,7 +1418,7 @@ pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberR
     } else {
         const request: EthereumRequest(struct { BlockTag, usize }) = .{
             .params = .{ tag, index },
-            .method = .eth_getTransactionByBlockNumberAndIndex,
+            .method = .eth_getUncleByBlockNumberAndIndex,
             .id = self.chain_id,
         };
 
@@ -1497,7 +1503,7 @@ pub fn getUncleCountByBlockNumber(self: *WebSocketHandler, opts: BlockNumberRequ
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newBlockFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newblockfilter)
-pub fn newBlockFilter(self: *WebSocketHandler) !RPCResponse(usize) {
+pub fn newBlockFilter(self: *WebSocketHandler) !RPCResponse(u128) {
     self.mutex.lock();
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
         .params = .{},
@@ -1512,13 +1518,13 @@ pub fn newBlockFilter(self: *WebSocketHandler) !RPCResponse(usize) {
 
     try std.json.stringify(request, .{}, buf_writter.writer());
 
-    return self.handleNumberEvent(usize, buf_writter.getWritten());
+    return self.handleNumberEvent(u128, buf_writter.getWritten());
 }
 /// Creates a filter object, based on filter options, to notify when the state changes (logs).
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newfilter)
-pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag) !RPCResponse(usize) {
+pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag) !RPCResponse(u128) {
     self.mutex.lock();
     var request_buffer: [4 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
@@ -1549,13 +1555,13 @@ pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBloc
 
     self.mutex.unlock();
 
-    return self.handleNumberEvent(usize, buf_writter.getWritten());
+    return self.handleNumberEvent(u128, buf_writter.getWritten());
 }
 /// Creates a filter in the node, to notify when new pending transactions arrive.
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newPendingTransactionFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newpendingtransactionfilter)
-pub fn newPendingTransactionFilter(self: *WebSocketHandler) !RPCResponse(usize) {
+pub fn newPendingTransactionFilter(self: *WebSocketHandler) !RPCResponse(u128) {
     self.mutex.lock();
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
         .params = .{},
@@ -1569,7 +1575,7 @@ pub fn newPendingTransactionFilter(self: *WebSocketHandler) !RPCResponse(usize) 
 
     try std.json.stringify(request, .{}, buf_writter.writer());
 
-    return self.handleNumberEvent(usize, buf_writter.getWritten());
+    return self.handleNumberEvent(u128, buf_writter.getWritten());
 }
 /// Executes a new message call immediately without creating a transaction on the block chain.
 /// Often used for executing read-only smart contract functions,

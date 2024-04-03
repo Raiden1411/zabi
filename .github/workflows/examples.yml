@@ -6,6 +6,11 @@ on:
       - ".github/workflows/examples.yml"
       - "**.zig"
       - "build.zig.zon"
+  pull_request:
+    paths:
+      - ".github/workflows/main.yml"
+      - "**.zig"
+      - "build.zig.zon"
 
 jobs:
   build:

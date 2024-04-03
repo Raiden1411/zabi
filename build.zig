@@ -18,7 +18,6 @@ pub fn build(b: *std.Build) void {
     const mod = b.addModule("zabi", .{ .root_source_file = .{ .path = "src/root.zig" }, .link_libc = true });
 
     const coverage = b.option(bool, "generate_coverage", "Generate coverage data with kcov") orelse false;
-    const coverage_output_dir = b.option([]const u8, "coverage_output_dir", "Output directory for coverage data") orelse b.pathJoin(&.{ b.install_prefix, "kcov" });
 
     addDependencies(b, mod, target, optimize);
 
@@ -63,6 +62,7 @@ pub fn build(b: *std.Build) void {
 
     // Coverage build option with kcov
     if (coverage) {
+        const coverage_output_dir = b.makeTempPath();
         const include = b.fmt("--include-pattern=/src", .{});
         const report = b.fmt("--collect-only", .{});
         const args = &[_]std.Build.Step.Run.Arg{

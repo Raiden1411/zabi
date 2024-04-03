@@ -64,7 +64,7 @@ pub fn build(b: *std.Build) void {
     // Coverage build option with kcov
     if (coverage) {
         const include = b.fmt("--include-pattern=/src", .{});
-        const report = b.fmt("--report-only", .{});
+        const report = b.fmt("--collect-only", .{});
         const args = &[_]std.Build.Step.Run.Arg{
             .{ .bytes = b.dupe("kcov") },
             .{ .bytes = b.dupe(include) },

@@ -64,11 +64,11 @@ pub fn build(b: *std.Build) void {
     // Coverage build option with kcov
     if (coverage) {
         const include = b.fmt("--include-pattern=/src", .{});
-        // const exclude = b.fmt("--exclude-pattern=/zig-cache", .{});
+        const report = b.fmt("--report-only", .{});
         const args = &[_]std.Build.Step.Run.Arg{
             .{ .bytes = b.dupe("kcov") },
             .{ .bytes = b.dupe(include) },
-            // .{ .bytes = b.dupe(exclude) },
+            .{ .bytes = b.dupe(report) },
             .{ .bytes = b.dupe(coverage_output_dir) },
         };
 

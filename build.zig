@@ -44,8 +44,8 @@ pub fn build(b: *std.Build) void {
     // Runs the rpc client http/s test runner.
     {
         const http = b.addExecutable(.{
-            .name = "http_test",
-            .root_source_file = .{ .path = "src/http_test.zig" },
+            .name = "rpc_test",
+            .root_source_file = .{ .path = "src/rpc_test.zig" },
             .target = target,
             .optimize = optimize,
             .link_libc = true,
@@ -57,7 +57,7 @@ pub fn build(b: *std.Build) void {
 
         if (b.args) |args| http_run.addArgs(args);
 
-        const http_step = b.step("http_test", "Run the http client tests");
+        const http_step = b.step("rpc_test", "Run the http client tests");
         http_step.dependOn(&http_run.step);
     }
 

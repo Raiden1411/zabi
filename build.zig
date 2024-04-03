@@ -55,6 +55,8 @@ pub fn build(b: *std.Build) void {
         var http_run = b.addRunArtifact(http);
         http_run.has_side_effects = true;
 
+        if (b.args) |args| http_run.addArgs(args);
+
         const http_step = b.step("http_test", "Run the http client tests");
         http_step.dependOn(&http_run.step);
     }

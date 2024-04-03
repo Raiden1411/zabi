@@ -62,20 +62,28 @@ pub fn build(b: *std.Build) void {
 
     // Coverage build option with kcov
     if (coverage) {
-        const coverage_output_dir = b.makeTempPath();
+        const coverage_output = b.makeTempPath();
         const include = b.fmt("--include-pattern=/src", .{});
-        const report = b.fmt("--collect-only", .{});
         const args = &[_]std.Build.Step.Run.Arg{
             .{ .bytes = b.dupe("kcov") },
             .{ .bytes = b.dupe(include) },
-            .{ .bytes = b.dupe(report) },
-            .{ .bytes = b.dupe(coverage_output_dir) },
+            .{ .bytes = b.pathJoin(&.{ coverage_output, "output" }) },
         };
 
         var tests_run = b.addRunArtifact(lib_unit_tests);
         run_lib_unit_tests.has_side_effects = true;
         run_lib_unit_tests.argv.insertSlice(0, args) catch @panic("OutOfMemory");
+
+        const install_coverage = b.addInstallDirectory(.{
+            .source_dir = .{ .path = b.pathJoin(&.{ coverage_output, "output" }) },
+            .install_dir = .{ .custom = "coverage" },
+            .install_subdir = "",
+        });
+
         test_step.dependOn(&tests_run.step);
+
+        install_coverage.step.dependOn(&run_lib_unit_tests.step);
+        test_step.dependOn(&install_coverage.step);
     }
 }
 

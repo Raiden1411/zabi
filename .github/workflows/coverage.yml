@@ -46,12 +46,12 @@ jobs:
       - name: Run Tests with kcov
         run: |
           kcov --version
-          zig build test -Dgenerate_coverage
+          zig build test -Dgenerate_coverage --summary all
           
       - name: Upload to Codecov
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          directory: zig-out/kcov
+          directory: zig-out/coverage
           fail_ci_if_error: true
           verbose: true

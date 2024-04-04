@@ -6,3 +6,5 @@ pub const ethereum = @import("ethereum.zig");
 pub const log = @import("log.zig");
 /// RPC transactions types and requests.
 pub const transactions = @import("transaction.zig");
+/// RPC proof request types.
+pub const proof = @import("proof.zig");

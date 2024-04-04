@@ -59,6 +59,24 @@ pub fn build(b: *std.Build) void {
         const http_step = b.step("rpc_test", "Run the http client tests");
         http_step.dependOn(&http_run.step);
     }
+    {
+        const http = b.addExecutable(.{
+            .name = "http_server",
+            .root_source_file = .{ .path = "src/server.zig" },
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        });
+        addDependencies(b, &http.root_module, target, optimize);
+
+        var http_run = b.addRunArtifact(http);
+        http_run.has_side_effects = true;
+
+        if (b.args) |args| http_run.addArgs(args);
+
+        const http_step = b.step("server", "Run the http server");
+        http_step.dependOn(&http_run.step);
+    }
 
     // Coverage build option with kcov
     if (coverage) {

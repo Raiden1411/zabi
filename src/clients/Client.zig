@@ -989,7 +989,7 @@ pub fn uninstalllFilter(self: *PubClient, id: usize) !RPCResponse(bool) {
 /// Invalidates all of the client connections and pointers.
 ///
 /// This will also try to automatically connect to the new RPC.
-pub fn switchNetwork(self: *PubClient, new_chain_id: Chains, new_url: []const u8) void {
+pub fn switchNetwork(self: *PubClient, new_chain_id: Chains, new_url: []const u8) !void {
     self.chain_id = @intFromEnum(new_chain_id);
 
     const uri = try Uri.parse(new_url);

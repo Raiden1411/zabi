@@ -1,5 +1,10 @@
+const block = @import("types/block.zig");
+const ethereum = @import("types/ethereum.zig");
+const logs = @import("types/log.zig");
+const proof = @import("types/proof.zig");
 const std = @import("std");
 const testing = std.testing;
+const transaction = @import("types/transaction.zig");
 
 const assert = std.debug.assert;
 
@@ -37,6 +42,8 @@ pub const GenerateOptions = struct {
         use_on_arrays_and_slices: bool = false,
         format_bytes: enum { lowercase, uppercase } = .lowercase,
     } = .{},
+    /// Tell the generator to use the types default values.
+    use_default_values: bool = false,
 };
 
 /// Generated pseudo random data for provided type. Creates an
@@ -125,8 +132,19 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
             var rand = std.rand.DefaultPrng.init(seed);
 
             inline for (struct_info.fields) |field| {
-                // Gets a new seed foreach element.
-                @field(result, field.name) = try generateRandomDataLeaky(field.type, allocator, rand.random().int(u32), opts);
+                const default = convertDefaultValueType(field);
+
+                if (default) |default_value| {
+                    if (opts.use_default_values) {
+                        @field(result, field.name) = default_value;
+                    } else {
+                        // Gets a new seed foreach element.
+                        @field(result, field.name) = try generateRandomDataLeaky(field.type, allocator, rand.random().int(u32), opts);
+                    }
+                } else {
+                    // Gets a new seed foreach element.
+                    @field(result, field.name) = try generateRandomDataLeaky(field.type, allocator, rand.random().int(u32), opts);
+                }
             }
 
             return result;
@@ -244,14 +262,125 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
     }
 }
 
-test "Foo" {
-    const U = struct {
-        bar: []u8,
-        foo: u256,
-    };
+fn convertDefaultValueType(comptime field: std.builtin.Type.StructField) ?field.type {
+    return if (field.default_value) |opaque_value|
+        @as(*const field.type, @ptrCast(@alignCast(opaque_value))).*
+    else
+        null;
+}
 
-    const num = try generateRandomData(U, testing.allocator, 69, .{});
-    defer num.deinit();
+test "Zabi types" {
+    // Block types
+    {
+        const data = try generateRandomData(block.Block, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(block.BlobBlock, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(block.Withdrawal, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(block.LegacyBlock, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(block.BeaconBlock, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(block.BlockTransactions, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
 
-    std.debug.print("RANDOM VALUE: {s}\n", .{num.generated.bar});
+    // Transaction types
+    {
+        const data = try generateRandomData(transaction.Transaction, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(transaction.TransactionReceipt, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(transaction.TransactionEnvelopeSigned, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(transaction.TransactionEnvelope, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(transaction.PendingTransaction, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(transaction.LondonEnvelopeSigned, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+
+    // Logs
+    {
+        const data = try generateRandomData(logs.Logs, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(logs.Log, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+
+    // Proof
+    {
+        const data = try generateRandomData(proof.ProofResult, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(proof.StorageProof, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+
+    // Ethereum
+    {
+        const data = try generateRandomData(ethereum.PublicChains, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(ethereum.ErrorResponse, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(ethereum.EthereumEvents, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(ethereum.EthereumSubscribeEvents, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(ethereum.EthereumRpcMethods, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(ethereum.EthereumRpcEvents, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(ethereum.EthereumErrorCodes, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(ethereum.EthereumRpcResponse(u32), testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(ethereum.EthereumResponse(u64), testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(ethereum.EthereumErrorResponse, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
 }

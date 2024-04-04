@@ -2,11 +2,15 @@ const std = @import("std");
 
 const assert = std.debug.assert;
 
+/// Parses console arguments in the style of --foo=bar
+/// For now not all types are supported but might be in the future
+/// if the need for them arises.
 pub fn parseArgs(comptime T: type, args: *std.process.ArgIterator) T {
     const info = @typeInfo(T);
 
     assert(info == .Struct);
 
+    // Optional fields must have null value defaults
     inline for (info.Struct.fields) |field| {
         switch (@typeInfo(field.type)) {
             .Optional => assert(convertDefaultValueType(field).? == null),
@@ -27,14 +31,13 @@ pub fn parseArgs(comptime T: type, args: *std.process.ArgIterator) T {
 
     return result;
 }
-
+/// Parses a argument string like --foo=69
 fn parseArgument(comptime T: type, expected: [:0]const u8, arg: []const u8) T {
     const value = parseArgString(expected, arg);
 
     return parseArgValue(T, value);
 }
-
-/// Parses a argument string like --foo=69
+/// Parses a argument string like --foo=
 fn parseArgString(expected: [:0]const u8, arg: []const u8) []const u8 {
     assert(arg[0] == '-' and arg[1] == '-');
 
@@ -54,7 +57,7 @@ fn parseArgString(expected: [:0]const u8, arg: []const u8) []const u8 {
 
     return value[1..];
 }
-
+/// Parses the value of the provided argument.
 fn parseArgValue(comptime T: type, value: []const u8) T {
     assert(value.len > 0);
 
@@ -79,20 +82,20 @@ fn parseArgValue(comptime T: type, value: []const u8) T {
     // So we just fail if we reach this point.
     unreachable;
 }
-
+/// Converts struct field in to a cli arg string.
 fn convertToArgFlag(comptime field_name: [:0]const u8) [:0]const u8 {
     const flag: [:0]const u8 = comptime "--" ++ field_name;
 
     return flag;
 }
-
+/// Wraps the default value into it's correct type
 fn convertDefaultValueType(comptime field: std.builtin.Type.StructField) ?field.type {
     return if (field.default_value) |opaque_value|
         @as(*const field.type, @ptrCast(@alignCast(opaque_value))).*
     else
         null;
 }
-
+/// Fails with message and exit's the process.
 fn failWithMessage(comptime message: []const u8, values: anytype) noreturn {
     assert(@typeInfo(@TypeOf(values)) == .Struct);
     assert(@typeInfo(@TypeOf(values)).Struct.is_tuple);

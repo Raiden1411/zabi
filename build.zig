@@ -21,8 +21,6 @@ pub fn build(b: *std.Build) void {
 
     addDependencies(b, mod, target, optimize);
 
-    // Creates a step for unit testing. This only builds the test executable
-    // but does not run it.
     const lib_unit_tests = b.addTest(.{
         .name = "zabi-tests",
         .root_source_file = .{ .path = "src/root.zig" },
@@ -34,13 +32,10 @@ pub fn build(b: *std.Build) void {
     addDependencies(b, &lib_unit_tests.root_module, target, optimize);
     var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
-    // Similar to creating the run step earlier, this exposes a `test` step to
-    // the `zig build --help` menu, providing a way for the user to request
-    // running the unit tests.
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
 
-    // Runs the rpc client http/s test runner.
+    // Creates and runs the rpc client http/s test runner.
     {
         const http = b.addExecutable(.{
             .name = "rpc_test",
@@ -59,10 +54,11 @@ pub fn build(b: *std.Build) void {
         const http_step = b.step("rpc_test", "Run the http client tests");
         http_step.dependOn(&http_run.step);
     }
+    // Creates and runs the simple JSON RPC server.
     {
         const http = b.addExecutable(.{
             .name = "http_server",
-            .root_source_file = .{ .path = "src/server.zig" },
+            .root_source_file = .{ .path = "src/rpc_server.zig" },
             .target = target,
             .optimize = optimize,
             .link_libc = true,

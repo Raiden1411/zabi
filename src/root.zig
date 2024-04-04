@@ -13,6 +13,8 @@ pub const encoding = @import("encoding/root.zig");
 /// Currently minimal support for interacting with ens resolvers
 /// More functionality will be added in the future.
 pub const ens = @import("clients/ens/root.zig");
+/// Generate random data based on a provided type.
+pub const generator = @import("generator.zig");
 /// Custom human readable parser. Supports tuples and structs.
 pub const human_readable = @import("human-readable/root.zig");
 /// Set of utils for meta programming in zabi as
@@ -44,10 +46,9 @@ pub const Signer = @import("crypto/signer.zig");
 pub const Anvil = @import("tests/Anvil.zig");
 /// Custom wrapper for interacting with the Hardhat testchain
 pub const Hardhat = @import("tests/Hardhat.zig");
+/// Custom RPC server that server random data.
+pub const RpcServer = @import("server.zig");
 
-// TODO: Refactor how tests are structured.
-// Ideally client test reside in a separete runner.
-// And here only simple unit tests would run.
 test {
     _ = @import("abi/param_type.zig");
     _ = @import("abi/abi_parameter.zig");

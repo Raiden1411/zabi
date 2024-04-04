@@ -1,5 +1,7 @@
+const generator = @import("../generator.zig");
 const std = @import("std");
 const testing = std.testing;
+const types = @import("../types/root.zig");
 
 // Types
 const Allocator = std.mem.Allocator;
@@ -51,7 +53,7 @@ pub fn RequestParser(comptime T: type) type {
             inline for (info.Struct.fields) |field| {
                 var emit_field = true;
                 if (@typeInfo(field.type) == .Optional) {
-                    if (@field(self, field.name) == null) {
+                    if (@field(self, field.name) == null and !writer_stream.options.emit_null_optional_fields) {
                         emit_field = false;
                     }
                 }
@@ -520,15 +522,15 @@ pub fn RequestParser(comptime T: type) type {
                 },
                 .Enum => |enum_info| {
                     const token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
-                    const slice = switch (token) {
-                        inline .number, .allocated_number, .string, .allocated_string => |slice| slice,
+                    switch (token) {
+                        inline .number, .allocated_number => |slice| {
+                            const enum_number = std.fmt.parseInt(enum_info.tag_type, slice, 0) catch return error.InvalidEnumTag;
+                            return std.meta.intToEnum(TT, enum_number);
+                        },
+                        inline .string, .allocated_string => |slice| return std.meta.stringToEnum(TT, slice) orelse error.InvalidEnumTag,
+
                         else => return error.UnexpectedToken,
-                    };
-
-                    if (std.meta.stringToEnum(TT, slice)) |result| return result;
-
-                    const enum_number = std.fmt.parseInt(enum_info.tag_type, slice, 0) catch return error.InvalidEnumTag;
-                    return std.meta.intToEnum(TT, enum_number);
+                    }
                 },
                 .Array => |arr_info| {
                     switch (try source.peekNextTokenType()) {
@@ -607,15 +609,15 @@ pub fn RequestParser(comptime T: type) type {
                                         }
                                     } else {
                                         // Have to allocate to get a mutable copy.
-                                        switch (try source.nextAllocMax(alloc, opts.allocate.?, alloc.max_value_len.?)) {
+                                        switch (try source.nextAllocMax(alloc, opts.allocate.?, opts.max_value_len.?)) {
                                             inline .string, .allocated_string => |str| {
                                                 if (str.len & 1 != 0)
-                                                    return error.InvalidHexString;
+                                                    return error.UnexpectedToken;
 
                                                 const slice = if (std.mem.startsWith(u8, str, "0x")) str[2..] else str[0..];
                                                 const result = try alloc.alloc(u8, @divExact(slice.len, 2));
 
-                                                _ = std.fmt.hexToBytes(result, slice);
+                                                _ = std.fmt.hexToBytes(result, slice) catch return error.InvalidCharacter;
 
                                                 return result;
                                             },
@@ -639,4 +641,164 @@ pub fn RequestParser(comptime T: type) type {
             }
         }
     };
+}
+
+test "Parse/Stringify Json" {
+    {
+        const gen = try generator.generateRandomData(types.block.Block, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.block.Block, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.block.BeaconBlock, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.block.BeaconBlock, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.block.BlobBlock, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.block.BlobBlock, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.TransactionEnvelope, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.TransactionEnvelope, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.TransactionEnvelopeSigned, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.TransactionEnvelopeSigned, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.TransactionReceipt, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.TransactionReceipt, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.Transaction, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.Transaction, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.log.Logs, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.log.Logs, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.ethereum.EthereumResponse(u32), testing.allocator, 0, .{
+            .slice_size = 20,
+            .use_default_values = true,
+            .ascii = .{ .use_on_arrays_and_slices = true },
+        });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.ethereum.EthereumResponse(u32), testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.ethereum.EthereumErrorResponse, testing.allocator, 0, .{
+            .slice_size = 20,
+            .ascii = .{ .use_on_arrays_and_slices = true },
+        });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.ethereum.EthereumErrorResponse, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.ethereum.EthereumSubscribeEvents, testing.allocator, 0, .{
+            .slice_size = 20,
+            .ascii = .{ .use_on_arrays_and_slices = true },
+        });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.ethereum.EthereumSubscribeEvents, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.ethereum.EthereumSubscribeResponse(u64), testing.allocator, 0, .{
+            .slice_size = 20,
+            .ascii = .{ .use_on_arrays_and_slices = true },
+        });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.ethereum.EthereumSubscribeResponse(u64), testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
 }

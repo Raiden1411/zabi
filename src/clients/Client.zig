@@ -470,7 +470,7 @@ pub fn getLogs(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !RPCRe
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     } else {
         const request: EthereumRequest(struct { LogRequest }) = .{
             .params = .{opts},
@@ -478,7 +478,7 @@ pub fn getLogs(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !RPCRe
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     }
 
     const possible_logs = try self.sendRpcRequest(?Logs, buf_writter.getWritten());
@@ -763,7 +763,7 @@ pub fn newLogFilter(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     } else {
         const request: EthereumRequest(struct { LogRequest }) = .{
             .params = .{opts},
@@ -771,7 +771,7 @@ pub fn newLogFilter(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     }
 
     return self.sendRpcRequest(u128, buf_writter.getWritten());
@@ -1153,7 +1153,7 @@ fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, 
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     } else {
         const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{
             .params = .{ call_object, tag },
@@ -1161,7 +1161,7 @@ fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, 
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     }
 
     return self.sendRpcRequest(T, buf_writter.getWritten());

@@ -150,7 +150,7 @@ pub fn EthereumRpcResponse(comptime T: type) type {
 /// Zig struct representation of a RPC subscribe response
 pub fn EthereumSubscribeResponse(comptime T: type) type {
     return struct {
-        jsonrpc: []const u8,
+        jsonrpc: []const u8 = "2.0",
         method: []const u8,
         params: struct {
             result: T,

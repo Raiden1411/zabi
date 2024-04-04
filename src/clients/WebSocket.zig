@@ -395,7 +395,7 @@ pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: Blo
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     } else {
         const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{
             .params = .{ call_object, tag },
@@ -403,7 +403,7 @@ pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: Blo
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     }
 
     self.mutex.unlock();
@@ -506,7 +506,7 @@ pub fn estimateGas(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     } else {
         const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{
             .params = .{ call_object, tag },
@@ -514,7 +514,7 @@ pub fn estimateGas(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     }
     self.mutex.unlock();
 
@@ -1062,7 +1062,7 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     } else {
         const request: EthereumRequest(struct { LogRequest }) = .{
             .params = .{opts},
@@ -1070,7 +1070,7 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     }
 
     self.mutex.unlock();
@@ -1599,7 +1599,7 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     } else {
         const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{
             .params = .{ call_object, tag },
@@ -1607,7 +1607,7 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     }
 
     self.mutex.unlock();
@@ -1778,7 +1778,7 @@ pub fn watchLogs(self: *WebSocketHandler, opts: WatchLogsRequest) !RPCResponse(u
         .id = self.chain_id,
     };
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
 
     return self.handleNumberEvent(u128, buf_writter.getWritten());
 }

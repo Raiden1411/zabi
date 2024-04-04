@@ -28,7 +28,6 @@ pub fn Generated(comptime T: type) type {
 }
 
 /// Controls some of the behaviour for the generator.
-/// This only affects array and slices for now.
 ///
 /// More options can be added in the future to alter
 /// further this behaviour.
@@ -37,7 +36,7 @@ pub const GenerateOptions = struct {
     slice_size: ?usize = null,
     /// If the provided type is consider a potential "string"
     /// Tell the generator to use only ascii letter bytes and
-    /// if you want lower or high bytes
+    /// if you want lower or uppercase chars
     ascii: struct {
         use_on_arrays_and_slices: bool = false,
         format_bytes: enum { lowercase, uppercase } = .lowercase,
@@ -46,7 +45,7 @@ pub const GenerateOptions = struct {
     use_default_values: bool = false,
 };
 
-/// Generated pseudo random data for provided type. Creates an
+/// Generate pseudo random data for the provided type. Creates an
 /// arena for all allocations. Similarly to how std.json works.
 ///
 /// This works on most zig types with a few expections of course.
@@ -61,9 +60,11 @@ pub fn generateRandomData(comptime T: type, allocator: Allocator, seed: u64, opt
 
     return generated;
 }
-/// Generated pseudo random data for provided type. Nothing is freed
+/// Generate pseudo random data for provided type. Nothing is freed
 /// from the result so it's best to use something like an arena allocator or similar
-/// to free memory all at once. This is done because we might have
+/// to free the memory all at once.
+///
+/// This is done because we might have
 /// types where there will be deeply nested allocatations that can
 /// be cumbersome to free.
 ///
@@ -175,23 +176,33 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
 
                     assert(size > 0); // Cannot write to empty array.
 
-                    if (ptr_info.child == u8 and opts.ascii.use_on_arrays_and_slices) {
-                        var writer = list.writer();
+                    if (ptr_info.child == u8) {
+                        if (opts.ascii.use_on_arrays_and_slices) {
+                            var writer = list.writer();
 
-                        for (0..size) |i| {
-                            rand.seed(size * (i + 1));
+                            for (0..size) |i| {
+                                rand.seed(size * (i + 1));
 
-                            const char = switch (opts.ascii.format_bytes) {
-                                .lowercase => rand.random().intRangeAtMost(u8, 'a', 'z'),
-                                .uppercase => rand.random().intRangeAtMost(u8, 'A', 'Z'),
-                            };
+                                const char = switch (opts.ascii.format_bytes) {
+                                    .lowercase => rand.random().intRangeAtMost(u8, 'a', 'z'),
+                                    .uppercase => rand.random().intRangeAtMost(u8, 'A', 'Z'),
+                                };
 
-                            assert(std.ascii.isAlphabetic(char));
+                                assert(std.ascii.isAlphabetic(char));
 
-                            try writer.writeByte(char);
+                                try writer.writeByte(char);
+                            }
+
+                            return list.toOwnedSlice();
                         }
 
-                        return try list.toOwnedSlice();
+                        // Expand the list to the size
+                        // and use the items as the buffer
+                        // to get the random bytes.
+                        try list.ensureUnusedCapacity(size);
+                        rand.random().bytes(list.items);
+
+                        return list.toOwnedSlice();
                     }
 
                     for (0..size) |i| {
@@ -200,7 +211,7 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
                         list.appendAssumeCapacity(try generateRandomDataLeaky(ptr_info.child, allocator, size * (i + seed), opts));
                     }
 
-                    return try list.toOwnedSlice();
+                    return list.toOwnedSlice();
                 },
                 else => @compileError("Unsupported pointer type '" ++ @typeName(T) ++ "'"),
             }
@@ -315,6 +326,10 @@ test "Zabi types" {
     }
     {
         const data = try generateRandomData(transaction.PendingTransaction, testing.allocator, 0, .{ .slice_size = 32 });
+        defer data.deinit();
+    }
+    {
+        const data = try generateRandomData(transaction.FeeHistory, testing.allocator, 0, .{ .slice_size = 32 });
         defer data.deinit();
     }
     {

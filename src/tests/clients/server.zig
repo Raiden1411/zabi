@@ -1,4 +1,5 @@
 const generator = @import("../generator.zig");
+const pipe = @import("../../utils/pipe.zig");
 const std = @import("std");
 const types = @import("../../types/root.zig");
 
@@ -71,6 +72,35 @@ pub fn deinit(self: *Server) void {
     self.allocator.destroy(self.server);
     self.* = undefined;
 }
+/// Create the listen loop to handle http requests.
+pub fn listen(self: *Server, send_error_429: bool) !void {
+    const buffer = try self.allocator.alloc(u8, self.buffer_size);
+    defer self.allocator.free(buffer);
+
+    accept: while (true) {
+        server_log.debug("Waiting to receive connection.", .{});
+        const conn = try self.server.accept();
+
+        var http = HttpServer.init(conn, buffer);
+
+        while (http.state == .ready) {
+            var req = http.receiveHead() catch |err| {
+                server_log.debug("Failed to get request. Error: {s}", .{@errorName(err)});
+                continue :accept;
+            };
+
+            server_log.debug("Got request. Parsing the request", .{});
+
+            switch (req.head.method) {
+                .POST => if (send_error_429) try req.respond(
+                    "Too many requests. Try again in a couple of ms",
+                    .{ .status = .too_many_requests },
+                ) else try self.handleRequest(&req),
+                else => try req.respond("Method not allowed", .{ .status = .method_not_allowed }),
+            }
+        }
+    }
+}
 /// Accepts a single request.
 /// This blocks until a connection is accepted.
 ///
@@ -78,20 +108,22 @@ pub fn deinit(self: *Server) void {
 /// allowed. Will always send error 429.
 pub fn listenButSendOnlyError429Response(self: *Server) !void {
     const buffer = try self.allocator.alloc(u8, self.buffer_size);
+    defer self.allocator.free(buffer);
 
+    server_log.debug("Waiting to receive connection.", .{});
     const conn = try self.server.accept();
 
     var http = HttpServer.init(conn, buffer);
 
+    server_log.debug("Got connection. Parsing the request", .{});
     var req = try http.receiveHead();
+
     switch (req.head.method) {
-        .POST => {
-            try req.respond(
-                "Too many requests. You need to wait a couple of ms and try again",
-                .{ .status = .too_many_requests },
-            );
-        },
-        else => return error.MethodNotSupported,
+        .POST => try req.respond(
+            "Too many requests. Try again in a couple of ms",
+            .{ .status = .too_many_requests },
+        ),
+        else => try req.respond("Method not allowed", .{ .status = .method_not_allowed }),
     }
 }
 /// Accepts a single request.
@@ -108,17 +140,31 @@ pub fn listenToOneRequest(self: *Server) !void {
 
     var req = try http.receiveHead();
     switch (req.head.method) {
-        .POST => {
-            var header = req.iterateHeaders();
-
-            while (header.next()) |head| {
-                if (std.mem.eql(u8, "application/json", head.value)) {
-                    return self.handleRequest(&req);
-                }
-            } else return error.InvalidHeader;
-        },
-        else => return error.MethodNotSupported,
+        .POST => try self.handleRequest(&req),
+        else => try req.respond("Method not allowed", .{ .status = .method_not_allowed }),
     }
+}
+/// Listen to a request in a seperate thread.
+///
+/// Control if you would like to send errors 429.
+pub fn listenOnceInSeperateThread(self: *Server, send_error_429: bool) !void {
+    pipe.maybeIgnoreSigpipe();
+
+    const thread = if (send_error_429)
+        try std.Thread.spawn(.{}, listenButSendOnlyError429Response, .{self})
+    else
+        try std.Thread.spawn(.{}, listenToOneRequest, .{self});
+
+    thread.detach();
+}
+/// Creates the server loop in a seperate thread.
+///
+/// Control if you would like to send errors 429.
+pub fn listLoopInSeperateTheread(self: *Server, send_error_429: bool) !void {
+    pipe.maybeIgnoreSigpipe();
+
+    const thread = try std.Thread.spawn(.{}, listen, .{ self, send_error_429 });
+    thread.detach();
 }
 /// Handles and mimics a json rpc response from a JSON-RPC server.
 /// Uses the custom data generator to produce the response.
@@ -152,7 +198,7 @@ fn handleRequest(self: *Server, req: *HttpServer.Request) !void {
         break :blk as_enum;
     };
 
-    switch (method) {
+    return switch (method) {
         .eth_sendRawTransaction,
         .eth_getStorageAt,
         => try self.sendResponse([32]u8, req),
@@ -205,7 +251,7 @@ fn handleRequest(self: *Server, req: *HttpServer.Request) !void {
         .eth_subscribe,
         => try self.sendResponse(u128, req),
         else => return error.UnsupportedRpcMethod,
-    }
+    };
 }
 /// Sends the response back to the user.
 fn sendResponse(self: *Server, comptime T: type, req: *HttpServer.Request) !void {

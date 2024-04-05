@@ -1041,12 +1041,11 @@ pub fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !
             },
             .too_many_requests => {
                 // Exponential backoff
-                const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+                const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
                 httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
                 // Clears any message that was written
-                body.clearRetainingCapacity();
-                try body.ensureTotalCapacity(0);
+                try body.resize(0);
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;

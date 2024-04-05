@@ -1,6 +1,31 @@
 const std = @import("std");
 const testing = std.testing;
 
+const assert = std.debug.assert;
+
+/// Convert the struct fields into to a enum.
+pub fn ConvertToEnum(comptime T: type) type {
+    const info = @typeInfo(T);
+    assert(info == .Struct);
+
+    var enum_fields: [info.Struct.fields.len]std.builtin.Type.EnumField = undefined;
+
+    var count = 0;
+    for (&enum_fields, info.Struct.fields) |*enum_field, struct_field| {
+        enum_field.* = .{
+            .name = struct_field.name ++ "",
+            .value = count,
+        };
+        count += 1;
+    }
+
+    return @Type(.{ .Enum = .{
+        .tag_type = usize,
+        .fields = &enum_fields,
+        .decls = &.{},
+        .is_exhaustive = true,
+    } });
+}
 /// Type function use to extract enum members from any enum.
 ///
 /// The needle can be just the tagName of a single member or a comma seperated value.

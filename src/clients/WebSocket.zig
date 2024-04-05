@@ -140,7 +140,7 @@ fn handleErrorEvent(self: *WebSocketHandler, error_event: EthereumErrorResponse,
     switch (err) {
         error.TooManyRequests => {
             // Exponential backoff
-            const backoff: u32 = std.math.shl(u8, 1, retries) * 200;
+            const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
             wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
             std.time.sleep(std.time.ns_per_ms * backoff);
@@ -245,8 +245,8 @@ pub fn deinit(self: *WebSocketHandler) void {
         std.time.sleep(10 * std.time.ns_per_ms);
     }
 
-    // There may be lingering memory parsed data in the channels
-    // so we must clean then up.
+    // There may be lingering memory from the json parsed data
+    // in the channels so we must clean then up.
     while (self.sub_channel.getOrNull()) |node| {
         node.deinit();
     }

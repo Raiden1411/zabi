@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const ConvertToEnum = @import("../meta/utils.zig").ConvertToEnum;
+
 const assert = std.debug.assert;
 
 /// Parses console arguments in the style of --foo=bar
@@ -10,22 +12,43 @@ pub fn parseArgs(comptime T: type, args: *std.process.ArgIterator) T {
 
     assert(info == .Struct);
 
+    const fields_count = info.Struct.fields.len;
+
     // Optional fields must have null value defaults
+    // and bool fields must be false.
     inline for (info.Struct.fields) |field| {
         switch (@typeInfo(field.type)) {
             .Optional => assert(convertDefaultValueType(field).? == null),
+            .Bool => assert(convertDefaultValueType(field).? == false),
             else => {},
         }
     }
 
-    var result: T = .{};
+    var result: T = undefined;
+    var seen: std.enums.EnumFieldStruct(ConvertToEnum(T), u32, 0) = .{};
+
+    assert(args.skip());
+
     next: while (args.next()) |args_str| {
         inline for (info.Struct.fields) |field| {
             const arg_flag = convertToArgFlag(field.name);
             if (std.mem.startsWith(u8, args_str, arg_flag)) {
+                @field(seen, field.name) += 1;
+
                 @field(result, field.name) = parseArgument(field.type, arg_flag, args_str);
                 continue :next;
             }
+        }
+    }
+
+    inline for (info.Struct.fields[0..fields_count]) |field| {
+        const arg_flag = convertToArgFlag(field.name);
+        switch (@field(seen, field.name)) {
+            0 => if (convertDefaultValueType(field)) |default_value| {
+                @field(result, field.name) = default_value;
+            } else failWithMessage("Missing required field: {s}", .{arg_flag}),
+            1 => {},
+            else => failWithMessage("Duplicate field: {s}", .{arg_flag}),
         }
     }
 
@@ -33,6 +56,13 @@ pub fn parseArgs(comptime T: type, args: *std.process.ArgIterator) T {
 }
 /// Parses a argument string like --foo=69
 fn parseArgument(comptime T: type, expected: [:0]const u8, arg: []const u8) T {
+    if (T == bool) {
+        if (!std.mem.eql(u8, expected, arg))
+            failWithMessage("Bool flags do not require values. Consider using just '{s}'", .{expected});
+
+        return true;
+    }
+
     const value = parseArgString(expected, arg);
 
     return parseArgValue(T, value);

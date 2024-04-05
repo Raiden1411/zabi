@@ -18,7 +18,7 @@ const PubClient = @import("clients/Client.zig");
 const WebSocketClient = @import("clients/WebSocket.zig");
 
 pub const std_options: std.Options = .{
-    .log_level = .info,
+    .log_level = .debug,
 };
 
 const CliArgs = struct {

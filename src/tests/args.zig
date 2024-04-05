@@ -88,29 +88,47 @@ fn parseArgString(expected: [:0]const u8, arg: []const u8) []const u8 {
     return value[1..];
 }
 /// Parses the value of the provided argument.
+/// Compilation will fail if an unsupported argument is passed.
 fn parseArgValue(comptime T: type, value: []const u8) T {
     assert(value.len > 0);
 
-    const Value = switch (@typeInfo(T)) {
-        .Optional => |optional| optional.child,
-        else => T,
-    };
-
-    if (Value == []const u8 or Value == [:0]const u8)
+    if (T == []const u8 or T == [:0]const u8)
         return value;
 
-    if (@typeInfo(Value) == .Int) {
-        const parsed = std.fmt.parseInt(Value, value, 0) catch |err| switch (err) {
-            error.Overflow => failWithMessage("value bits {s} exceeds to provided type {s} capacity", .{ value, @typeName(T) }),
-            error.InvalidCharacter => failWithMessage("expected a digit string but found '{s}'", .{value}),
-        };
+    switch (@typeInfo(T)) {
+        .Int => {
+            const parsed = std.fmt.parseInt(T, value, 0) catch |err| switch (err) {
+                error.Overflow => failWithMessage("value bits {s} exceeds to provided type {s} capacity", .{ value, @typeName(T) }),
+                error.InvalidCharacter => failWithMessage("expected a digit string but found '{s}'", .{value}),
+            };
 
-        return parsed;
+            return parsed;
+        },
+        .Float => {
+            const parsed = std.fmt.parseFloat(T, value) catch |err| switch (err) {
+                error.InvalidCharacter => failWithMessage("expected a digit string but found '{s}'", .{value}),
+            };
+
+            return parsed;
+        },
+        .Optional => |optional_info| {
+            return parseArgValue(optional_info.child, value);
+        },
+        .Array => |arr_info| {
+            if (arr_info.child == u8) {
+                var buffer: T = undefined;
+
+                _ = std.fmt.hexToBytes(&buffer, value) catch {
+                    failWithMessage("invalid hex string '{s}'", .{value});
+                };
+
+                return buffer;
+            }
+
+            @compileError(std.fmt.comptimePrint("Unsupported array type '{s}'", .{@typeName(T)}));
+        },
+        else => @compileError(std.fmt.comptimePrint("Unsupported type for parsing arguments. '{s}'", .{@typeName(T)})),
     }
-
-    // Most types are not supported since we don't have a need for it yet.
-    // So we just fail if we reach this point.
-    unreachable;
 }
 /// Converts struct field in to a cli arg string.
 fn convertToArgFlag(comptime field_name: [:0]const u8) [:0]const u8 {

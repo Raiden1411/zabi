@@ -195,23 +195,3 @@ pub fn WalletL1Client(client_type: Clients) type {
         }
     };
 }
-
-test "DepositTransaction" {
-    var wallet_op: WalletL1Client(.http) = undefined;
-    defer wallet_op.deinit();
-
-    const uri = try std.Uri.parse("http://localhost:8545/");
-
-    var buffer: Hash = undefined;
-    _ = try std.fmt.hexToBytes(buffer[0..], "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
-
-    try wallet_op.init(buffer, .{
-        .allocator = testing.allocator,
-        .uri = uri,
-    }, null);
-
-    const response = try wallet_op.depositTransaction(.{
-        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
-    });
-    defer response.deinit();
-}

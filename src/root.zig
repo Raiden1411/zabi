@@ -61,14 +61,8 @@ test {
     _ = @import("decoding/parse_transacition.zig");
     _ = @import("decoding/rlp_decode.zig");
     _ = @import("decoding/ssz_decode.zig");
-    // _ = @import("clients/Client.zig");
-    // _ = @import("clients/WebSocket.zig");
-    // _ = @import("clients/contract.zig");
-    // _ = @import("clients/ens/ens.zig");
     _ = @import("clients/ens/ens_utils.zig");
-    // _ = @import("clients/wallet.zig");
-    // _ = @import("clients/optimism/clients/L1PubClient.zig");
-    // _ = @import("clients/optimism/clients/L1WalletClient.zig");
+    _ = @import("clients/wallet.zig");
     // _ = @import("clients/optimism/clients/L2PubClient.zig");
     // _ = @import("clients/optimism/clients/L2WalletClient.zig");
     _ = @import("clients/optimism/utils.zig");

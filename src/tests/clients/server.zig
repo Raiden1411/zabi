@@ -95,7 +95,11 @@ pub fn listen(self: *Server, send_error_429: bool) !void {
                 .POST => if (send_error_429) try req.respond(
                     "Too many requests. Try again in a couple of ms",
                     .{ .status = .too_many_requests },
-                ) else try self.handleRequest(&req),
+                ) else {
+                    self.handleRequest(&req) catch {
+                        try req.respond("Internal server error", .{ .status = .internal_server_error });
+                    };
+                },
                 else => try req.respond("Method not allowed", .{ .status = .method_not_allowed }),
             }
         }
@@ -160,7 +164,7 @@ pub fn listenOnceInSeperateThread(self: *Server, send_error_429: bool) !void {
 /// Creates the server loop in a seperate thread.
 ///
 /// Control if you would like to send errors 429.
-pub fn listLoopInSeperateTheread(self: *Server, send_error_429: bool) !void {
+pub fn listenLoopInSeperateThread(self: *Server, send_error_429: bool) !void {
     pipe.maybeIgnoreSigpipe();
 
     const thread = try std.Thread.spawn(.{}, listen, .{ self, send_error_429 });
@@ -188,12 +192,23 @@ fn handleRequest(self: *Server, req: *HttpServer.Request) !void {
     defer parsed.deinit();
 
     const method = blk: {
-        const method = parsed.value.object.get("method") orelse return error.InvalidResponse;
+        const method = parsed.value.object.get("method") orelse {
+            try req.respond("Missing method field.", .{ .status = .bad_request });
 
-        if (method != .string)
-            return error.InvalidResponse;
+            return;
+        };
 
-        const as_enum = std.meta.stringToEnum(EthereumRpcMethods, method.string) orelse return error.InvalidRpcMethod;
+        if (method != .string) {
+            try req.respond("Incorrect method type. Expected string", .{ .status = .bad_request });
+
+            return;
+        }
+
+        const as_enum = std.meta.stringToEnum(EthereumRpcMethods, method.string) orelse {
+            try req.respond("Invalid RPC Method", .{ .status = .bad_request });
+
+            return;
+        };
 
         break :blk as_enum;
     };

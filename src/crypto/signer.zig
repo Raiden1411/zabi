@@ -121,8 +121,7 @@ pub fn sign(self: Signer, hash: Hash) !Signature {
     std.mem.writeInt(u256, &field_order_buffer, Secp256k1.scalar.field_order / 2, .little);
 
     const cmp = std.crypto.utils.timingSafeCompare(u8, &s_bytes, &field_order_buffer, .little);
-    if (cmp.compare(.gt))
-        y_int ^= 1;
+    y_int ^= @intFromBool(cmp.compare(.gt));
 
     const s_neg_bytes = s_malliable.neg().toBytes(.little);
     const s_neg_int = std.mem.readInt(u256, &s_neg_bytes, .little);

@@ -377,6 +377,25 @@ fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEnvelo
 /// Caller ownes the memory
 fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnvelope, sig: ?Signature) ![]u8 {
     if (sig) |signature| {
+        const v: usize = chainId: {
+            if (tx.chainId > 0) break :chainId @intCast((tx.chainId * 2) + (35 + @as(u8, @intCast(signature.v))));
+
+            if (signature.v > 35) {
+                const infer_chainId = (signature.v - 35) / 2;
+
+                if (infer_chainId > 0) break :chainId signature.v;
+
+                break :chainId 27 + (if (signature.v == 35) 0 else 1);
+            }
+
+            const v = 27 + @as(u8, @intFromBool(signature.v != 0));
+
+            if (@as(u8, @intCast(signature.v)) + 27 != v)
+                return error.InvalidRecoveryId;
+
+            break :chainId v;
+        };
+
         const envelope_sig: LegacyEnvelopeSigned = .{
             tx.nonce,
             tx.gasPrice,
@@ -384,11 +403,28 @@ fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnvelop
             tx.to,
             tx.value,
             tx.data,
-            signature.v,
+            v,
             signature.r,
             signature.s,
         };
 
+        const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_sig});
+
+        return encoded_sig;
+    }
+
+    if (tx.chainId > 0) {
+        const envelope_sig: LegacyEnvelopeSigned = .{
+            tx.nonce,
+            tx.gasPrice,
+            tx.gas,
+            tx.to,
+            tx.value,
+            tx.data,
+            tx.chainId,
+            null,
+            null,
+        };
         const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_sig});
 
         return encoded_sig;

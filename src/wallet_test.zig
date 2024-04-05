@@ -20,7 +20,7 @@ const Wallet = @import("clients/wallet.zig").Wallet;
 const WalletClients = @import("clients/wallet.zig").WalletClients;
 
 pub const std_options: std.Options = .{
-    .log_level = .info,
+    .log_level = .debug,
 };
 
 pub fn main() !void {
@@ -58,6 +58,7 @@ pub fn main() !void {
         }
         {
             const tx_hash = try wallet.sendTransaction(.{
+                .chainId = 1,
                 .type = .legacy,
                 .value = 42069,
                 .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),

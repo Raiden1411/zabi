@@ -206,8 +206,8 @@ pub const LegacyTransactionEnvelopeSigned = struct {
     value: Wei,
     data: ?Hex = null,
     v: usize,
-    r: Hash,
-    s: Hash,
+    r: ?Hash,
+    s: ?Hash,
 
     pub usingnamespace RequestParser(@This());
 };

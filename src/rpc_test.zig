@@ -1,4 +1,16 @@
-const args_parser = @import("args.zig");
+//! The objective of this test is to not crash.
+//! No checks are made. It's essentially a way to fuzz
+//! our custom json parser and stringyfier. And to make sure
+//! that the requests are sent and parsed without crashes.
+//!
+//! By default no debug message will be printed to the console.
+//! If you which for this you will need to update the log level inside this
+//! file.
+//!
+//! You can configure the amount of runs this will take by
+//! passing in the '--runs=number' argument, but if nothing is provided
+//! then it will default to 100 runs foreach rpc client.
+const args_parser = @import("tests/args.zig");
 const std = @import("std");
 const utils = @import("utils/utils.zig");
 
@@ -29,23 +41,6 @@ pub fn main() !void {
 
     const runs = parsed.runs orelse 100;
     const clients = &[_]type{ PubClient, WebSocketClient };
-
-    std.debug.print(
-        \\
-        \\ The objective of this test is to not crash.
-        \\ No checks are made. It's essentially a way to fuzz
-        \\ our custom json parser and stringyfier. And to make sure
-        \\ that the requests are sent and parsed without crashes.
-        \\
-        \\ By default no debug message will be printed to the console.
-        \\ If you which for this you will need to update the log level inside this 
-        \\ file. 
-        \\
-        \\ You can configure the amount of runs this will take by 
-        \\ passing in the '--runs=number' argument, but if nothing is provided 
-        \\ then it will default to 100 runs foreach rpc client.
-        \\
-    , .{});
 
     std.debug.print(
         \\ Script will run {d} times

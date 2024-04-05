@@ -1,6 +1,6 @@
-const generator = @import("generator.zig");
+const generator = @import("../generator.zig");
 const std = @import("std");
-const types = @import("types/root.zig");
+const types = @import("../../types/root.zig");
 
 const AccessListResult = types.transactions.AccessListResult;
 const Allocator = std.mem.Allocator;

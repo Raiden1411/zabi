@@ -6,7 +6,7 @@
 //! This is mostly usefull for testing/fuzzing.
 const std = @import("std");
 
-const Server = @import("server.zig");
+const Server = @import("tests/clients/server.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

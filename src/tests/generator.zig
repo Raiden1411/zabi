@@ -1,10 +1,10 @@
-const block = @import("types/block.zig");
-const ethereum = @import("types/ethereum.zig");
-const logs = @import("types/log.zig");
-const proof = @import("types/proof.zig");
+const block = @import("../types/block.zig");
+const ethereum = @import("../types/ethereum.zig");
+const logs = @import("../types/log.zig");
+const proof = @import("../types/proof.zig");
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("types/transaction.zig");
+const transaction = @import("../types/transaction.zig");
 
 const assert = std.debug.assert;
 

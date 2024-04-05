@@ -1,3 +1,5 @@
+/// Custom cli args parser.
+const args = @import("tests/args.zig");
 /// Custom abi types into zig types.
 pub const abi = @import("abi/root.zig");
 /// All clients that currently zabi supports and uses.
@@ -14,7 +16,7 @@ pub const encoding = @import("encoding/root.zig");
 /// More functionality will be added in the future.
 pub const ens = @import("clients/ens/root.zig");
 /// Generate random data based on a provided type.
-pub const generator = @import("generator.zig");
+pub const generator = @import("tests/generator.zig");
 /// Custom human readable parser. Supports tuples and structs.
 pub const human_readable = @import("human-readable/root.zig");
 /// Set of utils for meta programming in zabi as
@@ -47,7 +49,7 @@ pub const Anvil = @import("tests/Anvil.zig");
 /// Custom wrapper for interacting with the Hardhat testchain
 pub const Hardhat = @import("tests/Hardhat.zig");
 /// Custom RPC server that server random data.
-pub const RpcServer = @import("server.zig");
+pub const RpcServer = @import("tests/clients/server.zig");
 
 test {
     _ = @import("abi/param_type.zig");
@@ -79,11 +81,11 @@ test {
     _ = @import("encoding/rlp.zig");
     _ = @import("encoding/serialize.zig");
     _ = @import("encoding/ssz.zig");
-    _ = @import("generator.zig");
     _ = @import("human-readable/abi_parsing.zig");
     _ = @import("human-readable/lexer.zig");
     _ = @import("meta/abi.zig");
     _ = @import("meta/json.zig");
     _ = @import("meta/utils.zig");
+    _ = @import("tests/generator.zig");
     _ = @import("utils/utils.zig");
 }

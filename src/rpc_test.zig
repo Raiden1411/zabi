@@ -26,6 +26,7 @@ pub const std_options: std.Options = .{
 
 const CliArgs = struct {
     runs: ?usize = null,
+    eth_specific: bool = false,
 };
 
 pub fn main() !void {
@@ -40,9 +41,9 @@ pub fn main() !void {
     const uri = try std.Uri.parse("http://localhost:8545/");
 
     var i: usize = 0;
-    var rand = std.rand.DefaultPrng.init(0);
-
     const runs = parsed.runs orelse 100;
+    var rand = std.rand.DefaultPrng.init(runs);
+
     const clients = &[_]type{ PubClient, WebSocketClient };
 
     std.debug.print(
@@ -216,35 +217,37 @@ pub fn main() !void {
             const logs_log = try rpc_client.getFilterOrLogChanges(id_logs.response, .eth_getFilterLogs);
             defer logs_log.deinit();
 
-            // OPStack
-            const messages = try op.getL2HashesForDepositTransaction(try utils.hashToBytes("0x33faeeee9c6d5e19edcdfc003f329c6652f05502ffbf3218d9093b92589a42c4"));
-            defer gpa.allocator().free(messages);
+            if (parsed.eth_specific) {
+                // OPStack
+                const messages = try op.getL2HashesForDepositTransaction(try utils.hashToBytes("0x33faeeee9c6d5e19edcdfc003f329c6652f05502ffbf3218d9093b92589a42c4"));
+                defer gpa.allocator().free(messages);
 
-            _ = try op.getL2Output(2725977);
+                _ = try op.getL2Output(2725977);
 
-            _ = try op.getSecondsToFinalize(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
-            const block_l2 = try op.getLatestProposedL2BlockNumber();
-            _ = try op.getSecondsToNextL2Output(block_l2);
+                _ = try op.getSecondsToFinalize(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
+                const block_l2 = try op.getLatestProposedL2BlockNumber();
+                _ = try op.getSecondsToNextL2Output(block_l2);
 
-            const deposit_events = try op.getTransactionDepositEvents(try utils.hashToBytes("0xe94031c3174788c3fee7216465c50bb2b72e7a1963f5af807b3768da10827f5c"));
-            defer {
-                for (deposit_events) |event| gpa.allocator().free(event.opaqueData);
-                gpa.allocator().free(deposit_events);
-            }
+                const deposit_events = try op.getTransactionDepositEvents(try utils.hashToBytes("0xe94031c3174788c3fee7216465c50bb2b72e7a1963f5af807b3768da10827f5c"));
+                defer {
+                    for (deposit_events) |event| gpa.allocator().free(event.opaqueData);
+                    gpa.allocator().free(deposit_events);
+                }
 
-            _ = try op.getProvenWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
+                _ = try op.getProvenWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
 
-            _ = try op.getFinalizedWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
+                _ = try op.getFinalizedWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
 
-            // Ens
-            _ = try ens.getEnsResolver("vitalik.eth", .{});
-            {
-                const value = try ens.getEnsAddress("vitalik.eth", .{});
-                defer value.deinit();
-            }
-            {
-                const value = try ens.getEnsName("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", .{});
-                defer value.deinit();
+                // Ens
+                _ = try ens.getEnsResolver("vitalik.eth", .{});
+                {
+                    const value = try ens.getEnsAddress("vitalik.eth", .{});
+                    defer value.deinit();
+                }
+                {
+                    const value = try ens.getEnsName("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", .{});
+                    defer value.deinit();
+                }
             }
         }
     }

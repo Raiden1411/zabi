@@ -413,6 +413,7 @@ fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnvelop
         return encoded_sig;
     }
 
+    // EIP - 155
     if (tx.chainId > 0) {
         const envelope_sig: LegacyEnvelopeSigned = .{
             tx.nonce,
@@ -425,11 +426,13 @@ fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnvelop
             null,
             null,
         };
+
         const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_sig});
 
         return encoded_sig;
     }
 
+    // Homestead unprotected
     const envelope: LegacyEnvelope = .{
         tx.nonce,
         tx.gasPrice,

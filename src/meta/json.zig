@@ -2,9 +2,11 @@ const generator = @import("../tests/generator.zig");
 const std = @import("std");
 const testing = std.testing;
 const types = @import("../types/root.zig");
+const meta_utils = @import("../meta/utils.zig");
 
 // Types
 const Allocator = std.mem.Allocator;
+const ConvertToEnum = meta_utils.ConvertToEnum;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
@@ -266,7 +268,7 @@ pub fn RequestParser(comptime T: type) type {
             if (.object_begin != try source.next()) return error.UnexpectedToken;
 
             var result: T = undefined;
-            var fields_seen = [_]bool{false} ** info.Struct.fields.len;
+            var seen: std.enums.EnumFieldStruct(ConvertToEnum(T), u32, 0) = .{};
 
             while (true) {
                 var name_token: ?Token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
@@ -280,11 +282,23 @@ pub fn RequestParser(comptime T: type) type {
                     },
                 };
 
-                inline for (info.Struct.fields, 0..) |field, i| {
+                inline for (info.Struct.fields) |field| {
                     if (std.mem.eql(u8, field.name, field_name)) {
                         name_token = null;
+
+                        if (@field(seen, field.name) == 1) {
+                            switch (opts.duplicate_field_behavior) {
+                                .@"error" => return error.DuplicateField,
+                                .use_last => {},
+                                .use_first => {
+                                    _ = try innerParseRequest(field.type, alloc, source, opts);
+
+                                    break;
+                                },
+                            }
+                        }
+                        @field(seen, field.name) = 1;
                         @field(result, field.name) = try innerParseRequest(field.type, alloc, source, opts);
-                        fields_seen[i] = true;
                         break;
                     }
                 } else {
@@ -296,14 +310,18 @@ pub fn RequestParser(comptime T: type) type {
                 }
             }
 
-            inline for (info.Struct.fields, 0..) |field, i| {
-                if (!fields_seen[i]) {
-                    if (field.default_value) |default_value| {
-                        const default = @as(*align(1) const field.type, @ptrCast(default_value)).*;
-                        @field(result, field.name) = default;
-                    } else {
-                        return error.MissingField;
-                    }
+            inline for (info.Struct.fields) |field| {
+                switch (@field(seen, field.name)) {
+                    0 => if (field.default_value) |default_value| {
+                        @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
+                    } else return error.MissingField,
+                    1 => {},
+                    else => {
+                        switch (opts.duplicate_field_behavior) {
+                            .@"error" => return error.DuplicateField,
+                            else => {},
+                        }
+                    },
                 }
             }
 
@@ -526,11 +544,12 @@ pub fn RequestParser(comptime T: type) type {
                 .Enum => |enum_info| {
                     const token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
                     switch (token) {
-                        inline .number, .allocated_number => |slice| {
+                        inline .number, .allocated_number, .string, .allocated_string => |slice| {
+                            if (std.meta.stringToEnum(TT, slice)) |converted| return converted;
+
                             const enum_number = std.fmt.parseInt(enum_info.tag_type, slice, 0) catch return error.InvalidEnumTag;
                             return std.meta.intToEnum(TT, enum_number);
                         },
-                        inline .string, .allocated_string => |slice| return std.meta.stringToEnum(TT, slice) orelse error.InvalidEnumTag,
 
                         else => return error.UnexpectedToken,
                     }

@@ -401,6 +401,7 @@ pub fn Contract(comptime client_type: ClientType) type {
                     .gas = copy.gas,
                     .gasPrice = copy.gasPrice,
                 } },
+                .deposit => return error.UnsupportedTransactionType,
                 _ => return error.UnsupportedTransactionType,
             };
 

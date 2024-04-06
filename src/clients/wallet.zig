@@ -491,6 +491,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .value = request.value.?,
                     } };
                 },
+                .deposit => return error.UnsupportedTransactionType,
                 _ => return error.UnsupportedTransactionType,
             }
         }

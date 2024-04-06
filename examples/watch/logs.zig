@@ -1,15 +1,22 @@
+const args_parser = zabi.args;
 const std = @import("std");
 const zabi = @import("zabi");
+
+pub const CliOptions = struct {
+    url: []const u8,
+};
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
-    var iter = try std.process.ArgIterator.initWithAllocator(gpa.allocator());
+
+    var iter = try std.process.argsWithAllocator(gpa.allocator());
     defer iter.deinit();
 
-    _ = iter.skip();
+    const parsed = args_parser.parseArgs(CliOptions, &iter);
 
-    const uri = try std.Uri.parse(iter.next() orelse return error.UnexpectArgument);
+    const uri = try std.Uri.parse(parsed.url);
+
     var socket: zabi.clients.WebSocket = undefined;
     defer socket.deinit();
 

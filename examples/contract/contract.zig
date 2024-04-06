@@ -1,4 +1,5 @@
 const abi = zabi.abi;
+const args_parser = zabi.args;
 const human = zabi.human_readable.parsing;
 const std = @import("std");
 const utils = zabi.utils;
@@ -7,22 +8,21 @@ const zabi = @import("zabi");
 const Abi = abi.abitypes.Abi;
 const Contract = zabi.clients.contract.Contract(.http);
 const Wallet = zabi.clients.wallet.Wallet(.http);
+const CliOptions = struct {
+    priv_key: [32]u8,
+    url: []const u8,
+};
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
-    var iter = try std.process.ArgIterator.initWithAllocator(gpa.allocator());
+
+    var iter = try std.process.argsWithAllocator(gpa.allocator());
     defer iter.deinit();
 
-    _ = iter.skip();
+    const parsed = args_parser.parseArgs(CliOptions, &iter);
 
-    const private_key = iter.next().?;
-    const host_url = iter.next().?;
-
-    var buffer: [32]u8 = undefined;
-    _ = try std.fmt.hexToBytes(buffer[0..], private_key);
-
-    const uri = try std.Uri.parse(host_url);
+    const uri = try std.Uri.parse(parsed.url);
 
     const slice =
         \\  function transfer(address to, uint256 amount)
@@ -33,7 +33,7 @@ pub fn main() !void {
     defer abi_parsed.deinit();
 
     var contract: Contract = undefined;
-    try contract.init(.{ .private_key = buffer, .abi = abi_parsed.value, .wallet_opts = .{ .allocator = gpa.allocator(), .uri = uri } });
+    try contract.init(.{ .private_key = parsed.priv_key, .abi = abi_parsed.value, .wallet_opts = .{ .allocator = gpa.allocator(), .uri = uri } });
     defer contract.deinit();
 
     const approve = try contract.writeContractFunction("transfer", .{ try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), 69421 }, .{ .type = .london, .to = try utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") });

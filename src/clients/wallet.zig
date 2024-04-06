@@ -152,8 +152,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Signer that will sign transactions or ethereum messages.
         /// Its based on a custom implementation meshed with zig's source code.
         signer: Signer,
-        /// The wallet nonce that will be used to send transactions
-        wallet_nonce: u64 = 0,
 
         /// Init wallet instance. Must call `deinit` to clean up.
         /// The init opts will depend on the `client_type`.
@@ -179,11 +177,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 .envelopes_pool = envelopes_pool,
             };
             self.envelopes_pool.* = .{ .pooled_envelopes = .{} };
-
-            const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes });
-            defer nonce.deinit();
-
-            self.wallet_nonce = nonce.response;
         }
         /// Clears memory and destroys any created pointers
         pub fn deinit(self: *Wallet(client_type)) void {
@@ -318,7 +311,12 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const max_fee_per_blob = unprepared_envelope.maxFeePerBlobGas orelse try self.rpc_client.estimateBlobMaxFeePerGas();
                     const blob_version = unprepared_envelope.blobVersionedHashes orelse &.{};
 
-                    const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
+                    const nonce: u64 = unprepared_envelope.nonce orelse blk: {
+                        const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
+                        defer nonce.deinit();
+
+                        break :blk nonce.response;
+                    };
 
                     if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
                         const fees = try self.rpc_client.estimateFeesPerGas(.{ .london = request }, base_fee);
@@ -372,7 +370,12 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
                     const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
 
-                    const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
+                    const nonce: u64 = unprepared_envelope.nonce orelse blk: {
+                        const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
+                        defer nonce.deinit();
+
+                        break :blk nonce.response;
+                    };
 
                     if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
                         const fees = try self.rpc_client.estimateFeesPerGas(.{ .london = request }, base_fee);
@@ -423,7 +426,12 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
                     const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
 
-                    const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
+                    const nonce: u64 = unprepared_envelope.nonce orelse blk: {
+                        const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
+                        defer nonce.deinit();
+
+                        break :blk nonce.response;
+                    };
 
                     if (unprepared_envelope.gasPrice == null) {
                         const fees = try self.rpc_client.estimateFeesPerGas(.{ .legacy = request }, base_fee);
@@ -467,7 +475,12 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
                     const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
 
-                    const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
+                    const nonce: u64 = unprepared_envelope.nonce orelse blk: {
+                        const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
+                        defer nonce.deinit();
+
+                        break :blk nonce.response;
+                    };
 
                     if (unprepared_envelope.gasPrice == null) {
                         const fees = try self.rpc_client.estimateFeesPerGas(.{ .legacy = request }, base_fee);
@@ -599,12 +612,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Nonce will only get updated if it's able to fetch the receipt.
         /// Use the rpc_client waitForTransactionReceipt if you don't want to update the wallet's nonce.
         pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt) {
-            const receipt = try self.rpc_client.waitForTransactionReceipt(tx_hash, confirmations);
-
-            // Updates the wallet nonce to be ready for the next transaction.
-            self.wallet_nonce += 1;
-
-            return receipt;
+            return self.rpc_client.waitForTransactionReceipt(tx_hash, confirmations);
         }
     };
 }

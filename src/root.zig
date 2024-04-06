@@ -1,5 +1,5 @@
 /// Custom cli args parser.
-const args = @import("tests/args.zig");
+pub const args = @import("tests/args.zig");
 /// Custom abi types into zig types.
 pub const abi = @import("abi/root.zig");
 /// All clients that currently zabi supports and uses.

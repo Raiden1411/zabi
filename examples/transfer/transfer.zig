@@ -1,32 +1,33 @@
+const args_parser = zabi.args;
 const std = @import("std");
 const utils = zabi.utils;
 const zabi = @import("zabi");
 
 const Wallet = zabi.clients.wallet.Wallet(.websocket);
 
+const CliOptions = struct {
+    priv_key: [32]u8,
+    url: []const u8,
+};
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
-    var iter = try std.process.ArgIterator.initWithAllocator(gpa.allocator());
+
+    var iter = try std.process.argsWithAllocator(gpa.allocator());
     defer iter.deinit();
 
-    _ = iter.skip();
+    const parsed = args_parser.parseArgs(CliOptions, &iter);
 
-    const private_key = iter.next().?;
-    const host_url = iter.next().?;
-
-    const uri = try std.Uri.parse(host_url);
+    const uri = try std.Uri.parse(parsed.url);
 
     var wallet: Wallet = undefined;
 
-    var buffer: [32]u8 = undefined;
-    _ = try std.fmt.hexToBytes(buffer[0..], private_key);
-
-    try wallet.init(buffer, .{
+    try wallet.init(parsed.priv_key, .{
         .allocator = gpa.allocator(),
         .uri = uri,
         .chain_id = .sepolia,
-        .base_fee_multiplier = 6.9,
+        .base_fee_multiplier = 3.2,
     });
     defer wallet.deinit();
 

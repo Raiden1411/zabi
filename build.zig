@@ -18,12 +18,9 @@ pub fn build(b: *std.Build) void {
     const mod = b.addModule("zabi", .{ .root_source_file = .{ .path = "src/root.zig" }, .link_libc = true });
 
     const coverage = b.option(bool, "generate_coverage", "Generate coverage data with kcov") orelse false;
-    const coverage_output_dir = b.option([]const u8, "coverage_output_dir", "Output directory for coverage data") orelse b.pathJoin(&.{ b.install_prefix, "kcov" });
 
     addDependencies(b, mod, target, optimize);
 
-    // Creates a step for unit testing. This only builds the test executable
-    // but does not run it.
     const lib_unit_tests = b.addTest(.{
         .name = "zabi-tests",
         .root_source_file = .{ .path = "src/root.zig" },
@@ -35,27 +32,91 @@ pub fn build(b: *std.Build) void {
     addDependencies(b, &lib_unit_tests.root_module, target, optimize);
     var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
-    // Similar to creating the run step earlier, this exposes a `test` step to
-    // the `zig build --help` menu, providing a way for the user to request
-    // running the unit tests.
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
 
+    // Creates and runs the wallet client test runner.
+    {
+        const wallet = b.addExecutable(.{
+            .name = "wallet_test",
+            .root_source_file = .{ .path = "src/wallet_test.zig" },
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        });
+        addDependencies(b, &wallet.root_module, target, optimize);
+
+        var wallet_run = b.addRunArtifact(wallet);
+        wallet_run.has_side_effects = true;
+
+        if (b.args) |args| wallet_run.addArgs(args);
+
+        const wallet_step = b.step("wallet_test", "Run the wallet client tests");
+        wallet_step.dependOn(&wallet_run.step);
+    }
+    // Creates and runs the rpc client http/s test runner.
+    {
+        const http = b.addExecutable(.{
+            .name = "rpc_test",
+            .root_source_file = .{ .path = "src/rpc_test.zig" },
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        });
+        addDependencies(b, &http.root_module, target, optimize);
+
+        var http_run = b.addRunArtifact(http);
+        http_run.has_side_effects = true;
+
+        if (b.args) |args| http_run.addArgs(args);
+
+        const http_step = b.step("rpc_test", "Run the http client tests");
+        http_step.dependOn(&http_run.step);
+    }
+    // Creates and runs the simple JSON RPC server.
+    {
+        const http = b.addExecutable(.{
+            .name = "http_server",
+            .root_source_file = .{ .path = "src/rpc_server.zig" },
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        });
+        addDependencies(b, &http.root_module, target, optimize);
+
+        var http_run = b.addRunArtifact(http);
+        http_run.has_side_effects = true;
+
+        if (b.args) |args| http_run.addArgs(args);
+
+        const http_step = b.step("server", "Run the http server");
+        http_step.dependOn(&http_run.step);
+    }
+
     // Coverage build option with kcov
     if (coverage) {
+        const coverage_output = b.makeTempPath();
         const include = b.fmt("--include-pattern=/src", .{});
-        // const exclude = b.fmt("--exclude-pattern=/zig-cache", .{});
         const args = &[_]std.Build.Step.Run.Arg{
             .{ .bytes = b.dupe("kcov") },
             .{ .bytes = b.dupe(include) },
-            // .{ .bytes = b.dupe(exclude) },
-            .{ .bytes = b.dupe(coverage_output_dir) },
+            .{ .bytes = b.pathJoin(&.{ coverage_output, "output" }) },
         };
 
         var tests_run = b.addRunArtifact(lib_unit_tests);
         run_lib_unit_tests.has_side_effects = true;
         run_lib_unit_tests.argv.insertSlice(0, args) catch @panic("OutOfMemory");
+
+        const install_coverage = b.addInstallDirectory(.{
+            .source_dir = .{ .path = b.pathJoin(&.{ coverage_output, "output" }) },
+            .install_dir = .{ .custom = "coverage" },
+            .install_subdir = "",
+        });
+
         test_step.dependOn(&tests_run.step);
+
+        install_coverage.step.dependOn(&run_lib_unit_tests.step);
+        test_step.dependOn(&install_coverage.step);
     }
 }
 

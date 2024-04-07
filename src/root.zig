@@ -1,3 +1,5 @@
+/// Custom cli args parser.
+pub const args = @import("tests/args.zig");
 /// Custom abi types into zig types.
 pub const abi = @import("abi/root.zig");
 /// All clients that currently zabi supports and uses.
@@ -13,6 +15,8 @@ pub const encoding = @import("encoding/root.zig");
 /// Currently minimal support for interacting with ens resolvers
 /// More functionality will be added in the future.
 pub const ens = @import("clients/ens/root.zig");
+/// Generate random data based on a provided type.
+pub const generator = @import("tests/generator.zig");
 /// Custom human readable parser. Supports tuples and structs.
 pub const human_readable = @import("human-readable/root.zig");
 /// Set of utils for meta programming in zabi as
@@ -44,14 +48,10 @@ pub const Signer = @import("crypto/signer.zig");
 pub const Anvil = @import("tests/Anvil.zig");
 /// Custom wrapper for interacting with the Hardhat testchain
 pub const Hardhat = @import("tests/Hardhat.zig");
+/// Custom RPC server that server random data.
+pub const RpcServer = @import("tests/clients/server.zig");
 
-// TODO: Refactor how tests are structured.
-// Ideally client test reside in a separete runner.
-// And here only simple unit tests would run.
 test {
-    const std = @import("std");
-    try Anvil.waitUntilReady(std.testing.allocator, 2_000);
-
     _ = @import("abi/param_type.zig");
     _ = @import("abi/abi_parameter.zig");
     _ = @import("abi/abi.zig");
@@ -61,16 +61,8 @@ test {
     _ = @import("decoding/parse_transacition.zig");
     _ = @import("decoding/rlp_decode.zig");
     _ = @import("decoding/ssz_decode.zig");
-    _ = @import("clients/Client.zig");
-    _ = @import("clients/WebSocket.zig");
-    _ = @import("clients/contract.zig");
-    _ = @import("clients/ens/ens.zig");
     _ = @import("clients/ens/ens_utils.zig");
     _ = @import("clients/wallet.zig");
-    _ = @import("clients/optimism/clients/L1PubClient.zig");
-    _ = @import("clients/optimism/clients/L1WalletClient.zig");
-    _ = @import("clients/optimism/clients/L2PubClient.zig");
-    _ = @import("clients/optimism/clients/L2WalletClient.zig");
     _ = @import("clients/optimism/utils.zig");
     _ = @import("clients/optimism/parse_deposit.zig");
     _ = @import("clients/optimism/serialize_deposit.zig");
@@ -84,6 +76,8 @@ test {
     _ = @import("human-readable/abi_parsing.zig");
     _ = @import("human-readable/lexer.zig");
     _ = @import("meta/abi.zig");
+    _ = @import("meta/json.zig");
     _ = @import("meta/utils.zig");
+    _ = @import("tests/generator.zig");
     _ = @import("utils/utils.zig");
 }

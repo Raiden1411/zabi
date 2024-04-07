@@ -1,12 +1,14 @@
 const kzg = @import("c-kzg-4844");
 const log = @import("log.zig");
 const meta = @import("../meta/root.zig");
+const op_transactions = @import("../clients/optimism/types/transaction.zig");
 const std = @import("std");
 const types = @import("ethereum.zig");
 
 // Types
 const Address = types.Address;
 const Blob = kzg.KZG4844.Blob;
+const DepositTransactionSigned = op_transactions.DepositTransactionSigned;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
@@ -41,7 +43,7 @@ pub const CancunSignedWrapper = Merge(StructToTupleType(CancunTransactionEnvelop
 /// Cancun transaction converted to wrapper with blobs, commitments and proofs
 pub const CancunWrapper = Merge(StructToTupleType(CancunTransactionEnvelope), struct { []const Blob, []const KZGCommitment, []const KZGProof });
 
-pub const TransactionTypes = enum(u8) { legacy = 0, berlin = 1, london = 2, cancun = 3, _ };
+pub const TransactionTypes = enum(u8) { legacy = 0x00, berlin = 0x01, london = 0x02, cancun = 0x03, deposit = 0x7e, _ };
 /// Some nodes represent pending transactions hashes like this.
 pub const PendingTransactionHashesSubscription = struct {
     removed: bool,
@@ -206,8 +208,8 @@ pub const LegacyTransactionEnvelopeSigned = struct {
     value: Wei,
     data: ?Hex = null,
     v: usize,
-    r: Hash,
-    s: Hash,
+    r: ?Hash,
+    s: ?Hash,
 
     pub usingnamespace RequestParser(@This());
 };
@@ -287,6 +289,38 @@ pub const PendingTransaction = union(enum) {
     legacy: LegacyPendingTransaction,
 
     pub usingnamespace UnionParser(@This());
+};
+/// The Cancun hardfork representation of a transaction.
+pub const L2Transaction = struct {
+    hash: Hash,
+    nonce: u64,
+    blockHash: ?Hash,
+    blockNumber: ?u64,
+    transactionIndex: ?u64,
+    from: Address,
+    to: ?Address,
+    value: Wei,
+    gasPrice: Gwei,
+    gas: Gwei,
+    input: Hex,
+    v: usize,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    r: u256,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    s: u256,
+    sourceHash: ?Hash = null,
+    isSystemTx: ?bool = null,
+    index: u64,
+    l1BlockNumber: u64,
+    l1Timestamp: u64,
+    l1TxOrigin: ?Hash,
+    queueIndex: ?u64,
+    queueOrigin: []const u8,
+    rawTransaction: Hex,
+
+    pub usingnamespace RequestParser(@This());
 };
 /// The Cancun hardfork representation of a transaction.
 pub const CancunTransaction = struct {
@@ -403,42 +437,14 @@ pub const LegacyTransaction = struct {
     s: u256,
     sourceHash: ?Hash = null,
     isSystemTx: ?bool = null,
-    type: TransactionTypes,
+    type: ?TransactionTypes = null,
     chainId: ?usize = null,
-
-    pub usingnamespace RequestParser(@This());
-};
-/// The representation of an untyped transaction.
-pub const UntypedTransaction = struct {
-    hash: Hash,
-    nonce: u64,
-    blockHash: ?Hash,
-    blockNumber: ?u64,
-    transactionIndex: ?u64,
-    from: Address,
-    to: ?Address,
-    value: Wei,
-    gasPrice: Gwei,
-    gas: Gwei,
-    input: Hex,
-    v: usize,
-    /// Represented as values instead of the hash because
-    /// a valid signature is not guaranteed to be 32 bits
-    r: u256,
-    /// Represented as values instead of the hash because
-    /// a valid signature is not guaranteed to be 32 bits
-    s: u256,
-    sourceHash: ?Hash = null,
-    isSystemTx: ?bool = null,
-    chainId: usize,
 
     pub usingnamespace RequestParser(@This());
 };
 /// All transactions objects that one might find whilest interaction
 /// with the JSON RPC server.
 pub const Transaction = union(enum) {
-    /// Some transactions might not have the type field.
-    untyped: UntypedTransaction,
     /// Legacy type transactions.
     legacy: LegacyTransaction,
     /// Berlin hardfork transactions that might have the accessList.
@@ -447,6 +453,10 @@ pub const Transaction = union(enum) {
     london: LondonTransaction,
     /// Cancun hardfork transactions.
     cancun: CancunTransaction,
+    /// L2 transaction objects
+    l2_transaction: L2Transaction,
+    /// L2 Deposit transaction
+    deposit: DepositTransactionSigned,
 
     pub usingnamespace UnionParser(@This());
 };
@@ -464,7 +474,7 @@ pub const LegacyReceipt = struct {
     contractAddress: ?Address,
     logs: Logs,
     logsBloom: Hex,
-    type: TransactionTypes,
+    type: ?TransactionTypes = null,
     root: ?Hex = null,
     status: ?bool = null,
     deposit_nonce: ?usize = null,
@@ -487,7 +497,7 @@ pub const CancunReceipt = struct {
     contractAddress: ?Address,
     logs: Logs,
     logsBloom: Hex,
-    type: TransactionTypes,
+    type: ?TransactionTypes = null,
     root: ?Hex = null,
     status: ?bool = null,
     deposit_nonce: ?usize = null,
@@ -500,18 +510,18 @@ pub const L2Receipt = struct {
     blockHash: Hash,
     blockNumber: ?u64,
     logsBloom: Hex,
-    l1FeeScalar: f32,
+    l1FeeScalar: f64,
     l1GasUsed: Gwei,
     l1Fee: Wei,
     contractAddress: ?Address,
     transactionIndex: u64,
     l1GasPrice: Gwei,
-    type: TransactionTypes,
+    type: ?TransactionTypes = null,
     gasUsed: Gwei,
     cumulativeGasUsed: Gwei,
     from: Address,
     to: ?Address,
-    effectiveGasPrice: Gwei,
+    effectiveGasPrice: ?Gwei = null,
     logs: Logs,
     root: ?Hex = null,
     status: ?bool = null,

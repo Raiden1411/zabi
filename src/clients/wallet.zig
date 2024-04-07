@@ -152,8 +152,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Signer that will sign transactions or ethereum messages.
         /// Its based on a custom implementation meshed with zig's source code.
         signer: Signer,
-        /// The wallet nonce that will be used to send transactions
-        wallet_nonce: u64 = 0,
 
         /// Init wallet instance. Must call `deinit` to clean up.
         /// The init opts will depend on the `client_type`.
@@ -179,11 +177,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 .envelopes_pool = envelopes_pool,
             };
             self.envelopes_pool.* = .{ .pooled_envelopes = .{} };
-
-            const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes });
-            defer nonce.deinit();
-
-            self.wallet_nonce = nonce.response;
         }
         /// Clears memory and destroys any created pointers
         pub fn deinit(self: *Wallet(client_type)) void {
@@ -276,6 +269,9 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             return self.envelopes_pool.findTransactionEnvelope(self.allocator, search);
         }
         /// Converts unprepared transaction envelopes and stores them in a pool.
+        /// If you want to store transaction for the future it's best to manange
+        /// the wallet nonce manually since otherwise they might get stored with
+        /// the same nonce if the wallet was unable to update it.
         pub fn poolTransactionEnvelope(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !void {
             const envelope = try self.allocator.create(TransactionEnvelopePool.Node);
             errdefer self.allocator.destroy(envelope);
@@ -315,7 +311,12 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const max_fee_per_blob = unprepared_envelope.maxFeePerBlobGas orelse try self.rpc_client.estimateBlobMaxFeePerGas();
                     const blob_version = unprepared_envelope.blobVersionedHashes orelse &.{};
 
-                    const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
+                    const nonce: u64 = unprepared_envelope.nonce orelse blk: {
+                        const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
+                        defer nonce.deinit();
+
+                        break :blk nonce.response;
+                    };
 
                     if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
                         const fees = try self.rpc_client.estimateFeesPerGas(.{ .london = request }, base_fee);
@@ -369,7 +370,12 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
                     const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
 
-                    const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
+                    const nonce: u64 = unprepared_envelope.nonce orelse blk: {
+                        const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
+                        defer nonce.deinit();
+
+                        break :blk nonce.response;
+                    };
 
                     if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
                         const fees = try self.rpc_client.estimateFeesPerGas(.{ .london = request }, base_fee);
@@ -420,7 +426,12 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
                     const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
 
-                    const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
+                    const nonce: u64 = unprepared_envelope.nonce orelse blk: {
+                        const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
+                        defer nonce.deinit();
+
+                        break :blk nonce.response;
+                    };
 
                     if (unprepared_envelope.gasPrice == null) {
                         const fees = try self.rpc_client.estimateFeesPerGas(.{ .legacy = request }, base_fee);
@@ -464,7 +475,12 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
                     const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
 
-                    const nonce: u64 = unprepared_envelope.nonce orelse self.wallet_nonce;
+                    const nonce: u64 = unprepared_envelope.nonce orelse blk: {
+                        const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
+                        defer nonce.deinit();
+
+                        break :blk nonce.response;
+                    };
 
                     if (unprepared_envelope.gasPrice == null) {
                         const fees = try self.rpc_client.estimateFeesPerGas(.{ .legacy = request }, base_fee);
@@ -488,6 +504,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         .value = request.value.?,
                     } };
                 },
+                .deposit => return error.UnsupportedTransactionType,
                 _ => return error.UnsupportedTransactionType,
             }
         }
@@ -595,38 +612,35 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Nonce will only get updated if it's able to fetch the receipt.
         /// Use the rpc_client waitForTransactionReceipt if you don't want to update the wallet's nonce.
         pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt) {
-            const receipt = try self.rpc_client.waitForTransactionReceipt(tx_hash, confirmations);
-
-            // Updates the wallet nonce to be ready for the next transaction.
-            self.wallet_nonce += 1;
-
-            return receipt;
+            return self.rpc_client.waitForTransactionReceipt(tx_hash, confirmations);
         }
     };
 }
 
 test "Address match" {
-    const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet: Wallet(.http) = undefined;
-
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
-    defer wallet.deinit();
+    var wallet: Wallet(.http) = .{
+        .allocator = testing.allocator,
+        .envelopes_pool = undefined,
+        .rpc_client = undefined,
+        .signer = try Signer.init(buffer),
+    };
 
     try testing.expectEqualStrings(&wallet.getWalletAddress(), &try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"));
 }
 
 test "verifyMessage" {
-    const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet: Wallet(.http) = undefined;
-
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
-    defer wallet.deinit();
+    var wallet: Wallet(.http) = .{
+        .allocator = testing.allocator,
+        .envelopes_pool = undefined,
+        .rpc_client = undefined,
+        .signer = try Signer.init(buffer),
+    };
 
     var hash_buffer: [Keccak256.digest_length]u8 = undefined;
     Keccak256.hash("02f1827a6980847735940084773594008252099470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a764000080c0", &hash_buffer, .{});
@@ -637,14 +651,15 @@ test "verifyMessage" {
 }
 
 test "signMessage" {
-    const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet: Wallet(.http) = undefined;
-
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
-    defer wallet.deinit();
+    var wallet: Wallet(.http) = .{
+        .allocator = testing.allocator,
+        .envelopes_pool = undefined,
+        .rpc_client = undefined,
+        .signer = try Signer.init(buffer),
+    };
 
     const sig = try wallet.signEthereumMessage("hello world");
     const hex = try sig.toHex(testing.allocator);
@@ -654,14 +669,15 @@ test "signMessage" {
 }
 
 test "signTypedData" {
-    const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet: Wallet(.http) = undefined;
-
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
-    defer wallet.deinit();
+    var wallet: Wallet(.http) = .{
+        .allocator = testing.allocator,
+        .envelopes_pool = undefined,
+        .rpc_client = undefined,
+        .signer = try Signer.init(buffer),
+    };
 
     const sig = try wallet.signTypedData(.{ .EIP712Domain = &.{} }, "EIP712Domain", .{}, .{});
     const hex = try sig.toHex(testing.allocator);
@@ -671,14 +687,15 @@ test "signTypedData" {
 }
 
 test "verifyTypedData" {
-    const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet: Wallet(.http) = undefined;
-
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
-    defer wallet.deinit();
+    var wallet: Wallet(.http) = .{
+        .allocator = testing.allocator,
+        .envelopes_pool = undefined,
+        .rpc_client = undefined,
+        .signer = try Signer.init(buffer),
+    };
 
     const domain: eip712.TypedDataDomain = .{ .name = "Ether Mail", .version = "1", .chainId = 1, .verifyingContract = "0x0000000000000000000000000000000000000000" };
     const e_types = .{ .EIP712Domain = &.{ .{ .type = "string", .name = "name" }, .{ .name = "version", .type = "string" }, .{ .name = "chainId", .type = "uint256" }, .{ .name = "verifyingContract", .type = "address" } }, .Person = &.{ .{ .name = "name", .type = "string" }, .{ .name = "wallet", .type = "address" } }, .Mail = &.{ .{ .name = "from", .type = "Person" }, .{ .name = "to", .type = "Person" }, .{ .name = "contents", .type = "string" } } };
@@ -687,187 +704,4 @@ test "verifyTypedData" {
     const validate = try wallet.verifyTypedData(sig, e_types, "Mail", domain, .{ .from = .{ .name = "Cow", .wallet = "0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826" }, .to = .{ .name = "Bob", .wallet = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB" }, .contents = "Hello, Bob!" });
 
     try testing.expect(validate);
-}
-
-test "sendTransaction" {
-    // CI coverage runner dislikes this tests so for now we skip it.
-    if (true) return error.SkipZigTest;
-    const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet: Wallet(.http) = undefined;
-
-    var buffer: Hash = undefined;
-    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
-
-    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
-    defer wallet.deinit();
-
-    const tx: UnpreparedTransactionEnvelope = .{
-        .type = .london,
-        .value = try utils.parseEth(1),
-        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
-    };
-
-    const tx_hash = try wallet.sendTransaction(tx);
-    defer tx_hash.deinit();
-
-    const receipt = try wallet.waitForTransactionReceipt(tx_hash.response, 0);
-    defer receipt.deinit();
-
-    try testing.expect(tx_hash.response.len != 0);
-}
-
-test "Pool transactions" {
-    const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet: Wallet(.http) = undefined;
-
-    var buffer: Hash = undefined;
-    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
-
-    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
-    defer wallet.deinit();
-
-    try wallet.poolTransactionEnvelope(.{ .type = .london });
-    try wallet.poolTransactionEnvelope(.{ .type = .berlin });
-    try wallet.poolTransactionEnvelope(.{ .type = .legacy });
-
-    const env = wallet.findTransactionEnvelopeFromPool(.london);
-    try testing.expect(env != null);
-}
-
-test "Get First element" {
-    const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet: Wallet(.http) = undefined;
-
-    var buffer: Hash = undefined;
-    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
-
-    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
-    defer wallet.deinit();
-
-    {
-        const first = wallet.envelopes_pool.getFirstElementFromPool(wallet.allocator);
-        const last = wallet.envelopes_pool.getLastElementFromPool(wallet.allocator);
-        try testing.expect(first == null);
-        try testing.expect(last == null);
-    }
-
-    var i: usize = 0;
-    while (i < 3) : (i += 1) {
-        try wallet.poolTransactionEnvelope(.{ .type = .london });
-    }
-
-    {
-        const first = wallet.envelopes_pool.getFirstElementFromPool(wallet.allocator);
-        const last = wallet.envelopes_pool.getLastElementFromPool(wallet.allocator);
-        try testing.expect(first != null);
-        try testing.expect(last != null);
-    }
-}
-
-test "assertTransaction" {
-    var tx: TransactionEnvelope = undefined;
-
-    const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet: Wallet(.http) = undefined;
-
-    var buffer: Hash = undefined;
-    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
-
-    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
-    defer wallet.deinit();
-
-    {
-        tx = .{ .london = .{
-            .nonce = 0,
-            .gas = 21001,
-            .maxPriorityFeePerGas = 2,
-            .maxFeePerGas = 2,
-            .chainId = 1,
-            .accessList = &.{},
-            .value = 0,
-            .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
-            .data = null,
-        } };
-        try wallet.assertTransaction(tx);
-
-        tx.london.chainId = 2;
-        try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
-
-        tx.london.chainId = 1;
-
-        tx.london.maxPriorityFeePerGas = 69;
-        tx.london.to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
-        try testing.expectError(error.TransactionTipToHigh, wallet.assertTransaction(tx));
-    }
-    {
-        tx = .{ .cancun = .{
-            .nonce = 0,
-            .gas = 21001,
-            .maxPriorityFeePerGas = 2,
-            .maxFeePerGas = 2,
-            .chainId = 1,
-            .accessList = &.{},
-            .value = 0,
-            .maxFeePerBlobGas = 2,
-            .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
-            .data = null,
-            .blobVersionedHashes = &.{},
-        } };
-        try wallet.assertTransaction(tx);
-
-        tx.cancun.chainId = 2;
-        try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
-
-        tx.cancun.chainId = 1;
-
-        tx.cancun.maxPriorityFeePerGas = 69;
-        tx.cancun.to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
-        try testing.expectError(error.TransactionTipToHigh, wallet.assertTransaction(tx));
-    }
-}
-
-test "assertTransactionLegacy" {
-    var tx: TransactionEnvelope = undefined;
-
-    const uri = try std.Uri.parse("http://localhost:8545/");
-    var wallet: Wallet(.http) = undefined;
-
-    var buffer: Hash = undefined;
-    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
-
-    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
-    defer wallet.deinit();
-
-    tx = .{ .berlin = .{
-        .nonce = 0,
-        .gas = 21001,
-        .gasPrice = 2,
-        .chainId = 1,
-        .accessList = &.{},
-        .value = 0,
-        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
-        .data = null,
-    } };
-    try wallet.assertTransaction(tx);
-
-    tx.berlin.chainId = 2;
-    try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
-
-    tx.berlin.chainId = 1;
-
-    tx = .{ .legacy = .{
-        .nonce = 0,
-        .gas = 21001,
-        .gasPrice = 2,
-        .chainId = 1,
-        .value = 0,
-        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
-        .data = null,
-    } };
-    try wallet.assertTransaction(tx);
-
-    tx.legacy.chainId = 2;
-    try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
-
-    tx.legacy.chainId = 1;
 }

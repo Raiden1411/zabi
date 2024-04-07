@@ -2,8 +2,15 @@ name: Benchmark
 
 on:
   push:
+    branches:
+      - master
     paths:
       - ".github/workflows/benchmark.yml"
+      - "**.zig"
+      - "build.zig.zon"
+  pull_request:
+    paths:
+      - ".github/workflows/main.yml"
       - "**.zig"
       - "build.zig.zon"
 

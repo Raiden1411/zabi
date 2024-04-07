@@ -370,7 +370,7 @@ pub fn parseSignedLegacyTransaction(allocator: Allocator, serialized: []const u8
     const s = try rlp.decodeRlp(allocator, LegacyEnvelopeSigned, serialized);
     // zig fmt: on
 
-    const chainId = if (v > 0 and r.len == 0 and s.len == 0) v else 0;
+    const chainId = if (v > 0 and r == null and s == null) v else 0;
 
     if (chainId != 0)
         return .{

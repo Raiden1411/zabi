@@ -388,8 +388,10 @@ fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnvelop
                 break :chainId 27 + (if (signature.v == 35) 0 else 1);
             }
 
-            const v = 27 + (if (signature.v == 35) 0 else 1);
-            if (signature.v != v) return error.InvalidRecoveryId;
+            const v = 27 + @as(u8, @intFromBool(signature.v != 0));
+
+            if (@as(u8, @intCast(signature.v)) + 27 != v)
+                return error.InvalidRecoveryId;
 
             break :chainId v;
         };
@@ -411,6 +413,26 @@ fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnvelop
         return encoded_sig;
     }
 
+    // EIP - 155
+    if (tx.chainId > 0) {
+        const envelope_sig: LegacyEnvelopeSigned = .{
+            tx.nonce,
+            tx.gasPrice,
+            tx.gas,
+            tx.to,
+            tx.value,
+            tx.data,
+            tx.chainId,
+            null,
+            null,
+        };
+
+        const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_sig});
+
+        return encoded_sig;
+    }
+
+    // Homestead unprotected
     const envelope: LegacyEnvelope = .{
         tx.nonce,
         tx.gasPrice,

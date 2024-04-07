@@ -4,15 +4,7 @@ on:
   push:
     branches:
       - main
-    paths:
-      - ".github/workflows/benchmark.yml"
-      - "**.zig"
-      - "build.zig.zon"
   pull_request:
-    paths:
-      - ".github/workflows/benchmark.yml"
-      - "**.zig"
-      - "build.zig.zon"
 
 jobs:
   build:

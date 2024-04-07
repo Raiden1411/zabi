@@ -10,7 +10,7 @@ on:
       - "build.zig.zon"
   pull_request:
     paths:
-      - ".github/workflows/main.yml"
+      - ".github/workflows/benchmark.yml"
       - "**.zig"
       - "build.zig.zon"
 
@@ -21,10 +21,10 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+
       - uses: goto-bus-stop/setup-zig@v2
         with:
           version: master

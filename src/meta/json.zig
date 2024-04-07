@@ -333,17 +333,28 @@ pub fn RequestParser(comptime T: type) type {
             if (source != .object) return error.UnexpectedToken;
 
             var result: T = undefined;
-            var fields_seen = [_]bool{false} ** info.Struct.fields.len;
+            var seen: std.enums.EnumFieldStruct(ConvertToEnum(T), u32, 0) = .{};
 
             var iter = source.object.iterator();
 
             while (iter.next()) |token| {
                 const field_name = token.key_ptr.*;
 
-                inline for (info.Struct.fields, 0..) |field, i| {
+                inline for (info.Struct.fields) |field| {
                     if (std.mem.eql(u8, field.name, field_name)) {
+                        if (@field(seen, field.name) == 1) {
+                            switch (opts.duplicate_field_behavior) {
+                                .@"error" => return error.DuplicateField,
+                                .use_last => {},
+                                .use_first => {
+                                    _ = try innerParseValueRequest(field.type, allocator, source, opts);
+
+                                    break;
+                                },
+                            }
+                        }
+                        @field(seen, field.name) = 1;
                         @field(result, field.name) = try innerParseValueRequest(field.type, allocator, token.value_ptr.*, opts);
-                        fields_seen[i] = true;
                         break;
                     }
                 } else {
@@ -352,14 +363,18 @@ pub fn RequestParser(comptime T: type) type {
                 }
             }
 
-            inline for (info.Struct.fields, 0..) |field, i| {
-                if (!fields_seen[i]) {
-                    if (field.default_value) |default_value| {
-                        const default = @as(*align(1) const field.type, @ptrCast(default_value)).*;
-                        @field(result, field.name) = default;
-                    } else {
-                        return error.MissingField;
-                    }
+            inline for (info.Struct.fields) |field| {
+                switch (@field(seen, field.name)) {
+                    0 => if (field.default_value) |default_value| {
+                        @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
+                    } else return error.MissingField,
+                    1 => {},
+                    else => {
+                        switch (opts.duplicate_field_behavior) {
+                            .@"error" => return error.DuplicateField,
+                            else => {},
+                        }
+                    },
                 }
             }
 

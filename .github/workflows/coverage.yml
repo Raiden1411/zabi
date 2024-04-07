@@ -10,19 +10,6 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
-      - name: Install Anvil
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: Run Anvil
-        run: anvil --fork-url $ANVIL_FORK_URL --fork-block-number 19062632 &
-        env:
-          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
-
-      - name: Run Anvil OP
-        run: anvil --fork-url $ANVIL_FORK_URL_OP --port 8544 &
-        env:
-          ANVIL_FORK_URL_OP: ${{ secrets.ANVIL_FORK_URL_OP }}
-
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0

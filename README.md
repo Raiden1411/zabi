@@ -22,36 +22,35 @@
 Zabi aims to add support for interacting with ethereum and EVM based chains. By default it comes with almost all of the features you would expect from an ethereum library. From RLP encoding/decoding, to wallet and contract instances, to a http or a websocket client and much more.
 
 ```zig
+const args_parser = zabi.args;
 const std = @import("std");
 const zabi = @import("zabi");
-const Wallet = zabi.wallet.Wallet(.http);
- 
+const Wallet = zabi.clients.wallet.Wallet(.http);
+
+const CliOptions = struct {
+    priv_key: [32]u8,
+    url: []const u8,
+};
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
-    var iter = try std.process.ArgIterator.initWithAllocator(gpa.allocator());
+
+    var iter = try std.process.argsWithAllocator(gpa.allocator());
     defer iter.deinit();
- 
-    _ = iter.skip();
- 
-    const priv_key = iter.next().?
-    const host_url = iter.next().?
 
-    const uri = try std.Uri.parse(host_url);
-    var bytes_priv_key: [32]u8 = undefined;
-    _ = try std.fmt.hexToBytes(&bytes_priv_key, priv_key);
- 
-    // The chain defaults to ethereum if it's not specified.
+    const parsed = args_parser.parseArgs(CliOptions, &iter);
+
+    const uri = try std.Uri.parse(parsed.url);
+
     var wallet: Wallet = undefined;
-    try wallet.init(bytes_priv_key, .{.allocator = gpa.allocator(), .uri = uri });
+    try wallet.init(parsed.priv_key, .{ .allocator = gpa.allocator(), .uri = uri });
     defer wallet.deinit();
- 
+
     const message = try wallet.signEthereumMessage("Hello World");
-
-    const hex_sig = try message.toHex(wallet.allocator);
-    defer wallet.allocator.free(hex_sig);
-
-    std.debug.print("Ethereum message: 0x{s}\n", .{hex_sig});
+    const hexed = try message.toHex(wallet.allocator);
+    defer gpa.allocator().free(hexed);
+    std.debug.print("Ethereum message: {s}\n", .{hexed});
 }
 ```
 

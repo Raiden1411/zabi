@@ -47,8 +47,6 @@ pub fn WalletL1Client(client_type: Clients) type {
         op_client: *ClientType,
         /// The signer used to sign transactions
         signer: Signer,
-        /// The wallet nonce that will be used to send transactions
-        wallet_nonce: u64 = 0,
 
         /// Starts the wallet client. Init options depend on the client type.
         /// This has all the expected L1 actions. If you are looking for L2 actions
@@ -69,13 +67,6 @@ pub fn WalletL1Client(client_type: Clients) type {
                 .op_client = op_client,
                 .signer = op_signer,
             };
-
-            const nonce = try self.op_client.rpc_client.getAddressTransactionCount(.{
-                .address = op_signer.address_bytes,
-            });
-            defer nonce.deinit();
-
-            self.wallet_nonce = nonce.response;
         }
         /// Frees and destroys any allocated memory
         pub fn deinit(self: *WalletL1) void {
@@ -159,6 +150,11 @@ pub fn WalletL1Client(client_type: Clients) type {
             };
 
             const fees = try self.op_client.rpc_client.estimateFeesPerGas(.{ .london = call }, null);
+            const nonce = try self.op_client.rpc_client.getAddressTransactionCount(.{
+                .address = self.signer.address_bytes,
+                .tag = .pending,
+            });
+            defer nonce.deinit();
 
             const tx: LondonTransactionEnvelope = .{
                 .gas = gas.response,
@@ -166,7 +162,7 @@ pub fn WalletL1Client(client_type: Clients) type {
                 .to = self.op_client.contracts.portalAddress,
                 .value = deposit_data.value,
                 .accessList = &.{},
-                .nonce = self.wallet_nonce,
+                .nonce = nonce.response,
                 .chainId = self.op_client.rpc_client.chain_id,
                 .maxFeePerGas = fees.london.max_fee_gas,
                 .maxPriorityFeePerGas = fees.london.max_priority_fee,
@@ -189,7 +185,6 @@ pub fn WalletL1Client(client_type: Clients) type {
             defer self.op_client.allocator.free(signed_serialized);
 
             const tx_hash = try self.op_client.rpc_client.sendRawTransaction(signed_serialized);
-            self.wallet_nonce += 1;
 
             return tx_hash;
         }

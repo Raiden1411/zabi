@@ -46,9 +46,9 @@ pub fn parseArgs(comptime T: type, args: *std.process.ArgIterator) T {
         switch (@field(seen, field.name)) {
             0 => if (convertDefaultValueType(field)) |default_value| {
                 @field(result, field.name) = default_value;
-            } else failWithMessage("Missing required field: {s}", .{arg_flag}),
+            } else failWithMessage("Missing required field {s}", .{arg_flag}),
             1 => {},
-            else => failWithMessage("Duplicate field: {s}", .{arg_flag}),
+            else => failWithMessage("Duplicate field {s}", .{arg_flag}),
         }
     }
 

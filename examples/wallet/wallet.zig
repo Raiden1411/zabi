@@ -1,24 +1,26 @@
+const args_parser = zabi.args;
 const std = @import("std");
 const zabi = @import("zabi");
 const Wallet = zabi.clients.wallet.Wallet(.http);
 
+const CliOptions = struct {
+    priv_key: [32]u8,
+    url: []const u8,
+};
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
-    var iter = try std.process.ArgIterator.initWithAllocator(gpa.allocator());
+
+    var iter = try std.process.argsWithAllocator(gpa.allocator());
     defer iter.deinit();
 
-    _ = iter.skip();
+    const parsed = args_parser.parseArgs(CliOptions, &iter);
 
-    const private_key = iter.next().?;
-    const host_url = iter.next().?;
+    const uri = try std.Uri.parse(parsed.url);
 
-    var buffer: [32]u8 = undefined;
-    _ = try std.fmt.hexToBytes(buffer[0..], private_key);
-
-    const uri = try std.Uri.parse(host_url);
     var wallet: Wallet = undefined;
-    try wallet.init(buffer, .{ .allocator = gpa.allocator(), .uri = uri });
+    try wallet.init(parsed.priv_key, .{ .allocator = gpa.allocator(), .uri = uri });
     defer wallet.deinit();
 
     const message = try wallet.signEthereumMessage("Hello World");

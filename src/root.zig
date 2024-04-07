@@ -63,8 +63,6 @@ test {
     _ = @import("decoding/ssz_decode.zig");
     _ = @import("clients/ens/ens_utils.zig");
     _ = @import("clients/wallet.zig");
-    // _ = @import("clients/optimism/clients/L2PubClient.zig");
-    // _ = @import("clients/optimism/clients/L2WalletClient.zig");
     _ = @import("clients/optimism/utils.zig");
     _ = @import("clients/optimism/parse_deposit.zig");
     _ = @import("clients/optimism/serialize_deposit.zig");

@@ -1,5 +1,5 @@
 ---
-title: 'Zabi: Interact with ethereum via zig'
+title: 'Zabi: A zig library to interact with EVM blockchains'
 ---
 
 <br/>
@@ -11,49 +11,73 @@ title: 'Zabi: Interact with ethereum via zig'
 </p>
 
 <p align="center">
-  Interact with ethereum and other EVM based chains via Zig!
+  A zig library to interact with EVM blockchains 
 </p>
 
 # Overview
+Zabi aims to add support for interacting with ethereum or any compatible EVM based chain. 
 
-Zabi aims to add support for interacting with ethereum and EVM based chains. By default it comes with almost all of the features you would expect from an ethereum library. From RLP encoding/decoding, to wallet and contract instances, to a http or a websocket client and much more.
-
-Explore our documentation to find out what zabi can offer for your development needs.
-
-### Example usage: Message signing
+### Example Usage
 ```zig
+const args_parser = zabi.args;
 const std = @import("std");
 const zabi = @import("zabi");
-const Wallet = zabi.wallet.Wallet(.http);
- 
+const Wallet = zabi.clients.wallet.Wallet(.http);
+
+const CliOptions = struct {
+    priv_key: [32]u8,
+    url: []const u8,
+};
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
-    var iter = try std.process.ArgIterator.initWithAllocator(gpa.allocator());
+
+    var iter = try std.process.argsWithAllocator(gpa.allocator());
     defer iter.deinit();
- 
-    _ = iter.skip();
- 
-    const priv_key = iter.next().?
-    const host_url = iter.next().?
 
-    const uri = try std.Uri.parse(host_url);
-    var bytes_priv_key: [32]u8 = undefined;
-    _ = try std.fmt.hexToBytes(&bytes_priv_key, priv_key);
- 
-    // The chain defaults to ethereum if it's not specified.
+    const parsed = args_parser.parseArgs(CliOptions, &iter);
+
+    const uri = try std.Uri.parse(parsed.url);
+
     var wallet: Wallet = undefined;
-    try wallet.init(bytes_priv_key, .{.allocator = gpa.allocator(), .uri = uri });
+    try wallet.init(parsed.priv_key, .{ .allocator = gpa.allocator(), .uri = uri });
     defer wallet.deinit();
- 
+
     const message = try wallet.signEthereumMessage("Hello World");
-
-    const hex_sig = try message.toHex(wallet.allocator);
-    defer wallet.allocator.free(hex_sig);
-
-    std.debug.print("Ethereum message: 0x{s}\n", .{hex_sig});
+    const hexed = try message.toHex(wallet.allocator);
+    defer gpa.allocator().free(hexed);
+    std.debug.print("Ethereum message: {s}\n", .{hexed});
 }
 ```
+
+### Features
+
+- Json RPC with support for http/s and ws/s connections
+- Wallet instances and contract instances to use for interacting with nodes/json rpc.
+- Custom Secp256k1 ECDSA signer using only Zig and implementation of RFC6979 nonce generator.
+- Custom JSON Parser that can be used to deserialize and serialized RPC data at runtime.
+- ABI to zig types.
+- Support for EIP712.
+- Parsing of human readable ABIs into zig types with custom Parser and Lexer.
+- HD Wallet and Mnemonic passphrases.
+- RLP Encoding/Decoding.
+- SSZ Encoding/Decoding.
+- ABI Encoding/Decoding with support for Log topics encoding and decoding.
+- Parsing of encoded transactions and serialization of transaction objects.
+- Support for all transaction types and the new EIP4844 KZG commitments.
+- Support for OPStack and ENS.
+- Custom meta programming functions to transalate ABI's into zig types.
+- Support for interacting with test chains such as Anvil or Hardhat.
+- Custom RPC server used to fuzz data.
+- Custom cli args parser that translates commands to zig types and can be used to pass data to methods.
+- Custom data generator usefull for fuzzing.
+
+And a lot more to come yet to come...
+
+### Goal
+
+The goal of zabi is to be one of the best library to use by the ethereum ecosystem and to expose to more people to the zig programming language.
 
 # Sponsors
 

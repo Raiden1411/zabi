@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  Interact with ethereum via Zig!
+  A zig library to interact with EVM blockchains 
 <p>
 
 <p align="center">
@@ -19,8 +19,9 @@
 <p>
 
 ### Overview
-Zabi aims to add support for interacting with ethereum and EVM based chains. By default it comes with almost all of the features you would expect from an ethereum library. From RLP encoding/decoding, to wallet and contract instances, to a http or a websocket client and much more.
+Zabi aims to add support for interacting with ethereum or any compatible EVM based chain. 
 
+### Example Usage
 ```zig
 const args_parser = zabi.args;
 const std = @import("std");
@@ -58,10 +59,38 @@ pub fn main() !void {
 
 Explore the [docs](https://zabi.sh) to find out more on how you can use or integrate Zabi in your project!
 
-### Sponsors
+### Features
 
-If you find Zabi useful or use it for work, please consider supporting development on [GitHub Sponsors]( https://github.com/sponsors/Raiden1411) or sending crypto to [zzabi.eth](https://etherscan.io/name-lookup-search?id=zzabi.eth) or interacting with the [drip](https://www.drips.network/app/projects/github/Raiden1411/zabi?exact) platform where 40% of the revenue gets sent to zabi's dependencies. Thank you 🙏
+- Json RPC with support for http/s and ws/s connections
+- Wallet instances and contract instances to use for interacting with nodes/json rpc.
+- Custom Secp256k1 ECDSA signer using only Zig and implementation of RFC6979 nonce generator.
+- Custom JSON Parser that can be used to deserialize and serialized RPC data at runtime.
+- ABI to zig types.
+- Support for EIP712.
+- Parsing of human readable ABIs into zig types with custom Parser and Lexer.
+- HD Wallet and Mnemonic passphrases.
+- RLP Encoding/Decoding.
+- SSZ Encoding/Decoding.
+- ABI Encoding/Decoding with support for Log topics encoding and decoding.
+- Parsing of encoded transactions and serialization of transaction objects.
+- Support for all transaction types and the new EIP4844 KZG commitments.
+- Support for OPStack and ENS.
+- Custom meta programming functions to transalate ABI's into zig types.
+- Support for interacting with test chains such as Anvil or Hardhat.
+- Custom RPC server used to fuzz data.
+- Custom cli args parser that translates commands to zig types and can be used to pass data to methods.
+- Custom data generator usefull for fuzzing.
+
+And a lot more to come yet to come...
+
+### Goal
+
+The goal of zabi is to be one of the best library to use by the ethereum ecosystem and to expose to more people to the zig programming language.
 
 ### Contributing
 
 Contributions to Zabi are greatly appreciated! If you're interested in contributing to ZAbi, feel free to create a pull request with a feature or a bug fix.
+
+### Sponsors
+
+If you find Zabi useful or use it for work, please consider supporting development on [GitHub Sponsors]( https://github.com/sponsors/Raiden1411) or sending crypto to [zzabi.eth](https://etherscan.io/name-lookup-search?id=zzabi.eth) or interacting with the [drip](https://www.drips.network/app/projects/github/Raiden1411/zabi?exact) platform where 40% of the revenue gets sent to zabi's dependencies. Thank you 🙏

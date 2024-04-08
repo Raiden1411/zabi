@@ -45,8 +45,9 @@ fn buildKzg(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.Re
     defer flags.deinit();
 
     lib.addCSourceFiles(.{ .root = upstream.path("."), .flags = flags.items, .files = &.{"src/c_kzg_4844.c"} });
+    lib.installHeader(.{ .path = "blst.h" }, "blst.h");
+    lib.installHeader(.{ .path = "blst_aux.h" }, "blst_aux.h");
     lib.installHeadersDirectory(upstream.path("src"), "", .{});
-    lib.installHeadersDirectory(upstream.path(""), "", .{});
     lib.linkLibC();
 
     return lib;

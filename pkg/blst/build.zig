@@ -28,8 +28,7 @@ fn buildBlst(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.R
     }
 
     lib.addCSourceFiles(.{ .root = upstream.path(""), .flags = flags.items, .files = &.{ "src/server.c", "build/assembly.S" } });
-
-    lib.installHeadersDirectoryOptions(.{ .source_dir = upstream.path("src"), .install_dir = .header, .install_subdir = "", .include_extensions = &.{".h"} });
+    lib.installHeadersDirectory(upstream.path("src"), "", .{});
     lib.linkLibC();
 
     return lib;

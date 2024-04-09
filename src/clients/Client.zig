@@ -52,7 +52,37 @@ const Wei = types.Wei;
 
 const httplog = std.log.scoped(.http);
 
-pub const HttpClientError = error{ TransactionNotFound, FailedToGetReceipt, EvmFailedToExecute, InvalidFilterId, InvalidLogRequestParams, TransactionReceiptNotFound, InvalidHash, UnexpectedErrorFound, UnableToFetchFeeInfoFromBlock, UnexpectedTooManyRequestError, InvalidInput, InvalidParams, InvalidRequest, InvalidAddress, InvalidBlockHash, InvalidBlockHashOrIndex, InvalidBlockNumberOrIndex, TooManyRequests, MethodNotFound, MethodNotSupported, RpcVersionNotSupported, LimitExceeded, TransactionRejected, ResourceNotFound, ResourceUnavailable, UnexpectedRpcErrorCode, InvalidBlockNumber, ParseError, ReachedMaxRetryLimit } || Allocator.Error || std.fmt.ParseIntError || http.Client.RequestError || std.Uri.ParseError;
+pub const HttpClientError = error{
+    TransactionNotFound,
+    FailedToGetReceipt,
+    EvmFailedToExecute,
+    InvalidFilterId,
+    InvalidLogRequestParams,
+    TransactionReceiptNotFound,
+    InvalidHash,
+    UnexpectedErrorFound,
+    UnableToFetchFeeInfoFromBlock,
+    UnexpectedTooManyRequestError,
+    InvalidInput,
+    InvalidParams,
+    InvalidRequest,
+    InvalidAddress,
+    InvalidBlockHash,
+    InvalidBlockHashOrIndex,
+    InvalidBlockNumberOrIndex,
+    TooManyRequests,
+    MethodNotFound,
+    MethodNotSupported,
+    RpcVersionNotSupported,
+    LimitExceeded,
+    TransactionRejected,
+    ResourceNotFound,
+    ResourceUnavailable,
+    UnexpectedRpcErrorCode,
+    InvalidBlockNumber,
+    ParseError,
+    ReachedMaxRetryLimit,
+} || Allocator.Error || std.fmt.ParseIntError || http.Client.RequestError || std.Uri.ParseError;
 
 pub const InitOptions = struct {
     /// Allocator used to manage the memory arena.
@@ -246,7 +276,7 @@ pub fn estimateFeesPerGas(self: *PubClient, call_object: EthCall, base_fee_per_g
 ///
 /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
 pub fn estimateGas(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Gwei) {
-    return try self.sendEthCallRequest(Gwei, call_object, opts, .eth_estimateGas);
+    return self.sendEthCallRequest(Gwei, call_object, opts, .eth_estimateGas);
 }
 /// Estimates maxPriorityFeePerGas manually. If the node you are currently using
 /// supports `eth_maxPriorityFeePerGas` consider using `estimateMaxFeePerGas`.
@@ -270,7 +300,7 @@ pub fn estimateMaxFeePerGasManual(self: *PubClient, base_fee_per_gas: ?Gwei) !Gw
 }
 /// Only use this if the node you are currently using supports `eth_maxPriorityFeePerGas`.
 pub fn estimateMaxFeePerGas(self: *PubClient) !RPCResponse(Gwei) {
-    return try self.sendBasicRequest(Gwei, .eth_maxPriorityFeePerGas);
+    return self.sendBasicRequest(Gwei, .eth_maxPriorityFeePerGas);
 }
 /// Returns historical gas information, allowing you to track trends over time.
 ///
@@ -394,25 +424,25 @@ pub fn getBlockNumber(self: *PubClient) !RPCResponse(u64) {
 ///
 /// RPC Method: [eth_getBlockTransactionCountByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbyhash)
 pub fn getBlockTransactionCountByHash(self: *PubClient, block_hash: Hash) !RPCResponse(usize) {
-    return try self.sendBlockHashRequest(block_hash, .eth_getBlockTransactionCountByHash);
+    return self.sendBlockHashRequest(block_hash, .eth_getBlockTransactionCountByHash);
 }
 /// Returns the number of transactions in a block from a block matching the given block number.
 ///
 /// RPC Method: [eth_getBlockTransactionCountByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbynumber)
 pub fn getBlockTransactionCountByNumber(self: *PubClient, opts: BlockNumberRequest) !RPCResponse(usize) {
-    return try self.sendBlockNumberRequest(opts, .eth_getBlockTransactionCountByNumber);
+    return self.sendBlockNumberRequest(opts, .eth_getBlockTransactionCountByNumber);
 }
 /// Returns the chain ID used for signing replay-protected transactions.
 ///
 /// RPC Method: [eth_chainId](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_chainid)
 pub fn getChainId(self: *PubClient) !RPCResponse(usize) {
-    return try self.sendBasicRequest(usize, .eth_chainId);
+    return self.sendBasicRequest(usize, .eth_chainId);
 }
 /// Returns code at a given address.
 ///
 /// RPC Method: [eth_getCode](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getcode)
 pub fn getContractCode(self: *PubClient, opts: BalanceRequest) !RPCResponse(Hex) {
-    return try self.sendAddressRequest(Hex, opts, .eth_getCode);
+    return self.sendAddressRequest(Hex, opts, .eth_getCode);
 }
 /// Polling method for a filter, which returns an array of logs which occurred since last poll or
 /// Returns an array of all logs matching filter with given id depending on the selected method
@@ -448,7 +478,7 @@ pub fn getFilterOrLogChanges(self: *PubClient, filter_id: u128, method: Ethereum
 ///
 /// RPC Method: [eth_gasPrice](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gasprice)
 pub fn getGasPrice(self: *PubClient) !RPCResponse(Gwei) {
-    return try self.sendBasicRequest(u64, .eth_gasPrice);
+    return self.sendBasicRequest(u64, .eth_gasPrice);
 }
 /// Returns an array of all logs matching a given filter object.
 ///
@@ -781,7 +811,7 @@ pub fn newLogFilter(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !
 ///
 /// RPC Method: [`eth_newPendingTransactionFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newpendingtransactionfilter)
 pub fn newPendingTransactionFilter(self: *PubClient) !RPCResponse(u128) {
-    return try self.sendBasicRequest(u128, .eth_newPendingTransactionFilter);
+    return self.sendBasicRequest(u128, .eth_newPendingTransactionFilter);
 }
 /// Executes a new message call immediately without creating a transaction on the block chain.
 /// Often used for executing read-only smart contract functions,
@@ -792,7 +822,7 @@ pub fn newPendingTransactionFilter(self: *PubClient) !RPCResponse(u128) {
 ///
 /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
 pub fn sendEthCall(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Hex) {
-    return try self.sendEthCallRequest(Hex, call_object, opts, .eth_call);
+    return self.sendEthCallRequest(Hex, call_object, opts, .eth_call);
 }
 /// Creates new message call transaction or a contract creation for signed transactions.
 /// Transaction must be serialized and signed before hand.
@@ -1050,7 +1080,10 @@ pub fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;
             },
-            else => return error.InvalidRequest,
+            else => {
+                httplog.debug("Unexpected server response. Server returned: {s} status", .{req.status.phrase() orelse @tagName(req.status)});
+                return error.UnexpectedServerResponse;
+            },
         }
     }
 }
@@ -1202,7 +1235,12 @@ fn internalFetch(self: *PubClient, payload: []const u8, body: *std.ArrayList(u8)
 }
 
 fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !RPCResponse(T) {
-    const parsed = std.json.parseFromSlice(EthereumResponse(T), self.allocator, request, .{ .allocate = .alloc_always }) catch return error.UnexpectedErrorFound;
+    const parsed = std.json.parseFromSlice(
+        EthereumResponse(T),
+        self.allocator,
+        request,
+        .{ .allocate = .alloc_always },
+    ) catch return error.UnexpectedErrorFound;
 
     switch (parsed.value) {
         .success => |response| return RPCResponse(T).fromJson(parsed.arena, response.result),
@@ -1229,6 +1267,11 @@ fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !RPCRe
                 .ResourceUnavailable => return error.ResourceNotFound,
                 .TransactionRejected => return error.TransactionRejected,
                 .RpcVersionNotSupported => return error.RpcVersionNotSupported,
+                .UserRejectedRequest => return error.UserRejectedRequest,
+                .Unauthorized => return error.Unauthorized,
+                .UnsupportedMethod => return error.UnsupportedMethod,
+                .Disconnected => return error.Disconnected,
+                .ChainDisconnected => return error.ChainDisconnected,
                 _ => return error.UnexpectedRpcErrorCode,
             }
         },

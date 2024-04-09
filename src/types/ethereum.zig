@@ -177,6 +177,11 @@ pub const ContractErrorResponse = struct { code: EthereumErrorCodes, message: []
 pub const EthereumErrorCodes = enum(isize) {
     ContractErrorCode = 3,
     TooManyRequests = 429,
+    UserRejectedRequest = 4001,
+    Unauthorized = 4100,
+    UnsupportedMethod = 4200,
+    Disconnected = 4900,
+    ChainDisconnected = 4901,
     InvalidInput = -32000,
     ResourceNotFound = -32001,
     ResourceUnavailable = -32002,
@@ -208,6 +213,11 @@ pub const EthereumZigErrors = error{
     InternalError,
     ParseError,
     UnexpectedRpcErrorCode,
+    UserRejectedRequest,
+    Unauthorized,
+    UnsupportedMethod,
+    Disconnected,
+    ChainDisconnected,
 };
 /// Zig struct representation of a RPC error response
 pub const EthereumErrorResponse = struct {

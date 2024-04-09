@@ -60,7 +60,27 @@ const WebSocketHandler = @This();
 
 const wslog = std.log.scoped(.ws);
 
-pub const WebSocketHandlerErrors = error{ FailedToConnect, UnsupportedSchema, InvalidChainId, FailedToGetReceipt, FailedToUnsubscribe, InvalidFilterId, InvalidEventFound, InvalidBlockRequest, InvalidLogRequest, TransactionNotFound, TransactionReceiptNotFound, InvalidHash, UnableToFetchFeeInfoFromBlock, InvalidAddress, InvalidBlockHash, InvalidBlockHashOrIndex, InvalidBlockNumberOrIndex, InvalidBlockNumber, ReachedMaxRetryLimit } || Allocator.Error || std.fmt.ParseIntError || std.Uri.ParseError || EthereumZigErrors;
+pub const WebSocketHandlerErrors = error{
+    FailedToConnect,
+    UnsupportedSchema,
+    InvalidChainId,
+    FailedToGetReceipt,
+    FailedToUnsubscribe,
+    InvalidFilterId,
+    InvalidEventFound,
+    InvalidBlockRequest,
+    InvalidLogRequest,
+    TransactionNotFound,
+    TransactionReceiptNotFound,
+    InvalidHash,
+    UnableToFetchFeeInfoFromBlock,
+    InvalidAddress,
+    InvalidBlockHash,
+    InvalidBlockHashOrIndex,
+    InvalidBlockNumberOrIndex,
+    InvalidBlockNumber,
+    ReachedMaxRetryLimit,
+} || Allocator.Error || std.fmt.ParseIntError || std.Uri.ParseError || EthereumZigErrors;
 
 pub const InitOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
@@ -130,6 +150,11 @@ fn handleErrorResponse(self: *WebSocketHandler, event: ErrorResponse) EthereumZi
         .ResourceUnavailable => return error.ResourceNotFound,
         .TransactionRejected => return error.TransactionRejected,
         .RpcVersionNotSupported => return error.RpcVersionNotSupported,
+        .UserRejectedRequest => return error.UserRejectedRequest,
+        .Unauthorized => return error.Unauthorized,
+        .UnsupportedMethod => return error.UnsupportedMethod,
+        .Disconnected => return error.Disconnected,
+        .ChainDisconnected => return error.ChainDisconnected,
         _ => return error.UnexpectedRpcErrorCode,
     }
 }

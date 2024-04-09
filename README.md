@@ -81,7 +81,7 @@ Explore the [docs](https://zabi.sh) to find out more on how you can use or integ
 - Custom cli args parser that translates commands to zig types and can be used to pass data to methods.
 - Custom data generator usefull for fuzzing.
 
-And a lot more to come yet to come...
+And a lot more yet to come...
 
 ### Goal
 

@@ -2039,12 +2039,23 @@ pub fn watchTransactions(self: *WebSocketHandler) !RPCResponse(u128) {
 }
 /// Creates a new subscription for desired events. Sends data as soon as it occurs
 ///
-/// This expects the request to already be prepared beforehand.
+/// This expects the method to be a valid websocket subscription method.
 /// Since we have no way of knowing all possible or custom RPC methods that nodes can provide.
 ///
 /// Returns the subscription Id.
-pub fn watchWebsocketEvent(self: *WebSocketHandler, request: []u8) !RPCResponse(u128) {
-    return self.handleNumberEvent(u128, request);
+pub fn watchWebsocketEvent(self: *WebSocketHandler, method: []const u8) !RPCResponse(u128) {
+    const request: EthereumRequest(struct { []const u8 }) = .{
+        .params = .{method},
+        .method = .eth_subscribe,
+        .id = self.chain_id,
+    };
+
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    return self.handleNumberEvent(u128, buf_writter.getWritten());
 }
 /// Waits until a transaction gets mined and the receipt can be grabbed.
 /// This is retry based on either the amount of `confirmations` given.

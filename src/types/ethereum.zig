@@ -28,6 +28,11 @@ pub const Address = [20]u8;
 
 /// Set of public rpc actions.
 pub const EthereumRpcMethods = enum {
+    web3_clientVersion,
+    web3_sha3,
+    net_version,
+    net_listening,
+    net_peerCount,
     eth_chainId,
     eth_gasPrice,
     eth_accounts,
@@ -69,6 +74,8 @@ pub const EthereumRpcMethods = enum {
     eth_feeHistory,
     eth_getStorageAt,
     eth_getProof,
+    eth_protocolVersion,
+    eth_syncing,
 };
 
 /// Enum of know chains.

@@ -4,6 +4,7 @@ const log = @import("../types/log.zig");
 const meta = @import("../meta/utils.zig");
 const proof = @import("../types/proof.zig");
 const std = @import("std");
+const sync = @import("../types/syncing.zig");
 const testing = std.testing;
 const transaction = @import("../types/transaction.zig");
 const types = @import("../types/ethereum.zig");
@@ -44,6 +45,7 @@ const ProofResult = proof.ProofResult;
 const ProofBlockTag = block.ProofBlockTag;
 const ProofRequest = proof.ProofRequest;
 const RPCResponse = types.RPCResponse;
+const SyncProgress = sync.SyncStatus;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
 const Tuple = std.meta.Tuple;
@@ -462,6 +464,12 @@ pub fn getBlockTransactionCountByNumber(self: *PubClient, opts: BlockNumberReque
 pub fn getChainId(self: *PubClient) !RPCResponse(usize) {
     return self.sendBasicRequest(usize, .eth_chainId);
 }
+/// Returns the node's client version
+///
+/// RPC Method: [web3_clientVersion](https://ethereum.org/en/developers/docs/apis/json-rpc#web3_clientversion)
+pub fn getClientVersion(self: *PubClient) !RPCResponse([]const u8) {
+    return self.sendBasicRequest([]const u8, .web3_clientVersion);
+}
 /// Returns code at a given address.
 ///
 /// RPC Method: [eth_getCode](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getcode)
@@ -545,6 +553,24 @@ pub fn getLogs(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !RPCRe
         .response = logs,
     };
 }
+/// Returns true if client is actively listening for network connections.
+///
+/// RPC Method: [net_listening](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/net_listening)
+pub fn getNetworkListenStatus(self: *PubClient) !RPCResponse(bool) {
+    return self.sendBasicRequest(bool, .net_listening);
+}
+/// Returns number of peers currently connected to the client.
+///
+/// RPC Method: [net_peerCount](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/net_peerCount)
+pub fn getNetworkPeerCount(self: *PubClient) !RPCResponse(usize) {
+    return self.sendBasicRequest(usize, .net_peerCount);
+}
+/// Returns the current network id.
+///
+/// RPC Method: [net_version](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/net_version)
+pub fn getNetworkVersionId(self: *PubClient) !RPCResponse(usize) {
+    return self.sendBasicRequest(usize, .net_version);
+}
 /// Returns the account and storage values, including the Merkle proof, of the specified account
 ///
 /// RPC Method: [eth_getProof](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/eth_getproof)
@@ -574,6 +600,29 @@ pub fn getProof(self: *PubClient, opts: ProofRequest, tag: ?ProofBlockTag) !RPCR
 
     return self.sendRpcRequest(ProofResult, buf_writter.getWritten());
 }
+/// Returns the current Ethereum protocol version.
+///
+/// RPC Method: [eth_protocolVersion](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_protocolversion)
+pub fn getProtocolVersion(self: *PubClient) !RPCResponse(u64) {
+    return self.sendBasicRequest(u64, .eth_protocolVersion);
+}
+/// Returns the Keccak256 hash of the given message.
+///
+/// RPC Method: [web_sha3](https://ethereum.org/en/developers/docs/apis/json-rpc#web3_sha3)
+pub fn getSha3Hash(self: *PubClient, message: []const u8) !RPCResponse(Hash) {
+    const request: EthereumRequest(struct { []const u8 }) = .{
+        .params = .{message},
+        .method = .web3_sha3,
+        .id = self.chain_id,
+    };
+
+    var request_buffer: [4096]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    return self.sendRpcRequest(Hash, buf_writter.getWritten());
+}
 /// Returns the value from a storage position at a given address.
 ///
 /// RPC Method: [eth_getStorageAt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getstorageat)
@@ -602,6 +651,13 @@ pub fn getStorage(self: *PubClient, address: Address, storage_key: Hash, opts: B
     }
 
     return self.sendRpcRequest(Hash, buf_writter.getWritten());
+}
+/// Returns null if the node has finished syncing. Otherwise it will return
+/// the sync progress.
+///
+/// RPC Method: [eth_syncing](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_syncing)
+pub fn getSyncStatus(self: *PubClient) !?RPCResponse(SyncProgress) {
+    return self.sendBasicRequest(SyncProgress, .eth_syncing) catch null;
 }
 /// Returns information about a transaction by block hash and transaction index position.
 ///

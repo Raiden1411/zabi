@@ -507,29 +507,51 @@ pub const CancunReceipt = struct {
 /// L2 transaction receipt representation
 pub const OpstackReceipt = struct {
     transactionHash: Hash,
+    transactionIndex: u64,
     blockHash: Hash,
     blockNumber: ?u64,
-    logsBloom: Hex,
-    l1FeeScalar: f64,
-    l1GasUsed: Gwei,
-    l1Fee: Wei,
-    contractAddress: ?Address,
-    transactionIndex: u64,
-    l1GasPrice: Gwei,
-    type: ?TransactionTypes = null,
-    gasUsed: Gwei,
-    cumulativeGasUsed: Gwei,
     from: Address,
     to: ?Address,
-    effectiveGasPrice: ?Gwei = null,
+    gasUsed: Gwei,
+    cumulativeGasUsed: Gwei,
+    contractAddress: ?Address,
     logs: Logs,
-    root: ?Hex = null,
     status: ?bool = null,
+    logsBloom: Hex,
+    type: ?TransactionTypes = null,
+    effectiveGasPrice: ?Gwei = null,
     deposit_nonce: ?usize = null,
+    l1Fee: Wei,
+    l1GasPrice: Gwei,
+    l1GasUsed: Gwei,
+    l1FeeScalar: ?f64 = null,
+    root: ?Hex = null,
 
     pub usingnamespace RequestParser(@This());
 };
-/// L2 transaction receipt representation
+/// L2 Deposit transaction receipt representation
+pub const DepositReceipt = struct {
+    transactionHash: Hash,
+    transactionIndex: u64,
+    blockHash: Hash,
+    blockNumber: ?u64,
+    from: Address,
+    to: ?Address,
+    cumulativeGasUsed: Gwei,
+    gasUsed: Gwei,
+    contractAddress: ?Address,
+    logs: Logs,
+    status: ?bool = null,
+    logsBloom: Hex,
+    type: ?TransactionTypes = null,
+    effectiveGasPrice: ?Gwei = null,
+    deposit_nonce: ?usize = null,
+    depositNonce: u64,
+    root: ?Hex = null,
+
+    pub usingnamespace RequestParser(@This());
+};
+/// Arbitrum transaction receipt representation
 pub const ArbitrumReceipt = struct {
     transactionHash: Hash,
     blockHash: Hash,
@@ -558,6 +580,7 @@ pub const TransactionReceipt = union(enum) {
     cancun: CancunReceipt,
     op_receipt: OpstackReceipt,
     arbitrum_receipt: ArbitrumReceipt,
+    deposit_receipt: DepositReceipt,
 
     pub usingnamespace UnionParser(@This());
 };

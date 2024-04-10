@@ -1,3 +1,5 @@
+const RequestParser = @import("../meta/json.zig").RequestParser;
+
 /// Result when calling `eth_syncing` if a node hasn't finished syncing
 pub const SyncStatus = struct {
     startingBlock: u64,
@@ -17,4 +19,6 @@ pub const SyncStatus = struct {
     healingBytecode: u64,
     txIndexFinishedBlocks: u64,
     txIndexRemainingBlocks: u64,
+
+    pub usingnamespace RequestParser(@This());
 };

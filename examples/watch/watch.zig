@@ -30,7 +30,6 @@ pub fn main() !void {
     // https://github.com/ziglang/zig/issues/15226
     // Make sure that for now the data you are using is not big enough to cause these crashes.
     while (true) {
-        std.debug.print("Sub id: {s}\n", .{parsed.url});
         const event = try socket.getCurrentSubscriptionEvent();
         defer event.deinit();
 

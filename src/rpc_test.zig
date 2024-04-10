@@ -21,7 +21,7 @@ const WalletClients = @import("clients/wallet.zig").WalletClients;
 const WebSocketClient = @import("clients/WebSocket.zig");
 
 pub const std_options: std.Options = .{
-    .log_level = .info,
+    .log_level = .debug,
 };
 
 const CliArgs = struct {

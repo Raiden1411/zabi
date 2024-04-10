@@ -86,6 +86,38 @@ pub const LegacyBlock = struct {
 
     pub usingnamespace RequestParser(@This());
 };
+/// The most common block that can be found before the
+/// ethereum merge. Doesn't contain the `withdrawals` or
+/// `withdrawalsRoot` fields.
+pub const ArbitrumBlock = struct {
+    baseFeePerGas: ?Gwei = null,
+    difficulty: u256,
+    extraData: Hex,
+    gasLimit: Gwei,
+    gasUsed: Gwei,
+    hash: ?Hash,
+    logsBloom: ?Hex,
+    miner: Address,
+    mixHash: ?Hash = null,
+    nonce: ?u64,
+    number: ?u64,
+    parentHash: Hash,
+    receiptsRoot: Hash,
+    sealFields: ?[]const Hex = null,
+    sha3Uncles: Hash,
+    size: u64,
+    stateRoot: Hash,
+    timestamp: u64,
+    totalDifficulty: ?u256 = null,
+    transactions: ?BlockTransactions = null,
+    transactionsRoot: Hash,
+    uncles: ?[]const Hash = null,
+    l1BlockNumber: u64,
+    sendCount: u64,
+    sendRoot: Hash,
+
+    pub usingnamespace RequestParser(@This());
+};
 /// Possible transactions that can be found in the
 /// block struct fields.
 pub const BlockTransactions = union(enum) {
@@ -161,6 +193,7 @@ pub const Block = union(enum) {
     beacon: BeaconBlock,
     legacy: LegacyBlock,
     cancun: BlobBlock,
+    arbitrum: ArbitrumBlock,
 
     pub usingnamespace UnionParser(@This());
 };

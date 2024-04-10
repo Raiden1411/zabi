@@ -505,17 +505,62 @@ pub const CancunReceipt = struct {
     pub usingnamespace RequestParser(@This());
 };
 /// L2 transaction receipt representation
-pub const L2Receipt = struct {
+pub const OpstackReceipt = struct {
+    transactionHash: Hash,
+    transactionIndex: u64,
+    blockHash: Hash,
+    blockNumber: ?u64,
+    from: Address,
+    to: ?Address,
+    gasUsed: Gwei,
+    cumulativeGasUsed: Gwei,
+    contractAddress: ?Address,
+    logs: Logs,
+    status: ?bool = null,
+    logsBloom: Hex,
+    type: ?TransactionTypes = null,
+    effectiveGasPrice: ?Gwei = null,
+    deposit_nonce: ?usize = null,
+    l1Fee: Wei,
+    l1GasPrice: Gwei,
+    l1GasUsed: Gwei,
+    l1FeeScalar: ?f64 = null,
+    root: ?Hex = null,
+
+    pub usingnamespace RequestParser(@This());
+};
+/// L2 Deposit transaction receipt representation
+pub const DepositReceipt = struct {
+    transactionHash: Hash,
+    transactionIndex: u64,
+    blockHash: Hash,
+    blockNumber: ?u64,
+    from: Address,
+    to: ?Address,
+    cumulativeGasUsed: Gwei,
+    gasUsed: Gwei,
+    contractAddress: ?Address,
+    logs: Logs,
+    status: ?bool = null,
+    logsBloom: Hex,
+    type: ?TransactionTypes = null,
+    effectiveGasPrice: ?Gwei = null,
+    deposit_nonce: ?usize = null,
+    depositNonce: u64,
+    root: ?Hex = null,
+
+    pub usingnamespace RequestParser(@This());
+};
+/// Arbitrum transaction receipt representation
+pub const ArbitrumReceipt = struct {
     transactionHash: Hash,
     blockHash: Hash,
     blockNumber: ?u64,
     logsBloom: Hex,
-    l1FeeScalar: f64,
-    l1GasUsed: Gwei,
-    l1Fee: Wei,
+    l1BlockNumber: Wei,
     contractAddress: ?Address,
     transactionIndex: u64,
-    l1GasPrice: Gwei,
+    gasUsedForL1: Gwei,
     type: ?TransactionTypes = null,
     gasUsed: Gwei,
     cumulativeGasUsed: Gwei,
@@ -533,7 +578,9 @@ pub const L2Receipt = struct {
 pub const TransactionReceipt = union(enum) {
     legacy: LegacyReceipt,
     cancun: CancunReceipt,
-    l2_receipt: L2Receipt,
+    op_receipt: OpstackReceipt,
+    arbitrum_receipt: ArbitrumReceipt,
+    deposit_receipt: DepositReceipt,
 
     pub usingnamespace UnionParser(@This());
 };

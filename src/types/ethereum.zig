@@ -3,6 +3,7 @@ const log = @import("log.zig");
 const meta = @import("../meta/root.zig");
 const proof = @import("proof.zig");
 const std = @import("std");
+const sync = @import("syncing.zig");
 const transaction = @import("transaction.zig");
 
 const AccessListResult = transaction.AccessListResult;
@@ -16,6 +17,7 @@ const PendingTransactionHashesSubscription = transaction.PendingTransactionHashe
 const PendingTransaction = transaction.PendingTransaction;
 const ProofResult = proof.ProofResult;
 const RequestParser = meta.json.RequestParser;
+const SyncProgress = sync.SyncStatus;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
 const UnionParser = meta.json.UnionParser;
@@ -26,8 +28,19 @@ pub const Wei = u256;
 pub const Hash = [32]u8;
 pub const Address = [20]u8;
 
+pub const WebsocketSubscriptions = enum {
+    newHeads,
+    logs,
+    newPendingTransactions,
+};
+
 /// Set of public rpc actions.
 pub const EthereumRpcMethods = enum {
+    web3_clientVersion,
+    web3_sha3,
+    net_version,
+    net_listening,
+    net_peerCount,
     eth_chainId,
     eth_gasPrice,
     eth_accounts,
@@ -69,6 +82,9 @@ pub const EthereumRpcMethods = enum {
     eth_feeHistory,
     eth_getStorageAt,
     eth_getProof,
+    eth_protocolVersion,
+    eth_syncing,
+    eth_getRawTransactionByHash,
 };
 
 /// Enum of know chains.
@@ -177,6 +193,11 @@ pub const ContractErrorResponse = struct { code: EthereumErrorCodes, message: []
 pub const EthereumErrorCodes = enum(isize) {
     ContractErrorCode = 3,
     TooManyRequests = 429,
+    UserRejectedRequest = 4001,
+    Unauthorized = 4100,
+    UnsupportedMethod = 4200,
+    Disconnected = 4900,
+    ChainDisconnected = 4901,
     InvalidInput = -32000,
     ResourceNotFound = -32001,
     ResourceUnavailable = -32002,
@@ -208,6 +229,11 @@ pub const EthereumZigErrors = error{
     InternalError,
     ParseError,
     UnexpectedRpcErrorCode,
+    UserRejectedRequest,
+    Unauthorized,
+    UnsupportedMethod,
+    Disconnected,
+    ChainDisconnected,
 };
 /// Zig struct representation of a RPC error response
 pub const EthereumErrorResponse = struct {
@@ -249,6 +275,7 @@ pub const EthereumRpcEvents = union(enum) {
     hash_event: EthereumRpcResponse(Hash),
     number_event: EthereumRpcResponse(u256),
     bool_event: EthereumRpcResponse(bool),
+    sync_event: EthereumRpcResponse(SyncProgress),
     hex_event: EthereumRpcResponse(Hex),
     error_event: EthereumErrorResponse,
 

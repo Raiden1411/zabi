@@ -353,6 +353,18 @@ pub fn getAddressTransactionCount(self: *PubClient, opts: BalanceRequest) !RPCRe
 ///
 /// RPC Method: [eth_getBlockByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblockbyhash)
 pub fn getBlockByHash(self: *PubClient, opts: BlockHashRequest) !RPCResponse(Block) {
+    return self.getBlockByHashType(Block, opts);
+}
+/// Returns information about a block by hash.
+///
+/// Ask for a expected type since the way that our json parser works
+/// on unions it will try to parse it until it can complete it for a
+/// union member. This can be slow so if you know exactly what is the
+/// expected type you can pass it and it will return the json parsed
+/// response.
+///
+/// RPC Method: [eth_getBlockByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblockbyhash)
+pub fn getBlockByHashType(self: *PubClient, comptime T: type, opts: BlockHashRequest) !RPCResponse(T) {
     const include = opts.include_transaction_objects orelse false;
 
     const request: EthereumRequest(struct { Hash, bool }) = .{
@@ -380,6 +392,18 @@ pub fn getBlockByHash(self: *PubClient, opts: BlockHashRequest) !RPCResponse(Blo
 ///
 /// RPC Method: [eth_getBlockByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblockbynumber)
 pub fn getBlockByNumber(self: *PubClient, opts: BlockRequest) !RPCResponse(Block) {
+    return self.getBlockByNumberType(Block, opts);
+}
+/// Returns information about a block by number.
+///
+/// Ask for a expected type since the way that our json parser works
+/// on unions it will try to parse it until it can complete it for a
+/// union member. This can be slow so if you know exactly what is the
+/// expected type you can pass it and it will return the json parsed
+/// response.
+///
+/// RPC Method: [eth_getBlockByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblockbynumber)
+pub fn getBlockByNumberType(self: *PubClient, comptime T: type, opts: BlockRequest) !RPCResponse(T) {
     const tag: BlockTag = opts.tag orelse .latest;
     const include = opts.include_transaction_objects orelse false;
 
@@ -583,6 +607,18 @@ pub fn getStorage(self: *PubClient, address: Address, storage_key: Hash, opts: B
 ///
 /// RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblockhashandindex)
 pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: usize) !RPCResponse(Transaction) {
+    return self.getTransactionByBlockHashAndIndexType(Transaction, block_hash, index);
+}
+/// Returns information about a transaction by block hash and transaction index position.
+///
+/// Ask for a expected type since the way that our json parser works
+/// on unions it will try to parse it until it can complete it for a
+/// union member. This can be slow so if you know exactly what is the
+/// expected type you can pass it and it will return the json parsed
+/// response.
+///
+/// RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblockhashandindex)
+pub fn getTransactionByBlockHashAndIndexType(self: *PubClient, comptime T: type, block_hash: Hash, index: usize) !RPCResponse(T) {
     const request: EthereumRequest(struct { Hash, usize }) = .{
         .params = .{ block_hash, index },
         .method = .eth_getTransactionByBlockHashAndIndex,
@@ -604,10 +640,19 @@ pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: Hash, ind
         .response = tx,
     };
 }
+pub fn getTransactionByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRequest, index: usize) !RPCResponse(Transaction) {
+    return self.getTransactionByBlockNumberAndIndexType(Transaction, opts, index);
+}
 /// Returns information about a transaction by block number and transaction index position.
 ///
+/// Ask for a expected type since the way that our json parser works
+/// on unions it will try to parse it until it can complete it for a
+/// union member. This can be slow so if you know exactly what is the
+/// expected type you can pass it and it will return the json parsed
+/// response.
+///
 /// RPC Method: [eth_getTransactionByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblocknumberandindex)
-pub fn getTransactionByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRequest, index: usize) !RPCResponse(Transaction) {
+pub fn getTransactionByBlockNumberAndIndexType(self: *PubClient, comptime T: type, opts: BlockNumberRequest, index: usize) !RPCResponse(T) {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [1024]u8 = undefined;
@@ -645,6 +690,18 @@ pub fn getTransactionByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRe
 ///
 /// RPC Method: [eth_getTransactionByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyhash)
 pub fn getTransactionByHash(self: *PubClient, transaction_hash: Hash) !RPCResponse(Transaction) {
+    return self.getTransactionByHashType(Transaction, transaction_hash);
+}
+/// Returns the information about a transaction requested by transaction hash.
+///
+/// Ask for a expected type since the way that our json parser works
+/// on unions it will try to parse it until it can complete it for a
+/// union member. This can be slow so if you know exactly what is the
+/// expected type you can pass it and it will return the json parsed
+/// response.
+///
+/// RPC Method: [eth_getTransactionByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyhash)
+pub fn getTransactionByHashType(self: *PubClient, comptime T: type, transaction_hash: Hash) !RPCResponse(T) {
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{transaction_hash},
         .method = .eth_getTransactionByHash,
@@ -695,6 +752,18 @@ pub fn getTransactionReceipt(self: *PubClient, transaction_hash: Hash) !RPCRespo
 ///
 /// RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblockhashandindex)
 pub fn getUncleByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: usize) !RPCResponse(Block) {
+    return self.getUncleByBlockHashAndIndexType(Block, block_hash, index);
+}
+/// Returns information about a uncle of a block by hash and uncle index position.
+///
+/// Ask for a expected type since the way that our json parser works
+/// on unions it will try to parse it until it can complete it for a
+/// union member. This can be slow so if you know exactly what is the
+/// expected type you can pass it and it will return the json parsed
+/// response.
+///
+/// RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblockhashandindex)
+pub fn getUncleByBlockHashAndIndexType(self: *PubClient, comptime T: type, block_hash: Hash, index: usize) !RPCResponse(T) {
     const request: EthereumRequest(struct { Hash, usize }) = .{
         .params = .{ block_hash, index },
         .method = .eth_getUncleByBlockHashAndIndex,
@@ -720,6 +789,18 @@ pub fn getUncleByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: us
 ///
 /// RPC Method: [eth_getUncleByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblocknumberandindex)
 pub fn getUncleByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRequest, index: usize) !RPCResponse(Block) {
+    return self.getUncleByBlockNumberAndIndexType(Block, opts, index);
+}
+/// Returns information about a uncle of a block by number and uncle index position.
+///
+/// Ask for a expected type since the way that our json parser works
+/// on unions it will try to parse it until it can complete it for a
+/// union member. This can be slow so if you know exactly what is the
+/// expected type you can pass it and it will return the json parsed
+/// response.
+///
+/// RPC Method: [eth_getUncleByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblocknumberandindex)
+pub fn getUncleByBlockNumberAndIndexType(self: *PubClient, comptime T: type, opts: BlockNumberRequest, index: usize) !RPCResponse(T) {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
@@ -851,6 +932,23 @@ pub fn sendRawTransaction(self: *PubClient, serialized_tx: Hex) !RPCResponse(Has
 ///
 /// RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
 pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt) {
+    return self.waitForTransactionReceiptType(TransactionReceipt, tx_hash, confirmations);
+}
+/// Waits until a transaction gets mined and the receipt can be grabbed.
+/// This is retry based on either the amount of `confirmations` given.
+///
+/// If 0 confirmations are given the transaction receipt can be null in case
+/// the transaction has not been mined yet. It's recommened to have atleast one confirmation
+/// because some nodes might be slower to sync.
+///
+/// Ask for a expected type since the way that our json parser works
+/// on unions it will try to parse it until it can complete it for a
+/// union member. This can be slow so if you know exactly what is the
+/// expected type you can pass it and it will return the json parsed
+/// response.
+///
+/// RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
+pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash: Hash, confirmations: u8) !RPCResponse(T) {
     var tx: ?RPCResponse(Transaction) = null;
     defer if (tx) |tx_res| tx_res.deinit();
 

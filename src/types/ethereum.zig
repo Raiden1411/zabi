@@ -76,6 +76,7 @@ pub const EthereumRpcMethods = enum {
     eth_getProof,
     eth_protocolVersion,
     eth_syncing,
+    eth_getRawTransactionByHash,
 };
 
 /// Enum of know chains.

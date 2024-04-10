@@ -3,6 +3,7 @@ const log = @import("log.zig");
 const meta = @import("../meta/root.zig");
 const proof = @import("proof.zig");
 const std = @import("std");
+const sync = @import("syncing.zig");
 const transaction = @import("transaction.zig");
 
 const AccessListResult = transaction.AccessListResult;
@@ -16,6 +17,7 @@ const PendingTransactionHashesSubscription = transaction.PendingTransactionHashe
 const PendingTransaction = transaction.PendingTransaction;
 const ProofResult = proof.ProofResult;
 const RequestParser = meta.json.RequestParser;
+const SyncProgress = sync.SyncStatus;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
 const UnionParser = meta.json.UnionParser;
@@ -267,6 +269,7 @@ pub const EthereumRpcEvents = union(enum) {
     hash_event: EthereumRpcResponse(Hash),
     number_event: EthereumRpcResponse(u256),
     bool_event: EthereumRpcResponse(bool),
+    sync_event: EthereumRpcResponse(SyncProgress),
     hex_event: EthereumRpcResponse(Hex),
     error_event: EthereumErrorResponse,
 

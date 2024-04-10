@@ -214,23 +214,6 @@ pub fn blobBaseFee(self: *PubClient) !RPCResponse(Gwei) {
 pub fn createAccessList(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(AccessListResult) {
     return self.sendEthCallRequest(AccessListResult, call_object, opts, .eth_createAccessList);
 }
-/// Returns the raw transaction data as a hexadecimal string for a given transaction hash
-///
-/// RPC Method: [eth_getRawTransactionByHash](https://docs.chainstack.com/reference/base-getrawtransactionbyhash)
-pub fn getRawTransactionByHash(self: *PubClient, tx_hash: Hash) !RPCResponse(Hex) {
-    const request: EthereumRequest(struct { Hash }) = .{
-        .params = .{tx_hash},
-        .method = .eth_getRawTransactionByHash,
-        .id = self.chain_id,
-    };
-
-    var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
-
-    try std.json.stringify(request, .{}, buf_writter.writer());
-
-    return self.sendRpcRequest(Hex, buf_writter.getWritten());
-}
 /// Estimate the gas used for blobs
 /// Uses `blobBaseFee` and `gasPrice` to calculate this estimation
 pub fn estimateBlobMaxFeePerGas(self: *PubClient) !Gwei {
@@ -622,6 +605,23 @@ pub fn getProof(self: *PubClient, opts: ProofRequest, tag: ?ProofBlockTag) !RPCR
 /// RPC Method: [eth_protocolVersion](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_protocolversion)
 pub fn getProtocolVersion(self: *PubClient) !RPCResponse(u64) {
     return self.sendBasicRequest(u64, .eth_protocolVersion);
+}
+/// Returns the raw transaction data as a hexadecimal string for a given transaction hash
+///
+/// RPC Method: [eth_getRawTransactionByHash](https://docs.chainstack.com/reference/base-getrawtransactionbyhash)
+pub fn getRawTransactionByHash(self: *PubClient, tx_hash: Hash) !RPCResponse(Hex) {
+    const request: EthereumRequest(struct { Hash }) = .{
+        .params = .{tx_hash},
+        .method = .eth_getRawTransactionByHash,
+        .id = self.chain_id,
+    };
+
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+
+    return self.sendRpcRequest(Hex, buf_writter.getWritten());
 }
 /// Returns the Keccak256 hash of the given message.
 ///

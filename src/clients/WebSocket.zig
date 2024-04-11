@@ -8,6 +8,7 @@ const sync = @import("../types/syncing.zig");
 const testing = std.testing;
 const transaction = @import("../types/transaction.zig");
 const types = @import("../types/ethereum.zig");
+const txpool = @import("../types/txpool.zig");
 const utils = @import("../utils/utils.zig");
 const ws = @import("ws");
 
@@ -46,6 +47,7 @@ const LogRequest = log.LogRequest;
 const LogTagRequest = log.LogTagRequest;
 const Logs = log.Logs;
 const Mutex = std.Thread.Mutex;
+const PoolTransactionByNonce = txpool.PoolTransactionByNonce;
 const ProofResult = proof.ProofResult;
 const ProofBlockTag = block.ProofBlockTag;
 const ProofRequest = proof.ProofRequest;
@@ -54,6 +56,9 @@ const SyncProgress = sync.SyncStatus;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
 const Tuple = std.meta.Tuple;
+const TxPoolContent = txpool.TxPoolContent;
+const TxPoolInspect = txpool.TxPoolInspect;
+const TxPoolStatus = txpool.TxPoolStatus;
 const Uri = std.Uri;
 const WatchLogsRequest = log.WatchLogsRequest;
 const WebsocketSubscriptions = types.WebsocketSubscriptions;
@@ -132,6 +137,13 @@ retries: u8,
 uri: std.Uri,
 /// The underlaying websocket client
 ws_client: *ws.Client,
+
+const protocol_map = std.ComptimeStringMap(std.http.Client.Connection.Protocol, .{
+    .{ "http", .plain },
+    .{ "ws", .plain },
+    .{ "https", .tls },
+    .{ "wss", .tls },
+});
 
 /// Converts ethereum error codes into Zig errors.
 fn handleErrorResponse(self: *WebSocketHandler, event: ErrorResponse) EthereumZigErrors {
@@ -309,7 +321,7 @@ pub fn deinit(self: *WebSocketHandler) void {
 }
 /// Connects to a socket client. This is a blocking operation.
 pub fn connect(self: *WebSocketHandler) !ws.Client {
-    const scheme = std.http.Client.protocol_map.get(self.uri.scheme) orelse return error.UnsupportedSchema;
+    const scheme = protocol_map.get(self.uri.scheme) orelse return error.UnsupportedSchema;
     const port: u16 = self.uri.port orelse switch (scheme) {
         .plain => 80,
         .tls => 443,
@@ -328,7 +340,12 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
             },
         }
 
-        var client = ws.connect(self.allocator, self.uri.host.?, port, .{
+        const hostname = switch (self.uri.host.?) {
+            .raw => |raw| raw,
+            .percent_encoded => |host| host,
+        };
+
+        var client = ws.connect(self.allocator, hostname, port, .{
             .tls = scheme == .tls,
             .max_size = std.math.maxInt(u32),
             .buffer_size = 10 * std.math.maxInt(u16),
@@ -338,19 +355,18 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
         };
         errdefer client.deinit();
 
-        const headers = try std.fmt.allocPrint(self.allocator, "Host: {s}", .{self.uri.host.?});
+        const headers = try std.fmt.allocPrint(self.allocator, "Host: {s}", .{hostname});
         defer self.allocator.free(headers);
 
-        if (self.uri.path.len == 0)
+        if (self.uri.path.isEmpty())
             return error.MissingUrlPath;
 
-        const path = switch (scheme) {
-            .tls => try std.fmt.allocPrint(self.allocator, "{s}", .{self.uri}),
-            else => self.uri.path,
+        const path = switch (self.uri.path) {
+            .raw => |raw| raw,
+            .percent_encoded => |host| host,
         };
-        defer if (scheme == .tls) self.allocator.free(path);
 
-        client.handshake(self.uri.path, .{ .headers = headers, .timeout_ms = 5_000 }) catch |err| {
+        client.handshake(path, .{ .headers = headers, .timeout_ms = 5_000 }) catch |err| {
             wslog.debug("Handshake failed: {s}", .{@errorName(err)});
             continue;
         };
@@ -1593,6 +1609,159 @@ pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: Hash) !R
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a receipt_event.", .{@tagName(eve)});
+                return error.InvalidEventFound;
+            },
+        }
+    }
+}
+/// The content inspection property can be queried to list the exact details of all the transactions currently pending for inclusion in the next block(s),
+/// as well as the ones that are being scheduled for future execution only.
+///
+/// The result is an object with two fields pending and queued.
+/// Each of these fields are associative arrays, in which each entry maps an origin-address to a batch of scheduled transactions.
+/// These batches themselves are maps associating nonces with actual transactions.
+///
+/// RPC Method: [txpool_content](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
+pub fn getTxPoolContent(self: *WebSocketHandler) !RPCResponse(TxPoolContent) {
+    self.mutex.lock();
+    const request: EthereumRequest(struct {}) = .{
+        .params = .{},
+        .method = .txpool_content,
+        .id = self.chain_id,
+    };
+
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+    self.mutex.unlock();
+
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
+
+        try self.write(buf_writter.getWritten());
+        const txpool_content_message = self.rpc_channel.get();
+        errdefer txpool_content_message.deinit();
+
+        switch (txpool_content_message.response) {
+            .txpool_content_event => |txpool_content| return .{ .arena = txpool_content_message.arena, .response = txpool_content.result },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
+            else => |eve| {
+                wslog.debug("Found incorrect event named: {s}. Expected a txpool_content_event.", .{@tagName(eve)});
+                return error.InvalidEventFound;
+            },
+        }
+    }
+}
+/// Retrieves the transactions contained within the txpool,
+/// returning pending as well as queued transactions of this address, grouped by nonce
+///
+/// RPC Method: [txpool_contentFrom](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
+pub fn getTxPoolContentFrom(self: *WebSocketHandler, from: Address) !RPCResponse([]const PoolTransactionByNonce) {
+    self.mutex.lock();
+    const request: EthereumRequest(struct { Hash }) = .{
+        .params = .{from},
+        .method = .txpool_contentFrom,
+        .id = self.chain_id,
+    };
+
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+    self.mutex.unlock();
+
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
+
+        try self.write(buf_writter.getWritten());
+        const txpool_content_message = self.rpc_channel.get();
+        errdefer txpool_content_message.deinit();
+
+        switch (txpool_content_message.response) {
+            .txpool_content_from_event => |txpool_content_from| return .{ .arena = txpool_content_message.arena, .response = txpool_content_from.result },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
+            else => |eve| {
+                wslog.debug("Found incorrect event named: {s}. Expected a txpool_content_from_event.", .{@tagName(eve)});
+                return error.InvalidEventFound;
+            },
+        }
+    }
+}
+/// The inspect inspection property can be queried to list a textual summary of all the transactions currently pending for inclusion in the next block(s),
+/// as well as the ones that are being scheduled for future execution only.
+/// This is a method specifically tailored to developers to quickly see the transactions in the pool and find any potential issues.
+///
+/// RPC Method: [txpool_inspect](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
+pub fn getTxPoolInspectStatus(self: *WebSocketHandler) !RPCResponse(TxPoolInspect) {
+    self.mutex.lock();
+    const request: EthereumRequest(struct {}) = .{
+        .params = .{},
+        .method = .txpool_inspect,
+        .id = self.chain_id,
+    };
+
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+    self.mutex.unlock();
+
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
+
+        try self.write(buf_writter.getWritten());
+        const txpool_inspect_message = self.rpc_channel.get();
+        errdefer txpool_inspect_message.deinit();
+
+        switch (txpool_inspect_message.response) {
+            .txpool_inspect_event => |txpool_inspect| return .{ .arena = txpool_inspect_message.arena, .response = txpool_inspect.result },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
+            else => |eve| {
+                wslog.debug("Found incorrect event named: {s}. Expected a txpool_inspect_event.", .{@tagName(eve)});
+                return error.InvalidEventFound;
+            },
+        }
+    }
+}
+/// The status inspection property can be queried for the number of transactions currently pending for inclusion in the next block(s),
+/// as well as the ones that are being scheduled for future execution only.
+///
+/// RPC Method: [txpool_status](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
+pub fn getTxPoolStatus(self: *WebSocketHandler) !RPCResponse(TxPoolStatus) {
+    self.mutex.lock();
+    const request: EthereumRequest(struct {}) = .{
+        .params = .{},
+        .method = .txpool_status,
+        .id = self.chain_id,
+    };
+
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+    self.mutex.unlock();
+
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
+
+        try self.write(buf_writter.getWritten());
+        const txpool_status_message = self.rpc_channel.get();
+        errdefer txpool_status_message.deinit();
+
+        switch (txpool_status_message.response) {
+            .txpool_status_event => |txpool_status| return .{ .arena = txpool_status_message.arena, .response = txpool_status.result },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
+            else => |eve| {
+                wslog.debug("Found incorrect event named: {s}. Expected a txpool_status_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }

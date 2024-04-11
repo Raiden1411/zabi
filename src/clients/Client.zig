@@ -8,6 +8,7 @@ const sync = @import("../types/syncing.zig");
 const testing = std.testing;
 const transaction = @import("../types/transaction.zig");
 const types = @import("../types/ethereum.zig");
+const txpool = @import("../types/txpool.zig");
 const utils = @import("../utils/utils.zig");
 
 // Types
@@ -41,6 +42,7 @@ const Log = log.Log;
 const LogRequest = log.LogRequest;
 const LogTagRequest = log.LogTagRequest;
 const Logs = log.Logs;
+const PoolTransactionByNonce = txpool.PoolTransactionByNonce;
 const ProofResult = proof.ProofResult;
 const ProofBlockTag = block.ProofBlockTag;
 const ProofRequest = proof.ProofRequest;
@@ -48,6 +50,9 @@ const RPCResponse = types.RPCResponse;
 const SyncProgress = sync.SyncStatus;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
+const TxPoolContent = txpool.TxPoolContent;
+const TxPoolInspect = txpool.TxPoolInspect;
+const TxPoolStatus = txpool.TxPoolStatus;
 const Tuple = std.meta.Tuple;
 const Uri = std.Uri;
 const Wei = types.Wei;
@@ -85,6 +90,13 @@ pub const HttpClientError = error{
     ParseError,
     ReachedMaxRetryLimit,
 } || Allocator.Error || std.fmt.ParseIntError || http.Client.RequestError || std.Uri.ParseError;
+
+const protocol_map = std.ComptimeStringMap(HttpConnection.Protocol, .{
+    .{ "http", .plain },
+    .{ "ws", .plain },
+    .{ "https", .tls },
+    .{ "wss", .tls },
+});
 
 pub const InitOptions = struct {
     /// Allocator used to manage the memory arena.
@@ -159,7 +171,7 @@ pub fn deinit(self: *PubClient) void {
 /// Connects to the RPC server and relases the connection from the client pool.
 /// This is done so that future fetchs can use the connection that is already freed.
 pub fn connectRpcServer(self: *PubClient) !*HttpConnection {
-    const scheme = std.http.Client.protocol_map.get(self.uri.scheme) orelse return error.UnsupportedSchema;
+    const scheme = protocol_map.get(self.uri.scheme) orelse return error.UnsupportedSchema;
     const port: u16 = self.uri.port orelse switch (scheme) {
         .plain => 80,
         .tls => 443,
@@ -190,7 +202,13 @@ pub fn connectRpcServer(self: *PubClient) !*HttpConnection {
                 @atomicStore(bool, &self.client.next_https_rescan_certs, false, .release);
             }
         }
-        const connection = self.client.connect(self.uri.host.?, port, scheme) catch |err| {
+
+        const hostname = switch (self.uri.host.?) {
+            .raw => |raw| raw,
+            .percent_encoded => |host| host,
+        };
+
+        const connection = self.client.connect(hostname, port, scheme) catch |err| {
             httplog.debug("Connection failed: {s}", .{@errorName(err)});
             continue;
         };
@@ -821,6 +839,49 @@ pub fn getTransactionReceipt(self: *PubClient, transaction_hash: Hash) !RPCRespo
         .response = receipt,
     };
 }
+/// The content inspection property can be queried to list the exact details of all the transactions currently pending for inclusion in the next block(s),
+/// as well as the ones that are being scheduled for future execution only.
+///
+/// The result is an object with two fields pending and queued.
+/// Each of these fields are associative arrays, in which each entry maps an origin-address to a batch of scheduled transactions.
+/// These batches themselves are maps associating nonces with actual transactions.
+///
+/// RPC Method: [txpool_content](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
+pub fn getTxPoolContent(self: *PubClient) !RPCResponse(TxPoolContent) {
+    return self.sendBasicRequest(TxPoolContent, .txpool_content);
+}
+/// Retrieves the transactions contained within the txpool,
+/// returning pending as well as queued transactions of this address, grouped by nonce
+///
+/// RPC Method: [txpool_contentFrom](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
+pub fn getTxPoolContentFrom(self: *PubClient, from: Address) !RPCResponse([]const PoolTransactionByNonce) {
+    const request: EthereumRequest(struct { Hash }) = .{
+        .params = .{from},
+        .method = .txpool_contentFrom,
+        .id = self.chain_id,
+    };
+
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+    return self.sendRpcRequest([]const PoolTransactionByNonce, buf_writter.getWritten());
+}
+/// The inspect inspection property can be queried to list a textual summary of all the transactions currently pending for inclusion in the next block(s),
+/// as well as the ones that are being scheduled for future execution only.
+/// This is a method specifically tailored to developers to quickly see the transactions in the pool and find any potential issues.
+///
+/// RPC Method: [txpool_inspect](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
+pub fn getTxPoolInspectStatus(self: *PubClient) !RPCResponse(TxPoolInspect) {
+    return self.sendBasicRequest(TxPoolInspect, .txpool_inspect);
+}
+/// The status inspection property can be queried for the number of transactions currently pending for inclusion in the next block(s),
+/// as well as the ones that are being scheduled for future execution only.
+///
+/// RPC Method: [txpool_status](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
+pub fn getTxPoolStatus(self: *PubClient) !RPCResponse(TxPoolStatus) {
+    return self.sendBasicRequest(TxPoolStatus, .txpool_status);
+}
 /// Returns information about a uncle of a block by hash and uncle index position.
 ///
 /// RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblockhashandindex)
@@ -1030,7 +1091,7 @@ pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash
 
     var block_number = block_number_request.response;
 
-    var receipt: ?RPCResponse(TransactionReceipt) = self.getTransactionReceipt(tx_hash) catch |err| switch (err) {
+    var receipt: ?RPCResponse(T) = self.getTransactionReceipt(tx_hash) catch |err| switch (err) {
         error.TransactionReceiptNotFound => null,
         else => return err,
     };
@@ -1390,7 +1451,7 @@ fn internalFetch(self: *PubClient, payload: []const u8, body: *std.ArrayList(u8)
 
     request.transfer_encoding = .{ .content_length = payload.len };
 
-    try request.send(.{});
+    try request.send();
 
     try request.writeAll(payload);
 

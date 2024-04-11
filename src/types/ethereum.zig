@@ -85,6 +85,10 @@ pub const EthereumRpcMethods = enum {
     eth_protocolVersion,
     eth_syncing,
     eth_getRawTransactionByHash,
+    txpool_content,
+    txpool_contentFrom,
+    txpool_inspect,
+    txpool_status,
 };
 
 /// Enum of know chains.

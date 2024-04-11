@@ -91,6 +91,13 @@ pub const HttpClientError = error{
     ReachedMaxRetryLimit,
 } || Allocator.Error || std.fmt.ParseIntError || http.Client.RequestError || std.Uri.ParseError;
 
+const protocol_map = std.ComptimeStringMap(HttpConnection.Protocol, .{
+    .{ "http", .plain },
+    .{ "ws", .plain },
+    .{ "https", .tls },
+    .{ "wss", .tls },
+});
+
 pub const InitOptions = struct {
     /// Allocator used to manage the memory arena.
     allocator: Allocator,
@@ -164,7 +171,7 @@ pub fn deinit(self: *PubClient) void {
 /// Connects to the RPC server and relases the connection from the client pool.
 /// This is done so that future fetchs can use the connection that is already freed.
 pub fn connectRpcServer(self: *PubClient) !*HttpConnection {
-    const scheme = std.http.Client.protocol_map.get(self.uri.scheme) orelse return error.UnsupportedSchema;
+    const scheme = protocol_map.get(self.uri.scheme) orelse return error.UnsupportedSchema;
     const port: u16 = self.uri.port orelse switch (scheme) {
         .plain => 80,
         .tls => 443,
@@ -195,7 +202,13 @@ pub fn connectRpcServer(self: *PubClient) !*HttpConnection {
                 @atomicStore(bool, &self.client.next_https_rescan_certs, false, .release);
             }
         }
-        const connection = self.client.connect(self.uri.host.?, port, scheme) catch |err| {
+
+        const hostname = switch (self.uri.host.?) {
+            .raw => |raw| raw,
+            .percent_encoded => |host| host,
+        };
+
+        const connection = self.client.connect(hostname, port, scheme) catch |err| {
             httplog.debug("Connection failed: {s}", .{@errorName(err)});
             continue;
         };
@@ -1438,7 +1451,7 @@ fn internalFetch(self: *PubClient, payload: []const u8, body: *std.ArrayList(u8)
 
     request.transfer_encoding = .{ .content_length = payload.len };
 
-    try request.send(.{});
+    try request.send();
 
     try request.writeAll(payload);
 

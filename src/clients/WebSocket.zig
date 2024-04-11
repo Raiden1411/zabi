@@ -138,6 +138,13 @@ uri: std.Uri,
 /// The underlaying websocket client
 ws_client: *ws.Client,
 
+const protocol_map = std.ComptimeStringMap(std.http.Client.Connection.Protocol, .{
+    .{ "http", .plain },
+    .{ "ws", .plain },
+    .{ "https", .tls },
+    .{ "wss", .tls },
+});
+
 /// Converts ethereum error codes into Zig errors.
 fn handleErrorResponse(self: *WebSocketHandler, event: ErrorResponse) EthereumZigErrors {
     _ = self;
@@ -314,7 +321,7 @@ pub fn deinit(self: *WebSocketHandler) void {
 }
 /// Connects to a socket client. This is a blocking operation.
 pub fn connect(self: *WebSocketHandler) !ws.Client {
-    const scheme = std.http.Client.protocol_map.get(self.uri.scheme) orelse return error.UnsupportedSchema;
+    const scheme = protocol_map.get(self.uri.scheme) orelse return error.UnsupportedSchema;
     const port: u16 = self.uri.port orelse switch (scheme) {
         .plain => 80,
         .tls => 443,
@@ -333,7 +340,12 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
             },
         }
 
-        var client = ws.connect(self.allocator, self.uri.host.?, port, .{
+        const hostname = switch (self.uri.host.?) {
+            .raw => |raw| raw,
+            .percent_encoded => |host| host,
+        };
+
+        var client = ws.connect(self.allocator, hostname, port, .{
             .tls = scheme == .tls,
             .max_size = std.math.maxInt(u32),
             .buffer_size = 10 * std.math.maxInt(u16),
@@ -343,19 +355,18 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
         };
         errdefer client.deinit();
 
-        const headers = try std.fmt.allocPrint(self.allocator, "Host: {s}", .{self.uri.host.?});
+        const headers = try std.fmt.allocPrint(self.allocator, "Host: {s}", .{hostname});
         defer self.allocator.free(headers);
 
-        if (self.uri.path.len == 0)
+        if (self.uri.path.isEmpty())
             return error.MissingUrlPath;
 
-        const path = switch (scheme) {
-            .tls => try std.fmt.allocPrint(self.allocator, "{s}", .{self.uri}),
-            else => self.uri.path,
+        const path = switch (self.uri.path) {
+            .raw => |raw| raw,
+            .percent_encoded => |host| host,
         };
-        defer if (scheme == .tls) self.allocator.free(path);
 
-        client.handshake(self.uri.path, .{ .headers = headers, .timeout_ms = 5_000 }) catch |err| {
+        client.handshake(path, .{ .headers = headers, .timeout_ms = 5_000 }) catch |err| {
             wslog.debug("Handshake failed: {s}", .{@errorName(err)});
             continue;
         };

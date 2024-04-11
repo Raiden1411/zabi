@@ -1,4 +1,5 @@
 const std = @import("std");
+const meta_json = @import("../meta/json.zig");
 const meta_utils = @import("../meta/utils.zig");
 const tx_types = @import("transaction.zig");
 const types = @import("ethereum.zig");
@@ -14,6 +15,7 @@ const InspectPoolPendingTransactionHashMap = std.AutoArrayHashMap(u64, []const u
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
 const ParseOptions = std.json.ParseOptions;
+const RequestParser = meta_json.RequestParser;
 const Transaction = tx_types.Transaction;
 const Value = std.json.Value;
 
@@ -21,15 +23,21 @@ const Value = std.json.Value;
 pub const TxPoolStatus = struct {
     pending: u64,
     queued: u64,
+
+    pub usingnamespace RequestParser(@This());
 };
 /// Result tx pool content.
 pub const TxPoolContent = struct {
     pending: Subpool,
     queued: Subpool,
+
+    pub usingnamespace RequestParser(@This());
 };
 pub const TxPoolInspect = struct {
     pending: InspectSubpool,
     queued: InspectSubpool,
+
+    pub usingnamespace RequestParser(@This());
 };
 /// Geth mempool subpool type
 pub const Subpool = struct {
@@ -91,6 +99,24 @@ pub const Subpool = struct {
 
         try source.endObject();
     }
+    /// Uses similar approach as `jsonParse` but the value is already pre parsed from
+    /// a dynamic `Value`
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!Subpool {
+        var result = AddressHashMap.init(allocator);
+        var iter = source.object.iterator();
+
+        while (iter.next()) |field| {
+            const key = field.key_ptr.*;
+            var addr: Address = undefined;
+            _ = std.fmt.hexToBytes(addr[0..], key[2..]) catch return error.InvalidCharacter;
+
+            const tx_parse = try std.json.parseFromValueLeaky(PoolTransactionByNonce, allocator, field.value_ptr.*, options);
+
+            try result.put(addr, tx_parse);
+        }
+
+        return .{ .address = result };
+    }
 };
 /// Geth mempool inspect subpool type
 pub const InspectSubpool = struct {
@@ -151,6 +177,24 @@ pub const InspectSubpool = struct {
         }
 
         try source.endObject();
+    }
+    /// Uses similar approach as `jsonParse` but the value is already pre parsed from
+    /// a dynamic `Value`
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!InspectSubpool {
+        var result = InspectAddressHashMap.init(allocator);
+        var iter = source.object.iterator();
+
+        while (iter.next()) |field| {
+            const key = field.key_ptr.*;
+            var addr: Address = undefined;
+            _ = std.fmt.hexToBytes(addr[0..], key[2..]) catch return error.InvalidCharacter;
+
+            const tx_parse = try std.json.parseFromValueLeaky(InspectPoolTransactionByNonce, allocator, field.value_ptr.*, options);
+
+            try result.put(addr, tx_parse);
+        }
+
+        return .{ .address = result };
     }
 };
 /// Geth inspect transaction object dump from mempool by nonce.

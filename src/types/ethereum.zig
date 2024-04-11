@@ -5,6 +5,7 @@ const proof = @import("proof.zig");
 const std = @import("std");
 const sync = @import("syncing.zig");
 const transaction = @import("transaction.zig");
+const txpool = @import("../types/txpool.zig");
 
 const AccessListResult = transaction.AccessListResult;
 const ArenaAllocator = std.heap.ArenaAllocator;
@@ -15,11 +16,15 @@ const Logs = log.Logs;
 const PendingTransactionsSubscription = transaction.PendingTransactionsSubscription;
 const PendingTransactionHashesSubscription = transaction.PendingTransactionHashesSubscription;
 const PendingTransaction = transaction.PendingTransaction;
+const PoolTransactionByNonce = txpool.PoolTransactionByNonce;
 const ProofResult = proof.ProofResult;
 const RequestParser = meta.json.RequestParser;
 const SyncProgress = sync.SyncStatus;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
+const TxPoolContent = txpool.TxPoolContent;
+const TxPoolInspect = txpool.TxPoolInspect;
+const TxPoolStatus = txpool.TxPoolStatus;
 const UnionParser = meta.json.UnionParser;
 
 pub const Hex = []u8;
@@ -268,19 +273,23 @@ pub const EthereumEvents = union(enum) {
 /// RPC Websocket events to be used by the websocket channels
 pub const EthereumRpcEvents = union(enum) {
     null_event: EthereumRpcResponse(?ErrorResponse),
-    proof_event: EthereumRpcResponse(ProofResult),
-    logs_event: EthereumRpcResponse(Logs),
-    accounts_event: EthereumRpcResponse([]const Address),
-    access_list: EthereumRpcResponse(AccessListResult),
-    fee_history: EthereumRpcResponse(FeeHistory),
-    receipt_event: EthereumRpcResponse(TransactionReceipt),
-    transaction_event: EthereumRpcResponse(Transaction),
     block_event: EthereumRpcResponse(Block),
+    transaction_event: EthereumRpcResponse(Transaction),
+    receipt_event: EthereumRpcResponse(TransactionReceipt),
     hash_event: EthereumRpcResponse(Hash),
+    logs_event: EthereumRpcResponse(Logs),
     number_event: EthereumRpcResponse(u256),
     bool_event: EthereumRpcResponse(bool),
-    sync_event: EthereumRpcResponse(SyncProgress),
     hex_event: EthereumRpcResponse(Hex),
+    proof_event: EthereumRpcResponse(ProofResult),
+    fee_history: EthereumRpcResponse(FeeHistory),
+    accounts_event: EthereumRpcResponse([]const Address),
+    sync_event: EthereumRpcResponse(SyncProgress),
+    access_list: EthereumRpcResponse(AccessListResult),
+    txpool_content_event: EthereumRpcResponse(TxPoolContent),
+    txpool_content_from_event: EthereumRpcResponse([]const PoolTransactionByNonce),
+    txpool_inspect_event: EthereumRpcResponse(TxPoolInspect),
+    txpool_status_event: EthereumRpcResponse(TxPoolStatus),
     error_event: EthereumErrorResponse,
 
     pub usingnamespace UnionParser(@This());

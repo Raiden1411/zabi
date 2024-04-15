@@ -12,6 +12,8 @@ const txpool = @import("../types/txpool.zig");
 const utils = @import("../utils/utils.zig");
 const ws = @import("ws");
 
+const assert = std.debug.assert;
+
 const AccessListResult = transaction.AccessListResult;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
@@ -51,6 +53,7 @@ const ProofResult = proof.ProofResult;
 const ProofBlockTag = block.ProofBlockTag;
 const ProofRequest = proof.ProofRequest;
 const RPCResponse = types.RPCResponse;
+const Stream = std.net.Stream;
 const SyncProgress = sync.SyncStatus;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
@@ -63,11 +66,11 @@ const WatchLogsRequest = log.WatchLogsRequest;
 const WebsocketSubscriptions = types.WebsocketSubscriptions;
 const Wei = types.Wei;
 
-const WebSocketHandler = @This();
+const IPC = @This();
 
-const wslog = std.log.scoped(.ws);
+const ipclog = std.log.scoped(.ipc);
 
-pub const WebSocketHandlerErrors = error{
+pub const IPCErrors = error{
     FailedToConnect,
     UnsupportedSchema,
     InvalidChainId,
@@ -92,8 +95,8 @@ pub const WebSocketHandlerErrors = error{
 pub const InitOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
     allocator: Allocator,
-    /// The uri of the server to connect to.
-    uri: std.Uri,
+    /// The path for the IPC path
+    path: []const u8,
     /// The client chainId.
     chain_id: ?Chains = null,
     /// Callback function for when the connection is closed.
@@ -123,143 +126,41 @@ rpc_channel: *Channel(RPCResponse(EthereumRpcEvents)),
 /// Mutex to manage locks between threads
 mutex: Mutex = .{},
 /// Callback function for when the connection is closed.
-onClose: ?*const fn () void = null,
+onClose: ?*const fn () void,
 /// Callback function that will run once a socket event is parsed
 onEvent: ?*const fn (args: RPCResponse(EthereumEvents)) anyerror!void,
 /// Callback function that will run once a error is parsed.
 onError: ?*const fn (args: []const u8) anyerror!void,
 /// The interval to retry the connection. This will get multiplied in ns_per_ms.
 pooling_interval: u64,
-/// Retry count for failed connections to anvil. The process takes some ms to start so this is necessary
+/// Retry count for failed connections or requests.
 retries: u8,
-/// The uri of the connection
-uri: std.Uri,
-/// The underlaying websocket client
-ws_client: *ws.Client,
+/// The IPC net stream to read and write requests.
+stream: Stream,
 
-const protocol_map = std.ComptimeStringMap(std.http.Client.Connection.Protocol, .{
-    .{ "http", .plain },
-    .{ "ws", .plain },
-    .{ "https", .tls },
-    .{ "wss", .tls },
-});
-
-/// Converts ethereum error codes into Zig errors.
-fn handleErrorResponse(self: *WebSocketHandler, event: ErrorResponse) EthereumZigErrors {
-    _ = self;
-
-    wslog.debug("RPC error response: {s}\n", .{event.message});
-    switch (event.code) {
-        .ContractErrorCode => return error.EvmFailedToExecute,
-        .TooManyRequests => return error.TooManyRequests,
-        .InvalidInput => return error.InvalidInput,
-        .MethodNotFound => return error.MethodNotFound,
-        .ResourceNotFound => return error.ResourceNotFound,
-        .InvalidRequest => return error.InvalidRequest,
-        .ParseError => return error.ParseError,
-        .LimitExceeded => return error.LimitExceeded,
-        .InvalidParams => return error.InvalidParams,
-        .InternalError => return error.InternalError,
-        .MethodNotSupported => return error.MethodNotSupported,
-        .ResourceUnavailable => return error.ResourceNotFound,
-        .TransactionRejected => return error.TransactionRejected,
-        .RpcVersionNotSupported => return error.RpcVersionNotSupported,
-        .UserRejectedRequest => return error.UserRejectedRequest,
-        .Unauthorized => return error.Unauthorized,
-        .UnsupportedMethod => return error.UnsupportedMethod,
-        .Disconnected => return error.Disconnected,
-        .ChainDisconnected => return error.ChainDisconnected,
-        _ => return error.UnexpectedRpcErrorCode,
-    }
-}
-/// Handles how an error event should behave.
-fn handleErrorEvent(self: *WebSocketHandler, error_event: EthereumErrorResponse, retries: usize) !void {
-    const err = self.handleErrorResponse(error_event.@"error");
-
-    switch (err) {
-        error.TooManyRequests => {
-            // Exponential backoff
-            const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
-            wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-            std.time.sleep(std.time.ns_per_ms * backoff);
-        },
-        else => return err,
-    }
-}
-/// Internal RPC event parser.
-fn parseRPCEvent(self: *WebSocketHandler, request: []const u8) !RPCResponse(EthereumEvents) {
-    self.mutex.lock();
-    defer self.mutex.unlock();
-
-    const parsed = std.json.parseFromSlice(EthereumEvents, self.allocator, request, .{ .allocate = .alloc_always }) catch |err| {
-        wslog.debug("Failed to parse request: {s}", .{request});
-
-        return err;
-    };
-
-    return RPCResponse(EthereumEvents).fromJson(parsed.arena, parsed.value);
-}
-/// This will get run everytime a socket message is found.
-/// All messages are parsed and put into the handlers channel.
-/// All callbacks will only affect this function.
-pub fn handle(self: *WebSocketHandler, message: ws.Message) !void {
-    errdefer |err| {
-        wslog.debug("Handler errored out: {s}", .{@errorName(err)});
-    }
-
-    wslog.debug("Got message: {s}", .{message.data});
-    switch (message.type) {
-        .text => {
-            const parsed = self.parseRPCEvent(message.data) catch {
-                if (self.onError) |onError| {
-                    try onError(message.data);
-                }
-
-                return error.FailedToJsonParseResponse;
-            };
-            errdefer parsed.deinit();
-
-            if (self.onEvent) |onEvent| {
-                try onEvent(parsed);
-            }
-
-            switch (parsed.response) {
-                .subscribe_event => |sub_event| self.sub_channel.put(.{ .arena = parsed.arena, .response = sub_event }),
-                .rpc_event => |rpc_event| self.rpc_channel.put(.{ .arena = parsed.arena, .response = rpc_event }),
-            }
-        },
-        else => {},
-    }
-}
-
-/// Populates the WebSocketHandler pointer.
-/// Starts the connection in a seperate process.
-pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
-    const channel = try opts.allocator.create(Channel(RPCResponse(EthereumSubscribeEvents)));
-    errdefer opts.allocator.destroy(channel);
-
+/// Starts the IPC client and create the connection.
+/// This will also start the read loop in a seperate thread.
+pub fn init(self: *IPC, opts: InitOptions) !void {
     const rpc_channel = try opts.allocator.create(Channel(RPCResponse(EthereumRpcEvents)));
     errdefer opts.allocator.destroy(rpc_channel);
 
-    const ws_client = try opts.allocator.create(ws.Client);
-    errdefer opts.allocator.destroy(ws_client);
+    const sub_channel = try opts.allocator.create(Channel(RPCResponse(EthereumSubscribeEvents)));
+    errdefer opts.allocator.destroy(sub_channel);
 
-    const chain: Chains = opts.chain_id orelse .ethereum;
+    const chain_id: Chains = opts.chain_id orelse .ethereum;
 
     self.* = .{
         .allocator = opts.allocator,
         .base_fee_multiplier = opts.base_fee_multiplier,
-        .chain_id = @intFromEnum(chain),
-        .sub_channel = channel,
-        .rpc_channel = rpc_channel,
+        .chain_id = @intFromEnum(chain_id),
         .onClose = opts.onClose,
         .onError = opts.onError,
         .onEvent = opts.onEvent,
         .pooling_interval = opts.pooling_interval,
         .retries = opts.retries,
-        .uri = opts.uri,
-        .ws_client = ws_client,
+        .rpc_channel = rpc_channel,
+        .sub_channel = sub_channel,
+        .stream = undefined,
     };
 
     self.rpc_channel.* = Channel(RPCResponse(EthereumRpcEvents)).init(self.allocator);
@@ -269,67 +170,46 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) !void {
         self.sub_channel.deinit();
     }
 
-    self.ws_client.* = try self.connect();
+    const stream = try self.connect(opts.path);
+    self.stream = stream;
 
-    const thread = try std.Thread.spawn(.{}, readLoopOwned, .{self});
+    const thread = try std.Thread.spawn(.{}, readLoopOwnedThread, .{self});
     thread.detach();
 }
-/// All future interactions will deadlock
-/// If you are using the subscription channel this operation can take time
-/// as it will need to cleanup each node.
-pub fn deinit(self: *WebSocketHandler) void {
+/// Clears memory, closes the stream and destroys any
+/// previously created pointers.
+///
+/// All future calls will deadlock.
+pub fn deinit(self: *IPC) void {
     self.mutex.lock();
 
-    while (@atomicRmw(bool, &self.ws_client._closed, .Xchg, true, .seq_cst)) {
-        std.time.sleep(10 * std.time.ns_per_ms);
+    self.stream.close();
+    while (self.sub_channel.getOrNull()) |response| {
+        response.deinit();
     }
 
-    // There may be lingering memory from the json parsed data
-    // in the channels so we must clean then up.
-    while (self.sub_channel.getOrNull()) |node| {
-        node.deinit();
+    while (self.rpc_channel.getOrNull()) |response| {
+        response.deinit();
     }
 
-    while (self.rpc_channel.getOrNull()) |node| {
-        node.deinit();
-    }
-
-    // Deinits client and destroys any created pointers.
-    self.sub_channel.deinit();
     self.rpc_channel.deinit();
+    self.sub_channel.deinit();
 
-    self.allocator.destroy(self.sub_channel);
     self.allocator.destroy(self.rpc_channel);
-
-    if (@atomicLoad(bool, &self.ws_client._closed, .acquire)) {
-        self.ws_client._reader.deinit();
-
-        if (self.ws_client._bp) |bp| {
-            bp.allocator.destroy(bp);
-        }
-
-        self.ws_client.writeFrame(.close, "") catch {};
-        self.ws_client.stream.close();
-
-        std.time.sleep(10 * std.time.ns_per_ms);
-
-        self.allocator.destroy(self.ws_client);
-    }
+    self.allocator.destroy(self.sub_channel);
 
     self.* = undefined;
 }
-/// Connects to a socket client. This is a blocking operation.
-pub fn connect(self: *WebSocketHandler) !ws.Client {
-    const scheme = protocol_map.get(self.uri.scheme) orelse return error.UnsupportedSchema;
-    const port: u16 = self.uri.port orelse switch (scheme) {
-        .plain => 80,
-        .tls => 443,
-    };
+/// Connects to the socket. Will try to reconnect in case of failures.
+/// Fails when match retries are reached or a invalid ipc path is provided
+pub fn connect(self: *IPC, path: []const u8) !Stream {
+    if (!std.mem.endsWith(u8, path, ".ipc"))
+        return error.InvalidIPCPath;
 
     var retries: u8 = 0;
-    const client = while (true) : (retries += 1) {
+    const stream = while (true) : (retries += 1) {
         if (retries > self.retries)
-            break error.FailedToConnect;
+            return error.FailedToConnect;
 
         switch (retries) {
             0...2 => {},
@@ -339,73 +219,20 @@ pub fn connect(self: *WebSocketHandler) !ws.Client {
             },
         }
 
-        const hostname = switch (self.uri.host.?) {
-            .raw => |raw| raw,
-            .percent_encoded => |host| host,
-        };
-
-        var client = ws.connect(self.allocator, hostname, port, .{
-            .tls = scheme == .tls,
-            .max_size = std.math.maxInt(u32),
-            .buffer_size = 10 * std.math.maxInt(u16),
-        }) catch |err| {
-            wslog.debug("Connection failed: {s}", .{@errorName(err)});
-            continue;
-        };
-        errdefer client.deinit();
-
-        const headers = try std.fmt.allocPrint(self.allocator, "Host: {s}", .{hostname});
-        defer self.allocator.free(headers);
-
-        if (self.uri.path.isEmpty())
-            return error.MissingUrlPath;
-
-        const path = switch (self.uri.path) {
-            .raw => |raw| raw,
-            .percent_encoded => |host| host,
-        };
-
-        client.handshake(path, .{ .headers = headers, .timeout_ms = 5_000 }) catch |err| {
-            wslog.debug("Handshake failed: {s}", .{@errorName(err)});
+        const socket_stream = std.net.connectUnixSocket(path) catch |err| {
+            ipclog.debug("Failed to connect: {s}", .{@errorName(err)});
             continue;
         };
 
-        break client;
+        break socket_stream;
     };
 
-    return client;
-}
-/// This is a blocking operation.
-/// Call this in a seperate thread.
-pub fn readLoopOwned(self: *WebSocketHandler) !void {
-    errdefer self.deinit();
-    pipe.maybeIgnoreSigpipe();
-
-    self.ws_client.readLoop(self) catch |err| {
-        wslog.debug("Read loop reported error: {s}", .{@errorName(err)});
-        return;
-    };
-}
-/// Write messages to the websocket connections.
-pub fn write(self: *WebSocketHandler, data: []u8) !void {
-    return self.ws_client.write(data);
-}
-/// Get the first event of the rpc channel.
-/// Only call this if you are sure that the channel has messages.
-/// Otherwise this will run in a infinite loop.
-pub fn getCurrentRpcEvent(self: *WebSocketHandler) !RPCResponse(EthereumRpcEvents) {
-    return self.rpc_channel.get();
-}
-/// Get the first event of the subscription channel.
-/// Only call this if you are sure that the channel has messages.
-/// Otherwise this will run in a infinite loop.
-pub fn getCurrentSubscriptionEvent(self: *WebSocketHandler) !RPCResponse(EthereumSubscribeEvents) {
-    return self.sub_channel.get();
+    return stream;
 }
 /// Grabs the current base blob fee.
 ///
 /// RPC Method: [eth_blobBaseFee](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_blobbasefee)
-pub fn blobBaseFee(self: *WebSocketHandler) !RPCResponse(Gwei) {
+pub fn blobBaseFee(self: *IPC) !RPCResponse(Gwei) {
     self.mutex.lock();
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
         .params = .{},
@@ -424,7 +251,7 @@ pub fn blobBaseFee(self: *WebSocketHandler) !RPCResponse(Gwei) {
 /// Create an accessList of addresses and storageKeys for an transaction to access
 ///
 /// RPC Method: [eth_createAccessList](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_createaccesslist)
-pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(AccessListResult) {
+pub fn createAccessList(self: *IPC, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(AccessListResult) {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
     self.mutex.lock();
 
@@ -455,7 +282,7 @@ pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: Blo
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const list_message = self.rpc_channel.get();
         errdefer list_message.deinit();
@@ -464,7 +291,7 @@ pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: Blo
             .access_list => |list_event| return .{ .arena = list_message.arena, .response = list_event.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a access_list.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a access_list.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -472,7 +299,7 @@ pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: Blo
 }
 /// Estimate the gas used for blobs
 /// Uses `blobBaseFee` and `gasPrice` to calculate this estimation
-pub fn estimateBlobMaxFeePerGas(self: *WebSocketHandler) !Gwei {
+pub fn estimateBlobMaxFeePerGas(self: *IPC) !Gwei {
     const base = try self.blobBaseFee();
     defer base.deinit();
 
@@ -484,7 +311,7 @@ pub fn estimateBlobMaxFeePerGas(self: *WebSocketHandler) !Gwei {
 /// Estimate maxPriorityFeePerGas and maxFeePerGas. Will make more than one network request.
 /// Uses the `baseFeePerGas` included in the block to calculate the gas fees.
 /// Will return an error in case the `baseFeePerGas` is null.
-pub fn estimateFeesPerGas(self: *WebSocketHandler, call_object: EthCall, base_fee_per_gas: ?Gwei) !EstimateFeeReturn {
+pub fn estimateFeesPerGas(self: *IPC, call_object: EthCall, base_fee_per_gas: ?Gwei) !EstimateFeeReturn {
     const current_fee: ?Gwei = block: {
         if (base_fee_per_gas) |fee| break :block fee;
 
@@ -535,7 +362,7 @@ pub fn estimateFeesPerGas(self: *WebSocketHandler, call_object: EthCall, base_fe
 /// for a variety of reasons including EVM mechanics and node performance.
 ///
 /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
-pub fn estimateGas(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Gwei) {
+pub fn estimateGas(self: *IPC, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Gwei) {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
     self.mutex.lock();
 
@@ -565,7 +392,7 @@ pub fn estimateGas(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
 }
 /// Estimates maxPriorityFeePerGas manually. If the node you are currently using
 /// supports `eth_maxPriorityFeePerGas` consider using `estimateMaxFeePerGas`.
-pub fn estimateMaxFeePerGasManual(self: *WebSocketHandler, base_fee_per_gas: ?Gwei) !Gwei {
+pub fn estimateMaxFeePerGasManual(self: *IPC, base_fee_per_gas: ?Gwei) !Gwei {
     const current_fee: ?Gwei = block: {
         if (base_fee_per_gas) |fee| break :block fee;
 
@@ -584,7 +411,7 @@ pub fn estimateMaxFeePerGasManual(self: *WebSocketHandler, base_fee_per_gas: ?Gw
     return if (base_fee > gas_price.response) 0 else gas_price.response - base_fee;
 }
 /// Only use this if the node you are currently using supports `eth_maxPriorityFeePerGas`.
-pub fn estimateMaxFeePerGas(self: *WebSocketHandler) !Gwei {
+pub fn estimateMaxFeePerGas(self: *IPC) !Gwei {
     self.mutex.lock();
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
         .params = .{},
@@ -603,7 +430,7 @@ pub fn estimateMaxFeePerGas(self: *WebSocketHandler) !Gwei {
 /// Returns historical gas information, allowing you to track trends over time.
 ///
 /// RPC Method: [eth_feeHistory](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_feehistory)
-pub fn feeHistory(self: *WebSocketHandler, blockCount: u64, newest_block: BlockNumberRequest, reward_percentil: ?[]const f64) !RPCResponse(FeeHistory) {
+pub fn feeHistory(self: *IPC, blockCount: u64, newest_block: BlockNumberRequest, reward_percentil: ?[]const f64) !RPCResponse(FeeHistory) {
     const tag: BalanceBlockTag = newest_block.tag orelse .latest;
     self.mutex.lock();
 
@@ -633,7 +460,7 @@ pub fn feeHistory(self: *WebSocketHandler, blockCount: u64, newest_block: BlockN
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const fee_message = self.rpc_channel.get();
         errdefer fee_message.deinit();
@@ -642,7 +469,7 @@ pub fn feeHistory(self: *WebSocketHandler, blockCount: u64, newest_block: BlockN
             .fee_history => |fee_event| return .{ .arena = fee_message.arena, .response = fee_event.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a fee_history event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a fee_history event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -651,7 +478,7 @@ pub fn feeHistory(self: *WebSocketHandler, blockCount: u64, newest_block: BlockN
 /// Returns a list of addresses owned by client.
 ///
 /// RPC Method: [eth_accounts](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_accounts)
-pub fn getAccounts(self: *WebSocketHandler) !RPCResponse([]const Address) {
+pub fn getAccounts(self: *IPC) !RPCResponse([]const Address) {
     self.mutex.lock();
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
         .params = .{},
@@ -670,7 +497,7 @@ pub fn getAccounts(self: *WebSocketHandler) !RPCResponse([]const Address) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const accounts_message = self.rpc_channel.get();
         errdefer accounts_message.deinit();
@@ -679,7 +506,7 @@ pub fn getAccounts(self: *WebSocketHandler) !RPCResponse([]const Address) {
             .accounts_event => |accounts_event| return .{ .arena = accounts_message.arena, .response = accounts_event.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a accounts_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a accounts_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -688,7 +515,7 @@ pub fn getAccounts(self: *WebSocketHandler) !RPCResponse([]const Address) {
 /// Returns the balance of the account of given address.
 ///
 /// RPC Method: [eth_getBalance](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getbalance)
-pub fn getAddressBalance(self: *WebSocketHandler, opts: BalanceRequest) !RPCResponse(Wei) {
+pub fn getAddressBalance(self: *IPC, opts: BalanceRequest) !RPCResponse(Wei) {
     self.mutex.lock();
 
     const tag: BalanceBlockTag = opts.tag orelse .latest;
@@ -719,7 +546,7 @@ pub fn getAddressBalance(self: *WebSocketHandler, opts: BalanceRequest) !RPCResp
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const number_message = self.rpc_channel.get();
         errdefer number_message.deinit();
@@ -728,7 +555,7 @@ pub fn getAddressBalance(self: *WebSocketHandler, opts: BalanceRequest) !RPCResp
             .number_event => |balance| return .{ .arena = number_message.arena, .response = balance.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -737,7 +564,7 @@ pub fn getAddressBalance(self: *WebSocketHandler, opts: BalanceRequest) !RPCResp
 /// Returns the number of transactions sent from an address.
 ///
 /// RPC Method: [eth_getTransactionCount](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactioncount)
-pub fn getAddressTransactionCount(self: *WebSocketHandler, opts: BalanceRequest) !RPCResponse(u64) {
+pub fn getAddressTransactionCount(self: *IPC, opts: BalanceRequest) !RPCResponse(u64) {
     self.mutex.lock();
 
     const tag: BalanceBlockTag = opts.tag orelse .latest;
@@ -768,7 +595,7 @@ pub fn getAddressTransactionCount(self: *WebSocketHandler, opts: BalanceRequest)
 /// Returns the number of most recent block.
 ///
 /// RPC Method: [eth_blockNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_blocknumber)
-pub fn getBlockByHash(self: *WebSocketHandler, opts: BlockHashRequest) !RPCResponse(Block) {
+pub fn getBlockByHash(self: *IPC, opts: BlockHashRequest) !RPCResponse(Block) {
     const include = opts.include_transaction_objects orelse false;
     self.mutex.lock();
 
@@ -789,7 +616,7 @@ pub fn getBlockByHash(self: *WebSocketHandler, opts: BlockHashRequest) !RPCRespo
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const block_message = self.rpc_channel.get();
         errdefer block_message.deinit();
@@ -799,7 +626,7 @@ pub fn getBlockByHash(self: *WebSocketHandler, opts: BlockHashRequest) !RPCRespo
             .null_event => return error.InvalidBlockHash,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -808,7 +635,7 @@ pub fn getBlockByHash(self: *WebSocketHandler, opts: BlockHashRequest) !RPCRespo
 /// Returns the number of transactions in a block from a block matching the given block hash.
 ///
 /// RPC Method: [eth_getBlockTransactionCountByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbyhash)
-pub fn getBlockByNumber(self: *WebSocketHandler, opts: BlockRequest) !RPCResponse(Block) {
+pub fn getBlockByNumber(self: *IPC, opts: BlockRequest) !RPCResponse(Block) {
     const tag: block.BlockTag = opts.tag orelse .latest;
     const include = opts.include_transaction_objects orelse false;
     self.mutex.lock();
@@ -840,7 +667,7 @@ pub fn getBlockByNumber(self: *WebSocketHandler, opts: BlockRequest) !RPCRespons
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const block_message = self.rpc_channel.get();
         errdefer block_message.deinit();
@@ -850,7 +677,7 @@ pub fn getBlockByNumber(self: *WebSocketHandler, opts: BlockRequest) !RPCRespons
             .null_event => return error.InvalidBlockNumber,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -859,9 +686,11 @@ pub fn getBlockByNumber(self: *WebSocketHandler, opts: BlockRequest) !RPCRespons
 /// Returns the number of transactions in a block from a block matching the given block number.
 ///
 /// RPC Method: [eth_getBlockTransactionCountByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbynumber)
-pub fn getBlockNumber(self: *WebSocketHandler) !RPCResponse(u64) {
+pub fn getBlockNumber(self: *IPC) !RPCResponse(u64) {
     self.mutex.lock();
-    const request: EthereumRequest(Tuple(&[_]type{})) = .{
+    defer self.mutex.unlock();
+
+    const request: EthereumRequest(Tuple(&.{})) = .{
         .params = .{},
         .method = .eth_blockNumber,
         .id = self.chain_id,
@@ -869,7 +698,6 @@ pub fn getBlockNumber(self: *WebSocketHandler) !RPCResponse(u64) {
 
     var request_buffer: [1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
-    self.mutex.unlock();
 
     try std.json.stringify(request, .{}, buf_writter.writer());
 
@@ -878,7 +706,7 @@ pub fn getBlockNumber(self: *WebSocketHandler) !RPCResponse(u64) {
 /// Returns the number of transactions in a block from a block matching the given block hash.
 ///
 /// RPC Method: [eth_getBlockTransactionCountByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbyhash)
-pub fn getBlockTransactionCountByHash(self: *WebSocketHandler, block_hash: Hash) !RPCResponse(u64) {
+pub fn getBlockTransactionCountByHash(self: *IPC, block_hash: Hash) !RPCResponse(u64) {
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{block_hash},
         .method = .eth_getBlockTransactionCountByHash,
@@ -897,7 +725,7 @@ pub fn getBlockTransactionCountByHash(self: *WebSocketHandler, block_hash: Hash)
 /// Returns the number of transactions in a block from a block matching the given block number.
 ///
 /// RPC Method: [eth_getBlockTransactionCountByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbynumber)
-pub fn getBlockTransactionCountByNumber(self: *WebSocketHandler, opts: BlockNumberRequest) !RPCResponse(u64) {
+pub fn getBlockTransactionCountByNumber(self: *IPC, opts: BlockNumberRequest) !RPCResponse(u64) {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
     self.mutex.lock();
 
@@ -928,7 +756,7 @@ pub fn getBlockTransactionCountByNumber(self: *WebSocketHandler, opts: BlockNumb
 /// Returns the chain ID used for signing replay-protected transactions.
 ///
 /// RPC Method: [eth_chainId](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_chainid)
-pub fn getChainId(self: *WebSocketHandler) !RPCResponse(usize) {
+pub fn getChainId(self: *IPC) !RPCResponse(usize) {
     self.mutex.lock();
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
         .params = .{},
@@ -947,7 +775,7 @@ pub fn getChainId(self: *WebSocketHandler) !RPCResponse(usize) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const chain_message = self.rpc_channel.get();
         errdefer chain_message.deinit();
@@ -963,7 +791,7 @@ pub fn getChainId(self: *WebSocketHandler) !RPCResponse(usize) {
             },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -972,7 +800,7 @@ pub fn getChainId(self: *WebSocketHandler) !RPCResponse(usize) {
 /// Returns code at a given address.
 ///
 /// RPC Method: [eth_getCode](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getcode)
-pub fn getContractCode(self: *WebSocketHandler, opts: BalanceRequest) !RPCResponse(Hex) {
+pub fn getContractCode(self: *IPC, opts: BalanceRequest) !RPCResponse(Hex) {
     self.mutex.lock();
 
     const tag: BalanceBlockTag = opts.tag orelse .latest;
@@ -1003,7 +831,7 @@ pub fn getContractCode(self: *WebSocketHandler, opts: BalanceRequest) !RPCRespon
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const hex_message = self.rpc_channel.get();
         errdefer hex_message.deinit();
@@ -1012,17 +840,29 @@ pub fn getContractCode(self: *WebSocketHandler, opts: BalanceRequest) !RPCRespon
             .hex_event => |hex| return .{ .arena = hex_message.arena, .response = hex.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
     }
 }
+/// Get the first event of the rpc channel.
+/// Only call this if you are sure that the channel has messages.
+/// Otherwise this will run in a infinite loop.
+pub fn getCurrentRpcEvent(self: *IPC) RPCResponse(EthereumRpcEvents) {
+    return self.rpc_channel.get();
+}
+/// Get the first event of the subscription channel.
+/// Only call this if you are sure that the channel has messages.
+/// Otherwise this will run in a infinite loop.
+pub fn getCurrentSubscriptionEvent(self: *IPC) RPCResponse(EthereumSubscribeEvents) {
+    return self.sub_channel.get();
+}
 /// Polling method for a filter, which returns an array of logs which occurred since last poll or
 /// Returns an array of all logs matching filter with given id depending on the selected method
 /// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterchanges
 /// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterlogs
-pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: u128, method: EthereumRpcMethods) !RPCResponse(Logs) {
+pub fn getFilterOrLogChanges(self: *IPC, filter_id: u128, method: EthereumRpcMethods) !RPCResponse(Logs) {
     switch (method) {
         .eth_getFilterLogs, .eth_getFilterChanges => {},
         else => return error.InvalidRpcMethod,
@@ -1047,7 +887,7 @@ pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: u128, method: E
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const logs_message = self.rpc_channel.get();
         errdefer logs_message.deinit();
@@ -1057,7 +897,7 @@ pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: u128, method: E
             .null_event => return error.InvalidFilterId,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a logs_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a logs_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1067,7 +907,7 @@ pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: u128, method: E
 /// For example, the Besu client examines the last 100 blocks and returns the median gas unit price by default.
 ///
 /// RPC Method: [eth_gasPrice](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gasprice)
-pub fn getGasPrice(self: *WebSocketHandler) !RPCResponse(Gwei) {
+pub fn getGasPrice(self: *IPC) !RPCResponse(Gwei) {
     self.mutex.lock();
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
         .params = .{},
@@ -1086,7 +926,7 @@ pub fn getGasPrice(self: *WebSocketHandler) !RPCResponse(Gwei) {
 /// Returns an array of all logs matching a given filter object.
 ///
 /// RPC Method: [eth_getLogs](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getlogs)
-pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag) !RPCResponse(Logs) {
+pub fn getLogs(self: *IPC, opts: LogRequest, tag: ?BalanceBlockTag) !RPCResponse(Logs) {
     self.mutex.lock();
 
     var request_buffer: [4 * 1024]u8 = undefined;
@@ -1122,7 +962,7 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const logs_message = self.rpc_channel.get();
         errdefer logs_message.deinit();
@@ -1132,7 +972,7 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
             .null_event => return error.InvalidFilterId,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a logs_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a logs_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1141,7 +981,7 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
 /// Returns true if client is actively listening for network connections.
 ///
 /// RPC Method: [net_listening](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/net_listening)
-pub fn getNetworkListenStatus(self: *WebSocketHandler) !RPCResponse(bool) {
+pub fn getNetworkListenStatus(self: *IPC) !RPCResponse(bool) {
     self.mutex.lock();
     const request: EthereumRequest(struct {}) = .{
         .params = .{},
@@ -1160,7 +1000,7 @@ pub fn getNetworkListenStatus(self: *WebSocketHandler) !RPCResponse(bool) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const bool_message = self.rpc_channel.get();
         errdefer bool_message.deinit();
@@ -1169,7 +1009,7 @@ pub fn getNetworkListenStatus(self: *WebSocketHandler) !RPCResponse(bool) {
             .bool_message => |bool_event| return .{ .arena = bool_message.arena, .response = bool_event.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a bool_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a bool_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1178,7 +1018,7 @@ pub fn getNetworkListenStatus(self: *WebSocketHandler) !RPCResponse(bool) {
 /// Returns number of peers currently connected to the client.
 ///
 /// RPC Method: [net_peerCount](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/net_peerCount)
-pub fn getNetworkPeerCount(self: *WebSocketHandler) !RPCResponse(usize) {
+pub fn getNetworkPeerCount(self: *IPC) !RPCResponse(usize) {
     self.mutex.lock();
     const request: EthereumRequest(struct {}) = .{
         .params = .{},
@@ -1197,7 +1037,7 @@ pub fn getNetworkPeerCount(self: *WebSocketHandler) !RPCResponse(usize) {
 /// Returns the current network id.
 ///
 /// RPC Method: [net_version](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/net_version)
-pub fn getNetworkVersionId(self: *WebSocketHandler) !RPCResponse(usize) {
+pub fn getNetworkVersionId(self: *IPC) !RPCResponse(usize) {
     self.mutex.lock();
     const request: EthereumRequest(struct {}) = .{
         .params = .{},
@@ -1216,7 +1056,7 @@ pub fn getNetworkVersionId(self: *WebSocketHandler) !RPCResponse(usize) {
 /// Returns the account and storage values, including the Merkle proof, of the specified account
 ///
 /// RPC Method: [eth_getProof](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/eth_getproof)
-pub fn getProof(self: *WebSocketHandler, opts: ProofRequest, tag: ?ProofBlockTag) !RPCResponse(ProofResult) {
+pub fn getProof(self: *IPC, opts: ProofRequest, tag: ?ProofBlockTag) !RPCResponse(ProofResult) {
     self.mutex.lock();
 
     var request_buffer: [4 * 1024]u8 = undefined;
@@ -1248,7 +1088,7 @@ pub fn getProof(self: *WebSocketHandler, opts: ProofRequest, tag: ?ProofBlockTag
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const proof_message = self.rpc_channel.get();
         errdefer proof_message.deinit();
@@ -1257,7 +1097,7 @@ pub fn getProof(self: *WebSocketHandler, opts: ProofRequest, tag: ?ProofBlockTag
             .proof_event => |proof_event| return .{ .arena = proof_message.arena, .response = proof_event.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a proof_event", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a proof_event", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1266,7 +1106,7 @@ pub fn getProof(self: *WebSocketHandler, opts: ProofRequest, tag: ?ProofBlockTag
 /// Returns the current Ethereum protocol version.
 ///
 /// RPC Method: [eth_protocolVersion](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_protocolversion)
-pub fn getProtocolVersion(self: *WebSocketHandler) !RPCResponse(u64) {
+pub fn getProtocolVersion(self: *IPC) !RPCResponse(u64) {
     self.mutex.lock();
     const request: EthereumRequest(struct {}) = .{
         .params = .{},
@@ -1285,7 +1125,7 @@ pub fn getProtocolVersion(self: *WebSocketHandler) !RPCResponse(u64) {
 /// Returns the raw transaction data as a hexadecimal string for a given transaction hash
 ///
 /// RPC Method: [eth_getRawTransactionByHash](https://docs.chainstack.com/reference/base-getrawtransactionbyhash)
-pub fn getRawTransactionByHash(self: *WebSocketHandler, tx_hash: Hash) !RPCResponse(Hex) {
+pub fn getRawTransactionByHash(self: *IPC, tx_hash: Hash) !RPCResponse(Hex) {
     self.mutex.lock();
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{tx_hash},
@@ -1304,7 +1144,7 @@ pub fn getRawTransactionByHash(self: *WebSocketHandler, tx_hash: Hash) !RPCRespo
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const hex_message = self.rpc_channel.get();
         errdefer hex_message.deinit();
@@ -1313,7 +1153,7 @@ pub fn getRawTransactionByHash(self: *WebSocketHandler, tx_hash: Hash) !RPCRespo
             .hex_event => |hex| return .{ .arena = hex_message.arena, .response = hex.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a hex_event", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a hex_event", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1322,7 +1162,7 @@ pub fn getRawTransactionByHash(self: *WebSocketHandler, tx_hash: Hash) !RPCRespo
 /// Returns the Keccak256 hash of the given message.
 ///
 /// RPC Method: [web_sha3](https://ethereum.org/en/developers/docs/apis/json-rpc#web3_sha3)
-pub fn getSha3Hash(self: *WebSocketHandler, message: []const u8) !RPCResponse(Hash) {
+pub fn getSha3Hash(self: *IPC, message: []const u8) !RPCResponse(Hash) {
     self.mutex.lock();
     const request: EthereumRequest(struct { []const u8 }) = .{
         .params = .{message},
@@ -1341,7 +1181,7 @@ pub fn getSha3Hash(self: *WebSocketHandler, message: []const u8) !RPCResponse(Ha
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const hash_message = self.rpc_channel.get();
         errdefer hash_message.deinit();
@@ -1350,7 +1190,7 @@ pub fn getSha3Hash(self: *WebSocketHandler, message: []const u8) !RPCResponse(Ha
             .hash_event => |hash| return .{ .arena = hash_message.arena, .response = hash.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a hash_event", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a hash_event", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1359,7 +1199,7 @@ pub fn getSha3Hash(self: *WebSocketHandler, message: []const u8) !RPCResponse(Ha
 /// Returns the value from a storage position at a given address.
 ///
 /// RPC Method: [eth_getStorageAt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getstorageat)
-pub fn getStorage(self: *WebSocketHandler, address: Address, storage_key: Hash, opts: BlockNumberRequest) !RPCResponse(Hash) {
+pub fn getStorage(self: *IPC, address: Address, storage_key: Hash, opts: BlockNumberRequest) !RPCResponse(Hash) {
     self.mutex.lock();
 
     var request_buffer: [2 * 1024]u8 = undefined;
@@ -1391,7 +1231,7 @@ pub fn getStorage(self: *WebSocketHandler, address: Address, storage_key: Hash, 
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const hash_message = self.rpc_channel.get();
         errdefer hash_message.deinit();
@@ -1400,7 +1240,7 @@ pub fn getStorage(self: *WebSocketHandler, address: Address, storage_key: Hash, 
             .hash_event => |hash| return .{ .arena = hash_message.arena, .response = hash.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a hash_event", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a hash_event", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1410,7 +1250,7 @@ pub fn getStorage(self: *WebSocketHandler, address: Address, storage_key: Hash, 
 /// the sync progress.
 ///
 /// RPC Method: [eth_syncing](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_syncing)
-pub fn getSyncStatus(self: *WebSocketHandler) !?RPCResponse(SyncProgress) {
+pub fn getSyncStatus(self: *IPC) !?RPCResponse(SyncProgress) {
     self.mutex.lock();
     const request: EthereumRequest(struct {}) = .{
         .params = .{},
@@ -1429,7 +1269,7 @@ pub fn getSyncStatus(self: *WebSocketHandler) !?RPCResponse(SyncProgress) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const bool_message = self.rpc_channel.get();
         errdefer bool_message.deinit();
@@ -1442,7 +1282,7 @@ pub fn getSyncStatus(self: *WebSocketHandler) !?RPCResponse(SyncProgress) {
             .sync_event => |sync_status| return .{ .arena = bool_message.arena, .response = sync_status.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a bool_event or sync_event", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a bool_event or sync_event", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1451,7 +1291,7 @@ pub fn getSyncStatus(self: *WebSocketHandler) !?RPCResponse(SyncProgress) {
 /// Returns information about a transaction by block hash and transaction index position.
 ///
 /// RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblockhashandindex)
-pub fn getTransactionByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Hash, index: usize) !RPCResponse(Transaction) {
+pub fn getTransactionByBlockHashAndIndex(self: *IPC, block_hash: Hash, index: usize) !RPCResponse(Transaction) {
     self.mutex.lock();
 
     const request: EthereumRequest(struct { Hash, usize }) = .{
@@ -1471,7 +1311,7 @@ pub fn getTransactionByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Ha
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const transaction_message = self.rpc_channel.get();
         errdefer transaction_message.deinit();
@@ -1481,7 +1321,7 @@ pub fn getTransactionByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Ha
             .null_event => return error.TransactionNotFound,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1490,7 +1330,7 @@ pub fn getTransactionByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Ha
 /// Returns information about a transaction by block number and transaction index position.
 ///
 /// RPC Method: [eth_getTransactionByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblocknumberandindex)
-pub fn getTransactionByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberRequest, index: usize) !RPCResponse(Transaction) {
+pub fn getTransactionByBlockNumberAndIndex(self: *IPC, opts: BlockNumberRequest, index: usize) !RPCResponse(Transaction) {
     self.mutex.lock();
     var request_buffer: [2 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
@@ -1520,7 +1360,7 @@ pub fn getTransactionByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockN
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const transaction_message = self.rpc_channel.get();
         errdefer transaction_message.deinit();
@@ -1530,7 +1370,7 @@ pub fn getTransactionByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockN
             .null_event => return error.TransactionNotFound,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1539,7 +1379,7 @@ pub fn getTransactionByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockN
 /// Returns the information about a transaction requested by transaction hash.
 ///
 /// RPC Method: [eth_getTransactionByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyhash)
-pub fn getTransactionByHash(self: *WebSocketHandler, transaction_hash: Hash) !RPCResponse(Transaction) {
+pub fn getTransactionByHash(self: *IPC, transaction_hash: Hash) !RPCResponse(Transaction) {
     self.mutex.lock();
 
     const request: EthereumRequest(struct { Hash }) = .{
@@ -1559,7 +1399,7 @@ pub fn getTransactionByHash(self: *WebSocketHandler, transaction_hash: Hash) !RP
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const transaction_message = self.rpc_channel.get();
         errdefer transaction_message.deinit();
@@ -1569,7 +1409,7 @@ pub fn getTransactionByHash(self: *WebSocketHandler, transaction_hash: Hash) !RP
             .null_event => return error.TransactionNotFound,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a transaction_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1578,7 +1418,7 @@ pub fn getTransactionByHash(self: *WebSocketHandler, transaction_hash: Hash) !RP
 /// Returns the receipt of a transaction by transaction hash.
 ///
 /// RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
-pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: Hash) !RPCResponse(TransactionReceipt) {
+pub fn getTransactionReceipt(self: *IPC, transaction_hash: Hash) !RPCResponse(TransactionReceipt) {
     self.mutex.lock();
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{transaction_hash},
@@ -1598,7 +1438,7 @@ pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: Hash) !R
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
         const receipt_message = self.rpc_channel.get();
         errdefer receipt_message.deinit();
 
@@ -1607,7 +1447,7 @@ pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: Hash) !R
             .null_event => return error.TransactionReceiptNotFound,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a receipt_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a receipt_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1621,7 +1461,7 @@ pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: Hash) !R
 /// These batches themselves are maps associating nonces with actual transactions.
 ///
 /// RPC Method: [txpool_content](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
-pub fn getTxPoolContent(self: *WebSocketHandler) !RPCResponse(TxPoolContent) {
+pub fn getTxPoolContent(self: *IPC) !RPCResponse(TxPoolContent) {
     self.mutex.lock();
     const request: EthereumRequest(struct {}) = .{
         .params = .{},
@@ -1640,7 +1480,7 @@ pub fn getTxPoolContent(self: *WebSocketHandler) !RPCResponse(TxPoolContent) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
         const txpool_content_message = self.rpc_channel.get();
         errdefer txpool_content_message.deinit();
 
@@ -1648,7 +1488,7 @@ pub fn getTxPoolContent(self: *WebSocketHandler) !RPCResponse(TxPoolContent) {
             .txpool_content_event => |txpool_content| return .{ .arena = txpool_content_message.arena, .response = txpool_content.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a txpool_content_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a txpool_content_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1658,7 +1498,7 @@ pub fn getTxPoolContent(self: *WebSocketHandler) !RPCResponse(TxPoolContent) {
 /// returning pending as well as queued transactions of this address, grouped by nonce
 ///
 /// RPC Method: [txpool_contentFrom](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
-pub fn getTxPoolContentFrom(self: *WebSocketHandler, from: Address) !RPCResponse([]const PoolTransactionByNonce) {
+pub fn getTxPoolContentFrom(self: *IPC, from: Address) !RPCResponse([]const PoolTransactionByNonce) {
     self.mutex.lock();
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{from},
@@ -1677,7 +1517,7 @@ pub fn getTxPoolContentFrom(self: *WebSocketHandler, from: Address) !RPCResponse
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
         const txpool_content_message = self.rpc_channel.get();
         errdefer txpool_content_message.deinit();
 
@@ -1685,7 +1525,7 @@ pub fn getTxPoolContentFrom(self: *WebSocketHandler, from: Address) !RPCResponse
             .txpool_content_from_event => |txpool_content_from| return .{ .arena = txpool_content_message.arena, .response = txpool_content_from.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a txpool_content_from_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a txpool_content_from_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1696,7 +1536,7 @@ pub fn getTxPoolContentFrom(self: *WebSocketHandler, from: Address) !RPCResponse
 /// This is a method specifically tailored to developers to quickly see the transactions in the pool and find any potential issues.
 ///
 /// RPC Method: [txpool_inspect](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
-pub fn getTxPoolInspectStatus(self: *WebSocketHandler) !RPCResponse(TxPoolInspect) {
+pub fn getTxPoolInspectStatus(self: *IPC) !RPCResponse(TxPoolInspect) {
     self.mutex.lock();
     const request: EthereumRequest(struct {}) = .{
         .params = .{},
@@ -1715,7 +1555,7 @@ pub fn getTxPoolInspectStatus(self: *WebSocketHandler) !RPCResponse(TxPoolInspec
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
         const txpool_inspect_message = self.rpc_channel.get();
         errdefer txpool_inspect_message.deinit();
 
@@ -1723,7 +1563,7 @@ pub fn getTxPoolInspectStatus(self: *WebSocketHandler) !RPCResponse(TxPoolInspec
             .txpool_inspect_event => |txpool_inspect| return .{ .arena = txpool_inspect_message.arena, .response = txpool_inspect.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a txpool_inspect_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a txpool_inspect_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1733,7 +1573,7 @@ pub fn getTxPoolInspectStatus(self: *WebSocketHandler) !RPCResponse(TxPoolInspec
 /// as well as the ones that are being scheduled for future execution only.
 ///
 /// RPC Method: [txpool_status](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
-pub fn getTxPoolStatus(self: *WebSocketHandler) !RPCResponse(TxPoolStatus) {
+pub fn getTxPoolStatus(self: *IPC) !RPCResponse(TxPoolStatus) {
     self.mutex.lock();
     const request: EthereumRequest(struct {}) = .{
         .params = .{},
@@ -1752,7 +1592,7 @@ pub fn getTxPoolStatus(self: *WebSocketHandler) !RPCResponse(TxPoolStatus) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
         const txpool_status_message = self.rpc_channel.get();
         errdefer txpool_status_message.deinit();
 
@@ -1760,7 +1600,7 @@ pub fn getTxPoolStatus(self: *WebSocketHandler) !RPCResponse(TxPoolStatus) {
             .txpool_status_event => |txpool_status| return .{ .arena = txpool_status_message.arena, .response = txpool_status.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a txpool_status_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a txpool_status_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1769,7 +1609,7 @@ pub fn getTxPoolStatus(self: *WebSocketHandler) !RPCResponse(TxPoolStatus) {
 /// Returns information about a uncle of a block by hash and uncle index position.
 ///
 /// RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblockhashandindex)
-pub fn getUncleByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Hash, index: usize) !RPCResponse(Block) {
+pub fn getUncleByBlockHashAndIndex(self: *IPC, block_hash: Hash, index: usize) !RPCResponse(Block) {
     self.mutex.lock();
     var request_buffer: [2 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
@@ -1788,7 +1628,7 @@ pub fn getUncleByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Hash, in
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const block_message = self.rpc_channel.get();
         errdefer block_message.deinit();
@@ -1798,7 +1638,7 @@ pub fn getUncleByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Hash, in
             .null_event => return error.InvalidBlockRequest,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1807,7 +1647,7 @@ pub fn getUncleByBlockHashAndIndex(self: *WebSocketHandler, block_hash: Hash, in
 /// Returns information about a uncle of a block by number and uncle index position.
 ///
 /// RPC Method: [eth_getUncleByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblocknumberandindex)
-pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberRequest, index: usize) !RPCResponse(Block) {
+pub fn getUncleByBlockNumberAndIndex(self: *IPC, opts: BlockNumberRequest, index: usize) !RPCResponse(Block) {
     self.mutex.lock();
     var request_buffer: [2 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
@@ -1838,7 +1678,7 @@ pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberR
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const block_message = self.rpc_channel.get();
         errdefer block_message.deinit();
@@ -1848,7 +1688,7 @@ pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberR
             .null_event => return error.InvalidBlockRequest,
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a block_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1857,7 +1697,7 @@ pub fn getUncleByBlockNumberAndIndex(self: *WebSocketHandler, opts: BlockNumberR
 /// Returns the number of uncles in a block from a block matching the given block hash.
 ///
 /// RPC Method: [`eth_getUncleCountByBlockHash`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclecountbyblockhash)
-pub fn getUncleCountByBlockHash(self: *WebSocketHandler, block_hash: Hash) !RPCResponse(usize) {
+pub fn getUncleCountByBlockHash(self: *IPC, block_hash: Hash) !RPCResponse(usize) {
     self.mutex.lock();
 
     const request: EthereumRequest(struct { Hash }) = .{
@@ -1878,7 +1718,7 @@ pub fn getUncleCountByBlockHash(self: *WebSocketHandler, block_hash: Hash) !RPCR
 /// Returns the number of uncles in a block from a block matching the given block number.
 ///
 /// RPC Method: [`eth_getUncleCountByBlockNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclecountbyblocknumber)
-pub fn getUncleCountByBlockNumber(self: *WebSocketHandler, opts: BlockNumberRequest) !RPCResponse(usize) {
+pub fn getUncleCountByBlockNumber(self: *IPC, opts: BlockNumberRequest) !RPCResponse(usize) {
     self.mutex.lock();
     var request_buffer: [2 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
@@ -1910,7 +1750,7 @@ pub fn getUncleCountByBlockNumber(self: *WebSocketHandler, opts: BlockNumberRequ
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newBlockFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newblockfilter)
-pub fn newBlockFilter(self: *WebSocketHandler) !RPCResponse(u128) {
+pub fn newBlockFilter(self: *IPC) !RPCResponse(u128) {
     self.mutex.lock();
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
         .params = .{},
@@ -1931,7 +1771,7 @@ pub fn newBlockFilter(self: *WebSocketHandler) !RPCResponse(u128) {
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newfilter)
-pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag) !RPCResponse(u128) {
+pub fn newLogFilter(self: *IPC, opts: LogRequest, tag: ?BalanceBlockTag) !RPCResponse(u128) {
     self.mutex.lock();
     var request_buffer: [4 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
@@ -1961,6 +1801,7 @@ pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBloc
     }
 
     self.mutex.unlock();
+    ipclog.debug("FOOOO: {s}", .{buf_writter.getWritten()});
 
     return self.handleNumberEvent(u128, buf_writter.getWritten());
 }
@@ -1968,7 +1809,7 @@ pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBloc
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newPendingTransactionFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newpendingtransactionfilter)
-pub fn newPendingTransactionFilter(self: *WebSocketHandler) !RPCResponse(u128) {
+pub fn newPendingTransactionFilter(self: *IPC) !RPCResponse(u128) {
     self.mutex.lock();
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
         .params = .{},
@@ -1992,7 +1833,7 @@ pub fn newPendingTransactionFilter(self: *WebSocketHandler) !RPCResponse(u128) {
 /// This will just make the request to the network.
 ///
 /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
-pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Hex) {
+pub fn sendEthCall(self: *IPC, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Hex) {
     self.mutex.lock();
     var request_buffer: [8 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
@@ -2022,7 +1863,7 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const hash_message = self.rpc_channel.get();
         errdefer hash_message.deinit();
@@ -2032,7 +1873,7 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
             .hash_event => |hash| return .{ .arena = hash_message.arena, .response = std.mem.bytesAsSlice(u8, @constCast(hash.result[0..])) },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a hash_event", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a hash_event", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -2042,7 +1883,7 @@ pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNum
 /// Transaction must be serialized and signed before hand.
 ///
 /// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
-pub fn sendRawTransaction(self: *WebSocketHandler, serialized_tx: Hex) !RPCResponse(Hash) {
+pub fn sendRawTransaction(self: *IPC, serialized_tx: Hex) !RPCResponse(Hash) {
     self.mutex.lock();
 
     const request: EthereumRequest(struct { Hex }) = .{
@@ -2062,7 +1903,7 @@ pub fn sendRawTransaction(self: *WebSocketHandler, serialized_tx: Hex) !RPCRespo
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const hash_message = self.rpc_channel.get();
         errdefer hash_message.deinit();
@@ -2071,7 +1912,7 @@ pub fn sendRawTransaction(self: *WebSocketHandler, serialized_tx: Hex) !RPCRespo
             .hash_event => |hash| return .{ .arena = hash_message.arena, .response = hash.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a hash_event", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a hash_event", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -2081,7 +1922,7 @@ pub fn sendRawTransaction(self: *WebSocketHandler, serialized_tx: Hex) !RPCRespo
 /// Additionally Filters timeout when they aren't requested with `getFilterOrLogChanges` for a period of time.
 ///
 /// RPC Method: [`eth_uninstallFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_uninstallfilter)
-pub fn uninstalllFilter(self: *WebSocketHandler, id: usize) !RPCResponse(bool) {
+pub fn uninstalllFilter(self: *IPC, id: usize) !RPCResponse(bool) {
     self.mutex.lock();
     const request: EthereumRequest(struct { usize }) = .{
         .params = .{id},
@@ -2100,7 +1941,7 @@ pub fn uninstalllFilter(self: *WebSocketHandler, id: usize) !RPCResponse(bool) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const bool_message = self.rpc_channel.get();
         errdefer bool_message.deinit();
@@ -2109,7 +1950,7 @@ pub fn uninstalllFilter(self: *WebSocketHandler, id: usize) !RPCResponse(bool) {
             .bool_event => |bool_event| return .{ .arena = bool_message.arena, .response = bool_event.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a bool_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a bool_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -2119,7 +1960,7 @@ pub fn uninstalllFilter(self: *WebSocketHandler, id: usize) !RPCResponse(bool) {
 /// with eth_unsubscribe as the method and the subscriptionId as the first parameter.
 ///
 /// RPC Method: [`eth_unsubscribe`](https://docs.alchemy.com/reference/eth-unsubscribe)
-pub fn unsubscribe(self: *WebSocketHandler, sub_id: u128) !RPCResponse(bool) {
+pub fn unsubscribe(self: *IPC, sub_id: u128) !RPCResponse(bool) {
     self.mutex.lock();
 
     const request: EthereumRequest(struct { u128 }) = .{
@@ -2139,7 +1980,7 @@ pub fn unsubscribe(self: *WebSocketHandler, sub_id: u128) !RPCResponse(bool) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(buf_writter.getWritten());
+        try self.stream.writeAll(buf_writter.getWritten());
 
         const bool_message = self.rpc_channel.get();
         errdefer bool_message.deinit();
@@ -2148,16 +1989,66 @@ pub fn unsubscribe(self: *WebSocketHandler, sub_id: u128) !RPCResponse(bool) {
             .bool_event => |bool_event| return .{ .arena = bool_message.arena, .response = bool_event.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a bool_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a bool_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
     }
 }
+/// Creates a read loop to read the socket messages.
+/// If a message is too long it will double the buffer size to read the message.
+///
+/// This is thread safe.
+pub fn readLoop(self: *IPC) !void {
+    var list = std.ArrayList(u8).init(self.allocator);
+    errdefer list.deinit();
+
+    while (true) {
+        try self.readMessage(list.writer());
+
+        const message = try list.toOwnedSlice();
+        defer self.allocator.free(message);
+
+        ipclog.debug("Got message: {s}", .{message});
+        const parsed = std.json.parseFromSlice(EthereumEvents, self.allocator, message, .{ .allocate = .alloc_always }) catch |err| {
+            ipclog.debug("Failed to parse: {s}. Json error: {s}", .{ message, @errorName(err) });
+            const timeout = std.mem.toBytes(std.posix.timeval{
+                .tv_sec = @intCast(0),
+                .tv_usec = @intCast(1000),
+            });
+            std.posix.setsockopt(self.stream.handle, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, &timeout);
+
+            return error.FailedToJsonParseRequest;
+        };
+        errdefer parsed.deinit();
+
+        if (self.onEvent) |onEvent| {
+            try onEvent(RPCResponse(EthereumEvents).fromJson(parsed.arena, parsed.value));
+        }
+
+        switch (parsed.value) {
+            .subscribe_event => |sub_event| self.sub_channel.put(.{ .arena = parsed.arena, .response = sub_event }),
+            .rpc_event => |rpc_event| self.rpc_channel.put(.{ .arena = parsed.arena, .response = rpc_event }),
+        }
+    }
+}
+/// Function prepared to start the read loop in a seperate thread.
+pub fn readLoopOwnedThread(self: *IPC) !void {
+    errdefer self.deinit();
+    pipe.maybeIgnoreSigpipe();
+
+    self.readLoop() catch |err| {
+        ipclog.err("Read loop reported error: {s}", .{@errorName(err)});
+        return;
+    };
+}
 /// Emits new blocks that are added to the blockchain.
 ///
 /// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/eth-subscribe)
-pub fn watchNewBlocks(self: *WebSocketHandler) !RPCResponse(u128) {
+pub fn watchNewBlocks(self: *IPC) !RPCResponse(u128) {
+    self.mutex.lock();
+    defer self.mutex.unlock();
+
     const request: EthereumRequest(struct { WebsocketSubscriptions }) = .{
         .params = .{.newHeads},
         .method = .eth_subscribe,
@@ -2174,7 +2065,7 @@ pub fn watchNewBlocks(self: *WebSocketHandler) !RPCResponse(u128) {
 /// Emits logs attached to a new block that match certain topic filters and address.
 ///
 /// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/logs)
-pub fn watchLogs(self: *WebSocketHandler, opts: WatchLogsRequest) !RPCResponse(u128) {
+pub fn watchLogs(self: *IPC, opts: WatchLogsRequest) !RPCResponse(u128) {
     var request_buffer: [4 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
@@ -2191,7 +2082,7 @@ pub fn watchLogs(self: *WebSocketHandler, opts: WatchLogsRequest) !RPCResponse(u
 /// Emits transaction hashes that are sent to the network and marked as "pending".
 ///
 /// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/newpendingtransactions)
-pub fn watchTransactions(self: *WebSocketHandler) !RPCResponse(u128) {
+pub fn watchTransactions(self: *IPC) !RPCResponse(u128) {
     const request: EthereumRequest(struct { WebsocketSubscriptions }) = .{
         .params = .{.newPendingTransactions},
         .method = .eth_subscribe,
@@ -2211,7 +2102,7 @@ pub fn watchTransactions(self: *WebSocketHandler) !RPCResponse(u128) {
 /// Since we have no way of knowing all possible or custom RPC methods that nodes can provide.
 ///
 /// Returns the subscription Id.
-pub fn watchWebsocketEvent(self: *WebSocketHandler, method: []const u8) !RPCResponse(u128) {
+pub fn watchWebsocketEvent(self: *IPC, method: []const u8) !RPCResponse(u128) {
     const request: EthereumRequest(struct { []const u8 }) = .{
         .params = .{method},
         .method = .eth_subscribe,
@@ -2236,7 +2127,7 @@ pub fn watchWebsocketEvent(self: *WebSocketHandler, method: []const u8) !RPCResp
 /// replaced transactions receipt in the case it was replaced.
 ///
 /// RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
-pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt) {
+pub fn waitForTransactionReceipt(self: *IPC, tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt) {
     var tx: ?RPCResponse(Transaction) = null;
     defer if (tx) |t| t.deinit();
 
@@ -2349,17 +2240,17 @@ pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hash, confirm
                         inline else => |tx_object| try self.getTransactionReceipt(tx_object.hash),
                     };
 
-                    wslog.debug("Transaction was replace by a newer one", .{});
+                    ipclog.debug("Transaction was replace by a newer one", .{});
 
                     switch (replaced_tx) {
                         inline else => |replacement| switch (tx.?.response) {
                             inline else => |original| {
                                 if (std.mem.eql(u8, &replacement.from, &original.from) and replacement.value == original.value)
-                                    wslog.debug("Original transaction was repriced", .{});
+                                    ipclog.debug("Original transaction was repriced", .{});
 
                                 if (replacement.to) |replaced_to| {
                                     if (std.mem.eql(u8, &replacement.from, &replaced_to) and replacement.value == 0)
-                                        wslog.debug("Original transaction was canceled", .{});
+                                        ipclog.debug("Original transaction was canceled", .{});
                                 }
                             },
                         },
@@ -2403,20 +2294,59 @@ pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hash, confirm
 
     return if (receipt) |tx_receipt| tx_receipt else error.FailedToGetReceipt;
 }
-/// Runs the callback once the handler close method gets called by the ws_client
-pub fn close(self: *WebSocketHandler) void {
-    if (self.onClose) |onClose| {
-        return onClose();
+/// Handles how an error event should behave.
+fn handleErrorEvent(self: *IPC, error_event: EthereumErrorResponse, retries: usize) !void {
+    const err = self.handleErrorResponse(error_event.@"error");
+
+    switch (err) {
+        error.TooManyRequests => {
+            // Exponential backoff
+            const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
+            ipclog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+            std.time.sleep(std.time.ns_per_ms * backoff);
+        },
+        else => return err,
     }
 }
+/// Converts ethereum error codes into Zig errors.
+fn handleErrorResponse(self: *IPC, event: ErrorResponse) EthereumZigErrors {
+    _ = self;
 
-fn handleNumberEvent(self: *WebSocketHandler, comptime T: type, req_body: []u8) !RPCResponse(T) {
+    ipclog.debug("RPC error response: {s}\n", .{event.message});
+    switch (event.code) {
+        .ContractErrorCode => return error.EvmFailedToExecute,
+        .TooManyRequests => return error.TooManyRequests,
+        .InvalidInput => return error.InvalidInput,
+        .MethodNotFound => return error.MethodNotFound,
+        .ResourceNotFound => return error.ResourceNotFound,
+        .InvalidRequest => return error.InvalidRequest,
+        .ParseError => return error.ParseError,
+        .LimitExceeded => return error.LimitExceeded,
+        .InvalidParams => return error.InvalidParams,
+        .InternalError => return error.InternalError,
+        .MethodNotSupported => return error.MethodNotSupported,
+        .ResourceUnavailable => return error.ResourceNotFound,
+        .TransactionRejected => return error.TransactionRejected,
+        .RpcVersionNotSupported => return error.RpcVersionNotSupported,
+        .UserRejectedRequest => return error.UserRejectedRequest,
+        .Unauthorized => return error.Unauthorized,
+        .UnsupportedMethod => return error.UnsupportedMethod,
+        .Disconnected => return error.Disconnected,
+        .ChainDisconnected => return error.ChainDisconnected,
+        _ => return error.UnexpectedRpcErrorCode,
+    }
+}
+/// Internal Handler for RPC requests where the expected response
+/// is a hex encoded number.
+fn handleNumberEvent(self: *IPC, comptime T: type, req_body: []u8) !RPCResponse(T) {
     var retries: u8 = 0;
+
     while (true) : (retries += 1) {
         if (retries > self.retries)
             return error.ReachedMaxRetryLimit;
 
-        try self.write(req_body);
+        try self.stream.writeAll(req_body);
         const get_response = self.rpc_channel.get();
         errdefer get_response.deinit();
 
@@ -2424,9 +2354,42 @@ fn handleNumberEvent(self: *WebSocketHandler, comptime T: type, req_body: []u8) 
             .number_event => |event| return .{ .arena = get_response.arena, .response = @as(T, @truncate(event.result)) },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
+        }
+    }
+}
+/// Reads one json message from the socket. The list growth is super
+/// linear as it's the safest option to ensure that we grab a just one json
+/// message.
+///
+/// Returns whether or not it was able to read a message.
+fn readMessage(self: *IPC, writer: anytype) !void {
+    var depth: usize = 0;
+
+    while (true) {
+        var result: [1]u8 = undefined;
+        const size = try self.stream.read(result[0..]);
+
+        if (size < 1) {
+            if (depth == 0)
+                return;
+
+            return error.EndOfStream;
+        }
+
+        try writer.writeAll(result[0..]);
+
+        switch (result[0]) {
+            '{' => depth += 1,
+            '}' => depth -= 1,
+            else => {},
+        }
+
+        // Check if we read a message or not.
+        if (depth == 0) {
+            return;
         }
     }
 }

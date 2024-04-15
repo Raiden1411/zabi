@@ -61,7 +61,7 @@ Explore the [docs](https://zabi.sh) to find out more on how you can use or integ
 
 ### Features
 
-- Json RPC with support for http/s and ws/s connections
+- Json RPC with support for http/s, ws/s and ipc connections
 - Wallet instances and contract instances to use for interacting with nodes/json rpc.
 - Custom Secp256k1 ECDSA signer using only Zig and implementation of RFC6979 nonce generator.
 - Custom JSON Parser that can be used to deserialize and serialized RPC data at runtime.

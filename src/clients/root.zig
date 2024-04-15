@@ -12,3 +12,7 @@ pub const PubClient = @import("Client.zig");
 /// Supports most RPC methods. Converts errors responses
 /// into zig errors. Handles error 429 but not the rest.
 pub const WebSocket = @import("WebSocket.zig");
+/// The ipc rpc client to interact with EVM based chains.
+/// Supports most RPC methods. Converts errors responses
+/// into zig errors. Handles error 429 but not the rest.
+pub const IpcClient = @import("IPC.zig");

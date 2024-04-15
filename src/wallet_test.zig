@@ -35,14 +35,18 @@ pub fn main() !void {
 
     const uri = try std.Uri.parse("http://localhost:8545/");
 
-    const clients = [_]WalletClients{ .http, .websocket };
+    const clients = [_]WalletClients{ .http, .websocket, .ipc };
 
     // Simple wallet tests.
     inline for (clients) |client| {
         var wallet: Wallet(client) = undefined;
-
-        try wallet.init(buffer, .{ .allocator = gpa.allocator(), .uri = uri });
         defer wallet.deinit();
+
+        if (client == .ipc) {
+            try wallet.init(buffer, .{ .allocator = gpa.allocator(), .path = "/tmp/anvil.ipc" });
+        } else {
+            try wallet.init(buffer, .{ .allocator = gpa.allocator(), .uri = uri });
+        }
 
         try wallet.poolTransactionEnvelope(.{
             .type = .london,
@@ -125,11 +129,19 @@ pub fn main() !void {
         var contract: Contract(client) = undefined;
         defer contract.deinit();
 
-        try contract.init(.{
-            .abi = abi,
-            .private_key = buffer,
-            .wallet_opts = .{ .allocator = gpa.allocator(), .uri = uri },
-        });
+        if (client == .ipc) {
+            try contract.init(.{
+                .abi = abi,
+                .private_key = buffer,
+                .wallet_opts = .{ .allocator = gpa.allocator(), .path = "/tmp/anvil.ipc" },
+            });
+        } else {
+            try contract.init(.{
+                .abi = abi,
+                .private_key = buffer,
+                .wallet_opts = .{ .allocator = gpa.allocator(), .uri = uri },
+            });
+        }
 
         {
             var hex_buffer: [1024]u8 = undefined;
@@ -175,10 +187,17 @@ pub fn main() !void {
         var wallet_op: WalletL1Client(client) = undefined;
         defer wallet_op.deinit();
 
-        try wallet_op.init(buffer, .{
-            .allocator = gpa.allocator(),
-            .uri = uri,
-        }, null);
+        if (client == .ipc) {
+            try wallet_op.init(buffer, .{
+                .allocator = gpa.allocator(),
+                .path = "/tmp/anvil.ipc",
+            }, null);
+        } else {
+            try wallet_op.init(buffer, .{
+                .allocator = gpa.allocator(),
+                .uri = uri,
+            }, null);
+        }
 
         const response = try wallet_op.depositTransaction(.{
             .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),

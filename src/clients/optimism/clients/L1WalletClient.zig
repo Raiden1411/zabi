@@ -18,6 +18,7 @@ const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
 const InitOptsHttp = clients.PubClient.InitOptions;
+const InitOptsIpc = clients.IpcClient.InitOptions;
 const InitOptsWs = clients.WebSocket.InitOptions;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const LondonEthCall = transactions.LondonEthCall;
@@ -42,6 +43,7 @@ pub fn WalletL1Client(client_type: Clients) type {
         const InitOpts = switch (client_type) {
             .http => InitOptsHttp,
             .websocket => InitOptsWs,
+            .ipc => InitOptsIpc,
         };
         /// The underlaying public op client. This contains the rpc_client
         op_client: *ClientType,

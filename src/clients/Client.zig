@@ -31,7 +31,6 @@ const EthereumResponse = types.EthereumResponse;
 const EthereumRequest = types.EthereumRequest;
 const EthereumRpcMethods = types.EthereumRpcMethods;
 const EstimateFeeReturn = transaction.EstimateFeeReturn;
-const Extract = meta.Extract;
 const FeeHistory = transaction.FeeHistory;
 const FetchResult = http.Client.FetchResult;
 const Gwei = types.Gwei;

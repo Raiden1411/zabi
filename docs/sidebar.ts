@@ -15,7 +15,7 @@ export const sidebar = {
 			collapsed: true,
 			items: [
 				{
-					text: "HTTP and Websocket",
+					text: "HTTP, Websocket and IPC",
 					link: "/api/client/public/client",
 				},
 				{

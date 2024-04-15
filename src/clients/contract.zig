@@ -26,6 +26,7 @@ const Gwei = types.Gwei;
 const Hex = types.Hex;
 const Hash = types.Hash;
 const InitOptsHttp = @import("Client.zig").InitOptions;
+const InitOptsIpc = @import("IPC.zig").InitOptions;
 const InitOptsWs = @import("WebSocket.zig").InitOptions;
 const RPCResponse = types.RPCResponse;
 const UnpreparedTransactionEnvelope = transaction.UnpreparedTransactionEnvelope;
@@ -52,6 +53,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         const InitOpts = switch (client_type) {
             .http => InitOptsHttp,
             .websocket => InitOptsWs,
+            .ipc => InitOptsIpc,
         };
 
         /// The contract settings depending on the client type.
@@ -230,6 +232,7 @@ pub fn Contract(comptime client_type: ClientType) type {
         const InitOpts = switch (client_type) {
             .http => InitOptsHttp,
             .websocket => InitOptsWs,
+            .ipc => InitOptsIpc,
         };
 
         /// The contract settings depending on the client type.

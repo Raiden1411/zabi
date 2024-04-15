@@ -46,7 +46,7 @@ pub fn main() !void {
 
     const message = try wallet.signEthereumMessage("Hello World");
     const hexed = try message.toHex(wallet.allocator);
-    defer gpa.allocator().free(hexed);
+    defer wallet.allocator.free(hexed);
     std.debug.print("Ethereum message: {s}\n", .{hexed});
 }
 ```

@@ -19,6 +19,7 @@ const L1Client = @import("clients/optimism/clients/L1PubClient.zig").L1Client;
 const PubClient = @import("clients/Client.zig");
 const WalletClients = @import("clients/wallet.zig").WalletClients;
 const WebSocketClient = @import("clients/WebSocket.zig");
+const IPCClient = @import("clients/IPC.zig");
 
 pub const std_options: std.Options = .{
     .log_level = .debug,
@@ -44,7 +45,7 @@ pub fn main() !void {
     const runs = parsed.runs orelse 100;
     var rand = std.rand.DefaultPrng.init(runs);
 
-    const clients = &[_]type{ PubClient, WebSocketClient };
+    const clients = &[_]type{ PubClient, WebSocketClient, IPCClient };
 
     std.debug.print(
         \\ Script will run {d} times
@@ -54,10 +55,17 @@ pub fn main() !void {
         var rpc_client: Client = undefined;
         defer rpc_client.deinit();
 
-        try rpc_client.init(.{
-            .uri = uri,
-            .allocator = gpa.allocator(),
-        });
+        if (Client == IPCClient) {
+            try rpc_client.init(.{
+                .path = "/tmp/anvil.ipc",
+                .allocator = gpa.allocator(),
+            });
+        } else {
+            try rpc_client.init(.{
+                .uri = uri,
+                .allocator = gpa.allocator(),
+            });
+        }
 
         const client: WalletClients = comptime blk: {
             break :blk if (Client == PubClient) .http else .websocket;

@@ -19,7 +19,9 @@ const Allocator = std.mem.Allocator;
 const Clients = @import("../../wallet.zig").WalletClients;
 const Hash = types.Hash;
 const InitOptsHttp = clients.PubClient.InitOptions;
+const InitOptsIpc = clients.IpcClient.InitOptions;
 const InitOptsWs = clients.WebSocket.InitOptions;
+const IpcClient = clients.IpcClient;
 const Logs = log.Logs;
 const L2Output = op_types.L2Output;
 const Message = withdrawal_types.Message;
@@ -41,12 +43,14 @@ pub fn L1Client(comptime client_type: Clients) type {
         const ClientType = switch (client_type) {
             .http => PubClient,
             .websocket => WebSocketClient,
+            .ipc => IpcClient,
         };
 
         /// The inital settings depending on the client type.
         const InitOpts = switch (client_type) {
             .http => InitOptsHttp,
             .websocket => InitOptsWs,
+            .ipc => InitOptsIpc,
         };
 
         /// This is the same allocator as the rpc_client.

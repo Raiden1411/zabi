@@ -22,9 +22,10 @@ pub const Log = struct {
     removed: bool,
     topics: []const ?Hash,
     blockNumber: ?u64,
-    transactionLogIndex: ?usize = null,
     transactionIndex: ?usize,
     transactionHash: ?Hash,
+    transactionLogIndex: ?usize = null,
+    blockTimestamp: ?u64 = null,
 
     pub usingnamespace RequestParser(@This());
 };

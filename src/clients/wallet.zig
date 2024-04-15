@@ -19,7 +19,9 @@ const LondonEthCall = transaction.LondonEthCall;
 const LegacyEthCall = transaction.LegacyEthCall;
 const Hash = types.Hash;
 const InitOptsHttp = PubClient.InitOptions;
+const InitOptsIpc = IpcClient.InitOptions;
 const InitOptsWs = WebSocketClient.InitOptions;
+const IpcClient = @import("IPC.zig");
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Mutex = std.Thread.Mutex;
 const PubClient = @import("Client.zig");
@@ -34,12 +36,14 @@ const UnpreparedTransactionEnvelope = transaction.UnpreparedTransactionEnvelope;
 const WebSocketClient = @import("WebSocket.zig");
 
 /// The type of client used by the wallet instance.
-pub const WalletClients = enum { http, websocket };
+pub const WalletClients = enum { http, websocket, ipc };
 
 /// Wallet instance with rpc http/s client.
 pub const WalletHttpClient = Wallet(.http);
 /// Wallet instance with rpc ws/s client.
 pub const WalletWsClient = Wallet(.websocket);
+/// Wallet instance with rpc ipc client.
+pub const WalletIpcClient = Wallet(.ipc);
 
 pub const TransactionEnvelopePool = struct {
     mutex: Mutex = .{},
@@ -139,12 +143,14 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         const ClientType = switch (client_type) {
             .http => PubClient,
             .websocket => WebSocketClient,
+            .ipc => IpcClient,
         };
 
         /// The inital settings depending on the client type.
         const InitOpts = switch (client_type) {
             .http => InitOptsHttp,
             .websocket => InitOptsWs,
+            .ipc => InitOptsIpc,
         };
 
         /// Allocator used by the wallet implementation

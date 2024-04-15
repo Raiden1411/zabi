@@ -2013,6 +2013,11 @@ pub fn readLoop(self: *IPC) !void {
         ipclog.debug("Got message: {s}", .{message});
         const parsed = std.json.parseFromSlice(EthereumEvents, self.allocator, message, .{ .allocate = .alloc_always }) catch |err| {
             ipclog.debug("Failed to parse: {s}. Json error: {s}", .{ message, @errorName(err) });
+            const timeout = std.mem.toBytes(std.posix.timeval{
+                .tv_sec = @intCast(0),
+                .tv_usec = @intCast(1000),
+            });
+            std.posix.setsockopt(self.stream.handle, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, &timeout);
 
             return error.FailedToJsonParseRequest;
         };
@@ -2035,6 +2040,7 @@ pub fn readLoopOwnedThread(self: *IPC) !void {
 
     self.readLoop() catch |err| {
         ipclog.err("Read loop reported error: {s}", .{@errorName(err)});
+        return;
     };
 }
 /// Emits new blocks that are added to the blockchain.

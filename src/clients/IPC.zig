@@ -39,7 +39,6 @@ const EthereumRpcResponse = types.EthereumRpcResponse;
 const EthereumSubscribeEvents = types.EthereumSubscribeEvents;
 const EthereumZigErrors = types.EthereumZigErrors;
 const EstimateFeeReturn = transaction.EstimateFeeReturn;
-const Extract = meta.Extract;
 const FeeHistory = transaction.FeeHistory;
 const Gwei = types.Gwei;
 const Hash = types.Hash;

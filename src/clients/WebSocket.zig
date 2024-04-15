@@ -93,7 +93,7 @@ pub const WebSocketHandlerErrors = error{
 pub const InitOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
     allocator: Allocator,
-    /// Fork url for anvil to fork from
+    /// The uri of the server to connect to.
     uri: std.Uri,
     /// The client chainId.
     chain_id: ?Chains = null,
@@ -112,7 +112,7 @@ pub const InitOptions = struct {
 };
 
 /// The allocator that will manage the connections memory
-allocator: std.mem.Allocator,
+allocator: Allocator,
 /// The base fee multiplier used to estimate the gas fees in a transaction
 base_fee_multiplier: f64,
 /// The chain id of the attached network
@@ -126,7 +126,7 @@ mutex: Mutex = .{},
 /// Callback function for when the connection is closed.
 onClose: ?*const fn () void = null,
 /// Callback function that will run once a socket event is parsed
-onEvent: ?*const fn (args: RPCResponse(EthereumEvents)) anyerror!void,
+onEvent: ?*const fn (args: EthereumEvents) anyerror!void,
 /// Callback function that will run once a error is parsed.
 onError: ?*const fn (args: []const u8) anyerror!void,
 /// The interval to retry the connection. This will get multiplied in ns_per_ms.

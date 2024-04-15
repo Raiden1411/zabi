@@ -36,6 +36,11 @@ const WebSocketClient = @import("WebSocket.zig");
 /// The type of client used by the wallet instance.
 pub const WalletClients = enum { http, websocket };
 
+/// Wallet instance with rpc http/s client.
+pub const WalletHttpClient = Wallet(.http);
+/// Wallet instance with rpc ws/s client.
+pub const WalletWsClient = Wallet(.websocket);
+
 pub const TransactionEnvelopePool = struct {
     mutex: Mutex = .{},
     pooled_envelopes: TransactionEnvelopeQueue,

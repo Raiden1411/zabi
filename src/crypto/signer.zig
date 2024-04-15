@@ -12,10 +12,13 @@ const Signature = @import("signature.zig").Signature;
 
 const Signer = @This();
 
+const CompressedPublicKey = [33]u8;
+const UncompressedPublicKey = [65]u8;
+
 /// The private key of this signer.
 private_key: Hash,
 /// The compressed version of the address of this signer.
-public_key: [33]u8,
+public_key: CompressedPublicKey,
 /// The chain address of this signer.
 address_bytes: Address,
 
@@ -23,7 +26,7 @@ address_bytes: Address,
 ///
 /// Returns the public key in an uncompressed sec1 format so that
 /// it can be used later to recover the address.
-pub fn recoverPubkey(signature: Signature, message_hash: Hash) ![65]u8 {
+pub fn recoverPubkey(signature: Signature, message_hash: Hash) !UncompressedPublicKey {
     const z = reduceToScalar(Secp256k1.Fe.encoded_length, message_hash);
 
     if (z.isZero())
@@ -231,8 +234,8 @@ pub fn generateNonce(self: Signer, message_hash: Hash) [32]u8 {
     return v[0..32].*;
 }
 
-// Reduce the coordinate of a field element to the scalar field.
-// Copied from zig std as it's not exposed.
+/// Reduce the coordinate of a field element to the scalar field.
+/// Copied from zig std as it's not exposed.
 fn reduceToScalar(comptime unreduced_len: usize, s: [unreduced_len]u8) Secp256k1.scalar.Scalar {
     if (unreduced_len >= 48) {
         var xs = [_]u8{0} ** 64;

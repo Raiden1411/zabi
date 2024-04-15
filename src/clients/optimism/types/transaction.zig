@@ -43,7 +43,7 @@ pub const DepositTransactionSigned = struct {
     type: TransactionTypes,
     sourceHash: Hex,
     mint: ?u256 = null,
-    isSystemTx: bool,
+    isSystemTx: ?bool = null,
     depositReceiptVersion: ?u64 = null,
 
     pub usingnamespace RequestParser(@This());

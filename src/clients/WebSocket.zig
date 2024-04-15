@@ -126,7 +126,7 @@ mutex: Mutex = .{},
 /// Callback function for when the connection is closed.
 onClose: ?*const fn () void = null,
 /// Callback function that will run once a socket event is parsed
-onEvent: ?*const fn (args: EthereumEvents) anyerror!void,
+onEvent: ?*const fn (args: RPCResponse(EthereumEvents)) anyerror!void,
 /// Callback function that will run once a error is parsed.
 onError: ?*const fn (args: []const u8) anyerror!void,
 /// The interval to retry the connection. This will get multiplied in ns_per_ms.
@@ -1950,7 +1950,7 @@ pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBloc
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     } else {
         const request: EthereumRequest(struct { LogRequest }) = .{
             .params = .{opts},
@@ -1958,7 +1958,7 @@ pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBloc
             .id = self.chain_id,
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
     }
 
     self.mutex.unlock();

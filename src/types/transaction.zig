@@ -546,7 +546,8 @@ pub const DepositReceipt = struct {
     type: ?TransactionTypes = null,
     effectiveGasPrice: ?Gwei = null,
     deposit_nonce: ?usize = null,
-    depositNonce: u64,
+    depositNonce: ?u64,
+    depositNonceVersion: ?u64 = null,
     root: ?Hex = null,
 
     pub usingnamespace RequestParser(@This());

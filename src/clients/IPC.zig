@@ -2016,7 +2016,7 @@ pub fn readLoop(self: *IPC) !void {
                 .tv_sec = @intCast(0),
                 .tv_usec = @intCast(1000),
             });
-            std.posix.setsockopt(self.stream.handle, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, &timeout);
+            try std.posix.setsockopt(self.stream.handle, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, &timeout);
 
             return error.FailedToJsonParseRequest;
         };

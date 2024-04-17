@@ -50,6 +50,10 @@ pub const Anvil = @import("tests/Anvil.zig");
 pub const Hardhat = @import("tests/Hardhat.zig");
 /// Custom RPC server that server random data.
 pub const RpcServer = @import("tests/clients/server.zig");
+/// Custom Ws RPC server that server random data.
+pub const WsHandler = @import("tests/clients/ws_server.zig").WsHandler;
+/// Used by the ws server to provide the needed context.
+pub const WsContext = @import("tests/clients/ws_server.zig").WsContext;
 
 test {
     _ = @import("abi/param_type.zig");

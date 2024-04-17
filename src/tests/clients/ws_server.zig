@@ -31,11 +31,7 @@ pub const WsHandler = struct {
 
     /// Start the handlers state.
     pub fn init(h: Handshake, conn: *Connection, context: *WsContext) !WsHandler {
-        // `h` contains the initial websocket "handshake" request
-        // It can be used to apply application-specific logic to verify / allow
-        // the connection (e.g. valid url, query string parameters, or headers)
-
-        _ = h; // we're not using this in our simple case
+        _ = h;
 
         return .{
             .conn = conn,

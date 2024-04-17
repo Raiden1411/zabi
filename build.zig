@@ -92,6 +92,25 @@ pub fn build(b: *std.Build) void {
         const http_step = b.step("server", "Run the http server");
         http_step.dependOn(&http_run.step);
     }
+    // Creates and runs the simple ws JSON RPC server.
+    {
+        const ws = b.addExecutable(.{
+            .name = "ws_server",
+            .root_source_file = .{ .path = "src/ws_server.zig" },
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        });
+        addDependencies(b, &ws.root_module, target, optimize);
+
+        var ws_run = b.addRunArtifact(ws);
+        ws_run.has_side_effects = true;
+
+        if (b.args) |args| ws_run.addArgs(args);
+
+        const ws_step = b.step("wsserver", "Run the ws server");
+        ws_step.dependOn(&ws_run.step);
+    }
 
     // Coverage build option with kcov
     if (coverage) {

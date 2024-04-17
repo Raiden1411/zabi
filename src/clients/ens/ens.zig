@@ -16,6 +16,8 @@ const EnsContracts = @import("contracts.zig").EnsContracts;
 const Hex = types.Hex;
 const InitOptsHttp = PubClient.InitOptions;
 const InitOptsWs = WebSocketClient.InitOptions;
+const InitOptsIpc = IpcClient.InitOptions;
+const IpcClient = clients.clients.IpcClient;
 const PubClient = clients.clients.PubClient;
 const RPCResponse = types.RPCResponse;
 const WebSocketClient = clients.clients.WebSocket;
@@ -31,12 +33,14 @@ pub fn ENSClient(comptime client_type: Clients) type {
         const ClientType = switch (client_type) {
             .http => PubClient,
             .websocket => WebSocketClient,
+            .ipc => IpcClient,
         };
 
         /// The inital settings depending on the client type.
         const InitOpts = switch (client_type) {
             .http => InitOptsHttp,
             .websocket => InitOptsWs,
+            .ipc => InitOptsIpc,
         };
 
         /// This is the same allocator as the rpc_client.

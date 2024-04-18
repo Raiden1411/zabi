@@ -111,6 +111,25 @@ pub fn build(b: *std.Build) void {
         const ws_step = b.step("wsserver", "Run the ws server");
         ws_step.dependOn(&ws_run.step);
     }
+    // Creates and runs the simple ipc JSON RPC server.
+    {
+        const ipc = b.addExecutable(.{
+            .name = "ipc_server",
+            .root_source_file = .{ .path = "src/ipc_server.zig" },
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        });
+        addDependencies(b, &ipc.root_module, target, optimize);
+
+        var ipc_run = b.addRunArtifact(ipc);
+        ipc_run.has_side_effects = true;
+
+        if (b.args) |args| ipc_run.addArgs(args);
+
+        const ipc_step = b.step("ipcserver", "Run the ipc server");
+        ipc_step.dependOn(&ipc_run.step);
+    }
 
     // Coverage build option with kcov
     if (coverage) {

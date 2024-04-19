@@ -137,6 +137,7 @@ pub fn listenButSendOnlyError429Response(self: *Server) !void {
 /// allowed.
 pub fn listenToOneRequest(self: *Server) !void {
     const buffer = try self.allocator.alloc(u8, self.buffer_size);
+    defer self.allocator.free(buffer);
 
     const conn = try self.server.accept();
 

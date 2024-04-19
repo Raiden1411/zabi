@@ -8,3 +8,5 @@ pub const log = @import("log.zig");
 pub const transactions = @import("transaction.zig");
 /// RPC proof request types.
 pub const proof = @import("proof.zig");
+/// RPC sync status types
+pub const sync = @import("syncing.zig");

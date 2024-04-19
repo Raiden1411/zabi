@@ -14,7 +14,10 @@ const Logs = types.log.Logs;
 const ProofResult = types.proof.ProofResult;
 const Transaction = types.transactions.Transaction;
 const TransactionReceipt = types.transactions.TransactionReceipt;
+const SyncStatus = types.sync.SyncStatus;
 
+// TODO: Add way to be up with timeout so it can
+// get a more request
 const Server = @This();
 
 const server_log = std.log.scoped(.server);
@@ -217,6 +220,7 @@ fn handleRequest(self: *Server, req: *HttpServer.Request) !void {
     return switch (method) {
         .eth_sendRawTransaction,
         .eth_getStorageAt,
+        .web3_sha3,
         => self.sendResponse([32]u8, req),
         .eth_accounts,
         => self.sendResponse([]const [20]u8, req),
@@ -234,14 +238,16 @@ fn handleRequest(self: *Server, req: *HttpServer.Request) !void {
         .eth_getTransactionByHash,
         .eth_getTransactionByBlockHashAndIndex,
         .eth_getTransactionByBlockNumberAndIndex,
-        => self.sendResponse([32]u8, req),
+        => self.sendResponse(Transaction, req),
         .eth_feeHistory,
         => self.sendResponse(FeeHistory, req),
         .eth_call,
         .eth_getCode,
+        .eth_getRawTransactionByHash,
         => self.sendResponse([]u8, req),
         .eth_unsubscribe,
         .eth_uninstallFilter,
+        .net_listening,
         => self.sendResponse(bool, req),
         .eth_getLogs,
         .eth_getFilterLogs,
@@ -260,12 +266,19 @@ fn handleRequest(self: *Server, req: *HttpServer.Request) !void {
         .eth_maxPriorityFeePerGas,
         .eth_getBlockTransactionCountByHash,
         .eth_getBlockTransactionCountByNumber,
+        .net_version,
+        .net_peerCount,
+        .eth_protocolVersion,
         => self.sendResponse(u64, req),
         .eth_newFilter,
         .eth_newBlockFilter,
         .eth_newPendingTransactionFilter,
         .eth_subscribe,
         => self.sendResponse(u128, req),
+        .web3_clientVersion,
+        => self.sendResponse([]const u8, req),
+        .eth_syncing,
+        => self.sendResponse(SyncStatus, req),
         else => error.UnsupportedRpcMethod,
     };
 }

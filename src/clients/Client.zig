@@ -1815,6 +1815,1037 @@ test "GetChainId" {
 
     try server.listenOnceInSeperateThread(false);
 
-    const block_number = try client.getChainId();
-    defer block_number.deinit();
+    const chain = try client.getChainId();
+    defer chain.deinit();
+}
+
+test "GetStorage" {
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const storage = try client.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{});
+        defer storage.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const storage = try client.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{ .block_number = 101010 });
+        defer storage.deinit();
+    }
+}
+
+test "GetAccounts" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const accounts = try client.getAccounts();
+    defer accounts.deinit();
+}
+
+test "Get" {
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const code = try client.getContractCode(.{ .address = [_]u8{0} ** 20 });
+        defer code.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const code = try client.getContractCode(.{ .address = [_]u8{0} ** 20, .block_number = 101010 });
+        defer code.deinit();
+    }
+}
+
+test "GetTransactionByHash" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const tx = try client.getTransactionByHash([_]u8{0} ** 32);
+    defer tx.deinit();
+}
+
+test "GetReceipt" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const receipt = try client.getTransactionReceipt([_]u8{0} ** 32);
+    defer receipt.deinit();
+}
+
+test "GetFilter" {
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const filter = try client.getFilterOrLogChanges(0, .eth_getFilterChanges);
+        defer filter.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const filter = try client.getFilterOrLogChanges(0, .eth_getFilterLogs);
+        defer filter.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try testing.expectError(error.InvalidRpcMethod, client.getFilterOrLogChanges(0, .eth_chainId));
+    }
+}
+
+test "GetGasPrice" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const gas = try client.getGasPrice();
+    defer gas.deinit();
+}
+
+test "GetUncleCountByBlockHash" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const uncle = try client.getUncleCountByBlockHash([_]u8{0} ** 32);
+    defer uncle.deinit();
+}
+
+test "GetUncleCountByBlockNumber" {
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const uncle = try client.getUncleCountByBlockNumber(.{});
+        defer uncle.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const uncle = try client.getUncleCountByBlockNumber(.{ .block_number = 101010 });
+        defer uncle.deinit();
+    }
+}
+
+test "GetUncleByBlockNumberAndIndex" {
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const uncle = try client.getUncleByBlockNumberAndIndex(.{}, 0);
+        defer uncle.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const uncle = try client.getUncleByBlockNumberAndIndex(.{ .block_number = 101010 }, 0);
+        defer uncle.deinit();
+    }
+}
+
+test "GetUncleByBlockHashAndIndex" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const tx = try client.getUncleByBlockHashAndIndex([_]u8{0} ** 32, 0);
+    defer tx.deinit();
+}
+
+test "GetTransactionByBlockNumberAndIndex" {
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const tx = try client.getTransactionByBlockNumberAndIndex(.{}, 0);
+        defer tx.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const tx = try client.getTransactionByBlockNumberAndIndex(.{ .block_number = 101010 }, 0);
+        defer tx.deinit();
+    }
+}
+
+test "EstimateGas" {
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const fee = try client.estimateGas(.{ .london = .{ .gas = 10 } }, .{});
+        defer fee.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const fee = try client.estimateGas(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 });
+        defer fee.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const fee = try client.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{});
+        defer fee.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const fee = try client.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 });
+        defer fee.deinit();
+    }
+}
+
+test "CreateAccessList" {
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const access = try client.createAccessList(.{ .london = .{ .gas = 10 } }, .{});
+        defer access.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const access = try client.createAccessList(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 });
+        defer access.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const access = try client.createAccessList(.{ .legacy = .{ .gas = 10 } }, .{});
+        defer access.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const access = try client.createAccessList(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 });
+        defer access.deinit();
+    }
+}
+
+test "GetNetworkPeerCount" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const count = try client.getNetworkPeerCount();
+    defer count.deinit();
+}
+
+test "GetNetworkVersionId" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const id = try client.getNetworkVersionId();
+    defer id.deinit();
+}
+
+test "GetNetworkListenStatus" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const status = try client.getNetworkListenStatus();
+    defer status.deinit();
+}
+
+test "GetSha3Hash" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const hash = try client.getSha3Hash("foobar");
+    defer hash.deinit();
+}
+
+test "GetClientVersion" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const version = try client.getClientVersion();
+    defer version.deinit();
+}
+
+test "BlobBaseFee" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const blob = try client.blobBaseFee();
+    defer blob.deinit();
+}
+
+test "EstimateMaxFeePerGas" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const max = try client.estimateMaxFeePerGas();
+    defer max.deinit();
+}
+
+test "GetProof" {
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const proofs = try client.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{}, .blockNumber = 101010 }, null);
+        defer proofs.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const proofs = try client.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{} }, .latest);
+        defer proofs.deinit();
+    }
+}
+
+test "GetLogs" {
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const logs = try client.getLogs(.{ .toBlock = 101010, .fromBlock = 101010 }, null);
+        defer logs.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const logs = try client.getLogs(.{}, .latest);
+        defer logs.deinit();
+    }
+}
+
+test "NewLogFilter" {
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const logs = try client.newLogFilter(.{}, .latest);
+        defer logs.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const logs = try client.newLogFilter(.{ .fromBlock = 101010, .toBlock = 101010 }, null);
+        defer logs.deinit();
+    }
+}
+
+test "NewBlockFilter" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const block_id = try client.newBlockFilter();
+    defer block_id.deinit();
+}
+
+test "NewPendingTransactionFilter" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const tx_id = try client.newPendingTransactionFilter();
+    defer tx_id.deinit();
+}
+
+test "UninstalllFilter" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const status = try client.uninstalllFilter(1);
+    defer status.deinit();
+}
+
+test "GetProtocolVersion" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const version = try client.getProtocolVersion();
+    defer version.deinit();
+}
+
+test "SyncStatus" {
+    var server: HttpServer = undefined;
+    defer server.deinit();
+
+    try server.init(.{ .allocator = testing.allocator });
+
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try server.listenOnceInSeperateThread(false);
+
+    const status = try client.getSyncStatus();
+    defer if (status) |s| s.deinit();
+}
+
+test "FeeHistory" {
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const status = try client.feeHistory(10, .{}, null);
+        defer status.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const status = try client.feeHistory(10, .{ .block_number = 101010 }, null);
+        defer status.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const status = try client.feeHistory(10, .{}, &.{ 0.1, 0.2 });
+        defer status.deinit();
+    }
+    {
+        var server: HttpServer = undefined;
+        defer server.deinit();
+
+        try server.init(.{ .allocator = testing.allocator });
+
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try server.listenOnceInSeperateThread(false);
+
+        const status = try client.feeHistory(10, .{ .block_number = 101010 }, &.{ 0.1, 0.2 });
+        defer status.deinit();
+    }
 }

@@ -12,6 +12,7 @@ const EthereumRpcMethods = types.ethereum.EthereumRpcMethods;
 const FeeHistory = types.transactions.FeeHistory;
 const Logs = types.log.Logs;
 const ProofResult = types.proof.ProofResult;
+const SyncStatus = types.sync.SyncStatus;
 const Transaction = types.transactions.Transaction;
 const TransactionReceipt = types.transactions.TransactionReceipt;
 
@@ -32,6 +33,7 @@ listener: std.net.Server,
 path: []const u8,
 /// The seed to use to generate random data.
 seed: u64,
+mutex: std.Thread.Mutex,
 
 /// Start the server and creates the listener.
 pub fn init(self: *IpcServer, allocator: Allocator, opts: InitOpts) !void {
@@ -40,6 +42,7 @@ pub fn init(self: *IpcServer, allocator: Allocator, opts: InitOpts) !void {
         .listener = undefined,
         .path = opts.path,
         .seed = opts.seed,
+        .mutex = .{},
     };
 
     std.fs.cwd().deleteFile(self.path) catch |err| switch (err) {
@@ -76,6 +79,9 @@ pub fn start(self: *IpcServer) !void {
 }
 /// Listen to a single request
 pub fn listenOnce(self: *IpcServer) !void {
+    self.mutex.lock();
+    defer self.mutex.unlock();
+
     const request = try self.listener.accept();
 
     return self.handleRequest(request.stream);
@@ -144,6 +150,7 @@ fn handleRequest(self: *IpcServer, stream: std.net.Stream) !void {
     return switch (method) {
         .eth_sendRawTransaction,
         .eth_getStorageAt,
+        .web3_sha3,
         => self.sendResponse([32]u8, stream),
         .eth_accounts,
         => self.sendResponse([]const [20]u8, stream),
@@ -161,7 +168,7 @@ fn handleRequest(self: *IpcServer, stream: std.net.Stream) !void {
         .eth_getTransactionByHash,
         .eth_getTransactionByBlockHashAndIndex,
         .eth_getTransactionByBlockNumberAndIndex,
-        => self.sendResponse([32]u8, stream),
+        => self.sendResponse(Transaction, stream),
         .eth_feeHistory,
         => self.sendResponse(FeeHistory, stream),
         .eth_call,
@@ -169,6 +176,7 @@ fn handleRequest(self: *IpcServer, stream: std.net.Stream) !void {
         => self.sendResponse([]u8, stream),
         .eth_unsubscribe,
         .eth_uninstallFilter,
+        .net_listening,
         => self.sendResponse(bool, stream),
         .eth_getLogs,
         .eth_getFilterLogs,
@@ -187,12 +195,19 @@ fn handleRequest(self: *IpcServer, stream: std.net.Stream) !void {
         .eth_maxPriorityFeePerGas,
         .eth_getBlockTransactionCountByHash,
         .eth_getBlockTransactionCountByNumber,
+        .net_version,
+        .net_peerCount,
+        .eth_protocolVersion,
         => self.sendResponse(u64, stream),
         .eth_newFilter,
         .eth_newBlockFilter,
         .eth_newPendingTransactionFilter,
         .eth_subscribe,
         => self.sendResponse(u128, stream),
+        .web3_clientVersion,
+        => self.sendResponse([]const u8, stream),
+        .eth_syncing,
+        => self.sendResponse(SyncStatus, stream),
         else => {
             var buffer: [1024]u8 = undefined;
             var buf_writer = std.io.fixedBufferStream(&buffer);
@@ -206,7 +221,7 @@ fn handleRequest(self: *IpcServer, stream: std.net.Stream) !void {
 /// Sends the response back to the user.
 fn sendResponse(self: *IpcServer, comptime T: type, stream: std.net.Stream) !void {
     const generated = try generator.generateRandomData(EthereumRpcResponse(T), self.allocator, self.seed, .{
-        .slice_size = 2,
+        .slice_size = 3,
         .use_default_values = true,
     });
     defer generated.deinit();

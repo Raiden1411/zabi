@@ -37,6 +37,7 @@ const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
 const HttpConnection = http.Client.Connection;
+const HttpServer = @import("../tests/clients/server.zig");
 const Log = log.Log;
 const LogRequest = log.LogRequest;
 const LogTagRequest = log.LogTagRequest;
@@ -46,7 +47,6 @@ const ProofResult = proof.ProofResult;
 const ProofBlockTag = block.ProofBlockTag;
 const ProofRequest = proof.ProofRequest;
 const RPCResponse = types.RPCResponse;
-const HttpServer = @import("../tests/clients/server.zig");
 const SyncProgress = sync.SyncStatus;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
@@ -1883,7 +1883,7 @@ test "GetAccounts" {
     defer accounts.deinit();
 }
 
-test "Get" {
+test "GetContractCode" {
     {
         var server: HttpServer = undefined;
         defer server.deinit();

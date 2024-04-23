@@ -1,4 +1,5 @@
 const generator = @import("../generator.zig");
+const pipe = @import("../../utils/pipe.zig");
 const std = @import("std");
 const types = @import("../../types/root.zig");
 
@@ -72,6 +73,19 @@ pub fn start(self: *IpcServer) !void {
             };
         }
     }
+}
+/// Listen to a single request
+pub fn listenOnce(self: *IpcServer) !void {
+    const request = try self.listener.accept();
+
+    return self.handleRequest(request.stream);
+}
+/// Listen to a single request in a seperate thread
+pub fn listenOnceInSeperateThread(self: *IpcServer) !void {
+    pipe.maybeIgnoreSigpipe();
+
+    const thread = try std.Thread.spawn(.{}, listenOnce, .{self});
+    thread.detach();
 }
 /// Handles and mimics a json rpc response from a JSON-RPC server.
 /// Uses the custom data generator to produce the response.

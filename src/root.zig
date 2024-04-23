@@ -51,9 +51,11 @@ pub const Hardhat = @import("tests/Hardhat.zig");
 /// Custom RPC server that server random data.
 pub const RpcServer = @import("tests/clients/server.zig");
 /// Custom Ws RPC server that server random data.
-pub const WsHandler = @import("tests/clients/ws_server.zig").WsHandler;
+pub const RpcWsServerHandler = @import("tests/clients/ws_server.zig").WsHandler;
 /// Used by the ws server to provide the needed context.
-pub const WsContext = @import("tests/clients/ws_server.zig").WsContext;
+pub const WsServerContext = @import("tests/clients/ws_server.zig").WsContext;
+/// Custom RPC server that server random data.
+pub const IpcRpcServer = @import("tests/clients/ipc_server.zig");
 
 test {
     _ = @import("abi/param_type.zig");
@@ -66,6 +68,7 @@ test {
     _ = @import("decoding/rlp_decode.zig");
     _ = @import("decoding/ssz_decode.zig");
     _ = @import("clients/Client.zig");
+    _ = @import("clients/IPC.zig");
     _ = @import("clients/ens/ens_utils.zig");
     _ = @import("clients/wallet.zig");
     _ = @import("clients/optimism/utils.zig");

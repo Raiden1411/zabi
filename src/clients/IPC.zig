@@ -2439,6 +2439,7 @@ test "BlockByNumber" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const block_number = try client.getBlockByNumber(.{ .block_number = 10 });
         defer block_number.deinit();
@@ -2458,6 +2459,7 @@ test "BlockByNumber" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const block_number = try client.getBlockByNumber(.{});
         defer block_number.deinit();
@@ -2477,6 +2479,7 @@ test "BlockByNumber" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const block_number = try client.getBlockByNumber(.{ .include_transaction_objects = true });
         defer block_number.deinit();
@@ -2496,6 +2499,7 @@ test "BlockByNumber" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const block_number = try client.getBlockByNumber(.{ .block_number = 1000000, .include_transaction_objects = true });
         defer block_number.deinit();
@@ -2518,6 +2522,7 @@ test "BlockByHash" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const block_number = try client.getBlockByHash(.{ .block_hash = [_]u8{0} ** 32 });
         defer block_number.deinit();
@@ -2537,6 +2542,7 @@ test "BlockByHash" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const block_number = try client.getBlockByHash(.{ .block_hash = [_]u8{0} ** 32, .include_transaction_objects = true });
         defer block_number.deinit();
@@ -2558,6 +2564,7 @@ test "BlockTransactionCountByHash" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const block_number = try client.getBlockTransactionCountByHash([_]u8{0} ** 32);
     defer block_number.deinit();
@@ -2579,6 +2586,7 @@ test "BlockTransactionCountByNumber" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const block_number = try client.getBlockTransactionCountByNumber(.{ .block_number = 100101 });
         defer block_number.deinit();
@@ -2598,6 +2606,7 @@ test "BlockTransactionCountByNumber" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const block_number = try client.getBlockTransactionCountByNumber(.{});
         defer block_number.deinit();
@@ -2620,6 +2629,7 @@ test "AddressNonce" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const block_number = try client.getAddressTransactionCount(.{ .address = [_]u8{0} ** 20 });
         defer block_number.deinit();
@@ -2639,6 +2649,7 @@ test "AddressNonce" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const block_number = try client.getAddressTransactionCount(.{ .address = [_]u8{0} ** 20, .block_number = 100012 });
         defer block_number.deinit();
@@ -2661,6 +2672,7 @@ test "AddressBalance" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const block_number = try client.getAddressBalance(.{ .address = [_]u8{0} ** 20, .block_number = 100101 });
         defer block_number.deinit();
@@ -2680,6 +2692,7 @@ test "AddressBalance" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const block_number = try client.getAddressBalance(.{ .address = [_]u8{0} ** 20 });
         defer block_number.deinit();
@@ -2701,6 +2714,7 @@ test "BlockNumber" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const block_number = try client.getBlockNumber();
     defer block_number.deinit();
@@ -2721,6 +2735,7 @@ test "GetChainId" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     // Since the data is random it's expected to fail.
     try testing.expectError(error.InvalidChainId, client.getChainId());
@@ -2742,6 +2757,7 @@ test "GetStorage" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const storage = try client.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{});
         defer storage.deinit();
@@ -2761,6 +2777,7 @@ test "GetStorage" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
         const storage = try client.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{ .block_number = 101010 });
         defer storage.deinit();
     }
@@ -2781,6 +2798,7 @@ test "GetAccounts" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const accounts = try client.getAccounts();
     defer accounts.deinit();
@@ -2802,6 +2820,7 @@ test "GetContractCode" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const code = try client.getContractCode(.{ .address = [_]u8{0} ** 20 });
         defer code.deinit();
@@ -2821,6 +2840,7 @@ test "GetContractCode" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const code = try client.getContractCode(.{ .address = [_]u8{0} ** 20, .block_number = 101010 });
         defer code.deinit();
@@ -2842,6 +2862,7 @@ test "GetTransactionByHash" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const tx = try client.getTransactionByHash([_]u8{0} ** 32);
     defer tx.deinit();
@@ -2862,6 +2883,7 @@ test "GetReceipt" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const receipt = try client.getTransactionReceipt([_]u8{0} ** 32);
     defer receipt.deinit();
@@ -2883,6 +2905,7 @@ test "GetFilter" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const filter = try client.getFilterOrLogChanges(0, .eth_getFilterChanges);
         defer filter.deinit();
@@ -2902,6 +2925,7 @@ test "GetFilter" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const filter = try client.getFilterOrLogChanges(0, .eth_getFilterLogs);
         defer filter.deinit();
@@ -2921,6 +2945,7 @@ test "GetFilter" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
         try testing.expectError(error.InvalidRpcMethod, client.getFilterOrLogChanges(0, .eth_chainId));
     }
 }
@@ -2941,6 +2966,8 @@ test "GetGasPrice" {
 
     try server.listenOnceInSeperateThread();
 
+    std.time.sleep(std.time.ns_per_ms * 100);
+
     const gas = try client.getGasPrice();
     defer gas.deinit();
 }
@@ -2960,6 +2987,7 @@ test "GetUncleCountByBlockHash" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const uncle = try client.getUncleCountByBlockHash([_]u8{0} ** 32);
     defer uncle.deinit();
@@ -2981,6 +3009,7 @@ test "GetUncleCountByBlockNumber" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const uncle = try client.getUncleCountByBlockNumber(.{});
         defer uncle.deinit();
@@ -3000,6 +3029,7 @@ test "GetUncleCountByBlockNumber" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const uncle = try client.getUncleCountByBlockNumber(.{ .block_number = 101010 });
         defer uncle.deinit();
@@ -3022,6 +3052,7 @@ test "GetUncleByBlockNumberAndIndex" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const uncle = try client.getUncleByBlockNumberAndIndex(.{}, 0);
         defer uncle.deinit();
@@ -3041,6 +3072,7 @@ test "GetUncleByBlockNumberAndIndex" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const uncle = try client.getUncleByBlockNumberAndIndex(.{ .block_number = 101010 }, 0);
         defer uncle.deinit();
@@ -3062,6 +3094,7 @@ test "GetUncleByBlockHashAndIndex" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const tx = try client.getUncleByBlockHashAndIndex([_]u8{0} ** 32, 0);
     defer tx.deinit();
@@ -3083,6 +3116,7 @@ test "GetTransactionByBlockNumberAndIndex" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const tx = try client.getTransactionByBlockNumberAndIndex(.{}, 0);
         defer tx.deinit();
@@ -3102,6 +3136,7 @@ test "GetTransactionByBlockNumberAndIndex" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const tx = try client.getTransactionByBlockNumberAndIndex(.{ .block_number = 101010 }, 0);
         defer tx.deinit();
@@ -3124,6 +3159,7 @@ test "EstimateGas" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const fee = try client.estimateGas(.{ .london = .{ .gas = 10 } }, .{});
         defer fee.deinit();
@@ -3143,6 +3179,7 @@ test "EstimateGas" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const fee = try client.estimateGas(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 });
         defer fee.deinit();
@@ -3162,6 +3199,7 @@ test "EstimateGas" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const fee = try client.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{});
         defer fee.deinit();
@@ -3181,6 +3219,7 @@ test "EstimateGas" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const fee = try client.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 });
         defer fee.deinit();
@@ -3203,6 +3242,7 @@ test "CreateAccessList" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const access = try client.createAccessList(.{ .london = .{ .gas = 10 } }, .{});
         defer access.deinit();
@@ -3222,6 +3262,7 @@ test "CreateAccessList" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const access = try client.createAccessList(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 });
         defer access.deinit();
@@ -3241,6 +3282,7 @@ test "CreateAccessList" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const access = try client.createAccessList(.{ .legacy = .{ .gas = 10 } }, .{});
         defer access.deinit();
@@ -3260,6 +3302,7 @@ test "CreateAccessList" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const access = try client.createAccessList(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 });
         defer access.deinit();
@@ -3281,6 +3324,7 @@ test "GetNetworkPeerCount" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const count = try client.getNetworkPeerCount();
     defer count.deinit();
@@ -3301,6 +3345,7 @@ test "GetNetworkVersionId" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const id = try client.getNetworkVersionId();
     defer id.deinit();
@@ -3321,6 +3366,7 @@ test "GetNetworkListenStatus" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const status = try client.getNetworkListenStatus();
     defer status.deinit();
@@ -3341,6 +3387,7 @@ test "GetSha3Hash" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const hash = try client.getSha3Hash("foobar");
     defer hash.deinit();
@@ -3361,6 +3408,7 @@ test "GetClientVersion" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const version = try client.getClientVersion();
     defer version.deinit();
@@ -3381,6 +3429,7 @@ test "BlobBaseFee" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const blob = try client.blobBaseFee();
     defer blob.deinit();
@@ -3401,6 +3450,7 @@ test "EstimateMaxFeePerGas" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const max = try client.estimateMaxFeePerGas();
     defer max.deinit();
@@ -3422,6 +3472,7 @@ test "GetProof" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const proofs = try client.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{}, .blockNumber = 101010 }, null);
         defer proofs.deinit();
@@ -3441,6 +3492,7 @@ test "GetProof" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const proofs = try client.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{} }, .latest);
         defer proofs.deinit();
@@ -3463,6 +3515,7 @@ test "GetLogs" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const logs = try client.getLogs(.{ .toBlock = 101010, .fromBlock = 101010 }, null);
         defer logs.deinit();
@@ -3482,6 +3535,7 @@ test "GetLogs" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const logs = try client.getLogs(.{}, .latest);
         defer logs.deinit();
@@ -3504,6 +3558,7 @@ test "NewLogFilter" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const logs = try client.newLogFilter(.{}, .latest);
         defer logs.deinit();
@@ -3523,6 +3578,7 @@ test "NewLogFilter" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const logs = try client.newLogFilter(.{ .fromBlock = 101010, .toBlock = 101010 }, null);
         defer logs.deinit();
@@ -3544,6 +3600,7 @@ test "NewBlockFilter" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const block_id = try client.newBlockFilter();
     defer block_id.deinit();
@@ -3564,6 +3621,7 @@ test "NewPendingTransactionFilter" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const tx_id = try client.newPendingTransactionFilter();
     defer tx_id.deinit();
@@ -3584,6 +3642,7 @@ test "UninstalllFilter" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const status = try client.uninstalllFilter(1);
     defer status.deinit();
@@ -3604,6 +3663,7 @@ test "GetProtocolVersion" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const version = try client.getProtocolVersion();
     defer version.deinit();
@@ -3624,6 +3684,7 @@ test "SyncStatus" {
     });
 
     try server.listenOnceInSeperateThread();
+    std.time.sleep(std.time.ns_per_ms * 100);
 
     const status = try client.getSyncStatus();
     defer if (status) |s| s.deinit();
@@ -3645,6 +3706,7 @@ test "FeeHistory" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const status = try client.feeHistory(10, .{}, null);
         defer status.deinit();
@@ -3664,6 +3726,7 @@ test "FeeHistory" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const status = try client.feeHistory(10, .{ .block_number = 101010 }, null);
         defer status.deinit();
@@ -3683,6 +3746,7 @@ test "FeeHistory" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
 
         const status = try client.feeHistory(10, .{}, &.{ 0.1, 0.2 });
         defer status.deinit();
@@ -3702,6 +3766,7 @@ test "FeeHistory" {
         });
 
         try server.listenOnceInSeperateThread();
+        std.time.sleep(std.time.ns_per_ms * 100);
         const status = try client.feeHistory(10, .{ .block_number = 101010 }, &.{ 0.1, 0.2 });
         defer status.deinit();
     }

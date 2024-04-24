@@ -91,7 +91,7 @@ pub const HttpClientError = error{
     ReachedMaxRetryLimit,
 } || Allocator.Error || std.fmt.ParseIntError || http.Client.RequestError || std.Uri.ParseError;
 
-const protocol_map = std.ComptimeStringMap(HttpConnection.Protocol, .{
+const protocol_map = std.StaticStringMap(HttpConnection.Protocol).initComptime(.{
     .{ "http", .plain },
     .{ "ws", .plain },
     .{ "https", .tls },

@@ -137,7 +137,7 @@ uri: std.Uri,
 /// The underlaying websocket client
 ws_client: *ws.Client,
 
-const protocol_map = std.ComptimeStringMap(std.http.Client.Connection.Protocol, .{
+const protocol_map = std.StaticStringMap(std.http.Client.Connection.Protocol).initComptime(.{
     .{ "http", .plain },
     .{ "ws", .plain },
     .{ "https", .tls },

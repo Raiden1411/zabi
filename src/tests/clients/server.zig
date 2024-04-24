@@ -58,7 +58,6 @@ pub fn init(self: *Server, opts: ServerConfig) !void {
     const parsed_address = try std.net.Address.parseIp(opts.ip_address, opts.port);
 
     server.* = try parsed_address.listen(.{
-        .reuse_port = true,
         .reuse_address = true,
     });
 
@@ -73,6 +72,8 @@ pub fn init(self: *Server, opts: ServerConfig) !void {
 }
 /// Closes the connection and destroys any pointers.
 pub fn deinit(self: *Server) void {
+    self.mutex.lock();
+
     self.server.deinit();
 
     self.allocator.destroy(self.server);
@@ -148,12 +149,11 @@ pub fn listenToOneRequest(self: *Server) !void {
     self.mutex.lock();
     defer self.mutex.unlock();
 
-    const buffer = try self.allocator.alloc(u8, self.buffer_size);
-    defer self.allocator.free(buffer);
+    var buffer: [8192]u8 = undefined;
 
     const conn = try self.server.accept();
 
-    var http = HttpServer.init(conn, buffer);
+    var http = HttpServer.init(conn, &buffer);
 
     var req = try http.receiveHead();
     switch (req.head.method) {

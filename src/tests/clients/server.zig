@@ -46,6 +46,8 @@ server: *std.net.Server,
 allocator: Allocator,
 /// buffer size for the http server to use.
 buffer_size: u64,
+/// Mutex used by this server to handle request in seperate thread.
+mutex: std.Thread.Mutex,
 
 /// Starts a server instance and
 /// readys the socket for accepting connections.
@@ -66,6 +68,7 @@ pub fn init(self: *Server, opts: ServerConfig) !void {
         .server = server,
         .allocator = opts.allocator,
         .buffer_size = opts.buffer_size,
+        .mutex = .{},
     };
 }
 /// Closes the connection and destroys any pointers.
@@ -114,6 +117,9 @@ pub fn listen(self: *Server, send_error_429: bool) !void {
 /// Only POST requests are accepted and "application/json" headers are
 /// allowed. Will always send error 429.
 pub fn listenButSendOnlyError429Response(self: *Server) !void {
+    self.mutex.lock();
+    defer self.mutex.unlock();
+
     const buffer = try self.allocator.alloc(u8, self.buffer_size);
     defer self.allocator.free(buffer);
 
@@ -139,6 +145,9 @@ pub fn listenButSendOnlyError429Response(self: *Server) !void {
 /// Only POST requests are accepted and "application/json" headers are
 /// allowed.
 pub fn listenToOneRequest(self: *Server) !void {
+    self.mutex.lock();
+    defer self.mutex.unlock();
+
     const buffer = try self.allocator.alloc(u8, self.buffer_size);
     defer self.allocator.free(buffer);
 

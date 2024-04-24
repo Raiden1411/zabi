@@ -137,6 +137,7 @@ pub fn build(b: *std.Build) void {
         const include = b.fmt("--include-pattern=/src", .{});
         const args = &[_]std.Build.Step.Run.Arg{
             .{ .bytes = b.dupe("kcov") },
+            .{ .bytes = b.dupe("--collect-only") },
             .{ .bytes = b.dupe(include) },
             .{ .bytes = b.pathJoin(&.{ coverage_output, "output" }) },
         };

@@ -33,6 +33,7 @@ listener: std.net.Server,
 path: []const u8,
 /// The seed to use to generate random data.
 seed: u64,
+/// Mutex used by this server to handle request in seperate thread.
 mutex: std.Thread.Mutex,
 
 /// Start the server and creates the listener.

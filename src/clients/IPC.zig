@@ -2026,8 +2026,8 @@ pub fn readLoop(self: *IPC) !void {
     while (true) {
         try self.readMessage(list.writer());
 
-        const message = list.items[0..list.items.len];
-        defer list.shrinkAndFree(0);
+        const message = try list.toOwnedSlice();
+        defer self.allocator.free(message);
 
         ipclog.debug("Got message: {s}", .{message});
         const parsed = std.json.parseFromSlice(EthereumEvents, self.allocator, message, .{ .allocate = .alloc_always }) catch |err| {

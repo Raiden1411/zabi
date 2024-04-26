@@ -48,13 +48,13 @@ pub const Signer = @import("crypto/signer.zig");
 pub const Anvil = @import("tests/Anvil.zig");
 /// Custom wrapper for interacting with the Hardhat testchain
 pub const Hardhat = @import("tests/Hardhat.zig");
-/// Custom RPC server that server random data.
+/// Custom Http RPC server that server random data.
 pub const RpcServer = @import("tests/clients/server.zig");
 /// Custom Ws RPC server that server random data.
 pub const RpcWsServerHandler = @import("tests/clients/ws_server.zig").WsHandler;
 /// Used by the ws server to provide the needed context.
 pub const WsServerContext = @import("tests/clients/ws_server.zig").WsContext;
-/// Custom RPC server that server random data.
+/// Custom IPC RPC server that server random data.
 pub const IpcRpcServer = @import("tests/clients/ipc_server.zig");
 
 test {

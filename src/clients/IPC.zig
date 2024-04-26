@@ -2425,77 +2425,37 @@ fn readMessage(self: *IPC, writer: anytype) !void {
 
 test "BlockByNumber" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const block_number = try client.getBlockByNumber(.{ .block_number = 10 });
         defer block_number.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const block_number = try client.getBlockByNumber(.{});
         defer block_number.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const block_number = try client.getBlockByNumber(.{ .include_transaction_objects = true });
         defer block_number.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const block_number = try client.getBlockByNumber(.{ .block_number = 1000000, .include_transaction_objects = true });
         defer block_number.deinit();
@@ -2504,39 +2464,19 @@ test "BlockByNumber" {
 
 test "BlockByHash" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const block_number = try client.getBlockByHash(.{ .block_hash = [_]u8{0} ** 32 });
         defer block_number.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const block_number = try client.getBlockByHash(.{ .block_hash = [_]u8{0} ** 32, .include_transaction_objects = true });
         defer block_number.deinit();
@@ -2544,20 +2484,10 @@ test "BlockByHash" {
 }
 
 test "BlockTransactionCountByHash" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const block_number = try client.getBlockTransactionCountByHash([_]u8{0} ** 32);
     defer block_number.deinit();
@@ -2565,202 +2495,102 @@ test "BlockTransactionCountByHash" {
 
 test "BlockTransactionCountByNumber" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const block_number = try client.getBlockTransactionCountByNumber(.{ .block_number = 100101 });
         defer block_number.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const block_number = try client.getBlockTransactionCountByNumber(.{});
         defer block_number.deinit();
     }
 }
 
-test "AddressNonce" {
-    {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
-        var client: IPC = undefined;
-        defer client.deinit();
-
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
-
-        const block_number = try client.getAddressTransactionCount(.{ .address = [_]u8{0} ** 20 });
-        defer block_number.deinit();
-    }
-    {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
-        var client: IPC = undefined;
-        defer client.deinit();
-
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
-
-        const block_number = try client.getAddressTransactionCount(.{ .address = [_]u8{0} ** 20, .block_number = 100012 });
-        defer block_number.deinit();
-    }
-}
-
 test "AddressBalance" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const block_number = try client.getAddressBalance(.{ .address = [_]u8{0} ** 20, .block_number = 100101 });
         defer block_number.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const block_number = try client.getAddressBalance(.{ .address = [_]u8{0} ** 20 });
         defer block_number.deinit();
     }
 }
 
+test "AddressNonce" {
+    {
+        var client: IPC = undefined;
+        defer client.deinit();
+
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+
+        const block_number = try client.getAddressTransactionCount(.{ .address = [_]u8{0} ** 20 });
+        defer block_number.deinit();
+    }
+    {
+        var client: IPC = undefined;
+        defer client.deinit();
+
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+
+        const block_number = try client.getAddressTransactionCount(.{ .address = [_]u8{0} ** 20, .block_number = 100012 });
+        defer block_number.deinit();
+    }
+}
+
 test "BlockNumber" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const block_number = try client.getBlockNumber();
     defer block_number.deinit();
 }
 
 test "GetChainId" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
-    try server.listenOnceInSeperateThread();
-
-    // Since the data is random it's expected to fail.
-    try testing.expectError(error.InvalidChainId, client.getChainId());
+    const chain = try client.getChainId();
+    defer chain.deinit();
 }
 
 test "GetStorage" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const storage = try client.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{});
         defer storage.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const storage = try client.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{ .block_number = 101010 });
         defer storage.deinit();
@@ -2768,20 +2598,10 @@ test "GetStorage" {
 }
 
 test "GetAccounts" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const accounts = try client.getAccounts();
     defer accounts.deinit();
@@ -2789,39 +2609,19 @@ test "GetAccounts" {
 
 test "GetContractCode" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const code = try client.getContractCode(.{ .address = [_]u8{0} ** 20 });
         defer code.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const code = try client.getContractCode(.{ .address = [_]u8{0} ** 20, .block_number = 101010 });
         defer code.deinit();
@@ -2829,40 +2629,20 @@ test "GetContractCode" {
 }
 
 test "GetTransactionByHash" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const tx = try client.getTransactionByHash([_]u8{0} ** 32);
     defer tx.deinit();
 }
 
 test "GetReceipt" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const receipt = try client.getTransactionReceipt([_]u8{0} ** 32);
     defer receipt.deinit();
@@ -2870,97 +2650,48 @@ test "GetReceipt" {
 
 test "GetFilter" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const filter = try client.getFilterOrLogChanges(0, .eth_getFilterChanges);
         defer filter.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const filter = try client.getFilterOrLogChanges(0, .eth_getFilterLogs);
         defer filter.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
-        try server.listenOnceInSeperateThread();
         try testing.expectError(error.InvalidRpcMethod, client.getFilterOrLogChanges(0, .eth_chainId));
     }
 }
 
 test "GetGasPrice" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const gas = try client.getGasPrice();
     defer gas.deinit();
 }
 
 test "GetUncleCountByBlockHash" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const uncle = try client.getUncleCountByBlockHash([_]u8{0} ** 32);
     defer uncle.deinit();
@@ -2968,39 +2699,19 @@ test "GetUncleCountByBlockHash" {
 
 test "GetUncleCountByBlockNumber" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const uncle = try client.getUncleCountByBlockNumber(.{});
         defer uncle.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const uncle = try client.getUncleCountByBlockNumber(.{ .block_number = 101010 });
         defer uncle.deinit();
@@ -3009,39 +2720,19 @@ test "GetUncleCountByBlockNumber" {
 
 test "GetUncleByBlockNumberAndIndex" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const uncle = try client.getUncleByBlockNumberAndIndex(.{}, 0);
         defer uncle.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const uncle = try client.getUncleByBlockNumberAndIndex(.{ .block_number = 101010 }, 0);
         defer uncle.deinit();
@@ -3049,20 +2740,10 @@ test "GetUncleByBlockNumberAndIndex" {
 }
 
 test "GetUncleByBlockHashAndIndex" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const tx = try client.getUncleByBlockHashAndIndex([_]u8{0} ** 32, 0);
     defer tx.deinit();
@@ -3070,39 +2751,19 @@ test "GetUncleByBlockHashAndIndex" {
 
 test "GetTransactionByBlockNumberAndIndex" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const tx = try client.getTransactionByBlockNumberAndIndex(.{}, 0);
         defer tx.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const tx = try client.getTransactionByBlockNumberAndIndex(.{ .block_number = 101010 }, 0);
         defer tx.deinit();
@@ -3111,77 +2772,37 @@ test "GetTransactionByBlockNumberAndIndex" {
 
 test "EstimateGas" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const fee = try client.estimateGas(.{ .london = .{ .gas = 10 } }, .{});
         defer fee.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const fee = try client.estimateGas(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 });
         defer fee.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const fee = try client.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{});
         defer fee.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const fee = try client.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 });
         defer fee.deinit();
@@ -3190,77 +2811,37 @@ test "EstimateGas" {
 
 test "CreateAccessList" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const access = try client.createAccessList(.{ .london = .{ .gas = 10 } }, .{});
         defer access.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const access = try client.createAccessList(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 });
         defer access.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const access = try client.createAccessList(.{ .legacy = .{ .gas = 10 } }, .{});
         defer access.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const access = try client.createAccessList(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 });
         defer access.deinit();
@@ -3268,140 +2849,70 @@ test "CreateAccessList" {
 }
 
 test "GetNetworkPeerCount" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const count = try client.getNetworkPeerCount();
     defer count.deinit();
 }
 
 test "GetNetworkVersionId" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const id = try client.getNetworkVersionId();
     defer id.deinit();
 }
 
 test "GetNetworkListenStatus" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const status = try client.getNetworkListenStatus();
     defer status.deinit();
 }
 
 test "GetSha3Hash" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const hash = try client.getSha3Hash("foobar");
     defer hash.deinit();
 }
 
 test "GetClientVersion" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const version = try client.getClientVersion();
     defer version.deinit();
 }
 
 test "BlobBaseFee" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const blob = try client.blobBaseFee();
     defer blob.deinit();
 }
 
 test "EstimateMaxFeePerGas" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const max = try client.estimateMaxFeePerGas();
     defer max.deinit();
@@ -3409,39 +2920,19 @@ test "EstimateMaxFeePerGas" {
 
 test "GetProof" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const proofs = try client.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{}, .blockNumber = 101010 }, null);
         defer proofs.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const proofs = try client.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{} }, .latest);
         defer proofs.deinit();
@@ -3450,39 +2941,19 @@ test "GetProof" {
 
 test "GetLogs" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const logs = try client.getLogs(.{ .toBlock = 101010, .fromBlock = 101010 }, null);
         defer logs.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const logs = try client.getLogs(.{}, .latest);
         defer logs.deinit();
@@ -3491,39 +2962,19 @@ test "GetLogs" {
 
 test "NewLogFilter" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const logs = try client.newLogFilter(.{}, .latest);
         defer logs.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const logs = try client.newLogFilter(.{ .fromBlock = 101010, .toBlock = 101010 }, null);
         defer logs.deinit();
@@ -3531,100 +2982,50 @@ test "NewLogFilter" {
 }
 
 test "NewBlockFilter" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const block_id = try client.newBlockFilter();
     defer block_id.deinit();
 }
 
 test "NewPendingTransactionFilter" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const tx_id = try client.newPendingTransactionFilter();
     defer tx_id.deinit();
 }
 
 test "UninstalllFilter" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const status = try client.uninstalllFilter(1);
     defer status.deinit();
 }
 
 test "GetProtocolVersion" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const version = try client.getProtocolVersion();
     defer version.deinit();
 }
 
 test "SyncStatus" {
-    var server: IpcServer = undefined;
-    defer server.deinit();
-
-    try server.init(testing.allocator, .{});
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{
-        .allocator = testing.allocator,
-        .path = "/tmp/zabi.ipc",
-    });
-
-    try server.listenOnceInSeperateThread();
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
     const status = try client.getSyncStatus();
     defer if (status) |s| s.deinit();
@@ -3632,77 +3033,37 @@ test "SyncStatus" {
 
 test "FeeHistory" {
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const status = try client.feeHistory(10, .{}, null);
         defer status.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const status = try client.feeHistory(10, .{ .block_number = 101010 }, null);
         defer status.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const status = try client.feeHistory(10, .{}, &.{ 0.1, 0.2 });
         defer status.deinit();
     }
     {
-        var server: IpcServer = undefined;
-        defer server.deinit();
-
-        try server.init(testing.allocator, .{});
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{
-            .allocator = testing.allocator,
-            .path = "/tmp/zabi.ipc",
-        });
-
-        try server.listenOnceInSeperateThread();
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
         const status = try client.feeHistory(10, .{ .block_number = 101010 }, &.{ 0.1, 0.2 });
         defer status.deinit();

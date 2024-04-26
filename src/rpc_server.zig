@@ -25,7 +25,7 @@ pub fn main() !void {
     var server: Server = undefined;
     defer server.deinit();
 
-    try server.init(.{ .allocator = gpa.allocator(), .port = 8545 });
+    try server.init(.{ .allocator = gpa.allocator(), .port = 6969 });
 
     try server.listen(parsed.send_error);
 }

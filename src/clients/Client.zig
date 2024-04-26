@@ -37,7 +37,6 @@ const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
 const HttpConnection = http.Client.Connection;
-const HttpServer = @import("../tests/clients/server.zig");
 const Log = log.Log;
 const LogRequest = log.LogRequest;
 const LogTagRequest = log.LogTagRequest;
@@ -1512,11 +1511,6 @@ fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) !RPCRe
 
 test "BlockByNumber" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1525,17 +1519,11 @@ test "BlockByNumber" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-        try server.listenOnceInSeperateThread(false);
 
         const block_number = try client.getBlockByNumber(.{ .block_number = 10 });
         defer block_number.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1544,17 +1532,11 @@ test "BlockByNumber" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-        try server.listenOnceInSeperateThread(false);
 
         const block_number = try client.getBlockByNumber(.{});
         defer block_number.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1563,17 +1545,11 @@ test "BlockByNumber" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-        try server.listenOnceInSeperateThread(false);
 
         const block_number = try client.getBlockByNumber(.{ .include_transaction_objects = true });
         defer block_number.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1582,7 +1558,6 @@ test "BlockByNumber" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-        try server.listenOnceInSeperateThread(false);
 
         const block_number = try client.getBlockByNumber(.{ .block_number = 1000000, .include_transaction_objects = true });
         defer block_number.deinit();
@@ -1591,11 +1566,6 @@ test "BlockByNumber" {
 
 test "BlockByHash" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1604,17 +1574,11 @@ test "BlockByHash" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-        try server.listenOnceInSeperateThread(false);
 
         const block_number = try client.getBlockByHash(.{ .block_hash = [_]u8{0} ** 32 });
         defer block_number.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1623,7 +1587,6 @@ test "BlockByHash" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-        try server.listenOnceInSeperateThread(false);
 
         const block_number = try client.getBlockByHash(.{ .block_hash = [_]u8{0} ** 32, .include_transaction_objects = true });
         defer block_number.deinit();
@@ -1631,11 +1594,6 @@ test "BlockByHash" {
 }
 
 test "BlockTransactionCountByHash" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -1644,7 +1602,6 @@ test "BlockTransactionCountByHash" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-    try server.listenOnceInSeperateThread(false);
 
     const block_number = try client.getBlockTransactionCountByHash([_]u8{0} ** 32);
     defer block_number.deinit();
@@ -1652,11 +1609,6 @@ test "BlockTransactionCountByHash" {
 
 test "BlockTransactionCountByNumber" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1665,17 +1617,11 @@ test "BlockTransactionCountByNumber" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-        try server.listenOnceInSeperateThread(false);
 
         const block_number = try client.getBlockTransactionCountByNumber(.{ .block_number = 100101 });
         defer block_number.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1684,7 +1630,6 @@ test "BlockTransactionCountByNumber" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-        try server.listenOnceInSeperateThread(false);
 
         const block_number = try client.getBlockTransactionCountByNumber(.{});
         defer block_number.deinit();
@@ -1693,11 +1638,6 @@ test "BlockTransactionCountByNumber" {
 
 test "AddressBalance" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1706,18 +1646,11 @@ test "AddressBalance" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const block_number = try client.getAddressBalance(.{ .address = [_]u8{0} ** 20, .block_number = 100101 });
         defer block_number.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1726,8 +1659,6 @@ test "AddressBalance" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const block_number = try client.getAddressBalance(.{ .address = [_]u8{0} ** 20 });
         defer block_number.deinit();
@@ -1736,11 +1667,6 @@ test "AddressBalance" {
 
 test "AddressNonce" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1749,18 +1675,11 @@ test "AddressNonce" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const block_number = try client.getAddressTransactionCount(.{ .address = [_]u8{0} ** 20 });
         defer block_number.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1769,8 +1688,6 @@ test "AddressNonce" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const block_number = try client.getAddressTransactionCount(.{ .address = [_]u8{0} ** 20, .block_number = 100012 });
         defer block_number.deinit();
@@ -1778,11 +1695,6 @@ test "AddressNonce" {
 }
 
 test "BlockNumber" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -1791,19 +1703,12 @@ test "BlockNumber" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const block_number = try client.getBlockNumber();
     defer block_number.deinit();
 }
 
 test "GetChainId" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -1812,8 +1717,6 @@ test "GetChainId" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const chain = try client.getChainId();
     defer chain.deinit();
@@ -1821,11 +1724,6 @@ test "GetChainId" {
 
 test "GetStorage" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1834,18 +1732,11 @@ test "GetStorage" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const storage = try client.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{});
         defer storage.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1854,8 +1745,6 @@ test "GetStorage" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const storage = try client.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{ .block_number = 101010 });
         defer storage.deinit();
@@ -1863,11 +1752,6 @@ test "GetStorage" {
 }
 
 test "GetAccounts" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -1876,8 +1760,6 @@ test "GetAccounts" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const accounts = try client.getAccounts();
     defer accounts.deinit();
@@ -1885,11 +1767,6 @@ test "GetAccounts" {
 
 test "GetContractCode" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1898,18 +1775,11 @@ test "GetContractCode" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const code = try client.getContractCode(.{ .address = [_]u8{0} ** 20 });
         defer code.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1918,8 +1788,6 @@ test "GetContractCode" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const code = try client.getContractCode(.{ .address = [_]u8{0} ** 20, .block_number = 101010 });
         defer code.deinit();
@@ -1927,11 +1795,6 @@ test "GetContractCode" {
 }
 
 test "GetTransactionByHash" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -1940,19 +1803,12 @@ test "GetTransactionByHash" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const tx = try client.getTransactionByHash([_]u8{0} ** 32);
     defer tx.deinit();
 }
 
 test "GetReceipt" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -1961,8 +1817,6 @@ test "GetReceipt" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const receipt = try client.getTransactionReceipt([_]u8{0} ** 32);
     defer receipt.deinit();
@@ -1970,11 +1824,6 @@ test "GetReceipt" {
 
 test "GetFilter" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -1983,18 +1832,11 @@ test "GetFilter" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const filter = try client.getFilterOrLogChanges(0, .eth_getFilterChanges);
         defer filter.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2004,17 +1846,10 @@ test "GetFilter" {
             .uri = uri,
         });
 
-        try server.listenOnceInSeperateThread(false);
-
         const filter = try client.getFilterOrLogChanges(0, .eth_getFilterLogs);
         defer filter.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2029,11 +1864,6 @@ test "GetFilter" {
 }
 
 test "GetGasPrice" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2042,19 +1872,12 @@ test "GetGasPrice" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const gas = try client.getGasPrice();
     defer gas.deinit();
 }
 
 test "GetUncleCountByBlockHash" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2063,8 +1886,6 @@ test "GetUncleCountByBlockHash" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const uncle = try client.getUncleCountByBlockHash([_]u8{0} ** 32);
     defer uncle.deinit();
@@ -2072,11 +1893,6 @@ test "GetUncleCountByBlockHash" {
 
 test "GetUncleCountByBlockNumber" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2085,18 +1901,11 @@ test "GetUncleCountByBlockNumber" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const uncle = try client.getUncleCountByBlockNumber(.{});
         defer uncle.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2105,8 +1914,6 @@ test "GetUncleCountByBlockNumber" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const uncle = try client.getUncleCountByBlockNumber(.{ .block_number = 101010 });
         defer uncle.deinit();
@@ -2115,11 +1922,6 @@ test "GetUncleCountByBlockNumber" {
 
 test "GetUncleByBlockNumberAndIndex" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2128,18 +1930,11 @@ test "GetUncleByBlockNumberAndIndex" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const uncle = try client.getUncleByBlockNumberAndIndex(.{}, 0);
         defer uncle.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2148,8 +1943,6 @@ test "GetUncleByBlockNumberAndIndex" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const uncle = try client.getUncleByBlockNumberAndIndex(.{ .block_number = 101010 }, 0);
         defer uncle.deinit();
@@ -2157,11 +1950,6 @@ test "GetUncleByBlockNumberAndIndex" {
 }
 
 test "GetUncleByBlockHashAndIndex" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2171,19 +1959,12 @@ test "GetUncleByBlockHashAndIndex" {
         .uri = uri,
     });
 
-    try server.listenOnceInSeperateThread(false);
-
     const tx = try client.getUncleByBlockHashAndIndex([_]u8{0} ** 32, 0);
     defer tx.deinit();
 }
 
 test "GetTransactionByBlockNumberAndIndex" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2192,18 +1973,11 @@ test "GetTransactionByBlockNumberAndIndex" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const tx = try client.getTransactionByBlockNumberAndIndex(.{}, 0);
         defer tx.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2212,8 +1986,6 @@ test "GetTransactionByBlockNumberAndIndex" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const tx = try client.getTransactionByBlockNumberAndIndex(.{ .block_number = 101010 }, 0);
         defer tx.deinit();
@@ -2222,11 +1994,6 @@ test "GetTransactionByBlockNumberAndIndex" {
 
 test "EstimateGas" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2235,18 +2002,11 @@ test "EstimateGas" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const fee = try client.estimateGas(.{ .london = .{ .gas = 10 } }, .{});
         defer fee.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2255,18 +2015,11 @@ test "EstimateGas" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const fee = try client.estimateGas(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 });
         defer fee.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2275,18 +2028,11 @@ test "EstimateGas" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const fee = try client.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{});
         defer fee.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2295,8 +2041,6 @@ test "EstimateGas" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const fee = try client.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 });
         defer fee.deinit();
@@ -2305,11 +2049,6 @@ test "EstimateGas" {
 
 test "CreateAccessList" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2318,18 +2057,11 @@ test "CreateAccessList" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const access = try client.createAccessList(.{ .london = .{ .gas = 10 } }, .{});
         defer access.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2338,18 +2070,11 @@ test "CreateAccessList" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const access = try client.createAccessList(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 });
         defer access.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2358,18 +2083,11 @@ test "CreateAccessList" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const access = try client.createAccessList(.{ .legacy = .{ .gas = 10 } }, .{});
         defer access.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2378,8 +2096,6 @@ test "CreateAccessList" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const access = try client.createAccessList(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 });
         defer access.deinit();
@@ -2387,11 +2103,6 @@ test "CreateAccessList" {
 }
 
 test "GetNetworkPeerCount" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2400,19 +2111,12 @@ test "GetNetworkPeerCount" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const count = try client.getNetworkPeerCount();
     defer count.deinit();
 }
 
 test "GetNetworkVersionId" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2421,19 +2125,12 @@ test "GetNetworkVersionId" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const id = try client.getNetworkVersionId();
     defer id.deinit();
 }
 
 test "GetNetworkListenStatus" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2442,19 +2139,12 @@ test "GetNetworkListenStatus" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const status = try client.getNetworkListenStatus();
     defer status.deinit();
 }
 
 test "GetSha3Hash" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2463,19 +2153,12 @@ test "GetSha3Hash" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const hash = try client.getSha3Hash("foobar");
     defer hash.deinit();
 }
 
 test "GetClientVersion" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2484,19 +2167,12 @@ test "GetClientVersion" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const version = try client.getClientVersion();
     defer version.deinit();
 }
 
 test "BlobBaseFee" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2505,19 +2181,12 @@ test "BlobBaseFee" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const blob = try client.blobBaseFee();
     defer blob.deinit();
 }
 
 test "EstimateMaxFeePerGas" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2526,8 +2195,6 @@ test "EstimateMaxFeePerGas" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const max = try client.estimateMaxFeePerGas();
     defer max.deinit();
@@ -2535,11 +2202,6 @@ test "EstimateMaxFeePerGas" {
 
 test "GetProof" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2548,18 +2210,11 @@ test "GetProof" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const proofs = try client.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{}, .blockNumber = 101010 }, null);
         defer proofs.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2568,8 +2223,6 @@ test "GetProof" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const proofs = try client.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{} }, .latest);
         defer proofs.deinit();
@@ -2578,11 +2231,6 @@ test "GetProof" {
 
 test "GetLogs" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2591,18 +2239,11 @@ test "GetLogs" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const logs = try client.getLogs(.{ .toBlock = 101010, .fromBlock = 101010 }, null);
         defer logs.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2611,8 +2252,6 @@ test "GetLogs" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const logs = try client.getLogs(.{}, .latest);
         defer logs.deinit();
@@ -2621,11 +2260,6 @@ test "GetLogs" {
 
 test "NewLogFilter" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2634,18 +2268,11 @@ test "NewLogFilter" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const logs = try client.newLogFilter(.{}, .latest);
         defer logs.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2654,8 +2281,6 @@ test "NewLogFilter" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const logs = try client.newLogFilter(.{ .fromBlock = 101010, .toBlock = 101010 }, null);
         defer logs.deinit();
@@ -2663,11 +2288,6 @@ test "NewLogFilter" {
 }
 
 test "NewBlockFilter" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2676,19 +2296,12 @@ test "NewBlockFilter" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const block_id = try client.newBlockFilter();
     defer block_id.deinit();
 }
 
 test "NewPendingTransactionFilter" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2697,19 +2310,12 @@ test "NewPendingTransactionFilter" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const tx_id = try client.newPendingTransactionFilter();
     defer tx_id.deinit();
 }
 
 test "UninstalllFilter" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2718,19 +2324,12 @@ test "UninstalllFilter" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const status = try client.uninstalllFilter(1);
     defer status.deinit();
 }
 
 test "GetProtocolVersion" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2739,19 +2338,12 @@ test "GetProtocolVersion" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const version = try client.getProtocolVersion();
     defer version.deinit();
 }
 
 test "SyncStatus" {
-    var server: HttpServer = undefined;
-    defer server.deinit();
-
-    try server.init(.{ .allocator = testing.allocator });
-
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2760,8 +2352,6 @@ test "SyncStatus" {
         .allocator = testing.allocator,
         .uri = uri,
     });
-
-    try server.listenOnceInSeperateThread(false);
 
     const status = try client.getSyncStatus();
     defer if (status) |s| s.deinit();
@@ -2769,11 +2359,6 @@ test "SyncStatus" {
 
 test "FeeHistory" {
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2782,18 +2367,11 @@ test "FeeHistory" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const status = try client.feeHistory(10, .{}, null);
         defer status.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2802,18 +2380,11 @@ test "FeeHistory" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const status = try client.feeHistory(10, .{ .block_number = 101010 }, null);
         defer status.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2822,18 +2393,11 @@ test "FeeHistory" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const status = try client.feeHistory(10, .{}, &.{ 0.1, 0.2 });
         defer status.deinit();
     }
     {
-        var server: HttpServer = undefined;
-        defer server.deinit();
-
-        try server.init(.{ .allocator = testing.allocator });
-
         var client: PubClient = undefined;
         defer client.deinit();
 
@@ -2842,8 +2406,6 @@ test "FeeHistory" {
             .allocator = testing.allocator,
             .uri = uri,
         });
-
-        try server.listenOnceInSeperateThread(false);
 
         const status = try client.feeHistory(10, .{ .block_number = 101010 }, &.{ 0.1, 0.2 });
         defer status.deinit();

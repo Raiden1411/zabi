@@ -53,7 +53,6 @@ pub fn init(self: *IpcServer, allocator: Allocator, opts: InitOpts) !void {
 
     const address = try std.net.Address.initUnix(self.path);
     self.listener = try address.listen(.{
-        .reuse_port = true,
         .reuse_address = true,
     });
 }

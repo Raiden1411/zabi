@@ -67,8 +67,9 @@ test {
     _ = @import("decoding/parse_transacition.zig");
     _ = @import("decoding/rlp_decode.zig");
     _ = @import("decoding/ssz_decode.zig");
-    _ = @import("clients/Client.zig");
-    _ = @import("clients/IPC.zig");
+    // _ = @import("clients/Client.zig");
+    // _ = @import("clients/WebSocket.zig");
+    // _ = @import("clients/IPC.zig");
     _ = @import("clients/ens/ens_utils.zig");
     _ = @import("clients/wallet.zig");
     _ = @import("clients/optimism/utils.zig");

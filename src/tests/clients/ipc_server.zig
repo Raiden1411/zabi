@@ -33,8 +33,6 @@ listener: std.net.Server,
 path: []const u8,
 /// The seed to use to generate random data.
 seed: u64,
-/// Mutex used by this server to handle request in seperate thread.
-mutex: std.Thread.Mutex,
 
 /// Start the server and creates the listener.
 pub fn init(self: *IpcServer, allocator: Allocator, opts: InitOpts) !void {
@@ -43,7 +41,6 @@ pub fn init(self: *IpcServer, allocator: Allocator, opts: InitOpts) !void {
         .listener = undefined,
         .path = opts.path,
         .seed = opts.seed,
-        .mutex = .{},
     };
 
     std.fs.cwd().deleteFile(self.path) catch |err| switch (err) {
@@ -54,6 +51,7 @@ pub fn init(self: *IpcServer, allocator: Allocator, opts: InitOpts) !void {
     const address = try std.net.Address.initUnix(self.path);
     self.listener = try address.listen(.{
         .reuse_address = true,
+        .kernel_backlog = 1024,
     });
 }
 /// Shutsdown the socket.
@@ -65,33 +63,26 @@ pub fn deinit(self: *IpcServer) void {
 /// Starts the main loop. Will close the client connection
 /// if it reports any errors.
 pub fn start(self: *IpcServer) !void {
-    accept: while (true) {
-        const request = try self.listener.accept();
-
-        while (true) {
-            self.handleRequest(request.stream) catch |err| {
-                server_log.debug("Handler reported error: {s}. Closing the client connection", .{@errorName(err)});
-                request.stream.close();
-                continue :accept;
-            };
+    while (true) {
+        if (self.listener.accept()) |connection| {
+            const thread = try std.Thread.spawn(.{}, handleClientConnection, .{ self, connection });
+            defer thread.detach();
+        } else |err| {
+            server_log.err("Failed to accept connection from client. Error name: {s}", .{@errorName(err)});
         }
     }
 }
 /// Listen to a single request
-pub fn listenOnce(self: *IpcServer) !void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
-
-    const request = try self.listener.accept();
-
-    return self.handleRequest(request.stream);
-}
-/// Listen to a single request in a seperate thread
-pub fn listenOnceInSeperateThread(self: *IpcServer) !void {
+pub fn handleClientConnection(self: *IpcServer, request: std.net.Server.Connection) !void {
     pipe.maybeIgnoreSigpipe();
+    defer request.stream.close();
 
-    const thread = try std.Thread.spawn(.{}, listenOnce, .{self});
-    thread.detach();
+    while (true) {
+        self.handleRequest(request.stream) catch |err| {
+            server_log.debug("Handler reported error: {s}. Closing the client connection", .{@errorName(err)});
+            return;
+        };
+    }
 }
 /// Handles and mimics a json rpc response from a JSON-RPC server.
 /// Uses the custom data generator to produce the response.
@@ -100,7 +91,7 @@ fn handleRequest(self: *IpcServer, stream: std.net.Stream) !void {
     const size = try stream.read(req_buffer[0..]);
 
     if (size == 0)
-        return error.NoMessageFound;
+        return;
 
     const message = req_buffer[0..size];
 

@@ -2058,7 +2058,7 @@ pub fn readLoopOwnedThread(self: *IPC) !void {
     pipe.maybeIgnoreSigpipe();
 
     self.readLoop() catch |err| {
-        ipclog.err("Read loop reported error: {s}", .{@errorName(err)});
+        ipclog.debug("Read loop reported error: {s}", .{@errorName(err)});
         return;
     };
 }
@@ -2383,7 +2383,7 @@ fn handleNumberEvent(self: *IPC, comptime T: type, req_body: []u8) !RPCResponse(
             },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
-                ipclog.err("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
+                ipclog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -2572,8 +2572,7 @@ test "GetChainId" {
 
     try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
 
-    const chain = try client.getChainId();
-    defer chain.deinit();
+    try testing.expectError(error.InvalidChainId, client.getChainId());
 }
 
 test "GetStorage" {

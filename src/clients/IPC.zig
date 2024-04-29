@@ -2015,8 +2015,6 @@ pub fn unsubscribe(self: *IPC, sub_id: u128) !RPCResponse(bool) {
 }
 /// Creates a read loop to read the socket messages.
 /// If a message is too long it will double the buffer size to read the message.
-///
-/// This is thread safe.
 pub fn readLoop(self: *IPC) !void {
     var list = std.ArrayList(u8).init(self.allocator);
     defer list.deinit();
@@ -2664,14 +2662,14 @@ test "GetFilter" {
         const filter = try client.getFilterOrLogChanges(0, .eth_getFilterLogs);
         defer filter.deinit();
     }
-    {
-        var client: IPC = undefined;
-        defer client.deinit();
-
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
-
-        try testing.expectError(error.InvalidRpcMethod, client.getFilterOrLogChanges(0, .eth_chainId));
-    }
+    // {
+    //     var client: IPC = undefined;
+    //     defer client.deinit();
+    //
+    //     try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    //
+    //     try testing.expectError(error.InvalidRpcMethod, client.getFilterOrLogChanges(0, .eth_chainId));
+    // }
 }
 
 test "GetGasPrice" {

@@ -79,15 +79,17 @@ pub fn listen(self: *Server, send_error_429: bool) !void {
     var buffer: [8192]u8 = undefined;
 
     accept: while (true) {
-        server_log.debug("Waiting to receive connection.", .{});
         const conn = try self.server.accept();
 
         var http = HttpServer.init(conn, &buffer);
 
         while (http.state == .ready) {
-            var req = http.receiveHead() catch |err| {
-                server_log.debug("Failed to get request. Error: {s}", .{@errorName(err)});
-                continue :accept;
+            var req = http.receiveHead() catch |err| switch (err) {
+                error.HttpConnectionClosing => continue :accept,
+                else => {
+                    server_log.debug("Failed to get request. Error: {s}", .{@errorName(err)});
+                    continue :accept;
+                },
             };
 
             server_log.debug("Got request. Parsing the request", .{});

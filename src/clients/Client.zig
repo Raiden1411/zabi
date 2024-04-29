@@ -2186,6 +2186,19 @@ test "BlobBaseFee" {
     defer blob.deinit();
 }
 
+test "EstimateBlobMaxFeePerGas" {
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    _ = try client.estimateBlobMaxFeePerGas();
+}
+
 test "EstimateMaxFeePerGas" {
     var client: PubClient = undefined;
     defer client.deinit();
@@ -2196,8 +2209,46 @@ test "EstimateMaxFeePerGas" {
         .uri = uri,
     });
 
-    const max = try client.estimateMaxFeePerGas();
-    defer max.deinit();
+    _ = try client.estimateBlobMaxFeePerGas();
+}
+
+test "EstimateFeePerGas" {
+    {
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        _ = try client.estimateFeesPerGas(.{ .london = .{} }, null);
+    }
+    {
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        _ = try client.estimateFeesPerGas(.{ .legacy = .{} }, null);
+    }
+    {
+        var client: PubClient = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        _ = try client.estimateFeesPerGas(.{ .london = .{} }, 1000);
+    }
 }
 
 test "GetProof" {

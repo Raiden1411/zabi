@@ -3137,6 +3137,58 @@ test "BlobBaseFee" {
     defer blob.deinit();
 }
 
+test "EstimateBlobMaxFeePerGas" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    _ = try client.estimateBlobMaxFeePerGas();
+}
+
+test "EstimateFeePerGas" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        _ = try client.estimateFeesPerGas(.{ .london = .{} }, null);
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        _ = try client.estimateFeesPerGas(.{ .legacy = .{} }, null);
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        _ = try client.estimateFeesPerGas(.{ .london = .{} }, 1000);
+    }
+}
+
 test "EstimateMaxFeePerGas" {
     var client: WebSocketHandler = undefined;
     defer client.deinit();

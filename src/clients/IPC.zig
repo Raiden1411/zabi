@@ -2907,6 +2907,42 @@ test "BlobBaseFee" {
     defer blob.deinit();
 }
 
+test "EstimateBlobMaxFeePerGas" {
+    var client: IPC = undefined;
+    defer client.deinit();
+
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+
+    _ = try client.estimateBlobMaxFeePerGas();
+}
+
+test "EstimateFeePerGas" {
+    {
+        var client: IPC = undefined;
+        defer client.deinit();
+
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+
+        _ = try client.estimateFeesPerGas(.{ .london = .{} }, null);
+    }
+    {
+        var client: IPC = undefined;
+        defer client.deinit();
+
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+
+        _ = try client.estimateFeesPerGas(.{ .legacy = .{} }, null);
+    }
+    {
+        var client: IPC = undefined;
+        defer client.deinit();
+
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+
+        _ = try client.estimateFeesPerGas(.{ .london = .{} }, 1000);
+    }
+}
+
 test "EstimateMaxFeePerGas" {
     var client: IPC = undefined;
     defer client.deinit();

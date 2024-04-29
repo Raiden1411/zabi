@@ -2052,7 +2052,7 @@ pub fn readLoop(self: *IPC) !void {
 }
 /// Function prepared to start the read loop in a seperate thread.
 pub fn readLoopOwnedThread(self: *IPC) !void {
-    errdefer self.deinit();
+    // errdefer self.deinit();
     pipe.maybeIgnoreSigpipe();
 
     self.readLoop() catch |err| {

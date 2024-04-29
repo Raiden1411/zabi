@@ -47,18 +47,18 @@ pub fn main() !void {
     });
     try http_server.listenLoopInSeperateThread(false);
 
-    // Starts the WS server
-    var arena = ArenaAllocator.init(gpa.allocator());
-    defer arena.deinit();
-
-    try ws.listenLoopInSeperateThread(arena.allocator(), 69);
-
     // Starts the IPC server
     var ipc_server: IpcServer = undefined;
     defer ipc_server.deinit();
 
     try ipc_server.init(gpa.allocator(), .{});
     try ipc_server.listenLoopInSeperateThread();
+
+    // Starts the WS server
+    var arena = ArenaAllocator.init(gpa.allocator());
+    defer arena.deinit();
+
+    try ws.listenLoopInSeperateThread(arena.allocator(), 69);
 
     var results: TestResults = .{};
     const printer = TestsPrinter.init(std.io.getStdErr().writer());

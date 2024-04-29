@@ -2562,14 +2562,17 @@ test "BlockNumber" {
     defer block_number.deinit();
 }
 
-// test "GetChainId" {
-//     var client: IPC = undefined;
-//     defer client.deinit();
-//
-//     try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
-//
-//     try testing.expectError(error.InvalidChainId, client.getChainId());
-// }
+test "GetChainId" {
+    // CI dislikes this test!
+    if (true) return error.SkipZigTest;
+
+    var client: IPC = undefined;
+    defer client.deinit();
+
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+
+    try testing.expectError(error.InvalidChainId, client.getChainId());
+}
 
 test "GetStorage" {
     {
@@ -2662,14 +2665,17 @@ test "GetFilter" {
         const filter = try client.getFilterOrLogChanges(0, .eth_getFilterLogs);
         defer filter.deinit();
     }
-    // {
-    //     var client: IPC = undefined;
-    //     defer client.deinit();
-    //
-    //     try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
-    //
-    //     try testing.expectError(error.InvalidRpcMethod, client.getFilterOrLogChanges(0, .eth_chainId));
-    // }
+    {
+        // CI dislikes this test!
+        if (true) return error.SkipZigTest;
+
+        var client: IPC = undefined;
+        defer client.deinit();
+
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+
+        try testing.expectError(error.InvalidRpcMethod, client.getFilterOrLogChanges(0, .eth_chainId));
+    }
 }
 
 test "GetGasPrice" {

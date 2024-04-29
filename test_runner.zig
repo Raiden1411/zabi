@@ -2,8 +2,10 @@ const builtin = @import("builtin");
 const std = @import("std");
 const ws = @import("src/tests/clients/ws_server.zig");
 
+const ArenaAllocator = std.heap.ArenaAllocator;
 const HttpClient = @import("src/tests/clients/server.zig");
 const IpcServer = @import("src/tests/clients/ipc_server.zig");
+const TestFn = std.builtin.TestFn;
 const WsContext = @import("src/tests/clients/ws_server.zig").WsContext;
 const WsHandler = @import("src/tests/clients/ws_server.zig").WsHandler;
 
@@ -15,7 +17,21 @@ const TestResults = struct {
 };
 
 pub const std_options: std.Options = .{
-    .log_level = .warn,
+    .log_level = .info,
+};
+
+const BORDER = "=" ** 80;
+const PADDING = " " ** 35;
+
+const Modules = enum {
+    abi,
+    clients,
+    crypto,
+    encoding,
+    decoding,
+    @"human-readable",
+    meta,
+    utils,
 };
 
 pub fn main() !void {
@@ -32,7 +48,7 @@ pub fn main() !void {
     try http_server.listenLoopInSeperateThread(false);
 
     // Starts the WS server
-    var arena = std.heap.ArenaAllocator.init(gpa.allocator());
+    var arena = ArenaAllocator.init(gpa.allocator());
     defer arena.deinit();
 
     try ws.listenLoopInSeperateThread(arena.allocator(), 69);
@@ -46,49 +62,69 @@ pub fn main() !void {
 
     var results: TestResults = .{};
     const printer = TestsPrinter.init(std.io.getStdErr().writer());
-    const test_funcs: []const std.builtin.TestFn = builtin.test_functions;
+    const test_funcs: []const TestFn = builtin.test_functions;
+
+    var module: Modules = .abi;
 
     printer.fmt("\r\x1b[0K", .{});
+    printer.print("\x1b[1;32m\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, @tagName(module), BORDER });
     for (test_funcs) |test_runner| {
         std.testing.allocator_instance = .{};
         const test_result = test_runner.func();
 
-        printer.status("Running {s}...", .{test_runner.name});
+        if (std.mem.endsWith(u8, test_runner.name, ".test_0")) {
+            continue;
+        }
+
+        var iter = std.mem.splitScalar(u8, test_runner.name, '.');
+        const module_name = iter.next().?;
+
+        const current_module = std.meta.stringToEnum(Modules, module_name);
+
+        if (current_module) |c_module| {
+            if (c_module != module) {
+                module = c_module;
+                printer.print("\x1b[1;32m\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, @tagName(module), BORDER });
+            }
+        }
+
+        const name = name_blk: {
+            while (iter.next()) |value| {
+                if (std.mem.eql(u8, value, "test")) {
+                    const rest = iter.rest();
+                    break :name_blk if (rest.len > 0) rest else test_runner.name;
+                }
+            } else break :name_blk test_runner.name;
+        };
+
+        printer.print("\x1b[2m{s}Running {s}...", .{ " " ** 2, name });
 
         if (std.testing.allocator_instance.deinit() == .leak) {
-            printer.status("leaked!\n", .{});
+            printer.print("leaked!\n", .{});
         }
 
         if (test_result) |_| {
             results.passed += 1;
-            printer.status("passed!\n", .{});
+            printer.print("\x1b[1;32m✓\n", .{});
         } else |err| switch (err) {
             error.SkipZigTest => {
                 results.skipped += 1;
-                printer.status("skipped!\n", .{});
+                printer.print("skipped!\n", .{});
             },
             else => {
                 results.failed += 1;
-                printer.status("failed!\n", .{});
+                printer.print("\x1b[1;31m✘\n", .{});
                 if (@errorReturnTrace()) |trace| {
                     std.debug.dumpStackTrace(trace.*);
                 }
-                break;
             },
         }
     }
 
-    const total_tests = results.passed + results.failed;
-
-    printer.status("\nZABI Tests: {d} of {d} tests passed\n", .{ results.passed, total_tests });
-
-    if (results.skipped > 0) {
-        printer.status("\n{d} skipped tests\n", .{results.skipped});
-    }
-
-    if (results.leaked > 0) {
-        printer.status("\n{d} leaked tests\n", .{results.leaked});
-    }
+    printer.print("\n{s}ZABI Tests: \x1b[1;32m{d} passed\n", .{ " " ** 4, results.passed });
+    printer.print("{s}ZABI Tests: \x1b[1;31m{d} failed\n", .{ " " ** 4, results.failed });
+    printer.print("{s}ZABI Tests: \x1b[1;33m{d} skipped\n", .{ " " ** 4, results.skipped });
+    printer.print("{s}ZABI Tests: \x1b[1;34m{d} leaked\n", .{ " " ** 4, results.leaked });
 }
 
 const TestsPrinter = struct {
@@ -102,16 +138,8 @@ const TestsPrinter = struct {
         std.fmt.format(self.writer, format, args) catch unreachable;
     }
 
-    fn status(self: TestsPrinter, comptime format: []const u8, args: anytype) void {
-        // const color = switch (s) {
-        // 	.pass => "\x1b[32m",
-        // 	.fail => "\x1b[31m",
-        // 	.skip => "\x1b[33m",
-        // 	else => "",
-        // };
-        // const out = self.out;
-        // out.writeAll(color) catch @panic("writeAll failed?!");
-        std.fmt.format(self.writer, format, args) catch @panic("std.fmt.format failed?!");
+    fn print(self: TestsPrinter, comptime format: []const u8, args: anytype) void {
+        std.fmt.format(self.writer, format, args) catch @panic("Format failed!");
         self.fmt("\x1b[0m", .{});
     }
 };

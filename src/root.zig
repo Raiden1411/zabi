@@ -64,7 +64,7 @@ test {
     _ = @import("abi/param_type.zig");
     _ = @import("abi/state_mutability.zig");
     _ = @import("clients/Client.zig");
-    // _ = @import("clients/IPC.zig");
+    _ = @import("clients/IPC.zig");
     _ = @import("clients/WebSocket.zig");
     _ = @import("clients/ens/ens_utils.zig");
     _ = @import("clients/optimism/utils.zig");

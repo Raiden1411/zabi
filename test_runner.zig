@@ -88,6 +88,9 @@ pub fn main() !void {
             }
         }
 
+        const submodule = iter.next().?;
+        printer.print("\x1b[1;33m |{s}|", .{submodule});
+
         const name = name_blk: {
             while (iter.next()) |value| {
                 if (std.mem.eql(u8, value, "test")) {

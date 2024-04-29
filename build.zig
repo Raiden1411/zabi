@@ -17,8 +17,6 @@ pub fn build(b: *std.Build) void {
 
     const mod = b.addModule("zabi", .{ .root_source_file = .{ .path = "src/root.zig" }, .link_libc = true });
 
-    const coverage = b.option(bool, "generate_coverage", "Generate coverage data with kcov") orelse false;
-
     addDependencies(b, mod, target, optimize);
 
     const lib_unit_tests = b.addTest(.{
@@ -74,91 +72,20 @@ pub fn build(b: *std.Build) void {
         const http_step = b.step("rpc_test", "Run the http client tests");
         http_step.dependOn(&http_run.step);
     }
-    // Creates and runs the simple JSON RPC server.
-    {
-        const http = b.addExecutable(.{
-            .name = "http_server",
-            .root_source_file = .{ .path = "src/rpc_server.zig" },
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        });
-        addDependencies(b, &http.root_module, target, optimize);
 
-        var http_run = b.addRunArtifact(http);
-        http_run.has_side_effects = true;
+    // Build and run the http server if `zig build server` was ran
+    buildHttpServer(b, target, optimize);
 
-        if (b.args) |args| http_run.addArgs(args);
+    // Build and run the ipc server if `zig build ipcserver` was ran
+    buildIpcServer(b, target, optimize);
 
-        const http_step = b.step("server", "Run the http server");
-        http_step.dependOn(&http_run.step);
-    }
-    // Creates and runs the simple ws JSON RPC server.
-    {
-        const ws = b.addExecutable(.{
-            .name = "ws_server",
-            .root_source_file = .{ .path = "src/ws_server.zig" },
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        });
-        addDependencies(b, &ws.root_module, target, optimize);
+    // Build and run the ws server if `zig build wsserver` was ran
+    buildWsServer(b, target, optimize);
 
-        var ws_run = b.addRunArtifact(ws);
-        ws_run.has_side_effects = true;
-
-        if (b.args) |args| ws_run.addArgs(args);
-
-        const ws_step = b.step("wsserver", "Run the ws server");
-        ws_step.dependOn(&ws_run.step);
-    }
-    // Creates and runs the simple ipc JSON RPC server.
-    {
-        const ipc = b.addExecutable(.{
-            .name = "ipc_server",
-            .root_source_file = .{ .path = "src/ipc_server.zig" },
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        });
-        addDependencies(b, &ipc.root_module, target, optimize);
-
-        var ipc_run = b.addRunArtifact(ipc);
-        ipc_run.has_side_effects = true;
-
-        if (b.args) |args| ipc_run.addArgs(args);
-
-        const ipc_step = b.step("ipcserver", "Run the ipc server");
-        ipc_step.dependOn(&ipc_run.step);
-    }
-
-    // Coverage build option with kcov
-    if (coverage) {
-        const coverage_output = b.makeTempPath();
-        const include = b.fmt("--include-pattern=/src", .{});
-        const args = &[_]std.Build.Step.Run.Arg{
-            .{ .bytes = b.dupe("kcov") },
-            .{ .bytes = b.dupe(include) },
-            .{ .bytes = b.pathJoin(&.{ coverage_output, "output" }) },
-        };
-
-        var tests_run = b.addRunArtifact(lib_unit_tests);
-        run_lib_unit_tests.has_side_effects = true;
-        run_lib_unit_tests.argv.insertSlice(0, args) catch @panic("OutOfMemory");
-
-        const install_coverage = b.addInstallDirectory(.{
-            .source_dir = .{ .path = b.pathJoin(&.{ coverage_output, "output" }) },
-            .install_dir = .{ .custom = "coverage" },
-            .install_subdir = "",
-        });
-
-        test_step.dependOn(&tests_run.step);
-
-        install_coverage.step.dependOn(&run_lib_unit_tests.step);
-        test_step.dependOn(&install_coverage.step);
-    }
+    // Build and run coverage test runner if `zig build coverage` was ran
+    buildAndRunConverage(b, target, optimize);
 }
-
+/// Adds zabi project dependencies.
 fn addDependencies(b: *std.Build, mod: *std.Build.Module, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
     const c_kzg_4844_dep = b.dependency("c-kzg-4844", .{
         .target = target,
@@ -174,4 +101,100 @@ fn addDependencies(b: *std.Build, mod: *std.Build.Module, target: std.Build.Reso
     mod.addImport("ws", ws.module("websocket"));
     mod.linkLibrary(c_kzg_4844_dep.artifact("c-kzg-4844"));
     mod.linkLibrary(blst_dep.artifact("blst"));
+}
+/// Builds and runs the IPC Server
+fn buildIpcServer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
+    const ipc = b.addExecutable(.{
+        .name = "ipc_server",
+        .root_source_file = .{ .path = "src/ipc_server.zig" },
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    addDependencies(b, &ipc.root_module, target, optimize);
+
+    var ipc_run = b.addRunArtifact(ipc);
+    ipc_run.has_side_effects = true;
+
+    if (b.args) |args| ipc_run.addArgs(args);
+
+    const ipc_step = b.step("ipcserver", "Run the ipc server");
+    ipc_step.dependOn(&ipc_run.step);
+}
+/// Builds and runs the Ws Server
+fn buildWsServer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
+    const ws = b.addExecutable(.{
+        .name = "ws_server",
+        .root_source_file = .{ .path = "src/ws_server.zig" },
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    addDependencies(b, &ws.root_module, target, optimize);
+
+    var ws_run = b.addRunArtifact(ws);
+    ws_run.has_side_effects = true;
+
+    if (b.args) |args| ws_run.addArgs(args);
+
+    const ws_step = b.step("wsserver", "Run the ws server");
+    ws_step.dependOn(&ws_run.step);
+}
+/// Builds and runs the Http Server
+fn buildHttpServer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
+    const http = b.addExecutable(.{
+        .name = "http_server",
+        .root_source_file = .{ .path = "src/rpc_server.zig" },
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    addDependencies(b, &http.root_module, target, optimize);
+
+    var http_run = b.addRunArtifact(http);
+    http_run.has_side_effects = true;
+
+    if (b.args) |args| http_run.addArgs(args);
+
+    const http_step = b.step("server", "Run the http server");
+    http_step.dependOn(&http_run.step);
+}
+/// Build the coverage test executable and run it
+fn buildAndRunConverage(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
+    const lib_unit_tests = b.addTest(.{
+        .name = "zabi-tests-coverage",
+        .root_source_file = .{ .path = "src/root.zig" },
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+
+    addDependencies(b, &lib_unit_tests.root_module, target, optimize);
+    var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
+
+    const test_step = b.step("coverage", "Run unit tests with kcov coverage");
+    test_step.dependOn(&run_lib_unit_tests.step);
+
+    const coverage_output = b.makeTempPath();
+    const include = b.fmt("--include-pattern=/src", .{});
+    const args = &[_]std.Build.Step.Run.Arg{
+        .{ .bytes = b.dupe("kcov") },
+        .{ .bytes = b.dupe(include) },
+        .{ .bytes = b.pathJoin(&.{ coverage_output, "output" }) },
+    };
+
+    var tests_run = b.addRunArtifact(lib_unit_tests);
+    run_lib_unit_tests.has_side_effects = true;
+    run_lib_unit_tests.argv.insertSlice(0, args) catch @panic("OutOfMemory");
+
+    const install_coverage = b.addInstallDirectory(.{
+        .source_dir = .{ .path = b.pathJoin(&.{ coverage_output, "output" }) },
+        .install_dir = .{ .custom = "coverage" },
+        .install_subdir = "",
+    });
+
+    test_step.dependOn(&tests_run.step);
+
+    install_coverage.step.dependOn(&run_lib_unit_tests.step);
+    test_step.dependOn(&install_coverage.step);
 }

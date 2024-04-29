@@ -21,11 +21,13 @@ const TransactionReceipt = types.transactions.TransactionReceipt;
 
 const server_log = std.log.scoped(.server);
 
+/// Ws server context where we can provide
+/// different options for server actions
 pub const WsContext = struct {
     allocator: Allocator,
     seed: u64,
 };
-
+/// Ws server handler used to manage connections
 pub const WsHandler = struct {
     conn: *Connection,
     context: *WsContext,
@@ -177,3 +179,23 @@ pub const WsHandler = struct {
     // called whenever the connection is closed, can do some cleanup in here
     pub fn close(_: *WsHandler) void {}
 };
+
+/// Start the ws server
+pub fn start(allocator: Allocator, seed: u64) !void {
+    var context: WsContext = .{ .allocator = allocator, .seed = seed };
+
+    try ws.listen(WsHandler, allocator, &context, .{
+        .port = 6970,
+        .handshake_max_size = 1024,
+        .handshake_pool_count = 10,
+        .handshake_timeout_ms = 3000,
+        .buffer_size = 8192,
+        .max_size = comptime std.math.maxInt(u24),
+        .address = "127.0.0.1",
+    });
+}
+/// Start the ws server in a seperate thread.
+pub fn listenLoopInSeperateThread(allocator: Allocator, seed: u64) !void {
+    const thread = try std.Thread.spawn(.{}, start, .{ allocator, seed });
+    thread.detach();
+}

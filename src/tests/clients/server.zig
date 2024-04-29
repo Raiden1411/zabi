@@ -29,8 +29,6 @@ pub const ServerConfig = struct {
     port: u16 = 6969,
     /// The seed for the PRNG randomizer.
     seed: u64 = 69,
-    /// The size of the buffer for the http server to use
-    buffer_size: u64 = 8192,
     /// The allocator that creates the server pointer
     /// and takes care of any allocations.
     allocator: Allocator,
@@ -44,8 +42,6 @@ seed: u64,
 server: *std.net.Server,
 /// The allocator to manage all memory
 allocator: Allocator,
-/// buffer size for the http server to use.
-buffer_size: u64,
 /// Mutex used by this server to handle request in seperate thread.
 mutex: std.Thread.Mutex,
 
@@ -66,7 +62,6 @@ pub fn init(self: *Server, opts: ServerConfig) !void {
         .seed = opts.seed,
         .server = server,
         .allocator = opts.allocator,
-        .buffer_size = opts.buffer_size,
         .mutex = .{},
     };
 }
@@ -81,14 +76,13 @@ pub fn deinit(self: *Server) void {
 }
 /// Create the listen loop to handle http requests.
 pub fn listen(self: *Server, send_error_429: bool) !void {
-    const buffer = try self.allocator.alloc(u8, self.buffer_size);
-    defer self.allocator.free(buffer);
+    var buffer: [8192]u8 = undefined;
 
     accept: while (true) {
         server_log.debug("Waiting to receive connection.", .{});
         const conn = try self.server.accept();
 
-        var http = HttpServer.init(conn, buffer);
+        var http = HttpServer.init(conn, &buffer);
 
         while (http.state == .ready) {
             var req = http.receiveHead() catch |err| {
@@ -121,13 +115,12 @@ pub fn listenButSendOnlyError429Response(self: *Server) !void {
     self.mutex.lock();
     defer self.mutex.unlock();
 
-    const buffer = try self.allocator.alloc(u8, self.buffer_size);
-    defer self.allocator.free(buffer);
+    var buffer: [8192]u8 = undefined;
 
     server_log.debug("Waiting to receive connection.", .{});
     const conn = try self.server.accept();
 
-    var http = HttpServer.init(conn, buffer);
+    var http = HttpServer.init(conn, &buffer);
 
     server_log.debug("Got connection. Parsing the request", .{});
     var req = try http.receiveHead();

@@ -27,6 +27,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .link_libc = true,
+        .test_runner = .{ .path = "test_runner.zig" },
     });
 
     addDependencies(b, &lib_unit_tests.root_module, target, optimize);

@@ -68,9 +68,17 @@ pub fn start(self: *IpcServer) !void {
             const thread = try std.Thread.spawn(.{}, handleClientConnection, .{ self, connection });
             defer thread.detach();
         } else |err| {
-            server_log.err("Failed to accept connection from client. Error name: {s}", .{@errorName(err)});
+            server_log.debug("Failed to accept connection from client. Error name: {s}", .{@errorName(err)});
         }
     }
+}
+/// Starts the main loop in a seperate thread. Will close the client connection
+/// if it reports any errors.
+pub fn listenLoopInSeperateThread(self: *IpcServer) !void {
+    pipe.maybeIgnoreSigpipe();
+
+    const thread = try std.Thread.spawn(.{}, start, .{self});
+    thread.detach();
 }
 /// Listen to a single request
 pub fn handleClientConnection(self: *IpcServer, request: std.net.Server.Connection) !void {

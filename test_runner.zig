@@ -16,9 +16,9 @@ const TestResults = struct {
     leaked: u16 = 0,
 };
 
-// pub const std_options: std.Options = .{
-//     .log_level = .info,
-// };
+pub const std_options: std.Options = .{
+    .log_level = .info,
+};
 
 const BORDER = "=" ** 80;
 const PADDING = " " ** 35;

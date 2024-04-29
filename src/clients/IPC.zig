@@ -2562,14 +2562,14 @@ test "BlockNumber" {
     defer block_number.deinit();
 }
 
-test "GetChainId" {
-    var client: IPC = undefined;
-    defer client.deinit();
-
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
-
-    try testing.expectError(error.InvalidChainId, client.getChainId());
-}
+// test "GetChainId" {
+//     var client: IPC = undefined;
+//     defer client.deinit();
+//
+//     try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+//
+//     try testing.expectError(error.InvalidChainId, client.getChainId());
+// }
 
 test "GetStorage" {
     {

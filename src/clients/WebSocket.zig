@@ -302,8 +302,6 @@ pub fn deinit(self: *WebSocketHandler) void {
     self.allocator.destroy(self.sub_channel);
     self.allocator.destroy(self.rpc_channel);
     self.allocator.destroy(self.ws_client);
-
-    self.* = undefined;
 }
 /// Connects to a socket client. This is a blocking operation.
 pub fn connect(self: *WebSocketHandler) !ws.Client {

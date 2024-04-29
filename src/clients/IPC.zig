@@ -198,8 +198,6 @@ pub fn deinit(self: *IPC) void {
 
     self.allocator.destroy(self.rpc_channel);
     self.allocator.destroy(self.sub_channel);
-
-    self.* = undefined;
 }
 /// Connects to the socket. Will try to reconnect in case of failures.
 /// Fails when match retries are reached or a invalid ipc path is provided

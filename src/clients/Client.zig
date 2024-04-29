@@ -164,8 +164,6 @@ pub fn deinit(self: *PubClient) void {
     self.client.deinit();
 
     self.allocator.destroy(self.client);
-
-    self.* = undefined;
 }
 /// Connects to the RPC server and relases the connection from the client pool.
 /// This is done so that future fetchs can use the connection that is already freed.

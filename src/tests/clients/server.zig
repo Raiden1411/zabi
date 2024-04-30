@@ -92,8 +92,6 @@ pub fn listen(self: *Server, send_error_429: bool) !void {
                 },
             };
 
-            server_log.debug("Got request. Parsing the request", .{});
-
             switch (req.head.method) {
                 .POST => if (send_error_429) try req.respond(
                     "Too many requests. Try again in a couple of ms",

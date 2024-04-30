@@ -14,7 +14,10 @@ const Logs = types.log.Logs;
 const ProofResult = types.proof.ProofResult;
 const Transaction = types.transactions.Transaction;
 const TransactionReceipt = types.transactions.TransactionReceipt;
+const SyncStatus = types.sync.SyncStatus;
 
+// TODO: Add way to be up with timeout so it can
+// get a more request
 const Server = @This();
 
 const server_log = std.log.scoped(.server);
@@ -26,8 +29,6 @@ pub const ServerConfig = struct {
     port: u16 = 6969,
     /// The seed for the PRNG randomizer.
     seed: u64 = 69,
-    /// The size of the buffer for the http server to use
-    buffer_size: u64 = 8192,
     /// The allocator that creates the server pointer
     /// and takes care of any allocations.
     allocator: Allocator,
@@ -41,8 +42,8 @@ seed: u64,
 server: *std.net.Server,
 /// The allocator to manage all memory
 allocator: Allocator,
-/// buffer size for the http server to use.
-buffer_size: u64,
+/// Mutex used by this server to handle request in seperate thread.
+mutex: std.Thread.Mutex,
 
 /// Starts a server instance and
 /// readys the socket for accepting connections.
@@ -53,7 +54,6 @@ pub fn init(self: *Server, opts: ServerConfig) !void {
     const parsed_address = try std.net.Address.parseIp(opts.ip_address, opts.port);
 
     server.* = try parsed_address.listen(.{
-        .reuse_port = true,
         .reuse_address = true,
     });
 
@@ -62,11 +62,13 @@ pub fn init(self: *Server, opts: ServerConfig) !void {
         .seed = opts.seed,
         .server = server,
         .allocator = opts.allocator,
-        .buffer_size = opts.buffer_size,
+        .mutex = .{},
     };
 }
 /// Closes the connection and destroys any pointers.
 pub fn deinit(self: *Server) void {
+    self.mutex.lock();
+
     self.server.deinit();
 
     self.allocator.destroy(self.server);
@@ -74,22 +76,21 @@ pub fn deinit(self: *Server) void {
 }
 /// Create the listen loop to handle http requests.
 pub fn listen(self: *Server, send_error_429: bool) !void {
-    const buffer = try self.allocator.alloc(u8, self.buffer_size);
-    defer self.allocator.free(buffer);
+    var buffer: [8192]u8 = undefined;
 
     accept: while (true) {
-        server_log.debug("Waiting to receive connection.", .{});
         const conn = try self.server.accept();
 
-        var http = HttpServer.init(conn, buffer);
+        var http = HttpServer.init(conn, &buffer);
 
         while (http.state == .ready) {
-            var req = http.receiveHead() catch |err| {
-                server_log.debug("Failed to get request. Error: {s}", .{@errorName(err)});
-                continue :accept;
+            var req = http.receiveHead() catch |err| switch (err) {
+                error.HttpConnectionClosing => continue :accept,
+                else => {
+                    server_log.debug("Failed to get request. Error: {s}", .{@errorName(err)});
+                    continue :accept;
+                },
             };
-
-            server_log.debug("Got request. Parsing the request", .{});
 
             switch (req.head.method) {
                 .POST => if (send_error_429) try req.respond(
@@ -111,13 +112,15 @@ pub fn listen(self: *Server, send_error_429: bool) !void {
 /// Only POST requests are accepted and "application/json" headers are
 /// allowed. Will always send error 429.
 pub fn listenButSendOnlyError429Response(self: *Server) !void {
-    const buffer = try self.allocator.alloc(u8, self.buffer_size);
-    defer self.allocator.free(buffer);
+    self.mutex.lock();
+    defer self.mutex.unlock();
+
+    var buffer: [8192]u8 = undefined;
 
     server_log.debug("Waiting to receive connection.", .{});
     const conn = try self.server.accept();
 
-    var http = HttpServer.init(conn, buffer);
+    var http = HttpServer.init(conn, &buffer);
 
     server_log.debug("Got connection. Parsing the request", .{});
     var req = try http.receiveHead();
@@ -136,11 +139,14 @@ pub fn listenButSendOnlyError429Response(self: *Server) !void {
 /// Only POST requests are accepted and "application/json" headers are
 /// allowed.
 pub fn listenToOneRequest(self: *Server) !void {
-    const buffer = try self.allocator.alloc(u8, self.buffer_size);
+    self.mutex.lock();
+    defer self.mutex.unlock();
+
+    var buffer: [8192]u8 = undefined;
 
     const conn = try self.server.accept();
 
-    var http = HttpServer.init(conn, buffer);
+    var http = HttpServer.init(conn, &buffer);
 
     var req = try http.receiveHead();
     switch (req.head.method) {
@@ -216,6 +222,7 @@ fn handleRequest(self: *Server, req: *HttpServer.Request) !void {
     return switch (method) {
         .eth_sendRawTransaction,
         .eth_getStorageAt,
+        .web3_sha3,
         => self.sendResponse([32]u8, req),
         .eth_accounts,
         => self.sendResponse([]const [20]u8, req),
@@ -233,14 +240,16 @@ fn handleRequest(self: *Server, req: *HttpServer.Request) !void {
         .eth_getTransactionByHash,
         .eth_getTransactionByBlockHashAndIndex,
         .eth_getTransactionByBlockNumberAndIndex,
-        => self.sendResponse([32]u8, req),
+        => self.sendResponse(Transaction, req),
         .eth_feeHistory,
         => self.sendResponse(FeeHistory, req),
         .eth_call,
         .eth_getCode,
+        .eth_getRawTransactionByHash,
         => self.sendResponse([]u8, req),
         .eth_unsubscribe,
         .eth_uninstallFilter,
+        .net_listening,
         => self.sendResponse(bool, req),
         .eth_getLogs,
         .eth_getFilterLogs,
@@ -259,12 +268,19 @@ fn handleRequest(self: *Server, req: *HttpServer.Request) !void {
         .eth_maxPriorityFeePerGas,
         .eth_getBlockTransactionCountByHash,
         .eth_getBlockTransactionCountByNumber,
+        .net_version,
+        .net_peerCount,
+        .eth_protocolVersion,
         => self.sendResponse(u64, req),
         .eth_newFilter,
         .eth_newBlockFilter,
         .eth_newPendingTransactionFilter,
         .eth_subscribe,
         => self.sendResponse(u128, req),
+        .web3_clientVersion,
+        => self.sendResponse([]const u8, req),
+        .eth_syncing,
+        => self.sendResponse(SyncStatus, req),
         else => error.UnsupportedRpcMethod,
     };
 }

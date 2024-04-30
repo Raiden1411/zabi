@@ -1,4 +1,5 @@
 const generator = @import("../generator.zig");
+const pipe = @import("../../utils/pipe.zig");
 const std = @import("std");
 const types = @import("../../types/root.zig");
 
@@ -11,6 +12,7 @@ const EthereumRpcMethods = types.ethereum.EthereumRpcMethods;
 const FeeHistory = types.transactions.FeeHistory;
 const Logs = types.log.Logs;
 const ProofResult = types.proof.ProofResult;
+const SyncStatus = types.sync.SyncStatus;
 const Transaction = types.transactions.Transaction;
 const TransactionReceipt = types.transactions.TransactionReceipt;
 
@@ -48,8 +50,8 @@ pub fn init(self: *IpcServer, allocator: Allocator, opts: InitOpts) !void {
 
     const address = try std.net.Address.initUnix(self.path);
     self.listener = try address.listen(.{
-        .reuse_port = true,
         .reuse_address = true,
+        .kernel_backlog = 1024,
     });
 }
 /// Shutsdown the socket.
@@ -61,16 +63,33 @@ pub fn deinit(self: *IpcServer) void {
 /// Starts the main loop. Will close the client connection
 /// if it reports any errors.
 pub fn start(self: *IpcServer) !void {
-    accept: while (true) {
-        const request = try self.listener.accept();
-
-        while (true) {
-            self.handleRequest(request.stream) catch |err| {
-                server_log.debug("Handler reported error: {s}. Closing the client connection", .{@errorName(err)});
-                request.stream.close();
-                continue :accept;
-            };
+    while (true) {
+        if (self.listener.accept()) |connection| {
+            const thread = try std.Thread.spawn(.{}, handleClientConnection, .{ self, connection });
+            defer thread.detach();
+        } else |err| {
+            server_log.debug("Failed to accept connection from client. Error name: {s}", .{@errorName(err)});
         }
+    }
+}
+/// Starts the main loop in a seperate thread. Will close the client connection
+/// if it reports any errors.
+pub fn listenLoopInSeperateThread(self: *IpcServer) !void {
+    pipe.maybeIgnoreSigpipe();
+
+    const thread = try std.Thread.spawn(.{}, start, .{self});
+    thread.detach();
+}
+/// Listen to a single request
+pub fn handleClientConnection(self: *IpcServer, request: std.net.Server.Connection) !void {
+    pipe.maybeIgnoreSigpipe();
+    defer request.stream.close();
+
+    while (true) {
+        self.handleRequest(request.stream) catch |err| {
+            server_log.debug("Handler reported error: {s}. Closing the client connection", .{@errorName(err)});
+            return;
+        };
     }
 }
 /// Handles and mimics a json rpc response from a JSON-RPC server.
@@ -80,7 +99,7 @@ fn handleRequest(self: *IpcServer, stream: std.net.Stream) !void {
     const size = try stream.read(req_buffer[0..]);
 
     if (size == 0)
-        return error.NoMessageFound;
+        return;
 
     const message = req_buffer[0..size];
 
@@ -130,6 +149,7 @@ fn handleRequest(self: *IpcServer, stream: std.net.Stream) !void {
     return switch (method) {
         .eth_sendRawTransaction,
         .eth_getStorageAt,
+        .web3_sha3,
         => self.sendResponse([32]u8, stream),
         .eth_accounts,
         => self.sendResponse([]const [20]u8, stream),
@@ -147,7 +167,7 @@ fn handleRequest(self: *IpcServer, stream: std.net.Stream) !void {
         .eth_getTransactionByHash,
         .eth_getTransactionByBlockHashAndIndex,
         .eth_getTransactionByBlockNumberAndIndex,
-        => self.sendResponse([32]u8, stream),
+        => self.sendResponse(Transaction, stream),
         .eth_feeHistory,
         => self.sendResponse(FeeHistory, stream),
         .eth_call,
@@ -155,6 +175,7 @@ fn handleRequest(self: *IpcServer, stream: std.net.Stream) !void {
         => self.sendResponse([]u8, stream),
         .eth_unsubscribe,
         .eth_uninstallFilter,
+        .net_listening,
         => self.sendResponse(bool, stream),
         .eth_getLogs,
         .eth_getFilterLogs,
@@ -173,12 +194,19 @@ fn handleRequest(self: *IpcServer, stream: std.net.Stream) !void {
         .eth_maxPriorityFeePerGas,
         .eth_getBlockTransactionCountByHash,
         .eth_getBlockTransactionCountByNumber,
+        .net_version,
+        .net_peerCount,
+        .eth_protocolVersion,
         => self.sendResponse(u64, stream),
         .eth_newFilter,
         .eth_newBlockFilter,
         .eth_newPendingTransactionFilter,
         .eth_subscribe,
         => self.sendResponse(u128, stream),
+        .web3_clientVersion,
+        => self.sendResponse([]const u8, stream),
+        .eth_syncing,
+        => self.sendResponse(SyncStatus, stream),
         else => {
             var buffer: [1024]u8 = undefined;
             var buf_writer = std.io.fixedBufferStream(&buffer);
@@ -192,7 +220,7 @@ fn handleRequest(self: *IpcServer, stream: std.net.Stream) !void {
 /// Sends the response back to the user.
 fn sendResponse(self: *IpcServer, comptime T: type, stream: std.net.Stream) !void {
     const generated = try generator.generateRandomData(EthereumRpcResponse(T), self.allocator, self.seed, .{
-        .slice_size = 2,
+        .slice_size = 3,
         .use_default_values = true,
     });
     defer generated.deinit();

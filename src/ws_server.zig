@@ -23,8 +23,12 @@ pub fn main() !void {
     var context: WsContext = .{ .allocator = gpa.allocator(), .seed = parsed.seed };
 
     try ws.listen(WsHandler, gpa.allocator(), &context, .{
-        .port = 6969,
-        .max_headers = 10,
+        .port = 6970,
+        .handshake_max_size = 1024,
+        .handshake_pool_count = 10,
+        .handshake_timeout_ms = 3000,
+        .buffer_size = 8192,
+        .max_size = comptime std.math.maxInt(u24),
         .address = "127.0.0.1",
     });
 }

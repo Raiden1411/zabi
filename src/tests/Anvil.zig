@@ -30,7 +30,20 @@ pub fn AnvilRequest(comptime T: type) type {
     };
 }
 
-pub const AnvilMethods = enum { anvil_setBalance, anvil_setCode, anvil_setChainId, anvil_setNonce, anvil_setNextBlockBaseFeePerGas, anvil_setMinGasPrice, anvil_dropTransaction, anvil_mine, anvil_reset, anvil_impersonateAccount, anvil_stopImpersonatingAccount, anvil_setRpcUrl };
+pub const AnvilMethods = enum {
+    anvil_setBalance,
+    anvil_setCode,
+    anvil_setChainId,
+    anvil_setNonce,
+    anvil_setNextBlockBaseFeePerGas,
+    anvil_setMinGasPrice,
+    anvil_dropTransaction,
+    anvil_mine,
+    anvil_reset,
+    anvil_impersonateAccount,
+    anvil_stopImpersonatingAccount,
+    anvil_setRpcUrl,
+};
 
 pub const StartUpOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
@@ -279,7 +292,12 @@ fn sendRpcRequest(self: *Anvil, req_body: []u8) !void {
     var body = std.ArrayList(u8).init(self.alloc);
     defer body.deinit();
 
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost }, .response_storage = .{ .dynamic = &body } });
+    const req = try self.http_client.fetch(.{
+        .headers = .{ .content_type = .{ .override = "application/json" } },
+        .payload = req_body,
+        .location = .{ .uri = self.localhost },
+        .response_storage = .{ .dynamic = &body },
+    });
 
     if (req.status != .ok) return error.InvalidRequest;
 }

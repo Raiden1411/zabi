@@ -716,3 +716,265 @@ test "verifyTypedData" {
 
     try testing.expect(validate);
 }
+
+test "sendTransaction" {
+    {
+        const uri = try std.Uri.parse("http://localhost:6969/");
+        var wallet: Wallet(.http) = undefined;
+
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+        try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
+        defer wallet.deinit();
+
+        const tx: UnpreparedTransactionEnvelope = .{
+            .type = .london,
+            .value = try utils.parseEth(1),
+            .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+        };
+
+        const tx_hash = try wallet.sendTransaction(tx);
+        defer tx_hash.deinit();
+
+        const receipt = try wallet.waitForTransactionReceipt(tx_hash.response, 0);
+        defer receipt.deinit();
+    }
+    {
+        const uri = try std.Uri.parse("http://localhost:6970/");
+        var wallet: Wallet(.websocket) = undefined;
+
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+        try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
+        defer wallet.deinit();
+
+        const tx: UnpreparedTransactionEnvelope = .{
+            .type = .london,
+            .value = try utils.parseEth(1),
+            .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+        };
+
+        const tx_hash = try wallet.sendTransaction(tx);
+        defer tx_hash.deinit();
+
+        const receipt = try wallet.waitForTransactionReceipt(tx_hash.response, 0);
+        defer receipt.deinit();
+    }
+    {
+        var wallet: Wallet(.ipc) = undefined;
+
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+        try wallet.init(buffer, .{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        defer wallet.deinit();
+
+        const tx: UnpreparedTransactionEnvelope = .{
+            .type = .london,
+            .value = try utils.parseEth(1),
+            .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+        };
+
+        const tx_hash = try wallet.sendTransaction(tx);
+        defer tx_hash.deinit();
+
+        const receipt = try wallet.waitForTransactionReceipt(tx_hash.response, 0);
+        defer receipt.deinit();
+    }
+}
+
+test "Pool transactions" {
+    {
+        const uri = try std.Uri.parse("http://localhost:6969/");
+        var wallet: Wallet(.http) = undefined;
+
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+        try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
+        defer wallet.deinit();
+
+        try wallet.poolTransactionEnvelope(.{ .type = .london });
+        try wallet.poolTransactionEnvelope(.{ .type = .berlin });
+        try wallet.poolTransactionEnvelope(.{ .type = .legacy });
+        try wallet.poolTransactionEnvelope(.{ .type = .cancun });
+
+        const env = wallet.findTransactionEnvelopeFromPool(.london);
+        try testing.expect(env != null);
+    }
+    {
+        const uri = try std.Uri.parse("http://localhost:6970/");
+        var wallet: Wallet(.websocket) = undefined;
+
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+        try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
+        defer wallet.deinit();
+
+        try wallet.poolTransactionEnvelope(.{ .type = .london });
+        try wallet.poolTransactionEnvelope(.{ .type = .berlin });
+        try wallet.poolTransactionEnvelope(.{ .type = .legacy });
+        try wallet.poolTransactionEnvelope(.{ .type = .cancun });
+
+        const env = wallet.findTransactionEnvelopeFromPool(.london);
+        try testing.expect(env != null);
+    }
+    {
+        var wallet: Wallet(.ipc) = undefined;
+
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+        try wallet.init(buffer, .{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        defer wallet.deinit();
+
+        try wallet.poolTransactionEnvelope(.{ .type = .london });
+        try wallet.poolTransactionEnvelope(.{ .type = .berlin });
+        try wallet.poolTransactionEnvelope(.{ .type = .legacy });
+        try wallet.poolTransactionEnvelope(.{ .type = .cancun });
+
+        const env = wallet.findTransactionEnvelopeFromPool(.london);
+        try testing.expect(env != null);
+    }
+}
+
+test "Get First element" {
+    const uri = try std.Uri.parse("http://localhost:6969/");
+    var wallet: Wallet(.http) = undefined;
+
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
+    defer wallet.deinit();
+
+    {
+        const first = wallet.envelopes_pool.getFirstElementFromPool(wallet.allocator);
+        const last = wallet.envelopes_pool.getLastElementFromPool(wallet.allocator);
+        try testing.expect(first == null);
+        try testing.expect(last == null);
+    }
+
+    var i: usize = 0;
+    while (i < 3) : (i += 1) {
+        try wallet.poolTransactionEnvelope(.{ .type = .london });
+    }
+
+    {
+        const first = wallet.envelopes_pool.getFirstElementFromPool(wallet.allocator);
+        const last = wallet.envelopes_pool.getLastElementFromPool(wallet.allocator);
+        try testing.expect(first != null);
+        try testing.expect(last != null);
+    }
+}
+
+test "assertTransaction" {
+    var tx: TransactionEnvelope = undefined;
+
+    const uri = try std.Uri.parse("http://localhost:6969/");
+    var wallet: Wallet(.http) = undefined;
+
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
+    defer wallet.deinit();
+
+    {
+        tx = .{ .london = .{
+            .nonce = 0,
+            .gas = 21001,
+            .maxPriorityFeePerGas = 2,
+            .maxFeePerGas = 2,
+            .chainId = 1,
+            .accessList = &.{},
+            .value = 0,
+            .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+            .data = null,
+        } };
+        try wallet.assertTransaction(tx);
+
+        tx.london.chainId = 2;
+        try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
+
+        tx.london.chainId = 1;
+
+        tx.london.maxPriorityFeePerGas = 69;
+        tx.london.to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
+        try testing.expectError(error.TransactionTipToHigh, wallet.assertTransaction(tx));
+    }
+    {
+        tx = .{ .cancun = .{
+            .nonce = 0,
+            .gas = 21001,
+            .maxPriorityFeePerGas = 2,
+            .maxFeePerGas = 2,
+            .chainId = 1,
+            .accessList = &.{},
+            .value = 0,
+            .maxFeePerBlobGas = 2,
+            .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+            .data = null,
+            .blobVersionedHashes = &.{},
+        } };
+        try wallet.assertTransaction(tx);
+
+        tx.cancun.chainId = 2;
+        try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
+
+        tx.cancun.chainId = 1;
+
+        tx.cancun.maxPriorityFeePerGas = 69;
+        tx.cancun.to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
+        try testing.expectError(error.TransactionTipToHigh, wallet.assertTransaction(tx));
+    }
+}
+
+test "assertTransactionLegacy" {
+    var tx: TransactionEnvelope = undefined;
+
+    const uri = try std.Uri.parse("http://localhost:6969/");
+    var wallet: Wallet(.http) = undefined;
+
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
+    defer wallet.deinit();
+
+    tx = .{ .berlin = .{
+        .nonce = 0,
+        .gas = 21001,
+        .gasPrice = 2,
+        .chainId = 1,
+        .accessList = &.{},
+        .value = 0,
+        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+        .data = null,
+    } };
+    try wallet.assertTransaction(tx);
+
+    tx.berlin.chainId = 2;
+    try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
+
+    tx.berlin.chainId = 1;
+
+    tx = .{ .legacy = .{
+        .nonce = 0,
+        .gas = 21001,
+        .gasPrice = 2,
+        .chainId = 1,
+        .value = 0,
+        .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+        .data = null,
+    } };
+    try wallet.assertTransaction(tx);
+
+    tx.legacy.chainId = 2;
+    try testing.expectError(error.InvalidChainId, wallet.assertTransaction(tx));
+
+    tx.legacy.chainId = 1;
+}

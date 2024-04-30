@@ -1,10 +1,10 @@
 name: Code Coverage
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
+# on:
+#   push:
+#     branches:
+#       - main
+#   pull_request:
 
 jobs:
   coverage:
@@ -25,6 +25,15 @@ jobs:
       - name: Build
         run: zig build
 
+      - name: Build Http server
+        run: zig build server &
+
+      - name: Build Ipc server
+        run: zig build ipcserver &
+
+      - name: Build WS server
+        run: zig build wsserver &
+
       - name: Install kcov
         run: |
           wget https://github.com/SimonKagstrom/kcov/releases/download/v42/kcov-amd64.tar.gz
@@ -33,7 +42,7 @@ jobs:
       - name: Run Tests with kcov
         run: |
           kcov --version
-          zig build test -Dgenerate_coverage --summary all
+          zig build coverage --summary all -freference-trace
           
       - name: Upload to Codecov
         uses: codecov/codecov-action@v3

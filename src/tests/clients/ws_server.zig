@@ -6,25 +6,28 @@ const ws = @import("ws");
 const AccessListResult = types.transactions.AccessListResult;
 const Allocator = std.mem.Allocator;
 const Block = types.block.Block;
+const Connection = ws.Conn;
 const EthereumErrorResponse = types.ethereum.EthereumErrorResponse;
 const EthereumRpcResponse = types.ethereum.EthereumRpcResponse;
 const EthereumRpcMethods = types.ethereum.EthereumRpcMethods;
 const FeeHistory = types.transactions.FeeHistory;
+const Handshake = ws.Handshake;
 const Logs = types.log.Logs;
+const Message = ws.Message;
 const ProofResult = types.proof.ProofResult;
+const SyncStatus = types.sync.SyncStatus;
 const Transaction = types.transactions.Transaction;
 const TransactionReceipt = types.transactions.TransactionReceipt;
-const Connection = ws.Conn;
-const Message = ws.Message;
-const Handshake = ws.Handshake;
 
 const server_log = std.log.scoped(.server);
 
+/// Ws server context where we can provide
+/// different options for server actions
 pub const WsContext = struct {
     allocator: Allocator,
     seed: u64,
 };
-
+/// Ws server handler used to manage connections
 pub const WsHandler = struct {
     conn: *Connection,
     context: *WsContext,
@@ -91,6 +94,7 @@ pub const WsHandler = struct {
         return switch (method) {
             .eth_sendRawTransaction,
             .eth_getStorageAt,
+            .web3_sha3,
             => self.sendResponse([32]u8),
             .eth_accounts,
             => self.sendResponse([]const [20]u8),
@@ -108,7 +112,7 @@ pub const WsHandler = struct {
             .eth_getTransactionByHash,
             .eth_getTransactionByBlockHashAndIndex,
             .eth_getTransactionByBlockNumberAndIndex,
-            => self.sendResponse([32]u8),
+            => self.sendResponse(Transaction),
             .eth_feeHistory,
             => self.sendResponse(FeeHistory),
             .eth_call,
@@ -116,6 +120,7 @@ pub const WsHandler = struct {
             => self.sendResponse([]u8),
             .eth_unsubscribe,
             .eth_uninstallFilter,
+            .net_listening,
             => self.sendResponse(bool),
             .eth_getLogs,
             .eth_getFilterLogs,
@@ -134,13 +139,27 @@ pub const WsHandler = struct {
             .eth_maxPriorityFeePerGas,
             .eth_getBlockTransactionCountByHash,
             .eth_getBlockTransactionCountByNumber,
+            .net_version,
+            .net_peerCount,
+            .eth_protocolVersion,
             => self.sendResponse(u64),
             .eth_newFilter,
             .eth_newBlockFilter,
             .eth_newPendingTransactionFilter,
             .eth_subscribe,
             => self.sendResponse(u128),
-            else => error.UnsupportedRpcMethod,
+            .web3_clientVersion,
+            => self.sendResponse([]const u8),
+            .eth_syncing,
+            => self.sendResponse(SyncStatus),
+            else => {
+                var buffer: [1024]u8 = undefined;
+                var buf_writer = std.io.fixedBufferStream(&buffer);
+
+                try std.json.stringify(EthereumErrorResponse{ .@"error" = .{ .code = .MethodNotFound, .message = "Method not supported" } }, .{}, buf_writer.writer());
+
+                return self.conn.write(buf_writer.getWritten());
+            },
         };
     }
     /// Sends the response back to the user.
@@ -160,3 +179,23 @@ pub const WsHandler = struct {
     // called whenever the connection is closed, can do some cleanup in here
     pub fn close(_: *WsHandler) void {}
 };
+
+/// Start the ws server
+pub fn start(allocator: Allocator, seed: u64) !void {
+    var context: WsContext = .{ .allocator = allocator, .seed = seed };
+
+    try ws.listen(WsHandler, allocator, &context, .{
+        .port = 6970,
+        .handshake_max_size = 1024,
+        .handshake_pool_count = 10,
+        .handshake_timeout_ms = 3000,
+        .buffer_size = 8192,
+        .max_size = comptime std.math.maxInt(u24),
+        .address = "127.0.0.1",
+    });
+}
+/// Start the ws server in a seperate thread.
+pub fn listenLoopInSeperateThread(allocator: Allocator, seed: u64) !void {
+    const thread = try std.Thread.spawn(.{}, start, .{ allocator, seed });
+    thread.detach();
+}

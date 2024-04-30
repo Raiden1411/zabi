@@ -285,6 +285,7 @@ pub const EthereumRpcEvents = union(enum) {
     number_event: EthereumRpcResponse(u256),
     bool_event: EthereumRpcResponse(bool),
     hex_event: EthereumRpcResponse(Hex),
+    string_event: EthereumRpcResponse([]const u8),
     accounts_event: EthereumRpcResponse([]const Address),
     txpool_content_event: EthereumRpcResponse(TxPoolContent),
     txpool_content_from_event: EthereumRpcResponse([]const PoolTransactionByNonce),

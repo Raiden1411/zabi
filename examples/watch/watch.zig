@@ -30,28 +30,23 @@ pub fn main() !void {
     // https://github.com/ziglang/zig/issues/15226
     // Make sure that for now the data you are using is not big enough to cause these crashes.
     while (true) {
-        const event = try socket.getCurrentSubscriptionEvent();
+        const event = try socket.getPendingTransactionsSubEvent();
         defer event.deinit();
 
-        switch (event.response) {
-            .pending_transactions_hashes_event => |response| {
-                const hash = response.params.result;
-                const transaction = socket.getTransactionByHash(hash) catch |err| switch (err) {
-                    error.TransactionNotFound => continue,
-                    else => return err,
-                };
-                defer transaction.deinit();
+        const hash = event.response.params.result;
+        const transaction = socket.getTransactionByHash(hash) catch |err| switch (err) {
+            error.TransactionNotFound => continue,
+            else => return err,
+        };
+        defer transaction.deinit();
 
-                switch (transaction.response) {
-                    .london => |tx_london| {
-                        if (tx_london.to) |to| {
-                            if (std.mem.eql(u8, &to, &try zabi.utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"))) {
-                                std.debug.print("Found usdc transaction in the value of {d} wei\n", .{tx_london.value});
-                                break;
-                            }
-                        }
-                    },
-                    else => {},
+        switch (transaction.response) {
+            .london => |tx_london| {
+                if (tx_london.to) |to| {
+                    if (std.mem.eql(u8, &to, &try zabi.utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"))) {
+                        std.debug.print("Found usdc transaction in the value of {d} wei\n", .{tx_london.value});
+                        break;
+                    }
                 }
             },
             else => {},

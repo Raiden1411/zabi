@@ -66,6 +66,7 @@ test {
     _ = @import("clients/Client.zig");
     _ = @import("clients/WebSocket.zig");
     _ = @import("clients/IPC.zig");
+    _ = @import("clients/contract.zig");
     _ = @import("clients/ens/ens_utils.zig");
     _ = @import("clients/optimism/utils.zig");
     _ = @import("clients/optimism/parse_deposit.zig");

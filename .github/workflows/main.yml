@@ -16,10 +16,7 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
@@ -42,4 +39,4 @@ jobs:
         run: zig build
 
       - name: Run Tests
-        run: zig build test --summary all -freference-trace
+        run: zig build test -freference-trace

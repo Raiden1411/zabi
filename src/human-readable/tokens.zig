@@ -11,7 +11,7 @@ pub const Tag = struct {
     };
 
     pub fn typesKeyword(identifier: []const u8) ?SoliditySyntax {
-        const typesKeywordMap = std.ComptimeStringMap(SoliditySyntax, .{
+        const typesKeywordMap = std.StaticStringMap(SoliditySyntax).initComptime(.{
             .{ "address", .Address }, .{ "bool", .Bool },       .{ "tuple", .Tuple },     .{ "string", .String },   .{ "bytes", .Bytes },
             .{ "bytes1", .Bytes1 },   .{ "bytes2", .Bytes2 },   .{ "bytes3", .Bytes3 },   .{ "bytes4", .Bytes4 },   .{ "bytes5", .Bytes5 },
             .{ "bytes6", .Bytes6 },   .{ "bytes7", .Bytes7 },   .{ "bytes8", .Bytes8 },   .{ "bytes9", .Bytes9 },   .{ "bytes10", .Bytes10 },
@@ -39,7 +39,7 @@ pub const Tag = struct {
     }
 
     pub fn keywords(identifier: []const u8) ?SoliditySyntax {
-        const keywordsMap = std.ComptimeStringMap(SoliditySyntax, .{
+        const keywordsMap = std.StaticStringMap(SoliditySyntax).initComptime(.{
             .{ "public", .Public },
             .{ "external", .External },
             .{ "view", .View },

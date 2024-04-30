@@ -30,7 +30,20 @@ pub fn HardhatRequest(comptime T: type) type {
     };
 }
 
-pub const HardhatMethods = enum { hardhat_setBalance, hardhat_setCode, hardhat_setChainId, hardhat_setNonce, hardhat_setNextBlockBaseFeePerGas, hardhat_setMinGasPrice, hardhat_dropTransaction, hardhat_mine, hardhat_reset, hardhat_impersonateAccount, hardhat_stopImpersonatingAccount, hardhat_setRpcUrl };
+pub const HardhatMethods = enum {
+    hardhat_setBalance,
+    hardhat_setCode,
+    hardhat_setChainId,
+    hardhat_setNonce,
+    hardhat_setNextBlockBaseFeePerGas,
+    hardhat_setMinGasPrice,
+    hardhat_dropTransaction,
+    hardhat_mine,
+    hardhat_reset,
+    hardhat_impersonateAccount,
+    hardhat_stopImpersonatingAccount,
+    hardhat_setRpcUrl,
+};
 
 pub const StartUpOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
@@ -201,7 +214,12 @@ fn sendRpcRequest(self: *Hardhat, req_body: []u8) !void {
     var body = std.ArrayList(u8).init(self.allocator);
     defer body.deinit();
 
-    const req = try self.http_client.fetch(.{ .headers = .{ .content_type = .{ .override = "application/json" } }, .payload = req_body, .location = .{ .uri = self.localhost }, .response_storage = .{ .dynamic = &body } });
+    const req = try self.http_client.fetch(.{
+        .headers = .{ .content_type = .{ .override = "application/json" } },
+        .payload = req_body,
+        .location = .{ .uri = self.localhost },
+        .response_storage = .{ .dynamic = &body },
+    });
 
     if (req.status != .ok) return error.InvalidRequest;
 }

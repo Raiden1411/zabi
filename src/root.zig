@@ -48,30 +48,37 @@ pub const Signer = @import("crypto/signer.zig");
 pub const Anvil = @import("tests/Anvil.zig");
 /// Custom wrapper for interacting with the Hardhat testchain
 pub const Hardhat = @import("tests/Hardhat.zig");
-/// Custom RPC server that server random data.
+/// Custom Http RPC server that server random data.
 pub const RpcServer = @import("tests/clients/server.zig");
 /// Custom Ws RPC server that server random data.
-pub const WsHandler = @import("tests/clients/ws_server.zig").WsHandler;
+pub const RpcWsServerHandler = @import("tests/clients/ws_server.zig").WsHandler;
 /// Used by the ws server to provide the needed context.
-pub const WsContext = @import("tests/clients/ws_server.zig").WsContext;
+pub const WsServerContext = @import("tests/clients/ws_server.zig").WsContext;
+/// Custom IPC RPC server that server random data.
+pub const IpcRpcServer = @import("tests/clients/ipc_server.zig");
 
 test {
-    _ = @import("abi/param_type.zig");
     _ = @import("abi/abi_parameter.zig");
     _ = @import("abi/abi.zig");
+    _ = @import("abi/eip712.zig");
+    _ = @import("abi/param_type.zig");
     _ = @import("abi/state_mutability.zig");
+    _ = @import("clients/Client.zig");
+    _ = @import("clients/WebSocket.zig");
+    _ = @import("clients/IPC.zig");
+    _ = @import("clients/contract.zig");
+    _ = @import("clients/ens/ens_utils.zig");
+    _ = @import("clients/optimism/utils.zig");
+    _ = @import("clients/optimism/parse_deposit.zig");
+    _ = @import("clients/optimism/serialize_deposit.zig");
+    _ = @import("clients/wallet.zig");
+    _ = @import("crypto/hdwallet.zig");
+    _ = @import("crypto/mnemonic.zig");
     _ = @import("decoding/decoder.zig");
     _ = @import("decoding/logs_decode.zig");
     _ = @import("decoding/parse_transacition.zig");
     _ = @import("decoding/rlp_decode.zig");
     _ = @import("decoding/ssz_decode.zig");
-    _ = @import("clients/ens/ens_utils.zig");
-    _ = @import("clients/wallet.zig");
-    _ = @import("clients/optimism/utils.zig");
-    _ = @import("clients/optimism/parse_deposit.zig");
-    _ = @import("clients/optimism/serialize_deposit.zig");
-    _ = @import("crypto/hdwallet.zig");
-    _ = @import("crypto/mnemonic.zig");
     _ = @import("encoding/encoder.zig");
     _ = @import("encoding/logs.zig");
     _ = @import("encoding/rlp.zig");

@@ -137,7 +137,7 @@ uri: std.Uri,
 /// The underlaying websocket client
 ws_client: *ws.Client,
 
-const protocol_map = std.ComptimeStringMap(std.http.Client.Connection.Protocol, .{
+const protocol_map = std.StaticStringMap(std.http.Client.Connection.Protocol).initComptime(.{
     .{ "http", .plain },
     .{ "ws", .plain },
     .{ "https", .tls },
@@ -297,26 +297,11 @@ pub fn deinit(self: *WebSocketHandler) void {
     // Deinits client and destroys any created pointers.
     self.sub_channel.deinit();
     self.rpc_channel.deinit();
+    self.ws_client.deinit();
 
     self.allocator.destroy(self.sub_channel);
     self.allocator.destroy(self.rpc_channel);
-
-    if (@atomicLoad(bool, &self.ws_client._closed, .acquire)) {
-        self.ws_client._reader.deinit();
-
-        if (self.ws_client._bp) |bp| {
-            bp.allocator.destroy(bp);
-        }
-
-        self.ws_client.writeFrame(.close, "") catch {};
-        self.ws_client.stream.close();
-
-        std.time.sleep(10 * std.time.ns_per_ms);
-
-        self.allocator.destroy(self.ws_client);
-    }
-
-    self.* = undefined;
+    self.allocator.destroy(self.ws_client);
 }
 /// Connects to a socket client. This is a blocking operation.
 pub fn connect(self: *WebSocketHandler) !ws.Client {
@@ -584,7 +569,7 @@ pub fn estimateMaxFeePerGasManual(self: *WebSocketHandler, base_fee_per_gas: ?Gw
     return if (base_fee > gas_price.response) 0 else gas_price.response - base_fee;
 }
 /// Only use this if the node you are currently using supports `eth_maxPriorityFeePerGas`.
-pub fn estimateMaxFeePerGas(self: *WebSocketHandler) !Gwei {
+pub fn estimateMaxFeePerGas(self: *WebSocketHandler) !RPCResponse(Gwei) {
     self.mutex.lock();
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
         .params = .{},
@@ -726,6 +711,12 @@ pub fn getAddressBalance(self: *WebSocketHandler, opts: BalanceRequest) !RPCResp
 
         switch (number_message.response) {
             .number_event => |balance| return .{ .arena = number_message.arena, .response = balance.result },
+            // Really big numbers might get processed as a [32]u8 array.
+            // So we convert it back to a number.
+            .hash_event => |event| {
+                const as_number = std.mem.readInt(u256, &event.result, .big);
+                return .{ .arena = number_message.arena, .response = as_number };
+            },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
@@ -858,7 +849,7 @@ pub fn getBlockByNumber(self: *WebSocketHandler, opts: BlockRequest) !RPCRespons
 }
 /// Returns the number of transactions in a block from a block matching the given block number.
 ///
-/// RPC Method: [eth_getBlockTransactionCountByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbynumber)
+/// RPC Method: [eth_blockNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_blocknumber)
 pub fn getBlockNumber(self: *WebSocketHandler) !RPCResponse(u64) {
     self.mutex.lock();
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
@@ -964,6 +955,43 @@ pub fn getChainId(self: *WebSocketHandler) !RPCResponse(usize) {
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a number_event.", .{@tagName(eve)});
+                return error.InvalidEventFound;
+            },
+        }
+    }
+}
+/// Returns the node's client version
+///
+/// RPC Method: [web3_clientVersion](https://ethereum.org/en/developers/docs/apis/json-rpc#web3_clientversion)
+pub fn getClientVersion(self: *WebSocketHandler) !RPCResponse([]const u8) {
+    self.mutex.lock();
+    const request: EthereumRequest(Tuple(&.{})) = .{
+        .params = .{},
+        .method = .web3_clientVersion,
+        .id = self.chain_id,
+    };
+
+    var request_buffer: [1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try std.json.stringify(request, .{}, buf_writter.writer());
+    self.mutex.unlock();
+
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
+
+        try self.write(buf_writter.getWritten());
+
+        const string_message = self.rpc_channel.get();
+        errdefer string_message.deinit();
+
+        switch (string_message.response) {
+            .hex_event => |hex_event| return .{ .arena = string_message.arena, .response = hex_event.result },
+            .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
+            else => |eve| {
+                wslog.debug("Found incorrect event named: {s}. Expected a hex_event.", .{@tagName(eve)});
                 return error.InvalidEventFound;
             },
         }
@@ -1143,7 +1171,7 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
 /// RPC Method: [net_listening](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/net_listening)
 pub fn getNetworkListenStatus(self: *WebSocketHandler) !RPCResponse(bool) {
     self.mutex.lock();
-    const request: EthereumRequest(struct {}) = .{
+    const request: EthereumRequest(Tuple(&.{})) = .{
         .params = .{},
         .method = .net_listening,
         .id = self.chain_id,
@@ -1166,7 +1194,7 @@ pub fn getNetworkListenStatus(self: *WebSocketHandler) !RPCResponse(bool) {
         errdefer bool_message.deinit();
 
         switch (bool_message.response) {
-            .bool_message => |bool_event| return .{ .arena = bool_message.arena, .response = bool_event.result },
+            .bool_event => |bool_event| return .{ .arena = bool_message.arena, .response = bool_event.result },
             .error_event => |error_response| try self.handleErrorEvent(error_response, retries),
             else => |eve| {
                 wslog.debug("Found incorrect event named: {s}. Expected a bool_event.", .{@tagName(eve)});
@@ -1180,7 +1208,7 @@ pub fn getNetworkListenStatus(self: *WebSocketHandler) !RPCResponse(bool) {
 /// RPC Method: [net_peerCount](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/net_peerCount)
 pub fn getNetworkPeerCount(self: *WebSocketHandler) !RPCResponse(usize) {
     self.mutex.lock();
-    const request: EthereumRequest(struct {}) = .{
+    const request: EthereumRequest(Tuple(&.{})) = .{
         .params = .{},
         .method = .net_peerCount,
         .id = self.chain_id,
@@ -1199,7 +1227,7 @@ pub fn getNetworkPeerCount(self: *WebSocketHandler) !RPCResponse(usize) {
 /// RPC Method: [net_version](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/net_version)
 pub fn getNetworkVersionId(self: *WebSocketHandler) !RPCResponse(usize) {
     self.mutex.lock();
-    const request: EthereumRequest(struct {}) = .{
+    const request: EthereumRequest(Tuple(&.{})) = .{
         .params = .{},
         .method = .net_version,
         .id = self.chain_id,
@@ -1268,7 +1296,7 @@ pub fn getProof(self: *WebSocketHandler, opts: ProofRequest, tag: ?ProofBlockTag
 /// RPC Method: [eth_protocolVersion](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_protocolversion)
 pub fn getProtocolVersion(self: *WebSocketHandler) !RPCResponse(u64) {
     self.mutex.lock();
-    const request: EthereumRequest(struct {}) = .{
+    const request: EthereumRequest(Tuple(&.{})) = .{
         .params = .{},
         .method = .eth_protocolVersion,
         .id = self.chain_id,
@@ -1412,7 +1440,7 @@ pub fn getStorage(self: *WebSocketHandler, address: Address, storage_key: Hash, 
 /// RPC Method: [eth_syncing](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_syncing)
 pub fn getSyncStatus(self: *WebSocketHandler) !?RPCResponse(SyncProgress) {
     self.mutex.lock();
-    const request: EthereumRequest(struct {}) = .{
+    const request: EthereumRequest(Tuple(&.{})) = .{
         .params = .{},
         .method = .eth_syncing,
         .id = self.chain_id,
@@ -1623,7 +1651,7 @@ pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: Hash) !R
 /// RPC Method: [txpool_content](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
 pub fn getTxPoolContent(self: *WebSocketHandler) !RPCResponse(TxPoolContent) {
     self.mutex.lock();
-    const request: EthereumRequest(struct {}) = .{
+    const request: EthereumRequest(Tuple(&.{})) = .{
         .params = .{},
         .method = .txpool_content,
         .id = self.chain_id,
@@ -1698,7 +1726,7 @@ pub fn getTxPoolContentFrom(self: *WebSocketHandler, from: Address) !RPCResponse
 /// RPC Method: [txpool_inspect](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
 pub fn getTxPoolInspectStatus(self: *WebSocketHandler) !RPCResponse(TxPoolInspect) {
     self.mutex.lock();
-    const request: EthereumRequest(struct {}) = .{
+    const request: EthereumRequest(Tuple(&.{})) = .{
         .params = .{},
         .method = .txpool_inspect,
         .id = self.chain_id,
@@ -1735,7 +1763,7 @@ pub fn getTxPoolInspectStatus(self: *WebSocketHandler) !RPCResponse(TxPoolInspec
 /// RPC Method: [txpool_status](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
 pub fn getTxPoolStatus(self: *WebSocketHandler) !RPCResponse(TxPoolStatus) {
     self.mutex.lock();
-    const request: EthereumRequest(struct {}) = .{
+    const request: EthereumRequest(Tuple(&.{})) = .{
         .params = .{},
         .method = .txpool_status,
         .id = self.chain_id,
@@ -2428,5 +2456,959 @@ fn handleNumberEvent(self: *WebSocketHandler, comptime T: type, req_body: []u8) 
                 return error.InvalidEventFound;
             },
         }
+    }
+}
+
+test "BlockByNumber" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const block_number = try client.getBlockByNumber(.{ .block_number = 10 });
+        defer block_number.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const block_number = try client.getBlockByNumber(.{});
+        defer block_number.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const block_number = try client.getBlockByNumber(.{ .include_transaction_objects = true });
+        defer block_number.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const block_number = try client.getBlockByNumber(.{ .block_number = 1000000, .include_transaction_objects = true });
+        defer block_number.deinit();
+    }
+}
+
+test "BlockByHash" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const block_number = try client.getBlockByHash(.{ .block_hash = [_]u8{0} ** 32 });
+        defer block_number.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const block_number = try client.getBlockByHash(.{ .block_hash = [_]u8{0} ** 32, .include_transaction_objects = true });
+        defer block_number.deinit();
+    }
+}
+
+test "BlockTransactionCountByHash" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const block_number = try client.getBlockTransactionCountByHash([_]u8{0} ** 32);
+    defer block_number.deinit();
+}
+
+test "BlockTransactionCountByNumber" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const block_number = try client.getBlockTransactionCountByNumber(.{ .block_number = 100101 });
+        defer block_number.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const block_number = try client.getBlockTransactionCountByNumber(.{});
+        defer block_number.deinit();
+    }
+}
+
+test "AddressBalance" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const block_number = try client.getAddressBalance(.{ .address = [_]u8{0} ** 20, .block_number = 100101 });
+        defer block_number.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const block_number = try client.getAddressBalance(.{ .address = [_]u8{0} ** 20 });
+        defer block_number.deinit();
+    }
+}
+
+test "AddressNonce" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const block_number = try client.getAddressTransactionCount(.{ .address = [_]u8{0} ** 20 });
+        defer block_number.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const block_number = try client.getAddressTransactionCount(.{ .address = [_]u8{0} ** 20, .block_number = 100012 });
+        defer block_number.deinit();
+    }
+}
+
+test "BlockNumber" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const block_number = try client.getBlockNumber();
+    defer block_number.deinit();
+}
+
+test "GetChainId" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    try testing.expectError(error.InvalidChainId, client.getChainId());
+}
+
+test "GetStorage" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const storage = try client.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{});
+        defer storage.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const storage = try client.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{ .block_number = 101010 });
+        defer storage.deinit();
+    }
+}
+
+test "GetAccounts" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const accounts = try client.getAccounts();
+    defer accounts.deinit();
+}
+
+test "GetContractCode" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const code = try client.getContractCode(.{ .address = [_]u8{0} ** 20 });
+        defer code.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const code = try client.getContractCode(.{ .address = [_]u8{0} ** 20, .block_number = 101010 });
+        defer code.deinit();
+    }
+}
+
+test "GetTransactionByHash" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const tx = try client.getTransactionByHash([_]u8{0} ** 32);
+    defer tx.deinit();
+}
+
+test "GetReceipt" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const receipt = try client.getTransactionReceipt([_]u8{0} ** 32);
+    defer receipt.deinit();
+}
+
+test "GetFilter" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const filter = try client.getFilterOrLogChanges(0, .eth_getFilterChanges);
+        defer filter.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const filter = try client.getFilterOrLogChanges(0, .eth_getFilterLogs);
+        defer filter.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        try testing.expectError(error.InvalidRpcMethod, client.getFilterOrLogChanges(0, .eth_chainId));
+    }
+}
+
+test "GetGasPrice" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const gas = try client.getGasPrice();
+    defer gas.deinit();
+}
+
+test "GetUncleCountByBlockHash" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const uncle = try client.getUncleCountByBlockHash([_]u8{0} ** 32);
+    defer uncle.deinit();
+}
+
+test "GetUncleCountByBlockNumber" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const uncle = try client.getUncleCountByBlockNumber(.{});
+        defer uncle.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const uncle = try client.getUncleCountByBlockNumber(.{ .block_number = 101010 });
+        defer uncle.deinit();
+    }
+}
+
+test "GetUncleByBlockNumberAndIndex" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const uncle = try client.getUncleByBlockNumberAndIndex(.{}, 0);
+        defer uncle.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const uncle = try client.getUncleByBlockNumberAndIndex(.{ .block_number = 101010 }, 0);
+        defer uncle.deinit();
+    }
+}
+
+test "GetUncleByBlockHashAndIndex" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const tx = try client.getUncleByBlockHashAndIndex([_]u8{0} ** 32, 0);
+    defer tx.deinit();
+}
+
+test "GetTransactionByBlockNumberAndIndex" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const tx = try client.getTransactionByBlockNumberAndIndex(.{}, 0);
+        defer tx.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const tx = try client.getTransactionByBlockNumberAndIndex(.{ .block_number = 101010 }, 0);
+        defer tx.deinit();
+    }
+}
+
+test "EstimateGas" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const fee = try client.estimateGas(.{ .london = .{ .gas = 10 } }, .{});
+        defer fee.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const fee = try client.estimateGas(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 });
+        defer fee.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const fee = try client.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{});
+        defer fee.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const fee = try client.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 });
+        defer fee.deinit();
+    }
+}
+
+test "CreateAccessList" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const access = try client.createAccessList(.{ .london = .{ .gas = 10 } }, .{});
+        defer access.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const access = try client.createAccessList(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 });
+        defer access.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const access = try client.createAccessList(.{ .legacy = .{ .gas = 10 } }, .{});
+        defer access.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const access = try client.createAccessList(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 });
+        defer access.deinit();
+    }
+}
+
+test "GetNetworkPeerCount" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const count = try client.getNetworkPeerCount();
+    defer count.deinit();
+}
+
+test "GetNetworkVersionId" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const id = try client.getNetworkVersionId();
+    defer id.deinit();
+}
+
+test "GetNetworkListenStatus" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const status = try client.getNetworkListenStatus();
+    defer status.deinit();
+}
+
+test "GetSha3Hash" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const hash = try client.getSha3Hash("foobar");
+    defer hash.deinit();
+}
+
+test "GetClientVersion" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const version = try client.getClientVersion();
+    defer version.deinit();
+}
+
+test "BlobBaseFee" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const blob = try client.blobBaseFee();
+    defer blob.deinit();
+}
+
+test "EstimateBlobMaxFeePerGas" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    _ = try client.estimateBlobMaxFeePerGas();
+}
+
+test "EstimateFeePerGas" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        _ = try client.estimateFeesPerGas(.{ .london = .{} }, null);
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        _ = try client.estimateFeesPerGas(.{ .legacy = .{} }, null);
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        _ = try client.estimateFeesPerGas(.{ .london = .{} }, 1000);
+    }
+}
+
+test "EstimateMaxFeePerGas" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const max = try client.estimateMaxFeePerGas();
+    defer max.deinit();
+}
+
+test "GetProof" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const proofs = try client.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{}, .blockNumber = 101010 }, null);
+        defer proofs.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const proofs = try client.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{} }, .latest);
+        defer proofs.deinit();
+    }
+}
+
+test "GetLogs" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const logs = try client.getLogs(.{ .toBlock = 101010, .fromBlock = 101010 }, null);
+        defer logs.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const logs = try client.getLogs(.{}, .latest);
+        defer logs.deinit();
+    }
+}
+
+test "NewLogFilter" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const logs = try client.newLogFilter(.{}, .latest);
+        defer logs.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const logs = try client.newLogFilter(.{ .fromBlock = 101010, .toBlock = 101010 }, null);
+        defer logs.deinit();
+    }
+}
+
+test "NewBlockFilter" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const block_id = try client.newBlockFilter();
+    defer block_id.deinit();
+}
+
+test "NewPendingTransactionFilter" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const tx_id = try client.newPendingTransactionFilter();
+    defer tx_id.deinit();
+}
+
+test "UninstalllFilter" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const status = try client.uninstalllFilter(1);
+    defer status.deinit();
+}
+
+test "GetProtocolVersion" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const version = try client.getProtocolVersion();
+    defer version.deinit();
+}
+
+test "SyncStatus" {
+    var client: WebSocketHandler = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const status = try client.getSyncStatus();
+    defer if (status) |s| s.deinit();
+}
+
+test "FeeHistory" {
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const status = try client.feeHistory(10, .{}, null);
+        defer status.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const status = try client.feeHistory(10, .{ .block_number = 101010 }, null);
+        defer status.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const status = try client.feeHistory(10, .{}, &.{ 0.1, 0.2 });
+        defer status.deinit();
+    }
+    {
+        var client: WebSocketHandler = undefined;
+        defer client.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6970/");
+        try client.init(.{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
+
+        const status = try client.feeHistory(10, .{ .block_number = 101010 }, &.{ 0.1, 0.2 });
+        defer status.deinit();
     }
 }

@@ -220,7 +220,7 @@ fn handleRequest(self: *IpcServer, stream: std.net.Stream) !void {
 /// Sends the response back to the user.
 fn sendResponse(self: *IpcServer, comptime T: type, stream: std.net.Stream) !void {
     const generated = try generator.generateRandomData(EthereumRpcResponse(T), self.allocator, self.seed, .{
-        .slice_size = 3,
+        .slice_size = 4,
         .use_default_values = true,
     });
     defer generated.deinit();

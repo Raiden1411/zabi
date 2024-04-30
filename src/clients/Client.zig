@@ -1230,7 +1230,7 @@ pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash
 /// Additionally Filters timeout when they aren't requested with `getFilterOrLogChanges` for a period of time.
 ///
 /// RPC Method: [`eth_uninstallFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_uninstallfilter)
-pub fn uninstalllFilter(self: *PubClient, id: usize) !RPCResponse(bool) {
+pub fn uninstallFilter(self: *PubClient, id: usize) !RPCResponse(bool) {
     const request: EthereumRequest(struct { usize }) = .{
         .params = .{id},
         .method = .eth_uninstallFilter,
@@ -2364,7 +2364,7 @@ test "NewPendingTransactionFilter" {
     defer tx_id.deinit();
 }
 
-test "UninstalllFilter" {
+test "UninstallFilter" {
     var client: PubClient = undefined;
     defer client.deinit();
 
@@ -2374,7 +2374,7 @@ test "UninstalllFilter" {
         .uri = uri,
     });
 
-    const status = try client.uninstalllFilter(1);
+    const status = try client.uninstallFilter(1);
     defer status.deinit();
 }
 

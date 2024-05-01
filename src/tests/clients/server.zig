@@ -16,8 +16,6 @@ const Transaction = types.transactions.Transaction;
 const TransactionReceipt = types.transactions.TransactionReceipt;
 const SyncStatus = types.sync.SyncStatus;
 
-// TODO: Add way to be up with timeout so it can
-// get a more request
 const Server = @This();
 
 const server_log = std.log.scoped(.server);

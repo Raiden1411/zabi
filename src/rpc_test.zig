@@ -68,21 +68,43 @@ pub fn main() !void {
         }
 
         const client: WalletClients = comptime blk: {
-            break :blk if (Client == PubClient) .http else .websocket;
+            break :blk switch (Client) {
+                PubClient => .http,
+                WebSocketClient => .websocket,
+                IPCClient => .ipc,
+                else => @compileError("Invalid type"),
+            };
         };
 
         var op: L1Client(client) = undefined;
         defer op.deinit();
 
-        try op.init(.{ .uri = uri, .allocator = gpa.allocator() }, null);
+        if (Client == IPCClient) {
+            try op.init(.{
+                .path = "/tmp/anvil.ipc",
+                .allocator = gpa.allocator(),
+            }, null);
+        } else {
+            try op.init(.{
+                .uri = uri,
+                .allocator = gpa.allocator(),
+            }, null);
+        }
 
         var ens: ENSClient(client) = undefined;
         defer ens.deinit();
 
-        try ens.init(
-            .{ .uri = uri, .allocator = gpa.allocator() },
-            .{ .ensUniversalResolver = try utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") },
-        );
+        if (Client == IPCClient) {
+            try ens.init(
+                .{ .path = "/tmp/anvil.ipc", .allocator = gpa.allocator() },
+                .{ .ensUniversalResolver = try utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") },
+            );
+        } else {
+            try ens.init(
+                .{ .uri = uri, .allocator = gpa.allocator() },
+                .{ .ensUniversalResolver = try utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") },
+            );
+        }
 
         const block_number = try rpc_client.getBlockNumber();
         defer block_number.deinit();
@@ -258,5 +280,7 @@ pub fn main() !void {
                 }
             }
         }
+
+        i = 0;
     }
 }

@@ -367,19 +367,7 @@ test "Zabi types" {
         defer data.deinit();
     }
     {
-        const data = try generateRandomData(ethereum.EthereumEvents, testing.allocator, 0, .{ .slice_size = 32 });
-        defer data.deinit();
-    }
-    {
-        const data = try generateRandomData(ethereum.EthereumSubscribeEvents, testing.allocator, 0, .{ .slice_size = 32 });
-        defer data.deinit();
-    }
-    {
         const data = try generateRandomData(ethereum.EthereumRpcMethods, testing.allocator, 0, .{ .slice_size = 32 });
-        defer data.deinit();
-    }
-    {
-        const data = try generateRandomData(ethereum.EthereumRpcEvents, testing.allocator, 0, .{ .slice_size = 32 });
         defer data.deinit();
     }
     {

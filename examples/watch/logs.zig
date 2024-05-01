@@ -33,27 +33,21 @@ pub fn main() !void {
     // https://github.com/ziglang/zig/issues/15226
     // Make sure that for now the data you are using is not big enough to cause these crashes.
     while (true) {
-        const event = try socket.getCurrentSubscriptionEvent();
+        const event = try socket.getLogsSubEvent();
         defer event.deinit();
 
-        switch (event.response) {
-            .log_event => |log_event| {
-                const value = try zabi.decoding.abi_decoder.decodeAbiParameters(gpa.allocator(), &.{
-                    .{ .type = .{ .uint = 256 }, .name = "tokenId" },
-                }, log_event.params.result.data, .{});
+        const value = try zabi.decoding.abi_decoder.decodeAbiParameters(gpa.allocator(), &.{
+            .{ .type = .{ .uint = 256 }, .name = "tokenId" },
+        }, event.response.params.result.data, .{});
 
-                const topics = try zabi.decoding.logs_decoder.decodeLogsComptime(&.{
-                    .{ .type = .{ .address = {} }, .name = "from", .indexed = true },
-                    .{ .type = .{ .address = {} }, .name = "to", .indexed = true },
-                }, log_event.params.result.topics);
+        const topics = try zabi.decoding.logs_decoder.decodeLogsComptime(&.{
+            .{ .type = .{ .address = {} }, .name = "from", .indexed = true },
+            .{ .type = .{ .address = {} }, .name = "to", .indexed = true },
+        }, event.response.params.result.topics);
 
-                std.debug.print("Transfer event found. Value transfered: {d} dollars\n", .{value[0] / 1000000});
-                std.debug.print("From: 0x{s}\n", .{std.fmt.fmtSliceHexLower(&topics[1])});
-                std.debug.print("To: 0x{s}\n", .{std.fmt.fmtSliceHexLower(&topics[2])});
-            },
-
-            else => {},
-        }
+        std.debug.print("Transfer event found. Value transfered: {d} dollars\n", .{value[0] / 1000000});
+        std.debug.print("From: 0x{s}\n", .{std.fmt.fmtSliceHexLower(&topics[1])});
+        std.debug.print("To: 0x{s}\n", .{std.fmt.fmtSliceHexLower(&topics[2])});
     }
 
     const unsubed = try socket.unsubscribe(id.response);

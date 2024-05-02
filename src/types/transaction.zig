@@ -450,7 +450,7 @@ pub const Transaction = union(enum) {
         const tx_type = source.object.get("type") orelse if (source.object.get("l1Timestamp") != null)
             return @unionInit(@This(), "l2_transaction", try std.json.parseFromValueLeaky(L2Transaction, allocator, source, options))
         else
-            return error.MissingField;
+            return @unionInit(@This(), "legacy", try std.json.parseFromValueLeaky(LegacyTransaction, allocator, source, options));
 
         if (source.object.get("l1Timestamp") != null)
             return @unionInit(@This(), "l2_transaction", try std.json.parseFromValueLeaky(L2Transaction, allocator, source, options));

@@ -18,7 +18,6 @@ const RequestParser = meta.json.RequestParser;
 const Scanner = std.json.Scanner;
 const Token = std.json.Token;
 const Transaction = transactions.Transaction;
-const UnionParser = meta.json.UnionParser;
 const Value = std.json.Value;
 const Wei = types.Wei;
 
@@ -165,7 +164,6 @@ pub const BlockTransactions = union(enum) {
             inline else => |value| try stream.write(value),
         }
     }
-    // pub usingnamespace UnionParser(@This());
 };
 /// Almost similar to `LegacyBlock` but with
 /// the `withdrawalsRoot` and `withdrawals` fields.

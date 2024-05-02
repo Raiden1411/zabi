@@ -130,10 +130,7 @@ pub fn main() !void {
                         switch (txs) {
                             .hashes => |hashes| {
                                 if (hashes.len > 0) {
-                                    const slice = if (std.mem.startsWith(u8, hashes[hashes.len - 1], "0x")) hashes[hashes.len - 1][2..] else hashes[hashes.len][0..];
-
-                                    var buffer: [32]u8 = undefined;
-                                    _ = try std.fmt.hexToBytes(buffer[0..], slice);
+                                    const buffer: [32]u8 = hashes[hashes.len - 1];
 
                                     const transaction = try rpc_client.getTransactionByHash(buffer);
                                     defer transaction.deinit();

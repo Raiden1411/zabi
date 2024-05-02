@@ -7,6 +7,7 @@ const types = @import("ethereum.zig");
 
 // Types
 const Address = types.Address;
+const Allocator = std.mem.Allocator;
 const Blob = kzg.KZG4844.Blob;
 const DepositTransactionSigned = op_transactions.DepositTransactionSigned;
 const Gwei = types.Gwei;
@@ -17,10 +18,14 @@ const KZGProof = kzg.KZG4844.KZGProof;
 const Logs = log.Logs;
 const Merge = meta.utils.MergeTupleStructs;
 const Omit = meta.utils.Omit;
+const ParseError = std.json.ParseError;
+const ParseFromValueError = std.json.ParseFromValueError;
+const ParseOptions = std.json.ParseOptions;
 const RequestParser = meta.json.RequestParser;
 const StructToTupleType = meta.utils.StructToTupleType;
+const Token = std.json.Token;
+const Value = std.json.Value;
 const Wei = types.Wei;
-const UnionParser = meta.json.UnionParser;
 
 /// Tuple representig an encoded envelope for the Berlin hardfork
 pub const BerlinEnvelope = StructToTupleType(BerlinTransactionEnvelope);
@@ -44,23 +49,7 @@ pub const CancunSignedWrapper = Merge(StructToTupleType(CancunTransactionEnvelop
 pub const CancunWrapper = Merge(StructToTupleType(CancunTransactionEnvelope), struct { []const Blob, []const KZGCommitment, []const KZGProof });
 
 pub const TransactionTypes = enum(u8) { legacy = 0x00, berlin = 0x01, london = 0x02, cancun = 0x03, deposit = 0x7e, _ };
-/// Some nodes represent pending transactions hashes like this.
-pub const PendingTransactionHashesSubscription = struct {
-    removed: bool,
-    transaction: struct {
-        hash: Hash,
-        pub usingnamespace RequestParser(@This());
-    },
 
-    pub usingnamespace RequestParser(@This());
-};
-/// Pending transactions objects represented via the subscription responses.
-pub const PendingTransactionsSubscription = struct {
-    removed: bool,
-    transaction: PendingTransaction,
-
-    pub usingnamespace RequestParser(@This());
-};
 /// The transaction envelope that will be serialized before getting sent to the network.
 pub const TransactionEnvelope = union(enum) {
     berlin: BerlinTransactionEnvelope,
@@ -143,8 +132,6 @@ pub const TransactionEnvelopeSigned = union(enum) {
     cancun: CancunTransactionEnvelopeSigned,
     legacy: LegacyTransactionEnvelopeSigned,
     london: LondonTransactionEnvelopeSigned,
-
-    pub usingnamespace UnionParser(@This());
 };
 /// The transaction envelope from the London hardfork with the signature fields
 pub const CancunTransactionEnvelopeSigned = struct {
@@ -282,13 +269,6 @@ pub const LegacyPendingTransaction = struct {
     chainId: ?usize = null,
 
     pub usingnamespace RequestParser(@This());
-};
-/// Pending transaction from a subscription event
-pub const PendingTransaction = union(enum) {
-    london: LondonPendingTransaction,
-    legacy: LegacyPendingTransaction,
-
-    pub usingnamespace UnionParser(@This());
 };
 /// The Cancun hardfork representation of a transaction.
 pub const L2Transaction = struct {
@@ -458,7 +438,43 @@ pub const Transaction = union(enum) {
     /// L2 Deposit transaction
     deposit: DepositTransactionSigned,
 
-    pub usingnamespace UnionParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        const json_value = try Value.jsonParse(allocator, source, options);
+        return try jsonParseFromValue(allocator, json_value, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        if (source != .object)
+            return error.UnexpectedToken;
+
+        const tx_type = source.object.get("type") orelse if (source.object.get("l1Timestamp") != null)
+            return @unionInit(@This(), "l2_transaction", try std.json.parseFromValueLeaky(L2Transaction, allocator, source, options))
+        else
+            return error.MissingField;
+
+        if (source.object.get("l1Timestamp") != null)
+            return @unionInit(@This(), "l2_transaction", try std.json.parseFromValueLeaky(L2Transaction, allocator, source, options));
+
+        if (tx_type != .string)
+            return error.UnexpectedToken;
+
+        const type_value = try std.fmt.parseInt(u8, tx_type.string, 0);
+
+        switch (type_value) {
+            0x00 => return @unionInit(@This(), "legacy", try std.json.parseFromValueLeaky(LegacyTransaction, allocator, source, options)),
+            0x01 => return @unionInit(@This(), "berlin", try std.json.parseFromValueLeaky(BerlinTransaction, allocator, source, options)),
+            0x02 => return @unionInit(@This(), "london", try std.json.parseFromValueLeaky(LondonTransaction, allocator, source, options)),
+            0x03 => return @unionInit(@This(), "cancun", try std.json.parseFromValueLeaky(CancunTransaction, allocator, source, options)),
+            0x7e => return @unionInit(@This(), "deposit", try std.json.parseFromValueLeaky(DepositTransactionSigned, allocator, source, options)),
+            else => return error.UnexpectedToken,
+        }
+    }
+
+    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
+        switch (self) {
+            inline else => |value| try stream.write(value),
+        }
+    }
 };
 /// The london and other hardforks transaction receipt representation
 pub const LegacyReceipt = struct {
@@ -583,14 +599,46 @@ pub const TransactionReceipt = union(enum) {
     arbitrum_receipt: ArbitrumReceipt,
     deposit_receipt: DepositReceipt,
 
-    pub usingnamespace UnionParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        const json_value = try Value.jsonParse(allocator, source, options);
+        return try jsonParseFromValue(allocator, json_value, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        if (source != .object)
+            return error.UnexpectedToken;
+
+        if (source.object.get("blobGasUsed") != null)
+            return @unionInit(@This(), "cancun", try std.json.parseFromValueLeaky(CancunReceipt, allocator, source, options));
+
+        if (source.object.get("l1GasUsed") != null)
+            return @unionInit(@This(), "op_receipt", try std.json.parseFromValueLeaky(OpstackReceipt, allocator, source, options));
+
+        if (source.object.get("gasUsedForL1") != null)
+            return @unionInit(@This(), "arbitrum_receipt", try std.json.parseFromValueLeaky(ArbitrumReceipt, allocator, source, options));
+
+        if (source.object.get("depositNonce") != null)
+            return @unionInit(@This(), "deposit_receipt", try std.json.parseFromValueLeaky(DepositReceipt, allocator, source, options));
+
+        return @unionInit(@This(), "legacy", try std.json.parseFromValueLeaky(LegacyReceipt, allocator, source, options));
+    }
+
+    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
+        switch (self) {
+            inline else => |value| try stream.write(value),
+        }
+    }
 };
 /// The representation of an `eth_call` struct.
 pub const EthCall = union(enum) {
     legacy: LegacyEthCall,
     london: LondonEthCall,
 
-    pub usingnamespace UnionParser(@This());
+    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
+        switch (self) {
+            inline else => |value| try stream.write(value),
+        }
+    }
 };
 /// The representation of an London hardfork `eth_call` struct where all fields are optional
 /// These are optionals so that when we stringify we can

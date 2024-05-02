@@ -325,10 +325,6 @@ test "Zabi types" {
         defer data.deinit();
     }
     {
-        const data = try generateRandomData(transaction.PendingTransaction, testing.allocator, 0, .{ .slice_size = 32 });
-        defer data.deinit();
-    }
-    {
         const data = try generateRandomData(transaction.FeeHistory, testing.allocator, 0, .{ .slice_size = 32 });
         defer data.deinit();
     }

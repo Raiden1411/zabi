@@ -682,11 +682,11 @@ pub const EstimateFeeReturn = union(enum) { london: struct {
 pub const FeeHistory = struct {
     /// List of each block's base fee
     baseFeePerGas: []const u256,
-    // TODO: Remove null after cancun
+    /// List of each block's base blob fee
     baseFeePerBlobGas: ?[]const u256 = null,
     /// Ratio of gas used out of the total available limit
     gasUsedRatio: []const f64,
-    // TODO: Remove null after cancun
+    /// Ratio of blob gas used out of the total available limit
     blobGasUsedRation: ?[]const f64 = null,
     /// Block corresponding to first response value
     oldestBlock: u64,

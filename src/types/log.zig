@@ -10,7 +10,6 @@ const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
 const RequestParser = meta.json.RequestParser;
-const UnionParser = meta.json.UnionParser;
 const Wei = types.Wei;
 
 /// Zig struct representation of the log RPC response.

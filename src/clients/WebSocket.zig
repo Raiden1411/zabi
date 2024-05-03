@@ -28,10 +28,8 @@ const Channel = @import("../utils/channel.zig").Channel;
 const EthCall = transaction.EthCall;
 const ErrorResponse = types.ErrorResponse;
 const EthereumErrorResponse = types.EthereumErrorResponse;
-const EthereumEvents = types.EthereumEvents;
 const EthereumResponse = types.EthereumResponse;
 const EthereumRequest = types.EthereumRequest;
-const EthereumRpcEvents = types.EthereumRpcEvents;
 const EthereumRpcMethods = types.EthereumRpcMethods;
 const EthereumRpcResponse = types.EthereumRpcResponse;
 const EthereumSubscribeResponse = types.EthereumSubscribeResponse;
@@ -179,11 +177,7 @@ pub fn handle(self: *WebSocketHandler, message: ws.Message) !void {
                 return self.sub_channel.put(parsed);
             }
 
-            if (parsed.value.object.getKey("result") != null) {
-                return self.rpc_channel.put(parsed);
-            }
-
-            return error.InvalidJsonMessage;
+            return self.rpc_channel.put(parsed);
         },
         else => {},
     }
@@ -1219,56 +1213,23 @@ pub fn sendRpcRequest(self: *WebSocketHandler, comptime T: type, message: []u8) 
         const message_value = self.getCurrentRpcEvent();
         errdefer message_value.deinit();
 
-        if (message_value.value != .object)
-            return error.InvalidTypeMessage;
+        const parsed = try std.json.parseFromValueLeaky(EthereumResponse(T), message_value.arena.allocator(), message_value.value, .{ .allocate = .alloc_always });
 
-        const result = message_value.value.object.get("result") orelse return error.UnexpectedJsonMessage;
+        switch (parsed) {
+            .success => |success| return RPCResponse(T).fromJson(message_value.arena, success.result),
+            .@"error" => |err_message| {
+                const err = self.handleErrorResponse(err_message.@"error");
+                switch (err) {
+                    error.TooManyRequests => {
+                        // Exponential backoff
+                        const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
+                        wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
-        switch (result) {
-            .object => |object_value| {
-                // Parses as error message.
-                if (object_value.getKey("error") != null) {
-                    const parsed = try std.json.parseFromValueLeaky(
-                        EthereumRpcResponse(EthereumErrorResponse),
-                        message_value.arena.allocator(),
-                        message_value.value,
-                        .{ .allocate = .alloc_always },
-                    );
-
-                    const err = self.handleErrorResponse(parsed.result.@"error");
-
-                    switch (err) {
-                        error.TooManyRequests => {
-                            // Exponential backoff
-                            const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
-                            wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
-
-                            std.time.sleep(std.time.ns_per_ms * backoff);
-                            continue;
-                        },
-                        else => return err,
-                    }
+                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        continue;
+                    },
+                    else => return err,
                 }
-
-                // The result field has an object that isn't an error.
-                const parsed = try std.json.parseFromValueLeaky(
-                    EthereumRpcResponse(T),
-                    message_value.arena.allocator(),
-                    message_value.value,
-                    .{ .allocate = .alloc_always },
-                );
-
-                return RPCResponse(T).fromJson(message_value.arena, parsed.result);
-            },
-            else => {
-                const parsed = try std.json.parseFromValueLeaky(
-                    EthereumRpcResponse(T),
-                    message_value.arena.allocator(),
-                    message_value.value,
-                    .{ .allocate = .alloc_always },
-                );
-
-                return RPCResponse(T).fromJson(message_value.arena, parsed.result);
             },
         }
     }

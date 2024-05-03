@@ -15,8 +15,11 @@ const Allocator = std.mem.Allocator;
 const Extract = meta.utils.Extract;
 const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
+const ParseError = std.json.ParseError;
+const ParseFromValueError = std.json.ParseFromValueError;
+const ParseOptions = std.json.ParseOptions;
 const StateMutability = @import("state_mutability.zig").StateMutability;
-const UnionParser = meta.json.UnionParser;
+const Value = std.json.Value;
 
 pub const Abitype = enum { function, @"error", event, constructor, fallback, receive };
 
@@ -559,7 +562,27 @@ pub const AbiItem = union(enum) {
     abiFallback: Fallback,
     abiReceive: Receive,
 
-    pub usingnamespace UnionParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        const json_value = try Value.jsonParse(allocator, source, options);
+        return try jsonParseFromValue(allocator, json_value, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        if (source != .object)
+            return error.UnexpectedToken;
+
+        const abitype = source.object.get("type") orelse return error.MissingField;
+        const abitype_enum = std.meta.stringToEnum(Abitype, abitype) orelse return error.UnexpectedToken;
+
+        switch (abitype_enum) {
+            .function => return @unionInit(@This(), "abiFunction", try std.json.parseFromValueLeaky(Function, allocator, source, options)),
+            .event => return @unionInit(@This(), "abiEvent", try std.json.parseFromValueLeaky(Function, allocator, source, options)),
+            .@"error" => return @unionInit(@This(), "abiError", try std.json.parseFromValueLeaky(Function, allocator, source, options)),
+            .constructor => return @unionInit(@This(), "abiConstructor", try std.json.parseFromValueLeaky(Function, allocator, source, options)),
+            .fallback => return @unionInit(@This(), "abiFallback", try std.json.parseFromValueLeaky(Function, allocator, source, options)),
+            .receive => return @unionInit(@This(), "abiReceive", try std.json.parseFromValueLeaky(Function, allocator, source, options)),
+        }
+    }
 
     pub fn deinit(self: @This(), allocator: Allocator) void {
         switch (self) {

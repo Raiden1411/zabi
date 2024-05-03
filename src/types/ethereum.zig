@@ -8,14 +8,15 @@ const transaction = @import("transaction.zig");
 const txpool = @import("../types/txpool.zig");
 
 const AccessListResult = transaction.AccessListResult;
+const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Block = block.Block;
 const FeeHistory = transaction.FeeHistory;
 const Log = log.Log;
 const Logs = log.Logs;
-const PendingTransactionsSubscription = transaction.PendingTransactionsSubscription;
-const PendingTransactionHashesSubscription = transaction.PendingTransactionHashesSubscription;
-const PendingTransaction = transaction.PendingTransaction;
+const ParseError = std.json.ParseError;
+const ParseFromValueError = std.json.ParseFromValueError;
+const ParseOptions = std.json.ParseOptions;
 const PoolTransactionByNonce = txpool.PoolTransactionByNonce;
 const ProofResult = proof.ProofResult;
 const RequestParser = meta.json.RequestParser;
@@ -25,7 +26,7 @@ const TransactionReceipt = transaction.TransactionReceipt;
 const TxPoolContent = txpool.TxPoolContent;
 const TxPoolInspect = txpool.TxPoolInspect;
 const TxPoolStatus = txpool.TxPoolStatus;
-const UnionParser = meta.json.UnionParser;
+const Value = std.json.Value;
 
 pub const Hex = []u8;
 pub const Gwei = u64;
@@ -159,7 +160,31 @@ pub fn EthereumResponse(comptime T: type) type {
         success: EthereumRpcResponse(T),
         @"error": EthereumErrorResponse,
 
-        pub usingnamespace UnionParser(@This());
+        pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+            const json_value = try Value.jsonParse(allocator, source, options);
+            return try jsonParseFromValue(allocator, json_value, options);
+        }
+
+        pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+            if (source != .object)
+                return error.UnexpectedToken;
+
+            if (source.object.get("error") != null) {
+                return @unionInit(@This(), "error", try std.json.parseFromValueLeaky(EthereumErrorResponse, allocator, source, options));
+            }
+
+            if (source.object.get("result") != null) {
+                return @unionInit(@This(), "success", try std.json.parseFromValueLeaky(EthereumRpcResponse(T), allocator, source, options));
+            }
+
+            return error.MissingField;
+        }
+
+        pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
+            switch (self) {
+                inline else => |value| try stream.write(value),
+            }
+        }
     };
 }
 /// Zig struct representation of a RPC Response

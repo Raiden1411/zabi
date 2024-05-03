@@ -15,7 +15,6 @@ const utils = @import("../utils/utils.zig");
 const AccessListResult = transaction.AccessListResult;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
-const Anvil = @import("../tests/Anvil.zig");
 const BalanceBlockTag = block.BalanceBlockTag;
 const BalanceRequest = block.BalanceRequest;
 const Block = block.Block;
@@ -108,7 +107,7 @@ pub const InitOptions = struct {
     pooling_interval: u64 = 2_000,
     /// Retry count for failed requests.
     retries: u8 = 5,
-    /// Fork url for anvil to fork from
+    /// Uri for the client to connect to
     uri: std.Uri,
 };
 

@@ -16,7 +16,6 @@ const AbiItem = abitype.AbiItem;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
-const Anvil = @import("../tests/Anvil.zig");
 const BlockNumberRequest = block.BlockNumberRequest;
 const ClientType = @import("wallet.zig").WalletClients;
 const Constructor = abitype.Constructor;

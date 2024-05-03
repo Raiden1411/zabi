@@ -17,7 +17,6 @@ const assert = std.debug.assert;
 const AccessListResult = transaction.AccessListResult;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
-const Anvil = @import("../tests/Anvil.zig");
 const BalanceBlockTag = block.BalanceBlockTag;
 const BalanceRequest = block.BalanceRequest;
 const Block = block.Block;
@@ -107,7 +106,7 @@ pub const InitOptions = struct {
     onEvent: ?*const fn (args: JsonParsed(Value)) anyerror!void = null,
     /// Callback function for everytime an error is caught.
     onError: ?*const fn (args: []const u8) anyerror!void = null,
-    /// Retry count for failed connections to anvil. The process takes some ms to start so this is necessary
+    /// Retry count for failed connections to server.
     retries: u8 = 5,
     /// The interval to retry the connection. This will get multiplied in ns_per_ms.
     pooling_interval: u64 = 2_000,

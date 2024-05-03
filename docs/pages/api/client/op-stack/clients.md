@@ -23,7 +23,7 @@ const InitOptions = struct {
     pooling_interval: u64 = 2_000,
     /// Retry count for failed requests.
     retries: u8 = 5,
-    /// Fork url for anvil to fork from
+    /// Uri for the client to connect.
     uri: std.Uri,
 };
 ```
@@ -44,7 +44,7 @@ const InitOptions = struct {
     onEvent: ?*const fn (args: EthereumEvents) anyerror!void = null,
     /// Callback function for everytime an error is caught.
     onError: ?*const fn (args: []const u8) anyerror!void = null,
-    /// Retry count for failed connections to anvil. The process takes some ms to start so this is necessary
+    /// Retry count for failed connections to the server.
     retries: u8 = 5,
     /// The interval to retry the connection. This will get multiplied in ns_per_ms.
     pooling_interval: u64 = 2_000,

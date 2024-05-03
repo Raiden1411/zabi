@@ -17,7 +17,7 @@ pub fn main() !void {
     var args = try std.process.argsWithAllocator(gpa.allocator());
     defer args.deinit();
 
-    const parsed = args_parse.parseArgs(CliOptions, &args);
+    const parsed = args_parse.parseArgs(CliOptions, gpa.allocator(), &args);
 
     // this is the instance of your "global" struct to pass into your handlers
     var context: WsContext = .{ .allocator = gpa.allocator(), .seed = parsed.seed };

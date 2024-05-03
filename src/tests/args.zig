@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const Allocator = std.mem.Allocator;
 const ConvertToEnum = @import("../meta/utils.zig").ConvertToEnum;
 
 const assert = std.debug.assert;
@@ -7,7 +8,10 @@ const assert = std.debug.assert;
 /// Parses console arguments in the style of --foo=bar
 /// For now not all types are supported but might be in the future
 /// if the need for them arises.
-pub fn parseArgs(comptime T: type, args: *std.process.ArgIterator) T {
+///
+/// Allocations are only made for slices and pointer types.
+/// Slice or arrays that aren't u8 are expected to be comma seperated.
+pub fn parseArgs(comptime T: type, allocator: Allocator, args: *std.process.ArgIterator) T {
     const info = @typeInfo(T);
 
     assert(info == .Struct);
@@ -35,7 +39,7 @@ pub fn parseArgs(comptime T: type, args: *std.process.ArgIterator) T {
             if (std.mem.startsWith(u8, args_str, arg_flag)) {
                 @field(seen, field.name) += 1;
 
-                @field(result, field.name) = parseArgument(field.type, arg_flag, args_str);
+                @field(result, field.name) = parseArgument(field.type, allocator, arg_flag, args_str);
                 continue :next;
             }
         }
@@ -55,7 +59,7 @@ pub fn parseArgs(comptime T: type, args: *std.process.ArgIterator) T {
     return result;
 }
 /// Parses a argument string like --foo=69
-fn parseArgument(comptime T: type, expected: [:0]const u8, arg: []const u8) T {
+fn parseArgument(comptime T: type, allocator: Allocator, expected: [:0]const u8, arg: []const u8) T {
     if (T == bool) {
         if (!std.mem.eql(u8, expected, arg))
             failWithMessage("Bool flags do not require values. Consider using just '{s}'", .{expected});
@@ -65,7 +69,7 @@ fn parseArgument(comptime T: type, expected: [:0]const u8, arg: []const u8) T {
 
     const value = parseArgString(expected, arg);
 
-    return parseArgValue(T, value);
+    return parseArgValue(T, allocator, value);
 }
 /// Parses a argument string like --foo=
 fn parseArgString(expected: [:0]const u8, arg: []const u8) []const u8 {
@@ -89,7 +93,7 @@ fn parseArgString(expected: [:0]const u8, arg: []const u8) []const u8 {
 }
 /// Parses the value of the provided argument.
 /// Compilation will fail if an unsupported argument is passed.
-fn parseArgValue(comptime T: type, value: []const u8) T {
+fn parseArgValue(comptime T: type, allocator: Allocator, value: []const u8) T {
     assert(value.len > 0);
 
     if (T == []const u8 or T == [:0]const u8)
@@ -125,7 +129,44 @@ fn parseArgValue(comptime T: type, value: []const u8) T {
                 return buffer;
             }
 
-            @compileError(std.fmt.comptimePrint("Unsupported array type '{s}'", .{@typeName(T)}));
+            var arr: T = undefined;
+            var iter = std.mem.tokenizeScalar(u8, value, ",");
+
+            var index: usize = 0;
+            while (iter.next()) |slice| {
+                assert(index < arr_info.len);
+                arr[index] = try parseArgValue(arr_info.child, slice);
+                index += 1;
+            }
+
+            return arr;
+        },
+        .Pointer => |ptr_info| {
+            switch (ptr_info.size) {
+                .One => {
+                    const pointer = allocator.create(ptr_info.child) catch failWithMessage("Process ran out of memory", .{});
+                    errdefer allocator.destroy(pointer);
+
+                    pointer.* = parseArgValue(ptr_info.child, allocator, value);
+
+                    return pointer;
+                },
+                .Slice => {
+                    var list = std.ArrayList(ptr_info.child).init(allocator);
+                    errdefer list.deinit();
+
+                    var iter = std.mem.tokenizeScalar(u8, value, ",");
+
+                    while (iter.next()) |slice| {
+                        list.ensureTotalCapacity(1) catch failWithMessage("Process ran out of memory", .{});
+                        list.appendAssumeCapacity(parseArgValue(ptr_info.child, slice));
+                    }
+
+                    const slice = list.toOwnedSlice() catch failWithMessage("Process ran out of memory", .{});
+                    return slice;
+                },
+                else => @compileError(std.fmt.comptimePrint("Unsupported pointer type '{s}'", .{@typeName(T)})),
+            }
         },
         else => @compileError(std.fmt.comptimePrint("Unsupported type for parsing arguments. '{s}'", .{@typeName(T)})),
     }

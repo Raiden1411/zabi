@@ -9,7 +9,13 @@ const Allocator = std.mem.Allocator;
 const ParamType = param.ParamType;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
-pub const TypedDataDomain = struct { chainId: ?u64 = null, name: ?[]const u8 = null, verifyingContract: ?[]const u8 = null, version: ?[]const u8 = null, salt: ?[]const u8 = null };
+pub const TypedDataDomain = struct {
+    chainId: ?u64 = null,
+    name: ?[]const u8 = null,
+    verifyingContract: ?[]const u8 = null,
+    version: ?[]const u8 = null,
+    salt: ?[]const u8 = null,
+};
 
 pub const MessageProperty = struct {
     name: []const u8,

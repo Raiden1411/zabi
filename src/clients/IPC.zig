@@ -65,7 +65,7 @@ const TxPoolStatus = txpool.TxPoolStatus;
 const Uri = std.Uri;
 const Value = std.json.Value;
 const WatchLogsRequest = log.WatchLogsRequest;
-const WebsocketSubscriptions = types.WebsocketSubscriptions;
+const Subscriptions = types.Subscriptions;
 const Wei = types.Wei;
 
 const IPC = @This();
@@ -1237,7 +1237,7 @@ pub fn unsubscribe(self: *IPC, sub_id: u128) !RPCResponse(bool) {
 ///
 /// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/eth-subscribe)
 pub fn watchNewBlocks(self: *IPC) !RPCResponse(u128) {
-    const request: EthereumRequest(struct { WebsocketSubscriptions }) = .{
+    const request: EthereumRequest(struct { Subscriptions }) = .{
         .params = .{.newHeads},
         .method = .eth_subscribe,
         .id = self.chain_id,
@@ -1257,7 +1257,7 @@ pub fn watchLogs(self: *IPC, opts: WatchLogsRequest) !RPCResponse(u128) {
     var request_buffer: [4 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    const request: EthereumRequest(struct { WebsocketSubscriptions, WatchLogsRequest }) = .{
+    const request: EthereumRequest(struct { Subscriptions, WatchLogsRequest }) = .{
         .params = .{ .logs, opts },
         .method = .eth_subscribe,
         .id = self.chain_id,
@@ -1271,7 +1271,7 @@ pub fn watchLogs(self: *IPC, opts: WatchLogsRequest) !RPCResponse(u128) {
 ///
 /// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/newpendingtransactions)
 pub fn watchTransactions(self: *IPC) !RPCResponse(u128) {
-    const request: EthereumRequest(struct { WebsocketSubscriptions }) = .{
+    const request: EthereumRequest(struct { Subscriptions }) = .{
         .params = .{.newPendingTransactions},
         .method = .eth_subscribe,
         .id = self.chain_id,

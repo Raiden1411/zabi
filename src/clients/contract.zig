@@ -28,6 +28,7 @@ const Hash = types.Hash;
 const InitOptsHttp = @import("Client.zig").InitOptions;
 const InitOptsIpc = @import("IPC.zig").InitOptions;
 const InitOptsWs = @import("WebSocket.zig").InitOptions;
+const TransactionReceipt = transaction.TransactionReceipt;
 const RPCResponse = types.RPCResponse;
 const UnpreparedTransactionEnvelope = transaction.UnpreparedTransactionEnvelope;
 const Wallet = @import("wallet.zig").Wallet;
@@ -109,6 +110,15 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
 
             return try self.wallet.sendTransaction(copy);
         }
+        /// Generates and returns an estimate of how much gas is necessary to allow the transaction to complete.
+        /// The transaction will not be added to the blockchain.
+        /// Note that the estimate may be significantly more than the amount of gas actually used by the transaction,
+        /// for a variety of reasons including EVM mechanics and node performance.
+        ///
+        /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
+        pub fn estimateGas(self: *ContractComptime(client_type), call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Gwei) {
+            return self.wallet.rpc_client.estimateGas(call_object, opts);
+        }
         /// Uses eth_call to query an contract information.
         /// Only abi items that are either `view` or `pure` will be allowed.
         /// It won't commit a transaction to the network.
@@ -141,48 +151,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
 
             return decoded;
         }
-        /// Encodes the function arguments based on the function abi item.
-        /// Only abi items that are either `payable` or `nonpayable` will be allowed.
-        /// It will send the transaction to the network and return the transaction hash.
-        ///
-        /// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
-        pub fn writeContractFunction(self: *ContractComptime(client_type), comptime func: Function, opts: FunctionOpts(func, UnpreparedTransactionEnvelope)) !RPCResponse(Hash) {
-            var copy = opts.overrides;
-
-            switch (func.stateMutability) {
-                .nonpayable, .payable => {},
-                inline else => return error.InvalidFunctionMutability,
-            }
-
-            const encoded = try func.encode(self.wallet.allocator, opts.args);
-            defer self.wallet.allocator.free(encoded);
-
-            if (copy.to == null)
-                return error.InvalidRequestTarget;
-
-            const value = copy.value orelse 0;
-            switch (func.stateMutability) {
-                .nonpayable => if (value != 0)
-                    return error.ValueInNonPayableFunction,
-                .payable => {},
-                inline else => return error.InvalidFunctionMutability,
-            }
-
-            copy.data = encoded;
-
-            return self.wallet.sendTransaction(copy);
-        }
-        /// Generates and returns an estimate of how much gas is necessary to allow the transaction to complete.
-        /// The transaction will not be added to the blockchain.
-        /// Note that the estimate may be significantly more than the amount of gas actually used by the transaction,
-        /// for a variety of reasons including EVM mechanics and node performance.
-        ///
-        /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
-        pub fn estimateGas(self: *ContractComptime(client_type), call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Gwei) {
-            return self.wallet.rpc_client.estimateGas(call_object, opts);
-        }
         /// Uses eth_call to simulate a contract interaction.
-        /// Only abi items that are either `view` or `pure` will be allowed.
         /// It won't commit a transaction to the network.
         /// I recommend watching this talk to better grasp this: https://www.youtube.com/watch?v=bEUtGLnCCYM (I promise it's not a rick roll)
         ///
@@ -222,6 +191,48 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             };
 
             return self.wallet.rpc_client.sendEthCall(call, .{});
+        }
+        /// Waits until a transaction gets mined and the receipt can be grabbed.
+        /// This is retry based on either the amount of `confirmations` given.
+        ///
+        /// If 0 confirmations are given the transaction receipt can be null in case
+        /// the transaction has not been mined yet. It's recommened to have atleast one confirmation
+        /// because some nodes might be slower to sync.
+        ///
+        /// RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
+        pub fn waitForTransactionReceipt(self: *ContractComptime(client_type), tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt) {
+            return self.wallet.waitForTransactionReceipt(tx_hash, confirmations);
+        }
+        /// Encodes the function arguments based on the function abi item.
+        /// Only abi items that are either `payable` or `nonpayable` will be allowed.
+        /// It will send the transaction to the network and return the transaction hash.
+        ///
+        /// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
+        pub fn writeContractFunction(self: *ContractComptime(client_type), comptime func: Function, opts: FunctionOpts(func, UnpreparedTransactionEnvelope)) !RPCResponse(Hash) {
+            var copy = opts.overrides;
+
+            switch (func.stateMutability) {
+                .nonpayable, .payable => {},
+                inline else => return error.InvalidFunctionMutability,
+            }
+
+            const encoded = try func.encode(self.wallet.allocator, opts.args);
+            defer self.wallet.allocator.free(encoded);
+
+            if (copy.to == null)
+                return error.InvalidRequestTarget;
+
+            const value = copy.value orelse 0;
+            switch (func.stateMutability) {
+                .nonpayable => if (value != 0)
+                    return error.ValueInNonPayableFunction,
+                .payable => {},
+                inline else => return error.InvalidFunctionMutability,
+            }
+
+            copy.data = encoded;
+
+            return self.wallet.sendTransaction(copy);
         }
     };
 }
@@ -294,6 +305,15 @@ pub fn Contract(comptime client_type: ClientType) type {
 
             return self.wallet.sendTransaction(copy);
         }
+        /// Generates and returns an estimate of how much gas is necessary to allow the transaction to complete.
+        /// The transaction will not be added to the blockchain.
+        /// Note that the estimate may be significantly more than the amount of gas actually used by the transaction,
+        /// for a variety of reasons including EVM mechanics and node performance.
+        ///
+        /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
+        pub fn estimateGas(self: *Contract(client_type), call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Gwei) {
+            return self.wallet.rpc_client.estimateGas(call_object, opts);
+        }
         /// Uses eth_call to query an contract information.
         /// Only abi items that are either `view` or `pure` will be allowed.
         /// It won't commit a transaction to the network.
@@ -327,49 +347,7 @@ pub fn Contract(comptime client_type: ClientType) type {
 
             return decoded;
         }
-        /// Encodes the function arguments based on the function abi item.
-        /// Only abi items that are either `payable` or `nonpayable` will be allowed.
-        /// It will send the transaction to the network and return the transaction hash.
-        ///
-        /// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
-        pub fn writeContractFunction(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: UnpreparedTransactionEnvelope) !RPCResponse(Hash) {
-            const function_item = try getAbiItem(self.abi, .function, function_name);
-            var copy = overrides;
-
-            switch (function_item.abiFunction.stateMutability) {
-                .nonpayable, .payable => {},
-                inline else => return error.InvalidFunctionMutability,
-            }
-
-            const encoded = try function_item.abiFunction.encode(self.wallet.allocator, function_args);
-            defer self.wallet.allocator.free(encoded);
-
-            if (copy.to == null)
-                return error.InvalidRequestTarget;
-
-            const value = copy.value orelse 0;
-            switch (function_item.abiFunction.stateMutability) {
-                .nonpayable => if (value != 0)
-                    return error.ValueInNonPayableFunction,
-                .payable => {},
-                inline else => return error.InvalidFunctionMutability,
-            }
-
-            copy.data = encoded;
-
-            return self.wallet.sendTransaction(copy);
-        }
-        /// Generates and returns an estimate of how much gas is necessary to allow the transaction to complete.
-        /// The transaction will not be added to the blockchain.
-        /// Note that the estimate may be significantly more than the amount of gas actually used by the transaction,
-        /// for a variety of reasons including EVM mechanics and node performance.
-        ///
-        /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
-        pub fn estimateGas(self: *Contract, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Gwei) {
-            return self.wallet.rpc_client.estimateGas(call_object, opts);
-        }
         /// Uses eth_call to simulate a contract interaction.
-        /// Only abi items that are either `view` or `pure` will be allowed.
         /// It won't commit a transaction to the network.
         /// I recommend watching this talk to better grasp this: https://www.youtube.com/watch?v=bEUtGLnCCYM (I promise it's not a rick roll)
         ///
@@ -411,10 +389,52 @@ pub fn Contract(comptime client_type: ClientType) type {
 
             return self.wallet.rpc_client.sendEthCall(call, .{});
         }
+        /// Waits until a transaction gets mined and the receipt can be grabbed.
+        /// This is retry based on either the amount of `confirmations` given.
+        ///
+        /// If 0 confirmations are given the transaction receipt can be null in case
+        /// the transaction has not been mined yet. It's recommened to have atleast one confirmation
+        /// because some nodes might be slower to sync.
+        ///
+        /// RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
+        pub fn waitForTransactionReceipt(self: *Contract(client_type), tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt) {
+            return self.wallet.waitForTransactionReceipt(tx_hash, confirmations);
+        }
+        /// Encodes the function arguments based on the function abi item.
+        /// Only abi items that are either `payable` or `nonpayable` will be allowed.
+        /// It will send the transaction to the network and return the transaction hash.
+        ///
+        /// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
+        pub fn writeContractFunction(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: UnpreparedTransactionEnvelope) !RPCResponse(Hash) {
+            const function_item = try getAbiItem(self.abi, .function, function_name);
+            var copy = overrides;
+
+            switch (function_item.abiFunction.stateMutability) {
+                .nonpayable, .payable => {},
+                inline else => return error.InvalidFunctionMutability,
+            }
+
+            const encoded = try function_item.abiFunction.encode(self.wallet.allocator, function_args);
+            defer self.wallet.allocator.free(encoded);
+
+            if (copy.to == null)
+                return error.InvalidRequestTarget;
+
+            const value = copy.value orelse 0;
+            switch (function_item.abiFunction.stateMutability) {
+                .nonpayable => if (value != 0)
+                    return error.ValueInNonPayableFunction,
+                .payable => {},
+                inline else => return error.InvalidFunctionMutability,
+            }
+
+            copy.data = encoded;
+
+            return self.wallet.sendTransaction(copy);
+        }
     };
 }
 
-// TODO: Handle overrides abi items
 /// Grabs the first match in the `Contract` abi
 fn getAbiItem(abi: Abi, abi_type: Abitype, name: ?[]const u8) !AbiItem {
     switch (abi_type) {

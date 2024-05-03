@@ -20,7 +20,7 @@ pub fn main() !void {
     var args = try std.process.argsWithAllocator(gpa.allocator());
     defer args.deinit();
 
-    const parsed = args_parse.parseArgs(Options, &args);
+    const parsed = args_parse.parseArgs(Options, gpa.allocator(), &args);
 
     var server: Server = undefined;
     defer server.deinit();

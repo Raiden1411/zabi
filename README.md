@@ -45,7 +45,8 @@ pub fn main() !void {
     var iter = try std.process.argsWithAllocator(gpa.allocator());
     defer iter.deinit();
 
-    const parsed = args_parser.parseArgs(CliOptions, &iter);
+    // Allocations are only made to pointer types.
+    const parsed = args_parser.parseArgs(CliOptions, gpa.allocator(), &iter);
 
     const uri = try std.Uri.parse(parsed.url);
 

@@ -5,6 +5,7 @@ const utils = @import("../utils/utils.zig");
 
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
+const FetchResult = std.http.Client.FetchResult;
 const Hardhat = @This();
 const Hash = types.Hash;
 const Hex = types.Hex;
@@ -56,7 +57,7 @@ pub const StartUpOptions = struct {
 allocator: std.mem.Allocator,
 /// The localhost address uri.
 localhost: std.Uri,
-/// The socket connection to anvil. Use `connectToHardhat` to populate this.
+/// The socket connection to hardhat. Use `initClient` to populate this.
 http_client: std.http.Client,
 
 pub fn initClient(self: *Hardhat, opts: StartUpOptions) !void {
@@ -70,8 +71,7 @@ pub fn initClient(self: *Hardhat, opts: StartUpOptions) !void {
 pub fn deinit(self: *Hardhat) void {
     self.http_client.deinit();
 }
-
-/// Sets the balance of a anvil account
+/// Sets the balance of a hardhat account
 pub fn setBalance(self: *Hardhat, address: Address, balance: u256) !void {
     const request: HardhatRequest(struct { Address, u256 }) = .{ .params = .{ address, balance }, .method = .hardhat_setBalance };
 
@@ -80,7 +80,6 @@ pub fn setBalance(self: *Hardhat, address: Address, balance: u256) !void {
 
     return self.sendRpcRequest(req_body);
 }
-
 /// Changes the contract code of a address.
 pub fn setCode(self: *Hardhat, address: Address, code: Hex) !void {
     const request: HardhatRequest(struct { Address, Hex }) = .{ .params = .{ address, code }, .method = .set_Code };
@@ -90,8 +89,7 @@ pub fn setCode(self: *Hardhat, address: Address, code: Hex) !void {
 
     return self.sendRpcRequest(req_body);
 }
-
-/// Changes the rpc of the anvil connection
+/// Changes the rpc of the hardhat connection
 pub fn setRpcUrl(self: *Hardhat, rpc_url: []const u8) !void {
     const request: HardhatRequest(struct { []const u8 }) = .{ .params = .{rpc_url}, .method = .hardhat_setRpcUrl };
 
@@ -100,7 +98,6 @@ pub fn setRpcUrl(self: *Hardhat, rpc_url: []const u8) !void {
 
     return self.sendRpcRequest(req_body);
 }
-
 /// Changes the coinbase address
 pub fn setCoinbase(self: *Hardhat, address: Address) !void {
     const request: HardhatRequest(struct { Address }) = .{ .params = .{address}, .method = .set_Coinbase };
@@ -110,8 +107,7 @@ pub fn setCoinbase(self: *Hardhat, address: Address) !void {
 
     return self.sendRpcRequest(req_body);
 }
-
-/// Enable anvil verbose logging for anvil.
+/// Enable hardhat verbose logging for hardhat.
 pub fn setLoggingEnable(self: *Hardhat) !void {
     const request: HardhatRequest(struct {}) = .{ .params = .{}, .method = .set_LoggingEnabled };
 
@@ -120,8 +116,7 @@ pub fn setLoggingEnable(self: *Hardhat) !void {
 
     return self.sendRpcRequest(req_body);
 }
-
-/// Changes the min gasprice from the anvil fork
+/// Changes the min gasprice from the hardhat fork
 pub fn setMinGasPrice(self: *Hardhat, new_price: u64) !void {
     const request: HardhatRequest(struct { u64 }) = .{ .params = .{new_price}, .method = .hardhat_setMinGasPrice };
 
@@ -130,7 +125,7 @@ pub fn setMinGasPrice(self: *Hardhat, new_price: u64) !void {
 
     return self.sendRpcRequest(req_body);
 }
-
+/// Changes the next blocks base fee.
 pub fn setNextBlockBaseFeePerGas(self: *Hardhat, new_price: u64) !void {
     const request: HardhatRequest(struct { u64 }) = .{ .params = .{new_price}, .method = .hardhat_setNextBlockBaseFeePerGas };
 
@@ -139,7 +134,6 @@ pub fn setNextBlockBaseFeePerGas(self: *Hardhat, new_price: u64) !void {
 
     return self.sendRpcRequest(req_body);
 }
-
 /// Changes the networks chainId
 pub fn setChainId(self: *Hardhat, new_id: u64) !void {
     const request: HardhatRequest(struct { u64 }) = .{ .params = .{new_id}, .method = .hardhat_setChainId };
@@ -149,7 +143,6 @@ pub fn setChainId(self: *Hardhat, new_id: u64) !void {
 
     return self.sendRpcRequest(req_body);
 }
-
 /// Changes the nonce of a account
 pub fn setNonce(self: *Hardhat, address: []const u8, new_nonce: u64) !void {
     const request: HardhatRequest(struct { Address, u64 }) = .{ .params = .{ address, new_nonce }, .method = .hardhat_setNonce };
@@ -159,7 +152,6 @@ pub fn setNonce(self: *Hardhat, address: []const u8, new_nonce: u64) !void {
 
     return self.sendRpcRequest(req_body);
 }
-
 /// Drops a pending transaction from the mempool
 pub fn dropTransaction(self: *Hardhat, tx_hash: Hash) !void {
     const request: HardhatRequest(struct { Hash }) = .{ .params = .{tx_hash}, .method = .hardhat_dropTransaction };
@@ -169,7 +161,6 @@ pub fn dropTransaction(self: *Hardhat, tx_hash: Hash) !void {
 
     return self.sendRpcRequest(req_body);
 }
-
 /// Mine a pending transaction
 pub fn mine(self: *Hardhat, amount: u64, time_in_seconds: ?u64) !void {
     const request: HardhatRequest(struct { u64, ?u64 }) = .{ .params = .{ amount, time_in_seconds }, .method = .hardhat_mine };
@@ -179,7 +170,6 @@ pub fn mine(self: *Hardhat, amount: u64, time_in_seconds: ?u64) !void {
 
     return self.sendRpcRequest(req_body);
 }
-
 /// Reset the fork
 pub fn reset(self: *Hardhat, reset_config: ?Reset) !void {
     const request: HardhatRequest(struct { ?Reset }) = .{ .params = .{reset_config}, .method = .hardhat_reset };
@@ -189,7 +179,6 @@ pub fn reset(self: *Hardhat, reset_config: ?Reset) !void {
 
     return self.sendRpcRequest(req_body);
 }
-
 /// Impersonate a EOA or contract. Call `stopImpersonatingAccount` after.
 pub fn impersonateAccount(self: *Hardhat, address: Address) !void {
     const request: HardhatRequest(struct { Address }) = .{ .params = .{address}, .method = .hardhat_impersonateAccount };
@@ -199,7 +188,6 @@ pub fn impersonateAccount(self: *Hardhat, address: Address) !void {
 
     return self.sendRpcRequest(req_body);
 }
-
 /// Stops impersonating a EOA or contract.
 pub fn stopImpersonatingAccount(self: *Hardhat, address: Address) !void {
     const request: HardhatRequest(struct { Address }) = .{ .params = .{address}, .method = .hardhat_impersonateAccount };
@@ -210,6 +198,7 @@ pub fn stopImpersonatingAccount(self: *Hardhat, address: Address) !void {
     return self.sendRpcRequest(req_body);
 }
 
+// Internal
 fn sendRpcRequest(self: *Hardhat, req_body: []u8) !void {
     var body = std.ArrayList(u8).init(self.allocator);
     defer body.deinit();

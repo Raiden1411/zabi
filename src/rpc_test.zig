@@ -37,7 +37,7 @@ pub fn main() !void {
     var args = try std.process.argsWithAllocator(gpa.allocator());
     defer args.deinit();
 
-    const parsed = args_parser.parseArgs(CliArgs, &args);
+    const parsed = args_parser.parseArgs(CliArgs, gpa.allocator(), &args);
 
     const uri = try std.Uri.parse("http://localhost:8545/");
 

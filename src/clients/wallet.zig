@@ -11,7 +11,6 @@ const utils = @import("../utils/utils.zig");
 const AccessList = transaction.AccessList;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
-const Anvil = @import("../tests/Anvil.zig");
 const Blob = ckzg4844.KZG4844.Blob;
 const Chains = types.PublicChains;
 const KZG4844 = ckzg4844.KZG4844;

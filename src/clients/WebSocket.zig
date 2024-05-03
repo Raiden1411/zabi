@@ -15,7 +15,6 @@ const ws = @import("ws");
 const AccessListResult = transaction.AccessListResult;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
-const Anvil = @import("../tests/Anvil.zig");
 const BalanceBlockTag = block.BalanceBlockTag;
 const BalanceRequest = block.BalanceRequest;
 const Block = block.Block;
@@ -60,7 +59,7 @@ const TxPoolStatus = txpool.TxPoolStatus;
 const Uri = std.Uri;
 const Value = std.json.Value;
 const WatchLogsRequest = log.WatchLogsRequest;
-const WebsocketSubscriptions = types.WebsocketSubscriptions;
+const Subscriptions = types.Subscriptions;
 const Wei = types.Wei;
 
 const WebSocketHandler = @This();
@@ -105,7 +104,7 @@ pub const InitOptions = struct {
     onEvent: ?*const fn (args: JsonParsed(Value)) anyerror!void = null,
     /// Callback function for everytime an error is caught.
     onError: ?*const fn (args: []const u8) anyerror!void = null,
-    /// Retry count for failed connections to anvil. The process takes some ms to start so this is necessary
+    /// Retry count for failed connections to the server.
     retries: u8 = 5,
     /// The interval to retry the connection. This will get multiplied in ns_per_ms.
     pooling_interval: u64 = 2_000,
@@ -133,7 +132,7 @@ onEvent: ?*const fn (args: JsonParsed(Value)) anyerror!void,
 onError: ?*const fn (args: []const u8) anyerror!void,
 /// The interval to retry the connection. This will get multiplied in ns_per_ms.
 pooling_interval: u64,
-/// Retry count for failed connections to anvil. The process takes some ms to start so this is necessary
+/// Retry count for failed connections to the server.
 retries: u8,
 /// The uri of the connection
 uri: std.Uri,
@@ -1274,7 +1273,7 @@ pub fn unsubscribe(self: *WebSocketHandler, sub_id: u128) !RPCResponse(bool) {
 ///
 /// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/eth-subscribe)
 pub fn watchNewBlocks(self: *WebSocketHandler) !RPCResponse(u128) {
-    const request: EthereumRequest(struct { WebsocketSubscriptions }) = .{
+    const request: EthereumRequest(struct { Subscriptions }) = .{
         .params = .{.newHeads},
         .method = .eth_subscribe,
         .id = self.chain_id,
@@ -1294,7 +1293,7 @@ pub fn watchLogs(self: *WebSocketHandler, opts: WatchLogsRequest) !RPCResponse(u
     var request_buffer: [4 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
-    const request: EthereumRequest(struct { WebsocketSubscriptions, WatchLogsRequest }) = .{
+    const request: EthereumRequest(struct { Subscriptions, WatchLogsRequest }) = .{
         .params = .{ .logs, opts },
         .method = .eth_subscribe,
         .id = self.chain_id,
@@ -1308,7 +1307,7 @@ pub fn watchLogs(self: *WebSocketHandler, opts: WatchLogsRequest) !RPCResponse(u
 ///
 /// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/newpendingtransactions)
 pub fn watchTransactions(self: *WebSocketHandler) !RPCResponse(u128) {
-    const request: EthereumRequest(struct { WebsocketSubscriptions }) = .{
+    const request: EthereumRequest(struct { Subscriptions }) = .{
         .params = .{.newPendingTransactions},
         .method = .eth_subscribe,
         .id = self.chain_id,

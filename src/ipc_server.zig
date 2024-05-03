@@ -11,7 +11,7 @@ pub fn main() !void {
     var args = try std.process.argsWithAllocator(gpa.allocator());
     defer args.deinit();
 
-    const parsed = args_parse.parseArgs(InitOpts, &args);
+    const parsed = args_parse.parseArgs(InitOpts, gpa.allocator(), &args);
 
     var server: IpcServer = undefined;
     defer server.deinit();

@@ -34,7 +34,7 @@ const InitOptions = struct {
 const InitOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
     allocator: Allocator,
-    /// Fork url for anvil to fork from
+    /// Uri of the target server
     uri: std.Uri,
     /// The client chainId.
     chain_id: ?Chains = null,

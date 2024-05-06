@@ -175,7 +175,7 @@ pub fn encodeAbiParametersLeaky(alloc: Allocator, params: []const AbiParameter, 
     return data;
 }
 
-/// Encode values based on solidities `encodePacked`.
+/// Encode values based on solidity's `encodePacked`.
 /// Solidity types are infered from zig ones since it closely follows them.
 ///
 /// Caller owns the memory and it must free them.

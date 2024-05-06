@@ -175,6 +175,100 @@ pub fn encodeAbiParametersLeaky(alloc: Allocator, params: []const AbiParameter, 
     return data;
 }
 
+/// Encode values based on solidities `encodePacked`.
+/// Solidity types are infered from zig ones since it closely follows them.
+///
+/// Caller owns the memory and it must free them.
+pub fn encodePacked(allocator: Allocator, values: anytype) ![]u8 {
+    const fields = @typeInfo(@TypeOf(values));
+
+    if (fields != .Struct or !fields.Struct.is_tuple)
+        @compileError("Expected " ++ @typeName(@TypeOf(values)) ++ " to be a tuple value instead");
+
+    var list = std.ArrayList(u8).init(allocator);
+    errdefer list.deinit();
+
+    inline for (values) |value| {
+        try encodePackedParameters(value, &list.writer(), false);
+    }
+
+    return list.toOwnedSlice();
+}
+
+// Internal
+
+fn encodePackedParameters(value: anytype, writer: anytype, is_slice: bool) !void {
+    const info = @typeInfo(@TypeOf(value));
+
+    switch (info) {
+        .Bool => {
+            const as_int = @intFromBool(value);
+            if (is_slice) {
+                try writer.writeInt(u256, as_int, .big);
+            } else try writer.writeInt(u8, as_int, .big);
+        },
+        .Int => return if (is_slice) writer.writeInt(u256, value, .big) else writer.writeInt(@TypeOf(value), value, .big),
+        .ComptimeInt => {
+            var buffer: [32]u8 = undefined;
+            const size = utils.formatInt(@intCast(value), &buffer);
+
+            if (is_slice)
+                try writer.writeAll(buffer[0..])
+            else
+                try writer.writeAll(buffer[32 - size ..]);
+        },
+        .Optional => |opt_info| {
+            if (value) |val| {
+                return encodePackedParameters(@as(opt_info.child, val), writer, is_slice);
+            }
+        },
+        .Enum, .EnumLiteral => return encodePackedParameters(@tagName(value), writer, is_slice),
+        .ErrorSet => return encodePackedParameters(@errorName(value), writer, is_slice),
+        .Vector => |vec_info| {
+            for (0..vec_info.len) |i| {
+                try encodePackedParameters(value[i], writer, true);
+            }
+        },
+        .Array => |arr_info| {
+            if (arr_info.child == u8) {
+                if (arr_info.len == 20) {
+                    if (is_slice) {
+                        var buffer: [32]u8 = [_]u8{0} ** 32;
+                        @memcpy(buffer[12..], value[0..]);
+                        return writer.writeAll(buffer[0..]);
+                    } else return writer.writeAll(&value);
+                }
+
+                return writer.writeAll(&value);
+            }
+
+            for (value) |val| {
+                try encodePackedParameters(val, writer, true);
+            }
+        },
+        .Pointer => |ptr_info| {
+            switch (ptr_info.size) {
+                .One => return encodePackedParameters(value.*, writer, is_slice),
+                .Slice => {
+                    if (ptr_info.child == u8)
+                        return writer.writeAll(value);
+
+                    for (value) |val| {
+                        try encodePackedParameters(val, writer, true);
+                    }
+                },
+                else => @compileError("Unsupported ponter type '" ++ @typeName(@TypeOf(value)) ++ "'"),
+            }
+        },
+        .Struct => |struct_info| {
+            inline for (struct_info.fields) |field| {
+                try encodePackedParameters(@field(value, field.name), writer, if (struct_info.is_tuple) true else false);
+            }
+        },
+        else => @compileError("Unsupported type '" ++ @typeName(@TypeOf(value)) ++ "'"),
+    }
+}
+
 fn encodeParameters(allocator: Allocator, params: []PreEncodedParam) ![]u8 {
     var s_size: usize = 0;
 
@@ -560,6 +654,58 @@ test "Errors" {
     try testing.expectError(error.InvalidLength, encodeAbiParameters(testing.allocator, &.{.{ .type = .{ .fixedBytes = 55 }, .name = "foo" }}, .{"foo"}));
 }
 
+test "EncodePacked" {
+    try testEncodePacked("45", .{69});
+    try testEncodePacked("00", .{false});
+    try testEncodePacked("01", .{true});
+    try testEncodePacked("01", .{true});
+    {
+        var buffer: [20]u8 = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "4648451b5f87ff8f0f7d622bd40574bb97e25980");
+        try testEncodePacked("4648451b5f87ff8f0f7d622bd40574bb97e25980", .{buffer});
+    }
+    try testEncodePacked("666f6f626172", .{ "foo", "bar" });
+    try testEncodePacked("666f6f626172", .{&.{ "foo", "bar" }});
+    {
+        const foo: []const []const u8 = &.{ "foo", "bar" };
+        try testEncodePacked("666f6f626172", .{foo});
+    }
+    {
+        const foo: []const u24 = &.{ 69420, 69420 };
+        try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", .{foo});
+    }
+    {
+        const foo: [2]u24 = [2]u24{ 69420, 69420 };
+        try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", .{foo});
+    }
+    {
+        const foo: struct { u32, u32 } = .{ 69420, 69420 };
+        try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", .{foo});
+    }
+    {
+        const foo: @Vector(2, u32) = .{ 69420, 69420 };
+        try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", .{foo});
+    }
+    try testEncodePacked("00010f2c", .{@as(u32, @intCast(69420))});
+    {
+        const foo: struct { foo: u32, bar: bool } = .{ .foo = 69420, .bar = true };
+        try testEncodePacked("00010f2c01", .{foo});
+    }
+    try testEncodePacked("666f6f", .{.foo});
+    {
+        const foo: ?u8 = 69;
+        try testEncodePacked("45", .{foo});
+    }
+    {
+        const foo: enum { foo } = .foo;
+        try testEncodePacked("666f6f", .{foo});
+    }
+    {
+        const foo: error{foo} = error.foo;
+        try testEncodePacked("666f6f", .{foo});
+    }
+}
+
 test "Selectors" {
     _ = @import("selector_test.zig");
 }
@@ -569,6 +715,16 @@ fn testEncode(expected: []const u8, comptime params: []const AbiParameter, value
     defer encoded.deinit();
 
     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded.data)});
+    defer testing.allocator.free(hex);
+
+    try testing.expectEqualStrings(expected, hex);
+}
+
+fn testEncodePacked(expected: []const u8, values: anytype) !void {
+    const encoded = try encodePacked(testing.allocator, values);
+    defer testing.allocator.free(encoded);
+
+    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings(expected, hex);

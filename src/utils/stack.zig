@@ -5,6 +5,11 @@ const ArrayList = std.ArrayList;
 const Condition = std.Thread.Condition;
 const Mutex = std.Thread.Mutex;
 
+/// Stack implemented using a `ArrayList` and
+/// with thread safety features added on to it.
+///
+/// If memory is allocated on the stack items, `deinit`
+/// will not clear all memory. You must clear them one by one.
 pub fn Stack(comptime T: type) type {
     return struct {
         const Self = Stack(T);

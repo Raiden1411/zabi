@@ -53,6 +53,7 @@ const ProofResult = proof.ProofResult;
 const ProofBlockTag = block.ProofBlockTag;
 const ProofRequest = proof.ProofRequest;
 const RPCResponse = types.RPCResponse;
+const Stack = @import("../utils/stack.zig").Stack;
 const Stream = std.net.Stream;
 const SyncProgress = sync.SyncStatus;
 const Transaction = transaction.Transaction;
@@ -123,7 +124,7 @@ chain_id: usize,
 /// Channel used to communicate between threads on subscription events.
 sub_channel: *Channel(JsonParsed(Value)),
 /// Channel used to communicate between threads on rpc events.
-rpc_channel: *Channel(JsonParsed(Value)),
+rpc_channel: *Stack(JsonParsed(Value)),
 /// Mutex to manage locks between threads
 mutex: Mutex = .{},
 /// Callback function for when the connection is closed.
@@ -142,7 +143,7 @@ stream: Stream,
 /// Starts the IPC client and create the connection.
 /// This will also start the read loop in a seperate thread.
 pub fn init(self: *IPC, opts: InitOptions) !void {
-    const rpc_channel = try opts.allocator.create(Channel(JsonParsed(Value)));
+    const rpc_channel = try opts.allocator.create(Stack(JsonParsed(Value)));
     errdefer opts.allocator.destroy(rpc_channel);
 
     const sub_channel = try opts.allocator.create(Channel(JsonParsed(Value)));
@@ -164,7 +165,7 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
         .stream = undefined,
     };
 
-    self.rpc_channel.* = Channel(JsonParsed(Value)).init(self.allocator);
+    self.rpc_channel.* = Stack(JsonParsed(Value)).init(self.allocator, null);
     self.sub_channel.* = Channel(JsonParsed(Value)).init(self.allocator);
     errdefer {
         self.rpc_channel.deinit();
@@ -189,7 +190,7 @@ pub fn deinit(self: *IPC) void {
         response.deinit();
     }
 
-    while (self.rpc_channel.getOrNull()) |response| {
+    while (self.rpc_channel.popOrNull()) |response| {
         response.deinit();
     }
 
@@ -507,7 +508,7 @@ pub fn getContractCode(self: *IPC, opts: BalanceRequest) !RPCResponse(Hex) {
 /// Only call this if you are sure that the channel has messages
 /// because this will block until a message is able to be fetched.
 pub fn getCurrentRpcEvent(self: *IPC) JsonParsed(Value) {
-    return self.rpc_channel.get();
+    return self.rpc_channel.pop();
 }
 /// Get the first event of the subscription channel.
 ///
@@ -1105,12 +1106,7 @@ pub fn readLoop(self: *IPC) !void {
             continue;
         }
 
-        if (parsed.value.object.getKey("result") != null) {
-            self.rpc_channel.put(parsed);
-            continue;
-        }
-
-        return error.InvalidJsonMessage;
+        self.rpc_channel.push(parsed);
     }
 }
 /// Function prepared to start the read loop in a seperate thread.

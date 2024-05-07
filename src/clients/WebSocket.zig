@@ -49,6 +49,7 @@ const ProofResult = proof.ProofResult;
 const ProofBlockTag = block.ProofBlockTag;
 const ProofRequest = proof.ProofRequest;
 const RPCResponse = types.RPCResponse;
+const Stack = @import("../utils/stack.zig").Stack;
 const SyncProgress = sync.SyncStatus;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
@@ -121,7 +122,7 @@ chain_id: usize,
 /// Channel used to communicate between threads on subscription events.
 sub_channel: *Channel(JsonParsed(Value)),
 /// Channel used to communicate between threads on rpc events.
-rpc_channel: *Channel(JsonParsed(Value)),
+rpc_channel: *Stack(JsonParsed(Value)),
 /// Mutex to manage locks between threads
 mutex: Mutex = .{},
 /// Callback function for when the connection is closed.
@@ -176,7 +177,7 @@ pub fn handle(self: *WebSocketHandler, message: ws.Message) !void {
                 return self.sub_channel.put(parsed);
             }
 
-            return self.rpc_channel.put(parsed);
+            return self.rpc_channel.push(parsed);
         },
         else => {},
     }
@@ -188,7 +189,7 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) InitErrors!void {
     const sub_channel = try opts.allocator.create(Channel(JsonParsed(Value)));
     errdefer opts.allocator.destroy(sub_channel);
 
-    const rpc_channel = try opts.allocator.create(Channel(JsonParsed(Value)));
+    const rpc_channel = try opts.allocator.create(Stack(JsonParsed(Value)));
     errdefer opts.allocator.destroy(rpc_channel);
 
     const ws_client = try opts.allocator.create(ws.Client);
@@ -211,7 +212,7 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) InitErrors!void {
         .ws_client = ws_client,
     };
 
-    self.rpc_channel.* = Channel(JsonParsed(Value)).init(self.allocator);
+    self.rpc_channel.* = Stack(JsonParsed(Value)).init(self.allocator, null);
     self.sub_channel.* = Channel(JsonParsed(Value)).init(self.allocator);
     errdefer {
         self.rpc_channel.deinit();
@@ -239,7 +240,7 @@ pub fn deinit(self: *WebSocketHandler) void {
         node.deinit();
     }
 
-    while (self.rpc_channel.getOrNull()) |node| {
+    while (self.rpc_channel.popOrNull()) |node| {
         node.deinit();
     }
 
@@ -594,7 +595,7 @@ pub fn getContractCode(self: *WebSocketHandler, opts: BalanceRequest) !RPCRespon
 /// Only call this if you are sure that the channel has messages
 /// because this will block until a message is able to be fetched.
 pub fn getCurrentRpcEvent(self: *WebSocketHandler) JsonParsed(Value) {
-    return self.rpc_channel.get();
+    return self.rpc_channel.pop();
 }
 /// Get the first event of the subscription channel.
 ///

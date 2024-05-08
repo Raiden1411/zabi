@@ -43,6 +43,8 @@ pub const DecodeOptions = struct {
     max_bytes: u16 = 1024,
     /// By default this is false.
     allow_junk_data: bool = false,
+    /// Tell the decoder if an allocation should be made.
+    allocate_when: enum { alloc_always, alloc_if_needed } = .alloc_if_needed,
 };
 
 pub const DecodedErrors = error{ InvalidBits, InvalidEnumType, InvalidAbiParameter, InvalidSignedness, InvalidArraySize, JunkData, InvalidAbiSignature, BufferOverrun, InvalidLength, NoSpaceLeft, InvalidDecodeDataSize } || Allocator.Error || std.fmt.ParseIntError;
@@ -317,7 +319,11 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
                     return error.BufferOverrun;
             }
 
-            return .{ .consumed = 32, .data = result, .bytes_read = read };
+            return .{
+                .consumed = 32,
+                .data = result,
+                .bytes_read = read,
+            };
         },
         .Pointer => |ptr_info| {
             switch (ptr_info.size) {
@@ -325,11 +331,21 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
                 .Slice => {
                     if (ptr_info.child == u8) {
                         const decoded = switch (param.type) {
-                            .string, .bytes => try decodeString(hex, position),
+                            .string, .bytes => if (ptr_info.is_const) try decodeString(hex, position) else try decodeBytes(hex, position),
                             else => return error.InvalidAbiParameter,
                         };
                         if (decoded.bytes_read > opts.max_bytes)
                             return error.BufferOverrun;
+
+                        if (opts.allocate_when == .alloc_always) {
+                            const dupe = try allocator.dupe(u8, decoded.data);
+
+                            return .{
+                                .data = dupe,
+                                .consumed = decoded.consumed,
+                                .bytes_read = decoded.bytes_read,
+                            };
+                        }
 
                         return decoded;
                     }
@@ -337,7 +353,13 @@ fn decodeItem(allocator: Allocator, comptime T: type, param: AbiParameter, hex: 
                     if (param.type != .dynamicArray)
                         return error.InvalidAbiParameter;
 
-                    const abi_param = .{ .type = param.type.dynamicArray.*, .name = param.name, .internalType = param.internalType, .components = param.components };
+                    const abi_param = .{
+                        .type = param.type.dynamicArray.*,
+                        .name = param.name,
+                        .internalType = param.internalType,
+                        .components = param.components,
+                    };
+
                     const offset = try decodeNumber(usize, hex, position);
                     const length = try decodeNumber(usize, hex, offset.data);
 

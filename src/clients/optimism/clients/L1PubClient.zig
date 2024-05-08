@@ -17,6 +17,8 @@ const withdrawal_types = @import("../types/withdrawl.zig");
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Clients = @import("../../wallet.zig").WalletClients;
+const Game = withdrawal_types.Game;
+const GameResult = withdrawal_types.GameResult;
 const Hash = types.Hash;
 const InitOptsHttp = clients.PubClient.InitOptions;
 const InitOptsIpc = clients.IpcClient.InitOptions;
@@ -28,6 +30,7 @@ const Message = withdrawal_types.Message;
 const OpMainNetContracts = contracts.OpMainNetContracts;
 const ProvenWithdrawal = withdrawal_types.ProvenWithdrawal;
 const PubClient = clients.PubClient;
+const SemanticVersion = std.SemanticVersion;
 const TransactionDeposited = op_transactions.TransactionDeposited;
 const WebSocketClient = clients.WebSocket;
 const Withdrawal = withdrawal_types.Withdrawal;
@@ -69,7 +72,7 @@ pub fn L1Client(comptime client_type: Clients) type {
 
             if (opts.chain_id) |id| {
                 switch (id) {
-                    .ethereum => {},
+                    .ethereum, .sepolia => {},
                     else => return error.InvalidChain,
                 }
             }
@@ -86,8 +89,93 @@ pub fn L1Client(comptime client_type: Clients) type {
         pub fn deinit(self: *L1) void {
             self.rpc_client.deinit();
             self.allocator.destroy(self.rpc_client);
+        }
+        /// Retrieves a valid dispute game on an L2 that occurred after a provided L2 block number.
+        /// Returns an error if no game was found.
+        ///
+        /// `limit` is the max amount of game to search
+        ///
+        /// `block_number` to filter only games that occurred after this block.
+        ///
+        /// `strategy` is weather to provide the latest game or one at random with the scope of the games that where found given the filters.
+        pub fn getGame(self: *L1, limit: usize, block_number: u256, strategy: enum { random, latest, oldest }) !GameResult {
+            const games = try self.getGames(limit, block_number);
+            defer self.allocator.free(games);
 
-            self.* = undefined;
+            var rand = std.rand.DefaultPrng.init(block_number * limit);
+
+            if (games.len == 0)
+                return error.GameNotFound;
+
+            switch (strategy) {
+                .latest => return games[0],
+                .oldest => return games[games.len - 1],
+                .random => {
+                    const random_int = rand.random().intRangeAtMost(usize, 0, games.len - 1);
+
+                    return games[random_int];
+                },
+            }
+        }
+        /// Retrieves the dispute games for an L2
+        ///
+        /// `limit` is the max amount of game to search
+        ///
+        /// `block_number` to filter only games that occurred after this block.
+        /// If null then it will return all games.
+        pub fn getGames(self: *L1, limit: usize, block_number: ?u256) ![]const GameResult {
+            const game_count_selector: []u8 = @constCast(&[_]u8{ 0x4d, 0x19, 0x75, 0xb4 });
+            const game_type_selector: []u8 = @constCast(&[_]u8{ 0x3c, 0x9f, 0x39, 0x7c });
+
+            const game_count = try self.rpc_client.sendEthCall(.{ .london = .{
+                .to = self.contracts.disputeGameFactory,
+                .data = game_count_selector,
+            } }, .{});
+            defer game_count.deinit();
+
+            const game_type = try self.rpc_client.sendEthCall(.{ .london = .{
+                .to = self.contracts.portalAddress,
+                .data = game_type_selector,
+            } }, .{});
+            defer game_type.deinit();
+
+            const count = try utils.bytesToInt(u256, game_count.response);
+            const gtype = try utils.bytesToInt(u32, game_type.response);
+
+            const encoded = try abi_items.find_latest_games.encode(self.allocator, .{ gtype, @max(0, count - 1), @min(limit, count) });
+            defer self.allocator.free(encoded);
+
+            const games = try self.rpc_client.sendEthCall(.{ .london = .{
+                .to = self.contracts.disputeGameFactory,
+                .data = encoded,
+            } }, .{});
+            defer games.deinit();
+
+            const decoded = try decoder.decodeAbiParametersRuntime(self.allocator, struct { []const Game }, abi_items.find_latest_games.outputs, games.response, .{});
+            defer self.allocator.free(decoded[0]);
+
+            var list = std.ArrayList(GameResult).init(self.allocator);
+            errdefer list.deinit();
+
+            for (decoded[0]) |game| {
+                const block_num = try utils.bytesToInt(u256, game.extraData);
+
+                if (block_number) |number| {
+                    if (number > block_num)
+                        continue;
+                }
+
+                try list.ensureUnusedCapacity(1);
+                list.appendAssumeCapacity(.{
+                    .l2BlockNumber = block_num,
+                    .index = game.index,
+                    .metadata = game.metadata,
+                    .timestamp = game.timestamp,
+                    .rootClaim = game.rootClaim,
+                });
+            }
+
+            return list.toOwnedSlice();
         }
         /// Returns if a withdrawal has finalized or not.
         pub fn getFinalizedWithdrawals(self: *L1, withdrawal_hash: Hash) !bool {
@@ -174,6 +262,23 @@ pub fn L1Client(comptime client_type: Clients) type {
             defer data.deinit();
 
             return utils.bytesToInt(u256, data.response);
+        }
+        /// Retrieves the current version of the Portal contract.
+        ///
+        /// If the major is higher than 3 it means that fault proofs are enabled.
+        pub fn getPortalVersion(self: *L1) !SemanticVersion {
+            const selector_version: []u8 = @constCast(&[_]u8{ 0x54, 0xfd, 0x4d, 0x50 });
+            const version = try self.rpc_client.sendEthCall(.{ .london = .{
+                .to = self.contracts.portalAddress,
+                .data = selector_version,
+            } }, .{});
+            defer version.deinit();
+
+            const decode = try decoder.decodeAbiParameters(self.allocator, &.{
+                .{ .type = .{ .string = {} }, .name = "" },
+            }, version.response, .{});
+
+            return SemanticVersion.parse(decode[0]);
         }
         /// Gets a proven withdrawl.
         pub fn getProvenWithdrawals(self: *L1, withdrawal_hash: Hash) !ProvenWithdrawal {
@@ -363,4 +468,25 @@ pub fn L1Client(comptime client_type: Clients) type {
             std.time.sleep(time * 1000);
         }
     };
+}
+
+test "Foo" {
+    const uri = try std.Uri.parse("http://localhost:8545/");
+
+    var op: L1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{
+        .uri = uri,
+        .allocator = testing.allocator,
+        .chain_id = .sepolia,
+    }, .{ .portalAddress = utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC") catch unreachable });
+
+    const version = try op.getPortalVersion();
+
+    std.debug.print("Foo: {any}", .{version});
+    // const games = try op.getGames(5, 69);
+    // testing.allocator.free(games);
+    //
+    // try testing.expectEqual(games.len, 5);
 }

@@ -60,3 +60,19 @@ pub const ProvenWithdrawal = struct {
     timestamp: u128,
     l2OutputIndex: u128,
 };
+
+pub const Game = struct {
+    index: u256,
+    metadata: Hash,
+    timestamp: u64,
+    rootClaim: Hash,
+    extraData: Hex,
+};
+
+pub const GameResult = struct {
+    index: u256,
+    metadata: Hash,
+    timestamp: u64,
+    rootClaim: Hash,
+    l2BlockNumber: u256,
+};

@@ -76,3 +76,9 @@ pub const GameResult = struct {
     rootClaim: Hash,
     l2BlockNumber: u256,
 };
+
+pub const NextGameTimings = struct {
+    interval: i64,
+    seconds: i64,
+    timestamp: ?i64,
+};

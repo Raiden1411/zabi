@@ -27,6 +27,7 @@ const IpcClient = clients.IpcClient;
 const Logs = log.Logs;
 const L2Output = op_types.L2Output;
 const Message = withdrawal_types.Message;
+const NextGameTimings = withdrawal_types.NextGameTimings;
 const OpMainNetContracts = contracts.OpMainNetContracts;
 const ProvenWithdrawal = withdrawal_types.ProvenWithdrawal;
 const PubClient = clients.PubClient;
@@ -350,6 +351,52 @@ pub fn L1Client(comptime client_type: Clients) type {
 
             return if (time_since < 0) @intCast(0) else @intCast(time - time_since);
         }
+        pub fn getSecondsUntilNextGame(self: *L1, interval_buffer: f64, l2BlockNumber: u64) !NextGameTimings {
+            const games = try self.getGames(10, null);
+            defer self.allocator.free(games);
+
+            var elapsed_time: i64 = 0;
+            var block_interval: i64 = 0;
+
+            for (games, 1..) |game, i| {
+                if (i == games.len)
+                    break;
+
+                const time = try std.math.sub(i64, @intCast(games[i].timestamp), @intCast(game.timestamp));
+                const block = try std.math.sub(i64, @intCast(games[i].l2BlockNumber), @intCast(game.l2BlockNumber));
+
+                elapsed_time = elapsed_time - (time - block);
+                block_interval = block_interval - block;
+            }
+
+            elapsed_time = try std.math.divCeil(isize, elapsed_time, @intCast(games.len - 1));
+            block_interval = try std.math.divCeil(isize, block_interval, @intCast(games.len - 1));
+
+            const latest_game = games[0];
+            const latest_timestamp: i64 = @intCast(latest_game.timestamp * 1000);
+
+            const interval: i64 = @intFromFloat(@ceil(@as(f64, @floatFromInt(elapsed_time)) * interval_buffer) + 1);
+            const now = std.time.timestamp() * 1000;
+
+            const seconds: i64 = blk: {
+                if (now < latest_timestamp)
+                    break :blk 0;
+
+                if (latest_game.l2BlockNumber > l2BlockNumber)
+                    break :blk 0;
+
+                const elapsed_blocks: i64 = @intCast(l2BlockNumber - latest_game.l2BlockNumber);
+                const elapsed = try std.math.divCeil(i64, now - latest_timestamp, 1000);
+
+                const seconds_until: i64 = interval - @mod(elapsed, interval);
+
+                break :blk if (elapsed_blocks < block_interval) seconds_until else try std.math.divFloor(i64, elapsed_blocks, block_interval) * interval;
+            };
+
+            const timestamp: ?i64 = if (seconds > 0) now + seconds * 1000 else null;
+
+            return .{ elapsed_time, seconds, timestamp };
+        }
         /// Gets the `TransactionDeposited` event logs from a transaction hash.
         ///
         /// To free the memory of this slice you will also need to loop through the
@@ -438,6 +485,30 @@ pub fn L1Client(comptime client_type: Clients) type {
                 .messages = messages,
             };
         }
+        /// Waits until the next dispute game to be submitted based on the provided `l2BlockNumber`
+        /// This will keep pooling until it can get the L2Output or it exceeds the max retries.
+        pub fn waitForNextGame(self: *L1, limit: usize, interval_buffer: f64, l2BlockNumber: u64) !GameResult {
+            const timings = try self.getSecondsUntilNextGame(interval_buffer, l2BlockNumber);
+            std.time.sleep(timings.seconds * std.time.ns_per_s);
+
+            var retries: usize = 0;
+            const game: GameResult = while (true) : (retries += 1) {
+                if (retries > self.rpc_client.retries)
+                    return error.ExceedRetriesAmount;
+
+                const output = self.getGame(limit, l2BlockNumber, .random) catch |err| switch (err) {
+                    error.EvmFailedToExecute, error.GameNotFound => {
+                        std.time.sleep(self.rpc_client.pooling_interval);
+                        continue;
+                    },
+                    else => return err,
+                };
+
+                break output;
+            };
+
+            return game;
+        }
         /// Waits until the next L2 output is posted.
         /// This will keep pooling until it can get the L2Output or it exceeds the max retries.
         pub fn waitForNextL2Output(self: *L1, latest_l2_block: u64) !L2Output {
@@ -482,7 +553,10 @@ test "Foo" {
         .chain_id = .sepolia,
     }, .{ .portalAddress = utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC") catch unreachable });
 
-    const version = try op.getPortalVersion();
+    const games = try op.getGames(1, null);
+    defer testing.allocator.free(games);
+
+    const version = try op.getSecondsUntilNextGame(1.1, @intCast(games[0].l2BlockNumber + 1));
 
     std.debug.print("Foo: {any}", .{version});
     // const games = try op.getGames(5, 69);

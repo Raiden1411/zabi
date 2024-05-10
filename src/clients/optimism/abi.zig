@@ -188,3 +188,27 @@ pub const prove_withdrawal: Function = .{
     .stateMutability = .nonpayable,
     .outputs = &.{},
 };
+/// Abi representation of the dispute game factory `findLastestGames` function
+pub const find_latest_games: Function = .{
+    .type = .function,
+    .name = "findLatestGames",
+    .inputs = &.{
+        .{ .type = .{ .uint = 32 }, .name = "_gameType" },
+        .{ .type = .{ .uint = 256 }, .name = "_start" },
+        .{ .type = .{ .uint = 256 }, .name = "_n" },
+    },
+    .stateMutability = .view,
+    .outputs = &.{
+        .{
+            .type = .{ .dynamicArray = &.{ .tuple = {} } },
+            .name = "",
+            .components = &.{
+                .{ .type = .{ .uint = 256 }, .name = "index" },
+                .{ .type = .{ .fixedBytes = 32 }, .name = "metadata" },
+                .{ .type = .{ .uint = 64 }, .name = "timestamp" },
+                .{ .type = .{ .fixedBytes = 32 }, .name = "rootClaim" },
+                .{ .type = .{ .bytes = {} }, .name = "extraData" },
+            },
+        },
+    },
+};

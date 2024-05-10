@@ -155,8 +155,7 @@ pub fn L2Client(comptime client_type: Clients) type {
         }
         /// Returns the base fee on L1
         pub fn getBaseL1Fee(self: *L2) !Wei {
-            // Selector for l1BaseFee();
-            // We can get away with it since the abi has no input args.
+            // Selector for "l1BaseFee()"
             const selector: []u8 = @constCast(&[_]u8{ 0x51, 0x9b, 0x4b, 0xd3 });
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{

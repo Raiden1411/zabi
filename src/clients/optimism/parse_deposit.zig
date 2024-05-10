@@ -28,7 +28,16 @@ pub fn parseDepositTransaction(allocator: Allocator, encoded: []u8) !DepositTran
     const data = try rlp.decodeRlp(allocator, StructToTupleType(DepositTransaction), encoded[1..]);
     // zig fmt: on
 
-    return .{ .sourceHash = source_hash, .isSystemTx = is_system, .gas = gas, .from = from, .to = to, .value = value, .data = data, .mint = mint };
+    return .{
+        .sourceHash = source_hash,
+        .isSystemTx = is_system,
+        .gas = gas,
+        .from = from,
+        .to = to,
+        .value = value,
+        .data = data,
+        .mint = mint,
+    };
 }
 
 test "Base" {

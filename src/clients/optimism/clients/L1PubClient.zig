@@ -125,7 +125,9 @@ pub fn L1Client(comptime client_type: Clients) type {
         /// `block_number` to filter only games that occurred after this block.
         /// If null then it will return all games.
         pub fn getGames(self: *L1, limit: usize, block_number: ?u256) ![]const GameResult {
+            // Selector for "gameCount()"
             const game_count_selector: []u8 = @constCast(&[_]u8{ 0x4d, 0x19, 0x75, 0xb4 });
+            // Selector for "respectedGameType()"
             const game_type_selector: []u8 = @constCast(&[_]u8{ 0x3c, 0x9f, 0x39, 0x7c });
 
             const game_count = try self.rpc_client.sendEthCall(.{ .london = .{
@@ -204,7 +206,9 @@ pub fn L1Client(comptime client_type: Clients) type {
 
             return utils.bytesToInt(u64, block.response);
         }
-
+        /// Gets the l2 transaction hashes for the deposit transaction event.
+        ///
+        /// `hash` is expected to be the transaction hash from the deposit transaction.
         pub fn getL2HashesForDepositTransaction(self: *L1, tx_hash: Hash) ![]const Hash {
             const deposit_data = try self.getTransactionDepositEvents(tx_hash);
             defer self.allocator.free(deposit_data);
@@ -279,7 +283,7 @@ pub fn L1Client(comptime client_type: Clients) type {
         }
         /// Retrieves the current version of the Portal contract.
         ///
-        /// If the major is higher than 3 it means that fault proofs are enabled.
+        /// If the major is at least 3 it means that fault proofs are enabled.
         pub fn getPortalVersion(self: *L1) !SemanticVersion {
             const selector_version: []u8 = @constCast(&[_]u8{ 0x54, 0xfd, 0x4d, 0x50 });
             const version = try self.rpc_client.sendEthCall(.{ .london = .{
@@ -294,7 +298,10 @@ pub fn L1Client(comptime client_type: Clients) type {
 
             return SemanticVersion.parse(decode[0]);
         }
-        /// Gets a proven withdrawl.
+        /// Gets a proven withdrawal.
+        ///
+        /// Will call the portal contract to get the information. If the timestamp is 0
+        /// this will error with invalid withdrawal hash.
         pub fn getProvenWithdrawals(self: *L1, withdrawal_hash: Hash) !ProvenWithdrawal {
             const encoded = try abi_items.get_proven_withdrawal.encode(self.allocator, .{withdrawal_hash});
             defer self.allocator.free(encoded);
@@ -319,12 +326,15 @@ pub fn L1Client(comptime client_type: Clients) type {
             };
         }
         /// Gets the amount of time to wait in ms until the next output is posted.
+        ///
+        /// Calls the l2OutputOracle to get this information.
         pub fn getSecondsToNextL2Output(self: *L1, latest_l2_block: u64) !u128 {
             const latest = try self.getLatestProposedL2BlockNumber();
 
             if (latest_l2_block < latest)
                 return error.InvalidBlockNumber;
 
+            // Selector for "SUBMISSION_INTERVAL()"
             const selector: []u8 = @constCast(&[_]u8{ 0x52, 0x99, 0x33, 0xdf });
 
             const submission = try self.rpc_client.sendEthCall(.{ .london = .{
@@ -335,6 +345,7 @@ pub fn L1Client(comptime client_type: Clients) type {
 
             const interval = try utils.bytesToInt(i128, submission.response);
 
+            // Selector for "L2_BLOCK_TIME()"
             const selector_time: []u8 = @constCast(&[_]u8{ 0x00, 0x21, 0x34, 0xcc });
             const block = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = self.contracts.l2OutputOracle,
@@ -349,9 +360,12 @@ pub fn L1Client(comptime client_type: Clients) type {
             return if (block_until < 0) @intCast(0) else @intCast(block_until * time);
         }
         /// Gets the amount of time to wait until a withdrawal is finalized.
+        ///
+        /// Calls the l2OutputOracle to get this information.
         pub fn getSecondsToFinalize(self: *L1, withdrawal_hash: Hash) !u64 {
             const proven = try self.getProvenWithdrawals(withdrawal_hash);
 
+            // Selector for "FINALIZATION_PERIOD_SECONDS()"
             const selector: []u8 = @constCast(&[_]u8{ 0xf4, 0xda, 0xa2, 0x91 });
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = self.contracts.l2OutputOracle,
@@ -364,10 +378,13 @@ pub fn L1Client(comptime client_type: Clients) type {
 
             return if (time_since < 0) @intCast(0) else @intCast(time - time_since);
         }
-        /// Gets the amount of time to wait until the dispute game as finished.
+        /// Gets the amount of time to wait until a dispute game has finalized
+        ///
+        /// Uses the portal to find this information. Will error if the time is 0.
         pub fn getSecondsToFinalizeGame(self: *L1, withdrawal_hash: Hash) !u64 {
             const proven = try self.getProvenWithdrawals(withdrawal_hash);
 
+            // Selector for "proofMaturityDelaySeconds()"
             const selector: []u8 = @constCast(&[_]u8{ 0xbf, 0x65, 0x3a, 0x5c });
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = self.contracts.portalAddress,
@@ -429,7 +446,11 @@ pub fn L1Client(comptime client_type: Clients) type {
 
             const timestamp: ?i64 = if (seconds > 0) now + seconds * 1000 else null;
 
-            return .{ elapsed_time, seconds, timestamp };
+            return .{
+                .interval = elapsed_time,
+                .seconds = seconds,
+                .timestamp = timestamp,
+            };
         }
         /// Gets the `TransactionDeposited` event logs from a transaction hash.
         ///

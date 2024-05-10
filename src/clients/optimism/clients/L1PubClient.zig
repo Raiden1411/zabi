@@ -229,6 +229,19 @@ pub fn L1Client(comptime client_type: Clients) type {
         }
         /// Calls to the L2OutputOracle contract on L1 to get the output for a given L2 block
         pub fn getL2Output(self: *L1, l2_block_number: u256) !L2Output {
+            const version = try self.getPortalVersion();
+
+            if (version.major >= 3) {
+                const game = try self.getGame(1, l2_block_number, .latest);
+
+                return .{
+                    .outputIndex = game.index,
+                    .outputRoot = game.rootClaim,
+                    .timestamp = game.timestamp,
+                    .l2BlockNumber = game.l2BlockNumber,
+                };
+            }
+
             const index = try self.getL2OutputIndex(l2_block_number);
 
             const encoded = try abi_items.get_l2_output_func.encode(self.allocator, .{index});
@@ -351,6 +364,27 @@ pub fn L1Client(comptime client_type: Clients) type {
 
             return if (time_since < 0) @intCast(0) else @intCast(time - time_since);
         }
+        /// Gets the amount of time to wait until the dispute game as finished.
+        pub fn getSecondsToFinalizeGame(self: *L1, withdrawal_hash: Hash) !u64 {
+            const proven = try self.getProvenWithdrawals(withdrawal_hash);
+
+            const selector: []u8 = @constCast(&[_]u8{ 0xbf, 0x65, 0x3a, 0x5c });
+            const data = try self.rpc_client.sendEthCall(.{ .london = .{
+                .to = self.contracts.portalAddress,
+                .data = selector,
+            } }, .{});
+            defer data.deinit();
+
+            const time = try utils.bytesToInt(i64, data.response);
+
+            if (time == 0)
+                return error.WithdrawalNotProved;
+
+            const time_since: i64 = @divFloor(std.time.timestamp(), 1000) - @as(i64, @truncate(@as(i128, @intCast(proven.timestamp))));
+
+            return if (time_since < 0) @intCast(0) else @intCast(time - time_since);
+        }
+        /// Gets the timings until the next dispute game is submitted based on the provided `l2BlockNumber`
         pub fn getSecondsUntilNextGame(self: *L1, interval_buffer: f64, l2BlockNumber: u64) !NextGameTimings {
             const games = try self.getGames(10, null);
             defer self.allocator.free(games);
@@ -486,7 +520,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             };
         }
         /// Waits until the next dispute game to be submitted based on the provided `l2BlockNumber`
-        /// This will keep pooling until it can get the L2Output or it exceeds the max retries.
+        /// This will keep pooling until it can get the `GameResult` or it exceeds the max retries.
         pub fn waitForNextGame(self: *L1, limit: usize, interval_buffer: f64, l2BlockNumber: u64) !GameResult {
             const timings = try self.getSecondsUntilNextGame(interval_buffer, l2BlockNumber);
             std.time.sleep(timings.seconds * std.time.ns_per_s);
@@ -535,32 +569,16 @@ pub fn L1Client(comptime client_type: Clients) type {
         }
         /// Waits until the withdrawal has finalized.
         pub fn waitToFinalize(self: *L1, withdrawal_hash: Hash) !void {
-            const time = try self.getSecondsToFinalize(withdrawal_hash);
+            const version = try self.getPortalVersion();
+
+            if (version < 3) {
+                const time = try self.getSecondsToFinalize(withdrawal_hash);
+                std.time.sleep(time * 1000);
+                return;
+            }
+
+            const time = try self.getSecondsToFinalizeGame(withdrawal_hash);
             std.time.sleep(time * 1000);
         }
     };
-}
-
-test "Foo" {
-    const uri = try std.Uri.parse("http://localhost:8545/");
-
-    var op: L1Client(.http) = undefined;
-    defer op.deinit();
-
-    try op.init(.{
-        .uri = uri,
-        .allocator = testing.allocator,
-        .chain_id = .sepolia,
-    }, .{ .portalAddress = utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC") catch unreachable });
-
-    const games = try op.getGames(1, null);
-    defer testing.allocator.free(games);
-
-    const version = try op.getSecondsUntilNextGame(1.1, @intCast(games[0].l2BlockNumber + 1));
-
-    std.debug.print("Foo: {any}", .{version});
-    // const games = try op.getGames(5, 69);
-    // testing.allocator.free(games);
-    //
-    // try testing.expectEqual(games.len, 5);
 }

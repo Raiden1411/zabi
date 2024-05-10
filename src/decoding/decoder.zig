@@ -166,8 +166,7 @@ fn decodeItems(allocator: Allocator, comptime T: type, params: []const AbiParame
 
     var result: T = undefined;
 
-    if (info.len != params.len)
-        return error.InvalidLength;
+    std.debug.assert(info.len == params.len); // Length missmatch
 
     inline for (info, 0..) |field, i| {
         const decoded = try decodeItem(allocator, field.type, params[i], hex, pos, opts);
@@ -190,6 +189,7 @@ fn decodeItems(allocator: Allocator, comptime T: type, params: []const AbiParame
             }
         }
     }
+
     if (!opts.allow_junk_data and hex.len > read)
         return error.JunkData;
 

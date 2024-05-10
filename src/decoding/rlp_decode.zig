@@ -9,8 +9,8 @@ const encodeRlp = @import("../encoding/rlp.zig").encodeRlp;
 pub const RlpDecodeErrors = error{ UnexpectedValue, InvalidEnumTag } || Allocator.Error || std.fmt.ParseIntError;
 
 /// RLP decoding. Encoded string must follow the RLP specs.
-pub fn decodeRlp(alloc: Allocator, comptime T: type, encoded: []const u8) !T {
-    const decoded = try decodeItem(alloc, T, encoded, 0);
+pub fn decodeRlp(allocator: Allocator, comptime T: type, encoded: []const u8) !T {
+    const decoded = try decodeItem(allocator, T, encoded, 0);
 
     return decoded.data;
 }
@@ -19,7 +19,7 @@ fn DecodedResult(comptime T: type) type {
     return struct { consumed: u64, data: T };
 }
 
-fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position: u64) !DecodedResult(T) {
+fn decodeItem(allocator: Allocator, comptime T: type, encoded: []const u8, position: u64) !DecodedResult(T) {
     const info = @typeInfo(T);
 
     std.debug.assert(encoded.len > 0); // Cannot decode 0 length;
@@ -29,6 +29,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
     switch (info) {
         .Bool => {
+            std.debug.assert(position < encoded.len); // Overflow on encoded string,
             switch (encoded[position]) {
                 0x80 => return .{ .consumed = 1, .data = false },
                 0x01 => return .{ .consumed = 1, .data = true },
@@ -39,64 +40,88 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
             if (info.Int.signedness == .signed)
                 @compileError("Signed integers are not supported for RLP decoding");
 
+            std.debug.assert(position < encoded.len); // Overflow on encoded string,
+
             if (encoded[position] < 0x80) return .{ .consumed = 1, .data = @intCast(encoded[position]) };
             const len = encoded[position] - 0x80;
             const hex_number = encoded[position + 1 .. position + len + 1];
 
             const hexed = std.fmt.fmtSliceHexLower(hex_number);
-            const slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
 
-            defer alloc.free(slice);
+            const slice = try std.fmt.allocPrint(allocator, "{s}", .{hexed});
+            defer allocator.free(slice);
 
             return .{ .consumed = len + 1, .data = if (slice.len != 0) try std.fmt.parseInt(T, slice, 16) else @intCast(0) };
         },
         .Float => {
+            std.debug.assert(position < encoded.len); // Overflow on encoded string,
+
             if (encoded[position] < 0x80) return .{ .consumed = 1, .data = @as(T, @floatFromInt(encoded[position])) };
             const len = encoded[position] - 0x80;
             const hex_number = encoded[position + 1 .. position + len + 1];
 
             const hexed = std.fmt.fmtSliceHexLower(hex_number);
-            const slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
-            defer alloc.free(slice);
+
+            const slice = try std.fmt.allocPrint(allocator, "{s}", .{hexed});
+            defer allocator.free(slice);
 
             const bits = info.Float.bits;
             const AsInt = @Type(.{ .Int = .{ .signedness = .unsigned, .bits = bits } });
             const parsed = try std.fmt.parseInt(AsInt, slice, 16);
             return .{ .consumed = len + 1, .data = if (slice.len != 0) @as(T, @floatFromInt(parsed)) else @floatCast(0) };
         },
-        .Null => if (encoded[position] != 0x80) return error.UnexpectedValue else return .{ .consumed = 1, .data = null },
+        .Null => {
+            std.debug.assert(position < encoded.len); // Overflow on encoded string,
+            return if (encoded[position] != 0x80) error.UnexpectedValue else .{ .consumed = 1, .data = null };
+        },
         .Optional => |opt_info| {
+            std.debug.assert(position < encoded.len); // Overflow on encoded string,
+            //
             if (encoded[position] == 0x80) return .{ .consumed = 1, .data = null };
 
-            const opt = try decodeItem(alloc, opt_info.child, encoded, position);
+            const opt = try decodeItem(allocator, opt_info.child, encoded, position);
             return .{ .consumed = opt.consumed, .data = opt.data };
         },
         .Enum, .EnumLiteral => {
+            std.debug.assert(position < encoded.len); // Overflow on encoded string,
+
             const size = encoded[position];
 
             if (size <= 0xb7) {
                 const str_len = size - 0x80;
+                std.debug.assert(position + str_len < encoded.len); // Overflow on encoded string,
+
                 const slice = encoded[position + 1 .. position + str_len + 1];
                 const e = std.meta.stringToEnum(T, slice) orelse return error.InvalidEnumTag;
 
                 return .{ .consumed = str_len + 1, .data = e };
             }
             const len_size = size - 0xb7;
+            std.debug.assert(position + len_size < encoded.len); // Overflow on encoded string,
+
             const len = encoded[position + 1 .. position + len_size + 1];
+
             const hexed = std.fmt.fmtSliceHexLower(len);
-            const len_slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
-            defer alloc.free(len_slice);
+
+            const len_slice = try std.fmt.allocPrint(allocator, "{s}", .{hexed});
+            defer allocator.free(len_slice);
 
             const parsed = try std.fmt.parseInt(usize, len_slice, 16);
+            std.debug.assert(position + len_size + parsed < encoded.len); // Overflow on encoded string,
+
             const e = std.meta.stringToEnum(T, encoded[position + len_size + 1 .. position + parsed + 1 + len_size]) orelse return error.InvalidEnumTag;
 
             return .{ .consumed = 2 + len_size + parsed, .data = e };
         },
         .Array => |arr_info| {
+            std.debug.assert(position < encoded.len); // Overflow on encoded string,
+
             if (arr_info.child == u8) {
                 const size = encoded[position];
                 if (size <= 0xb7) {
                     const str_len = size - 0x80;
+                    std.debug.assert(position + str_len < encoded.len); // Overflow on encoded string,
+
                     const slice = encoded[position + 1 .. position + str_len + 1];
 
                     if (slice.len != arr_info.len)
@@ -109,11 +134,15 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                 }
                 const len_size = size - 0xb7;
                 const len = encoded[position + 1 .. position + len_size + 1];
+                std.debug.assert(position + len_size < encoded.len); // Overflow on encoded string,
+
                 const hexed = std.fmt.fmtSliceHexLower(len);
-                const len_slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
-                defer alloc.free(len_slice);
+                const len_slice = try std.fmt.allocPrint(allocator, "{s}", .{hexed});
+                defer allocator.free(len_slice);
 
                 const parsed = try std.fmt.parseInt(usize, len_slice, 16);
+
+                std.debug.assert(position + len_size + parsed < encoded.len); // Overflow on encoded string,
                 const slice = encoded[position + 1 + len_size .. position + parsed + 1 + len_size];
 
                 if (slice.len != arr_info.len)
@@ -132,7 +161,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
                 var cur_pos = position + 1;
                 for (0..arr_info.len) |i| {
-                    const decoded = try decodeItem(alloc, arr_info.child, encoded, cur_pos);
+                    const decoded = try decodeItem(allocator, arr_info.child, encoded, cur_pos);
                     result[i] = decoded.data;
                     cur_pos += decoded.consumed;
                 }
@@ -145,7 +174,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
             var cur_pos = position + arr_len + 1;
             for (0..arr_info.len) |i| {
-                const decoded = try decodeItem(alloc, arr_info.child, encoded[cur_pos..], 0);
+                const decoded = try decodeItem(allocator, arr_info.child, encoded[cur_pos..], 0);
                 result[i] = decoded.data;
                 cur_pos += decoded.consumed;
             }
@@ -155,13 +184,15 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
         .Pointer => |ptr_info| {
             switch (ptr_info.size) {
                 .One => {
-                    const res: *ptr_info.child = try alloc.create(ptr_info.child);
-                    const decoded = try decodeItem(alloc, ptr_info.child, encoded, position);
+                    const res: *ptr_info.child = try allocator.create(ptr_info.child);
+                    const decoded = try decodeItem(allocator, ptr_info.child, encoded, position);
                     res.* = decoded.data;
 
                     return .{ .consumed = decoded.consumed, .data = res };
                 },
                 .Slice => {
+                    std.debug.assert(position < encoded.len); // Overflow on encoded string,
+
                     if (ptr_info.child == u8) {
                         const size = encoded[position];
 
@@ -172,15 +203,20 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                             if (ptr_info.is_const) return .{ .consumed = str_len + 1, .data = slice };
                             return .{ .consumed = str_len + 1, .data = @constCast(slice) };
                         }
+
                         const len_size = size - 0xb7;
                         const len = encoded[position + 1 .. position + len_size + 1];
+                        std.debug.assert(position + len_size < encoded.len); // Overflow on encoded string,
+
                         const hexed = std.fmt.fmtSliceHexLower(len);
-                        const len_slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
-                        defer alloc.free(len_slice);
+                        const len_slice = try std.fmt.allocPrint(allocator, "{s}", .{hexed});
+                        defer allocator.free(len_slice);
 
                         const parsed = try std.fmt.parseInt(usize, len_slice, 16);
+                        std.debug.assert(position + len_size + parsed < encoded.len); // Overflow on encoded string,
 
-                        if (ptr_info.is_const) return .{ .consumed = 2 + len_size + parsed, .data = encoded[position + 1 + len_size .. position + parsed + 1 + len_size] };
+                        if (ptr_info.is_const)
+                            return .{ .consumed = 2 + len_size + parsed, .data = encoded[position + 1 + len_size .. position + parsed + 1 + len_size] };
 
                         return .{ .consumed = 2 + len_size + parsed, .data = @constCast(encoded[position + 1 + len_size .. position + parsed + 1 + len_size]) };
                     }
@@ -188,7 +224,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
                     if (arr_size <= 0xf7) {
                         const arr_len = arr_size - 0xC0;
-                        var result = std.ArrayList(ptr_info.child).init(alloc);
+                        var result = std.ArrayList(ptr_info.child).init(allocator);
                         errdefer result.deinit();
 
                         var read: usize = 0;
@@ -196,7 +232,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
                             if (read >= arr_len)
                                 break;
 
-                            const decoded = try decodeItem(alloc, ptr_info.child, encoded[read + position + 1 ..], 0);
+                            const decoded = try decodeItem(allocator, ptr_info.child, encoded[read + position + 1 ..], 0);
                             try result.append(decoded.data);
                             read += decoded.consumed;
                         }
@@ -208,18 +244,21 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
                     const arr_len = arr_size - 0xf7;
                     const len = encoded[position + 1 .. position + arr_len + 1];
+                    std.debug.assert(position + arr_len < encoded.len); // Overflow on encoded string,
+
                     const hexed = std.fmt.fmtSliceHexLower(len);
-                    const len_slice = try std.fmt.allocPrint(alloc, "{s}", .{hexed});
-                    defer alloc.free(len_slice);
+
+                    const len_slice = try std.fmt.allocPrint(allocator, "{s}", .{hexed});
+                    defer allocator.free(len_slice);
 
                     const parsed_len = try std.fmt.parseInt(usize, len_slice, 16);
-                    var result = std.ArrayList(ptr_info.child).init(alloc);
+                    var result = std.ArrayList(ptr_info.child).init(allocator);
                     errdefer result.deinit();
 
                     var cur_pos = position + arr_len + 1;
                     for (0..parsed_len) |_| {
                         if (cur_pos >= encoded.len) break;
-                        const decoded = try decodeItem(alloc, ptr_info.child, encoded[cur_pos..], 0);
+                        const decoded = try decodeItem(allocator, ptr_info.child, encoded[cur_pos..], 0);
                         try result.append(decoded.data);
                         cur_pos += decoded.consumed;
                     }
@@ -237,7 +276,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
                 var cur_pos = position + 1;
                 for (0..vec_info.len) |i| {
-                    const decoded = try decodeItem(alloc, vec_info.child, encoded, cur_pos);
+                    const decoded = try decodeItem(allocator, vec_info.child, encoded, cur_pos);
                     result[i] = decoded.data;
                     cur_pos += decoded.consumed;
                 }
@@ -250,7 +289,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
             var cur_pos = position + arr_len + 1;
             for (0..vec_info.len) |i| {
-                const decoded = try decodeItem(alloc, vec_info.child, encoded[cur_pos..], 0);
+                const decoded = try decodeItem(allocator, vec_info.child, encoded[cur_pos..], 0);
                 result[i] = decoded.data;
                 cur_pos += decoded.consumed;
             }
@@ -265,7 +304,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
                     var cur_pos = position + 1;
                     inline for (struct_info.fields, 0..) |field, i| {
-                        const decoded = try decodeItem(alloc, field.type, encoded, cur_pos);
+                        const decoded = try decodeItem(allocator, field.type, encoded, cur_pos);
                         result[i] = decoded.data;
                         cur_pos += decoded.consumed;
                     }
@@ -278,7 +317,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
                 var cur_pos = position + arr_len + 1;
                 inline for (struct_info.fields, 0..) |field, i| {
-                    const decoded = try decodeItem(alloc, field.type, encoded, cur_pos);
+                    const decoded = try decodeItem(allocator, field.type, encoded, cur_pos);
                     result[i] = decoded.data;
                     cur_pos += decoded.consumed;
                 }
@@ -290,7 +329,7 @@ fn decodeItem(alloc: Allocator, comptime T: type, encoded: []const u8, position:
 
             var cur_pos = position;
             inline for (struct_info.fields) |field| {
-                const decoded = try decodeItem(alloc, field.type, encoded, cur_pos);
+                const decoded = try decodeItem(allocator, field.type, encoded, cur_pos);
                 @field(result, field.name) = decoded.data;
                 cur_pos += decoded.consumed;
             }

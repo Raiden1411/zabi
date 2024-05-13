@@ -86,6 +86,7 @@ test {
     _ = @import("encoding/ssz.zig");
     _ = @import("human-readable/abi_parsing.zig");
     _ = @import("human-readable/lexer.zig");
+    _ = @import("c-kzg-4844");
     _ = @import("meta/abi.zig");
     _ = @import("meta/json.zig");
     _ = @import("meta/utils.zig");

@@ -74,6 +74,7 @@ test {
     _ = @import("clients/wallet.zig");
     _ = @import("crypto/hdwallet.zig");
     _ = @import("crypto/mnemonic.zig");
+    _ = @import("c-kzg-4844");
     _ = @import("decoding/decoder.zig");
     _ = @import("decoding/logs_decode.zig");
     _ = @import("decoding/parse_transacition.zig");
@@ -86,7 +87,6 @@ test {
     _ = @import("encoding/ssz.zig");
     _ = @import("human-readable/abi_parsing.zig");
     _ = @import("human-readable/lexer.zig");
-    _ = @import("c-kzg-4844");
     _ = @import("meta/abi.zig");
     _ = @import("meta/json.zig");
     _ = @import("meta/utils.zig");

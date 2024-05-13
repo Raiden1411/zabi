@@ -231,6 +231,8 @@ pub fn RequestParser(comptime T: type) type {
                         else => @compileError("Unsupported pointer type " ++ @typeName(@TypeOf(value))),
                     }
                 },
+                // TODO: Change this to migrate from `usingnamespace` since this will most likely
+                // be changed so we must be prepared for it.
                 .Struct => |struct_info| {
                     if (struct_info.is_tuple) {
                         try valueStart(stream_writer);
@@ -248,6 +250,8 @@ pub fn RequestParser(comptime T: type) type {
                         return;
                     } else if (@hasDecl(@TypeOf(value), "jsonStringify")) return value.jsonStringify(stream_writer) else @compileError("Unable to parse structs without jsonStringify custom declaration. TypeName: " ++ @typeName(@TypeOf(value)));
                 },
+                // TODO: Change this to migrate from `usingnamespace` since this will most likely
+                // be changed so we must be prepared for it.
                 .Union => {
                     if (@hasDecl(@TypeOf(value), "jsonStringify")) return value.jsonStringify(stream_writer) else @compileError("Unable to parse unions without jsonStringify custom declaration. Typename: " ++ @typeName(@TypeOf(value)));
                 },
@@ -509,9 +513,13 @@ pub fn RequestParser(comptime T: type) type {
                         else => @compileError("Unable to parse type " ++ @typeName(TT)),
                     }
                 },
+                // TODO: Change this to migrate from `usingnamespace` since this will most likely
+                // be changed so we must be prepared for it.
                 .Struct => {
                     if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(allocator, source, opts) else @compileError("Unable to parse structs without jsonParseFromValue custom declaration. Typename: " ++ @typeName(TT));
                 },
+                // TODO: Change this to migrate from `usingnamespace` since this will most likely
+                // be changed so we must be prepared for it.
                 .Union => {
                     if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(allocator, source, opts) else @compileError("Unable to parse unions without jsonParseFromValue custom declaration. Typename: " ++ @typeName(TT));
                 },
@@ -673,9 +681,13 @@ pub fn RequestParser(comptime T: type) type {
                         else => @compileError("Unable to parse type " ++ @typeName(TT)),
                     }
                 },
+                // TODO: Change this to migrate from `usingnamespace` since this will most likely
+                // be changed so we must be prepared for it.
                 .Struct => {
                     if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(allocator, source, opts) else @compileError("Unable to parse structs without jsonParse custom declaration. Typename: " ++ @typeName(TT));
                 },
+                // TODO: Change this to migrate from `usingnamespace` since this will most likely
+                // be changed so we must be prepared for it.
                 .Union => {
                     if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(allocator, source, opts) else @compileError("Unable to parse unions without jsonParse custom declaration. Typename: " ++ @typeName(TT));
                 },

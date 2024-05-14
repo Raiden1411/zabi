@@ -1,3 +1,5 @@
+const std = @import("std");
+
 pub const Opcodes = enum(u8) {
     // Arithmetic opcodes.
     STOP = 0x00,
@@ -172,4 +174,8 @@ pub const Opcodes = enum(u8) {
     REVERT = 0xfd,
     INVALID = 0xfe,
     SELFDESTRUCT = 0xff,
+
+    pub fn toOpcode(num: u8) !Opcodes {
+        return std.meta.intToEnum(Opcodes, num) catch error.InvalidOpcode;
+    }
 };

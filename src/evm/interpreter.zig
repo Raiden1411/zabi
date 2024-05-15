@@ -1,7 +1,9 @@
+const contract = @import("contract.zig");
 const gas = @import("gas_tracker.zig");
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
+const Contract = contract.Contract;
 const GasTracker = gas.GasTracker;
 const Opcodes = @import("opcodes.zig").Opcodes;
 const Stack = @import("../utils/stack.zig").Stack;
@@ -20,6 +22,8 @@ pub const InterpreterStatus = enum {
 allocator: Allocator,
 /// compiled bytecode that will get ran.
 code: []u8,
+/// The contract associated to this interpreter.
+contract: Contract,
 /// Tracker for used gas by the interpreter.
 gas_tracker: GasTracker,
 /// the interpreter's counter.
@@ -46,6 +50,7 @@ pub fn init(self: *Interpreter, allocator: Allocator, code: []const u8, gas_limi
     self.* = .{
         .allocator = allocator,
         .code = buffer,
+        .contract = undefined,
         .gas_tracker = GasTracker.init(gas_limit),
         .program_counter = 0,
         .stack = stack,
@@ -86,6 +91,24 @@ pub fn runInstruction(self: *Interpreter) !void {
         .EXP => try self.exponentInstruction(),
         .SIGNEXTEND => try self.signedExponentInstruction(),
         .LT => try self.lowerThanInstruction(),
+        .GT => try self.greaterThanInstruction(),
+        .SLT => try self.signedLowerThanInstruction(),
+        .SGT => try self.signedGreaterThanInstruction(),
+        .EQ => try self.equalInstruction(),
+        .ISZERO => try self.isZeroInstruction(),
+        .AND => try self.andInstruction(),
+        .XOR => try self.xorInstruction(),
+        .OR => try self.orInstruction(),
+        .NOT => try self.notInstruction(),
+        .BYTE => try self.byteInstruction(),
+        .SHL => try self.shiftLeftInstruction(),
+        .SHR => try self.shiftRightInstruction(),
+        .SAR => try self.signedShiftRightInstruction(),
+        .KECCAK256 => unreachable,
+        // TODO: Change the implementation
+        .ADDRESS => try self.addressInstruction(),
+        // TODO: Change the implementation
+        .BALANCE => try self.balanceInstruction(),
         else => return error.UnsupportedOpcode,
     }
 }
@@ -95,7 +118,7 @@ fn stopInstruction(self: *Interpreter) void {
     self.status = .Stopped;
 }
 
-fn addInstruction(self: *Interpreter) error{StackUnderflow}!void {
+fn addInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.GasFastestStep);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -107,7 +130,51 @@ fn addInstruction(self: *Interpreter) error{StackUnderflow}!void {
     self.program_counter += 1;
 }
 
-fn divInstruction(self: *Interpreter) error{StackUnderflow}!void {
+fn addressInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(gas.GasQuickStep);
+
+    try self.stack.pushUnsafe(@bitCast(self.contract.address));
+    self.program_counter += 1;
+}
+
+fn andInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+
+    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+
+    try self.stack.pushUnsafe(first & second);
+    self.program_counter += 1;
+}
+
+fn balanceInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(100);
+
+    try self.stack.pushUnsafe(self.contract.value);
+    self.program_counter += 1;
+}
+
+fn byteInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+
+    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+
+    if (first >= 32) {
+        try self.stack.pushUnsafe(0);
+        self.program_counter += 1;
+
+        return;
+    }
+
+    var buffer: [32]u8 = undefined;
+    std.mem.writeInt(u256, &buffer, second, .little);
+
+    try self.stack.pushUnsafe(buffer[first..][first - 1]);
+    self.program_counter += 1;
+}
+
+fn divInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.GasFastStep);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -121,7 +188,7 @@ fn divInstruction(self: *Interpreter) error{StackUnderflow}!void {
     self.program_counter += 1;
 }
 
-fn exponentInstruction(self: *Interpreter) error{StackUnderflow}!void {
+fn exponentInstruction(self: *Interpreter) !void {
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
 
@@ -133,7 +200,36 @@ fn exponentInstruction(self: *Interpreter) error{StackUnderflow}!void {
     self.program_counter += 1;
 }
 
-fn lowerThanInstruction(self: *Interpreter) error{StackUnderflow}!void {
+fn equalInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+
+    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+
+    try self.stack.pushUnsafe(@intFromBool(first == second));
+    self.program_counter += 1;
+}
+
+fn greaterThanInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+
+    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+
+    try self.stack.pushUnsafe(@intFromBool(first > second));
+    self.program_counter += 1;
+}
+
+fn isZeroInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+
+    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+
+    try self.stack.pushUnsafe(@intFromBool(first == 0));
+    self.program_counter += 1;
+}
+
+fn lowerThanInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.GasFastestStep);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -143,7 +239,7 @@ fn lowerThanInstruction(self: *Interpreter) error{StackUnderflow}!void {
     self.program_counter += 1;
 }
 
-fn modAdditionInstruction(self: *Interpreter) error{StackUnderflow}!void {
+fn modAdditionInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.GasMidStep);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -159,7 +255,7 @@ fn modAdditionInstruction(self: *Interpreter) error{StackUnderflow}!void {
     self.program_counter += 1;
 }
 
-fn modInstruction(self: *Interpreter) error{StackUnderflow}!void {
+fn modInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.GasFastStep);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -173,7 +269,7 @@ fn modInstruction(self: *Interpreter) error{StackUnderflow}!void {
     self.program_counter += 1;
 }
 
-fn modMultiplicationInstruction(self: *Interpreter) error{StackUnderflow}!void {
+fn modMultiplicationInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.GasMidStep);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -189,7 +285,7 @@ fn modMultiplicationInstruction(self: *Interpreter) error{StackUnderflow}!void {
     self.program_counter += 1;
 }
 
-fn mulInstruction(self: *Interpreter) error{StackUnderflow}!void {
+fn mulInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.GasFastStep);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -201,7 +297,50 @@ fn mulInstruction(self: *Interpreter) error{StackUnderflow}!void {
     self.program_counter += 1;
 }
 
-fn signedDivInstruction(self: *Interpreter) error{StackUnderflow}!void {
+fn notInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+
+    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+
+    try self.stack.pushUnsafe(~first);
+    self.program_counter += 1;
+}
+
+fn orInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+
+    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+
+    try self.stack.pushUnsafe(first | second);
+    self.program_counter += 1;
+}
+
+fn shiftLeftInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(gas.GasFastStep);
+
+    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+
+    const shift = first << second;
+
+    try self.stack.pushUnsafe(shift);
+    self.program_counter += 1;
+}
+
+fn shiftRightInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(gas.GasFastStep);
+
+    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+
+    const shift = first >> second;
+
+    try self.stack.pushUnsafe(shift);
+    self.program_counter += 1;
+}
+
+fn signedDivInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.GasFastStep);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -218,7 +357,7 @@ fn signedDivInstruction(self: *Interpreter) error{StackUnderflow}!void {
     self.program_counter += 1;
 }
 
-fn signedExponentInstruction(self: *Interpreter) error{StackUnderflow}!void {
+fn signedExponentInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.GasFastStep);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -230,7 +369,33 @@ fn signedExponentInstruction(self: *Interpreter) error{StackUnderflow}!void {
     self.program_counter += 1;
 }
 
-fn signedModInstruction(self: *Interpreter) error{StackUnderflow}!void {
+fn signedGreaterThanInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+
+    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+
+    const casted_first: i256 = @bitCast(first);
+    const casted_second: i256 = @bitCast(second);
+
+    try self.stack.pushUnsafe(@intFromBool(casted_first > casted_second));
+    self.program_counter += 1;
+}
+
+fn signedLowerThanInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+
+    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+
+    const casted_first: i256 = @bitCast(first);
+    const casted_second: i256 = @bitCast(second);
+
+    try self.stack.pushUnsafe(@intFromBool(casted_first < casted_second));
+    self.program_counter += 1;
+}
+
+fn signedModInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.GasFastStep);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -247,7 +412,22 @@ fn signedModInstruction(self: *Interpreter) error{StackUnderflow}!void {
     self.program_counter += 1;
 }
 
-fn subInstruction(self: *Interpreter) error{StackUnderflow}!void {
+fn signedShiftRightInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(gas.GasFastStep);
+
+    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+
+    const casted_first: i256 = @bitCast(first);
+    const casted_second: i256 = @bitCast(second);
+
+    const shift = casted_first >> casted_second;
+
+    try self.stack.pushUnsafe(shift);
+    self.program_counter += 1;
+}
+
+fn subInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.GasFastestStep);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -256,5 +436,15 @@ fn subInstruction(self: *Interpreter) error{StackUnderflow}!void {
     const sub = first -% second;
 
     try self.stack.pushUnsafe(sub);
+    self.program_counter += 1;
+}
+
+fn xorInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+
+    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+
+    try self.stack.pushUnsafe(first ^ second);
     self.program_counter += 1;
 }

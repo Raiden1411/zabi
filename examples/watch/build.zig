@@ -4,12 +4,12 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    _ = b.addModule("watch_example", .{ .root_source_file = .{ .path = "watch.zig" } });
-    _ = b.addModule("logs_example", .{ .root_source_file = .{ .path = "logs.zig" } });
+    _ = b.addModule("watch_example", .{ .root_source_file = b.path("watch.zig") });
+    _ = b.addModule("logs_example", .{ .root_source_file = b.path("logs.zig") });
 
     const exe = b.addExecutable(.{
         .name = "watch_example",
-        .root_source_file = .{ .path = "watch.zig" },
+        .root_source_file = b.path("watch.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) void {
 
     const exe_logs = b.addExecutable(.{
         .name = "logs_example",
-        .root_source_file = .{ .path = "logs.zig" },
+        .root_source_file = b.path("logs.zig"),
         .target = target,
         .optimize = optimize,
     });

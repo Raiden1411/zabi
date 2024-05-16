@@ -4,11 +4,11 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    _ = b.addModule("benchmark", .{ .root_source_file = .{ .path = "benchmark.zig" } });
+    _ = b.addModule("benchmark", .{ .root_source_file = b.path("benchmark.zig") });
 
     const exe = b.addExecutable(.{
         .name = "benchmark",
-        .root_source_file = .{ .path = "benchmark.zig" },
+        .root_source_file = b.path("benchmark.zig"),
         .target = target,
         .optimize = optimize,
     });

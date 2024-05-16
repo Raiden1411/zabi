@@ -1,10 +1,12 @@
 const contract = @import("contract.zig");
 const gas = @import("gas_tracker.zig");
+const mem = @import("memory.zig");
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 const Contract = contract.Contract;
 const GasTracker = gas.GasTracker;
+const Memory = mem.Memory;
 const Opcodes = @import("opcodes.zig").Opcodes;
 const Stack = @import("../utils/stack.zig").Stack;
 
@@ -30,6 +32,8 @@ gas_tracker: GasTracker,
 program_counter: u64,
 /// The stack of the interpreter with 1024 max size.
 stack: *Stack(u256),
+/// The memory used by this interpreter.
+memory: *Memory,
 /// The current interpreter status.
 status: InterpreterStatus,
 
@@ -105,10 +109,7 @@ pub fn runInstruction(self: *Interpreter) !void {
         .SHR => try self.shiftRightInstruction(),
         .SAR => try self.signedShiftRightInstruction(),
         .KECCAK256 => unreachable,
-        // TODO: Change the implementation
-        .ADDRESS => try self.addressInstruction(),
-        // TODO: Change the implementation
-        .BALANCE => try self.balanceInstruction(),
+        .POP => try self.popInstruction(),
         else => return error.UnsupportedOpcode,
     }
 }
@@ -130,13 +131,6 @@ fn addInstruction(self: *Interpreter) !void {
     self.program_counter += 1;
 }
 
-fn addressInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(gas.GasQuickStep);
-
-    try self.stack.pushUnsafe(@bitCast(self.contract.address));
-    self.program_counter += 1;
-}
-
 fn andInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.GasFastestStep);
 
@@ -144,13 +138,6 @@ fn andInstruction(self: *Interpreter) !void {
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
 
     try self.stack.pushUnsafe(first & second);
-    self.program_counter += 1;
-}
-
-fn balanceInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(100);
-
-    try self.stack.pushUnsafe(self.contract.value);
     self.program_counter += 1;
 }
 
@@ -313,6 +300,13 @@ fn orInstruction(self: *Interpreter) !void {
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
 
     try self.stack.pushUnsafe(first | second);
+    self.program_counter += 1;
+}
+
+fn popInstruction(self: *Interpreter) !void {
+    try self.gas_tracker.updateTracker(gas.GasQuickStep);
+
+    _ = self.stack.popUnsafe() orelse return error.StackUnderflow;
     self.program_counter += 1;
 }
 

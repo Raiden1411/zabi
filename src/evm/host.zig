@@ -31,6 +31,8 @@ pub const Host = struct {
         loadAccount: *const fn (self: *anyopaque, address: Address) ?AccountResult,
         /// Emits a log owned by an address with the log data.
         log: *const fn (self: *anyopaque, log: Log) anyerror!void,
+        /// Sets the address to be deleted and any funds it might have to `target` address.
+        selfDestruct: *const fn (self: *anyopaque, address: Address, target: Address) anyerror!SelfDestructResult,
         /// Gets the storage value of an `address` at a given `index` and if that address is cold.
         sload: *const fn (self: *anyopaque, address: Address, index: u256) anyerror!struct { u256, bool },
         /// Sets a storage value of an `address` at a given `index` and if that address is cold.
@@ -39,8 +41,6 @@ pub const Host = struct {
         tload: *const fn (self: *anyopaque, address: Address, index: u256) ?u256,
         /// Sets the transient storage value of an `address` at a given `index`.
         tstore: *const fn (self: *anyopaque, address: Address, index: u256, value: u256) anyerror!void,
-        /// Sets the address to be deleted and any funds it might have to `target` address.
-        selfDestruct: *const fn (self: *anyopaque, address: Address, target: Address) anyerror!SelfDestructResult,
     };
 
     /// Gets the balance of an `address` and if that address is cold.
@@ -71,6 +71,10 @@ pub const Host = struct {
     pub inline fn log(self: SelfHost, log_event: Log) anyerror!void {
         return self.vtable.log(self.ptr, log_event);
     }
+    /// Sets the address to be deleted and any funds it might have to `target` address.
+    pub inline fn selfDestruct(self: SelfHost, address: Address, target: Address) anyerror!SelfDestructResult {
+        return self.vtable.selfDestruct(self.ptr, address, target);
+    }
     /// Gets the storage value of an `address` at a given `index` and if that address is cold.
     pub inline fn sload(self: SelfHost, address: Address, index: u256) anyerror!struct { u256, bool } {
         return self.vtable.sload(self.ptr, address, index);
@@ -86,10 +90,6 @@ pub const Host = struct {
     /// Emits a log owned by an address with the log data.
     pub inline fn tstore(self: SelfHost, address: Address, index: u256, value: u256) anyerror!void {
         return self.vtable.tstore(self.ptr, address, index, value);
-    }
-    /// Sets the address to be deleted and any funds it might have to `target` address.
-    pub inline fn selfDestruct(self: SelfHost, address: Address, target: Address) anyerror!SelfDestructResult {
-        return self.vtable.selfDestruct(self.ptr, address, target);
     }
 };
 
@@ -126,6 +126,7 @@ pub const PlainHost = struct {
     /// The logs of this host.
     log: ArrayList(Log),
 
+    /// Creates instance of this `PlainHost`.
     pub fn init(self: *Self, allocator: Allocator) void {
         const storage = Storage.init(allocator);
         const transient_storage = Storage.init(allocator);
@@ -144,7 +145,7 @@ pub const PlainHost = struct {
         self.storage.deinit();
         self.transient_storage.deinit();
     }
-
+    /// Returns the `Host` implementation for this instance.
     pub fn host(self: *Self) Host {
         return .{
             .ptr = self,
@@ -153,49 +154,31 @@ pub const PlainHost = struct {
                 .blockHash = blockHash,
                 .code = code,
                 .codeHash = codeHash,
+                .getEnviroment = getEnviroment,
                 .loadAccount = loadAccount,
+                .log = log,
                 .sload = sload,
+                .sstore = sstore,
+                .tload = tload,
+                .tstore = tstore,
             },
         };
     }
 
-    fn balance(ctx: *anyopaque, address: Address) ?struct { u256, bool } {
-        const self: *Self = @ptrCast(@alignCast(ctx));
-        _ = self;
-        _ = address;
-
+    fn balance(_: *anyopaque, _: Address) ?struct { u256, bool } {
         return .{ 0, false };
     }
 
-    fn blockHash(ctx: *anyopaque, block_number: u256) ?AccountResult {
-        const self: *Self = @ptrCast(@alignCast(ctx));
-        _ = self;
-        _ = block_number;
-
+    fn blockHash(_: *anyopaque, _: u256) ?AccountResult {
         return [_]u8{0} ** 32;
     }
 
-    fn code(ctx: *anyopaque, address: Address) ?struct { []u8, bool } {
-        const self: *Self = @ptrCast(@alignCast(ctx));
-        _ = self;
-        _ = address;
-
+    fn code(_: *anyopaque, _: Address) ?struct { []u8, bool } {
         return .{ &[_]u8{}, false };
     }
 
-    fn codeHash(ctx: *anyopaque, address: Address) ?struct { Hash, bool } {
-        const self: *Self = @ptrCast(@alignCast(ctx));
-        _ = self;
-        _ = address;
-
+    fn codeHash(_: *anyopaque, _: Address) ?struct { Hash, bool } {
         return .{ [_]u8{0} ** 32, false };
-    }
-
-    fn loadAccount(ctx: *anyopaque, address: Address) ?AccountResult {
-        const self: *Self = @ptrCast(@alignCast(ctx));
-        _ = self;
-        _ = address;
-        return AccountResult{ .is_new_account = false, .is_cold = false };
     }
 
     fn getEnviroment(ctx: *anyopaque) void {
@@ -204,9 +187,23 @@ pub const PlainHost = struct {
         return self.env;
     }
 
-    fn sload(ctx: *anyopaque, address: Address, index: u256) !struct { u256, bool } {
+    fn loadAccount(_: *anyopaque, _: Address) ?AccountResult {
+        return AccountResult{ .is_new_account = false, .is_cold = false };
+    }
+
+    fn log(ctx: *anyopaque, log_event: Log) !void {
         const self: *Self = @ptrCast(@alignCast(ctx));
-        _ = address;
+
+        try self.log.ensureUnusedCapacity(1);
+        self.log.appendAssumeCapacity(log_event);
+    }
+
+    fn selfDestruct(_: *anyopaque, _: Address, _: Address) !SelfDestructResult {
+        @panic("selfDestruct is not implemented on this host");
+    }
+
+    fn sload(ctx: *anyopaque, _: Address, index: u256) !struct { u256, bool } {
+        const self: *Self = @ptrCast(@alignCast(ctx));
 
         const entry = self.storage.get(index);
 
@@ -219,5 +216,45 @@ pub const PlainHost = struct {
         };
 
         return result;
+    }
+
+    fn sstore(ctx: *anyopaque, _: Address, index: u256, value: u256) !SStoreResult {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+
+        const entry = self.storage.get(index);
+
+        const result: SStoreResult = blk: {
+            if (entry) |entry_value| {
+                try self.storage.put(index, value);
+                break :blk SStoreResult{
+                    .is_cold = false,
+                    .new_value = value,
+                    .present_value = entry_value,
+                    .original_value = 0,
+                };
+            }
+
+            try self.storage.put(index, value);
+            break :blk SStoreResult{
+                .is_cold = true,
+                .new_value = value,
+                .present_value = 0,
+                .original_value = 0,
+            };
+        };
+
+        return result;
+    }
+
+    fn tload(ctx: *anyopaque, _: Address, index: u256) ?u256 {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+
+        return self.transient_storage.get(index);
+    }
+
+    fn tstore(ctx: *anyopaque, _: Address, index: u256, value: u256) !u256 {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+
+        return self.transient_storage.put(index, value);
     }
 };

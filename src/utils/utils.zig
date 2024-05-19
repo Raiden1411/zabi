@@ -1,3 +1,4 @@
+const constants = @import("constants.zig");
 const std = @import("std");
 const testing = std.testing;
 const transaction = @import("../types/transaction.zig");
@@ -202,6 +203,20 @@ pub fn bytesToInt(comptime T: type, slice: []u8) !T {
         x
     else
         std.math.cast(T, x) orelse return error.Overflow;
+}
+/// Calcutates the blob gas price
+pub fn calcultateBlobGasPrice(excess_gas: u64) u128 {
+    var index: usize = 1;
+    var output: u128 = 0;
+    var acc: u128 = constants.MIN_BLOB_GASPRICE * constants.BLOB_GASPRICE_UPDATE_FRACTION;
+
+    while (acc > 0) : (index += 1) {
+        output += acc;
+
+        acc = (acc * excess_gas) / (3 * index);
+    }
+
+    return @divFloor(output, constants.BLOB_GASPRICE_UPDATE_FRACTION);
 }
 
 test "IsAddress" {

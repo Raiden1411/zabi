@@ -1,10 +1,12 @@
-const std = @import("std");
+const env = @import("enviroment.zig");
 const log_types = @import("../types/log.zig");
+const std = @import("std");
 const types = @import("../types/ethereum.zig");
 
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
+const EVMEnviroment = env.EVMEnviroment;
 const Hash = types.Hash;
 const Log = log_types.Log;
 const Storage = std.AutoHashMap(u256, u256);
@@ -118,7 +120,7 @@ pub const PlainHost = struct {
     const Self = @This();
 
     /// The EVM enviroment
-    env: void,
+    env: EVMEnviroment,
     /// The storage of this host.
     storage: Storage,
     /// The transient storage of this host.
@@ -133,7 +135,7 @@ pub const PlainHost = struct {
         const logs = ArrayList(Log).init(allocator);
 
         self.* = .{
-            .env = {},
+            .env = EVMEnviroment.default(),
             .storage = storage,
             .transient_storage = transient_storage,
             .log = logs,

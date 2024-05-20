@@ -38,6 +38,15 @@ pub const Memory = struct {
             .memory_limit = limit orelse comptime std.math.maxInt(u64),
         };
     }
+    /// Prepares the memory for returning to the previous context.
+    pub fn freeContext(self: *Memory) void {
+        const checkpoint = self.checkpoints[self.checkpoints.len - 1];
+        self.buffer.len = checkpoint;
+    }
+    /// Gets the current size of the `Memory` range.
+    pub fn getCurrentMemorySize(self: Memory) u64 {
+        return @truncate(self.buffer.len - self.last_checkpoint);
+    }
     /// Gets a byte from the list's buffer.
     pub fn getMemoryByte(self: Memory, offset: usize) u8 {
         const slice = self.getSlice();
@@ -45,8 +54,8 @@ pub const Memory = struct {
 
         return self.buffer[offset];
     }
-    /// Gets a "Word" from memory of in other words it gets a slice
-    /// of 32 bytes from the inner memory list.
+    /// Gets a `Word` from memory of in other words it gets a slice
+    /// of 32 bytes from the inner memory buffer.
     pub fn getMemoryWord(self: Memory, offset: usize) Word {
         const slice = self.getSlice();
         std.debug.assert(slice.len > offset + 32);
@@ -59,6 +68,12 @@ pub const Memory = struct {
 
         return self.buffer[self.last_checkpoint..self.buffer.len];
     }
+    /// Prepares the memory for a new context.
+    pub fn newContext(self: *Memory) void {
+        const new_checkpoint = self.buffer.len;
+        self.checkpoints[self.checkpoints.len - 1] = new_checkpoint;
+        self.last_checkpoint = new_checkpoint;
+    }
     /// Resizes the underlaying memory buffer.
     /// Uses the allocator's `resize` method in case it's possible.
     /// If the new len is lower than the current buffer size data will be lost.
@@ -66,21 +81,21 @@ pub const Memory = struct {
         if (self.last_checkpoint + new_len > self.memory_limit)
             return error.MaxMemoryReached;
 
-        const resized = self.allocator.resize(self.buffer, new_len);
+        const resized = self.allocator.resize(self.buffer, new_len + self.last_checkpoint);
 
         if (resized)
             return;
 
         // Allocator refused to resize the memory so we do it ourselves.
-        const new_buffer = try self.allocator.alloc(u8, new_len);
+        const new_buffer = try self.allocator.alloc(u8, new_len + self.last_checkpoint);
 
         {
             defer self.allocator.free(self.buffer);
 
-            if (self.buffer.len > new_len) {
-                @memcpy(new_buffer, self.buffer[0..new_len]);
+            if (self.buffer.len > new_len + self.last_checkpoint) {
+                @memcpy(new_buffer, self.buffer[0 .. new_len + self.last_checkpoint]);
             } else {
-                @memcpy(new_buffer[0..self.buffer.len], self.buffer);
+                @memcpy(new_buffer[0 .. self.buffer.len + self.last_checkpoint], self.buffer);
             }
         }
 
@@ -100,7 +115,7 @@ pub const Memory = struct {
         return self.write(offset, byte_buffer[0..]);
     }
     /// Writes a memory `Word` into the memory buffer.
-    /// This can overwrite to existing memory.
+    /// This can overwrite existing memory.
     pub fn writeWord(self: Memory, offset: usize, word: [32]u8) !void {
         return self.write(offset, word[0..]);
     }
@@ -150,3 +165,9 @@ pub const Memory = struct {
         self.allocator.free(self.checkpoints);
     }
 };
+
+/// Returns number of words what would fit to provided number of bytes,
+/// It rounds up the number bytes to number of words.
+pub inline fn availableWords(size: u64) u64 {
+    return std.math.divCeil(u64, @truncate(size + 31), 32) catch unreachable;
+}

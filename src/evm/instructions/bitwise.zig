@@ -6,7 +6,7 @@ const Interpreter = @import("../interpreter.zig");
 /// Performs and instruction for the interpreter.
 /// AND -> 0x15
 pub fn andInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -17,7 +17,7 @@ pub fn andInstruction(self: *Interpreter) !void {
 /// Performs byte instruction for the interpreter.
 /// AND -> 0x1A
 fn byteInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -38,7 +38,7 @@ fn byteInstruction(self: *Interpreter) !void {
 /// Performs equal instruction for the interpreter.
 /// EQ -> 0x14
 fn equalInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -49,7 +49,7 @@ fn equalInstruction(self: *Interpreter) !void {
 /// Performs equal instruction for the interpreter.
 /// GT -> 0x11
 fn greaterThanInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -60,7 +60,7 @@ fn greaterThanInstruction(self: *Interpreter) !void {
 /// Performs iszero instruction for the interpreter.
 /// ISZERO -> 0x15
 fn isZeroInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
 
@@ -70,7 +70,7 @@ fn isZeroInstruction(self: *Interpreter) !void {
 /// Performs LT instruction for the interpreter.
 /// LT -> 0x10
 pub fn lowerThanInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -81,7 +81,7 @@ pub fn lowerThanInstruction(self: *Interpreter) !void {
 /// Performs NOT instruction for the interpreter.
 /// NOT -> 0x19
 fn notInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
 
@@ -91,7 +91,7 @@ fn notInstruction(self: *Interpreter) !void {
 /// Performs OR instruction for the interpreter.
 /// OR -> 0x17
 fn orInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -102,7 +102,7 @@ fn orInstruction(self: *Interpreter) !void {
 /// Performs shl instruction for the interpreter.
 /// SHL -> 0x1B
 fn shiftLeftInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(gas.GasFastStep);
+    try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -115,7 +115,7 @@ fn shiftLeftInstruction(self: *Interpreter) !void {
 /// Performs shr instruction for the interpreter.
 /// SHR -> 0x1C
 fn shiftRightInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(gas.GasFastStep);
+    try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -128,7 +128,7 @@ fn shiftRightInstruction(self: *Interpreter) !void {
 /// Performs SGT instruction for the interpreter.
 /// SGT -> 0x12
 fn signedGreaterThanInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -142,7 +142,7 @@ fn signedGreaterThanInstruction(self: *Interpreter) !void {
 /// Performs SLT instruction for the interpreter.
 /// SLT -> 0x12
 fn signedLowerThanInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -156,7 +156,7 @@ fn signedLowerThanInstruction(self: *Interpreter) !void {
 /// Performs SAR instruction for the interpreter.
 /// SAR -> 0x1D
 fn signedShiftRightInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(gas.GasFastStep);
+    try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -172,7 +172,7 @@ fn signedShiftRightInstruction(self: *Interpreter) !void {
 /// Performs XOR instruction for the interpreter.
 /// XOR -> 0x18
 fn xorInstruction(self: *Interpreter) !void {
-    try self.gas_tracker.updateTracker(gas.GasFastestStep);
+    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;

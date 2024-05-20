@@ -62,7 +62,7 @@ pub const Host = struct {
         return self.vtable.codeHash(self.ptr, address);
     }
     /// Gets the code hash of an `address` and if that address is cold.
-    pub inline fn getEnviroment(self: SelfHost) void {
+    pub inline fn getEnviroment(self: SelfHost) EVMEnviroment {
         return self.vtable.getEnviroment(self.ptr);
     }
     /// Loads an account.
@@ -183,7 +183,7 @@ pub const PlainHost = struct {
         return .{ [_]u8{0} ** 32, false };
     }
 
-    fn getEnviroment(ctx: *anyopaque) void {
+    fn getEnviroment(ctx: *anyopaque) EVMEnviroment {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
         return self.env;

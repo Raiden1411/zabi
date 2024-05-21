@@ -1,5 +1,6 @@
-const host = @import("host.zig");
 const constants = @import("../utils/constants.zig");
+const host = @import("host.zig");
+const mem = @import("memory.zig");
 const utils = @import("../utils/utils.zig");
 
 const SpecId = @import("specification.zig").SpecId;
@@ -70,6 +71,10 @@ pub const GasTracker = struct {
             .refund_amount = 0,
         };
     }
+    /// Returns the remaining gas that can be used.
+    pub fn availableGas(self: GasTracker) u64 {
+        return self.gas_limit - self.used_amount;
+    }
     /// Updates the gas tracker based on the opcode cost.
     pub inline fn updateTracker(self: GasTracker, cost: u64) error{ OutOfGas, GasOverflow }!void {
         const total, const overflow = @addWithOverflow(self.used_amount, cost);
@@ -111,6 +116,16 @@ pub inline fn calculateCodeSizeCost(spec: SpecId, is_cold: bool) u64 {
 
     return 20;
 }
+/// Calculates the gas cost per `Memory` word.
+/// Returns null in case of overflow.
+pub inline fn calculateCostPerMemoryWord(length: u64, multiple: u64) ?u64 {
+    const result, const overflow = @mulWithOverflow(multiple, mem.availableWords(length));
+
+    if (overflow)
+        return null;
+
+    return result;
+}
 /// Calculates the gas used for the `EXP` opcode.
 pub inline fn calculateExponentCost(exp: u256, spec: SpecId) !u64 {
     const size = utils.computeSize(exp);
@@ -122,6 +137,38 @@ pub inline fn calculateExponentCost(exp: u256, spec: SpecId) !u64 {
         return error.Overflow;
 
     return exp_gas;
+}
+/// Calculates the cost of using the `KECCAK256` opcode.
+/// Returns null in case of overflow.
+pub inline fn calculateKeccakCost(length: u64) ?u64 {
+    const word_cost = calculateCostPerMemoryWord(length, KECCAK256WORD);
+    if (word_cost) |word| {
+        const result, const overflow = @addWithOverflow(KECCAK256, word);
+
+        if (overflow)
+            return null;
+
+        return result;
+    } else return null;
+}
+/// Calculates the memory expansion cost based on the provided `word_count`
+pub inline fn calculateMemoryCost(count: u64) u64 {
+    const cost: u64 = @truncate(3 * count);
+
+    return @truncate(cost + count * @divFloor(count, 512));
+}
+/// Calculates the cost of a memory copy.
+pub inline fn calculateMemoryCopyLowCost(length: u64) ?u64 {
+    const word_cost = calculateCostPerMemoryWord(length, 3);
+
+    if (word_cost) |word| {
+        const result, const overflow = @addWithOverflow(word, 3);
+
+        if (overflow)
+            return null;
+
+        return result;
+    } else return null;
 }
 /// Calculates the cost of the `SSTORE` opcode after the `FRONTIER` spec.
 pub inline fn calculateFrontierSstoreCost(current: u256, new: u256) u64 {
@@ -157,12 +204,6 @@ pub inline fn calculateSloadCost(spec: SpecId, is_cold: bool) u64 {
         return 200;
 
     return 50;
-}
-/// Calculates the memory expansion cost based on the provided `word_count`
-pub inline fn calculateMemoryConst(count: u64) u64 {
-    const cost: u64 = @truncate(3 * count);
-
-    return @truncate(cost + count * @divFloor(count, 512));
 }
 /// Calculate the cost of an `SSTORE` opcode based on the spec, if the access is cold
 /// and the value in storage. Returns null if the spec is `ISTANBUL` enabled and the provided

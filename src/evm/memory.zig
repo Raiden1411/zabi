@@ -68,6 +68,16 @@ pub const Memory = struct {
 
         return self.buffer[self.last_checkpoint..self.buffer.len];
     }
+    /// Copies elements from one part of the buffer to another part of itself.
+    /// Asserts that the provided indexes are not out of bound.
+    pub fn memoryCopy(self: *Memory, destination: u64, source: u64, length: u64) void {
+        const slice = self.getSlice();
+
+        std.debug.assert(slice.len > destination + length); // Indexing out of bound.
+        std.debug.assert(slice.len > source + length); // Indexing out of bound.
+
+        @memcpy(slice[source .. source + length], slice[destination .. destination + length]);
+    }
     /// Prepares the memory for a new context.
     pub fn newContext(self: *Memory) void {
         const new_checkpoint = self.buffer.len;

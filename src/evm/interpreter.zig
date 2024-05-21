@@ -1,3 +1,4 @@
+const actions = @import("actions.zig");
 const arithmetic = @import("instructions/arithmetic.zig");
 const bitwise = @import("instructions/bitwise.zig");
 const contract = @import("contract.zig");
@@ -8,11 +9,14 @@ const spec = @import("specification.zig");
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
+const CallAction = actions.CallAction;
 const Contract = contract.Contract;
+const CreateAction = actions.CreateAction;
 const GasTracker = gas.GasTracker;
 const Host = host.Host;
 const Memory = mem.Memory;
 const Opcodes = @import("opcodes.zig").Opcodes;
+const ReturnAction = actions.ReturnAction;
 const SpecId = spec.SpecId;
 const Stack = @import("../utils/stack.zig").Stack;
 
@@ -20,11 +24,22 @@ const Interpreter = @This();
 
 /// The status of execution for the interpreter.
 pub const InterpreterStatus = enum {
+    CallWithValueNotAllowedInStaticCall,
+    Invalid,
+    InvalidJump,
+    InvalidOffset,
+    OpcodeNotFound,
     Returned,
     Reverted,
     Running,
     SelfDestructed,
     Stopped,
+};
+
+pub const InterpreterAction = union(enum) {
+    call: CallAction,
+    create: CreateAction,
+    ret: ReturnAction,
 };
 
 /// Interpreter allocator used to manage memory.
@@ -43,6 +58,8 @@ is_static: bool,
 memory: *Memory,
 /// the interpreter's counter.
 program_counter: u64,
+/// the buffer containing the return data
+return_data: []u8,
 /// The spec for this interpreter.
 spec: SpecId,
 /// The stack of the interpreter with 1024 max size.
@@ -91,9 +108,9 @@ pub fn deinit(self: *Interpreter) void {
 }
 /// Resizes the inner memory size. Adds gas expansion cost to
 /// the gas tracker.
-pub fn resize(self: *Interpreter, new_size: u64) error{ OutOfGas, GasOverflow }!void {
+pub fn resize(self: *Interpreter, new_size: u64) !void {
     const count = mem.availableWords(new_size);
-    const mem_cost = gas.calculateMemoryCost(mem.availableWords(new_size));
+    const mem_cost = gas.calculateMemoryCost(count);
     const current_cost = gas.calculateMemoryCost(mem.availableWords(self.memory.getCurrentMemorySize()));
     const cost = mem_cost - current_cost;
 
@@ -140,9 +157,4 @@ pub fn runInstruction(self: *Interpreter) !void {
         .SAR => try bitwise.signedShiftRightInstruction(self),
         else => return error.UnsupportedOpcode,
     }
-}
-
-// Opcode instructions
-fn stopInstruction(self: *Interpreter) void {
-    self.status = .Stopped;
 }

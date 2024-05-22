@@ -1,8 +1,11 @@
 const enviroment = @import("enviroment.zig");
+const gas = @import("gas_tracker.zig");
 const std = @import("std");
 const types = @import("../types/ethereum.zig");
 
 const Address = types.Address;
+const GasTracker = gas.GasTracker;
+const InterpreterStatus = @import("interpreter.zig").InterpreterStatus;
 const TxEnviroment = enviroment.TxEnviroment;
 
 /// Inputs for a call action.
@@ -34,7 +37,7 @@ pub const CallAction = struct {
             .create => return null,
         };
 
-        return CallAction{
+        return .{
             .inputs = tx_env.data,
             .gas_limit = gas_limit,
             .target_address = target,
@@ -70,4 +73,50 @@ pub const CallScheme = enum {
     callcode,
     delegate,
     static,
+};
+
+/// Inputs for a create call.
+pub const CreateAction = struct {
+    /// Caller address of the EVM.
+    caller: Address,
+    /// The schema used for the create action
+    scheme: CreateScheme,
+    /// Value to transfer
+    value: u256,
+    /// The contract's init code.
+    init_code: []u8,
+    /// The gas limit of this call.
+    gas_limit: u64,
+
+    /// Creates an instance for this action.
+    pub fn init(tx_env: TxEnviroment, gas_limit: u64) ?CallAction {
+        switch (tx_env.transact_to) {
+            .call => {},
+            .create => return null,
+        }
+
+        return .{
+            .caller = tx_env.caller,
+            .gas_limit = gas_limit,
+            .init_code = tx_env.data,
+            .scheme = .create,
+            .value = tx_env.value,
+        };
+    }
+};
+
+/// EVM Create scheme.
+pub const CreateScheme = union(enum) {
+    create,
+    create2: u256,
+};
+
+/// The result of the interpreter operation
+pub const ReturnAction = struct {
+    /// The result of the instruction execution.
+    result: InterpreterStatus,
+    /// The return output slice.
+    output: []u8,
+    /// The tracker with gas usage.
+    gas: GasTracker,
 };

@@ -22,29 +22,35 @@ const Stack = @import("../utils/stack.zig").Stack;
 
 const Interpreter = @This();
 
-/// The status of execution for the interpreter.
-pub const InterpreterStatus = enum {
-    CallWithValueNotAllowedInStaticCall,
-    Invalid,
-    InvalidJump,
-    InvalidOffset,
-    OpcodeNotFound,
-    Returned,
-    Reverted,
-    Running,
-    SelfDestructed,
-    Stopped,
+/// The set of next interpreter actions.
+pub const InterpreterActions = union(enum) {
+    /// Call action.
+    call_action: CallAction,
+    /// Create action.
+    create_action: CreateAction,
+    /// Return action.
+    return_action: ReturnAction,
+    no_action,
 };
 
-pub const InterpreterAction = union(enum) {
-    call: CallAction,
-    create: CreateAction,
-    ret: ReturnAction,
+/// The status of execution for the interpreter.
+pub const InterpreterStatus = enum {
+    call_or_create,
+    call_with_value_not_allowed_in_static_call,
+    invalid,
+    invalid_jump,
+    invalid_offset,
+    opcode_not_found,
+    returned,
+    reverted,
+    running,
+    self_destructed,
+    stopped,
 };
 
 /// Interpreter allocator used to manage memory.
 allocator: Allocator,
-/// compiled bytecode that will get ran.
+/// Compiled bytecode that will get ran.
 code: []u8,
 /// The contract associated to this interpreter.
 contract: Contract,
@@ -56,9 +62,11 @@ host: *Host,
 is_static: bool,
 /// The memory used by this interpreter.
 memory: *Memory,
-/// the interpreter's counter.
+/// The next interpreter action.
+next_action: InterpreterActions,
+/// The interpreter's counter.
 program_counter: u64,
-/// the buffer containing the return data
+/// The buffer containing the return data
 return_data: []u8,
 /// The spec for this interpreter.
 spec: SpecId,
@@ -120,7 +128,7 @@ pub fn resize(self: *Interpreter, new_size: u64) !void {
 /// Run a instruction based on the defined opcodes.
 pub fn runInstruction(self: *Interpreter) !void {
     if (self.program_counter > self.code.len - 1) {
-        self.status = .Ended;
+        self.status = .invalid_offset;
         return;
     }
 

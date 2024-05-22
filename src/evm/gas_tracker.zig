@@ -126,6 +126,24 @@ pub inline fn calculateCostPerMemoryWord(length: u64, multiple: u64) ?u64 {
 
     return result;
 }
+/// Calculates the cost of using the `CREATE` opcode.
+/// **PANICS** if the gas cost overflows
+pub inline fn calculateCreateCost(length: u64) u64 {
+    return calculateCostPerMemoryWord(length, INITCODE_WORD_COST) orelse @panic("Init contract code cost overflow");
+}
+/// Calculates the cost of using the `CREATE2` opcode.
+/// Returns null in case of overflow.
+pub inline fn calculateCreate2Cost(length: u64) ?u64 {
+    const word_cost = calculateCostPerMemoryWord(length, KECCAK256WORD);
+    if (word_cost) |word| {
+        const result, const overflow = @addWithOverflow(CREATE, word);
+
+        if (overflow)
+            return null;
+
+        return result;
+    } else return null;
+}
 /// Calculates the gas used for the `EXP` opcode.
 pub inline fn calculateExponentCost(exp: u256, spec: SpecId) !u64 {
     const size = utils.computeSize(exp);

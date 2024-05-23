@@ -1,4 +1,7 @@
 const std = @import("std");
+const instructions = @import("instructions/root.zig");
+
+const Interpreter = @import("interpreter.zig");
 
 pub const Opcodes = enum(u8) {
     // Arithmetic opcodes.
@@ -175,7 +178,110 @@ pub const Opcodes = enum(u8) {
     INVALID = 0xfe,
     SELFDESTRUCT = 0xff,
 
-    pub fn toOpcode(num: u8) !Opcodes {
-        return std.meta.intToEnum(Opcodes, num) catch error.InvalidOpcode;
+    pub fn toOpcode(num: u8) ?Opcodes {
+        return std.meta.intToEnum(Opcodes, num) catch null;
     }
 };
+
+pub const InstructionTable = struct {
+    inner: [256]Operations,
+
+    /// Creates the instruction table.
+    pub fn init(interpreter: *Interpreter) InstructionTable {
+        var inner: [256]Operations = undefined;
+
+        // Fills the array with unknowInstruction for unknow opcodes.
+        {
+            for (0..256) |possible_opcode| {
+                const opcode_enum = Opcodes.toOpcode(possible_opcode);
+
+                if (opcode_enum) |opcode| {
+                    switch (opcode) {
+                        .STOP => inner[possible_opcode] = .{ .execution = instructions.control.stopInstruction(interpreter), .max_stack = maxStack(1024, 0, 0) },
+                        .ADD => inner[possible_opcode] = .{ .execution = instructions.arithmetic.addInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .MUL => inner[possible_opcode] = .{ .execution = instructions.arithmetic.mulInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .SUB => inner[possible_opcode] = .{ .execution = instructions.arithmetic.subInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .DIV => inner[possible_opcode] = .{ .execution = instructions.arithmetic.divInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .SDIV => inner[possible_opcode] = .{ .execution = instructions.arithmetic.signedDivInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .MOD => inner[possible_opcode] = .{ .execution = instructions.arithmetic.modInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .SMOD => inner[possible_opcode] = .{ .execution = instructions.arithmetic.signedModInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .ADDMOD => inner[possible_opcode] = .{ .execution = instructions.arithmetic.modAdditionInstruction(interpreter), .max_stack = maxStack(1024, 3, 1) },
+                        .MULMOD => inner[possible_opcode] = .{ .execution = instructions.arithmetic.modMultiplicationInstruction(interpreter), .max_stack = maxStack(1024, 3, 1) },
+                        .EXP => inner[possible_opcode] = .{ .execution = instructions.arithmetic.exponentInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .SIGNEXTEND => inner[possible_opcode] = .{ .execution = instructions.arithmetic.signedExponentInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .LT => inner[possible_opcode] = .{ .execution = instructions.bitwise.lowerThanInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .GT => inner[possible_opcode] = .{ .execution = instructions.bitwise.greaterThanInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .SLT => inner[possible_opcode] = .{ .execution = instructions.bitwise.signedLowerThanInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .SGT => inner[possible_opcode] = .{ .execution = instructions.bitwise.signedGreaterThanInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .EQ => inner[possible_opcode] = .{ .execution = instructions.bitwise.equalInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .ISZERO => inner[possible_opcode] = .{ .execution = instructions.bitwise.isZeroInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .AND => inner[possible_opcode] = .{ .execution = instructions.bitwise.andInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .OR => inner[possible_opcode] = .{ .execution = instructions.bitwise.orInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .XOR => inner[possible_opcode] = .{ .execution = instructions.bitwise.xorInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .NOT => inner[possible_opcode] = .{ .execution = instructions.bitwise.notInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .BYTE => inner[possible_opcode] = .{ .execution = instructions.bitwise.byteInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .SHL => inner[possible_opcode] = .{ .execution = instructions.bitwise.shiftLeftInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .SHR => inner[possible_opcode] = .{ .execution = instructions.bitwise.shiftRightInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .SAR => inner[possible_opcode] = .{ .execution = instructions.bitwise.signedShiftRightInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .KECCAK256 => inner[possible_opcode] = .{ .execution = instructions.system.keccakInstruction(interpreter), .max_stack = maxStack(1024, 2, 1) },
+                        .ADDRESS => inner[possible_opcode] = .{ .execution = instructions.system.addressInstruction(interpreter), .max_stack = maxStack(1024, 0, 1) },
+                        .BALANCE => inner[possible_opcode] = .{ .execution = instructions.host.balanceInstruction(interpreter), .max_stack = maxStack(1024, 1, 1) },
+                        .ORIGIN => inner[possible_opcode] = .{ .execution = instructions.enviroment.originInstruction(interpreter), .max_stack = maxStack(1024, 0, 1) },
+                        .CALLER => inner[possible_opcode] = .{ .execution = instructions.system.callerInstruction(interpreter), .max_stack = maxStack(1024, 0, 1) },
+                        .CALLVALUE => inner[possible_opcode] = .{ .execution = instructions.system.callValueInstruction(interpreter), .max_stack = maxStack(1024, 0, 1) },
+                        .CALLDATALOAD => inner[possible_opcode] = .{ .execution = instructions.system.callDataLoadInstruction(interpreter), .max_stack = maxStack(1024, 1, 1) },
+                        .CALLDATASIZE => inner[possible_opcode] = .{ .execution = instructions.system.callDataSizeInstruction(interpreter), .max_stack = maxStack(1024, 0, 1) },
+                        .CALLDATACOPY => inner[possible_opcode] = .{ .execution = instructions.system.callDataCopyInstruction(interpreter), .max_stack = maxStack(1024, 3, 0) },
+                        .CODESIZE => inner[possible_opcode] = .{ .execution = instructions.system.codeSizeInstruction(interpreter), .max_stack = maxStack(1024, 0, 1) },
+                        .CODECOPY => inner[possible_opcode] = .{ .execution = instructions.system.codeCopyInstruction(interpreter), .max_stack = maxStack(1024, 3, 0) },
+                        .GASPRICE => inner[possible_opcode] = .{ .execution = instructions.enviroment.gasPriceInstruction(interpreter), .max_stack = maxStack(1024, 0, 1) },
+                        .EXTCODESIZE => inner[possible_opcode] = .{ .execution = instructions.host.extCodeSizeInstruction(interpreter), .max_stack = maxStack(1024, 1, 1) },
+                        .EXTCODECOPY => inner[possible_opcode] = .{ .execution = instructions.host.extCodeSizeInstruction(interpreter), .max_stack = maxStack(1024, 4, 0) },
+                        .RETURNDATASIZE => inner[possible_opcode] = .{ .execution = instructions.system.returnDataSizeInstruction(interpreter), .max_stack = maxStack(1024, 0, 1) },
+                        .RETURNDATACOPY => inner[possible_opcode] = .{ .execution = instructions.system.returnDataCopyInstruction(interpreter), .max_stack = maxStack(1024, 3, 0) },
+                        .EXTCODEHASH => inner[possible_opcode] = .{ .execution = instructions.host.extCodeHashInstruction(interpreter), .max_stack = maxStack(1024, 1, 1) },
+                    }
+                } else {
+                    inner[possible_opcode] = .{
+                        .execution = instructions.control.unknowInstruction(interpreter),
+                        .max_stack = 0,
+                    };
+                }
+            }
+        }
+    }
+};
+
+pub const Operations = struct {
+    execution: *const fn (ctx: *Interpreter) anyerror!void,
+    max_stack: usize,
+};
+
+/// Creates the dup instructions for the instruction table.
+pub fn makeDupInstruction(comptime dup_size: u8) *const fn (ctx: *Interpreter) anyerror!void {
+    return struct {
+        pub fn dup(self: *Interpreter) anyerror!void {
+            return instructions.stack.dupInstruction(self, dup_size);
+        }
+    }.dup;
+}
+/// Creates the push instructions for the instruction table.
+pub fn makePushInstruction(comptime push_size: u8) *const fn (ctx: *Interpreter) anyerror!void {
+    return struct {
+        pub fn push(self: *Interpreter) anyerror!void {
+            return instructions.stack.pushInstruction(self, push_size);
+        }
+    }.push;
+}
+/// Creates the swap instructions for the instruction table.
+pub fn makeSwapInstruction(comptime swap_size: u8) *const fn (ctx: *Interpreter) anyerror!void {
+    return struct {
+        pub fn swap(self: *Interpreter) anyerror!void {
+            return instructions.stack.swapInstruction(self, swap_size);
+        }
+    }.swap;
+}
+/// Callculates the max avaliable size of the stack for the operation to execute.
+pub fn maxStack(comptime limit: comptime_int, comptime pop: comptime_int, comptime push: comptime_int) usize {
+    return @intCast(limit + pop - push);
+}

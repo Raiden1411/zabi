@@ -15,6 +15,13 @@ pub const Bytecode = union(enum) {
             .analyzed => |analyzed| return analyzed.jump_table,
         }
     }
+    /// Grabs the bytecode independent of the current state.
+    pub fn getCodeBytes(self: @This()) []u8 {
+        return switch (self) {
+            .raw => |bytes| return bytes,
+            .analyzed => |analyzed_bytes| return analyzed_bytes.bytecode,
+        };
+    }
 };
 
 /// Representation of the analyzed bytecode.

@@ -16,7 +16,7 @@ pub fn conditionalJumpInstruction(self: *Interpreter) !void {
 
     if (condition != 0) {
         if (!self.contract.isValidJump(@intCast(target))) {
-            self.status = .InvalidJump;
+            self.status = .invalid_jump;
             return;
         }
 
@@ -40,7 +40,7 @@ pub fn jumpInstruction(self: *Interpreter) !void {
         return error.InvalidJump;
 
     if (!self.contract.isValidJump(@intCast(target))) {
-        self.status = .InvalidJump;
+        self.status = .invalid_jump;
         return;
     }
 
@@ -55,17 +55,17 @@ pub fn jumpDestInstruction(self: *Interpreter) !void {
 /// Runs the invalid instruction opcode for the interpreter.
 /// 0xFE -> INVALID
 pub fn invalidInstruction(self: *Interpreter) void {
-    self.status = .Invalid;
+    self.status = .invalid;
 }
 /// Runs the stop instruction opcode for the interpreter.
 /// 0x00 -> STOP
 pub fn stopInstruction(self: *Interpreter) void {
-    self.status = .Stopped;
+    self.status = .stopped;
 }
 /// Runs the return instruction opcode for the interpreter.
 /// 0xF3 -> RETURN
 pub fn returnInstruction(self: *Interpreter) !void {
-    return returnAction(self, .Returned);
+    return returnAction(self, .returned);
 }
 /// Runs the rever instruction opcode for the interpreter.
 /// 0xFD -> REVERT
@@ -73,7 +73,12 @@ pub fn revertInstruction(self: *Interpreter) !void {
     if (!self.spec.enabled(.BYZANTIUM))
         return error.InstructionNotEnabled;
 
-    return returnAction(self, .Reverted);
+    return returnAction(self, .reverted);
+}
+/// Runs the stop instruction opcode for the interpreter.
+/// 0x00 -> STOP
+pub fn unknowInstruction(self: *Interpreter) void {
+    self.status = .opcode_not_found;
 }
 
 // Internal action for return type instructions.

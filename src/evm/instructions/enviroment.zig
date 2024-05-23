@@ -80,6 +80,20 @@ pub fn difficultyInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(difficulty);
 }
+/// Performs the gaslimit instruction for the interpreter.
+/// 0x45 -> GASLIMIT
+pub fn gasLimitInstruction(self: *Interpreter) !void {
+    const gas_price = self.host.getEnviroment().block.gas_limit;
+    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.stack.pushUnsafe(gas_price);
+}
+/// Performs the gasprice instruction for the interpreter.
+/// 0x3A -> GASPRICE
+pub fn gasPriceInstruction(self: *Interpreter) !void {
+    const gas_price = self.host.getEnviroment().effectiveGasPrice();
+    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.stack.pushUnsafe(gas_price);
+}
 /// Performs the origin instruction for the interpreter.
 /// 0x32 -> ORIGIN
 pub fn originInstruction(self: *Interpreter) !void {

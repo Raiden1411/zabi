@@ -124,8 +124,8 @@ pub const EVMEnviroment = struct {
 pub const ConfigEnviroment = struct {
     /// The chain id of the EVM. It will be compared with the `tx` chain id.
     chain_id: u64,
-    /// Whether the bytecode has been analysed or not.
-    analysed_bytecode: bool,
+    /// Whether to perform analysis on the bytecode.
+    perform_analysis: AnalysisKind,
     /// The contract code's size limit.
     ///
     /// By default if should be 24kb as part of the Spurious Dragon upgrade via [EIP-155].
@@ -155,7 +155,7 @@ pub const ConfigEnviroment = struct {
     pub fn default() ConfigEnviroment {
         return .{
             .chain_id = 1,
-            .analysed_bytecode = false,
+            .perform_analysis = .analyse,
             .limit_contract_size = 0x600,
             .memory_limit = std.math.maxInt(u32),
             .disable_eip3607 = false,
@@ -359,4 +359,12 @@ pub const AddressKind = union(enum) {
     call: Address,
     /// Contract creation.
     create,
+};
+
+/// The type of analysis to perform.
+pub const AnalysisKind = enum {
+    /// Do not perform analysis.
+    raw,
+    /// Perform analysis.
+    analyse,
 };

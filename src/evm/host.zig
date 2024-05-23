@@ -6,6 +6,7 @@ const types = @import("../types/ethereum.zig");
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
+const Bytecode = @import("bytecode.zig").Bytecode;
 const EVMEnviroment = env.EVMEnviroment;
 const Hash = types.Hash;
 const Log = log_types.Log;
@@ -54,7 +55,7 @@ pub const Host = struct {
         return self.vtable.blockHash(self.ptr, block_number);
     }
     /// Gets the code of an `address` and if that address is cold.
-    pub inline fn code(self: SelfHost, address: Address) ?struct { []u8, bool } {
+    pub inline fn code(self: SelfHost, address: Address) ?struct { Bytecode, bool } {
         return self.vtable.code(self.ptr, address);
     }
     /// Gets the code hash of an `address` and if that address is cold.
@@ -176,7 +177,7 @@ pub const PlainHost = struct {
     }
 
     fn code(_: *anyopaque, _: Address) ?struct { []u8, bool } {
-        return .{ &[_]u8{}, false };
+        return .{ .{ .raw = &[_]u8{} }, false };
     }
 
     fn codeHash(_: *anyopaque, _: Address) ?struct { Hash, bool } {

@@ -40,11 +40,36 @@ pub fn blockHashInstruction(self: *Interpreter) !void {
     try self.stack.pushUnsafe(@bitCast(hash));
     self.program_counter += 1;
 }
+/// Runs the extcodecopy opcode for the interpreter.
+/// 0x3B -> EXTCODECOPY
+pub fn extCodeCopyInstruction(self: *Interpreter) !void {
+    const address = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const offset = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const code_offset = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const length = self.stack.popUnsafe() orelse return error.StackUnderflow;
+
+    const code, const is_cold = self.host.code(@bitCast(address)) orelse return error.UnexpectedError;
+
+    if (length > comptime std.math.maxInt(u64))
+        return error.Overflow;
+
+    const gas_usage = gas.calculateCodeCopyCost(self.spec, @intCast(length), is_cold);
+    try self.gas_tracker.updateTracker(gas_usage);
+
+    if (length == 0)
+        return;
+
+    const code_offset_len = @min(std.math.cast(u64, code_offset) orelse return error.Overflow, code.getCodeBytes().len);
+    try self.resize(@truncate(std.math.cast(u64, offset) orelse return error.Overflow + length));
+
+    try self.memory.writeData(@intCast(offset), code_offset_len, @intCast(length), code.getCodeBytes().len);
+    self.program_counter += 1;
+}
 /// Runs the extcodehash opcode for the interpreter.
 /// 0x3F -> EXTCODEHASH
 pub fn extCodeHashInstruction(self: *Interpreter) !void {
     const address = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const code_hash, const is_cold = self.host.codeHash(address) orelse return error.UnexpectedError;
+    const code_hash, const is_cold = self.host.codeHash(@bitCast(address)) orelse return error.UnexpectedError;
 
     const gas_usage: u64 = blk: {
         if (self.spec.enabled(.BERLIN))
@@ -70,7 +95,7 @@ pub fn extCodeSizeInstruction(self: *Interpreter) !void {
     const gas_usage = gas.calculateCodeSizeCost(self.spec, is_cold);
     try self.gas_tracker.updateTracker(gas_usage);
 
-    try self.stack.pushUnsafe(code.len);
+    try self.stack.pushUnsafe(code.getCodeBytes().len);
     self.program_counter += 1;
 }
 /// Runs the selfbalance opcode for the interpreter.

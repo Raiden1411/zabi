@@ -108,7 +108,7 @@ pub fn mulInstruction(self: *Interpreter) !void {
 }
 /// Performs signed division instruction for the interpreter.
 /// SDIV -> 0x05
-fn signedDivInstruction(self: *Interpreter) !void {
+pub fn signedDivInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;

@@ -1,3 +1,4 @@
+const analysis = @import("analysis.zig");
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
@@ -7,6 +8,13 @@ pub const Bytecode = union(enum) {
     raw: []u8,
     analyzed: AnalyzedBytecode,
 
+    /// Clears the analyzed jump table.
+    pub fn deinit(self: @This(), allocator: Allocator) void {
+        switch (self) {
+            .raw => {},
+            .analyzed => |analyzed| analyzed.deinit(allocator),
+        }
+    }
     /// Returns the jump_table is the bytecode state is `analyzed`
     /// otherwise it will return null.
     pub fn getJumpTable(self: @This()) ?JumpTable {
@@ -29,6 +37,29 @@ pub const AnalyzedBytecode = struct {
     bytecode: []u8,
     original_length: usize,
     jump_table: JumpTable,
+
+    /// Creates an instance of `AnalyzedBytecode`.
+    pub fn init(allocator: Allocator, raw: []u8) Allocator.Error!AnalyzedBytecode {
+        const size = raw.len;
+        const list = try std.ArrayList(u8).initCapacity(allocator, size + 33);
+        try list.appendSlice(raw);
+        try list.writer().writeByteNTimes(0, 33);
+
+        const slice = try list.toOwnedSlice();
+        const jump_table = try analysis.createJumpTable(allocator, slice);
+
+        return .{
+            .bytecode = slice,
+            .original_length = size,
+            .jump_table = jump_table,
+        };
+    }
+    /// Free's the underlaying allocated memory
+    /// Assumes that the bytecode was already padded and memory was allocated.
+    pub fn deinit(self: @This(), allocator: Allocator) void {
+        allocator.free(self.bytecode);
+        self.jump_table.deinit(allocator);
+    }
 };
 
 /// Essentially a `BitVec`
@@ -36,7 +67,7 @@ pub const JumpTable = struct {
     bytes: []u8,
 
     /// Creates the jump table. Provided size must follow the two's complement.
-    pub fn init(allocator: Allocator, value: bool, size: usize) !JumpTable {
+    pub fn init(allocator: Allocator, value: bool, size: usize) Allocator.Error!JumpTable {
         const buffer = try allocator.alloc(u8, @divFloor(size, 8));
         @memset(buffer, @intFromBool(value));
 

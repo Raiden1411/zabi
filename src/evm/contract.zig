@@ -48,7 +48,19 @@ pub const Contract = struct {
             .create => [_]u8{0} ** 20,
         };
 
-        return .{ .input = env.tx.data, .bytecode = analyzed, .code_hash = hash, .value = env.tx.value, .caller = env.tx.caller, .target_address = contract_address };
+        return .{
+            .input = env.tx.data,
+            .bytecode = analyzed,
+            .code_hash = hash,
+            .value = env.tx.value,
+            .caller = env.tx.caller,
+            .target_address = contract_address,
+        };
+    }
+
+    /// Clears the bytecode in case it's analyzed.
+    pub fn deinit(self: @This(), allocator: Allocator) void {
+        self.bytecode.deinit(allocator);
     }
 
     /// Returns if the provided target result in a valid jump dest.

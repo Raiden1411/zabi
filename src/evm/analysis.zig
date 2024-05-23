@@ -8,27 +8,10 @@ const JumpTable = bytecode.JumpTable;
 /// Analyzes the raw bytecode into a `analyzed` state. If the provided
 /// code is already analyzed then it will just return it.
 pub fn analyzeBytecode(allocator: Allocator, code: Bytecode) !Bytecode {
-    const slice, const size = blk: {
-        switch (code) {
-            .analyzed => return code,
-            .raw => |raw| {
-                const size = raw.len;
-                const list = try std.ArrayList(u8).initCapacity(allocator, size + 33);
-                try list.appendSlice(raw);
-                try list.writer().writeByteNTimes(0, 33);
-
-                break :blk .{ try list.toOwnedSlice(), size };
-            },
-        }
-    };
-
-    const jump_table = try createJumpTable(allocator, slice);
-
-    return .{ .analyzed = .{
-        .bytecode = slice,
-        .original_length = size,
-        .jump_table = jump_table,
-    } };
+    switch (code) {
+        .analyzed => return code,
+        .raw => |raw| return bytecode.AnalyzedBytecode.init(allocator, raw),
+    }
 }
 /// Creates the jump table based on the provided bytecode. Assumes that
 /// this was already padded in advance.

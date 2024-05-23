@@ -1,19 +1,22 @@
+const analysis = @import("analysis.zig");
+const enviroment = @import("enviroment.zig");
+const std = @import("std");
 const types = @import("../types/ethereum.zig");
 const transaction = @import("../types/transaction.zig");
 
+const Allocator = std.mem.Allocator;
 const Address = types.Address;
-const EthCall = transaction.EthCall;
+const Bytecode = @import("bytecode.zig").Bytecode;
+const EVMEnviroment = enviroment.EVMEnviroment;
 const Hash = types.Hash;
 
 pub const Contract = struct {
     /// The bytecode associated with this contract.
-    bytecode: []u8,
+    bytecode: Bytecode,
     /// Address that called this contract.
     caller: Address,
     /// Keccak hash of the bytecode.
     code_hash: ?Hash = null,
-    /// Gas used by this contract.
-    gas: u64,
     /// The calldata input to use in this contract.
     input: []u8,
     /// The address of this contract.
@@ -21,15 +24,37 @@ pub const Contract = struct {
     /// Value in wei associated with this contract.
     value: u256,
 
-    pub fn newContract(data: []u8, bytecode: []u8, hash: ?Hash, call: EthCall) Contract {
+    /// Creates a contract instance from the provided inputs.
+    /// This will also prepare the provided bytecode in case it's given in a `raw` state.
+    pub fn init(allocator: Allocator, data: []u8, bytecode: Bytecode, hash: ?Hash, value: u256, caller: Address, target_address: Address) !Contract {
+        const analyzed = try analysis.analyzeBytecode(allocator, bytecode);
+
         return .{
             .input = data,
-            .bytecode = bytecode,
+            .bytecode = analyzed,
             .code_hash = hash,
-            .gas = call.london.gas orelse 0,
-            .value = call.london.value orelse 0,
-            .caller = call.london.from.?,
-            .target_address = call.london.to.?,
+            .value = value,
+            .caller = caller,
+            .target_address = target_address,
         };
+    }
+
+    /// Creates a contract instance from a given enviroment.
+    /// This will also prepare the provided bytecode in case it's given in a `raw` state.
+    pub fn initFromEnviroment(allocator: Allocator, env: EVMEnviroment, bytecode: Bytecode, hash: ?Hash) !Contract {
+        const analyzed = try analysis.analyzeBytecode(allocator, bytecode);
+        const contract_address = switch (env.tx.transact_to) {
+            .call => |addr| addr,
+            .create => [_]u8{0} ** 20,
+        };
+
+        return .{ .input = env.tx.data, .bytecode = analyzed, .code_hash = hash, .value = env.tx.value, .caller = env.tx.caller, .target_address = contract_address };
+    }
+
+    /// Returns if the provided target result in a valid jump dest.
+    pub fn isValidJump(self: Contract, target: usize) bool {
+        const jump_table = self.bytecode.getJumpTable() orelse return false;
+
+        return jump_table.isValid(target);
     }
 };

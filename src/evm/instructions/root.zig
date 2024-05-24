@@ -16,3 +16,7 @@ pub const memory = @import("memory.zig");
 pub const stack = @import("stack.zig");
 /// System interpreter instructions
 pub const system = @import("system.zig");
+
+test {
+    _ = @import("arithmetic.zig");
+}

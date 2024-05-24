@@ -76,10 +76,10 @@ pub const GasTracker = struct {
         return self.gas_limit - self.used_amount;
     }
     /// Updates the gas tracker based on the opcode cost.
-    pub inline fn updateTracker(self: GasTracker, cost: u64) error{ OutOfGas, GasOverflow }!void {
+    pub inline fn updateTracker(self: *GasTracker, cost: u64) error{ OutOfGas, GasOverflow }!void {
         const total, const overflow = @addWithOverflow(self.used_amount, cost);
 
-        if (overflow)
+        if (@bitCast(overflow))
             return error.GasOverflow;
 
         if (total > self.gas_limit)
@@ -168,6 +168,26 @@ pub inline fn calculateKeccakCost(length: u64) ?u64 {
 
         return result;
     } else return null;
+}
+/// Calculates the gas cost for a LOG instruction.
+pub inline fn calculateLogCost(size: u8, length: u64) ?u64 {
+    const topics: u64 = LOGTOPIC * size;
+    const data_cost, const data_overflow = @mulWithOverflow(LOGDATA, length);
+
+    if (data_overflow)
+        return null;
+
+    const value, const overflow = @addWithOverflow(LOG, data_cost);
+
+    if (overflow)
+        return null;
+
+    const log, const log_overflow = @addWithOverflow(value, topics);
+
+    if (log_overflow)
+        return null;
+
+    return log;
 }
 /// Calculates the memory expansion cost based on the provided `word_count`
 pub inline fn calculateMemoryCost(count: u64) u64 {

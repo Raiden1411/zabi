@@ -1,6 +1,8 @@
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
+const testing = std.testing;
 
+const Stack = @import("../../utils/stack.zig").Stack;
 const Interpreter = @import("../interpreter.zig");
 
 /// Performs add instruction for the interpreter.
@@ -173,4 +175,74 @@ pub fn subInstruction(self: *Interpreter) !void {
 
     try self.stack.pushUnsafe(sub);
     self.program_counter += 1;
+}
+
+test "Addition" {
+    var interpreter: Interpreter = undefined;
+
+    const stack = try testing.allocator.create(Stack(u256));
+    defer {
+        stack.deinit();
+        testing.allocator.destroy(stack);
+    }
+
+    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = stack;
+    interpreter.program_counter = 0;
+
+    {
+        try interpreter.stack.pushUnsafe(1);
+        try interpreter.stack.pushUnsafe(2);
+
+        try addInstruction(&interpreter);
+
+        try testing.expectEqual(3, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
+    }
+    {
+        try interpreter.stack.pushUnsafe(std.math.maxInt(u256));
+        try interpreter.stack.pushUnsafe(1);
+
+        try addInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(6, interpreter.gas_tracker.used_amount);
+    }
+}
+
+test "Multiplication" {
+    var interpreter: Interpreter = undefined;
+
+    const stack = try testing.allocator.create(Stack(u256));
+    defer {
+        stack.deinit();
+        testing.allocator.destroy(stack);
+    }
+
+    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = stack;
+    interpreter.program_counter = 0;
+
+    {
+        try interpreter.stack.pushUnsafe(1);
+        try interpreter.stack.pushUnsafe(2);
+
+        try mulInstruction(&interpreter);
+
+        try testing.expectEqual(2, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
+    }
+    {
+        try interpreter.stack.pushUnsafe(std.math.maxInt(u256));
+        try interpreter.stack.pushUnsafe(2);
+
+        try mulInstruction(&interpreter);
+
+        try testing.expectEqual(std.math.maxInt(u256) - 1, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
+    }
 }

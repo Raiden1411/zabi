@@ -1,7 +1,9 @@
 const gas = @import("../gas_tracker.zig");
+const log_types = @import("../../types/log.zig");
 const std = @import("std");
 
 const Interpreter = @import("../interpreter.zig");
+const Log = log_types.Log;
 
 /// Runs the balance opcode for the interpreter.
 /// 0x31 -> BALANCE
@@ -96,6 +98,41 @@ pub fn extCodeSizeInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas_usage);
 
     try self.stack.pushUnsafe(code.getCodeBytes().len);
+    self.program_counter += 1;
+}
+/// Runs the logs opcode for the interpreter.
+/// 0xA0..0xA4 -> LOG0..LOG4
+pub fn logInstruction(self: *Interpreter, size: u8) !void {
+    std.debug.assert(!self.is_static); // Requires non static calls.
+
+    const offset = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const length = self.stack.popUnsafe() orelse return error.StackUnderflow;
+
+    const len = std.math.cast(u64, length) orelse return error.Overflow;
+    try self.gas_tracker.updateTracker(gas.calculateLogCost(size, len) orelse return error.GasOverflow);
+
+    const bytes: []u8 = blk: {
+        if (len == 0)
+            break :blk &[_]u8{};
+
+        const off = std.math.cast(u64, offset) orelse return error.Overflow;
+        try self.resize(@truncate(off + len));
+        break :blk self.memory.getSlice()[offset .. offset + len];
+    };
+
+    var topic = try std.ArrayList([32]u8).initCapacity(self.allocator, size);
+    errdefer topic.deinit();
+
+    for (0..size) |_| {
+        try topic.append(@bitCast(self.stack.popUnsafe() orelse return error.StackUnderflow));
+    }
+
+    const log: Log = .{
+        .data = bytes,
+        .topics = try topic.toOwnedSlice(),
+    };
+
+    try self.host.log(log);
     self.program_counter += 1;
 }
 /// Runs the selfbalance opcode for the interpreter.

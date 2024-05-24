@@ -6,7 +6,7 @@ const CallAction = actions.CallAction;
 const Interpreter = @import("../interpreter.zig");
 
 /// Performs call instruction for the interpreter.
-/// CALL -> 0x15
+/// CALL -> 0xF1
 pub fn callInstruction(self: *Interpreter) !void {
     const gas_limit = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const to = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -46,7 +46,7 @@ pub fn callInstruction(self: *Interpreter) !void {
     self.program_counter += 1;
 }
 /// Performs callcode instruction for the interpreter.
-/// CALLCODE -> 0x15
+/// CALLCODE -> 0xF2
 pub fn callCodeInstruction(self: *Interpreter) !void {
     const gas_limit = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const to = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -86,7 +86,7 @@ pub fn callCodeInstruction(self: *Interpreter) !void {
     self.program_counter += 1;
 }
 /// Performs create instruction for the interpreter.
-/// CREATE -> 0x15
+/// CREATE -> 0xF0 and CREATE2 -> 0xF5
 pub fn createInstruction(self: *Interpreter, is_create_2: bool) !void {
     std.debug.assert(!self.is_static); // Requires non static call.
 
@@ -162,7 +162,7 @@ pub fn createInstruction(self: *Interpreter, is_create_2: bool) !void {
     self.program_counter += 1;
 }
 /// Performs delegatecall instruction for the interpreter.
-/// DELEGATECALL -> 0x15
+/// DELEGATECALL -> 0xF4
 pub fn delegateCallInstruction(self: *Interpreter) !void {
     if (self.spec.enabled(.HOMESTEAD))
         return error.InstructionNotEnabled;
@@ -200,7 +200,7 @@ pub fn delegateCallInstruction(self: *Interpreter) !void {
     self.program_counter += 1;
 }
 /// Performs staticcall instruction for the interpreter.
-/// STATICCALL -> 0x15
+/// STATICCALL -> 0xFA
 pub fn staticCallInstruction(self: *Interpreter) !void {
     if (self.spec.enabled(.BYZANTIUM))
         return error.InstructionNotEnabled;

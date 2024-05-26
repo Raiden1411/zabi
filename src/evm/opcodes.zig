@@ -208,7 +208,7 @@ pub const InstructionTable = struct {
                         .ADDMOD => inner[possible_opcode] = .{ .execution = instructions.arithmetic.modAdditionInstruction, .max_stack = maxStack(1024, 3, 1) },
                         .MULMOD => inner[possible_opcode] = .{ .execution = instructions.arithmetic.modMultiplicationInstruction, .max_stack = maxStack(1024, 3, 1) },
                         .EXP => inner[possible_opcode] = .{ .execution = instructions.arithmetic.exponentInstruction, .max_stack = maxStack(1024, 2, 1) },
-                        .SIGNEXTEND => inner[possible_opcode] = .{ .execution = instructions.arithmetic.signedExponentInstruction, .max_stack = maxStack(1024, 2, 1) },
+                        .SIGNEXTEND => inner[possible_opcode] = .{ .execution = instructions.arithmetic.signExtendInstruction, .max_stack = maxStack(1024, 2, 1) },
                         .LT => inner[possible_opcode] = .{ .execution = instructions.bitwise.lowerThanInstruction, .max_stack = maxStack(1024, 2, 1) },
                         .GT => inner[possible_opcode] = .{ .execution = instructions.bitwise.greaterThanInstruction, .max_stack = maxStack(1024, 2, 1) },
                         .SLT => inner[possible_opcode] = .{ .execution = instructions.bitwise.signedLowerThanInstruction, .max_stack = maxStack(1024, 2, 1) },

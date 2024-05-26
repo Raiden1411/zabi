@@ -128,7 +128,7 @@ pub fn signedDivInstruction(self: *Interpreter) !void {
 }
 /// Performs signextend instruction for the interpreter.
 /// SIGNEXTEND -> 0x0B
-pub fn signedExponentInstruction(self: *Interpreter) !void {
+pub fn signExtendInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
     const ext = self.stack.popUnsafe() orelse return error.StackUnderflow;
@@ -136,9 +136,11 @@ pub fn signedExponentInstruction(self: *Interpreter) !void {
 
     if (ext < 31) {
         const bit_index: usize = 8 * @as(usize, @intCast(ext)) + 7;
-        const mask = std.math.shl(u256, 1, bit_index) - 1;
+        const mask = std.math.shl(u256, 1, bit_index);
+        const value_mask = mask - 1;
+
         const neg = (x & mask) != 0;
-        try self.stack.pushUnsafe(if (neg) x | ~mask else x & mask);
+        try self.stack.pushUnsafe(if (neg) x | ~value_mask else x & value_mask);
     } else {
         try self.stack.pushUnsafe(x);
     }
@@ -548,6 +550,44 @@ test "Exponent" {
 
         try testing.expectEqual(std.math.maxInt(u16), interpreter.stack.popUnsafe().?);
         try testing.expectEqual(120, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2, interpreter.program_counter);
+    }
+}
+
+test "Sign Extend" {
+    var interpreter: Interpreter = undefined;
+
+    const stack = try testing.allocator.create(Stack(u256));
+    defer {
+        stack.deinit();
+        testing.allocator.destroy(stack);
+    }
+
+    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = stack;
+    interpreter.program_counter = 0;
+    interpreter.spec = .LATEST;
+
+    {
+        try interpreter.stack.pushUnsafe(0xFF);
+        try interpreter.stack.pushUnsafe(0);
+
+        try signExtendInstruction(&interpreter);
+
+        try testing.expectEqual(std.math.maxInt(u256), interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1, interpreter.program_counter);
+    }
+    {
+        try interpreter.stack.pushUnsafe(0x7f);
+        try interpreter.stack.pushUnsafe(0);
+
+        try signExtendInstruction(&interpreter);
+
+        try testing.expectEqual(0x7f, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
         try testing.expectEqual(2, interpreter.program_counter);
     }
 }

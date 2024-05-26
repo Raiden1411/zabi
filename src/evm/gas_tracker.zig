@@ -147,9 +147,9 @@ pub inline fn calculateCreate2Cost(length: u64) ?u64 {
 /// Calculates the gas used for the `EXP` opcode.
 pub inline fn calculateExponentCost(exp: u256, spec: SpecId) !u64 {
     const size = utils.computeSize(exp);
-    const gas = size * if (spec.enabled(.SPURIOUS_DRAGON)) 50 else 10;
+    const gas: u8 = if (spec.enabled(.SPURIOUS_DRAGON)) @intCast(50) else @intCast(10);
 
-    const exp_gas, const overflow = @addWithOverflow(gas, 10); // 10 is the EXP instruction gas cost.
+    const exp_gas, const overflow = @addWithOverflow(gas * size, 10); // 10 is the EXP instruction gas cost.
 
     if (overflow != 0)
         return error.Overflow;

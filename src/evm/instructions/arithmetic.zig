@@ -39,7 +39,7 @@ pub fn exponentInstruction(self: *Interpreter) !void {
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
 
-    const exp_gas = gas.calculateExponentCost(second, self.spec);
+    const exp_gas = try gas.calculateExponentCost(second, self.spec);
     try self.gas_tracker.updateTracker(exp_gas);
 
     const exp = std.math.pow(u256, first, second);
@@ -158,9 +158,9 @@ pub fn signedModInstruction(self: *Interpreter) !void {
 
     std.debug.assert(casted_second != 0); // remainder division by 0
 
-    const div: u256 = @bitCast(@mod(casted_first, casted_second));
+    const div = @mod(casted_first, casted_second);
 
-    try self.stack.pushUnsafe(div);
+    try self.stack.pushUnsafe(@bitCast(div));
     self.program_counter += 1;
 }
 /// Performs sub instruction for the interpreter.
@@ -420,18 +420,134 @@ test "Signed Mod" {
 
         try signedModInstruction(&interpreter);
 
-        try testing.expectEqual(-1, @as(i256, @bitCast(interpreter.stack.popUnsafe().?)));
+        try testing.expectEqual(1, @as(i256, @bitCast(interpreter.stack.popUnsafe().?)));
         try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
         try testing.expectEqual(1, interpreter.program_counter);
     }
     {
-        try interpreter.stack.pushUnsafe(1);
         try interpreter.stack.pushUnsafe(2);
+        try interpreter.stack.pushUnsafe(1);
 
         try signedModInstruction(&interpreter);
 
-        try testing.expectEqual(2, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2, interpreter.program_counter);
+    }
+}
+
+test "Addition and Mod" {
+    var interpreter: Interpreter = undefined;
+
+    const stack = try testing.allocator.create(Stack(u256));
+    defer {
+        stack.deinit();
+        testing.allocator.destroy(stack);
+    }
+
+    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = stack;
+    interpreter.program_counter = 0;
+
+    {
+        try interpreter.stack.pushUnsafe(1);
+        try interpreter.stack.pushUnsafe(1);
+        try interpreter.stack.pushUnsafe(1);
+
+        try modAdditionInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(8, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1, interpreter.program_counter);
+    }
+    {
+        try interpreter.stack.pushUnsafe(2);
+        try interpreter.stack.pushUnsafe(std.math.maxInt(u256));
+        try interpreter.stack.pushUnsafe(2);
+
+        try modAdditionInstruction(&interpreter);
+
+        try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(16, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2, interpreter.program_counter);
+    }
+}
+
+test "Multiplication and Mod" {
+    var interpreter: Interpreter = undefined;
+
+    const stack = try testing.allocator.create(Stack(u256));
+    defer {
+        stack.deinit();
+        testing.allocator.destroy(stack);
+    }
+
+    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = stack;
+    interpreter.program_counter = 0;
+
+    {
+        try interpreter.stack.pushUnsafe(1);
+        try interpreter.stack.pushUnsafe(1);
+        try interpreter.stack.pushUnsafe(1);
+
+        try modMultiplicationInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(8, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1, interpreter.program_counter);
+    }
+    {
+        try interpreter.stack.pushUnsafe(4);
+        try interpreter.stack.pushUnsafe(1);
+        try interpreter.stack.pushUnsafe(2);
+
+        try modMultiplicationInstruction(&interpreter);
+
+        try testing.expectEqual(2, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(16, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2, interpreter.program_counter);
+    }
+}
+
+test "Exponent" {
+    var interpreter: Interpreter = undefined;
+
+    const stack = try testing.allocator.create(Stack(u256));
+    defer {
+        stack.deinit();
+        testing.allocator.destroy(stack);
+    }
+
+    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = stack;
+    interpreter.program_counter = 0;
+    interpreter.spec = .LATEST;
+
+    {
+        try interpreter.stack.pushUnsafe(2);
+        try interpreter.stack.pushUnsafe(2);
+
+        try exponentInstruction(&interpreter);
+
+        try testing.expectEqual(4, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(60, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1, interpreter.program_counter);
+    }
+    {
+        try interpreter.stack.pushUnsafe(1);
+        try interpreter.stack.pushUnsafe(std.math.maxInt(u16));
+
+        try exponentInstruction(&interpreter);
+
+        try testing.expectEqual(std.math.maxInt(u16), interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(120, interpreter.gas_tracker.used_amount);
         try testing.expectEqual(2, interpreter.program_counter);
     }
 }

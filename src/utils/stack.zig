@@ -52,7 +52,7 @@ pub fn Stack(comptime T: type) type {
             if (self.inner.items.len < position)
                 return error.StackUnderflow;
 
-            const item = self.inner.items[position];
+            const item = self.inner.items[self.inner.items.len - position];
             try self.pushUnsafe(item);
         }
         /// Appends an item to the stack.
@@ -118,10 +118,10 @@ pub fn Stack(comptime T: type) type {
                 return error.StackUnderflow;
 
             const top = self.inner.items[self.inner.items.len - 1];
-            const second = self.inner.items[position_swap];
+            const second = self.inner.items[self.inner.items.len - position_swap];
 
             self.inner.items[self.inner.items.len - 1] = second;
-            self.inner.items[position_swap] = top;
+            self.inner.items[self.inner.items.len - position_swap] = top;
         }
         /// Swap an item from the stack depending on the provided positions.
         /// This is not thread safe.

@@ -57,7 +57,7 @@ contract: Contract,
 /// Tracker for used gas by the interpreter.
 gas_tracker: GasTracker,
 /// The host enviroment for this interpreter.
-host: *Host,
+host: Host,
 /// Is the interperter being ran in a static call.
 is_static: bool,
 /// The memory used by this interpreter.
@@ -77,7 +77,7 @@ status: InterpreterStatus,
 
 /// Sets the interpreter to it's expected initial state.
 /// `code` is expected to be a hex string of compiled bytecode.
-pub fn init(self: *Interpreter, allocator: Allocator, contract_instance: Contract, gas_limit: u64, is_static: bool, evm_host: *Host) !void {
+pub fn init(self: *Interpreter, allocator: Allocator, contract_instance: Contract, gas_limit: u64, is_static: bool, evm_host: Host) !void {
     const stack = try allocator.create(Stack(u256));
     errdefer allocator.destroy(stack);
 

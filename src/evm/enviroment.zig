@@ -228,6 +228,7 @@ pub const BlockEnviroment = struct {
             .base_fee = 0,
             .difficulty = 0,
             .prevrandao = 0,
+            .gas_limit = 0,
             .blob_excess_gas_and_price = .{
                 .blob_gasprice = 0,
                 .blob_excess_gas = 0,

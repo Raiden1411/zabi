@@ -25,11 +25,11 @@ pub const Host = struct {
         /// Gets the block hash from a given block number
         blockHash: *const fn (self: *anyopaque, block_number: u256) ?Hash,
         /// Gets the code of an `address` and if that address is cold.
-        code: *const fn (self: *anyopaque, address: Address) ?struct { []u8, bool },
+        code: *const fn (self: *anyopaque, address: Address) ?struct { Bytecode, bool },
         /// Gets the code hash of an `address` and if that address is cold.
         codeHash: *const fn (self: *anyopaque, address: Address) ?struct { Hash, bool },
         /// Gets the host's `Enviroment`.
-        getEnviroment: *const fn (self: *anyopaque) void,
+        getEnviroment: *const fn (self: *anyopaque) EVMEnviroment,
         /// Loads an account.
         loadAccount: *const fn (self: *anyopaque, address: Address) ?AccountResult,
         /// Emits a log owned by an address with the log data.
@@ -160,6 +160,7 @@ pub const PlainHost = struct {
                 .getEnviroment = getEnviroment,
                 .loadAccount = loadAccount,
                 .log = log,
+                .selfDestruct = selfDestruct,
                 .sload = sload,
                 .sstore = sstore,
                 .tload = tload,
@@ -172,11 +173,11 @@ pub const PlainHost = struct {
         return .{ 0, false };
     }
 
-    fn blockHash(_: *anyopaque, _: u256) ?AccountResult {
+    fn blockHash(_: *anyopaque, _: u256) ?Hash {
         return [_]u8{0} ** 32;
     }
 
-    fn code(_: *anyopaque, _: Address) ?struct { []u8, bool } {
+    fn code(_: *anyopaque, _: Address) ?struct { Bytecode, bool } {
         return .{ .{ .raw = &[_]u8{} }, false };
     }
 
@@ -255,7 +256,7 @@ pub const PlainHost = struct {
         return self.transient_storage.get(index);
     }
 
-    fn tstore(ctx: *anyopaque, _: Address, index: u256, value: u256) !u256 {
+    fn tstore(ctx: *anyopaque, _: Address, index: u256, value: u256) !void {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
         return self.transient_storage.put(index, value);

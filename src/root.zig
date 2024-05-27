@@ -86,6 +86,7 @@ test {
     // _ = @import("encoding/serialize.zig");
     // _ = @import("encoding/ssz.zig");
     _ = @import("evm/instructions/root.zig");
+    _ = @import("evm/memory.zig");
     // _ = @import("human-readable/abi_parsing.zig");
     // _ = @import("human-readable/lexer.zig");
     // _ = @import("meta/abi.zig");

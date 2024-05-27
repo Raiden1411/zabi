@@ -1,14 +1,23 @@
 const std = @import("std");
+const testing = std.testing;
 
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 const Word = [32]u8;
 
+/// A extendable memory used by the evm interpreter.
 pub const Memory = struct {
+    /// The inner allocator used to grow the memory
     allocator: Allocator,
+    /// The underlaying memory buffer.
     buffer: []u8,
-    checkpoints: []u8,
+    /// Set of memory checkpoints
+    checkpoints: ArrayList(usize),
+    /// The last memory checkpoint
     last_checkpoint: usize,
+    /// The max memory size
     memory_limit: u64,
+    total_capacity: usize,
 
     /// Create the interpreter's memory. This will not error.
     /// No initial capacity is set. It's essentially empty memory.
@@ -16,9 +25,10 @@ pub const Memory = struct {
         return .{
             .allocator = allocator,
             .buffer = &[_]u8{},
-            .checkpoints = &[_]u8{},
+            .checkpoints = ArrayList(usize).init(allocator),
             .last_checkpoint = 0,
             .memory_limit = limit orelse comptime std.math.maxInt(u64),
+            .total_capacity = 0,
         };
     }
     /// Creates the memory with default 4096 capacity.
@@ -28,20 +38,22 @@ pub const Memory = struct {
     /// Creates the memory with `capacity`.
     pub fn initWithCapacity(allocator: Allocator, capacity: usize, limit: ?u64) !Memory {
         const buffer = try allocator.alloc(u8, capacity);
-        const checkpoints = try allocator.alloc(u8, 32);
+        const checkpoints = try ArrayList(usize).initCapacity(allocator, 32);
 
         return .{
             .allocator = allocator,
             .buffer = buffer,
             .checkpoints = checkpoints,
             .last_checkpoint = 0,
+            .total_capacity = capacity,
             .memory_limit = limit orelse comptime std.math.maxInt(u64),
         };
     }
     /// Prepares the memory for returning to the previous context.
     pub fn freeContext(self: *Memory) void {
-        const checkpoint = self.checkpoints[self.checkpoints.len - 1];
+        const checkpoint = self.checkpoints.pop();
         self.buffer.len = checkpoint;
+        self.last_checkpoint = self.checkpoints.getLastOrNull() orelse 0;
     }
     /// Gets the current size of the `Memory` range.
     pub fn getCurrentMemorySize(self: Memory) u64 {
@@ -58,9 +70,12 @@ pub const Memory = struct {
     /// of 32 bytes from the inner memory buffer.
     pub fn getMemoryWord(self: Memory, offset: usize) Word {
         const slice = self.getSlice();
-        std.debug.assert(slice.len > offset + 32);
+        std.debug.assert(slice.len >= offset + 32);
 
-        return slice[offset .. offset + 32].*;
+        var buffer: [32]u8 = undefined;
+        @memcpy(buffer[0..], slice[offset .. offset + 32]);
+
+        return buffer;
     }
     /// Gets a memory slice based on the last checkpoints until the end of the buffer.
     pub fn getSlice(self: Memory) []u8 {
@@ -79,43 +94,45 @@ pub const Memory = struct {
         @memcpy(slice[source .. source + length], slice[destination .. destination + length]);
     }
     /// Prepares the memory for a new context.
-    pub fn newContext(self: *Memory) void {
+    pub fn newContext(self: *Memory) !void {
         const new_checkpoint = self.buffer.len;
-        self.checkpoints[self.checkpoints.len - 1] = new_checkpoint;
+        try self.checkpoints.append(new_checkpoint);
         self.last_checkpoint = new_checkpoint;
     }
     /// Resizes the underlaying memory buffer.
     /// Uses the allocator's `resize` method in case it's possible.
     /// If the new len is lower than the current buffer size data will be lost.
     pub fn resize(self: *Memory, new_len: usize) !void {
-        if (self.last_checkpoint + new_len > self.memory_limit)
+        const new_capacity = self.last_checkpoint + new_len;
+        if (new_capacity > self.memory_limit)
             return error.MaxMemoryReached;
 
-        const resized = self.allocator.resize(self.buffer, new_len + self.last_checkpoint);
+        // Extends to new len within capacity.
+        if (self.total_capacity >= new_capacity) {
+            self.buffer.len = new_capacity;
+            return;
+        }
 
-        if (resized)
+        if (self.allocator.resize(self.buffer, new_capacity))
             return;
 
         // Allocator refused to resize the memory so we do it ourselves.
-        const new_buffer = try self.allocator.alloc(u8, new_len + self.last_checkpoint);
+        const new_buffer = try self.allocator.alloc(u8, new_capacity);
 
-        {
-            defer self.allocator.free(self.buffer);
+        if (self.buffer.len > new_capacity)
+            @memcpy(new_buffer, self.buffer[0..new_capacity])
+        else
+            @memcpy(new_buffer[0..self.buffer.len], self.buffer);
 
-            if (self.buffer.len > new_len + self.last_checkpoint) {
-                @memcpy(new_buffer, self.buffer[0 .. new_len + self.last_checkpoint]);
-            } else {
-                @memcpy(new_buffer[0 .. self.buffer.len + self.last_checkpoint], self.buffer);
-            }
-        }
-
+        self.allocator.free(self.buffer);
         self.buffer = new_buffer;
+        self.total_capacity = new_capacity;
     }
     /// Converts a memory "Word" into a u256 number.
     pub fn wordToInt(self: Memory, offset: usize) u256 {
         const word = self.getMemoryWord(offset);
 
-        return @as(u256, @bitCast(word.*));
+        return std.mem.readInt(u256, &word, .big);
     }
     /// Writes a single byte into this memory buffer.
     /// This can overwrite to existing memory.
@@ -140,9 +157,9 @@ pub const Memory = struct {
     }
     /// Writes a slice to the memory buffer based on a offset.
     /// This can overwrite to existing memory.
-    pub fn write(self: Memory, offset: usize, data: []u8) !void {
+    pub fn write(self: Memory, offset: usize, data: []const u8) !void {
         const slice = self.getSlice();
-        std.debug.assert(slice.len > offset + data.len);
+        std.debug.assert(slice.len >= offset + data.len);
 
         @memcpy(slice[offset .. offset + data.len], data);
     }
@@ -171,13 +188,121 @@ pub const Memory = struct {
     }
     /// Frees the underlaying memory buffers.
     pub fn deinit(self: Memory) void {
-        self.allocator.free(self.buffer);
-        self.allocator.free(self.checkpoints);
+        self.allocator.free(self.buffer.ptr[0..self.total_capacity]);
+        self.checkpoints.deinit();
     }
 };
 
 /// Returns number of words what would fit to provided number of bytes,
 /// It rounds up the number bytes to number of words.
 pub inline fn availableWords(size: u64) u64 {
-    return std.math.divCeil(u64, @truncate(size + 31), 32) catch unreachable;
+    const result, const overflow = @addWithOverflow(size, 31);
+
+    if (@bitCast(overflow))
+        return std.math.maxInt(u64) / 2;
+
+    return @divFloor(result, 32);
+}
+
+test "Available words" {
+    try testing.expectEqual(availableWords(0), 0);
+    try testing.expectEqual(availableWords(1), 1);
+    try testing.expectEqual(availableWords(31), 1);
+    try testing.expectEqual(availableWords(32), 1);
+    try testing.expectEqual(availableWords(33), 2);
+    try testing.expectEqual(availableWords(63), 2);
+    try testing.expectEqual(availableWords(64), 2);
+    try testing.expectEqual(availableWords(65), 3);
+    try testing.expectEqual(availableWords(std.math.maxInt(u64)), std.math.maxInt(u64) / 2);
+}
+
+test "Memory" {
+    var mem = try Memory.initWithDefaultCapacity(testing.allocator, null);
+    defer mem.deinit();
+
+    {
+        try mem.writeInt(0, 69);
+        try testing.expectEqual(69, mem.getMemoryByte(31));
+    }
+    {
+        const int = mem.wordToInt(0);
+        try testing.expectEqual(69, int);
+    }
+    {
+        try mem.writeWord(0, [_]u8{1} ** 32);
+        const int = mem.wordToInt(0);
+        try testing.expectEqual(@as(u256, @bitCast([_]u8{1} ** 32)), int);
+    }
+    {
+        try mem.writeByte(0, 69);
+        const int = mem.getMemoryByte(0);
+        try testing.expectEqual(69, int);
+    }
+}
+
+test "Context" {
+    var mem = Memory.initEmpty(testing.allocator, null);
+    defer mem.deinit();
+
+    try mem.resize(32);
+    try testing.expectEqual(mem.getCurrentMemorySize(), 32);
+    try testing.expectEqual(mem.buffer.len, 32);
+    try testing.expectEqual(mem.checkpoints.items.len, 0);
+    try testing.expectEqual(mem.last_checkpoint, 0);
+    try testing.expectEqual(mem.total_capacity, 32);
+
+    try mem.newContext();
+    try mem.resize(96);
+    try testing.expectEqual(mem.getCurrentMemorySize(), 96);
+    try testing.expectEqual(mem.buffer.len, 128);
+    try testing.expectEqual(mem.checkpoints.items.len, 1);
+    try testing.expectEqual(mem.last_checkpoint, 32);
+    try testing.expectEqual(mem.total_capacity, 128);
+
+    try mem.newContext();
+    try mem.resize(128);
+    try testing.expectEqual(mem.getCurrentMemorySize(), 128);
+    try testing.expectEqual(mem.buffer.len, 256);
+    try testing.expectEqual(mem.checkpoints.items.len, 2);
+    try testing.expectEqual(mem.last_checkpoint, 128);
+    try testing.expectEqual(mem.total_capacity, 256);
+
+    mem.freeContext();
+    try mem.resize(96);
+    try testing.expectEqual(mem.getCurrentMemorySize(), 96);
+    try testing.expectEqual(mem.buffer.len, 128);
+    try testing.expectEqual(mem.checkpoints.items.len, 1);
+    try testing.expectEqual(mem.last_checkpoint, 32);
+    try testing.expectEqual(mem.total_capacity, 256);
+
+    mem.freeContext();
+    try mem.resize(64);
+    try testing.expectEqual(mem.getCurrentMemorySize(), 64);
+    try testing.expectEqual(mem.buffer.len, 64);
+    try testing.expectEqual(mem.checkpoints.items.len, 0);
+    try testing.expectEqual(mem.last_checkpoint, 0);
+    try testing.expectEqual(mem.total_capacity, 256);
+}
+
+test "No Context" {
+    var mem = Memory.initEmpty(testing.allocator, null);
+    defer mem.deinit();
+
+    try mem.resize(32);
+    try testing.expectEqual(mem.getCurrentMemorySize(), 32);
+    try testing.expectEqual(mem.buffer.len, 32);
+    try testing.expectEqual(mem.checkpoints.items.len, 0);
+    try testing.expectEqual(mem.last_checkpoint, 0);
+
+    try mem.resize(96);
+    try testing.expectEqual(mem.getCurrentMemorySize(), 96);
+    try testing.expectEqual(mem.buffer.len, 96);
+    try testing.expectEqual(mem.checkpoints.items.len, 0);
+    try testing.expectEqual(mem.last_checkpoint, 0);
+
+    try mem.resize(64);
+    try testing.expectEqual(mem.getCurrentMemorySize(), 64);
+    try testing.expectEqual(mem.buffer.len, 64);
+    try testing.expectEqual(mem.checkpoints.items.len, 0);
+    try testing.expectEqual(mem.last_checkpoint, 0);
 }

@@ -590,4 +590,14 @@ test "Sign Extend" {
         try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
         try testing.expectEqual(2, interpreter.program_counter);
     }
+    {
+        try interpreter.stack.pushUnsafe(0x7f);
+        try interpreter.stack.pushUnsafe(0xFF);
+
+        try signExtendInstruction(&interpreter);
+
+        try testing.expectEqual(0x7f, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(15, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(3, interpreter.program_counter);
+    }
 }

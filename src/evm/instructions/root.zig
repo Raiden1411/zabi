@@ -19,4 +19,5 @@ pub const system = @import("system.zig");
 
 test {
     _ = @import("arithmetic.zig");
+    _ = @import("bitwise.zig");
 }

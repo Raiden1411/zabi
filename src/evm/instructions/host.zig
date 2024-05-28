@@ -1,15 +1,19 @@
 const gas = @import("../gas_tracker.zig");
 const log_types = @import("../../types/log.zig");
 const std = @import("std");
+const testing = std.testing;
+const utils = @import("../../utils/utils.zig");
 
 const Interpreter = @import("../interpreter.zig");
 const Log = log_types.Log;
+const PlainHost = @import("../host.zig").PlainHost;
+const Stack = @import("../../utils/stack.zig").Stack;
 
 /// Runs the balance opcode for the interpreter.
 /// 0x31 -> BALANCE
 pub fn balanceInstruction(self: *Interpreter) !void {
     const address = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const bal, const is_cold = self.host.balance(address) orelse return error.UnexpectedError;
+    const bal, const is_cold = self.host.balance(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
     const gas_usage: u64 = blk: {
         if (self.spec.enabled(.BERLIN))
@@ -32,10 +36,9 @@ pub fn balanceInstruction(self: *Interpreter) !void {
 /// Runs the blockhash opcode for the interpreter.
 /// 0x40 -> BLOCKHASH
 pub fn blockHashInstruction(self: *Interpreter) !void {
-    _ = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const num = self.host.getEnviroment().block.number;
+    const number = self.stack.popUnsafe() orelse return error.StackUnderflow;
 
-    const hash = self.host.blockHash(num) orelse return error.UnexpectedError;
+    const hash = self.host.blockHash(number) orelse return error.UnexpectedError;
 
     try self.gas_tracker.updateTracker(gas.BLOCKHASH);
 
@@ -50,28 +53,29 @@ pub fn extCodeCopyInstruction(self: *Interpreter) !void {
     const code_offset = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const length = self.stack.popUnsafe() orelse return error.StackUnderflow;
 
-    const code, const is_cold = self.host.code(@bitCast(address)) orelse return error.UnexpectedError;
+    const code, const is_cold = self.host.code(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
-    if (length > comptime std.math.maxInt(u64))
-        return error.Overflow;
+    const len = std.math.cast(usize, length) orelse return error.Overflow;
+    const offset_usize = std.math.cast(usize, offset) orelse return error.Overflow;
+    const code_offset_usize = std.math.cast(usize, code_offset) orelse return error.Overflow;
 
-    const gas_usage = gas.calculateCodeCopyCost(self.spec, @intCast(length), is_cold);
-    try self.gas_tracker.updateTracker(gas_usage);
+    const gas_usage = gas.calculateExtCodeCopyCost(self.spec, len, is_cold);
+    try self.gas_tracker.updateTracker(gas_usage orelse return error.OutOfGas);
 
-    if (length == 0)
+    defer self.program_counter += 1;
+    if (len == 0)
         return;
 
-    const code_offset_len = @min(std.math.cast(u64, code_offset) orelse return error.Overflow, code.getCodeBytes().len);
-    try self.resize(@truncate(std.math.cast(u64, offset) orelse return error.Overflow + length));
+    const code_offset_len = @min(code_offset_usize, code.getCodeBytes().len);
+    try self.resize(utils.saturatedAddition(u64, offset_usize, len));
 
-    try self.memory.writeData(@intCast(offset), code_offset_len, @intCast(length), code.getCodeBytes().len);
-    self.program_counter += 1;
+    try self.memory.writeData(offset_usize, code_offset_len, len, code.getCodeBytes());
 }
 /// Runs the extcodehash opcode for the interpreter.
 /// 0x3F -> EXTCODEHASH
 pub fn extCodeHashInstruction(self: *Interpreter) !void {
     const address = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const code_hash, const is_cold = self.host.codeHash(@bitCast(address)) orelse return error.UnexpectedError;
+    const code_hash, const is_cold = self.host.codeHash(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
     const gas_usage: u64 = blk: {
         if (self.spec.enabled(.BERLIN))
@@ -92,7 +96,7 @@ pub fn extCodeHashInstruction(self: *Interpreter) !void {
 /// 0x3B -> EXTCODESIZE
 pub fn extCodeSizeInstruction(self: *Interpreter) !void {
     const address = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const code, const is_cold = self.host.code(address) orelse return error.UnexpectedError;
+    const code, const is_cold = self.host.code(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
     const gas_usage = gas.calculateCodeSizeCost(self.spec, is_cold);
     try self.gas_tracker.updateTracker(gas_usage);
@@ -116,7 +120,7 @@ pub fn logInstruction(self: *Interpreter, size: u8) !void {
             break :blk &[_]u8{};
 
         const off = std.math.cast(u64, offset) orelse return error.Overflow;
-        try self.resize(@truncate(off + len));
+        try self.resize(utils.saturatedAddition(u64, off, len));
         break :blk self.memory.getSlice()[offset .. offset + len];
     };
 
@@ -161,7 +165,7 @@ pub fn selfDestructInstruction(self: *Interpreter) !void {
     const gas_usage = gas.calculateSelfDestructCost(self.spec, result);
     try self.gas_tracker.updateTracker(gas_usage);
 
-    self.status = .SelfDestructed;
+    self.status = .self_destructed;
 }
 /// Runs the sload opcode for the interpreter.
 /// 0x54 -> SLOAD
@@ -185,11 +189,11 @@ pub fn sstoreInstruction(self: *Interpreter) !void {
     const value = self.stack.popUnsafe() orelse return error.StackUnderflow;
 
     const result = try self.host.sstore(self.contract.target_address, index, value);
-    const gas_remaining = self.gas_tracker.gas_limit - self.gas_tracker.used_amount;
+    const gas_remaining = self.gas_tracker.availableGas();
 
     const gas_cost = gas.calculateSstoreCost(self.spec, result.original_value, result.present_value, result.new_value, gas_remaining, result.is_cold);
 
-    try self.gas_tracker.updateTracker(gas_cost);
+    try self.gas_tracker.updateTracker(gas_cost orelse return error.OutOfGas);
     self.gas_tracker.refund_amount = gas.calculateSstoreRefund(self.spec, result.original_value, result.present_value, result.new_value);
 
     self.program_counter += 1;
@@ -202,7 +206,7 @@ pub fn tloadInstruction(self: *Interpreter) !void {
 
     const index = self.stack.popUnsafe() orelse return error.StackUnderflow;
 
-    const load = try self.host.tload(self.contract.target_address, index);
+    const load = self.host.tload(self.contract.target_address, index);
     try self.gas_tracker.updateTracker(gas.WARM_STORAGE_READ_COST);
 
     try self.stack.pushUnsafe(load orelse 0);
@@ -224,4 +228,378 @@ pub fn tstoreInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.WARM_STORAGE_READ_COST);
 
     self.program_counter += 1;
+}
+
+test "Balance" {
+    var host: PlainHost = undefined;
+    defer host.deinit();
+
+    host.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.host = host.host();
+
+    {
+        interpreter.spec = .LATEST;
+        try interpreter.stack.pushUnsafe(@as(u160, @bitCast([_]u8{1} ** 20)));
+        try balanceInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1, interpreter.program_counter);
+    }
+    {
+        interpreter.spec = .ISTANBUL;
+        try interpreter.stack.pushUnsafe(@as(u160, @bitCast([_]u8{1} ** 20)));
+        try balanceInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(800, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2, interpreter.program_counter);
+    }
+    {
+        interpreter.spec = .TANGERINE;
+        try interpreter.stack.pushUnsafe(@as(u160, @bitCast([_]u8{1} ** 20)));
+        try balanceInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(1200, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(3, interpreter.program_counter);
+    }
+    {
+        interpreter.spec = .FRONTIER;
+        try interpreter.stack.pushUnsafe(@as(u160, @bitCast([_]u8{1} ** 20)));
+        try balanceInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(1220, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(4, interpreter.program_counter);
+    }
+}
+
+test "BlockHash" {
+    var host: PlainHost = undefined;
+    defer host.deinit();
+
+    host.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.host = host.host();
+
+    try interpreter.stack.pushUnsafe(0);
+    try blockHashInstruction(&interpreter);
+
+    try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+    try testing.expectEqual(20, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(1, interpreter.program_counter);
+}
+
+test "ExtCodeCopy" {
+    var host: PlainHost = undefined;
+    defer host.deinit();
+
+    host.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.host = host.host();
+
+    try interpreter.stack.pushUnsafe(0);
+    try interpreter.stack.pushUnsafe(0);
+    try interpreter.stack.pushUnsafe(0);
+    try interpreter.stack.pushUnsafe(0);
+
+    try extCodeCopyInstruction(&interpreter);
+
+    try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(1, interpreter.program_counter);
+}
+
+test "ExtCodeHash" {
+    var host: PlainHost = undefined;
+    defer host.deinit();
+
+    host.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.host = host.host();
+
+    {
+        interpreter.spec = .LATEST;
+        try interpreter.stack.pushUnsafe(0);
+        try extCodeHashInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1, interpreter.program_counter);
+    }
+    {
+        interpreter.spec = .ISTANBUL;
+        try interpreter.stack.pushUnsafe(0);
+        try extCodeHashInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(800, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2, interpreter.program_counter);
+    }
+    {
+        interpreter.spec = .TANGERINE;
+        try interpreter.stack.pushUnsafe(0);
+        try extCodeHashInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(1200, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(3, interpreter.program_counter);
+    }
+}
+
+test "ExtCodeSize" {
+    var host: PlainHost = undefined;
+    defer host.deinit();
+
+    host.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.host = host.host();
+
+    {
+        interpreter.spec = .LATEST;
+        try interpreter.stack.pushUnsafe(0);
+        try extCodeSizeInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1, interpreter.program_counter);
+    }
+    {
+        interpreter.spec = .TANGERINE;
+        try interpreter.stack.pushUnsafe(0);
+        try extCodeSizeInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(800, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2, interpreter.program_counter);
+    }
+    {
+        interpreter.spec = .FRONTIER;
+        try interpreter.stack.pushUnsafe(0);
+        try extCodeSizeInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(820, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(3, interpreter.program_counter);
+    }
+}
+
+test "SelfBalance" {
+    var host: PlainHost = undefined;
+    defer host.deinit();
+
+    host.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.host = host.host();
+
+    interpreter.spec = .LATEST;
+    try selfBalanceInstruction(&interpreter);
+
+    try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+    try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(1, interpreter.program_counter);
+
+    {
+        interpreter.spec = .HOMESTEAD;
+        try testing.expectError(error.InstructionNotEnabled, selfBalanceInstruction(&interpreter));
+    }
+}
+
+test "Sload" {
+    var host: PlainHost = undefined;
+    defer host.deinit();
+
+    host.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.host = host.host();
+
+    {
+        interpreter.spec = .LATEST;
+        try interpreter.stack.pushUnsafe(0);
+        try sloadInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(2600, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1, interpreter.program_counter);
+    }
+    {
+        interpreter.spec = .ISTANBUL;
+        try interpreter.stack.pushUnsafe(0);
+        try sloadInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(3400, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2, interpreter.program_counter);
+    }
+    {
+        interpreter.spec = .TANGERINE;
+        try interpreter.stack.pushUnsafe(0);
+        try sloadInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(3600, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(3, interpreter.program_counter);
+    }
+    {
+        interpreter.spec = .FRONTIER;
+        try interpreter.stack.pushUnsafe(0);
+        try sloadInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(3650, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(4, interpreter.program_counter);
+    }
+}
+
+test "Sstore" {
+    var host: PlainHost = undefined;
+    defer host.deinit();
+
+    host.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.host = host.host();
+
+    {
+        interpreter.spec = .LATEST;
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(32);
+        try sstoreInstruction(&interpreter);
+
+        try testing.expectEqual(2200, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1, interpreter.program_counter);
+    }
+    {
+        interpreter.spec = .ISTANBUL;
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(32);
+        try sstoreInstruction(&interpreter);
+
+        try testing.expectEqual(2300, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2, interpreter.program_counter);
+    }
+    {
+        interpreter.spec = .TANGERINE;
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(32);
+        try sstoreInstruction(&interpreter);
+
+        try testing.expectEqual(7300, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(3, interpreter.program_counter);
+    }
+    {
+        interpreter.spec = .FRONTIER;
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(32);
+        try sstoreInstruction(&interpreter);
+
+        try testing.expectEqual(12300, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(4, interpreter.program_counter);
+    }
+}
+
+test "Tload" {
+    var host: PlainHost = undefined;
+    defer host.deinit();
+
+    host.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.host = host.host();
+
+    {
+        interpreter.spec = .LATEST;
+        try interpreter.stack.pushUnsafe(0);
+        try tloadInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1, interpreter.program_counter);
+    }
+    {
+        interpreter.spec = .HOMESTEAD;
+        try testing.expectError(error.InstructionNotEnabled, tloadInstruction(&interpreter));
+    }
+}
+
+test "Tstore" {
+    var host: PlainHost = undefined;
+    defer host.deinit();
+
+    host.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.host = host.host();
+
+    {
+        interpreter.spec = .LATEST;
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(32);
+        try tstoreInstruction(&interpreter);
+
+        try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1, interpreter.program_counter);
+    }
+    {
+        interpreter.spec = .HOMESTEAD;
+        try testing.expectError(error.InstructionNotEnabled, tstoreInstruction(&interpreter));
+    }
 }

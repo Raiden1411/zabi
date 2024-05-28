@@ -157,6 +157,21 @@ pub inline fn calculateExponentCost(exp: u256, spec: SpecId) !u64 {
 
     return exp_gas;
 }
+/// Calculates the gas used for the `EXTCODECOPY` opcode.
+pub inline fn calculateExtCodeCopyCost(spec: SpecId, len: u64, is_cold: bool) ?u64 {
+    const word_cost = calculateCostPerMemoryWord(len, 3);
+
+    if (word_cost) |cost| {
+        const gas: u64 = if (spec.enabled(.BERLIN)) warmOrColdCost(is_cold) else if (spec.enabled(.TANGERINE)) @intCast(700) else @intCast(20);
+
+        const result, const overflow = @addWithOverflow(gas, cost);
+
+        if (@bitCast(overflow))
+            return null;
+
+        return result;
+    } else return null;
+}
 /// Calculates the cost of using the `KECCAK256` opcode.
 /// Returns null in case of overflow.
 pub inline fn calculateKeccakCost(length: u64) ?u64 {
@@ -276,7 +291,7 @@ pub inline fn calculateSstoreRefund(spec: SpecId, original: u256, current: u256,
         if (original == current and new == 0)
             return sstore_clears_schedule;
 
-        var refund = 0;
+        var refund: i64 = 0;
 
         if (original != 0) {
             if (current == 0) {
@@ -285,14 +300,14 @@ pub inline fn calculateSstoreRefund(spec: SpecId, original: u256, current: u256,
         }
 
         if (original == new) {
-            const reset, const sload: struct { i64, i64 } = if (spec.enabled(.BERLIN)) .{ SSTORE_RESET - COLD_SLOAD_COST, WARM_STORAGE_READ_COST } else .{
+            const result: struct { i64, i64 } = if (spec.enabled(.BERLIN)) .{ SSTORE_RESET - COLD_SLOAD_COST, WARM_STORAGE_READ_COST } else .{
                 SSTORE_RESET,
-                calculateSloadCost(spec, false),
+                @intCast(calculateSloadCost(spec, false)),
             };
 
             if (original == 0) {
-                refund += SSTORE_RESET - sload;
-            } else refund += reset - sload;
+                refund += @as(i64, @intCast(SSTORE_RESET)) - result[1];
+            } else refund += result[0] - result[1];
         }
 
         return refund;

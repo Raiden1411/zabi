@@ -22,6 +22,7 @@ pub fn mcopyInstruction(self: *Interpreter) !void {
     const cost = gas.calculateMemoryCopyLowCost(len);
     try self.gas_tracker.updateTracker(cost orelse return error.OutOfGas);
 
+    defer self.program_counter += 1;
     if (len == 0)
         return;
 
@@ -32,7 +33,6 @@ pub fn mcopyInstruction(self: *Interpreter) !void {
     try self.resize(new_size);
 
     self.memory.memoryCopy(destination_usize, source_usize, len);
-    self.program_counter += 1;
 }
 /// Runs the mload opcode for the interpreter.
 /// 0x51 -> MLOAD

@@ -21,6 +21,7 @@ test {
     _ = @import("arithmetic.zig");
     _ = @import("bitwise.zig");
     _ = @import("enviroment.zig");
+    _ = @import("host.zig");
     _ = @import("memory.zig");
     _ = @import("stack.zig");
     _ = @import("system.zig");

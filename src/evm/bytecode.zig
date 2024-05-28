@@ -69,7 +69,8 @@ pub const JumpTable = struct {
 
     /// Creates the jump table. Provided size must follow the two's complement.
     pub fn init(allocator: Allocator, value: bool, size: usize) Allocator.Error!JumpTable {
-        const buffer = try allocator.alloc(u8, @divFloor(size, 8));
+        // Essentially `divCeil`
+        const buffer = try allocator.alloc(u8, @divFloor(size - 1, 8) + 1);
         @memset(buffer, @intFromBool(value));
 
         return .{ .bytes = buffer };
@@ -86,7 +87,7 @@ pub const JumpTable = struct {
         const bit_index: u3 = @intCast(position & 7);
 
         std.debug.assert(self.bytes.len > byte_index); // Index out of bouds;
-        //
+
         self.bytes[byte_index] &= ~(@as(u8, 1) << bit_index);
         self.bytes[byte_index] |= @as(u8, @intFromBool(value)) << bit_index;
     }

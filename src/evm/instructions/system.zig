@@ -4,7 +4,7 @@ const testing = std.testing;
 const utils = @import("../../utils/utils.zig");
 
 const Contract = @import("../contract.zig").Contract;
-const Interpreter = @import("../interpreter.zig");
+const Interpreter = @import("../Interpreter.zig");
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Memory = @import("../memory.zig").Memory;
 const Stack = @import("../../utils/stack.zig").Stack;
@@ -96,7 +96,7 @@ pub fn codeCopyInstruction(self: *Interpreter) !void {
 
     try self.resize(offset_usize + len);
 
-    try self.memory.writeData(offset_usize, code_offset, len, self.contract.bytecode);
+    try self.memory.writeData(offset_usize, code_offset, len, self.contract.bytecode.getCodeBytes());
     self.program_counter += 1;
 }
 /// Runs the codesize instructions opcodes for the interpreter.

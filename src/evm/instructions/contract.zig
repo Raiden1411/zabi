@@ -3,7 +3,8 @@ const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 
 const CallAction = actions.CallAction;
-const Interpreter = @import("../interpreter.zig");
+const CreateScheme = actions.CreateScheme;
+const Interpreter = @import("../Interpreter.zig");
 
 /// Performs call instruction for the interpreter.
 /// CALL -> 0xF1
@@ -16,16 +17,16 @@ pub fn callInstruction(self: *Interpreter) !void {
     const value = self.stack.popUnsafe() orelse return error.StackUnderflow;
 
     if (self.is_static and value != 0) {
-        self.status = .CallWithValueNotAllowedInStaticCall;
+        self.status = .call_with_value_not_allowed_in_static_call;
         return;
     }
 
     const input, const range = getMemoryInputsAndRanges(self) catch return;
 
-    const account = self.host.loadAccount(@bitCast(to)) orelse return error.FailedToLoadAccount;
-    var calc_limit = calculateCall(self.spec, value != 0, account.is_cold, account.is_new_account, limit) orelse return;
+    const account = self.host.loadAccount(@bitCast(@as(u160, @intCast(to)))) orelse return error.FailedToLoadAccount;
+    var calc_limit = calculateCall(self, value != 0, account.is_cold, account.is_new_account, limit) orelse return;
 
-    try self.gas_tracker.updateTracker(calc_limit orelse return error.GasOverflow);
+    try self.gas_tracker.updateTracker(calc_limit);
 
     if (value != 0)
         calc_limit = @truncate(calc_limit + gas.CALL_STIPEND);
@@ -35,8 +36,8 @@ pub fn callInstruction(self: *Interpreter) !void {
         .inputs = input,
         .caller = self.contract.target_address,
         .gas_limit = calc_limit,
-        .bytecode_address = @bitCast(to),
-        .target_address = @bitCast(to),
+        .bytecode_address = @bitCast(@as(u160, @intCast(to))),
+        .target_address = @bitCast(@as(u160, @intCast(to))),
         .scheme = .call,
         .is_static = self.is_static,
         .return_memory_offset = range,
@@ -57,14 +58,14 @@ pub fn callCodeInstruction(self: *Interpreter) !void {
 
     const input, const range = getMemoryInputsAndRanges(self) catch return;
 
-    const account = self.host.loadAccount(@bitCast(to)) orelse {
+    const account = self.host.loadAccount(@bitCast(@as(u160, @intCast(to)))) orelse {
         self.status = .invalid;
         return;
     };
 
-    var calc_limit = calculateCall(self.spec, value != 0, account.is_cold, false, limit) orelse return;
+    var calc_limit = calculateCall(self, value != 0, account.is_cold, false, limit) orelse return;
 
-    try self.gas_tracker.updateTracker(calc_limit orelse return error.GasOverflow);
+    try self.gas_tracker.updateTracker(calc_limit);
 
     if (value != 0)
         calc_limit = @truncate(calc_limit + gas.CALL_STIPEND);
@@ -75,7 +76,7 @@ pub fn callCodeInstruction(self: *Interpreter) !void {
         .caller = self.contract.target_address,
         .gas_limit = calc_limit,
         .bytecode_address = self.contract.target_address,
-        .target_address = @bitCast(to),
+        .target_address = @bitCast(@as(u160, @intCast(to))),
         .scheme = .callcode,
         .is_static = self.is_static,
         .return_memory_offset = range,
@@ -102,7 +103,7 @@ pub fn createInstruction(self: *Interpreter, is_create_2: bool) !void {
     if (length > std.math.maxInt(u64))
         return error.Overflow;
 
-    const buffer = try self.allocator.alloc(u8, length);
+    const buffer = try self.allocator.alloc(u8, @intCast(length));
 
     if (length != 0) {
         if (self.spec.enabled(.SHANGHAI)) {
@@ -127,10 +128,10 @@ pub fn createInstruction(self: *Interpreter, is_create_2: bool) !void {
             return error.Overflow;
 
         try self.resize(@truncate(code_offset + length));
-        @memcpy(buffer, self.memory.getSlice()[code_offset .. code_offset + length]);
+        @memcpy(buffer, self.memory.getSlice()[@intCast(code_offset)..@intCast(code_offset + length)]);
     }
 
-    const scheme = blk: {
+    const scheme: CreateScheme = blk: {
         if (is_create_2) {
             const salt = self.stack.popUnsafe() orelse return error.StackUnderflow;
             const cost = gas.calculateCreate2Cost(@intCast(length));
@@ -151,7 +152,7 @@ pub fn createInstruction(self: *Interpreter, is_create_2: bool) !void {
     try self.gas_tracker.updateTracker(limit);
 
     self.next_action = .{ .create_action = .{
-        .value = .{ .transfer = value },
+        .value = value,
         .init_code = buffer,
         .caller = self.contract.target_address,
         .gas_limit = limit,
@@ -174,21 +175,21 @@ pub fn delegateCallInstruction(self: *Interpreter) !void {
 
     const input, const range = getMemoryInputsAndRanges(self) catch return;
 
-    const account = self.host.loadAccount(@bitCast(to)) orelse {
+    const account = self.host.loadAccount(@bitCast(@as(u160, @intCast(to)))) orelse {
         self.status = .invalid;
         return;
     };
 
-    const calc_limit = calculateCall(self.spec, false, account.is_cold, false, limit) orelse return;
+    const calc_limit = calculateCall(self, false, account.is_cold, false, limit) orelse return;
 
-    try self.gas_tracker.updateTracker(calc_limit orelse return error.GasOverflow);
+    try self.gas_tracker.updateTracker(calc_limit);
 
     self.next_action = .{ .call_action = .{
         .value = .{ .limbo = self.contract.value },
         .inputs = input,
         .caller = self.contract.caller,
         .gas_limit = calc_limit,
-        .bytecode_address = @bitCast(to),
+        .bytecode_address = @bitCast(@as(u160, @intCast(to))),
         .target_address = self.contract.target_address,
         .scheme = .delegate,
         .is_static = self.is_static,
@@ -212,22 +213,22 @@ pub fn staticCallInstruction(self: *Interpreter) !void {
 
     const input, const range = getMemoryInputsAndRanges(self) catch return;
 
-    const account = self.host.loadAccount(@bitCast(to)) orelse {
+    const account = self.host.loadAccount(@bitCast(@as(u160, @intCast(to)))) orelse {
         self.status = .invalid;
         return;
     };
 
-    const calc_limit = calculateCall(self.spec, false, account.is_cold, false, limit) orelse return;
+    const calc_limit = calculateCall(self, false, account.is_cold, false, limit) orelse return;
 
-    try self.gas_tracker.updateTracker(calc_limit orelse return error.GasOverflow);
+    try self.gas_tracker.updateTracker(calc_limit);
 
     self.next_action = .{ .call_action = .{
         .value = .{ .transfer = 0 },
         .inputs = input,
         .caller = self.contract.target_address,
         .gas_limit = calc_limit,
-        .bytecode_address = @bitCast(to),
-        .target_address = @bitCast(to),
+        .bytecode_address = @bitCast(@as(u160, @intCast(to))),
+        .target_address = @bitCast(@as(u160, @intCast(to))),
         .scheme = .static,
         .is_static = true,
         .return_memory_offset = range,
@@ -283,7 +284,7 @@ pub fn resizeMemoryAndGetRange(self: *Interpreter, offset: u256, len: u256) !str
     if (len > comptime std.math.maxInt(u64))
         return error.Overflow;
 
-    const end = blk: {
+    const end: u64 = blk: {
         if (len == 0)
             break :blk comptime std.math.maxInt(u64);
 
@@ -292,8 +293,8 @@ pub fn resizeMemoryAndGetRange(self: *Interpreter, offset: u256, len: u256) !str
 
         try self.resize(@truncate(len + offset));
 
-        break :blk offset;
+        break :blk @intCast(offset);
     };
 
-    return .{ end, len };
+    return .{ end, @intCast(len) };
 }

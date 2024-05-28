@@ -139,7 +139,7 @@ pub inline fn calculateCreate2Cost(length: u64) ?u64 {
     if (word_cost) |word| {
         const result, const overflow = @addWithOverflow(CREATE, word);
 
-        if (overflow)
+        if (@bitCast(overflow))
             return null;
 
         return result;
@@ -152,7 +152,7 @@ pub inline fn calculateExponentCost(exp: u256, spec: SpecId) !u64 {
 
     const exp_gas, const overflow = @addWithOverflow(gas * size, 10); // 10 is the EXP instruction gas cost.
 
-    if (overflow != 0)
+    if (@bitCast(overflow))
         return error.Overflow;
 
     return exp_gas;
@@ -190,17 +190,17 @@ pub inline fn calculateLogCost(size: u8, length: u64) ?u64 {
     const topics: u64 = LOGTOPIC * size;
     const data_cost, const data_overflow = @mulWithOverflow(LOGDATA, length);
 
-    if (data_overflow)
+    if (@bitCast(data_overflow))
         return null;
 
     const value, const overflow = @addWithOverflow(LOG, data_cost);
 
-    if (overflow)
+    if (@bitCast(overflow))
         return null;
 
     const log, const log_overflow = @addWithOverflow(value, topics);
 
-    if (log_overflow)
+    if (@bitCast(log_overflow))
         return null;
 
     return log;
@@ -319,9 +319,9 @@ pub inline fn calculateSstoreRefund(spec: SpecId, original: u256, current: u256,
 pub inline fn calculateSelfDestructCost(spec: SpecId, result: SelfDestructResult) u64 {
     const charge_topup = if (spec.enabled(.SPURIOUS_DRAGON)) result.had_value and !result.target_exists else !result.target_exists;
 
-    const gas_topup = if (spec.enabled(.TANGERINE) and charge_topup) 25000 else 0;
-    const gas_opcode = if (spec.enabled(.TANGERINE)) 5000 else 0;
-    var gas = gas_topup + gas_opcode;
+    const gas_topup: u64 = if (spec.enabled(.TANGERINE) and charge_topup) 25000 else 0;
+    const gas_opcode: u64 = if (spec.enabled(.TANGERINE)) 5000 else 0;
+    var gas: u64 = gas_topup + gas_opcode;
 
     if (spec.enabled(.BERLIN) and result.is_cold)
         gas += COLD_ACCOUNT_ACCESS_COST;

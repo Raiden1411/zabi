@@ -1,12 +1,12 @@
 const gas = @import("../gas_tracker.zig");
-const log_types = @import("../../types/log.zig");
 const std = @import("std");
+const host = @import("../host.zig");
 const testing = std.testing;
 const utils = @import("../../utils/utils.zig");
 
-const Interpreter = @import("../interpreter.zig");
-const Log = log_types.Log;
-const PlainHost = @import("../host.zig").PlainHost;
+const Interpreter = @import("../Interpreter.zig");
+const Log = host.Log;
+const PlainHost = host.PlainHost;
 const Stack = @import("../../utils/stack.zig").Stack;
 
 /// Runs the balance opcode for the interpreter.
@@ -121,7 +121,7 @@ pub fn logInstruction(self: *Interpreter, size: u8) !void {
 
         const off = std.math.cast(u64, offset) orelse return error.Overflow;
         try self.resize(utils.saturatedAddition(u64, off, len));
-        break :blk self.memory.getSlice()[offset .. offset + len];
+        break :blk self.memory.getSlice()[off .. off + len];
     };
 
     var topic = try std.ArrayList([32]u8).initCapacity(self.allocator, size);
@@ -157,7 +157,7 @@ pub fn selfDestructInstruction(self: *Interpreter) !void {
     std.debug.assert(!self.is_static); // requires non static calls.
 
     const address = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const result = try self.host.selfDestruct(self.contract.target_address, address);
+    const result = try self.host.selfDestruct(self.contract.target_address, @bitCast(@as(u160, @intCast(address))));
 
     if (self.spec.enabled(.LONDON) and !result.previously_destroyed)
         self.gas_tracker.refund_amount += 24000;
@@ -231,10 +231,10 @@ pub fn tstoreInstruction(self: *Interpreter) !void {
 }
 
 test "Balance" {
-    var host: PlainHost = undefined;
-    defer host.deinit();
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
 
-    host.init(testing.allocator);
+    plain.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
     defer interpreter.stack.deinit();
@@ -242,7 +242,7 @@ test "Balance" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
-    interpreter.host = host.host();
+    interpreter.host = plain.host();
 
     {
         interpreter.spec = .LATEST;
@@ -283,10 +283,10 @@ test "Balance" {
 }
 
 test "BlockHash" {
-    var host: PlainHost = undefined;
-    defer host.deinit();
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
 
-    host.init(testing.allocator);
+    plain.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
     defer interpreter.stack.deinit();
@@ -294,7 +294,7 @@ test "BlockHash" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
-    interpreter.host = host.host();
+    interpreter.host = plain.host();
 
     try interpreter.stack.pushUnsafe(0);
     try blockHashInstruction(&interpreter);
@@ -305,10 +305,10 @@ test "BlockHash" {
 }
 
 test "ExtCodeCopy" {
-    var host: PlainHost = undefined;
-    defer host.deinit();
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
 
-    host.init(testing.allocator);
+    plain.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
     defer interpreter.stack.deinit();
@@ -316,7 +316,7 @@ test "ExtCodeCopy" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
-    interpreter.host = host.host();
+    interpreter.host = plain.host();
 
     try interpreter.stack.pushUnsafe(0);
     try interpreter.stack.pushUnsafe(0);
@@ -330,10 +330,10 @@ test "ExtCodeCopy" {
 }
 
 test "ExtCodeHash" {
-    var host: PlainHost = undefined;
-    defer host.deinit();
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
 
-    host.init(testing.allocator);
+    plain.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
     defer interpreter.stack.deinit();
@@ -341,7 +341,7 @@ test "ExtCodeHash" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
-    interpreter.host = host.host();
+    interpreter.host = plain.host();
 
     {
         interpreter.spec = .LATEST;
@@ -373,10 +373,10 @@ test "ExtCodeHash" {
 }
 
 test "ExtCodeSize" {
-    var host: PlainHost = undefined;
-    defer host.deinit();
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
 
-    host.init(testing.allocator);
+    plain.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
     defer interpreter.stack.deinit();
@@ -384,7 +384,7 @@ test "ExtCodeSize" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
-    interpreter.host = host.host();
+    interpreter.host = plain.host();
 
     {
         interpreter.spec = .LATEST;
@@ -416,10 +416,10 @@ test "ExtCodeSize" {
 }
 
 test "SelfBalance" {
-    var host: PlainHost = undefined;
-    defer host.deinit();
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
 
-    host.init(testing.allocator);
+    plain.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
     defer interpreter.stack.deinit();
@@ -427,7 +427,7 @@ test "SelfBalance" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
-    interpreter.host = host.host();
+    interpreter.host = plain.host();
 
     interpreter.spec = .LATEST;
     try selfBalanceInstruction(&interpreter);
@@ -443,10 +443,10 @@ test "SelfBalance" {
 }
 
 test "Sload" {
-    var host: PlainHost = undefined;
-    defer host.deinit();
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
 
-    host.init(testing.allocator);
+    plain.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
     defer interpreter.stack.deinit();
@@ -454,7 +454,7 @@ test "Sload" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
-    interpreter.host = host.host();
+    interpreter.host = plain.host();
 
     {
         interpreter.spec = .LATEST;
@@ -495,10 +495,10 @@ test "Sload" {
 }
 
 test "Sstore" {
-    var host: PlainHost = undefined;
-    defer host.deinit();
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
 
-    host.init(testing.allocator);
+    plain.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
     defer interpreter.stack.deinit();
@@ -506,7 +506,7 @@ test "Sstore" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
-    interpreter.host = host.host();
+    interpreter.host = plain.host();
 
     {
         interpreter.spec = .LATEST;
@@ -547,10 +547,10 @@ test "Sstore" {
 }
 
 test "Tload" {
-    var host: PlainHost = undefined;
-    defer host.deinit();
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
 
-    host.init(testing.allocator);
+    plain.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
     defer interpreter.stack.deinit();
@@ -558,7 +558,7 @@ test "Tload" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
-    interpreter.host = host.host();
+    interpreter.host = plain.host();
 
     {
         interpreter.spec = .LATEST;
@@ -576,10 +576,10 @@ test "Tload" {
 }
 
 test "Tstore" {
-    var host: PlainHost = undefined;
-    defer host.deinit();
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
 
-    host.init(testing.allocator);
+    plain.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
     defer interpreter.stack.deinit();
@@ -587,7 +587,7 @@ test "Tstore" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
-    interpreter.host = host.host();
+    interpreter.host = plain.host();
 
     {
         interpreter.spec = .LATEST;

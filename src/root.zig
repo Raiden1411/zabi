@@ -15,6 +15,9 @@ pub const encoding = @import("encoding/root.zig");
 /// Currently minimal support for interacting with ens resolvers
 /// More functionality will be added in the future.
 pub const ens = @import("clients/ens/root.zig");
+/// Evm implementation. For now it contains the interpreter and other needed instances
+/// like `Contract`, `Host` and `EVMEnviroment` among other things.
+pub const evm = @import("evm/root.zig");
 /// Generate random data based on a provided type.
 pub const generator = @import("tests/generator.zig");
 /// Custom human readable parser. Supports tuples and structs.
@@ -85,9 +88,7 @@ test {
     // _ = @import("encoding/rlp.zig");
     // _ = @import("encoding/serialize.zig");
     // _ = @import("encoding/ssz.zig");
-    _ = @import("evm/instructions/root.zig");
-    _ = @import("evm/memory.zig");
-    _ = @import("evm/bytecode.zig");
+    _ = @import("evm/root.zig");
     // _ = @import("human-readable/abi_parsing.zig");
     // _ = @import("human-readable/lexer.zig");
     // _ = @import("meta/abi.zig");

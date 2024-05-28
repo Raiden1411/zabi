@@ -4,7 +4,7 @@ const testing = std.testing;
 const utils = @import("../../utils/utils.zig");
 
 const Contract = @import("../contract.zig").Contract;
-const Interpreter = @import("../interpreter.zig");
+const Interpreter = @import("../Interpreter.zig");
 const Memory = @import("../memory.zig").Memory;
 const Stack = @import("../../utils/stack.zig").Stack;
 

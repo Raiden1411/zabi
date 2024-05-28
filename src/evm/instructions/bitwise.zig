@@ -2,7 +2,7 @@ const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 const testing = std.testing;
 
-const Interpreter = @import("../interpreter.zig");
+const Interpreter = @import("../Interpreter.zig");
 const Stack = @import("../../utils/stack.zig").Stack;
 
 /// Performs and instruction for the interpreter.

@@ -3,7 +3,7 @@ const std = @import("std");
 const testing = std.testing;
 
 const Stack = @import("../../utils/stack.zig").Stack;
-const Interpreter = @import("../interpreter.zig");
+const Interpreter = @import("../Interpreter.zig");
 
 /// Performs add instruction for the interpreter.
 /// ADD -> 0x01

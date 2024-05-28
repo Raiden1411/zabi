@@ -1,21 +1,22 @@
 const actions = @import("actions.zig");
-const arithmetic = @import("instructions/arithmetic.zig");
-const bitwise = @import("instructions/bitwise.zig");
 const contract = @import("contract.zig");
 const gas = @import("gas_tracker.zig");
 const host = @import("host.zig");
 const mem = @import("memory.zig");
+const opcode = @import("opcodes.zig");
 const spec = @import("specification.zig");
 const std = @import("std");
+const testing = std.testing;
 
 const Allocator = std.mem.Allocator;
 const CallAction = actions.CallAction;
 const Contract = contract.Contract;
 const CreateAction = actions.CreateAction;
 const GasTracker = gas.GasTracker;
+const InstructionTable = opcode.InstructionTable;
 const Host = host.Host;
 const Memory = mem.Memory;
-const Opcodes = @import("opcodes.zig").Opcodes;
+const PlainHost = host.PlainHost;
 const ReturnAction = actions.ReturnAction;
 const SpecId = spec.SpecId;
 const Stack = @import("../utils/stack.zig").Stack;
@@ -38,6 +39,7 @@ pub const InterpreterActions = union(enum) {
 pub const InterpreterStatus = enum {
     call_or_create,
     call_with_value_not_allowed_in_static_call,
+    create_code_size_limit,
     invalid,
     invalid_jump,
     invalid_offset,
@@ -59,6 +61,8 @@ contract: Contract,
 gas_tracker: GasTracker,
 /// The host enviroment for this interpreter.
 host: Host,
+/// The opcode's instruction table.
+instruction_table: InstructionTable,
 /// Is the interperter being ran in a static call.
 is_static: bool,
 /// The memory used by this interpreter.
@@ -67,18 +71,27 @@ memory: Memory,
 next_action: InterpreterActions,
 /// The interpreter's counter.
 program_counter: u64,
-/// The buffer containing the return data
-return_data: []u8,
 /// The spec for this interpreter.
 spec: SpecId,
 /// The stack of the interpreter with 1024 max size.
 stack: Stack(u256),
 /// The current interpreter status.
 status: InterpreterStatus,
+/// The buffer containing the return data
+return_data: []u8,
 
 /// Sets the interpreter to it's expected initial state.
-pub fn init(self: *Interpreter, allocator: Allocator, contract_instance: Contract, gas_limit: u64, is_static: bool, evm_host: Host, spec_id: SpecId) !void {
-    const bytecode = try allocator.dupe(u8, contract_instance.bytecode);
+/// Copy's the contract's bytecode independent of it's state.
+pub fn init(
+    self: *Interpreter,
+    allocator: Allocator,
+    contract_instance: Contract,
+    gas_limit: u64,
+    is_static: bool,
+    evm_host: Host,
+    spec_id: SpecId,
+) !void {
+    const bytecode = try allocator.dupe(u8, contract_instance.bytecode.getCodeBytes());
     errdefer allocator.free(bytecode);
 
     self.* = .{
@@ -88,6 +101,7 @@ pub fn init(self: *Interpreter, allocator: Allocator, contract_instance: Contrac
         .memory = Memory.initEmpty(allocator, null),
         .gas_tracker = GasTracker.init(gas_limit),
         .host = evm_host,
+        .instruction_table = InstructionTable.init(),
         .is_static = is_static,
         .next_action = .no_action,
         .program_counter = 0,
@@ -115,4 +129,27 @@ pub fn resize(self: *Interpreter, new_size: u64) !void {
 
     try self.gas_tracker.updateTracker(cost);
     return self.memory.resize(count * 32);
+}
+
+test "Init" {
+    const contract_instance = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract_instance.deinit(testing.allocator);
+
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
+
+    plain.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.deinit();
+
+    try interpreter.init(testing.allocator, contract_instance, 30_000_000, false, plain.host(), .LATEST);
 }

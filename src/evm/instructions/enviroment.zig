@@ -4,7 +4,7 @@ const std = @import("std");
 const testing = std.testing;
 
 const BlobExcessGasAndPrice = enviroment.BlobExcessGasAndPrice;
-const Interpreter = @import("../interpreter.zig");
+const Interpreter = @import("../Interpreter.zig");
 const PlainHost = @import("../host.zig").PlainHost;
 const Stack = @import("../../utils/stack.zig").Stack;
 

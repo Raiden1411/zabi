@@ -1,5 +1,6 @@
-const std = @import("std");
 const bytecode = @import("bytecode.zig");
+const std = @import("std");
+const testing = std.testing;
 
 const Allocator = std.mem.Allocator;
 const Bytecode = bytecode.Bytecode;
@@ -38,4 +39,14 @@ pub fn createJumpTable(allocator: Allocator, prepared_code: []u8) !JumpTable {
     }
 
     return table;
+}
+
+test "Create Jump Table" {
+    var code = [_]u8{ 0x60, 0x04, 0x56, 0xfd, 0x5b, 0x60, 0x01 };
+
+    const table = try createJumpTable(testing.allocator, &code);
+    defer table.deinit(testing.allocator);
+
+    try testing.expect(!table.isValid(3));
+    try testing.expect(table.isValid(4));
 }

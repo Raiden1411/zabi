@@ -5,7 +5,7 @@ const types = @import("../types/ethereum.zig");
 
 const Address = types.Address;
 const GasTracker = gas.GasTracker;
-const InterpreterStatus = @import("interpreter.zig").InterpreterStatus;
+const InterpreterStatus = @import("Interpreter.zig").InterpreterStatus;
 const TxEnviroment = enviroment.TxEnviroment;
 
 /// Inputs for a call action.

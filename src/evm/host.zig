@@ -9,8 +9,12 @@ const ArrayList = std.ArrayList;
 const Bytecode = @import("bytecode.zig").Bytecode;
 const EVMEnviroment = env.EVMEnviroment;
 const Hash = types.Hash;
-const Log = log_types.Log;
 const Storage = std.AutoHashMap(u256, u256);
+
+pub const Log = struct {
+    data: []u8,
+    topics: []const [32]u8,
+};
 
 /// Representation of an EVM context host.
 pub const Host = struct {

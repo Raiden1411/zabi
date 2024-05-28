@@ -179,13 +179,15 @@ pub const Memory = struct {
 
         std.debug.assert(data_offset < data.len and end <= data.len);
 
-        // Copy the data to the buffer.
         const slice = data[data_offset..data_len];
         const memory_slice = self.getSlice();
+        // Copy the data to the buffer.
         @memcpy(memory_slice[offset..data_len], slice);
 
+        const range_start = offset + data_len;
+        const range_end = range_start + (len - data_len);
         // Zero out the remainder of the memory.
-        @memset(memory_slice[offset + data_len .. len - data_len], 0);
+        @memset(memory_slice[range_start..range_end], 0);
     }
     /// Frees the underlaying memory buffers.
     pub fn deinit(self: Memory) void {

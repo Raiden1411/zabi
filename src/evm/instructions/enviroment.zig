@@ -140,23 +140,16 @@ pub fn timestampInstruction(self: *Interpreter) !void {
 }
 
 test "BaseFee" {
-    var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
     var host: PlainHost = undefined;
     defer host.deinit();
 
     host.init(testing.allocator);
 
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -168,23 +161,16 @@ test "BaseFee" {
 }
 
 test "BlobBaseFee" {
-    var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
     var host: PlainHost = undefined;
     defer host.deinit();
 
     host.init(testing.allocator);
 
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -205,23 +191,16 @@ test "BlobBaseFee" {
 }
 
 test "BlobHash" {
-    var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
     var host: PlainHost = undefined;
     defer host.deinit();
 
     host.init(testing.allocator);
 
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -253,23 +232,16 @@ test "BlobHash" {
 }
 
 test "Timestamp" {
-    var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
     var host: PlainHost = undefined;
     defer host.deinit();
 
     host.init(testing.allocator);
 
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -281,23 +253,16 @@ test "Timestamp" {
 }
 
 test "BlockNumber" {
-    var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
     var host: PlainHost = undefined;
     defer host.deinit();
 
     host.init(testing.allocator);
 
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -309,23 +274,16 @@ test "BlockNumber" {
 }
 
 test "ChainId" {
-    var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
     var host: PlainHost = undefined;
     defer host.deinit();
 
     host.init(testing.allocator);
 
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -345,23 +303,16 @@ test "ChainId" {
 }
 
 test "Coinbase" {
-    var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
     var host: PlainHost = undefined;
     defer host.deinit();
 
     host.init(testing.allocator);
 
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -373,26 +324,18 @@ test "Coinbase" {
 }
 
 test "Difficulty" {
-    var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
     var host: PlainHost = undefined;
     defer host.deinit();
 
     host.init(testing.allocator);
 
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
     interpreter.host = host.host();
-    interpreter.spec = .LATEST;
 
     try difficultyInstruction(&interpreter);
 
@@ -402,23 +345,16 @@ test "Difficulty" {
 }
 
 test "GasPrice" {
-    var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
     var host: PlainHost = undefined;
     defer host.deinit();
 
     host.init(testing.allocator);
 
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -430,23 +366,16 @@ test "GasPrice" {
 }
 
 test "Origin" {
-    var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
     var host: PlainHost = undefined;
     defer host.deinit();
 
     host.init(testing.allocator);
 
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -458,23 +387,16 @@ test "Origin" {
 }
 
 test "GasLimit" {
-    var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
     var host: PlainHost = undefined;
     defer host.deinit();
 
     host.init(testing.allocator);
 
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 

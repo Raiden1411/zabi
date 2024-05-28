@@ -1,6 +1,7 @@
 const constants = @import("../utils/constants.zig");
 const host = @import("host.zig");
 const mem = @import("memory.zig");
+const testing = @import("std").testing;
 const utils = @import("../utils/utils.zig");
 
 const SpecId = @import("specification.zig").SpecId;
@@ -163,7 +164,7 @@ pub inline fn calculateKeccakCost(length: u64) ?u64 {
     if (word_cost) |word| {
         const result, const overflow = @addWithOverflow(KECCAK256, word);
 
-        if (overflow)
+        if (@bitCast(overflow))
             return null;
 
         return result;

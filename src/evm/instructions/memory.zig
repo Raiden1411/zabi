@@ -92,22 +92,15 @@ pub fn mstore8Instruction(self: *Interpreter) !void {
 
 test "Mstore" {
     var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
     defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
+        interpreter.stack.deinit();
+        interpreter.memory.deinit();
     }
 
-    const memory = Memory.initEmpty(testing.allocator, null);
-
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
-
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
-    interpreter.memory = memory;
-    defer interpreter.memory.deinit();
+    interpreter.memory = Memory.initEmpty(testing.allocator, null);
 
     {
         try interpreter.stack.pushUnsafe(69);
@@ -133,22 +126,15 @@ test "Mstore" {
 
 test "Mstore8" {
     var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
     defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
+        interpreter.stack.deinit();
+        interpreter.memory.deinit();
     }
 
-    const memory = Memory.initEmpty(testing.allocator, null);
-
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
-
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
-    interpreter.memory = memory;
-    defer interpreter.memory.deinit();
+    interpreter.memory = Memory.initEmpty(testing.allocator, null);
 
     {
         try interpreter.stack.pushUnsafe(0xFFFF);
@@ -174,22 +160,15 @@ test "Mstore8" {
 
 test "Msize" {
     var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
     defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
+        interpreter.stack.deinit();
+        interpreter.memory.deinit();
     }
 
-    const memory = Memory.initEmpty(testing.allocator, null);
-
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
-
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
-    interpreter.memory = memory;
-    defer interpreter.memory.deinit();
+    interpreter.memory = Memory.initEmpty(testing.allocator, null);
 
     {
         try msizeInstruction(&interpreter);
@@ -211,22 +190,15 @@ test "Msize" {
 
 test "MCopy" {
     var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
     defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
+        interpreter.stack.deinit();
+        interpreter.memory.deinit();
     }
 
-    const memory = Memory.initEmpty(testing.allocator, null);
-
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
-
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
-    interpreter.memory = memory;
-    defer interpreter.memory.deinit();
+    interpreter.memory = Memory.initEmpty(testing.allocator, null);
 
     try interpreter.stack.pushUnsafe(0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f);
     try interpreter.stack.pushUnsafe(32);
@@ -241,4 +213,9 @@ test "MCopy" {
     try testing.expectEqual(0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f, interpreter.memory.wordToInt(0));
     try testing.expectEqual(15, interpreter.gas_tracker.used_amount);
     try testing.expectEqual(2, interpreter.program_counter);
+
+    {
+        interpreter.spec = .FRONTIER;
+        try testing.expectError(error.InstructionNotEnabled, mcopyInstruction(&interpreter));
+    }
 }

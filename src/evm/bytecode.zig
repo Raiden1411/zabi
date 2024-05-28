@@ -1,5 +1,6 @@
 const analysis = @import("analysis.zig");
 const std = @import("std");
+const testing = std.testing;
 
 const Allocator = std.mem.Allocator;
 
@@ -41,7 +42,7 @@ pub const AnalyzedBytecode = struct {
     /// Creates an instance of `AnalyzedBytecode`.
     pub fn init(allocator: Allocator, raw: []u8) Allocator.Error!AnalyzedBytecode {
         const size = raw.len;
-        const list = try std.ArrayList(u8).initCapacity(allocator, size + 33);
+        var list = try std.ArrayList(u8).initCapacity(allocator, size + 33);
         try list.appendSlice(raw);
         try list.writer().writeByteNTimes(0, 33);
 
@@ -84,19 +85,60 @@ pub const JumpTable = struct {
         const byte_index = position >> 3;
         const bit_index: u3 = @intCast(position & 7);
 
-        std.debug.assert(self.bytes.len > byte_index);
+        std.debug.assert(self.bytes.len > byte_index); // Index out of bouds;
+        //
         self.bytes[byte_index] &= ~(@as(u8, 1) << bit_index);
         self.bytes[byte_index] |= @as(u8, @intFromBool(value)) << bit_index;
     }
     /// Gets if a bit is set at a given position.
     pub fn peek(self: @This(), position: usize) u1 {
-        const byte_index = (position - 1) >> 3;
-        const bit_index: u3 = @intCast((position - 1) & 7);
+        const byte_index = position >> 3;
+        const bit_index: u3 = @intCast(position & 7);
+
+        std.debug.assert(self.bytes.len > byte_index); // Index out of bouds;
 
         return @intCast((self.bytes[byte_index] >> bit_index) & 1);
     }
     /// Check if the provided position results in a valid bit set.
     pub fn isValid(self: @This(), position: usize) bool {
-        return self.bytes.len < position and @as(bool, @bitCast(self.peek(position)));
+        return position >> 3 < self.bytes.len and @as(bool, @bitCast(self.peek(position)));
     }
 };
+
+test "JumpTable" {
+    // With false as the initial value.
+    {
+        const table = try JumpTable.init(testing.allocator, false, 64);
+        defer table.deinit(testing.allocator);
+
+        try testing.expectEqual(8, table.bytes.len);
+        try testing.expect(!table.isValid(1));
+
+        table.set(0, true);
+        try testing.expect(table.isValid(0));
+        table.set(1, true);
+        try testing.expect(table.isValid(1));
+        try testing.expect(!table.isValid(64));
+        try testing.expect(!table.isValid(63));
+        table.set(63, true);
+        try testing.expect(table.isValid(63));
+    }
+
+    // With true as the initial value.
+    {
+        const table = try JumpTable.init(testing.allocator, true, 64);
+        defer table.deinit(testing.allocator);
+
+        try testing.expectEqual(8, table.bytes.len);
+        try testing.expect(!table.isValid(1));
+
+        table.set(0, true);
+        try testing.expect(table.isValid(0));
+        table.set(1, true);
+        try testing.expect(table.isValid(1));
+        try testing.expect(!table.isValid(64));
+        try testing.expect(!table.isValid(63));
+        table.set(63, true);
+        try testing.expect(table.isValid(63));
+    }
+}

@@ -1,21 +1,26 @@
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
+const testing = std.testing;
+const utils = @import("../../utils/utils.zig");
 
+const Contract = @import("../contract.zig").Contract;
 const Interpreter = @import("../interpreter.zig");
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
+const Memory = @import("../memory.zig").Memory;
+const Stack = @import("../../utils/stack.zig").Stack;
 
 /// Runs the address instructions opcodes for the interpreter.
 /// 0x30 -> ADDRESS
 pub fn addressInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
-    try self.stack.pushUnsafe(@bitCast(self.contract.target_address));
+    try self.stack.pushUnsafe(@as(u160, @bitCast(self.contract.target_address)));
     self.program_counter += 1;
 }
 /// Runs the caller instructions opcodes for the interpreter.
 /// 0x33 -> CALLER
 pub fn callerInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
-    try self.stack.pushUnsafe(@bitCast(self.contract.caller));
+    try self.stack.pushUnsafe(@as(u160, @bitCast(self.contract.caller)));
     self.program_counter += 1;
 }
 /// Runs the calldatacopy instructions opcodes for the interpreter.
@@ -25,19 +30,17 @@ pub fn callDataCopyInstruction(self: *Interpreter) !void {
     const data = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const length = self.stack.popUnsafe() orelse return error.StackUnderflow;
 
-    if (comptime std.math.maxInt(u64) < length)
-        return error.Overflow;
+    const len = std.math.cast(usize, length) orelse return error.Overflow;
 
-    const cost = gas.calculateMemoryCopyLowCost(length);
+    const cost = gas.calculateMemoryCopyLowCost(len);
     try self.gas_tracker.updateTracker(cost orelse return error.GasOverflow);
 
-    if (comptime std.math.maxInt(u64) < offset)
-        return error.Overflow;
+    const offset_usize = std.math.cast(usize, offset) orelse return error.Overflow;
+    const data_offset = std.math.cast(usize, data) orelse return error.Overflow;
 
-    const data_offset: u64 = @truncate(data);
-    try self.resize(offset + length);
+    try self.resize(offset_usize + len);
 
-    try self.memory.writeData(offset, data_offset, length, self.contract.input);
+    try self.memory.writeData(offset_usize, data_offset, len, self.contract.input);
     self.program_counter += 1;
 }
 /// Runs the calldataload instructions opcodes for the interpreter.
@@ -46,12 +49,13 @@ pub fn callDataLoadInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const offset: u64 = @truncate(first);
+    const offset = std.math.cast(usize, first) orelse return error.Overflow;
 
     var buffer: [32]u8 = [_]u8{0} ** 32;
     if (offset < self.contract.input.len) {
         const count = @min(32, self.contract.input.len - offset);
         std.debug.assert(count <= 32 and offset + count <= self.contract.input.len);
+
         const slice = self.contract.input[offset .. offset + count];
         @memcpy(buffer[32 - count ..], slice);
     }
@@ -82,26 +86,24 @@ pub fn codeCopyInstruction(self: *Interpreter) !void {
     const code = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const length = self.stack.popUnsafe() orelse return error.StackUnderflow;
 
-    if (comptime std.math.maxInt(u64) < length)
-        return error.Overflow;
+    const len = std.math.cast(usize, length) orelse return error.Overflow;
 
-    const cost = gas.calculateMemoryCopyLowCost(length);
+    const cost = gas.calculateMemoryCopyLowCost(len);
     try self.gas_tracker.updateTracker(cost orelse return error.GasOverflow);
 
-    if (comptime std.math.maxInt(u64) < offset)
-        return error.Overflow;
+    const offset_usize = std.math.cast(usize, offset) orelse return error.Overflow;
+    const code_offset = std.math.cast(usize, code) orelse return error.Overflow;
 
-    const code_offset: u64 = @truncate(code);
-    try self.resize(offset + length);
+    try self.resize(offset_usize + len);
 
-    try self.memory.writeData(offset, code_offset, length, self.contract.bytecode);
+    try self.memory.writeData(offset_usize, code_offset, len, self.contract.bytecode);
     self.program_counter += 1;
 }
 /// Runs the codesize instructions opcodes for the interpreter.
 /// 0x38 -> CODESIZE
 pub fn codeSizeInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
-    try self.stack.pushUnsafe(self.contract.bytecode.len);
+    try self.stack.pushUnsafe(self.contract.bytecode.getCodeBytes().len);
     self.program_counter += 1;
 }
 /// Runs the gas instructions opcodes for the interpreter.
@@ -118,10 +120,10 @@ pub fn keccakInstruction(self: *Interpreter) !void {
     const offset = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const length = self.stack.popUnsafe() orelse return error.StackUnderflow;
 
-    if (comptime std.math.maxInt(u64) < length)
-        return error.Overflow;
+    const len = std.math.cast(usize, length) orelse return error.Overflow;
+    const offset_usize = std.math.cast(usize, offset) orelse return error.Overflow;
 
-    const cost = gas.calculateKeccakCost(@intCast(length));
+    const cost = gas.calculateKeccakCost(len);
     try self.gas_tracker.updateTracker(cost orelse return error.GasOverflow);
 
     var buffer: [32]u8 = undefined;
@@ -132,10 +134,10 @@ pub fn keccakInstruction(self: *Interpreter) !void {
     } else {
         const slice = self.memory.getSlice();
 
-        std.debug.assert(slice.len > offset + length); // Indexing out of bounds;
+        std.debug.assert(slice.len > offset_usize + len); // Indexing out of bounds;
 
-        Keccak256.hash(slice[offset .. offset + length], &buffer, .{});
-        try self.resize(offset + length);
+        Keccak256.hash(slice[offset_usize .. offset_usize + len], &buffer, .{});
+        try self.resize(offset_usize + len);
         try self.stack.pushUnsafe(@bitCast(buffer));
     }
 
@@ -143,7 +145,7 @@ pub fn keccakInstruction(self: *Interpreter) !void {
 }
 /// Runs the returndatasize instructions opcodes for the interpreter.
 /// 0x3D -> RETURNDATACOPY
-pub fn returnDataCopyInstruction(self: *Interpreter) !void {
+pub fn returnDataSizeInstruction(self: *Interpreter) !void {
     if (!self.spec.enabled(.BYZANTIUM))
         return error.InstructionNotEnabled;
 
@@ -153,31 +155,397 @@ pub fn returnDataCopyInstruction(self: *Interpreter) !void {
 }
 /// Runs the returndatasize instructions opcodes for the interpreter.
 /// 0x3E -> RETURNDATASIZE
-pub fn returnDataSizeInstruction(self: *Interpreter) !void {
+pub fn returnDataCopyInstruction(self: *Interpreter) !void {
     const offset = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const data = self.stack.popUnsafe() orelse return error.StackUnderflow;
     const length = self.stack.popUnsafe() orelse return error.StackUnderflow;
 
-    if (comptime std.math.maxInt(u64) < length)
-        return error.Overflow;
+    const len = std.math.cast(usize, length) orelse return error.Overflow;
 
-    const cost = gas.calculateMemoryCopyLowCost(length);
+    const cost = gas.calculateMemoryCopyLowCost(len);
     try self.gas_tracker.updateTracker(cost orelse return error.GasOverflow);
 
-    const return_offset: u64 = @truncate(data);
-    const return_end: u64 = @truncate(return_offset + length);
+    const return_offset = std.math.cast(usize, data) orelse return error.Overflow;
+    const return_end = utils.saturatedAddition(usize, return_offset, len);
 
     if (return_end > self.return_data.len) {
-        self.status = .InvalidOffset;
+        self.status = .invalid_offset;
         return;
     }
 
     if (length != 0) {
-        const memory_offset: u64 = @truncate(offset);
+        const memory_offset = std.math.cast(usize, offset) orelse return error.Overflow;
 
-        try self.resize(memory_offset + length);
+        try self.resize(memory_offset + len);
         try self.memory.write(memory_offset, self.return_data[return_offset..return_end]);
     }
 
     self.program_counter += 1;
+}
+
+test "Address" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.contract = contract;
+
+    try addressInstruction(&interpreter);
+
+    try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(1, interpreter.program_counter);
+}
+
+test "Caller" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.contract = contract;
+
+    try callerInstruction(&interpreter);
+
+    try testing.expectEqual(@as(u160, @bitCast([_]u8{1} ** 20)), interpreter.stack.popUnsafe().?);
+    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(1, interpreter.program_counter);
+}
+
+test "Value" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.contract = contract;
+
+    try callValueInstruction(&interpreter);
+
+    try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(1, interpreter.program_counter);
+}
+
+test "CodeSize" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.contract = contract;
+
+    try codeSizeInstruction(&interpreter);
+
+    try testing.expectEqual(33, interpreter.stack.popUnsafe().?);
+    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(1, interpreter.program_counter);
+}
+
+test "CallDataSize" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.contract = contract;
+
+    try callDataSizeInstruction(&interpreter);
+
+    try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(1, interpreter.program_counter);
+}
+
+test "Gas" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(1000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.contract = contract;
+
+    try gasInstruction(&interpreter);
+
+    try testing.expectEqual(998, interpreter.stack.popUnsafe().?);
+    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(1, interpreter.program_counter);
+}
+
+test "ReturnDataSize" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.contract = contract;
+    interpreter.return_data = &.{};
+
+    try returnDataSizeInstruction(&interpreter);
+
+    try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(1, interpreter.program_counter);
+}
+
+test "CallDataLoad" {
+    var data = [_]u8{1} ** 32;
+    const contract = try Contract.init(
+        testing.allocator,
+        &data,
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.stack.deinit();
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.contract = contract;
+
+    {
+        try interpreter.stack.pushUnsafe(0);
+        try callDataLoadInstruction(&interpreter);
+
+        try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1, interpreter.program_counter);
+    }
+    {
+        try interpreter.stack.pushUnsafe(33);
+        try callDataLoadInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(6, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2, interpreter.program_counter);
+    }
+}
+
+test "CallDataCopy" {
+    var data = [_]u8{1} ** 32;
+    const contract = try Contract.init(
+        testing.allocator,
+        &data,
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer {
+        interpreter.stack.deinit();
+        interpreter.memory.deinit();
+    }
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.contract = contract;
+    interpreter.memory = Memory.initEmpty(testing.allocator, null);
+
+    {
+        try interpreter.stack.pushUnsafe(32);
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(0);
+
+        try callDataCopyInstruction(&interpreter);
+
+        try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.memory.wordToInt(0));
+        try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1, interpreter.program_counter);
+    }
+    {
+        try interpreter.stack.pushUnsafe(32);
+        try interpreter.stack.pushUnsafe(64);
+        try interpreter.stack.pushUnsafe(0);
+
+        try callDataCopyInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.memory.wordToInt(0));
+        try testing.expectEqual(15, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2, interpreter.program_counter);
+    }
+}
+
+test "Keccak256" {
+    var data = [_]u8{1} ** 32;
+    const contract = try Contract.init(
+        testing.allocator,
+        &data,
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer {
+        interpreter.stack.deinit();
+        interpreter.memory.deinit();
+    }
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.contract = contract;
+    interpreter.memory = Memory.initEmpty(testing.allocator, null);
+
+    {
+        try interpreter.memory.resize(32);
+        try interpreter.memory.writeInt(0, 0xFFFFFFFF00000000000000000000000000000000000000000000000000000000);
+
+        try interpreter.stack.pushUnsafe(4);
+        try interpreter.stack.pushUnsafe(0);
+
+        try keccakInstruction(&interpreter);
+
+        try testing.expectEqual(0x29045a592007d0c246ef02c2223570da9522d0cf0f73282c79a1bc8f0bb2c238, @byteSwap(interpreter.stack.popUnsafe().?));
+        try testing.expectEqual(36, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1, interpreter.program_counter);
+    }
+    {
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(0);
+
+        try keccakInstruction(&interpreter);
+
+        try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(66, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2, interpreter.program_counter);
+    }
+}
+
+test "ReturnDataCopy" {
+    var data = [_]u8{1} ** 32;
+    const contract = try Contract.init(
+        testing.allocator,
+        &data,
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer {
+        interpreter.stack.deinit();
+        interpreter.memory.deinit();
+    }
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.contract = contract;
+    interpreter.memory = Memory.initEmpty(testing.allocator, null);
+    interpreter.return_data = &data;
+
+    {
+        try interpreter.stack.pushUnsafe(32);
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(0);
+
+        try returnDataCopyInstruction(&interpreter);
+
+        try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.memory.wordToInt(0));
+        try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1, interpreter.program_counter);
+    }
 }

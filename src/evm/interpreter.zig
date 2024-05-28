@@ -30,6 +30,7 @@ pub const InterpreterActions = union(enum) {
     create_action: CreateAction,
     /// Return action.
     return_action: ReturnAction,
+    /// No action for the interpreter to take.
     no_action,
 };
 
@@ -71,36 +72,29 @@ return_data: []u8,
 /// The spec for this interpreter.
 spec: SpecId,
 /// The stack of the interpreter with 1024 max size.
-stack: *Stack(u256),
+stack: Stack(u256),
 /// The current interpreter status.
 status: InterpreterStatus,
 
 /// Sets the interpreter to it's expected initial state.
-/// `code` is expected to be a hex string of compiled bytecode.
-pub fn init(self: *Interpreter, allocator: Allocator, contract_instance: Contract, gas_limit: u64, is_static: bool, evm_host: Host) !void {
-    const stack = try allocator.create(Stack(u256));
-    errdefer allocator.destroy(stack);
-
-    stack.* = try Stack(u256).initWithCapacity(allocator, 1024);
-
-    const memory = try allocator.create(Memory);
-    errdefer allocator.destroy(memory);
-
-    memory.* = Memory.initEmpty(allocator, null);
-
+pub fn init(self: *Interpreter, allocator: Allocator, contract_instance: Contract, gas_limit: u64, is_static: bool, evm_host: Host, spec_id: SpecId) !void {
     const bytecode = try allocator.dupe(u8, contract_instance.bytecode);
     errdefer allocator.free(bytecode);
 
     self.* = .{
         .allocator = allocator,
         .code = bytecode,
-        .contract = undefined,
+        .contract = contract_instance,
+        .memory = Memory.initEmpty(allocator, null),
         .gas_tracker = GasTracker.init(gas_limit),
         .host = evm_host,
         .is_static = is_static,
+        .next_action = .no_action,
         .program_counter = 0,
-        .stack = stack,
-        .status = .Running,
+        .spec = spec_id,
+        .stack = try Stack(u256).initWithCapacity(allocator, 1024),
+        .status = .running,
+        .return_data = &[0]u8{},
     };
 }
 /// Clear memory and destroy's any created pointers.
@@ -109,8 +103,6 @@ pub fn deinit(self: *Interpreter) void {
     self.memory.deinit();
 
     self.allocator.free(self.code);
-    self.allocator.destroy(self.stack);
-    self.allocator.destroy(self.memory);
 
     self.* = undefined;
 }
@@ -124,45 +116,4 @@ pub fn resize(self: *Interpreter, new_size: u64) !void {
 
     try self.gas_tracker.updateTracker(cost);
     return self.memory.resize(count * 32);
-}
-/// Run a instruction based on the defined opcodes.
-pub fn runInstruction(self: *Interpreter) !void {
-    if (self.program_counter > self.code.len - 1) {
-        self.status = .invalid_offset;
-        return;
-    }
-
-    const instruction = self.code[self.program_counter];
-
-    const opcode = try Opcodes.toOpcode(instruction);
-
-    switch (opcode) {
-        .STOP => self.stopInstruction(),
-        .ADD => try arithmetic.addInstruction(self),
-        .MUL => try arithmetic.mulInstruction(self),
-        .SUB => try arithmetic.subInstruction(self),
-        .DIV => try arithmetic.divInstruction(self),
-        .SDIV => try arithmetic.signedDivInstruction(self),
-        .MOD => try arithmetic.modInstruction(self),
-        .SMOD => try arithmetic.signedModInstruction(self),
-        .ADDMOD => try arithmetic.modAdditionInstruction(self),
-        .MULMOD => try arithmetic.modMultiplicationInstruction(self),
-        .EXP => try arithmetic.exponentInstruction(self),
-        .SIGNEXTEND => try arithmetic.signedExponentInstruction(self),
-        .LT => try bitwise.lowerThanInstruction(self),
-        .GT => try bitwise.greaterThanInstruction(self),
-        .SLT => try bitwise.signedLowerThanInstruction(self),
-        .SGT => try bitwise.signedGreaterThanInstruction(self),
-        .EQ => try bitwise.equalInstruction(self),
-        .ISZERO => try bitwise.isZeroInstruction(self),
-        .AND => try bitwise.andInstruction(self),
-        .XOR => try bitwise.xorInstruction(self),
-        .OR => try bitwise.orInstruction(self),
-        .NOT => try bitwise.notInstruction(self),
-        .BYTE => try bitwise.byteInstruction(self),
-        .SHL => try bitwise.shiftLeftInstruction(self),
-        .SHR => try bitwise.shiftRightInstruction(self),
-        .SAR => try bitwise.signedShiftRightInstruction(self),
-        else => return error.UnsupportedOpcode,
-    }
 }

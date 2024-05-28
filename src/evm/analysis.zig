@@ -10,7 +10,7 @@ const JumpTable = bytecode.JumpTable;
 pub fn analyzeBytecode(allocator: Allocator, code: Bytecode) !Bytecode {
     switch (code) {
         .analyzed => return code,
-        .raw => |raw| return bytecode.AnalyzedBytecode.init(allocator, raw),
+        .raw => |raw| return .{ .analyzed = try bytecode.AnalyzedBytecode.init(allocator, raw) },
     }
 }
 /// Creates the jump table based on the provided bytecode. Assumes that

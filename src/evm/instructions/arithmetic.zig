@@ -181,17 +181,10 @@ pub fn subInstruction(self: *Interpreter) !void {
 
 test "Addition" {
     var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
 
     {
@@ -218,17 +211,10 @@ test "Addition" {
 
 test "Multiplication" {
     var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
 
     {
@@ -255,17 +241,10 @@ test "Multiplication" {
 
 test "Subtraction" {
     var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
 
     {
@@ -292,17 +271,10 @@ test "Subtraction" {
 
 test "Division" {
     var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
 
     {
@@ -329,17 +301,10 @@ test "Division" {
 
 test "Signed Division" {
     var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
 
     {
@@ -366,17 +331,10 @@ test "Signed Division" {
 
 test "Mod" {
     var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
 
     {
@@ -403,17 +361,10 @@ test "Mod" {
 
 test "Signed Mod" {
     var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
 
     {
@@ -440,17 +391,10 @@ test "Signed Mod" {
 
 test "Addition and Mod" {
     var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
 
     {
@@ -479,17 +423,10 @@ test "Addition and Mod" {
 
 test "Multiplication and Mod" {
     var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
 
     {
@@ -518,17 +455,10 @@ test "Multiplication and Mod" {
 
 test "Exponent" {
     var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
     interpreter.spec = .LATEST;
 
@@ -556,17 +486,10 @@ test "Exponent" {
 
 test "Sign Extend" {
     var interpreter: Interpreter = undefined;
-
-    const stack = try testing.allocator.create(Stack(u256));
-    defer {
-        stack.deinit();
-        testing.allocator.destroy(stack);
-    }
-
-    stack.* = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = stack;
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
     interpreter.spec = .LATEST;
 

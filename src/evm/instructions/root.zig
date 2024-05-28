@@ -23,4 +23,5 @@ test {
     _ = @import("enviroment.zig");
     _ = @import("memory.zig");
     _ = @import("stack.zig");
+    _ = @import("system.zig");
 }

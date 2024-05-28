@@ -218,6 +218,28 @@ pub fn calcultateBlobGasPrice(excess_gas: u64) u128 {
 
     return @divFloor(output, constants.BLOB_GASPRICE_UPDATE_FRACTION);
 }
+/// Saturated addition. If it overflows it will return the max `T`
+pub fn saturatedAddition(comptime T: type, a: T, b: T) T {
+    comptime std.debug.assert(@typeInfo(T) == .Int); // Only supports int types
+
+    const result, const overflow = @addWithOverflow(a, b);
+
+    if (@bitCast(overflow))
+        return std.math.maxInt(T);
+
+    return @intCast(result);
+}
+/// Saturated multiplication. If it overflows it will return the max `T`
+pub fn saturatedMultiplication(comptime T: type, a: T, b: T) T {
+    std.debug.assert(@typeInfo(T) == .Int); // Only supports int types
+
+    const result, const overflow = @mulWithOverflow(a, b);
+
+    if (@bitCast(overflow))
+        return std.math.maxInt(T);
+
+    return @intCast(result);
+}
 
 test "IsAddress" {
     const address = "0x407d73d8a49eeb85d32cf465507dd71d507100c1";

@@ -88,10 +88,10 @@ pub const Memory = struct {
     pub fn memoryCopy(self: *Memory, destination: u64, source: u64, length: u64) void {
         const slice = self.getSlice();
 
-        std.debug.assert(slice.len > destination + length); // Indexing out of bound.
-        std.debug.assert(slice.len > source + length); // Indexing out of bound.
+        std.debug.assert(slice.len >= destination + length); // Indexing out of bound.
+        std.debug.assert(slice.len >= source + length); // Indexing out of bound.
 
-        @memcpy(slice[source .. source + length], slice[destination .. destination + length]);
+        @memcpy(slice[destination .. destination + length], slice[source .. source + length]);
     }
     /// Prepares the memory for a new context.
     pub fn newContext(self: *Memory) !void {
@@ -129,6 +129,7 @@ pub const Memory = struct {
         self.total_capacity = new_capacity;
     }
     /// Converts a memory "Word" into a u256 number.
+    /// This reads the word as `Big` endian.
     pub fn wordToInt(self: Memory, offset: usize) u256 {
         const word = self.getMemoryWord(offset);
 

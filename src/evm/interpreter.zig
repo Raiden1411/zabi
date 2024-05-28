@@ -61,7 +61,7 @@ host: Host,
 /// Is the interperter being ran in a static call.
 is_static: bool,
 /// The memory used by this interpreter.
-memory: *Memory,
+memory: Memory,
 /// The next interpreter action.
 next_action: InterpreterActions,
 /// The interpreter's counter.

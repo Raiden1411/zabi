@@ -121,7 +121,7 @@ pub inline fn calculateCodeSizeCost(spec: SpecId, is_cold: bool) u64 {
 pub inline fn calculateCostPerMemoryWord(length: u64, multiple: u64) ?u64 {
     const result, const overflow = @mulWithOverflow(multiple, mem.availableWords(length));
 
-    if (overflow)
+    if (@bitCast(overflow))
         return null;
 
     return result;
@@ -191,9 +191,9 @@ pub inline fn calculateLogCost(size: u8, length: u64) ?u64 {
 }
 /// Calculates the memory expansion cost based on the provided `word_count`
 pub inline fn calculateMemoryCost(count: u64) u64 {
-    const cost: u64 = @truncate(3 * count);
+    const cost = utils.saturatedMultiplication(u64, 3, count);
 
-    return @truncate(cost + count * @divFloor(count, 512));
+    return utils.saturatedAddition(u64, cost, @divFloor(utils.saturatedMultiplication(u64, count, count), 512));
 }
 /// Calculates the cost of a memory copy.
 pub inline fn calculateMemoryCopyLowCost(length: u64) ?u64 {
@@ -202,7 +202,7 @@ pub inline fn calculateMemoryCopyLowCost(length: u64) ?u64 {
     if (word_cost) |word| {
         const result, const overflow = @addWithOverflow(word, 3);
 
-        if (overflow)
+        if (@bitCast(overflow))
             return null;
 
         return result;

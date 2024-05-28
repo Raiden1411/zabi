@@ -103,8 +103,7 @@ pub fn deinit(self: *Interpreter) void {
     self.memory.deinit();
 
     self.allocator.free(self.code);
-
-    self.* = undefined;
+    self.allocator.free(self.return_data.ptr[0..self.return_data.len]);
 }
 /// Resizes the inner memory size. Adds gas expansion cost to
 /// the gas tracker.

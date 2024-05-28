@@ -20,6 +20,7 @@ pub const system = @import("system.zig");
 test {
     _ = @import("arithmetic.zig");
     _ = @import("bitwise.zig");
+    _ = @import("control.zig");
     _ = @import("enviroment.zig");
     _ = @import("host.zig");
     _ = @import("memory.zig");

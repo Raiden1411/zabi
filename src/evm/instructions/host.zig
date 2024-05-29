@@ -7,6 +7,7 @@ const utils = @import("../../utils/utils.zig");
 const Interpreter = @import("../Interpreter.zig");
 const Log = host.Log;
 const PlainHost = host.PlainHost;
+const Memory = @import("../memory.zig").Memory;
 const Stack = @import("../../utils/stack.zig").Stack;
 
 /// Runs the balance opcode for the interpreter.
@@ -386,6 +387,72 @@ test "ExtCodeSize" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(820, interpreter.gas_tracker.used_amount);
+    }
+}
+
+test "Log" {
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
+
+    plain.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer {
+        interpreter.memory.deinit();
+        interpreter.stack.deinit();
+    }
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.memory = Memory.initEmpty(testing.allocator, null);
+    interpreter.host = plain.host();
+    interpreter.allocator = testing.allocator;
+
+    {
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(32);
+        try logInstruction(&interpreter, 0);
+
+        try testing.expectEqual(375, interpreter.gas_tracker.used_amount);
+    }
+    {
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(32);
+        try interpreter.stack.pushUnsafe(0);
+        try logInstruction(&interpreter, 1);
+
+        try testing.expectEqual(1384, interpreter.gas_tracker.used_amount);
+    }
+    {
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(32);
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(0);
+        try logInstruction(&interpreter, 2);
+
+        try testing.expectEqual(2509, interpreter.gas_tracker.used_amount);
+    }
+    {
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(32);
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(1);
+        try interpreter.stack.pushUnsafe(2);
+        try logInstruction(&interpreter, 3);
+
+        try testing.expectEqual(4017, interpreter.gas_tracker.used_amount);
+    }
+    {
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(32);
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(1);
+        try interpreter.stack.pushUnsafe(2);
+        try interpreter.stack.pushUnsafe(3);
+        try logInstruction(&interpreter, 4);
+
+        try testing.expectEqual(5908, interpreter.gas_tracker.used_amount);
     }
 }
 

@@ -149,6 +149,10 @@ pub const PlainHost = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        while (self.log.popOrNull()) |log_event| {
+            self.log.allocator.free(log_event.topics);
+        }
+
         self.log.deinit();
         self.storage.deinit();
         self.transient_storage.deinit();

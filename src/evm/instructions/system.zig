@@ -436,6 +436,41 @@ test "CallDataCopy" {
     }
 }
 
+test "CodeCopy" {
+    var data = [_]u8{1} ** 32;
+    const contract = try Contract.init(
+        testing.allocator,
+        &data,
+        .{ .raw = &data },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer {
+        interpreter.stack.deinit();
+        interpreter.memory.deinit();
+    }
+
+    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
+    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.program_counter = 0;
+    interpreter.contract = contract;
+    interpreter.memory = Memory.initEmpty(testing.allocator, null);
+
+    try interpreter.stack.pushUnsafe(32);
+    try interpreter.stack.pushUnsafe(0);
+    try interpreter.stack.pushUnsafe(0);
+
+    try codeCopyInstruction(&interpreter);
+
+    try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.memory.wordToInt(0));
+    try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
+}
+
 test "Keccak256" {
     var data = [_]u8{1} ** 32;
     const contract = try Contract.init(

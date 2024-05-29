@@ -12,7 +12,7 @@ const Stack = @import("../../utils/stack.zig").Stack;
 /// Runs the balance opcode for the interpreter.
 /// 0x31 -> BALANCE
 pub fn balanceInstruction(self: *Interpreter) !void {
-    const address = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const address = try self.stack.tryPopUnsafe();
     const bal, const is_cold = self.host.balance(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
     const gas_usage: u64 = blk: {
@@ -31,27 +31,25 @@ pub fn balanceInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas_usage);
 
     try self.stack.pushUnsafe(bal);
-    self.program_counter += 1;
 }
 /// Runs the blockhash opcode for the interpreter.
 /// 0x40 -> BLOCKHASH
 pub fn blockHashInstruction(self: *Interpreter) !void {
-    const number = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const number = try self.stack.tryPopUnsafe();
 
     const hash = self.host.blockHash(number) orelse return error.UnexpectedError;
 
     try self.gas_tracker.updateTracker(gas.BLOCKHASH);
 
     try self.stack.pushUnsafe(@bitCast(hash));
-    self.program_counter += 1;
 }
 /// Runs the extcodecopy opcode for the interpreter.
 /// 0x3B -> EXTCODECOPY
 pub fn extCodeCopyInstruction(self: *Interpreter) !void {
-    const address = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const offset = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const code_offset = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const length = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const address = try self.stack.tryPopUnsafe();
+    const offset = try self.stack.tryPopUnsafe();
+    const code_offset = try self.stack.tryPopUnsafe();
+    const length = try self.stack.tryPopUnsafe();
 
     const code, const is_cold = self.host.code(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
@@ -62,7 +60,6 @@ pub fn extCodeCopyInstruction(self: *Interpreter) !void {
     const gas_usage = gas.calculateExtCodeCopyCost(self.spec, len, is_cold);
     try self.gas_tracker.updateTracker(gas_usage orelse return error.OutOfGas);
 
-    defer self.program_counter += 1;
     if (len == 0)
         return;
 
@@ -74,7 +71,7 @@ pub fn extCodeCopyInstruction(self: *Interpreter) !void {
 /// Runs the extcodehash opcode for the interpreter.
 /// 0x3F -> EXTCODEHASH
 pub fn extCodeHashInstruction(self: *Interpreter) !void {
-    const address = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const address = try self.stack.tryPopUnsafe();
     const code_hash, const is_cold = self.host.codeHash(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
     const gas_usage: u64 = blk: {
@@ -90,27 +87,25 @@ pub fn extCodeHashInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas_usage);
 
     try self.stack.pushUnsafe(@bitCast(code_hash));
-    self.program_counter += 1;
 }
 /// Runs the extcodesize opcode for the interpreter.
 /// 0x3B -> EXTCODESIZE
 pub fn extCodeSizeInstruction(self: *Interpreter) !void {
-    const address = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const address = try self.stack.tryPopUnsafe();
     const code, const is_cold = self.host.code(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
     const gas_usage = gas.calculateCodeSizeCost(self.spec, is_cold);
     try self.gas_tracker.updateTracker(gas_usage);
 
     try self.stack.pushUnsafe(code.getCodeBytes().len);
-    self.program_counter += 1;
 }
 /// Runs the logs opcode for the interpreter.
 /// 0xA0..0xA4 -> LOG0..LOG4
 pub fn logInstruction(self: *Interpreter, size: u8) !void {
     std.debug.assert(!self.is_static); // Requires non static calls.
 
-    const offset = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const length = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const offset = try self.stack.tryPopUnsafe();
+    const length = try self.stack.tryPopUnsafe();
 
     const len = std.math.cast(u64, length) orelse return error.Overflow;
     try self.gas_tracker.updateTracker(gas.calculateLogCost(size, len) orelse return error.GasOverflow);
@@ -137,7 +132,6 @@ pub fn logInstruction(self: *Interpreter, size: u8) !void {
     };
 
     try self.host.log(log);
-    self.program_counter += 1;
 }
 /// Runs the selfbalance opcode for the interpreter.
 /// 0x47 -> SELFBALANCE
@@ -149,14 +143,13 @@ pub fn selfBalanceInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
     try self.stack.pushUnsafe(bal);
-    self.program_counter += 1;
 }
 /// Runs the selfbalance opcode for the interpreter.
 /// 0xFF -> SELFDESTRUCT
 pub fn selfDestructInstruction(self: *Interpreter) !void {
     std.debug.assert(!self.is_static); // requires non static calls.
 
-    const address = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const address = try self.stack.tryPopUnsafe();
     const result = try self.host.selfDestruct(self.contract.target_address, @bitCast(@as(u160, @intCast(address))));
 
     if (self.spec.enabled(.LONDON) and !result.previously_destroyed)
@@ -170,7 +163,7 @@ pub fn selfDestructInstruction(self: *Interpreter) !void {
 /// Runs the sload opcode for the interpreter.
 /// 0x54 -> SLOAD
 pub fn sloadInstruction(self: *Interpreter) !void {
-    const index = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const index = try self.stack.tryPopUnsafe();
 
     const value, const is_cold = try self.host.sload(self.contract.target_address, index);
 
@@ -178,15 +171,14 @@ pub fn sloadInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas_usage);
 
     try self.stack.pushUnsafe(value);
-    self.program_counter += 1;
 }
 /// Runs the sstore opcode for the interpreter.
 /// 0x55 -> SSTORE
 pub fn sstoreInstruction(self: *Interpreter) !void {
     std.debug.assert(!self.is_static); // Requires non static calls.
 
-    const index = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const value = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const index = try self.stack.tryPopUnsafe();
+    const value = try self.stack.tryPopUnsafe();
 
     const result = try self.host.sstore(self.contract.target_address, index, value);
     const gas_remaining = self.gas_tracker.availableGas();
@@ -195,8 +187,6 @@ pub fn sstoreInstruction(self: *Interpreter) !void {
 
     try self.gas_tracker.updateTracker(gas_cost orelse return error.OutOfGas);
     self.gas_tracker.refund_amount = gas.calculateSstoreRefund(self.spec, result.original_value, result.present_value, result.new_value);
-
-    self.program_counter += 1;
 }
 /// Runs the tload opcode for the interpreter.
 /// 0x5C -> TLOAD
@@ -204,14 +194,12 @@ pub fn tloadInstruction(self: *Interpreter) !void {
     if (!self.spec.enabled(.CANCUN))
         return error.InstructionNotEnabled;
 
-    const index = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const index = try self.stack.tryPopUnsafe();
 
     const load = self.host.tload(self.contract.target_address, index);
     try self.gas_tracker.updateTracker(gas.WARM_STORAGE_READ_COST);
 
     try self.stack.pushUnsafe(load orelse 0);
-
-    self.program_counter += 1;
 }
 /// Runs the tstore opcode for the interpreter.
 /// 0x5D -> TSTORE
@@ -221,13 +209,11 @@ pub fn tstoreInstruction(self: *Interpreter) !void {
     if (!self.spec.enabled(.CANCUN))
         return error.InstructionNotEnabled;
 
-    const index = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const value = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const index = try self.stack.tryPopUnsafe();
+    const value = try self.stack.tryPopUnsafe();
 
     try self.host.tstore(self.contract.target_address, index, value);
     try self.gas_tracker.updateTracker(gas.WARM_STORAGE_READ_COST);
-
-    self.program_counter += 1;
 }
 
 test "Balance" {
@@ -251,7 +237,6 @@ test "Balance" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         interpreter.spec = .ISTANBUL;
@@ -260,7 +245,6 @@ test "Balance" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(800, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
     {
         interpreter.spec = .TANGERINE;
@@ -269,7 +253,6 @@ test "Balance" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(1200, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(3, interpreter.program_counter);
     }
     {
         interpreter.spec = .FRONTIER;
@@ -278,7 +261,6 @@ test "Balance" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(1220, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(4, interpreter.program_counter);
     }
 }
 
@@ -301,7 +283,6 @@ test "BlockHash" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(20, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "ExtCodeCopy" {
@@ -326,7 +307,6 @@ test "ExtCodeCopy" {
     try extCodeCopyInstruction(&interpreter);
 
     try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "ExtCodeHash" {
@@ -350,7 +330,6 @@ test "ExtCodeHash" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         interpreter.spec = .ISTANBUL;
@@ -359,7 +338,6 @@ test "ExtCodeHash" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(800, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
     {
         interpreter.spec = .TANGERINE;
@@ -368,7 +346,6 @@ test "ExtCodeHash" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(1200, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(3, interpreter.program_counter);
     }
 }
 
@@ -393,7 +370,6 @@ test "ExtCodeSize" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         interpreter.spec = .TANGERINE;
@@ -402,7 +378,6 @@ test "ExtCodeSize" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(800, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
     {
         interpreter.spec = .FRONTIER;
@@ -411,7 +386,6 @@ test "ExtCodeSize" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(820, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(3, interpreter.program_counter);
     }
 }
 
@@ -434,7 +408,6 @@ test "SelfBalance" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 
     {
         interpreter.spec = .HOMESTEAD;
@@ -463,7 +436,6 @@ test "Sload" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(2600, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         interpreter.spec = .ISTANBUL;
@@ -472,7 +444,6 @@ test "Sload" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(3400, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
     {
         interpreter.spec = .TANGERINE;
@@ -481,7 +452,6 @@ test "Sload" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(3600, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(3, interpreter.program_counter);
     }
     {
         interpreter.spec = .FRONTIER;
@@ -490,7 +460,6 @@ test "Sload" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(3650, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(4, interpreter.program_counter);
     }
 }
 
@@ -515,7 +484,6 @@ test "Sstore" {
         try sstoreInstruction(&interpreter);
 
         try testing.expectEqual(2200, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         interpreter.spec = .ISTANBUL;
@@ -524,7 +492,6 @@ test "Sstore" {
         try sstoreInstruction(&interpreter);
 
         try testing.expectEqual(2300, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
     {
         interpreter.spec = .TANGERINE;
@@ -533,7 +500,6 @@ test "Sstore" {
         try sstoreInstruction(&interpreter);
 
         try testing.expectEqual(7300, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(3, interpreter.program_counter);
     }
     {
         interpreter.spec = .FRONTIER;
@@ -542,7 +508,6 @@ test "Sstore" {
         try sstoreInstruction(&interpreter);
 
         try testing.expectEqual(12300, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(4, interpreter.program_counter);
     }
 }
 
@@ -567,7 +532,6 @@ test "Tload" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         interpreter.spec = .HOMESTEAD;
@@ -596,7 +560,6 @@ test "Tstore" {
         try tstoreInstruction(&interpreter);
 
         try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         interpreter.spec = .HOMESTEAD;

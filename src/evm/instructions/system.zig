@@ -14,21 +14,19 @@ const Stack = @import("../../utils/stack.zig").Stack;
 pub fn addressInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(@as(u160, @bitCast(self.contract.target_address)));
-    self.program_counter += 1;
 }
 /// Runs the caller instructions opcodes for the interpreter.
 /// 0x33 -> CALLER
 pub fn callerInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(@as(u160, @bitCast(self.contract.caller)));
-    self.program_counter += 1;
 }
 /// Runs the calldatacopy instructions opcodes for the interpreter.
 /// 0x35 -> CALLDATACOPY
 pub fn callDataCopyInstruction(self: *Interpreter) !void {
-    const offset = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const data = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const length = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const offset = try self.stack.tryPopUnsafe();
+    const data = try self.stack.tryPopUnsafe();
+    const length = try self.stack.tryPopUnsafe();
 
     const len = std.math.cast(usize, length) orelse return error.Overflow;
 
@@ -41,14 +39,13 @@ pub fn callDataCopyInstruction(self: *Interpreter) !void {
     try self.resize(offset_usize + len);
 
     try self.memory.writeData(offset_usize, data_offset, len, self.contract.input);
-    self.program_counter += 1;
 }
 /// Runs the calldataload instructions opcodes for the interpreter.
 /// 0x37 -> CALLDATALOAD
 pub fn callDataLoadInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
     const offset = std.math.cast(usize, first) orelse return error.Overflow;
 
     var buffer: [32]u8 = [_]u8{0} ** 32;
@@ -61,7 +58,6 @@ pub fn callDataLoadInstruction(self: *Interpreter) !void {
     }
 
     try self.stack.pushUnsafe(@bitCast(buffer));
-    self.program_counter += 1;
 }
 /// Runs the calldatasize instructions opcodes for the interpreter.
 /// 0x36 -> CALLDATASIZE
@@ -69,7 +65,6 @@ pub fn callDataSizeInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
 
     try self.stack.pushUnsafe(self.contract.input.len);
-    self.program_counter += 1;
 }
 /// Runs the calldatasize instructions opcodes for the interpreter.
 /// 0x34 -> CALLVALUE
@@ -77,14 +72,13 @@ pub fn callValueInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
 
     try self.stack.pushUnsafe(self.contract.value);
-    self.program_counter += 1;
 }
 /// Runs the codecopy instructions opcodes for the interpreter.
 /// 0x39 -> CODECOPY
 pub fn codeCopyInstruction(self: *Interpreter) !void {
-    const offset = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const code = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const length = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const offset = try self.stack.tryPopUnsafe();
+    const code = try self.stack.tryPopUnsafe();
+    const length = try self.stack.tryPopUnsafe();
 
     const len = std.math.cast(usize, length) orelse return error.Overflow;
 
@@ -97,14 +91,12 @@ pub fn codeCopyInstruction(self: *Interpreter) !void {
     try self.resize(offset_usize + len);
 
     try self.memory.writeData(offset_usize, code_offset, len, self.contract.bytecode.getCodeBytes());
-    self.program_counter += 1;
 }
 /// Runs the codesize instructions opcodes for the interpreter.
 /// 0x38 -> CODESIZE
 pub fn codeSizeInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(self.contract.bytecode.getCodeBytes().len);
-    self.program_counter += 1;
 }
 /// Runs the gas instructions opcodes for the interpreter.
 /// 0x3A -> GAS
@@ -112,13 +104,12 @@ pub fn gasInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
 
     try self.stack.pushUnsafe(self.gas_tracker.availableGas());
-    self.program_counter += 1;
 }
 /// Runs the keccak instructions opcodes for the interpreter.
 /// 0x20 -> KECCAK
 pub fn keccakInstruction(self: *Interpreter) !void {
-    const offset = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const length = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const offset = try self.stack.tryPopUnsafe();
+    const length = try self.stack.tryPopUnsafe();
 
     const len = std.math.cast(usize, length) orelse return error.Overflow;
     const offset_usize = std.math.cast(usize, offset) orelse return error.Overflow;
@@ -140,8 +131,6 @@ pub fn keccakInstruction(self: *Interpreter) !void {
         try self.resize(offset_usize + len);
         try self.stack.pushUnsafe(@bitCast(buffer));
     }
-
-    self.program_counter += 1;
 }
 /// Runs the returndatasize instructions opcodes for the interpreter.
 /// 0x3D -> RETURNDATACOPY
@@ -151,14 +140,13 @@ pub fn returnDataSizeInstruction(self: *Interpreter) !void {
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(self.return_data.len);
-    self.program_counter += 1;
 }
 /// Runs the returndatasize instructions opcodes for the interpreter.
 /// 0x3E -> RETURNDATASIZE
 pub fn returnDataCopyInstruction(self: *Interpreter) !void {
-    const offset = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const data = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const length = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const offset = try self.stack.tryPopUnsafe();
+    const data = try self.stack.tryPopUnsafe();
+    const length = try self.stack.tryPopUnsafe();
 
     const len = std.math.cast(usize, length) orelse return error.Overflow;
 
@@ -179,8 +167,6 @@ pub fn returnDataCopyInstruction(self: *Interpreter) !void {
         try self.resize(memory_offset + len);
         try self.memory.write(memory_offset, self.return_data[return_offset..return_end]);
     }
-
-    self.program_counter += 1;
 }
 
 test "Address" {
@@ -207,7 +193,6 @@ test "Address" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Caller" {
@@ -234,7 +219,6 @@ test "Caller" {
 
     try testing.expectEqual(@as(u160, @bitCast([_]u8{1} ** 20)), interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Value" {
@@ -261,7 +245,6 @@ test "Value" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "CodeSize" {
@@ -288,7 +271,6 @@ test "CodeSize" {
 
     try testing.expectEqual(33, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "CallDataSize" {
@@ -315,7 +297,6 @@ test "CallDataSize" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Gas" {
@@ -342,7 +323,6 @@ test "Gas" {
 
     try testing.expectEqual(998, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "ReturnDataSize" {
@@ -370,7 +350,6 @@ test "ReturnDataSize" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "CallDataLoad" {
@@ -400,7 +379,6 @@ test "CallDataLoad" {
 
         try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.stack.popUnsafe().?);
         try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(33);
@@ -408,7 +386,6 @@ test "CallDataLoad" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(6, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
 }
 
@@ -446,7 +423,6 @@ test "CallDataCopy" {
 
         try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.memory.wordToInt(0));
         try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(32);
@@ -457,7 +433,6 @@ test "CallDataCopy" {
 
         try testing.expectEqual(0, interpreter.memory.wordToInt(0));
         try testing.expectEqual(15, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
 }
 
@@ -497,7 +472,6 @@ test "Keccak256" {
 
         try testing.expectEqual(0x29045a592007d0c246ef02c2223570da9522d0cf0f73282c79a1bc8f0bb2c238, @byteSwap(interpreter.stack.popUnsafe().?));
         try testing.expectEqual(36, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(0);
@@ -507,7 +481,6 @@ test "Keccak256" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(66, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
 }
 
@@ -546,6 +519,5 @@ test "ReturnDataCopy" {
 
         try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.memory.wordToInt(0));
         try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
 }

@@ -10,6 +10,7 @@ const Bytecode = @import("bytecode.zig").Bytecode;
 const EVMEnviroment = enviroment.EVMEnviroment;
 const Hash = types.Hash;
 
+/// EVM contract representation.
 pub const Contract = struct {
     /// The bytecode associated with this contract.
     bytecode: Bytecode,

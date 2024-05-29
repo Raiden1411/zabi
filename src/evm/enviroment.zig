@@ -10,6 +10,7 @@ const AccessList = transaction.AccessList;
 const Hash = types.Hash;
 const SpecId = specification.SpecId;
 
+/// The EVM inner enviroment.
 pub const EVMEnviroment = struct {
     /// Configuration of the EVM.
     config: ConfigEnviroment,

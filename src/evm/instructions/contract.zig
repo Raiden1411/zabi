@@ -9,12 +9,12 @@ const Interpreter = @import("../Interpreter.zig");
 /// Performs call instruction for the interpreter.
 /// CALL -> 0xF1
 pub fn callInstruction(self: *Interpreter) !void {
-    const gas_limit = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const to = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const gas_limit = try self.stack.tryPopUnsafe();
+    const to = try self.stack.tryPopUnsafe();
 
     const limit: u64 = if (gas_limit > std.math.maxInt(u64)) std.math.maxInt(u64) else @intCast(gas_limit);
 
-    const value = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const value = try self.stack.tryPopUnsafe();
 
     if (self.is_static and value != 0) {
         self.status = .call_with_value_not_allowed_in_static_call;
@@ -49,12 +49,12 @@ pub fn callInstruction(self: *Interpreter) !void {
 /// Performs callcode instruction for the interpreter.
 /// CALLCODE -> 0xF2
 pub fn callCodeInstruction(self: *Interpreter) !void {
-    const gas_limit = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const to = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const gas_limit = try self.stack.tryPopUnsafe();
+    const to = try self.stack.tryPopUnsafe();
 
     const limit: u64 = if (gas_limit > std.math.maxInt(u64)) std.math.maxInt(u64) else @intCast(gas_limit);
 
-    const value = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const value = try self.stack.tryPopUnsafe();
 
     const input, const range = getMemoryInputsAndRanges(self) catch return;
 
@@ -96,9 +96,9 @@ pub fn createInstruction(self: *Interpreter, is_create_2: bool) !void {
             return error.InstructionNotEnabled;
     }
 
-    const value = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const code_offset = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const length = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const value = try self.stack.tryPopUnsafe();
+    const code_offset = try self.stack.tryPopUnsafe();
+    const length = try self.stack.tryPopUnsafe();
 
     if (length > std.math.maxInt(u64))
         return error.Overflow;
@@ -133,7 +133,7 @@ pub fn createInstruction(self: *Interpreter, is_create_2: bool) !void {
 
     const scheme: CreateScheme = blk: {
         if (is_create_2) {
-            const salt = self.stack.popUnsafe() orelse return error.StackUnderflow;
+            const salt = try self.stack.tryPopUnsafe();
             const cost = gas.calculateCreate2Cost(@intCast(length));
             try self.gas_tracker.updateTracker(cost orelse return error.GasOverflow);
 
@@ -168,8 +168,8 @@ pub fn delegateCallInstruction(self: *Interpreter) !void {
     if (self.spec.enabled(.HOMESTEAD))
         return error.InstructionNotEnabled;
 
-    const gas_limit = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const to = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const gas_limit = try self.stack.tryPopUnsafe();
+    const to = try self.stack.tryPopUnsafe();
 
     const limit: u64 = if (gas_limit > std.math.maxInt(u64)) std.math.maxInt(u64) else @intCast(gas_limit);
 
@@ -206,8 +206,8 @@ pub fn staticCallInstruction(self: *Interpreter) !void {
     if (self.spec.enabled(.BYZANTIUM))
         return error.InstructionNotEnabled;
 
-    const gas_limit = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const to = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const gas_limit = try self.stack.tryPopUnsafe();
+    const to = try self.stack.tryPopUnsafe();
 
     const limit: u64 = if (gas_limit > std.math.maxInt(u64)) std.math.maxInt(u64) else @intCast(gas_limit);
 
@@ -262,10 +262,10 @@ pub inline fn calculateCall(self: *Interpreter, values_transfered: bool, is_cold
 /// Gets the memory slice and the ranges used to grab it.
 /// This also resizes the interpreter's memory.
 pub fn getMemoryInputsAndRanges(self: *Interpreter) !struct { []u8, struct { u64, u64 } } {
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const third = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const fourth = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
+    const third = try self.stack.tryPopUnsafe();
+    const fourth = try self.stack.tryPopUnsafe();
 
     const offset, const len = try resizeMemoryAndGetRange(self, first, second);
 

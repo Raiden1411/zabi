@@ -11,6 +11,7 @@ const EVMEnviroment = env.EVMEnviroment;
 const Hash = types.Hash;
 const Storage = std.AutoHashMap(u256, u256);
 
+// TODO: Replace this.
 pub const Log = struct {
     data: []u8,
     topics: []const [32]u8,

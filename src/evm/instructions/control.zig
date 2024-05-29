@@ -13,8 +13,8 @@ const Stack = @import("../../utils/stack.zig").Stack;
 pub fn conditionalJumpInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.MID_STEP);
 
-    const target = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const condition = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const target = try self.stack.tryPopUnsafe();
+    const condition = try self.stack.tryPopUnsafe();
 
     const as_usize = std.math.cast(usize, target) orelse return error.InvalidJump;
 
@@ -27,21 +27,18 @@ pub fn conditionalJumpInstruction(self: *Interpreter) !void {
         self.program_counter += as_usize;
         return;
     }
-
-    self.program_counter += 1;
 }
 /// Runs the pc instruction opcode for the interpreter.
 /// 0x58 -> PC
 pub fn programCounterInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(self.program_counter);
-    self.program_counter += 1;
 }
 /// Runs the jump instruction opcode for the interpreter.
 /// 0x56 -> JUMP
 pub fn jumpInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.MID_STEP);
-    const target = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const target = try self.stack.tryPopUnsafe();
 
     const as_usize = std.math.cast(usize, target) orelse return error.InvalidJump;
 
@@ -56,7 +53,6 @@ pub fn jumpInstruction(self: *Interpreter) !void {
 /// 0x5B -> JUMPDEST
 pub fn jumpDestInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.JUMPDEST);
-    self.program_counter += 1;
 }
 /// Runs the invalid instruction opcode for the interpreter.
 /// 0xFE -> INVALID
@@ -81,16 +77,15 @@ pub fn revertInstruction(self: *Interpreter) !void {
 
     return returnAction(self, .reverted);
 }
-/// Runs the stop instruction opcode for the interpreter.
-/// 0x00 -> STOP
-pub fn unknowInstruction(self: *Interpreter) !void {
+/// Instructions that gets ran if there is no associated opcode.
+pub fn unknownInstruction(self: *Interpreter) !void {
     self.status = .opcode_not_found;
 }
 
 // Internal action for return type instructions.
 fn returnAction(self: *Interpreter, status: Interpreter.InterpreterStatus) !void {
-    const offset = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const length = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const offset = try self.stack.tryPopUnsafe();
+    const length = try self.stack.tryPopUnsafe();
 
     const len = std.math.cast(usize, length) orelse return error.Overflow;
     const off = std.math.cast(usize, offset) orelse return error.Overflow;
@@ -118,7 +113,6 @@ test "Program counter" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Unknown" {
@@ -129,7 +123,7 @@ test "Unknown" {
     interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
 
-    try unknowInstruction(&interpreter);
+    try unknownInstruction(&interpreter);
 
     try testing.expectEqual(.opcode_not_found, interpreter.status);
 }
@@ -171,7 +165,6 @@ test "Jumpdest" {
     try jumpDestInstruction(&interpreter);
 
     try testing.expectEqual(1, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Jump" {
@@ -254,7 +247,6 @@ test "Conditional Jump" {
         try conditionalJumpInstruction(&interpreter);
 
         try testing.expectEqual(24, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(32, interpreter.program_counter);
     }
 }
 

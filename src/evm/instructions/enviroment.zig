@@ -16,7 +16,6 @@ pub fn baseFeeInstruction(self: *Interpreter) !void {
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(fee);
-    self.program_counter += 1;
 }
 /// Performs the blobbasefee instruction for the interpreter.
 /// 0x4A -> BLOBBASEFEE
@@ -32,7 +31,6 @@ pub fn blobBaseFeeInstruction(self: *Interpreter) !void {
     };
 
     try self.stack.pushUnsafe(blob_price.blob_gasprice);
-    self.program_counter += 1;
 }
 /// Performs the blobhash instruction for the interpreter.
 /// 0x49 -> BLOBHASH
@@ -40,9 +38,7 @@ pub fn blobHashInstruction(self: *Interpreter) !void {
     if (!self.spec.enabled(.CANCUN))
         return error.InstructionNotEnabled;
 
-    defer self.program_counter += 1;
-
-    const index = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const index = try self.stack.tryPopUnsafe();
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     if (index >= self.host.getEnviroment().tx.blob_hashes.len) {
@@ -61,8 +57,6 @@ pub fn blockNumberInstruction(self: *Interpreter) !void {
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(number);
-
-    self.program_counter += 1;
 }
 /// Performs the chainid instruction for the interpreter.
 /// 0x46 -> CHAINID
@@ -74,8 +68,6 @@ pub fn chainIdInstruction(self: *Interpreter) !void {
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(chainId);
-
-    self.program_counter += 1;
 }
 /// Performs the coinbase instruction for the interpreter.
 /// 0x41 -> COINBASE
@@ -84,8 +76,6 @@ pub fn coinbaseInstruction(self: *Interpreter) !void {
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(@as(u160, @bitCast(coinbase)));
-
-    self.program_counter += 1;
 }
 /// Performs the prevrandao/difficulty instruction for the interpreter.
 /// 0x44 -> PREVRANDAO/DIFFICULTY
@@ -95,8 +85,6 @@ pub fn difficultyInstruction(self: *Interpreter) !void {
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(difficulty);
-
-    self.program_counter += 1;
 }
 /// Performs the gaslimit instruction for the interpreter.
 /// 0x45 -> GASLIMIT
@@ -105,8 +93,6 @@ pub fn gasLimitInstruction(self: *Interpreter) !void {
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(gas_price);
-
-    self.program_counter += 1;
 }
 /// Performs the gasprice instruction for the interpreter.
 /// 0x3A -> GASPRICE
@@ -115,8 +101,6 @@ pub fn gasPriceInstruction(self: *Interpreter) !void {
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(gas_price);
-
-    self.program_counter += 1;
 }
 /// Performs the origin instruction for the interpreter.
 /// 0x32 -> ORIGIN
@@ -125,8 +109,6 @@ pub fn originInstruction(self: *Interpreter) !void {
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(@as(u160, @bitCast(origin)));
-
-    self.program_counter += 1;
 }
 /// Performs the timestamp instruction for the interpreter.
 /// 0x42 -> TIMESTAMP
@@ -135,8 +117,6 @@ pub fn timestampInstruction(self: *Interpreter) !void {
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(timestamp);
-
-    self.program_counter += 1;
 }
 
 test "BaseFee" {
@@ -157,7 +137,6 @@ test "BaseFee" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "BlobBaseFee" {
@@ -181,7 +160,6 @@ test "BlobBaseFee" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         interpreter.spec = .FRONTIER;
@@ -212,7 +190,6 @@ test "BlobHash" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         host.env.tx.blob_hashes = &.{[_]u8{1} ** 32};
@@ -222,7 +199,6 @@ test "BlobHash" {
 
         try testing.expectEqual(@as(u256, @bitCast([_]u8{1} ** 32)), interpreter.stack.popUnsafe().?);
         try testing.expectEqual(6, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
     {
         interpreter.spec = .FRONTIER;
@@ -249,7 +225,6 @@ test "Timestamp" {
 
     try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "BlockNumber" {
@@ -270,7 +245,6 @@ test "BlockNumber" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "ChainId" {
@@ -293,7 +267,6 @@ test "ChainId" {
 
         try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         interpreter.spec = .FRONTIER;
@@ -320,7 +293,6 @@ test "Coinbase" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Difficulty" {
@@ -341,7 +313,6 @@ test "Difficulty" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "GasPrice" {
@@ -362,7 +333,6 @@ test "GasPrice" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Origin" {
@@ -383,7 +353,6 @@ test "Origin" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "GasLimit" {
@@ -404,5 +373,4 @@ test "GasLimit" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }

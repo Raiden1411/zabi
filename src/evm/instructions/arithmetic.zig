@@ -10,50 +10,47 @@ const Interpreter = @import("../Interpreter.zig");
 pub fn addInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     const addition = first +% second;
 
     try self.stack.pushUnsafe(addition);
-    self.program_counter += 1;
 }
 /// Performs div instruction for the interpreter.
 /// DIV -> 0x04
 pub fn divInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     std.debug.assert(second != 0); // division by 0
 
     const div = @divFloor(first, second);
 
     try self.stack.pushUnsafe(div);
-    self.program_counter += 1;
 }
 /// Performs exponent instruction for the interpreter.
 /// EXP -> 0x0A
 pub fn exponentInstruction(self: *Interpreter) !void {
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     const exp_gas = try gas.calculateExponentCost(second, self.spec);
     try self.gas_tracker.updateTracker(exp_gas);
 
     const exp = std.math.pow(u256, first, second);
     try self.stack.pushUnsafe(exp);
-    self.program_counter += 1;
 }
 /// Performs addition + mod instruction for the interpreter.
 /// ADDMOD -> 0x08
 pub fn modAdditionInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.MID_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const third = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
+    const third = try self.stack.tryPopUnsafe();
 
     std.debug.assert(third != 0); // remainder division by 0
 
@@ -61,31 +58,29 @@ pub fn modAdditionInstruction(self: *Interpreter) !void {
     const mod = @mod(add, third);
 
     try self.stack.pushUnsafe(mod);
-    self.program_counter += 1;
 }
 /// Performs mod instruction for the interpreter.
 /// MOD -> 0x06
 pub fn modInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     std.debug.assert(second != 0); // remainder division by 0
 
     const mod = @mod(first, second);
 
     try self.stack.pushUnsafe(mod);
-    self.program_counter += 1;
 }
 /// Performs mul + mod instruction for the interpreter.
 /// MULMOD -> 0x09
 pub fn modMultiplicationInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.MID_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const third = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
+    const third = try self.stack.tryPopUnsafe();
 
     std.debug.assert(third != 0); // remainder division by 0
 
@@ -93,28 +88,26 @@ pub fn modMultiplicationInstruction(self: *Interpreter) !void {
     const mod = @mod(mul, third);
 
     try self.stack.pushUnsafe(mod);
-    self.program_counter += 1;
 }
 /// Performs mul instruction for the interpreter.
 /// MUL -> 0x02
 pub fn mulInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     const mul = first *% second;
 
     try self.stack.pushUnsafe(mul);
-    self.program_counter += 1;
 }
 /// Performs signed division instruction for the interpreter.
 /// SDIV -> 0x05
 pub fn signedDivInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     const casted_first: i256 = @bitCast(first);
     const casted_second: i256 = @bitCast(second);
@@ -124,15 +117,14 @@ pub fn signedDivInstruction(self: *Interpreter) !void {
     const div: u256 = @bitCast(@divFloor(casted_first, casted_second));
 
     try self.stack.pushUnsafe(div);
-    self.program_counter += 1;
 }
 /// Performs signextend instruction for the interpreter.
 /// SIGNEXTEND -> 0x0B
 pub fn signExtendInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
-    const ext = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const x = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const ext = try self.stack.tryPopUnsafe();
+    const x = try self.stack.tryPopUnsafe();
 
     if (ext < 31) {
         const bit_index: usize = 8 * @as(usize, @intCast(ext)) + 7;
@@ -144,16 +136,14 @@ pub fn signExtendInstruction(self: *Interpreter) !void {
     } else {
         try self.stack.pushUnsafe(x);
     }
-
-    self.program_counter += 1;
 }
 /// Performs sub instruction for the interpreter.
 /// SMOD -> 0x07
 pub fn signedModInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     const casted_first: i256 = @bitCast(first);
     const casted_second: i256 = @bitCast(second);
@@ -163,20 +153,18 @@ pub fn signedModInstruction(self: *Interpreter) !void {
     const div = @mod(casted_first, casted_second);
 
     try self.stack.pushUnsafe(@bitCast(div));
-    self.program_counter += 1;
 }
 /// Performs sub instruction for the interpreter.
 /// SUB -> 0x03
 pub fn subInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     const sub = first -% second;
 
     try self.stack.pushUnsafe(sub);
-    self.program_counter += 1;
 }
 
 test "Addition" {
@@ -195,7 +183,6 @@ test "Addition" {
 
         try testing.expectEqual(3, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(std.math.maxInt(u256));
@@ -205,7 +192,6 @@ test "Addition" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(6, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
 }
 
@@ -225,7 +211,6 @@ test "Multiplication" {
 
         try testing.expectEqual(2, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(std.math.maxInt(u256));
@@ -235,7 +220,6 @@ test "Multiplication" {
 
         try testing.expectEqual(std.math.maxInt(u256) - 1, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
 }
 
@@ -255,7 +239,6 @@ test "Subtraction" {
 
         try testing.expectEqual(std.math.maxInt(u256), interpreter.stack.popUnsafe().?);
         try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(1);
@@ -265,7 +248,6 @@ test "Subtraction" {
 
         try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(6, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
 }
 
@@ -285,7 +267,6 @@ test "Division" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(1);
@@ -295,7 +276,6 @@ test "Division" {
 
         try testing.expectEqual(2, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
 }
 
@@ -315,7 +295,6 @@ test "Signed Division" {
 
         try testing.expectEqual(-1, @as(i256, @bitCast(interpreter.stack.popUnsafe().?)));
         try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(1);
@@ -325,7 +304,6 @@ test "Signed Division" {
 
         try testing.expectEqual(2, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
 }
 
@@ -345,7 +323,6 @@ test "Mod" {
 
         try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(1);
@@ -355,7 +332,6 @@ test "Mod" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
 }
 
@@ -375,7 +351,6 @@ test "Signed Mod" {
 
         try testing.expectEqual(1, @as(i256, @bitCast(interpreter.stack.popUnsafe().?)));
         try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(2);
@@ -385,7 +360,6 @@ test "Signed Mod" {
 
         try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
 }
 
@@ -406,7 +380,6 @@ test "Addition and Mod" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(8, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(2);
@@ -417,7 +390,6 @@ test "Addition and Mod" {
 
         try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(16, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
 }
 
@@ -438,7 +410,6 @@ test "Multiplication and Mod" {
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(8, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(4);
@@ -449,7 +420,6 @@ test "Multiplication and Mod" {
 
         try testing.expectEqual(2, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(16, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
 }
 
@@ -470,7 +440,6 @@ test "Exponent" {
 
         try testing.expectEqual(4, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(60, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(1);
@@ -480,7 +449,6 @@ test "Exponent" {
 
         try testing.expectEqual(std.math.maxInt(u16), interpreter.stack.popUnsafe().?);
         try testing.expectEqual(120, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
 }
 
@@ -501,7 +469,6 @@ test "Sign Extend" {
 
         try testing.expectEqual(std.math.maxInt(u256), interpreter.stack.popUnsafe().?);
         try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(0x7f);
@@ -511,7 +478,6 @@ test "Sign Extend" {
 
         try testing.expectEqual(0x7f, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(0x7f);
@@ -521,6 +487,5 @@ test "Sign Extend" {
 
         try testing.expectEqual(0x7f, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(15, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(3, interpreter.program_counter);
     }
 }

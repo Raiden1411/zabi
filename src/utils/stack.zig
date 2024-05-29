@@ -105,7 +105,7 @@ pub fn Stack(comptime T: type) type {
             self.mutex.lock();
             defer self.mutex.unlock();
 
-            if (self.inner.popOrNull()) |item| return item;
+            if (self.popUnsafe()) |item| return item;
 
             self.writeable.signal();
 
@@ -138,9 +138,24 @@ pub fn Stack(comptime T: type) type {
             self.inner.items[position] = second;
             self.inner.items[second_position] = first;
         }
+        /// Pops item from the stack. Returns `StackUnderflow` if it cannot.
+        /// This is not thread safe,
+        pub fn tryPopUnsafe(self: *Self) !T {
+            return self.popUnsafe() orelse error.StackUnderflow;
+        }
+        /// Pops item from the stack. Returns `StackUnderflow` if it cannot.
+        /// This is thread safe,
+        pub fn tryPop(self: *Self, item: T) !T {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+
+            self.popUnsafe(item) orelse error.StackUnderflow;
+
+            self.writeable.signal();
+        }
         /// Pushes an item to the stack.
         /// This is thread safe,
-        pub fn tryPush(self: *Self, item: T) !T {
+        pub fn tryPush(self: *Self, item: T) !void {
             self.mutex.lock();
             defer self.mutex.unlock();
 

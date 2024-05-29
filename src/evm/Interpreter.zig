@@ -51,6 +51,17 @@ pub const InterpreterStatus = enum {
     stopped,
 };
 
+/// Set of default options that the interperter needs
+/// for it to be able to run.
+pub const InterpreterInitOptions = struct {
+    /// Maximum amount of gas available to perform the operations
+    gas_limit: u64 = 30_000_000,
+    /// Tells the interperter if it's going to run as a static call
+    is_static: bool = false,
+    /// Sets the interperter spec based on the hardforks.
+    spec_id: SpecId = .LATEST,
+};
+
 /// Interpreter allocator used to manage memory.
 allocator: Allocator,
 /// Compiled bytecode that will get ran.
@@ -82,15 +93,7 @@ return_data: []u8,
 
 /// Sets the interpreter to it's expected initial state.
 /// Copy's the contract's bytecode independent of it's state.
-pub fn init(
-    self: *Interpreter,
-    allocator: Allocator,
-    contract_instance: Contract,
-    gas_limit: u64,
-    is_static: bool,
-    evm_host: Host,
-    spec_id: SpecId,
-) !void {
+pub fn init(self: *Interpreter, allocator: Allocator, contract_instance: Contract, evm_host: Host, opts: InterpreterInitOptions) !void {
     const bytecode = try allocator.dupe(u8, contract_instance.bytecode.getCodeBytes());
     errdefer allocator.free(bytecode);
 
@@ -99,13 +102,13 @@ pub fn init(
         .code = bytecode,
         .contract = contract_instance,
         .memory = Memory.initEmpty(allocator, null),
-        .gas_tracker = GasTracker.init(gas_limit),
+        .gas_tracker = GasTracker.init(opts.gas_limit),
         .host = evm_host,
         .instruction_table = InstructionTable.init(),
-        .is_static = is_static,
+        .is_static = opts.is_static,
         .next_action = .no_action,
         .program_counter = 0,
-        .spec = spec_id,
+        .spec = opts.spec_id,
         .stack = try Stack(u256).initWithCapacity(allocator, 1024),
         .status = .running,
         .return_data = &[0]u8{},
@@ -118,6 +121,52 @@ pub fn deinit(self: *Interpreter) void {
 
     self.allocator.free(self.code);
     self.allocator.free(self.return_data.ptr[0..self.return_data.len]);
+}
+/// Moves the `program_counter` by one.
+pub fn advanceProgramCounter(self: *Interpreter) void {
+    self.program_counter += 1;
+}
+/// Runs a single instruction based on the `program_counter`
+/// position and the associated bytecode. Doesn't move the counter.
+pub fn runInstruction(self: *Interpreter) !void {
+    const opcode_bit = self.code[self.program_counter];
+
+    const operation = self.instruction_table.getInstruction(opcode_bit);
+
+    if (self.stack.stackHeight() > operation.max_stack)
+        return error.StackOverflow;
+
+    try operation.execution(self);
+}
+/// Runs the associated contract bytecode.
+/// Depending on the interperter final `status` this can return errors.
+/// The bytecode that will get run will be padded with `STOP` instructions
+/// at the end to make sure that we don't have index out of bounds panics.
+pub fn run(self: *Interpreter) !InterpreterActions {
+    while (self.status == .running) : (self.advanceProgramCounter()) {
+        try self.runInstruction();
+    }
+
+    // Handles the different status of the interperter after it's finished
+    switch (self.status) {
+        .opcode_not_found => return error.OpcodeNotFound,
+        .call_with_value_not_allowed_in_static_call => return error.CallWithValueNotAllowedInStaticCall,
+        .invalid => return error.InvalidInstructionOpcode,
+        .reverted => return error.InterpreterReverted,
+        .create_code_size_limit => return error.CreateCodeSizeLimit,
+        .invalid_offset => return error.InvalidOffset,
+        .invalid_jump => return error.InvalidJump,
+        else => {},
+    }
+
+    if (self.next_action != .no_action)
+        return self.next_action;
+
+    return .{ .return_action = .{
+        .gas = self.gas_tracker,
+        .output = &.{},
+        .result = self.status,
+    } };
 }
 /// Resizes the inner memory size. Adds gas expansion cost to
 /// the gas tracker.
@@ -151,5 +200,35 @@ test "Init" {
     var interpreter: Interpreter = undefined;
     defer interpreter.deinit();
 
-    try interpreter.init(testing.allocator, contract_instance, 30_000_000, false, plain.host(), .LATEST);
+    try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
+}
+
+test "RunInstruction" {
+    const contract_instance = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = @constCast(&[_]u8{ 0x60, 0x01, 0x60, 0x02, 0x01 }) },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract_instance.deinit(testing.allocator);
+
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
+
+    plain.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.deinit();
+
+    try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
+
+    const result = try interpreter.run();
+
+    try testing.expect(result == .return_action);
+    try testing.expectEqual(.stopped, result.return_action.result);
+    try testing.expectEqual(9, result.return_action.gas.used_amount);
+    try testing.expectEqual(3, try interpreter.stack.tryPopUnsafe());
 }

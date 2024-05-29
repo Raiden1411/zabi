@@ -10,23 +10,21 @@ const Stack = @import("../../utils/stack.zig").Stack;
 pub fn andInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     try self.stack.pushUnsafe(first & second);
-    self.program_counter += 1;
 }
 /// Performs byte instruction for the interpreter.
 /// AND -> 0x1A
 pub fn byteInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     if (first >= 32) {
         try self.stack.pushUnsafe(0);
-        self.program_counter += 1;
 
         return;
     }
@@ -35,133 +33,122 @@ pub fn byteInstruction(self: *Interpreter) !void {
     std.mem.writeInt(u256, &buffer, second, .big);
 
     try self.stack.pushUnsafe(buffer[@intCast(first)]);
-    self.program_counter += 1;
 }
 /// Performs equal instruction for the interpreter.
 /// EQ -> 0x14
 pub fn equalInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     try self.stack.pushUnsafe(@intFromBool(first == second));
-    self.program_counter += 1;
 }
 /// Performs equal instruction for the interpreter.
 /// GT -> 0x11
 pub fn greaterThanInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     try self.stack.pushUnsafe(@intFromBool(first > second));
-    self.program_counter += 1;
 }
 /// Performs iszero instruction for the interpreter.
 /// ISZERO -> 0x15
 pub fn isZeroInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
 
     try self.stack.pushUnsafe(@intFromBool(first == 0));
-    self.program_counter += 1;
 }
 /// Performs LT instruction for the interpreter.
 /// LT -> 0x10
 pub fn lowerThanInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     try self.stack.pushUnsafe(@intFromBool(first < second));
-    self.program_counter += 1;
 }
 /// Performs NOT instruction for the interpreter.
 /// NOT -> 0x19
 pub fn notInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
 
     try self.stack.pushUnsafe(~first);
-    self.program_counter += 1;
 }
 /// Performs OR instruction for the interpreter.
 /// OR -> 0x17
 pub fn orInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     try self.stack.pushUnsafe(first | second);
-    self.program_counter += 1;
 }
 /// Performs shl instruction for the interpreter.
 /// SHL -> 0x1B
 pub fn shiftLeftInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     const shift = std.math.shl(u256, first, second);
 
     try self.stack.pushUnsafe(shift);
-    self.program_counter += 1;
 }
 /// Performs shr instruction for the interpreter.
 /// SHR -> 0x1C
 pub fn shiftRightInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     const shift = std.math.shr(u256, first, second);
 
     try self.stack.pushUnsafe(shift);
-    self.program_counter += 1;
 }
 /// Performs SGT instruction for the interpreter.
 /// SGT -> 0x12
 pub fn signedGreaterThanInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     const casted_first: i256 = @bitCast(first);
     const casted_second: i256 = @bitCast(second);
 
     try self.stack.pushUnsafe(@intFromBool(casted_first > casted_second));
-    self.program_counter += 1;
 }
 /// Performs SLT instruction for the interpreter.
 /// SLT -> 0x12
 pub fn signedLowerThanInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     const casted_first: i256 = @bitCast(first);
     const casted_second: i256 = @bitCast(second);
 
     try self.stack.pushUnsafe(@intFromBool(casted_first < casted_second));
-    self.program_counter += 1;
 }
 /// Performs SAR instruction for the interpreter.
 /// SAR -> 0x1D
 pub fn signedShiftRightInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     const shift: usize = @truncate(first);
 
@@ -185,19 +172,16 @@ pub fn signedShiftRightInstruction(self: *Interpreter) !void {
             try self.stack.pushUnsafe(second >> @as(u8, @intCast(shift)));
         }
     }
-
-    self.program_counter += 1;
 }
 /// Performs XOR instruction for the interpreter.
 /// XOR -> 0x18
 pub fn xorInstruction(self: *Interpreter) !void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
-    const first = self.stack.popUnsafe() orelse return error.StackUnderflow;
-    const second = self.stack.popUnsafe() orelse return error.StackUnderflow;
+    const first = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPopUnsafe();
 
     try self.stack.pushUnsafe(first ^ second);
-    self.program_counter += 1;
 }
 
 test "And" {
@@ -215,7 +199,6 @@ test "And" {
 
     try testing.expectEqual(0x7f, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Or" {
@@ -233,7 +216,6 @@ test "Or" {
 
     try testing.expectEqual(0x7f, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Xor" {
@@ -251,7 +233,6 @@ test "Xor" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Greater than" {
@@ -269,7 +250,6 @@ test "Greater than" {
 
     try testing.expectEqual(@intFromBool(false), interpreter.stack.popUnsafe().?);
     try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Lower than" {
@@ -287,7 +267,6 @@ test "Lower than" {
 
     try testing.expectEqual(@intFromBool(false), interpreter.stack.popUnsafe().?);
     try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Equal" {
@@ -305,7 +284,6 @@ test "Equal" {
 
     try testing.expectEqual(@intFromBool(true), interpreter.stack.popUnsafe().?);
     try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "IsZero" {
@@ -322,7 +300,6 @@ test "IsZero" {
 
     try testing.expectEqual(@intFromBool(true), interpreter.stack.popUnsafe().?);
     try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Signed Greater than" {
@@ -340,7 +317,6 @@ test "Signed Greater than" {
 
     try testing.expectEqual(@intFromBool(true), interpreter.stack.popUnsafe().?);
     try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Signed Lower than" {
@@ -358,7 +334,6 @@ test "Signed Lower than" {
 
     try testing.expectEqual(@intFromBool(true), interpreter.stack.popUnsafe().?);
     try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Shift Left" {
@@ -376,7 +351,6 @@ test "Shift Left" {
 
     try testing.expectEqual(4, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Shift Right" {
@@ -394,7 +368,6 @@ test "Shift Right" {
 
     try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "SAR" {
@@ -413,7 +386,6 @@ test "SAR" {
 
         try testing.expectEqual(std.math.maxInt(u256), interpreter.stack.popUnsafe().?);
         try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(2);
@@ -423,7 +395,6 @@ test "SAR" {
 
         try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
 }
 
@@ -441,7 +412,6 @@ test "Not" {
 
     try testing.expectEqual(std.math.maxInt(u256), interpreter.stack.popUnsafe().?);
     try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
-    try testing.expectEqual(1, interpreter.program_counter);
 }
 
 test "Byte" {
@@ -460,7 +430,6 @@ test "Byte" {
 
         try testing.expectEqual(0xFF, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(1, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(0xFF00);
@@ -470,7 +439,6 @@ test "Byte" {
 
         try testing.expectEqual(0xFF, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(6, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(2, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(0xFFFE);
@@ -480,6 +448,5 @@ test "Byte" {
 
         try testing.expectEqual(0xFE, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(3, interpreter.program_counter);
     }
 }

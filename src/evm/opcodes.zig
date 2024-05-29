@@ -3,6 +3,7 @@ const instructions = @import("instructions/root.zig");
 
 const Interpreter = @import("Interpreter.zig");
 
+/// EVM Opcodes.
 pub const Opcodes = enum(u8) {
     // Arithmetic opcodes.
     STOP = 0x00,
@@ -176,6 +177,8 @@ pub const Opcodes = enum(u8) {
     INVALID = 0xfe,
     SELFDESTRUCT = 0xff,
 
+    /// Converts `u8` to associated opcode.
+    /// Will return null for unknown opcodes
     pub fn toOpcode(num: u8) ?Opcodes {
         return std.meta.intToEnum(Opcodes, num) catch null;
     }
@@ -188,8 +191,7 @@ pub const InstructionTable = struct {
     pub fn init() InstructionTable {
         var inner: [256]Operations = undefined;
 
-        // Fills the array with unknowInstruction for unknow opcodes.
-
+        // Fills the array with unknownInstruction for unknown opcodes.
         for (0..256) |possible_opcode| {
             const opcode_enum = Opcodes.toOpcode(@intCast(possible_opcode));
 
@@ -347,13 +349,17 @@ pub const InstructionTable = struct {
                 }
             } else {
                 inner[possible_opcode] = .{
-                    .execution = instructions.control.unknowInstruction,
+                    .execution = instructions.control.unknownInstruction,
                     .max_stack = maxStack(1024, 0, 0),
                 };
             }
         }
 
         return .{ .inner = inner };
+    }
+    /// Gets the associated operation for the provided opcode.
+    pub fn getInstruction(self: @This(), opcode: u8) Operations {
+        return self.inner[opcode];
     }
 };
 

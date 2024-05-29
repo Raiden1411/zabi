@@ -17,6 +17,7 @@ pub const Memory = struct {
     last_checkpoint: usize,
     /// The max memory size
     memory_limit: u64,
+    /// The total allocated capacity of this memory.
     total_capacity: usize,
 
     /// Create the interpreter's memory. This will not error.

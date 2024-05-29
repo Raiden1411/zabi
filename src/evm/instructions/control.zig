@@ -24,7 +24,10 @@ pub fn conditionalJumpInstruction(self: *Interpreter) !void {
             return;
         }
 
-        self.program_counter += as_usize;
+        // Since this runs inside a while loop
+        // we decrement it here by once since it will get
+        // updated before the next loop starts
+        self.program_counter = as_usize - 1;
         return;
     }
 }
@@ -47,7 +50,10 @@ pub fn jumpInstruction(self: *Interpreter) !void {
         return;
     }
 
-    self.program_counter += as_usize;
+    // Since this runs inside a while loop
+    // we decrement it here by once since it will get
+    // updated before the next loop starts
+    self.program_counter = as_usize - 1;
 }
 /// Runs the jumpdest instruction opcode for the interpreter.
 /// 0x5B -> JUMPDEST
@@ -192,14 +198,14 @@ test "Jump" {
         try jumpInstruction(&interpreter);
 
         try testing.expectEqual(8, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(31, interpreter.program_counter);
+        try testing.expectEqual(30, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(30);
         try jumpInstruction(&interpreter);
 
         try testing.expectEqual(16, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(31, interpreter.program_counter);
+        try testing.expectEqual(30, interpreter.program_counter);
         try testing.expectEqual(.invalid_jump, interpreter.status);
     }
 }
@@ -230,7 +236,7 @@ test "Conditional Jump" {
         try conditionalJumpInstruction(&interpreter);
 
         try testing.expectEqual(8, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(31, interpreter.program_counter);
+        try testing.expectEqual(30, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(1);
@@ -238,12 +244,12 @@ test "Conditional Jump" {
         try conditionalJumpInstruction(&interpreter);
 
         try testing.expectEqual(16, interpreter.gas_tracker.used_amount);
-        try testing.expectEqual(31, interpreter.program_counter);
+        try testing.expectEqual(30, interpreter.program_counter);
         try testing.expectEqual(.invalid_jump, interpreter.status);
     }
     {
         try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(31);
+        try interpreter.stack.pushUnsafe(30);
         try conditionalJumpInstruction(&interpreter);
 
         try testing.expectEqual(24, interpreter.gas_tracker.used_amount);

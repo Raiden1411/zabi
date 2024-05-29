@@ -1,11 +1,12 @@
 const gas = @import("../gas_tracker.zig");
-const std = @import("std");
 const host = @import("../host.zig");
+const log_types = @import("../../types/log.zig");
+const std = @import("std");
 const testing = std.testing;
 const utils = @import("../../utils/utils.zig");
 
 const Interpreter = @import("../Interpreter.zig");
-const Log = host.Log;
+const Log = log_types.Log;
 const PlainHost = host.PlainHost;
 const Memory = @import("../memory.zig").Memory;
 const Stack = @import("../../utils/stack.zig").Stack;
@@ -120,16 +121,24 @@ pub fn logInstruction(self: *Interpreter, size: u8) !void {
         break :blk self.memory.getSlice()[off .. off + len];
     };
 
-    var topic = try std.ArrayList([32]u8).initCapacity(self.allocator, size);
+    var topic = try std.ArrayList(?[32]u8).initCapacity(self.allocator, size);
     errdefer topic.deinit();
 
     for (0..size) |_| {
         try topic.append(@bitCast(self.stack.popUnsafe() orelse return error.StackUnderflow));
     }
 
+    const env = self.host.getEnviroment();
     const log: Log = .{
         .data = bytes,
         .topics = try topic.toOwnedSlice(),
+        .logIndex = null,
+        .removed = false,
+        .address = self.contract.target_address,
+        .blockHash = null,
+        .blockNumber = @intCast(env.block.number),
+        .transactionIndex = null,
+        .transactionHash = null,
     };
 
     try self.host.log(log);

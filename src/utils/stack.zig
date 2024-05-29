@@ -46,10 +46,19 @@ pub fn Stack(comptime T: type) type {
         pub fn deinit(self: *Self) void {
             self.inner.deinit();
         }
+        /// Duplicates an item from the stack. Appends it to the top.
+        /// This is not thread safe.
+        pub fn dupUnsafe(self: *Self, position: usize) !void {
+            if (self.inner.items.len < position)
+                return error.StackUnderflow;
+
+            const item = self.inner.items[self.inner.items.len - position];
+            try self.pushUnsafe(item);
+        }
         /// Appends an item to the stack.
         /// This is not thread safe.
         pub fn pushUnsafe(self: *Self, item: T) !void {
-            if (self.inner.items.len > self.max_size)
+            if (self.inner.items.len > self.availableSize())
                 return error.StackOverflow;
 
             try self.inner.ensureUnusedCapacity(1);
@@ -96,15 +105,57 @@ pub fn Stack(comptime T: type) type {
             self.mutex.lock();
             defer self.mutex.unlock();
 
-            if (self.inner.popOrNull()) |item| return item;
+            if (self.popUnsafe()) |item| return item;
 
             self.writeable.signal();
 
             return null;
         }
+        /// Swaps the top value of the stack with the different position.
+        /// This is not thread safe.
+        pub fn swapToTopUnsafe(self: *Self, position_swap: usize) !void {
+            if (self.inner.items.len < position_swap)
+                return error.StackUnderflow;
+
+            const top = self.inner.items[self.inner.items.len - 1];
+            const second = self.inner.items[self.inner.items.len - position_swap];
+
+            self.inner.items[self.inner.items.len - 1] = second;
+            self.inner.items[self.inner.items.len - position_swap] = top;
+        }
+        /// Swap an item from the stack depending on the provided positions.
+        /// This is not thread safe.
+        pub fn swapUnsafe(self: *Self, position: usize, swap: usize) !void {
+            std.debug.assert(swap > 0); // Overlapping swap;
+
+            const second_position = position + swap;
+            if (second_position >= self.inner.items.len)
+                return error.StackUnderflow;
+
+            const first = self.inner.items[position];
+            const second = self.inner.items[second_position];
+
+            self.inner.items[position] = second;
+            self.inner.items[second_position] = first;
+        }
+        /// Pops item from the stack. Returns `StackUnderflow` if it cannot.
+        /// This is not thread safe,
+        pub fn tryPopUnsafe(self: *Self) !T {
+            return self.popUnsafe() orelse error.StackUnderflow;
+        }
+        /// Pops item from the stack. Returns `StackUnderflow` if it cannot.
+        /// This is thread safe,
+        pub fn tryPop(self: *Self, item: T) !T {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+
+            self.popUnsafe(item) orelse error.StackUnderflow;
+
+            self.writeable.signal();
+        }
         /// Pushes an item to the stack.
         /// This is thread safe,
-        pub fn tryPush(self: *Self, item: T) !T {
+        pub fn tryPush(self: *Self, item: T) !void {
             self.mutex.lock();
             defer self.mutex.unlock();
 

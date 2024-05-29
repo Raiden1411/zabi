@@ -4,21 +4,17 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    _ = b.addModule("benchmark", .{ .root_source_file = b.path("benchmark.zig") });
+    _ = b.addModule("interpreter_example", .{ .root_source_file = b.path("interpreter.zig") });
 
     const exe = b.addExecutable(.{
-        .name = "benchmark",
-        .root_source_file = b.path("benchmark.zig"),
+        .name = "interpreter_example",
+        .root_source_file = b.path("interpreter.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     addDependencies(b, exe);
     b.installArtifact(exe);
-
-    const runner = b.addRunArtifact(exe);
-    const step = b.step("bench", "Benchmark zabi");
-    step.dependOn(&runner.step);
 }
 
 fn addDependencies(b: *std.Build, step: *std.Build.Step.Compile) void {

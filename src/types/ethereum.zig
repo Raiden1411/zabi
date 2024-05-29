@@ -221,10 +221,14 @@ pub const ErrorResponse = struct {
     pub usingnamespace RequestParser(@This());
 };
 /// Zig struct representation of a contract error response
-pub const ContractErrorResponse = struct { code: EthereumErrorCodes, message: []const u8, data: []const u8 };
+pub const ContractErrorResponse = struct {
+    code: EthereumErrorCodes,
+    message: []const u8,
+    data: []const u8,
+};
 /// Ethereum RPC error codes.
 /// https://eips.ethereum.org/EIPS/eip-1474#error-codes
-pub const EthereumErrorCodes = enum(isize) {
+pub const EthereumErrorCodes = enum(i64) {
     ContractErrorCode = 3,
     TooManyRequests = 429,
     UserRejectedRequest = 4001,
@@ -245,6 +249,10 @@ pub const EthereumErrorCodes = enum(isize) {
     InternalError = -32603,
     ParseError = -32700,
     _,
+
+    pub fn jsonStringify(code: EthereumErrorCodes, stream: anytype) @TypeOf(stream.*).Error!void {
+        try stream.write(@intFromEnum(code));
+    }
 };
 /// RPC errors in zig format
 pub const EthereumZigErrors = error{

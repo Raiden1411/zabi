@@ -4,7 +4,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const module = b.addModule("c-kzg-4844", .{ .root_source_file = .{ .path = "root.zig" } });
+    const module = b.addModule("c-kzg-4844", .{ .root_source_file = b.path("root.zig") });
 
     const upstream = b.dependency("c-kzg-4844", .{});
 
@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) !void {
     if (target.query.isNative()) {
         const test_exe = b.addTest(.{
             .name = "test",
-            .root_source_file = .{ .path = "root.zig" },
+            .root_source_file = b.path("root.zig"),
             .target = target,
             .optimize = optimize,
         });
@@ -39,14 +39,14 @@ fn buildKzg(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.Re
     lib.linkLibrary(blst_dep.artifact("blst"));
 
     lib.addIncludePath(upstream.path("src"));
-    lib.addIncludePath(.{ .path = "" });
+    lib.addIncludePath(.{ .src_path = .{ .owner = b, .sub_path = "" } });
 
     var flags = std.ArrayList([]const u8).init(b.allocator);
     defer flags.deinit();
 
     lib.addCSourceFiles(.{ .root = upstream.path("."), .flags = flags.items, .files = &.{"src/c_kzg_4844.c"} });
-    lib.installHeader(.{ .path = "blst.h" }, "blst.h");
-    lib.installHeader(.{ .path = "blst_aux.h" }, "blst_aux.h");
+    lib.installHeader(b.path("blst.h"), "blst.h");
+    lib.installHeader(b.path("blst_aux.h"), "blst_aux.h");
     lib.installHeadersDirectory(upstream.path("src"), "", .{});
     lib.linkLibC();
 

@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const min_zig_string = "0.13.0-dev.37+7cf3167e9";
+const min_zig_string = "0.13.0-dev.211+6a65561e3";
 
 pub fn build(b: *std.Build) void {
     comptime {
@@ -15,17 +15,17 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const mod = b.addModule("zabi", .{ .root_source_file = .{ .path = "src/root.zig" }, .link_libc = true });
+    const mod = b.addModule("zabi", .{ .root_source_file = b.path("src/root.zig"), .link_libc = true });
 
     addDependencies(b, mod, target, optimize);
 
     const lib_unit_tests = b.addTest(.{
         .name = "zabi-tests",
-        .root_source_file = .{ .path = "src/root.zig" },
+        .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
-        .test_runner = .{ .path = "test_runner.zig" },
+        .test_runner = b.path("test_runner.zig"),
     });
 
     addDependencies(b, &lib_unit_tests.root_module, target, optimize);
@@ -38,7 +38,7 @@ pub fn build(b: *std.Build) void {
     {
         const wallet = b.addExecutable(.{
             .name = "wallet_test",
-            .root_source_file = .{ .path = "src/wallet_test.zig" },
+            .root_source_file = b.path("src/wallet_test.zig"),
             .target = target,
             .optimize = optimize,
             .link_libc = true,
@@ -57,7 +57,7 @@ pub fn build(b: *std.Build) void {
     {
         const http = b.addExecutable(.{
             .name = "rpc_test",
-            .root_source_file = .{ .path = "src/rpc_test.zig" },
+            .root_source_file = b.path("src/rpc_test.zig"),
             .target = target,
             .optimize = optimize,
             .link_libc = true,
@@ -106,7 +106,7 @@ fn addDependencies(b: *std.Build, mod: *std.Build.Module, target: std.Build.Reso
 fn buildIpcServer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
     const ipc = b.addExecutable(.{
         .name = "ipc_server",
-        .root_source_file = .{ .path = "src/ipc_server.zig" },
+        .root_source_file = b.path("src/ipc_server.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
@@ -125,7 +125,7 @@ fn buildIpcServer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
 fn buildWsServer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
     const ws = b.addExecutable(.{
         .name = "ws_server",
-        .root_source_file = .{ .path = "src/ws_server.zig" },
+        .root_source_file = b.path("src/ws_server.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
@@ -144,7 +144,7 @@ fn buildWsServer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.
 fn buildHttpServer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
     const http = b.addExecutable(.{
         .name = "http_server",
-        .root_source_file = .{ .path = "src/rpc_server.zig" },
+        .root_source_file = b.path("src/rpc_server.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
@@ -163,7 +163,7 @@ fn buildHttpServer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: st
 fn buildAndRunConverage(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
     const lib_unit_tests = b.addTest(.{
         .name = "zabi-tests-coverage",
-        .root_source_file = .{ .path = "src/root.zig" },
+        .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
@@ -185,10 +185,10 @@ fn buildAndRunConverage(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
 
     var tests_run = b.addRunArtifact(lib_unit_tests);
     run_lib_unit_tests.has_side_effects = true;
-    run_lib_unit_tests.argv.insertSlice(0, args) catch @panic("OutOfMemory");
+    run_lib_unit_tests.argv.insertSlice(b.allocator, 0, args) catch @panic("OutOfMemory");
 
     const install_coverage = b.addInstallDirectory(.{
-        .source_dir = .{ .path = b.pathJoin(&.{ coverage_output, "output" }) },
+        .source_dir = .{ .cwd_relative = b.pathJoin(&.{ coverage_output, "output" }) },
         .install_dir = .{ .custom = "coverage" },
         .install_subdir = "",
     });

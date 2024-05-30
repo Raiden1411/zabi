@@ -185,7 +185,7 @@ fn buildAndRunConverage(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
 
     var tests_run = b.addRunArtifact(lib_unit_tests);
     run_lib_unit_tests.has_side_effects = true;
-    run_lib_unit_tests.argv.insertSlice(b.allocator, 0, args) catch @panic("OutOfMemory");
+    run_lib_unit_tests.argv.insertSlice(0, args) catch @panic("OutOfMemory");
 
     const install_coverage = b.addInstallDirectory(.{
         .source_dir = .{ .cwd_relative = b.pathJoin(&.{ coverage_output, "output" }) },

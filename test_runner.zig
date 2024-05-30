@@ -28,6 +28,7 @@ const Modules = enum {
     clients,
     crypto,
     encoding,
+    evm,
     decoding,
     @"human-readable",
     meta,

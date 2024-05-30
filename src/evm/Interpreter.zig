@@ -82,8 +82,6 @@ contract: Contract,
 gas_tracker: GasTracker,
 /// The host enviroment for this interpreter.
 host: Host,
-/// The opcode's instruction table.
-instruction_table: InstructionTable,
 /// Is the interperter being ran in a static call.
 is_static: bool,
 /// The memory used by this interpreter.
@@ -114,7 +112,6 @@ pub fn init(self: *Interpreter, allocator: Allocator, contract_instance: Contrac
         .memory = Memory.initEmpty(allocator, null),
         .gas_tracker = GasTracker.init(opts.gas_limit),
         .host = evm_host,
-        .instruction_table = InstructionTable.init(),
         .is_static = opts.is_static,
         .next_action = .no_action,
         .program_counter = 0,
@@ -141,7 +138,7 @@ pub fn advanceProgramCounter(self: *Interpreter) void {
 pub fn runInstruction(self: *Interpreter) !void {
     const opcode_bit = self.code[self.program_counter];
 
-    const operation = self.instruction_table.getInstruction(opcode_bit);
+    const operation = opcode.instruction_table.getInstruction(opcode_bit);
 
     if (self.stack.stackHeight() > operation.max_stack)
         return error.StackOverflow;

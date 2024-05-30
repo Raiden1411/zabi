@@ -3,6 +3,8 @@ const instructions = @import("instructions/root.zig");
 
 const Interpreter = @import("Interpreter.zig");
 
+pub const instruction_table = InstructionTable.init();
+
 /// EVM Opcodes.
 pub const Opcodes = enum(u8) {
     // Arithmetic opcodes.
@@ -190,6 +192,8 @@ pub const InstructionTable = struct {
     /// Creates the instruction table.
     pub fn init() InstructionTable {
         var inner: [256]Operations = undefined;
+
+        @setEvalBranchQuota(70_000);
 
         // Fills the array with unknownInstruction for unknown opcodes.
         for (0..256) |possible_opcode| {

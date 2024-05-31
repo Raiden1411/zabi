@@ -103,10 +103,6 @@ pub fn main() !void {
 
         printer.print("\x1b[2m{s}Running {s}...", .{ " " ** 2, name });
 
-        if (std.testing.allocator_instance.deinit() == .leak) {
-            printer.print("leaked!\n", .{});
-        }
-
         if (test_result) |_| {
             results.passed += 1;
             printer.print("\x1b[1;32m✓\n", .{});
@@ -122,6 +118,10 @@ pub fn main() !void {
                     std.debug.dumpStackTrace(trace.*);
                 }
             },
+        }
+
+        if (std.testing.allocator_instance.deinit() == .leak) {
+            printer.print("leaked!\n", .{});
         }
     }
 

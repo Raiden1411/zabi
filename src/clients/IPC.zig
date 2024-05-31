@@ -1070,7 +1070,7 @@ pub fn readLoop(self: *IPC) !void {
         try self.readMessage(list.writer());
 
         const message = try list.toOwnedSlice();
-        defer self.allocator.free(message);
+        defer self.allocator.free(message.ptr[0..message.len]);
 
         ipclog.debug("Got message: {s}", .{message});
 

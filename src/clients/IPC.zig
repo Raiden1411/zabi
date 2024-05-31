@@ -28,10 +28,8 @@ const Channel = @import("../utils/channel.zig").Channel;
 const EthCall = transaction.EthCall;
 const ErrorResponse = types.ErrorResponse;
 const EthereumErrorResponse = types.EthereumErrorResponse;
-const EthereumEvents = types.EthereumEvents;
 const EthereumResponse = types.EthereumResponse;
 const EthereumRequest = types.EthereumRequest;
-const EthereumRpcEvents = types.EthereumRpcEvents;
 const EthereumRpcMethods = types.EthereumRpcMethods;
 const EthereumRpcResponse = types.EthereumRpcResponse;
 const EthereumSubscribeResponse = types.EthereumSubscribeResponse;
@@ -120,6 +118,8 @@ allocator: Allocator,
 base_fee_multiplier: f64,
 /// The chain id of the attached network
 chain_id: usize,
+/// If the client is closed.
+closed: bool,
 /// Channel used to communicate between threads on subscription events.
 sub_channel: Channel(JsonParsed(Value)),
 /// Channel used to communicate between threads on rpc events.
@@ -148,6 +148,7 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
         .allocator = opts.allocator,
         .base_fee_multiplier = opts.base_fee_multiplier,
         .chain_id = @intFromEnum(chain_id),
+        .closed = false,
         .onClose = opts.onClose,
         .onError = opts.onError,
         .onEvent = opts.onEvent,
@@ -173,19 +174,19 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
 ///
 /// All future calls will deadlock.
 pub fn deinit(self: *IPC) void {
-    self.mutex.lock();
+    if (!@atomicLoad(bool, &self.closed, .acquire)) {
+        while (self.sub_channel.getOrNull()) |response| {
+            response.deinit();
+        }
 
-    self.stream.close();
-    while (self.sub_channel.getOrNull()) |response| {
-        response.deinit();
+        while (self.rpc_channel.popOrNull()) |response| {
+            response.deinit();
+        }
+
+        self.stream.close();
+        self.rpc_channel.deinit();
+        self.sub_channel.deinit();
     }
-
-    while (self.rpc_channel.popOrNull()) |response| {
-        response.deinit();
-    }
-
-    self.rpc_channel.deinit();
-    self.sub_channel.deinit();
 }
 /// Connects to the socket. Will try to reconnect in case of failures.
 /// Fails when match retries are reached or a invalid ipc path is provided
@@ -1053,10 +1054,15 @@ pub fn newPendingTransactionFilter(self: *IPC) !RPCResponse(u128) {
 /// Creates a read loop to read the socket messages.
 /// If a message is too long it will double the buffer size to read the message.
 pub fn readLoop(self: *IPC) !void {
+    if (@atomicLoad(bool, &self.closed, .acquire))
+        return;
+
     var list = std.ArrayList(u8).init(self.allocator);
     defer list.deinit();
 
     while (true) {
+        errdefer @atomicStore(bool, &self.closed, true, .release);
+
         try self.readMessage(list.writer());
 
         const message = try list.toOwnedSlice();

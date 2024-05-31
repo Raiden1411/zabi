@@ -118,7 +118,7 @@ base_fee_multiplier: f64,
 /// The client chainId.
 chain_id: usize,
 /// The underlaying http client used to manage all the calls.
-client: *http.Client,
+client: http.Client,
 /// Connection used as a reference for http client connections
 connection: *HttpConnection,
 /// The interval to retry the request. This will get multiplied in ns_per_ms.
@@ -134,9 +134,6 @@ const PubClient = @This();
 /// Most of the client method are replicas of the JSON RPC methods name with the `eth_` start.
 /// The client will handle request with 429 errors via exponential backoff but not the rest.
 pub fn init(self: *PubClient, opts: InitOptions) !void {
-    const client = try opts.allocator.create(http.Client);
-    errdefer opts.allocator.destroy(client);
-
     const chain: Chains = opts.chain_id orelse .ethereum;
     const id = switch (chain) {
         inline else => |id| @intFromEnum(id),
@@ -149,11 +146,10 @@ pub fn init(self: *PubClient, opts: InitOptions) !void {
         .retries = opts.retries,
         .pooling_interval = opts.pooling_interval,
         .base_fee_multiplier = opts.base_fee_multiplier,
-        .client = client,
+        .client = http.Client{ .allocator = self.allocator },
         .connection = undefined,
     };
 
-    self.client.* = http.Client{ .allocator = self.allocator };
     errdefer self.client.deinit();
 
     self.connection = try self.connectRpcServer();
@@ -161,8 +157,6 @@ pub fn init(self: *PubClient, opts: InitOptions) !void {
 /// Clears the memory arena and destroys all pointers created
 pub fn deinit(self: *PubClient) void {
     self.client.deinit();
-
-    self.allocator.destroy(self.client);
 }
 /// Connects to the RPC server and relases the connection from the client pool.
 /// This is done so that future fetchs can use the connection that is already freed.

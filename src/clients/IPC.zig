@@ -10,7 +10,6 @@ const transaction = @import("../types/transaction.zig");
 const types = @import("../types/ethereum.zig");
 const txpool = @import("../types/txpool.zig");
 const utils = @import("../utils/utils.zig");
-const ws = @import("ws");
 
 const assert = std.debug.assert;
 
@@ -122,9 +121,9 @@ base_fee_multiplier: f64,
 /// The chain id of the attached network
 chain_id: usize,
 /// Channel used to communicate between threads on subscription events.
-sub_channel: *Channel(JsonParsed(Value)),
+sub_channel: Channel(JsonParsed(Value)),
 /// Channel used to communicate between threads on rpc events.
-rpc_channel: *Stack(JsonParsed(Value)),
+rpc_channel: Stack(JsonParsed(Value)),
 /// Mutex to manage locks between threads
 mutex: Mutex = .{},
 /// Callback function for when the connection is closed.
@@ -143,12 +142,6 @@ stream: Stream,
 /// Starts the IPC client and create the connection.
 /// This will also start the read loop in a seperate thread.
 pub fn init(self: *IPC, opts: InitOptions) !void {
-    const rpc_channel = try opts.allocator.create(Stack(JsonParsed(Value)));
-    errdefer opts.allocator.destroy(rpc_channel);
-
-    const sub_channel = try opts.allocator.create(Channel(JsonParsed(Value)));
-    errdefer opts.allocator.destroy(sub_channel);
-
     const chain_id: Chains = opts.chain_id orelse .ethereum;
 
     self.* = .{
@@ -160,20 +153,17 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
         .onEvent = opts.onEvent,
         .pooling_interval = opts.pooling_interval,
         .retries = opts.retries,
-        .rpc_channel = rpc_channel,
-        .sub_channel = sub_channel,
+        .rpc_channel = Stack(JsonParsed(Value)).init(self.allocator, null),
+        .sub_channel = Channel(JsonParsed(Value)).init(self.allocator),
         .stream = undefined,
     };
 
-    self.rpc_channel.* = Stack(JsonParsed(Value)).init(self.allocator, null);
-    self.sub_channel.* = Channel(JsonParsed(Value)).init(self.allocator);
     errdefer {
         self.rpc_channel.deinit();
         self.sub_channel.deinit();
     }
 
-    const stream = try self.connect(opts.path);
-    self.stream = stream;
+    self.stream = try self.connect(opts.path);
 
     const thread = try std.Thread.spawn(.{}, readLoopOwnedThread, .{self});
     thread.detach();
@@ -185,7 +175,6 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
 pub fn deinit(self: *IPC) void {
     self.mutex.lock();
 
-    self.stream.close();
     while (self.sub_channel.getOrNull()) |response| {
         response.deinit();
     }
@@ -196,9 +185,7 @@ pub fn deinit(self: *IPC) void {
 
     self.rpc_channel.deinit();
     self.sub_channel.deinit();
-
-    self.allocator.destroy(self.rpc_channel);
-    self.allocator.destroy(self.sub_channel);
+    self.stream.close();
 }
 /// Connects to the socket. Will try to reconnect in case of failures.
 /// Fails when match retries are reached or a invalid ipc path is provided

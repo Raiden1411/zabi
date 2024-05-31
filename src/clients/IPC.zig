@@ -10,7 +10,6 @@ const transaction = @import("../types/transaction.zig");
 const types = @import("../types/ethereum.zig");
 const txpool = @import("../types/txpool.zig");
 const utils = @import("../utils/utils.zig");
-const ws = @import("ws");
 
 const assert = std.debug.assert;
 
@@ -29,10 +28,8 @@ const Channel = @import("../utils/channel.zig").Channel;
 const EthCall = transaction.EthCall;
 const ErrorResponse = types.ErrorResponse;
 const EthereumErrorResponse = types.EthereumErrorResponse;
-const EthereumEvents = types.EthereumEvents;
 const EthereumResponse = types.EthereumResponse;
 const EthereumRequest = types.EthereumRequest;
-const EthereumRpcEvents = types.EthereumRpcEvents;
 const EthereumRpcMethods = types.EthereumRpcMethods;
 const EthereumRpcResponse = types.EthereumRpcResponse;
 const EthereumSubscribeResponse = types.EthereumSubscribeResponse;
@@ -121,10 +118,12 @@ allocator: Allocator,
 base_fee_multiplier: f64,
 /// The chain id of the attached network
 chain_id: usize,
+/// If the client is closed.
+closed: bool,
 /// Channel used to communicate between threads on subscription events.
-sub_channel: *Channel(JsonParsed(Value)),
+sub_channel: Channel(JsonParsed(Value)),
 /// Channel used to communicate between threads on rpc events.
-rpc_channel: *Stack(JsonParsed(Value)),
+rpc_channel: Stack(JsonParsed(Value)),
 /// Mutex to manage locks between threads
 mutex: Mutex = .{},
 /// Callback function for when the connection is closed.
@@ -143,37 +142,29 @@ stream: Stream,
 /// Starts the IPC client and create the connection.
 /// This will also start the read loop in a seperate thread.
 pub fn init(self: *IPC, opts: InitOptions) !void {
-    const rpc_channel = try opts.allocator.create(Stack(JsonParsed(Value)));
-    errdefer opts.allocator.destroy(rpc_channel);
-
-    const sub_channel = try opts.allocator.create(Channel(JsonParsed(Value)));
-    errdefer opts.allocator.destroy(sub_channel);
-
     const chain_id: Chains = opts.chain_id orelse .ethereum;
 
     self.* = .{
         .allocator = opts.allocator,
         .base_fee_multiplier = opts.base_fee_multiplier,
         .chain_id = @intFromEnum(chain_id),
+        .closed = false,
         .onClose = opts.onClose,
         .onError = opts.onError,
         .onEvent = opts.onEvent,
         .pooling_interval = opts.pooling_interval,
         .retries = opts.retries,
-        .rpc_channel = rpc_channel,
-        .sub_channel = sub_channel,
+        .rpc_channel = Stack(JsonParsed(Value)).init(self.allocator, null),
+        .sub_channel = Channel(JsonParsed(Value)).init(self.allocator),
         .stream = undefined,
     };
 
-    self.rpc_channel.* = Stack(JsonParsed(Value)).init(self.allocator, null);
-    self.sub_channel.* = Channel(JsonParsed(Value)).init(self.allocator);
     errdefer {
         self.rpc_channel.deinit();
         self.sub_channel.deinit();
     }
 
-    const stream = try self.connect(opts.path);
-    self.stream = stream;
+    self.stream = try self.connect(opts.path);
 
     const thread = try std.Thread.spawn(.{}, readLoopOwnedThread, .{self});
     thread.detach();
@@ -183,22 +174,19 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
 ///
 /// All future calls will deadlock.
 pub fn deinit(self: *IPC) void {
-    self.mutex.lock();
+    if (!@atomicLoad(bool, &self.closed, .acquire)) {
+        while (self.sub_channel.getOrNull()) |response| {
+            response.deinit();
+        }
 
-    self.stream.close();
-    while (self.sub_channel.getOrNull()) |response| {
-        response.deinit();
+        while (self.rpc_channel.popOrNull()) |response| {
+            response.deinit();
+        }
+
+        self.stream.close();
+        self.rpc_channel.deinit();
+        self.sub_channel.deinit();
     }
-
-    while (self.rpc_channel.popOrNull()) |response| {
-        response.deinit();
-    }
-
-    self.rpc_channel.deinit();
-    self.sub_channel.deinit();
-
-    self.allocator.destroy(self.rpc_channel);
-    self.allocator.destroy(self.sub_channel);
 }
 /// Connects to the socket. Will try to reconnect in case of failures.
 /// Fails when match retries are reached or a invalid ipc path is provided
@@ -1066,12 +1054,15 @@ pub fn newPendingTransactionFilter(self: *IPC) !RPCResponse(u128) {
 /// Creates a read loop to read the socket messages.
 /// If a message is too long it will double the buffer size to read the message.
 pub fn readLoop(self: *IPC) !void {
-    // var request_buffer: [std.math.maxInt(u16) * 10]u8 = undefined;
-    // var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    if (@atomicLoad(bool, &self.closed, .acquire))
+        return;
+
     var list = std.ArrayList(u8).init(self.allocator);
     defer list.deinit();
 
     while (true) {
+        errdefer @atomicStore(bool, &self.closed, true, .release);
+
         try self.readMessage(list.writer());
 
         const message = try list.toOwnedSlice();

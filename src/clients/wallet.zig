@@ -156,9 +156,9 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         allocator: Allocator,
         /// Pool to store all prepated transaction envelopes.
         /// This is thread safe.
-        envelopes_pool: *TransactionEnvelopePool,
+        envelopes_pool: TransactionEnvelopePool,
         /// Http client used to make request. Supports almost all rpc methods.
-        rpc_client: *ClientType,
+        rpc_client: ClientType,
         /// Signer that will sign transactions or ethereum messages.
         /// Its based on a custom implementation meshed with zig's source code.
         signer: Signer,
@@ -166,37 +166,21 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Init wallet instance. Must call `deinit` to clean up.
         /// The init opts will depend on the `client_type`.
         pub fn init(self: *Wallet(client_type), private_key: ?Hash, opts: InitOpts) !void {
-            const envelopes_pool = try opts.allocator.create(TransactionEnvelopePool);
-            errdefer opts.allocator.destroy(envelopes_pool);
-
             const signer = try Signer.init(private_key);
-            const client = client: {
-                // We need to create the pointer so that we can init the client
-                const client = try opts.allocator.create(ClientType);
-                errdefer opts.allocator.destroy(client);
-
-                try client.init(opts);
-
-                break :client client;
-            };
 
             self.* = .{
                 .allocator = opts.allocator,
-                .rpc_client = client,
+                .rpc_client = undefined,
                 .signer = signer,
-                .envelopes_pool = envelopes_pool,
+                .envelopes_pool = .{ .pooled_envelopes = .{} },
             };
-            self.envelopes_pool.* = .{ .pooled_envelopes = .{} };
+
+            try self.rpc_client.init(opts);
         }
         /// Clears memory and destroys any created pointers
         pub fn deinit(self: *Wallet(client_type)) void {
             self.envelopes_pool.deinit(self.allocator);
             self.rpc_client.deinit();
-
-            self.allocator.destroy(self.envelopes_pool);
-            self.allocator.destroy(self.rpc_client);
-
-            self.* = undefined;
         }
         /// Signs an ethereum message with the specified prefix.
         ///

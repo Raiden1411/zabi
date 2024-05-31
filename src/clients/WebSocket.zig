@@ -120,9 +120,9 @@ base_fee_multiplier: f64,
 /// The chain id of the attached network
 chain_id: usize,
 /// Channel used to communicate between threads on subscription events.
-sub_channel: *Channel(JsonParsed(Value)),
+sub_channel: Channel(JsonParsed(Value)),
 /// Channel used to communicate between threads on rpc events.
-rpc_channel: *Stack(JsonParsed(Value)),
+rpc_channel: Stack(JsonParsed(Value)),
 /// Mutex to manage locks between threads
 mutex: Mutex = .{},
 /// Callback function for when the connection is closed.
@@ -138,7 +138,7 @@ retries: u8,
 /// The uri of the connection
 uri: std.Uri,
 /// The underlaying websocket client
-ws_client: *ws.Client,
+ws_client: ws.Client,
 
 const protocol_map = std.StaticStringMap(std.http.Client.Connection.Protocol).initComptime(.{
     .{ "http", .plain },
@@ -186,40 +186,29 @@ pub fn handle(self: *WebSocketHandler, message: ws.Message) !void {
 /// Populates the WebSocketHandler pointer.
 /// Starts the connection in a seperate process.
 pub fn init(self: *WebSocketHandler, opts: InitOptions) InitErrors!void {
-    const sub_channel = try opts.allocator.create(Channel(JsonParsed(Value)));
-    errdefer opts.allocator.destroy(sub_channel);
-
-    const rpc_channel = try opts.allocator.create(Stack(JsonParsed(Value)));
-    errdefer opts.allocator.destroy(rpc_channel);
-
-    const ws_client = try opts.allocator.create(ws.Client);
-    errdefer opts.allocator.destroy(ws_client);
-
     const chain: Chains = opts.chain_id orelse .ethereum;
 
     self.* = .{
         .allocator = opts.allocator,
         .base_fee_multiplier = opts.base_fee_multiplier,
         .chain_id = @intFromEnum(chain),
-        .sub_channel = sub_channel,
-        .rpc_channel = rpc_channel,
         .onClose = opts.onClose,
         .onError = opts.onError,
         .onEvent = opts.onEvent,
         .pooling_interval = opts.pooling_interval,
         .retries = opts.retries,
+        .rpc_channel = Stack(JsonParsed(Value)).init(self.allocator, null),
+        .sub_channel = Channel(JsonParsed(Value)).init(self.allocator),
         .uri = opts.uri,
-        .ws_client = ws_client,
+        .ws_client = undefined,
     };
 
-    self.rpc_channel.* = Stack(JsonParsed(Value)).init(self.allocator, null);
-    self.sub_channel.* = Channel(JsonParsed(Value)).init(self.allocator);
     errdefer {
         self.rpc_channel.deinit();
         self.sub_channel.deinit();
     }
 
-    self.ws_client.* = try self.connect();
+    self.ws_client = try self.connect();
 
     const thread = try std.Thread.spawn(.{}, readLoopOwned, .{self});
     thread.detach();
@@ -248,10 +237,6 @@ pub fn deinit(self: *WebSocketHandler) void {
     self.sub_channel.deinit();
     self.rpc_channel.deinit();
     self.ws_client.deinit();
-
-    self.allocator.destroy(self.sub_channel);
-    self.allocator.destroy(self.rpc_channel);
-    self.allocator.destroy(self.ws_client);
 }
 /// Connects to a socket client. This is a blocking operation.
 pub fn connect(self: *WebSocketHandler) ConnectionErrors!ws.Client {

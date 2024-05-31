@@ -80,7 +80,7 @@ test {
     _ = @import("c-kzg-4844");
     _ = @import("decoding/decoder.zig");
     _ = @import("decoding/logs_decode.zig");
-    _ = @import("decoding/parse_transacition.zig");
+    _ = @import("decoding/parse_transaction.zig");
     _ = @import("decoding/rlp_decode.zig");
     _ = @import("decoding/ssz_decode.zig");
     _ = @import("encoding/encoder.zig");

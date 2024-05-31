@@ -175,6 +175,7 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
 pub fn deinit(self: *IPC) void {
     self.mutex.lock();
 
+    self.stream.close();
     while (self.sub_channel.getOrNull()) |response| {
         response.deinit();
     }
@@ -185,7 +186,6 @@ pub fn deinit(self: *IPC) void {
 
     self.rpc_channel.deinit();
     self.sub_channel.deinit();
-    self.stream.close();
 }
 /// Connects to the socket. Will try to reconnect in case of failures.
 /// Fails when match retries are reached or a invalid ipc path is provided
@@ -1053,8 +1053,6 @@ pub fn newPendingTransactionFilter(self: *IPC) !RPCResponse(u128) {
 /// Creates a read loop to read the socket messages.
 /// If a message is too long it will double the buffer size to read the message.
 pub fn readLoop(self: *IPC) !void {
-    // var request_buffer: [std.math.maxInt(u16) * 10]u8 = undefined;
-    // var buf_writter = std.io.fixedBufferStream(&request_buffer);
     var list = std.ArrayList(u8).init(self.allocator);
     defer list.deinit();
 

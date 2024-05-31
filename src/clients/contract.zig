@@ -63,26 +63,18 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         };
 
         /// The wallet instance that manages this contract instance
-        wallet: *Wallet(client_type),
+        wallet: Wallet(client_type),
         /// Deinits the wallet instance.
         pub fn init(self: *ContractComptime(client_type), opts: ContractInitOpts) !void {
-            const wallet = try opts.wallet_opts.allocator.create(Wallet(client_type));
-            errdefer opts.wallet_opts.allocator.destroy(wallet);
-
-            try wallet.init(opts.private_key, opts.wallet_opts);
-
             self.* = .{
-                .wallet = wallet,
+                .wallet = undefined,
             };
+
+            try self.wallet.init(opts.private_key, opts.wallet_opts);
         }
         /// Deinits the wallet instance.
         pub fn deinit(self: *ContractComptime(client_type)) void {
-            const child_allocator = self.wallet.allocator;
-
             self.wallet.deinit();
-            child_allocator.destroy(self.wallet);
-
-            self.* = undefined;
         }
         /// Creates a contract on the network.
         /// If the constructor abi contains inputs it will encode `constructor_args` accordingly.
@@ -254,29 +246,21 @@ pub fn Contract(comptime client_type: ClientType) type {
         };
 
         /// The wallet instance that manages this contract instance
-        wallet: *Wallet(client_type),
+        wallet: Wallet(client_type),
         /// The abi that will be used to read or write from
         abi: Abi,
 
         pub fn init(self: *Contract(client_type), opts: ContractInitOpts) !void {
-            const wallet = try opts.wallet_opts.allocator.create(Wallet(client_type));
-            errdefer opts.wallet_opts.allocator.destroy(wallet);
-
-            try wallet.init(opts.private_key, opts.wallet_opts);
-
             self.* = .{
                 .abi = opts.abi,
-                .wallet = wallet,
+                .wallet = undefined,
             };
+
+            try self.wallet.init(opts.private_key, opts.wallet_opts);
         }
         /// Deinits the wallet instance.
         pub fn deinit(self: *Contract(client_type)) void {
-            const child_allocator = self.wallet.allocator;
-
             self.wallet.deinit();
-            child_allocator.destroy(self.wallet);
-
-            self.* = undefined;
         }
         /// Creates a contract on the network.
         /// If the constructor abi contains inputs it will encode `constructor_args` accordingly.

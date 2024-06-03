@@ -46,7 +46,7 @@ pub const mnemonic = @import("crypto/mnemonic.zig");
 /// messages with Low S since ecdsa signatures are
 /// malleable and ethereum and other chains require
 /// messages to be signed with low S.
-pub const Signer = @import("crypto/signer.zig");
+pub const Signer = @import("crypto/Signer.zig");
 /// Custom wrapper for interacting with the Anvil testchain
 pub const Anvil = @import("tests/Anvil.zig");
 /// Custom wrapper for interacting with the Hardhat testchain
@@ -80,7 +80,7 @@ test {
     _ = @import("c-kzg-4844");
     _ = @import("decoding/decoder.zig");
     _ = @import("decoding/logs_decode.zig");
-    _ = @import("decoding/parse_transacition.zig");
+    _ = @import("decoding/parse_transaction.zig");
     _ = @import("decoding/rlp_decode.zig");
     _ = @import("decoding/ssz_decode.zig");
     _ = @import("encoding/encoder.zig");

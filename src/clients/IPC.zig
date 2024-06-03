@@ -174,19 +174,23 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
 ///
 /// All future calls will deadlock.
 pub fn deinit(self: *IPC) void {
-    if (!@atomicLoad(bool, &self.closed, .acquire)) {
-        while (self.sub_channel.getOrNull()) |response| {
-            response.deinit();
-        }
+    self.mutex.lock();
 
-        while (self.rpc_channel.popOrNull()) |response| {
-            response.deinit();
-        }
-
-        self.stream.close();
-        self.rpc_channel.deinit();
-        self.sub_channel.deinit();
+    while (@atomicRmw(bool, &self.closed, .Xchg, true, .seq_cst)) {
+        std.time.sleep(10 * std.time.ns_per_ms);
     }
+
+    while (self.sub_channel.getOrNull()) |response| {
+        response.deinit();
+    }
+
+    while (self.rpc_channel.popOrNull()) |response| {
+        response.deinit();
+    }
+
+    self.stream.close();
+    self.rpc_channel.deinit();
+    self.sub_channel.deinit();
 }
 /// Connects to the socket. Will try to reconnect in case of failures.
 /// Fails when match retries are reached or a invalid ipc path is provided
@@ -1066,7 +1070,7 @@ pub fn readLoop(self: *IPC) !void {
         try self.readMessage(list.writer());
 
         const message = try list.toOwnedSlice();
-        defer self.allocator.free(message);
+        defer self.allocator.free(message.ptr[0..message.len]);
 
         ipclog.debug("Got message: {s}", .{message});
 

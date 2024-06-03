@@ -1,4 +1,5 @@
 const ckzg4844 = @import("c-kzg-4844");
+const constants = @import("../utils/constants.zig");
 const eip712 = @import("../abi/eip712.zig");
 const serialize = @import("../encoding/serialize.zig");
 const std = @import("std");
@@ -26,7 +27,7 @@ const Mutex = std.Thread.Mutex;
 const PubClient = @import("Client.zig");
 const RPCResponse = types.RPCResponse;
 const Sidecar = ckzg4844.KZG4844.Sidecar;
-const Signer = @import("../crypto/signer.zig");
+const Signer = @import("../crypto/Signer.zig");
 const Signature = @import("../crypto/signature.zig").Signature;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const TransactionReceipt = transaction.TransactionReceipt;
@@ -513,6 +514,22 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 .cancun => |tx_eip4844| {
                     if (tx_eip4844.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
                     if (tx_eip4844.maxPriorityFeePerGas > tx_eip4844.maxFeePerGas) return error.TransactionTipToHigh;
+
+                    if (tx_eip4844.blobVersionedHashes) |blob_hashes| {
+                        if (blob_hashes.len == 0)
+                            return error.EmptyBlobs;
+
+                        if (blob_hashes.len > constants.MAX_BLOB_NUMBER_PER_BLOCK)
+                            return error.TooManyBlobs;
+
+                        for (blob_hashes) |hashes| {
+                            if (hashes[0] != constants.VERSIONED_HASH_VERSION_KZG)
+                                return error.BlobVersionNotSupported;
+                        }
+                    }
+
+                    if (tx_eip4844.to == null)
+                        return error.CreateBlobTransaction;
                 },
                 .berlin => |tx_eip2930| {
                     if (tx_eip2930.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
@@ -901,7 +918,6 @@ test "assertTransaction" {
             .maxFeePerBlobGas = 2,
             .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
             .data = null,
-            .blobVersionedHashes = &.{},
         } };
         try wallet.assertTransaction(tx);
 

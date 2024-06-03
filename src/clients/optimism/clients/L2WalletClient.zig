@@ -24,7 +24,7 @@ const LondonTransactionEnvelope = transactions.LondonTransactionEnvelope;
 const OpMainNetContracts = contracts.OpMainNetContracts;
 const PreparedWithdrawal = withdrawal_types.PreparedWithdrawal;
 const RPCResponse = types.RPCResponse;
-const Signer = @import("../../../crypto/signer.zig");
+const Signer = @import("../../../crypto/Signer.zig");
 const WithdrawalRequest = withdrawal_types.WithdrawalRequest;
 
 const L2Client = @import("L2PubClient.zig").L2Client;

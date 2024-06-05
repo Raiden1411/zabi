@@ -1,3 +1,4 @@
+const abi = @import("../abi/abi.zig");
 const explorer = @import("../types/explorer.zig");
 const std = @import("std");
 const testing = std.testing;
@@ -5,16 +6,19 @@ const types = @import("../types/ethereum.zig");
 const url = @import("url.zig");
 const utils = @import("../utils/utils.zig");
 
+const Abi = abi.Abi;
 const Address = types.Address;
 const AddressBalanceRequest = explorer.AddressBalanceRequest;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayList;
+const ContractCreationResult = explorer.ContractCreationResult;
 const EndPoints = explorer.EndPoints;
 const Erc1155TokenEventRequest = explorer.Erc1155TokenEventRequest;
 const ExplorerResponse = explorer.ExplorerResponse;
 const ExplorerRequestResponse = explorer.ExplorerRequestResponse;
 const ExplorerTransaction = explorer.ExplorerTransaction;
+const GetSourceResult = explorer.GetSourceResult;
 const Hash = types.Hash;
 const HttpClient = std.http.Client;
 const InternalExplorerTransaction = explorer.InternalExplorerTransaction;
@@ -36,6 +40,7 @@ const explorer_log = std.log.scoped(.explorer);
 /// The block explorer modules.
 pub const Modules = enum {
     account,
+    contract,
 };
 
 /// The block explorer actions.
@@ -48,6 +53,11 @@ pub const Actions = enum {
     tokentx,
     tokennfttx,
     token1155tx,
+
+    // Contract actions
+    getabi,
+    getsourcecode,
+    getcontractcreation,
 };
 
 /// The client init options
@@ -134,6 +144,32 @@ pub fn init(opts: InitOpts) Explorer {
 pub fn deinit(self: *Explorer) void {
     self.client.deinit();
 }
+/// Queries the api endpoint to find the `address` contract ABI.
+pub fn getAbi(self: *Explorer, address: Address) !ExplorerResponse(Abi) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .contract,
+        .action = .getabi,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(.{ .address = address }, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    // The api sends the ABI as a string... So we grab it and reparse it as `Abi`
+    const parsed = try self.sendRequest([]const u8, uri);
+    defer parsed.deinit();
+
+    const as_abi = try std.json.parseFromSlice(Abi, self.allocator, parsed.response, .{ .allocate = .alloc_always });
+
+    return ExplorerResponse(Abi).fromJson(as_abi.arena, as_abi.value);
+}
 /// Queries the api endpoint to find the `address` balance at the specified `tag`
 pub fn getAddressBalance(self: *Explorer, request: AddressBalanceRequest) !ExplorerResponse(u256) {
     var request_buffer: [4 * 1024]u8 = undefined;
@@ -153,6 +189,26 @@ pub fn getAddressBalance(self: *Explorer, request: AddressBalanceRequest) !Explo
     const uri = try Uri.parse(buf_writter.getWritten());
 
     return self.sendRequest(u256, uri);
+}
+/// Queries the api endpoint to find the creation tx address from the target contract addresses.
+pub fn getContractCreation(self: *Explorer, addresses: []const Address) !ExplorerResponse([]const ContractCreationResult) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .contract,
+        .action = .getcontractcreation,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(.{ .contractaddresses = addresses }, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest([]const ContractCreationResult, uri);
 }
 /// Queries the api endpoint to find the `address` and `contractaddress` erc20 token transaction events based on a block range.
 ///
@@ -319,6 +375,28 @@ pub fn getMultiAddressBalance(self: *Explorer, request: MultiAddressBalanceReque
     const uri = try Uri.parse(buf_writter.getWritten());
 
     return self.sendRequest([]const MultiAddressBalance, uri);
+}
+/// Queries the api endpoint to find the `address` contract source information if it's present.
+/// The api might send the result with empty field in case the source information is not present.
+/// This will cause the json parse to fail.
+pub fn getSourceCode(self: *Explorer, address: Address) !ExplorerResponse([]const GetSourceResult) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .contract,
+        .action = .getsourcecode,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(.{ .address = address }, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest([]const GetSourceResult, uri);
 }
 /// Queries the api endpoint to find the `address` transaction list based on a block range.
 ///

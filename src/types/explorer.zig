@@ -1,3 +1,4 @@
+const abi = @import("../abi/abi.zig");
 const std = @import("std");
 const meta = @import("../meta/json.zig");
 const meta_utils = @import("../meta/utils.zig");
@@ -5,6 +6,7 @@ const types = @import("../types/ethereum.zig");
 const block = @import("../types/block.zig");
 const utils = @import("../utils/utils.zig");
 
+const Abi = abi.Abi;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
@@ -15,7 +17,9 @@ const ParseOptions = std.json.ParseOptions;
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
 const RequestParser = meta.RequestParser;
+const SemanticVersion = std.SemanticVersion;
 const Value = std.json.Value;
+const Uri = std.Uri;
 
 /// The json response from a etherscan like explorer
 pub fn ExplorerResponse(comptime T: type) type {
@@ -83,9 +87,8 @@ pub fn ExplorerRequestResponse(comptime T: type) type {
 
             const status = std.meta.stringToEnum(enum { OK }, message.string);
 
-            if (status != null) {
+            if (status != null)
                 return @unionInit(@This(), "success", try std.json.parseFromValueLeaky(ExplorerSuccessResponse(T), allocator, source, options));
-            }
 
             return @unionInit(@This(), "error", try std.json.parseFromValueLeaky(ExplorerErrorResponse, allocator, source, options));
         }
@@ -231,17 +234,11 @@ pub const TokenExplorerTransaction = struct {
 
             inline for (std.meta.fields(@This())) |field| {
                 if (std.mem.eql(u8, field.name, field_name)) {
-                    if (@field(seen, field.name) == 1) {
-                        // We parse but discard it. Parses as `[]const u8` because it would fail otherwise
-                        // as some of our types are parsed in a non RFC compliance.
-                        _ = try std.json.innerParseFromValue([]const u8, allocator, key_value.value_ptr.*, options);
-
+                    if (@field(seen, field.name) == 0) {
+                        @field(seen, field.name) = 1;
+                        @field(result, field.name) = try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options);
                         break;
                     }
-
-                    @field(seen, field.name) = 1;
-                    @field(result, field.name) = try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options);
-                    break;
                 }
             }
         }
@@ -387,17 +384,11 @@ pub const InternalExplorerTransaction = struct {
 
             inline for (std.meta.fields(@This())) |field| {
                 if (std.mem.eql(u8, field.name, field_name)) {
-                    if (@field(seen, field.name) == 1) {
-                        // We parse but discard it. Parses as `[]const u8` because it would fail otherwise
-                        // as some of our types are parsed in a non RFC compliance.
-                        _ = try std.json.innerParseFromValue([]const u8, allocator, key_value.value_ptr.*, options);
-
+                    if (@field(seen, field.name) == 0) {
+                        @field(seen, field.name) = 1;
+                        @field(result, field.name) = try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options);
                         break;
                     }
-
-                    @field(seen, field.name) = 1;
-                    @field(result, field.name) = try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options);
-                    break;
                 }
             }
         }
@@ -576,17 +567,147 @@ pub const ExplorerTransaction = struct {
 
             inline for (std.meta.fields(@This())) |field| {
                 if (std.mem.eql(u8, field.name, field_name)) {
-                    if (@field(seen, field.name) == 1) {
-                        // We parse but discard it. Parses as `[]const u8` because it would fail otherwise
-                        // as some of our types are parsed in a non RFC compliance.
-                        _ = try std.json.innerParseFromValue([]const u8, allocator, key_value.value_ptr.*, options);
-
+                    if (@field(seen, field.name) == 0) {
+                        @field(seen, field.name) = 1;
+                        @field(result, field.name) = try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options);
                         break;
                     }
+                }
+            }
+        }
 
-                    @field(seen, field.name) = 1;
-                    @field(result, field.name) = try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options);
-                    break;
+        inline for (std.meta.fields(@This())) |field| {
+            switch (@field(seen, field.name)) {
+                0 => if (field.default_value) |default_value| {
+                    @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
+                } else return error.MissingField,
+                1 => {},
+                else => {
+                    switch (options.duplicate_field_behavior) {
+                        .@"error" => return error.DuplicateField,
+                        else => {},
+                    }
+                },
+            }
+        }
+
+        return result;
+    }
+
+    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
+        switch (self) {
+            inline else => |value| try stream.write(value),
+        }
+    }
+};
+
+pub const GetSourceResult = struct {
+    /// The contract's source code.
+    SourceCode: []const u8,
+    /// The contract's ABI.
+    ABI: Abi,
+    /// The contract name.
+    ContractName: []const u8,
+    /// The compiler version that was used.
+    CompilerVersion: SemanticVersion,
+    /// The number of optimizations used.
+    OptimizationUsed: usize,
+    /// The amount of runs of optimizations.
+    Runs: usize,
+    /// The constructor arguments if any were used.
+    ConstructorArguments: ?[]const u8,
+    /// The EVM version used.
+    EVMVersion: enum { Default },
+    /// The library used if any.
+    Library: ?[]const u8,
+    /// The license type used by the contract.
+    LicenseType: []const u8,
+    /// If it's a proxy contract or not. Can be `@bitCast` to bool
+    Proxy: u1,
+    /// The implementation if it exists.
+    Implementation: ?[]const u8,
+    /// The bzzr swarm source.
+    SwarmSource: Uri,
+
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        const json_value = try Value.jsonParse(allocator, source, options);
+        return try jsonParseFromValue(allocator, json_value, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        if (source != .object)
+            return error.UnexpectedToken;
+
+        var seen: std.enums.EnumFieldStruct(ConvertToEnum(@This()), u32, 0) = .{};
+        var result: @This() = undefined;
+
+        if (source.object.get("ConstructorArguments")) |value| {
+            if (value != .string)
+                return error.UnexpectedToken;
+
+            if (value.string.len == 0) {
+                result.ConstructorArguments = null;
+                @field(seen, "ConstructorArguments") = 1;
+            }
+        }
+
+        if (source.object.get("Library")) |value| {
+            if (value != .string)
+                return error.UnexpectedToken;
+
+            if (value.string.len == 0) {
+                result.Library = null;
+                @field(seen, "Library") = 1;
+            }
+        }
+
+        if (source.object.get("Implementation")) |value| {
+            if (value != .string)
+                return error.UnexpectedToken;
+
+            if (value.string.len == 0) {
+                result.Implementation = null;
+                @field(seen, "Implementation") = 1;
+            }
+        }
+
+        if (source.object.get("ABI")) |value| {
+            if (value != .string)
+                return error.UnexpectedToken;
+
+            result.ABI = std.json.parseFromSliceLeaky(Abi, allocator, value.string, options) catch return error.UnexpectedToken;
+            @field(seen, "ABI") = 1;
+        }
+
+        if (source.object.get("CompilerVersion")) |value| {
+            if (value != .string)
+                return error.UnexpectedToken;
+
+            const slice = if (value.string[0] == 'v') value.string[1..] else value.string;
+            result.CompilerVersion = SemanticVersion.parse(slice) catch return error.UnexpectedToken;
+            @field(seen, "CompilerVersion") = 1;
+        }
+
+        if (source.object.get("SwarmSource")) |value| {
+            if (value != .string)
+                return error.UnexpectedToken;
+
+            result.SwarmSource = std.Uri.parse(value.string) catch return error.UnexpectedToken;
+            @field(seen, "SwarmSource") = 1;
+        }
+
+        var iter = source.object.iterator();
+
+        while (iter.next()) |key_value| {
+            const field_name = key_value.key_ptr.*;
+
+            inline for (std.meta.fields(@This())) |field| {
+                if (std.mem.eql(u8, field.name, field_name)) {
+                    if (@field(seen, field.name) == 0) {
+                        @field(seen, field.name) = 1;
+                        @field(result, field.name) = try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options);
+                        break;
+                    }
                 }
             }
         }
@@ -665,4 +786,57 @@ pub const RangeRequest = struct {
     startblock: u64,
     /// The end block number range.
     endblock: u64,
+};
+
+pub const ContractCreationResult = struct {
+    /// The contract address
+    contractAddress: Address,
+    /// The contract creator
+    contractCreator: Address,
+    /// The creation transaction hash
+    txHash: Hash,
+
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        const json_value = try Value.jsonParse(allocator, source, options);
+        return try jsonParseFromValue(allocator, json_value, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        _ = allocator;
+        _ = options;
+
+        if (source != .object)
+            return error.UnexpectedToken;
+
+        var result: @This() = undefined;
+
+        if (source.object.get("contractAddress")) |value| {
+            if (value != .string)
+                return error.UnexpectedToken;
+
+            result.contractAddress = utils.addressToBytes(value.string) catch return error.UnexpectedToken;
+        } else return error.UnexpectedToken;
+
+        if (source.object.get("contractCreator")) |value| {
+            if (value != .string)
+                return error.UnexpectedToken;
+
+            result.contractCreator = utils.addressToBytes(value.string) catch return error.UnexpectedToken;
+        } else return error.UnexpectedToken;
+
+        if (source.object.get("txHash")) |value| {
+            if (value != .string)
+                return error.UnexpectedToken;
+
+            result.txHash = utils.hashToBytes(value.string) catch return error.UnexpectedToken;
+        } else return error.UnexpectedToken;
+
+        return result;
+    }
+
+    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
+        switch (self) {
+            inline else => |value| try stream.write(value),
+        }
+    }
 };

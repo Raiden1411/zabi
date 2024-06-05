@@ -1,0 +1,423 @@
+const explorer = @import("../types/explorer.zig");
+const std = @import("std");
+const testing = std.testing;
+const types = @import("../types/ethereum.zig");
+const url = @import("url.zig");
+const utils = @import("../utils/utils.zig");
+
+const Address = types.Address;
+const AddressBalanceRequest = explorer.AddressBalanceRequest;
+const Allocator = std.mem.Allocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
+const ArrayList = std.ArrayList;
+const EndPoints = explorer.EndPoints;
+const Erc1155TokenEventRequest = explorer.Erc1155TokenEventRequest;
+const ExplorerResponse = explorer.ExplorerResponse;
+const ExplorerRequestResponse = explorer.ExplorerRequestResponse;
+const ExplorerTransaction = explorer.ExplorerTransaction;
+const Hash = types.Hash;
+const HttpClient = std.http.Client;
+const InternalExplorerTransaction = explorer.InternalExplorerTransaction;
+const Keccak256 = std.crypto.hash.sha3.Keccak256;
+const MultiAddressBalance = explorer.MultiAddressBalance;
+const MultiAddressBalanceRequest = explorer.MultiAddressBalanceRequest;
+const QueryOptions = url.QueryOptions;
+const QueryWriter = url.QueryWriter;
+const RangeRequest = explorer.RangeRequest;
+const TransactionListRequest = explorer.TransactionListRequest;
+const TokenEventRequest = explorer.TokenEventRequest;
+const TokenExplorerTransaction = explorer.TokenExplorerTransaction;
+const Uri = std.Uri;
+
+const Explorer = @This();
+
+const explorer_log = std.log.scoped(.explorer);
+
+/// The block explorer modules.
+pub const Modules = enum {
+    account,
+};
+
+/// The block explorer actions.
+pub const Actions = enum {
+    // Account actions
+    balance,
+    balancemulti,
+    txlist,
+    txlistinternal,
+    tokentx,
+    tokennfttx,
+    token1155tx,
+};
+
+/// The client init options
+pub const InitOpts = struct {
+    allocator: Allocator,
+    /// The Explorer api key.
+    apikey: []const u8,
+    /// Set of supported endpoints.
+    endpoint: EndPoints = .{ .optimism = null },
+    /// The max size that the fetch call can use
+    max_append_size: usize = std.math.maxInt(u16),
+    /// The number of retries for the client to make on 429 errors.
+    retries: usize = 5,
+};
+
+/// Used by the `Explorer` client to build the uri query parameters.
+pub const QueryParameters = struct {
+    /// The module of the endpoint to target.
+    module: Modules,
+    /// The action endpoint to target.
+    action: Actions,
+    /// Set of pagination options.
+    options: QueryOptions,
+    /// Endpoint api key.
+    apikey: []const u8,
+
+    /// Build the query based on the provided `value` and it's inner state.
+    /// Uses the `QueryWriter` to build the searchUrlParams.
+    pub fn buildQuery(self: @This(), value: anytype, writer: anytype) !void {
+        const info = @typeInfo(@TypeOf(value));
+
+        comptime {
+            std.debug.assert(info == .Struct); // Must be a non tuple struct type
+            std.debug.assert(!info.Struct.is_tuple); // Must be a non tuple struct type
+        }
+
+        var stream = QueryWriter(@TypeOf(writer)).init(writer);
+
+        try stream.beginQuery();
+
+        try stream.writeParameter("module");
+        try stream.writeValue(self.module);
+
+        try stream.writeParameter("action");
+        try stream.writeValue(self.action);
+
+        inline for (info.Struct.fields) |field| {
+            try stream.writeParameter(field.name);
+            try stream.writeValue(@field(value, field.name));
+        }
+
+        try stream.writeQueryOptions(self.options);
+
+        try stream.writeParameter("apikey");
+        try stream.writeValue(self.apikey);
+    }
+};
+
+/// The Explorer api key.
+apikey: []const u8,
+/// The allocator of this client.
+allocator: Allocator,
+/// The underlaying http client.
+client: HttpClient,
+/// Set of supported endpoints.
+endpoint: EndPoints,
+/// The max size that the fetch call can use
+max_append_size: usize,
+/// The number of retries for the client to make on 429 errors.
+retries: usize,
+
+/// Creates the initial client state.
+pub fn init(opts: InitOpts) Explorer {
+    return .{
+        .allocator = opts.allocator,
+        .apikey = opts.apikey,
+        .client = HttpClient{ .allocator = opts.allocator },
+        .endpoint = opts.endpoint,
+        .max_append_size = opts.max_append_size,
+        .retries = opts.retries,
+    };
+}
+/// Deinits the http/s server.
+pub fn deinit(self: *Explorer) void {
+    self.client.deinit();
+}
+/// Queries the api endpoint to find the `address` balance at the specified `tag`
+pub fn getAddressBalance(self: *Explorer, request: AddressBalanceRequest) !ExplorerResponse(u256) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .account,
+        .action = .balance,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(request, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest(u256, uri);
+}
+/// Queries the api endpoint to find the `address` and `contractaddress` erc20 token transaction events based on a block range.
+///
+/// This can fail because the response can be higher than `max_append_size`.
+/// If the stack trace points to the reader failing consider either changing the provided `QueryOptions`
+/// or increasing the `max_append_size`
+pub fn getErc20TokenTransferEvents(self: *Explorer, request: TokenEventRequest, options: QueryOptions) !ExplorerResponse([]const TokenExplorerTransaction) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .account,
+        .action = .tokentx,
+        .options = options,
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(request, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest([]const TokenExplorerTransaction, uri);
+}
+/// Queries the api endpoint to find the `address` and `contractaddress` erc20 token transaction events based on a block range.
+///
+/// This can fail because the response can be higher than `max_append_size`.
+/// If the stack trace points to the reader failing consider either changing the provided `QueryOptions`
+/// or increasing the `max_append_size`
+pub fn getErc721TokenTransferEvents(self: *Explorer, request: TokenEventRequest, options: QueryOptions) !ExplorerResponse([]const TokenExplorerTransaction) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .account,
+        .action = .tokennfttx,
+        .options = options,
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(request, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest([]const TokenExplorerTransaction, uri);
+}
+/// Queries the api endpoint to find the `address` and `contractaddress` erc20 token transaction events based on a block range.
+///
+/// This can fail because the response can be higher than `max_append_size`.
+/// If the stack trace points to the reader failing consider either changing the provided `QueryOptions`
+/// or increasing the `max_append_size`
+pub fn getErc1155TokenTransferEvents(self: *Explorer, request: Erc1155TokenEventRequest, options: QueryOptions) !ExplorerResponse([]const TokenExplorerTransaction) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .account,
+        .action = .token1155tx,
+        .options = options,
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(request, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest([]const TokenExplorerTransaction, uri);
+}
+/// Queries the api endpoint to find the `address` internal transaction list based on a block range.
+///
+/// This can fail because the response can be higher than `max_append_size`.
+/// If the stack trace points to the reader failing consider either changing the provided `QueryOptions`
+/// or increasing the `max_append_size`.
+pub fn getInternalTransactionList(self: *Explorer, request: TransactionListRequest, options: QueryOptions) !ExplorerResponse([]const InternalExplorerTransaction) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .account,
+        .action = .txlistinternal,
+        .options = options,
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(request, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest([]const InternalExplorerTransaction, uri);
+}
+/// Queries the api endpoint to find the internal transactions from a transaction hash.
+///
+/// This can fail because the response can be higher than `max_append_size`.
+/// If the stack trace points to the reader failing consider either changing the provided `QueryOptions`
+/// or increasing the `max_append_size`.
+pub fn getInternalTransactionListByHash(self: *Explorer, tx_hash: Hash) !ExplorerResponse([]const InternalExplorerTransaction) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .account,
+        .action = .txlistinternal,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(.{ .txhash = tx_hash }, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest([]const InternalExplorerTransaction, uri);
+}
+/// Queries the api endpoint to find the `address` balances at the specified `tag`
+///
+/// This can fail because the response can be higher than `max_append_size`.
+/// If the stack trace points to the reader failing consider either changing the provided `QueryOptions`
+/// or increasing the `max_append_size`
+pub fn getInternalTransactionListByRange(self: *Explorer, request: RangeRequest, options: QueryOptions) !ExplorerResponse([]const InternalExplorerTransaction) {
+    std.debug.assert(request.startblock <= request.endblock); // Invalid range provided.
+
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .account,
+        .action = .txlistinternal,
+        .options = options,
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(request, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest([]const InternalExplorerTransaction, uri);
+}
+/// Queries the api endpoint to find the `address` balances at the specified `tag`
+pub fn getMultiAddressBalance(self: *Explorer, request: MultiAddressBalanceRequest) !ExplorerResponse([]const MultiAddressBalance) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .account,
+        .action = .balancemulti,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(request, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest([]const MultiAddressBalance, uri);
+}
+/// Queries the api endpoint to find the `address` transaction list based on a block range.
+///
+/// This can fail because the response can be higher than `max_append_size`.
+/// If the stack trace points to the reader failing consider either changing the provided `QueryOptions`
+/// or increasing the `max_append_size`
+pub fn getTransactionList(self: *Explorer, request: TransactionListRequest, options: QueryOptions) !ExplorerResponse([]const ExplorerTransaction) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .account,
+        .action = .txlist,
+        .options = options,
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(request, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest([]const ExplorerTransaction, uri);
+}
+/// Writes request to endpoint and parses the response according to the provided type.
+/// Handles 429 errors but not the rest.
+///
+/// Builds the uri from the endpoint's api url plus the query parameters from the provided `value`
+/// and possible set `QueryOptions`. The current max buffer size is 4096.
+///
+/// `value` must be a non tuple struct type.
+pub fn sendRequest(self: *Explorer, comptime T: type, uri: Uri) !ExplorerResponse(T) {
+    var body = ArrayList(u8).init(self.allocator);
+    defer body.deinit();
+
+    var retries: u8 = 0;
+    while (true) : (retries += 1) {
+        if (retries > self.retries)
+            return error.ReachedMaxRetryLimit;
+
+        const req = try self.internalRequest(uri, &body);
+
+        switch (req.status) {
+            .ok => {
+                const res_body = try body.toOwnedSlice();
+                defer self.allocator.free(res_body);
+
+                explorer_log.debug("Got response from server: {s}", .{res_body});
+
+                return self.parseExplorerResponse(T, res_body);
+            },
+            .too_many_requests => {
+                // Exponential backoff
+                const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
+                explorer_log.debug("Error 429 found. Retrying in {d} ms", .{backoff});
+
+                // Clears any message that was written
+                body.clearAndFree();
+
+                std.time.sleep(std.time.ns_per_ms * backoff);
+                continue;
+            },
+            else => {
+                explorer_log.debug("Unexpected server response. Server returned: {s} status", .{req.status.phrase() orelse @tagName(req.status)});
+                return error.UnexpectedServerResponse;
+            },
+        }
+    }
+}
+/// The internal fetch `GET` request.
+fn internalRequest(self: *Explorer, uri: Uri, list: *ArrayList(u8)) !HttpClient.FetchResult {
+    const result = try self.client.fetch(.{
+        .method = .GET,
+        .response_storage = .{ .dynamic = list },
+        .location = .{ .uri = uri },
+        .max_append_size = self.max_append_size,
+    });
+
+    return result;
+}
+/// Parses the response from the server as `ExplorerRequestResponse(T)`
+fn parseExplorerResponse(self: *Explorer, comptime T: type, request: []const u8) !ExplorerResponse(T) {
+    const parsed = std.json.parseFromSlice(
+        ExplorerRequestResponse(T),
+        self.allocator,
+        request,
+        .{ .allocate = .alloc_always },
+    ) catch return error.UnexpectedErrorFound;
+
+    switch (parsed.value) {
+        .success => |response| return ExplorerResponse(T).fromJson(parsed.arena, response.result),
+        .@"error" => |response| {
+            errdefer parsed.deinit();
+
+            explorer_log.debug("Explorer error message: {s}", .{response.message});
+            explorer_log.debug("Explorer error response: {s}", .{response.result});
+
+            return error.InvalidRequest;
+        },
+    }
+}

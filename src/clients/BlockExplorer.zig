@@ -12,6 +12,9 @@ const AddressBalanceRequest = explorer.AddressBalanceRequest;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const ArrayList = std.ArrayList;
+const BlockCountDown = explorer.BlockCountdown;
+const BlockRewards = explorer.BlockRewards;
+const BlocktimeRequest = explorer.BlocktimeRequest;
 const ContractCreationResult = explorer.ContractCreationResult;
 const EndPoints = explorer.EndPoints;
 const Erc1155TokenEventRequest = explorer.Erc1155TokenEventRequest;
@@ -28,6 +31,8 @@ const MultiAddressBalanceRequest = explorer.MultiAddressBalanceRequest;
 const QueryOptions = url.QueryOptions;
 const QueryWriter = url.QueryWriter;
 const RangeRequest = explorer.RangeRequest;
+const ReceiptStatus = explorer.ReceiptStatus;
+const TransactionStatus = explorer.TransactionStatus;
 const TransactionListRequest = explorer.TransactionListRequest;
 const TokenEventRequest = explorer.TokenEventRequest;
 const TokenExplorerTransaction = explorer.TokenExplorerTransaction;
@@ -41,6 +46,10 @@ const explorer_log = std.log.scoped(.explorer);
 pub const Modules = enum {
     account,
     contract,
+    transaction,
+    block,
+    logs,
+    stats,
 };
 
 /// The block explorer actions.
@@ -54,10 +63,31 @@ pub const Actions = enum {
     tokennfttx,
     token1155tx,
 
+    // Only available in PRO plans. We will not support these methods.
+    balancehistory,
+
     // Contract actions
     getabi,
     getsourcecode,
     getcontractcreation,
+
+    // Transaction actions
+    getstatus,
+    gettxreceiptstatus,
+
+    // Block actions
+    getblockreward,
+    getblockcountdown,
+    getblocknobytime,
+
+    // Log actions
+    getLogs,
+
+    // Stats actions
+
+    // Only available in PRO plans. We will not support these methods.
+    dailyblockrewards,
+    dailyavgblocktime,
 };
 
 /// The client init options
@@ -130,6 +160,8 @@ max_append_size: usize,
 retries: usize,
 
 /// Creates the initial client state.
+/// This client only supports the free api endpoints via the api. We will not support PRO methods.
+/// But `zabi` has all the tools you will need to create the methods to target those endpoints.
 pub fn init(opts: InitOpts) Explorer {
     return .{
         .allocator = opts.allocator,
@@ -189,6 +221,65 @@ pub fn getAddressBalance(self: *Explorer, request: AddressBalanceRequest) !Explo
     const uri = try Uri.parse(buf_writter.getWritten());
 
     return self.sendRequest(u256, uri);
+}
+/// Queries the api endpoint to find the block reward at the specified `block_number`
+pub fn getBlockCountDown(self: *Explorer, block_number: u64) !ExplorerResponse(BlockCountDown) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .block,
+        .action = .getblockcountdown,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(.{ .blockno = block_number }, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest(BlockCountDown, uri);
+}
+/// Queries the api endpoint to find the block reward at the specified `block_number`
+pub fn getBlockNumberByTimestamp(self: *Explorer, request: BlocktimeRequest) !ExplorerResponse(u64) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .block,
+        .action = .getblocknobytime,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(request, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest(u64, uri);
+}
+/// Queries the api endpoint to find the block reward at the specified `block_number`
+pub fn getBlockReward(self: *Explorer, block_number: u64) !ExplorerResponse(BlockRewards) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .block,
+        .action = .getblockreward,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+    try query.buildQuery(.{ .blockno = block_number }, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest(BlockRewards, uri);
 }
 /// Queries the api endpoint to find the creation tx address from the target contract addresses.
 pub fn getContractCreation(self: *Explorer, addresses: []const Address) !ExplorerResponse([]const ContractCreationResult) {
@@ -422,6 +513,46 @@ pub fn getTransactionList(self: *Explorer, request: TransactionListRequest, opti
 
     return self.sendRequest([]const ExplorerTransaction, uri);
 }
+/// Queries the api endpoint to find the transaction receipt status based on the provided `hash`
+pub fn getTransactionReceiptStatus(self: *Explorer, hash: Hash) !ExplorerResponse(ReceiptStatus) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .transaction,
+        .action = .gettxreceiptstatus,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(.{ .txhash = hash }, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest(ReceiptStatus, uri);
+}
+/// Queries the api endpoint to find the transaction status based on the provided `hash`
+pub fn getTransactionStatus(self: *Explorer, hash: Hash) !ExplorerResponse(TransactionStatus) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .transaction,
+        .action = .getstatus,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(.{ .txhash = hash }, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest(TransactionStatus, uri);
+}
 /// Writes request to endpoint and parses the response according to the provided type.
 /// Handles 429 errors but not the rest.
 ///
@@ -445,7 +576,7 @@ pub fn sendRequest(self: *Explorer, comptime T: type, uri: Uri) !ExplorerRespons
                 const res_body = try body.toOwnedSlice();
                 defer self.allocator.free(res_body);
 
-                explorer_log.debug("Got response from server: {s}", .{res_body});
+                explorer_log.err("Got response from server: {s}", .{res_body});
 
                 return self.parseExplorerResponse(T, res_body);
             },

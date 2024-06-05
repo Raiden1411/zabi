@@ -265,9 +265,7 @@ pub const TokenExplorerTransaction = struct {
     }
 
     pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
-        switch (self) {
-            inline else => |value| try stream.write(value),
-        }
+        try stream.write(self);
     }
 };
 
@@ -412,9 +410,7 @@ pub const InternalExplorerTransaction = struct {
     }
 
     pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
-        switch (self) {
-            inline else => |value| try stream.write(value),
-        }
+        try stream.write(self);
     }
 };
 
@@ -595,9 +591,7 @@ pub const ExplorerTransaction = struct {
     }
 
     pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
-        switch (self) {
-            inline else => |value| try stream.write(value),
-        }
+        try stream.write(self);
     }
 };
 
@@ -731,9 +725,7 @@ pub const GetSourceResult = struct {
     }
 
     pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
-        switch (self) {
-            inline else => |value| try stream.write(value),
-        }
+        try stream.write(self);
     }
 };
 
@@ -835,8 +827,169 @@ pub const ContractCreationResult = struct {
     }
 
     pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
-        switch (self) {
-            inline else => |value| try stream.write(value),
-        }
+        try stream.write(self);
     }
+};
+
+pub const TransactionStatus = struct {
+    /// If the transaction reverted.
+    isError: u1,
+    /// The error message in case it reverted.
+    errDescription: ?[]const u8,
+
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        const json_value = try Value.jsonParse(allocator, source, options);
+        return try jsonParseFromValue(allocator, json_value, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        if (source != .object)
+            return error.UnexpectedToken;
+
+        var result: @This() = undefined;
+
+        if (source.object.get("isError")) |value| {
+            if (value != .string)
+                return error.UnexpectedToken;
+
+            result.isError = try std.json.innerParseFromValue(u1, allocator, value, options);
+        } else return error.UnexpectedToken;
+
+        if (source.object.get("errDescription")) |value| {
+            if (value != .string)
+                return error.UnexpectedToken;
+
+            result.isError = if (value.string.len != 0) try std.json.innerParseFromValue(u1, allocator, value, options) else null;
+        } else return error.UnexpectedToken;
+
+        return result;
+    }
+
+    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
+        try stream.write(self);
+    }
+};
+
+pub const ReceiptStatus = struct {
+    /// The receipt status
+    status: ?u1,
+
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        const json_value = try Value.jsonParse(allocator, source, options);
+        return try jsonParseFromValue(allocator, json_value, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        if (source != .object)
+            return error.UnexpectedToken;
+
+        var result: @This() = undefined;
+
+        if (source.object.get("status")) |value| {
+            if (value != .string)
+                return error.UnexpectedToken;
+
+            result.status = if (value.string.len != 0) try std.json.innerParseFromValue(u1, allocator, value, options) else null;
+        } else return error.UnexpectedToken;
+
+        return result;
+    }
+
+    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
+        try stream.write(self);
+    }
+};
+
+/// The block reward endpoint response.
+pub const BlockRewards = struct {
+    /// The block number of the reward.
+    blockNumber: u64,
+    /// The timestamp of the reward.
+    timeStamp: u64,
+    /// The block miner.
+    blockMiner: Address,
+    /// The reward value.
+    blockReward: u256,
+    /// The uncles block rewards.
+    uncles: []const BlockRewards,
+    /// The reward value included in uncle blocks.
+    uncleInclusionReward: u256,
+
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        const json_value = try Value.jsonParse(allocator, source, options);
+        return try jsonParseFromValue(allocator, json_value, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        if (source != .object)
+            return error.UnexpectedToken;
+
+        var result: @This() = undefined;
+        var seen: std.enums.EnumFieldStruct(ConvertToEnum(@This()), u32, 0) = .{};
+
+        if (source.object.get("blockMiner")) |value| {
+            if (value != .string)
+                return error.UnexpectedToken;
+
+            result.blockMiner = utils.addressToBytes(value.string) catch return error.UnexpectedToken;
+            @field(seen, "blockMiner") = 1;
+        }
+
+        var iter = source.object.iterator();
+
+        while (iter.next()) |key_value| {
+            const field_name = key_value.key_ptr.*;
+
+            inline for (std.meta.fields(@This())) |field| {
+                if (std.mem.eql(u8, field.name, field_name)) {
+                    if (@field(seen, field.name) == 0) {
+                        @field(seen, field.name) = 1;
+                        @field(result, field.name) = try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options);
+                        break;
+                    }
+                }
+            }
+        }
+
+        inline for (std.meta.fields(@This())) |field| {
+            switch (@field(seen, field.name)) {
+                0 => if (field.default_value) |default_value| {
+                    @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
+                } else return error.MissingField,
+                1 => {},
+                else => {
+                    switch (options.duplicate_field_behavior) {
+                        .@"error" => return error.DuplicateField,
+                        else => {},
+                    }
+                },
+            }
+        }
+
+        return result;
+    }
+
+    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
+        try stream.write(self);
+    }
+};
+
+pub const BlockCountdown = struct {
+    /// The current block in the node.
+    CurrentBlock: u64,
+    /// The target block.
+    CountdownBlock: u64,
+    /// The number of blocks remaining between `CurrentBlock` and `CountdownBlock`.
+    RemainingBlock: u64,
+    /// The seconds until `CountdownBlock` is reached.
+    EstimateTimeInSec: f64,
+
+    pub usingnamespace RequestParser(@This());
+};
+
+pub const BlocktimeRequest = struct {
+    /// Unix timestamp in seconds
+    timestamp: u64,
+    /// The tag to choose for finding the closest block based on the timestamp.
+    closest: enum { before, after },
 };

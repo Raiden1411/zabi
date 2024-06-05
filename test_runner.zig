@@ -36,15 +36,20 @@ const Modules = enum {
 };
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
+    const test_funcs: []const TestFn = builtin.test_functions;
+
+    // Return if we don't have any tests.
+    if (test_funcs.len <= 1)
+        return;
+
+    const allocator = std.heap.page_allocator;
 
     // Starts the HTTP server
     var http_server: HttpClient = undefined;
     defer http_server.deinit();
 
     try http_server.init(.{
-        .allocator = gpa.allocator(),
+        .allocator = allocator,
     });
     try http_server.listenLoopInSeperateThread(false);
 
@@ -52,18 +57,17 @@ pub fn main() !void {
     var ipc_server: IpcServer = undefined;
     defer ipc_server.deinit();
 
-    try ipc_server.init(gpa.allocator(), .{});
+    try ipc_server.init(allocator, .{});
     try ipc_server.listenLoopInSeperateThread();
 
     // Starts the WS server
-    var arena = ArenaAllocator.init(gpa.allocator());
+    var arena = ArenaAllocator.init(allocator);
     defer arena.deinit();
 
     try ws.listenLoopInSeperateThread(arena.allocator(), 69);
 
     var results: TestResults = .{};
     const printer = TestsPrinter.init(std.io.getStdErr().writer());
-    const test_funcs: []const TestFn = builtin.test_functions;
 
     var module: Modules = .abi;
 

@@ -70,7 +70,6 @@ pub fn deinit(self: *Server) void {
     self.server.deinit();
 
     self.allocator.destroy(self.server);
-    self.* = undefined;
 }
 /// Create the listen loop to handle http requests.
 pub fn listen(self: *Server, send_error_429: bool) !void {

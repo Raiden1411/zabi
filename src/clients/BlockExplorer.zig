@@ -54,6 +54,7 @@ pub const Modules = enum {
     block,
     logs,
     stats,
+    gastracker,
 
     // PRO module only
     token,
@@ -95,6 +96,10 @@ pub const Actions = enum {
     // Log actions
     getLogs,
 
+    // Gastracker actions
+    gasestimate,
+    gasoracle,
+
     // Stats actions
     tokensupply,
     ethprice,
@@ -104,6 +109,14 @@ pub const Actions = enum {
     dailyblockrewards,
     dailyavgblocktime,
     tokensupplyhistory,
+    dailyavggaslimit,
+    dailygasused,
+    dailyavggasprice,
+    ethdailyprice,
+    dailytxnfee,
+    dailynewaddress,
+    dailynetutilization,
+    dailytx,
 
     // Token actions. PRO only.
     tokenholderlist,
@@ -338,6 +351,26 @@ pub fn getContractCreation(self: *Explorer, addresses: []const Address) !Explore
     const uri = try Uri.parse(buf_writter.getWritten());
 
     return self.sendRequest([]const ContractCreationResult, uri);
+}
+/// Queries the api endpoint to find the `address` balance at the specified `tag`
+pub fn getEstimationOfConfirmation(self: *Explorer, gas_price: u64) !ExplorerResponse(u64) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .gastracker,
+        .action = .gasestimate,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(.{ .gasprice = gas_price }, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest(u64, uri);
 }
 /// Queries the api endpoint to find the `address` erc20 token balance.
 pub fn getErc20TokenBalance(self: *Explorer, request: TokenBalanceRequest) !ExplorerResponse(u256) {

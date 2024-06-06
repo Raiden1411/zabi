@@ -1022,3 +1022,79 @@ pub const EtherPriceResponse = struct {
 
     pub usingnamespace RequestParser(@This());
 };
+
+pub const GasOracle = struct {
+    /// The last block where the oracle recorded the information.
+    LastBlock: u64,
+    /// Safe gas price to used to get transaciton mined.
+    SafeGasPrice: u64,
+    /// Proposed gas price.
+    ProposeGasPrice: u64,
+    /// Fast gas price.
+    FastGasPrice: u64,
+    /// Suggest transacition base fee.
+    suggestBaseFee: f64,
+    /// Gas used ratio.
+    gasUsedRatio: []const f64,
+
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        const json_value = try Value.jsonParse(allocator, source, options);
+        return try jsonParseFromValue(allocator, json_value, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        if (source != .object)
+            return error.UnexpectedToken;
+
+        var result: @This() = undefined;
+        var seen: std.enums.EnumFieldStruct(ConvertToEnum(@This()), u32, 0) = .{};
+
+        if (source.object.get("gasUsedRatio")) |value| {
+            if (value != .string)
+                return error.UnexpectedToken;
+
+            var iter = std.mem.splitAny(u8, value.string, ",");
+            var list = std.ArrayList(f64).init(allocator);
+            errdefer list.deinit();
+
+            while (iter.next()) |slice| {
+                try list.append(try std.fmt.parseFloat(f64, slice));
+            }
+            result.gasUsedRatio = try list.toOwnedSlice();
+            @field(seen, "gasUsedRatio") = 1;
+        }
+
+        var iter = source.object.iterator();
+
+        while (iter.next()) |key_value| {
+            const field_name = key_value.key_ptr.*;
+
+            inline for (std.meta.fields(@This())) |field| {
+                if (std.mem.eql(u8, field.name, field_name)) {
+                    if (@field(seen, field.name) == 0) {
+                        @field(seen, field.name) = 1;
+                        @field(result, field.name) = try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options);
+                        break;
+                    }
+                }
+            }
+        }
+
+        inline for (std.meta.fields(@This())) |field| {
+            switch (@field(seen, field.name)) {
+                0 => if (field.default_value) |default_value| {
+                    @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
+                } else return error.MissingField,
+                1 => {},
+                else => {
+                    switch (options.duplicate_field_behavior) {
+                        .@"error" => return error.DuplicateField,
+                        else => {},
+                    }
+                },
+            }
+        }
+
+        return result;
+    }
+};

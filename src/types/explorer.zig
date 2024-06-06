@@ -102,23 +102,49 @@ pub fn ExplorerRequestResponse(comptime T: type) type {
     };
 }
 
-/// Set of predefined endpoints.
+/// Set of predefined block explorer endpoints.
+/// For now these must have support for TLS v1.3
+/// This only supports etherscan like block explorers.
 pub const EndPoints = union(enum) {
+    /// Assign it null if you would like to set the default endpoint value.
+    arbitrum: ?[]const u8,
+    /// Assign it null if you would like to set the default endpoint value.
+    arbitrum_sepolia: ?[]const u8,
+    /// Assign it null if you would like to set the default endpoint value.
+    base: ?[]const u8,
+    /// Assign it null if you would like to set the default endpoint value.
+    bsc: ?[]const u8,
     /// Currently doesn't support tls v1.3 so it won't work until
     /// zig gets support for tls v1.2
     /// Assign it null if you would like to set the default endpoint value.
     ethereum: ?[]const u8,
     /// Assign it null if you would like to set the default endpoint value.
-    optimism: ?[]const u8,
+    fantom: ?[]const u8,
     /// Assign it null if you would like to set the default endpoint value.
     localhost: ?[]const u8,
+    /// Assign it null if you would like to set the default endpoint value.
+    moonbeam: ?[]const u8,
+    /// Assign it null if you would like to set the default endpoint value.
+    optimism: ?[]const u8,
+    /// Assign it null if you would like to set the default endpoint value.
+    polygon: ?[]const u8,
+    /// Assign it null if you would like to set the default endpoint value.
+    sepolia: ?[]const u8,
 
     /// Gets the associated endpoint or the default one.
     pub fn getEndpoint(self: @This()) []const u8 {
         switch (self) {
+            .arbitrum => |path| return path orelse "https://api.arbiscan.io/api",
+            .arbitrum_sepolia => |path| return path orelse "https://api-sepolia.arbiscan.io/api",
+            .base => |path| return path orelse "https://api.basescan.org/api",
+            .bsc => |path| return path orelse "https://api.bscscan.io/api",
             .ethereum => |path| return path orelse "https://api.etherscan.io/api",
-            .optimism => |path| return path orelse "https://api-optimistic.etherscan.io/api",
+            .fantom => |path| return path orelse "https://api.ftmscan.com/api",
             .localhost => |path| return path orelse "http://localhost:3000/",
+            .moonbeam => |path| return path orelse "https://api-moonbeam.moonscan.io/api",
+            .optimism => |path| return path orelse "https://api-optimistic.etherscan.io/api",
+            .polygon => |path| return path orelse "https://api.polygonscan.io/api",
+            .sepolia => |path| return path orelse "https://api-sepolia.etherscan.io/api",
         }
     }
 };

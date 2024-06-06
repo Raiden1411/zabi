@@ -218,6 +218,7 @@ retries: usize,
 /// Creates the initial client state.
 /// This client only supports the free api endpoints via the api. We will not support PRO methods.
 /// But `zabi` has all the tools you will need to create the methods to target those endpoints.
+/// This only supports etherscan like block explorers.
 pub fn init(opts: InitOpts) Explorer {
     return .{
         .allocator = opts.allocator,

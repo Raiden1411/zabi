@@ -1058,19 +1058,18 @@ pub fn newPendingTransactionFilter(self: *IPC) !RPCResponse(u128) {
 /// Creates a read loop to read the socket messages.
 /// If a message is too long it will double the buffer size to read the message.
 pub fn readLoop(self: *IPC) !void {
-    if (@atomicLoad(bool, &self.closed, .acquire))
-        return;
-
-    var list = std.ArrayList(u8).init(self.allocator);
-    defer list.deinit();
-
     while (true) {
+        var request_buffer: [std.math.maxInt(u16)]u8 = undefined;
+        var list = std.io.fixedBufferStream(&request_buffer);
+
         errdefer @atomicStore(bool, &self.closed, true, .release);
 
         try self.readMessage(list.writer());
 
-        const message = try list.toOwnedSlice();
-        defer self.allocator.free(message.ptr[0..message.len]);
+        if (@atomicLoad(bool, &self.closed, .acquire))
+            return;
+
+        const message = list.getWritten();
 
         ipclog.debug("Got message: {s}", .{message});
 

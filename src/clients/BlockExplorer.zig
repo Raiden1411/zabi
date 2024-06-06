@@ -18,6 +18,8 @@ const BlocktimeRequest = explorer.BlocktimeRequest;
 const ContractCreationResult = explorer.ContractCreationResult;
 const EndPoints = explorer.EndPoints;
 const Erc1155TokenEventRequest = explorer.Erc1155TokenEventRequest;
+const EtherPriceResponse = explorer.EtherPriceResponse;
+const ExplorerLog = explorer.ExplorerLog;
 const ExplorerResponse = explorer.ExplorerResponse;
 const ExplorerRequestResponse = explorer.ExplorerRequestResponse;
 const ExplorerTransaction = explorer.ExplorerTransaction;
@@ -26,6 +28,7 @@ const Hash = types.Hash;
 const HttpClient = std.http.Client;
 const InternalExplorerTransaction = explorer.InternalExplorerTransaction;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
+const LogRequest = explorer.LogRequest;
 const MultiAddressBalance = explorer.MultiAddressBalance;
 const MultiAddressBalanceRequest = explorer.MultiAddressBalanceRequest;
 const QueryOptions = url.QueryOptions;
@@ -34,6 +37,7 @@ const RangeRequest = explorer.RangeRequest;
 const ReceiptStatus = explorer.ReceiptStatus;
 const TransactionStatus = explorer.TransactionStatus;
 const TransactionListRequest = explorer.TransactionListRequest;
+const TokenBalanceRequest = explorer.TokenBalanceRequest;
 const TokenEventRequest = explorer.TokenEventRequest;
 const TokenExplorerTransaction = explorer.TokenExplorerTransaction;
 const Uri = std.Uri;
@@ -50,6 +54,9 @@ pub const Modules = enum {
     block,
     logs,
     stats,
+
+    // PRO module only
+    token,
 };
 
 /// The block explorer actions.
@@ -62,9 +69,14 @@ pub const Actions = enum {
     tokentx,
     tokennfttx,
     token1155tx,
+    tokenbalance,
 
     // Only available in PRO plans. We will not support these methods.
     balancehistory,
+    tokenbalancehistory,
+    addresstokenbalance,
+    addresstokennftbalance,
+    addresstokennftinventory,
 
     // Contract actions
     getabi,
@@ -84,10 +96,18 @@ pub const Actions = enum {
     getLogs,
 
     // Stats actions
+    tokensupply,
+    ethprice,
+    ethsupply,
 
     // Only available in PRO plans. We will not support these methods.
     dailyblockrewards,
     dailyavgblocktime,
+    tokensupplyhistory,
+
+    // Token actions. PRO only.
+    tokenholderlist,
+    tokeninfo,
 };
 
 /// The client init options
@@ -138,6 +158,24 @@ pub const QueryParameters = struct {
             try stream.writeParameter(field.name);
             try stream.writeValue(@field(value, field.name));
         }
+
+        try stream.writeQueryOptions(self.options);
+
+        try stream.writeParameter("apikey");
+        try stream.writeValue(self.apikey);
+    }
+    /// Build the query parameters without any provided values.
+    /// Uses the `QueryWriter` to build the searchUrlParams.
+    pub fn buildDefaultQuery(self: @This(), writer: anytype) !void {
+        var stream = QueryWriter(@TypeOf(writer)).init(writer);
+
+        try stream.beginQuery();
+
+        try stream.writeParameter("module");
+        try stream.writeValue(self.module);
+
+        try stream.writeParameter("action");
+        try stream.writeValue(self.action);
 
         try stream.writeQueryOptions(self.options);
 
@@ -301,6 +339,46 @@ pub fn getContractCreation(self: *Explorer, addresses: []const Address) !Explore
 
     return self.sendRequest([]const ContractCreationResult, uri);
 }
+/// Queries the api endpoint to find the `address` erc20 token balance.
+pub fn getErc20TokenBalance(self: *Explorer, request: TokenBalanceRequest) !ExplorerResponse(u256) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .account,
+        .action = .tokenbalance,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(request, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest(u256, uri);
+}
+/// Queries the api endpoint to find the `address` erc20 token supply.
+pub fn getErc20TokenSupply(self: *Explorer, address: Address) !ExplorerResponse(u256) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .stats,
+        .action = .tokensupply,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(.{ .contractaddress = address }, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest(u256, uri);
+}
 /// Queries the api endpoint to find the `address` and `contractaddress` erc20 token transaction events based on a block range.
 ///
 /// This can fail because the response can be higher than `max_append_size`.
@@ -372,6 +450,26 @@ pub fn getErc1155TokenTransferEvents(self: *Explorer, request: Erc1155TokenEvent
     const uri = try Uri.parse(buf_writter.getWritten());
 
     return self.sendRequest([]const TokenExplorerTransaction, uri);
+}
+/// Queries the api endpoint to find the `address` erc20 token balance.
+pub fn getEtherPrice(self: *Explorer) !ExplorerResponse(EtherPriceResponse) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .stats,
+        .action = .ethprice,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+
+    try query.buildDefaultQuery(buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest(EtherPriceResponse, uri);
 }
 /// Queries the api endpoint to find the `address` internal transaction list based on a block range.
 ///
@@ -447,6 +545,26 @@ pub fn getInternalTransactionListByRange(self: *Explorer, request: RangeRequest,
 
     return self.sendRequest([]const InternalExplorerTransaction, uri);
 }
+/// Queries the api endpoint to find the logs at the target `address` based on the provided block range.
+pub fn getLogs(self: *Explorer, request: LogRequest, options: QueryOptions) !ExplorerResponse([]const ExplorerLog) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .logs,
+        .action = .getLogs,
+        .options = options,
+        .apikey = self.apikey,
+    };
+
+    try query.buildQuery(request, buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest([]const ExplorerLog, uri);
+}
 /// Queries the api endpoint to find the `address` balances at the specified `tag`
 pub fn getMultiAddressBalance(self: *Explorer, request: MultiAddressBalanceRequest) !ExplorerResponse([]const MultiAddressBalance) {
     var request_buffer: [4 * 1024]u8 = undefined;
@@ -488,6 +606,26 @@ pub fn getSourceCode(self: *Explorer, address: Address) !ExplorerResponse([]cons
     const uri = try Uri.parse(buf_writter.getWritten());
 
     return self.sendRequest([]const GetSourceResult, uri);
+}
+/// Queries the api endpoint to find the `address` erc20 token balance.
+pub fn getTotalEtherSupply(self: *Explorer) !ExplorerResponse(u256) {
+    var request_buffer: [4 * 1024]u8 = undefined;
+    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+
+    const query: QueryParameters = .{
+        .module = .stats,
+        .action = .ethsupply,
+        .options = .{},
+        .apikey = self.apikey,
+    };
+
+    try query.buildDefaultQuery(buf_writter.writer());
+
+    const uri = try Uri.parse(buf_writter.getWritten());
+
+    return self.sendRequest(u256, uri);
 }
 /// Queries the api endpoint to find the `address` transaction list based on a block range.
 ///
@@ -628,5 +766,26 @@ fn parseExplorerResponse(self: *Explorer, comptime T: type, request: []const u8)
 
             return error.InvalidRequest;
         },
+    }
+}
+
+test "QueryParameters" {
+    const value: QueryParameters = .{ .module = .account, .action = .balance, .options = .{ .page = 1 }, .apikey = "FOO" };
+
+    {
+        var request_buffer: [4 * 1024]u8 = undefined;
+        var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+        try value.buildQuery(.{ .bar = 69 }, buf_writter.writer());
+
+        try testing.expectEqualStrings("?module=account&action=balance&bar=69&page=1&apikey=FOO", buf_writter.getWritten());
+    }
+    {
+        var request_buffer: [4 * 1024]u8 = undefined;
+        var buf_writter = std.io.fixedBufferStream(&request_buffer);
+
+        try value.buildDefaultQuery(buf_writter.writer());
+
+        try testing.expectEqualStrings("?module=account&action=balance&page=1&apikey=FOO", buf_writter.getWritten());
     }
 }

@@ -1,9 +1,10 @@
 const abi = @import("../abi/abi.zig");
-const std = @import("std");
+const block = @import("block.zig");
 const meta = @import("../meta/json.zig");
 const meta_utils = @import("../meta/utils.zig");
-const types = @import("../types/ethereum.zig");
-const block = @import("../types/block.zig");
+const std = @import("std");
+const testing = std.testing;
+const types = @import("ethereum.zig");
 const utils = @import("../utils/utils.zig");
 
 const Abi = abi.Abi;
@@ -263,10 +264,6 @@ pub const TokenExplorerTransaction = struct {
 
         return result;
     }
-
-    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
-        try stream.write(self);
-    }
 };
 
 /// Internal transaction represented by a `etherscan` like client.
@@ -407,10 +404,6 @@ pub const InternalExplorerTransaction = struct {
         }
 
         return result;
-    }
-
-    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
-        try stream.write(self);
     }
 };
 
@@ -589,10 +582,6 @@ pub const ExplorerTransaction = struct {
 
         return result;
     }
-
-    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
-        try stream.write(self);
-    }
 };
 
 pub const GetSourceResult = struct {
@@ -723,10 +712,6 @@ pub const GetSourceResult = struct {
 
         return result;
     }
-
-    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
-        try stream.write(self);
-    }
 };
 
 pub const Erc1155TokenEventRequest = struct {
@@ -825,10 +810,6 @@ pub const ContractCreationResult = struct {
 
         return result;
     }
-
-    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
-        try stream.write(self);
-    }
 };
 
 pub const TransactionStatus = struct {
@@ -864,10 +845,6 @@ pub const TransactionStatus = struct {
 
         return result;
     }
-
-    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
-        try stream.write(self);
-    }
 };
 
 pub const ReceiptStatus = struct {
@@ -893,10 +870,6 @@ pub const ReceiptStatus = struct {
         } else return error.UnexpectedToken;
 
         return result;
-    }
-
-    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
-        try stream.write(self);
     }
 };
 
@@ -968,10 +941,44 @@ pub const BlockRewards = struct {
 
         return result;
     }
+};
 
-    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
-        try stream.write(self);
-    }
+/// `getLogs` request via a block explorer.
+pub const LogRequest = struct {
+    /// The address where you want to grab the logs.
+    address: Address,
+    /// The start block range where you want search from.
+    fromBlock: u64,
+    /// The en block range where you want search to.
+    toBlock: u64,
+};
+
+/// Zig struct representation of the log explorer response.
+pub const ExplorerLog = struct {
+    /// The contract address
+    address: Address,
+    /// The emitted log topics from the contract call.
+    topics: []const ?Hash,
+    /// The data sent via the log
+    data: []u8,
+    /// The block number this log was emitted.
+    blockNumber: ?u64,
+    /// The block hash where this log was emitted.
+    blockHash: ?Hash,
+    /// The timestamp where this log was emitted.
+    timeStamp: u64,
+    /// The gas price of the transaction this log was emitted in.
+    gasPrice: u64,
+    /// The gas used by the transaction this log was emitted in.
+    gasUsed: u64,
+    /// The log index.
+    logIndex: ?usize,
+    /// The transaction hash that emitted this log.
+    transactionHash: ?Hash,
+    /// The transaction index in the memory pool location.
+    transactionIndex: ?usize,
+
+    pub usingnamespace RequestParser(@This());
 };
 
 pub const BlockCountdown = struct {
@@ -992,4 +999,26 @@ pub const BlocktimeRequest = struct {
     timestamp: u64,
     /// The tag to choose for finding the closest block based on the timestamp.
     closest: enum { before, after },
+};
+
+pub const TokenBalanceRequest = struct {
+    /// The target address.
+    address: Address,
+    /// The target contract address.
+    contractaddress: Address,
+    /// The block tag to use to query this information.
+    tag: BlockTag,
+};
+
+pub const EtherPriceResponse = struct {
+    /// The ETH-BTC price.
+    ethbtc: f64,
+    /// The ETH-BTC price timestamp.
+    ethbtc_timestamp: u64,
+    /// The ETH-USD price.
+    ethusd: f64,
+    /// The ETH-USD price timestamp.
+    ethusd_timestamp: u64,
+
+    pub usingnamespace RequestParser(@This());
 };

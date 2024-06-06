@@ -69,7 +69,7 @@ pub fn generateRandomData(comptime T: type, allocator: Allocator, seed: u64, opt
 /// be cumbersome to free.
 ///
 /// This works on most zig types with a few expections of course.
-pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64, opts: GenerateOptions) !T {
+pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64, opts: GenerateOptions) Allocator.Error!T {
     const info = @typeInfo(T);
 
     switch (info) {

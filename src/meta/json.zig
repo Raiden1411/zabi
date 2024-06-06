@@ -405,7 +405,10 @@ pub fn RequestParser(comptime T: type) type {
                 .Int, .ComptimeInt => {
                     switch (source) {
                         .number_string, .string => |str| {
-                            return try std.fmt.parseInt(TT, str, 0);
+                            if (std.mem.eql(u8, str, "0x"))
+                                return 0;
+
+                            return std.fmt.parseInt(TT, str, 0);
                         },
                         .float => |f| {
                             if (@round(f) != f) return error.InvalidNumber;

@@ -70,6 +70,7 @@ Explore the [docs](https://zabi.sh) to find out more on how you can use or integ
 - Json RPC with support for http/s, ws/s and ipc connections.
 - EVM Interperter that you can use to run contract bytecode.
 - Wallet instances and contract instances to use for interacting with nodes/json rpc.
+- BlockExplorer support. Only the free methods from those api endpoints are supported.
 - Custom Secp256k1 ECDSA signer using only Zig and implementation of RFC6979 nonce generator.
 - Custom JSON Parser that can be used to deserialize and serialized RPC data at runtime.
 - ABI to zig types.

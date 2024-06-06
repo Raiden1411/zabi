@@ -93,6 +93,11 @@ pub const Actions = enum {
     getblockcountdown,
     getblocknobytime,
 
+    // PRO actions only
+    dailyavgblocksize,
+    dailyblkcount,
+    dailyuncleblkcount,
+
     // Log actions
     getLogs,
 

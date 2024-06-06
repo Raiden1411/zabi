@@ -16,3 +16,9 @@ pub const WebSocket = @import("WebSocket.zig");
 /// Supports most RPC methods. Converts errors responses
 /// into zig errors. Handles error 429 but not the rest.
 pub const IpcClient = @import("IPC.zig");
+/// The Block explorer client. Used for calling the api endpoints
+/// of endpoints like etherscan and alike. It has it's own dedicated
+/// `searchUrlParams` writer. It only supports the free api methods,
+/// but you should have all the tool available in the library if you want to target
+/// the PRO methods.
+pub const BlockExplorer = @import("BlockExplorer.zig");

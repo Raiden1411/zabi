@@ -24,7 +24,6 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
-        .link_libc = true,
         .test_runner = b.path("test_runner.zig"),
     });
 
@@ -166,7 +165,7 @@ fn buildAndRunConverage(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
-        .link_libc = true,
+        .test_runner = b.path("test_runner.zig"),
     });
 
     addDependencies(b, &lib_unit_tests.root_module, target, optimize);

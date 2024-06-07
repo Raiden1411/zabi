@@ -1,11 +1,16 @@
-const json_meta = @import("../meta/json.zig");
+const std = @import("std");
+const meta = @import("../meta/root.zig");
 const types = @import("ethereum.zig");
 
 // Types
 const Address = types.Address;
+const Allocator = std.mem.Allocator;
 const Hash = types.Hash;
 const Hex = types.Hex;
-const RequestParser = json_meta.RequestParser;
+const ParseError = std.json.ParseError;
+const ParseFromValueError = std.json.ParseFromValueError;
+const ParseOptions = std.json.ParseOptions;
+const Value = std.json.Value;
 const Wei = types.Wei;
 
 /// Eth get proof rpc request.
@@ -25,7 +30,17 @@ pub const ProofResult = struct {
     accountProof: []const Hex,
     storageProof: []const StorageProof,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 
 pub const StorageProof = struct {
@@ -34,5 +49,15 @@ pub const StorageProof = struct {
     /// Array of RLP-serialized MerkleTree-Nodes
     proof: []const Hex,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };

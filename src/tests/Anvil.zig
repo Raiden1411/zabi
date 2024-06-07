@@ -1,4 +1,5 @@
-const meta = @import("../meta/json.zig");
+const meta_json = @import("../meta/json.zig");
+const meta_utils = @import("../meta/utils.zig");
 const std = @import("std");
 const types = @import("../types/ethereum.zig");
 const utils = @import("../utils/utils.zig");
@@ -6,9 +7,13 @@ const utils = @import("../utils/utils.zig");
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Anvil = @This();
+const ConvertToEnum = meta_utils.ConvertToEnum;
 const Hash = types.Hash;
 const Hex = types.Hex;
-const RequestParser = meta.RequestParser;
+const ParseError = std.json.ParseError;
+const ParseFromValueError = std.json.ParseFromValueError;
+const ParseOptions = std.json.ParseOptions;
+const Value = std.json.Value;
 
 pub const Reset = struct {
     forking: struct {
@@ -16,7 +21,17 @@ pub const Reset = struct {
         blockNumber: u64,
     },
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta_json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta_json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta_json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 
 pub fn AnvilRequest(comptime T: type) type {
@@ -26,7 +41,17 @@ pub fn AnvilRequest(comptime T: type) type {
         params: T,
         id: usize = 1,
 
-        pub usingnamespace RequestParser(@This());
+        pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+            return meta_json.jsonParse(@This(), allocator, source, options);
+        }
+
+        pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+            return meta_json.jsonParseFromValue(@This(), allocator, source, options);
+        }
+
+        pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+            return meta_json.jsonStringify(@This(), self, writer_stream);
+        }
     };
 }
 
@@ -67,7 +92,7 @@ fork_url: []const u8,
 /// The socket connection to anvil. Use `connectToAnvil` to populate this.
 http_client: std.http.Client,
 /// The ChildProcess result. This contains all related commands.
-result: std.ChildProcess,
+result: std.process.Child,
 /// The theared that gets spawn on init for the ChildProcess so that we don't block the main thread.
 thread: std.Thread,
 /// Connection closed.
@@ -247,7 +272,7 @@ pub fn stopImpersonatingAccount(self: *Anvil, address: Address) !void {
 /// Start the child process. Use this with init if you want to use this in a seperate theread.
 pub fn start(self: *Anvil) !void {
     const port = self.localhost.port orelse return error.InvalidAddressPort;
-    var result = std.ChildProcess.init(&.{ "anvil", "-f", self.fork_url, "--fork-block-number", self.block_number_fork, "--port", port }, self.alloc);
+    var result = std.process.Child.init(&.{ "anvil", "-f", self.fork_url, "--fork-block-number", self.block_number_fork, "--port", port }, self.alloc);
     result.stdin_behavior = .Pipe;
     result.stdout_behavior = .Pipe;
     result.stderr_behavior = .Pipe;

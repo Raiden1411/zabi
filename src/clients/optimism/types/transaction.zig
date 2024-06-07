@@ -1,12 +1,17 @@
+const std = @import("std");
 const ethereum_types = @import("../../../types/ethereum.zig");
-const meta = @import("../../../meta/json.zig");
+const meta = @import("../../../meta/root.zig");
 const transaction_types = @import("../../../types/transaction.zig");
 
+const Allocator = std.mem.Allocator;
 const Address = ethereum_types.Address;
 const Gwei = ethereum_types.Gwei;
 const Hash = ethereum_types.Hash;
 const Hex = ethereum_types.Hex;
-const RequestParser = meta.RequestParser;
+const ParseError = std.json.ParseError;
+const ParseFromValueError = std.json.ParseFromValueError;
+const ParseOptions = std.json.ParseOptions;
+const Value = std.json.Value;
 const TransactionTypes = transaction_types.TransactionTypes;
 const Wei = ethereum_types.Wei;
 
@@ -46,7 +51,17 @@ pub const DepositTransactionSigned = struct {
     isSystemTx: ?bool = null,
     depositReceiptVersion: ?u64 = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 
 pub const DepositData = struct {

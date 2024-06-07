@@ -12,7 +12,7 @@ const Mutex = std.Thread.Mutex;
 /// will not clear all memory. You must clear them one by one.
 pub fn Stack(comptime T: type) type {
     return struct {
-        const Self = Stack(T);
+        const Self = @This();
 
         /// Inner arraylist used to manage the stack
         inner: ArrayList(T),

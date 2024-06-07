@@ -1,7 +1,6 @@
 const abi = @import("../abi/abi.zig");
 const block = @import("block.zig");
-const meta = @import("../meta/json.zig");
-const meta_utils = @import("../meta/utils.zig");
+const meta = @import("../meta/root.zig");
 const std = @import("std");
 const testing = std.testing;
 const types = @import("ethereum.zig");
@@ -12,12 +11,11 @@ const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const BlockTag = block.BlockTag;
-const ConvertToEnum = meta_utils.ConvertToEnum;
+const ConvertToEnum = meta.utils.ConvertToEnum;
 const Hash = types.Hash;
 const ParseOptions = std.json.ParseOptions;
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
-const RequestParser = meta.RequestParser;
 const SemanticVersion = std.SemanticVersion;
 const Value = std.json.Value;
 const Uri = std.Uri;
@@ -52,7 +50,17 @@ pub fn ExplorerSuccessResponse(comptime T: type) type {
         message: enum { OK } = .OK,
         result: T,
 
-        pub usingnamespace RequestParser(@This());
+        pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+            return meta.json.jsonParse(@This(), allocator, source, options);
+        }
+
+        pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+            return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+        }
+
+        pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+            return meta.json.jsonStringify(@This(), self, writer_stream);
+        }
     };
 }
 
@@ -62,7 +70,17 @@ pub const ExplorerErrorResponse = struct {
     message: []const u8,
     result: []const u8,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 
 /// The response represented as a union of possible responses.
@@ -156,7 +174,17 @@ pub const MultiAddressBalance = struct {
     /// The balance of the account.
     balance: u256,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 
 /// Token transaction represented by a `etherscan` like client.
@@ -1004,7 +1032,17 @@ pub const ExplorerLog = struct {
     /// The transaction index in the memory pool location.
     transactionIndex: ?usize,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 
 pub const BlockCountdown = struct {
@@ -1017,7 +1055,17 @@ pub const BlockCountdown = struct {
     /// The seconds until `CountdownBlock` is reached.
     EstimateTimeInSec: f64,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 
 pub const BlocktimeRequest = struct {
@@ -1046,7 +1094,17 @@ pub const EtherPriceResponse = struct {
     /// The ETH-USD price timestamp.
     ethusd_timestamp: u64,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 
 pub const GasOracle = struct {

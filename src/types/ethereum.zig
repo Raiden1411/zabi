@@ -19,7 +19,6 @@ const ParseFromValueError = std.json.ParseFromValueError;
 const ParseOptions = std.json.ParseOptions;
 const PoolTransactionByNonce = txpool.PoolTransactionByNonce;
 const ProofResult = proof.ProofResult;
-const RequestParser = meta.json.RequestParser;
 const SyncProgress = sync.SyncStatus;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
@@ -152,7 +151,17 @@ pub fn EthereumRequest(comptime T: type) type {
         params: T,
         id: usize,
 
-        pub usingnamespace RequestParser(@This());
+        pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+            return meta.json.jsonParse(@This(), allocator, source, options);
+        }
+
+        pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+            return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+        }
+
+        pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+            return meta.json.jsonStringify(@This(), self, writer_stream);
+        }
     };
 }
 pub fn EthereumResponse(comptime T: type) type {
@@ -194,7 +203,17 @@ pub fn EthereumRpcResponse(comptime T: type) type {
         id: ?usize = null,
         result: T,
 
-        pub usingnamespace RequestParser(@This());
+        pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+            return meta.json.jsonParse(@This(), allocator, source, options);
+        }
+
+        pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+            return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+        }
+
+        pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+            return meta.json.jsonStringify(@This(), self, writer_stream);
+        }
     };
 }
 /// Zig struct representation of a RPC subscribe response
@@ -206,10 +225,30 @@ pub fn EthereumSubscribeResponse(comptime T: type) type {
             result: T,
             subscription: u128,
 
-            pub usingnamespace RequestParser(@This());
+            pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+                return meta.json.jsonParse(@This(), allocator, source, options);
+            }
+
+            pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+                return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+            }
+
+            pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+                return meta.json.jsonStringify(@This(), self, writer_stream);
+            }
         },
 
-        pub usingnamespace RequestParser(@This());
+        pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+            return meta.json.jsonParse(@This(), allocator, source, options);
+        }
+
+        pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+            return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+        }
+
+        pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+            return meta.json.jsonStringify(@This(), self, writer_stream);
+        }
     };
 }
 /// Zig struct representation of a RPC error message
@@ -218,7 +257,17 @@ pub const ErrorResponse = struct {
     message: []const u8,
     data: ?[]const u8 = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Zig struct representation of a contract error response
 pub const ContractErrorResponse = struct {
@@ -283,5 +332,15 @@ pub const EthereumErrorResponse = struct {
     id: ?usize = null,
     @"error": ErrorResponse,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };

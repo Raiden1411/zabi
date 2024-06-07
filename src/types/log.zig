@@ -1,15 +1,19 @@
+const std = @import("std");
 const block = @import("block.zig");
 const meta = @import("../meta/root.zig");
 const types = @import("ethereum.zig");
 
 // Types
+const Allocator = std.mem.Allocator;
 const Address = types.Address;
 const BalanceBlockTag = block.BalanceBlockTag;
-const Extract = meta.Extract;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
-const RequestParser = meta.json.RequestParser;
+const ParseError = std.json.ParseError;
+const ParseFromValueError = std.json.ParseFromValueError;
+const ParseOptions = std.json.ParseOptions;
+const Value = std.json.Value;
 const Wei = types.Wei;
 
 /// Zig struct representation of the log RPC response.
@@ -26,7 +30,17 @@ pub const Log = struct {
     transactionLogIndex: ?usize = null,
     blockTimestamp: ?u64 = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Slice of the struct log
 pub const Logs = []const Log;
@@ -40,7 +54,17 @@ pub const LogRequest = struct {
     topics: ?[]const ?Hex = null,
     blockHash: ?Hash = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Same as `LogRequest` but `fromBlock` and
 /// `toBlock` are tags.
@@ -51,12 +75,32 @@ pub const LogTagRequest = struct {
     topics: ?[]const ?Hex = null,
     blockHash: ?Hash = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Options for `watchLogs` websocket request.
 pub const WatchLogsRequest = struct {
     address: Address,
     topics: ?[]const ?Hex = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };

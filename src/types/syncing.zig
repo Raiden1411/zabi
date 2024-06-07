@@ -1,4 +1,12 @@
-const RequestParser = @import("../meta/json.zig").RequestParser;
+const std = @import("std");
+const meta = @import("../meta/root.zig");
+
+// Types
+const Allocator = std.mem.Allocator;
+const ParseError = std.json.ParseError;
+const ParseFromValueError = std.json.ParseFromValueError;
+const ParseOptions = std.json.ParseOptions;
+const Value = std.json.Value;
 
 /// Result when calling `eth_syncing` if a node hasn't finished syncing
 pub const SyncStatus = struct {
@@ -20,5 +28,15 @@ pub const SyncStatus = struct {
     txIndexFinishedBlocks: u64,
     txIndexRemainingBlocks: u64,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };

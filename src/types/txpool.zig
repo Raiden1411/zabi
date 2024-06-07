@@ -1,6 +1,5 @@
 const std = @import("std");
-const meta_json = @import("../meta/json.zig");
-const meta_utils = @import("../meta/utils.zig");
+const meta = @import("../meta/root.zig");
 const tx_types = @import("transaction.zig");
 const types = @import("ethereum.zig");
 
@@ -8,14 +7,13 @@ const Address = types.Address;
 const AddressHashMap = std.AutoArrayHashMap(Address, PoolTransactionByNonce);
 const InspectAddressHashMap = std.AutoArrayHashMap(Address, InspectPoolTransactionByNonce);
 const Allocator = std.mem.Allocator;
-const ConvertToEnum = meta_utils.ConvertToEnum;
+const ConvertToEnum = meta.ConvertToEnum;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const PoolPendingTransactionHashMap = std.AutoArrayHashMap(u64, Transaction);
 const InspectPoolPendingTransactionHashMap = std.AutoArrayHashMap(u64, []const u8);
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
 const ParseOptions = std.json.ParseOptions;
-const RequestParser = meta_json.RequestParser;
 const Transaction = tx_types.Transaction;
 const Value = std.json.Value;
 
@@ -24,20 +22,50 @@ pub const TxPoolStatus = struct {
     pending: u64,
     queued: u64,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Result tx pool content.
 pub const TxPoolContent = struct {
     pending: Subpool,
     queued: Subpool,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 pub const TxPoolInspect = struct {
     pending: InspectSubpool,
     queued: InspectSubpool,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Geth mempool subpool type
 pub const Subpool = struct {

@@ -1,4 +1,4 @@
-const meta = @import("../meta/json.zig");
+const meta_json = @import("../meta/json.zig");
 const std = @import("std");
 const types = @import("../types/ethereum.zig");
 const utils = @import("../utils/utils.zig");
@@ -9,7 +9,10 @@ const FetchResult = std.http.Client.FetchResult;
 const Hardhat = @This();
 const Hash = types.Hash;
 const Hex = types.Hex;
-const RequestParser = meta.RequestParser;
+const ParseError = std.json.ParseError;
+const ParseFromValueError = std.json.ParseFromValueError;
+const ParseOptions = std.json.ParseOptions;
+const Value = std.json.Value;
 
 pub const Reset = struct {
     forking: struct {
@@ -17,7 +20,17 @@ pub const Reset = struct {
         blockNumber: u64,
     },
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta_json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta_json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta_json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 
 pub fn HardhatRequest(comptime T: type) type {
@@ -27,7 +40,17 @@ pub fn HardhatRequest(comptime T: type) type {
         params: T,
         id: usize = 1,
 
-        pub usingnamespace RequestParser(@This());
+        pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+            return meta_json.jsonParse(@This(), allocator, source, options);
+        }
+
+        pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+            return meta_json.jsonParseFromValue(@This(), allocator, source, options);
+        }
+
+        pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+            return meta_json.jsonStringify(@This(), self, writer_stream);
+        }
     };
 }
 

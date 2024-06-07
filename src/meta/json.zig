@@ -4,7 +4,6 @@ const testing = std.testing;
 const types = @import("../types/root.zig");
 const meta_utils = @import("../meta/utils.zig");
 
-// Types
 const Allocator = std.mem.Allocator;
 const ConvertToEnum = meta_utils.ConvertToEnum;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
@@ -14,690 +13,419 @@ const ParseOptions = std.json.ParseOptions;
 const Token = std.json.Token;
 const Value = std.json.Value;
 
-/// UnionParser used by `zls`. Usefull to use in `AbiItem`
-/// https://github.com/zigtools/zls/blob/d1ad449a24ea77bacbeccd81d607fa0c11f87dd6/src/lsp.zig#L77
-pub fn UnionParser(comptime T: type) type {
-    return struct {
-        pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!T {
-            const json_value = try Value.jsonParse(allocator, source, options);
-            return try jsonParseFromValue(allocator, json_value, options);
-        }
-
-        pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!T {
-            inline for (std.meta.fields(T)) |field| {
-                if (std.json.parseFromValueLeaky(field.type, allocator, source, options)) |result| {
-                    return @unionInit(T, field.name, result);
-                } else |_| {}
-            }
-            return error.UnexpectedToken;
-        }
-
-        pub fn jsonStringify(self: T, stream: anytype) @TypeOf(stream.*).Error!void {
-            switch (self) {
-                inline else => |value| try stream.write(value),
-            }
-        }
-    };
-}
 /// Custom jsonParse that is mostly used to enable
 /// the ability to parse hex string values into native `int` types,
 /// since parsing hex values is not part of the JSON RFC we need to rely on
 /// the hability of zig to create a custom jsonParse method for structs
-pub fn RequestParser(comptime T: type) type {
-    return struct {
-        pub fn jsonStringify(self: T, writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
-            const info = @typeInfo(T);
+pub fn jsonParse(comptime T: type, allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!T {
+    const json_value = try Value.jsonParse(allocator, source, options);
+    return try jsonParseFromValue(T, allocator, json_value, options);
+}
 
-            try valueStart(writer_stream);
-            writer_stream.next_punctuation = .the_beginning;
+/// Custom jsonParseFromValue that is mostly used to enable
+/// the ability to parse hex string values into native `int` types,
+/// since parsing hex values is not part of the JSON RFC we need to rely on
+/// the hability of zig to create a custom jsonParseFromValue method for structs
+pub fn jsonParseFromValue(comptime T: type, allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!T {
+    const info = @typeInfo(T);
+    if (source != .object) return error.UnexpectedToken;
 
-            try writer_stream.stream.writeByte('{');
-            inline for (info.Struct.fields) |field| {
-                var emit_field = true;
-                if (@typeInfo(field.type) == .Optional) {
-                    if (@field(self, field.name) == null and !writer_stream.options.emit_null_optional_fields) {
-                        emit_field = false;
+    var result: T = undefined;
+    var seen: std.enums.EnumFieldStruct(ConvertToEnum(T), u32, 0) = .{};
+
+    var iter = source.object.iterator();
+
+    while (iter.next()) |token| {
+        const field_name = token.key_ptr.*;
+
+        inline for (info.Struct.fields) |field| {
+            if (std.mem.eql(u8, field.name, field_name)) {
+                if (@field(seen, field.name) == 1) {
+                    switch (options.duplicate_field_behavior) {
+                        .@"error" => return error.DuplicateField,
+                        .use_last => {},
+                        .use_first => {
+                            _ = try innerParseValueRequest(field.type, allocator, source, options);
+
+                            break;
+                        },
                     }
                 }
+                @field(seen, field.name) = 1;
+                @field(result, field.name) = try innerParseValueRequest(field.type, allocator, token.value_ptr.*, options);
+                break;
+            }
+        } else {
+            if (!options.ignore_unknown_fields)
+                return error.UnknownField;
+        }
+    }
 
-                if (emit_field) {
-                    try valueStart(writer_stream);
-                    try std.json.encodeJsonString(field.name, .{}, writer_stream.stream);
-                    writer_stream.next_punctuation = .colon;
-                    try innerStringfy(@field(self, field.name), writer_stream);
+    inline for (info.Struct.fields) |field| {
+        switch (@field(seen, field.name)) {
+            0 => if (field.default_value) |default_value| {
+                @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
+            } else return error.MissingField,
+            1 => {},
+            else => {
+                switch (options.duplicate_field_behavior) {
+                    .@"error" => return error.DuplicateField,
+                    else => {},
                 }
-            }
-            switch (writer_stream.next_punctuation) {
-                .none, .comma => {},
-                else => unreachable,
-            }
-            try writer_stream.stream.writeByte('}');
-            writer_stream.next_punctuation = .comma;
+            },
+        }
+    }
 
-            return;
+    return result;
+}
+
+/// Custom jsonStringify that is mostly used to enable
+/// the ability to parse int values as hex and to parse address with checksum
+/// and to treat array and slices of `u8` as hex encoded strings. This doesn't
+/// apply if the slice is `const`.
+/// Parsing hex values or dealing with strings like this is not part of the JSON RFC we need to rely on
+/// the hability of zig to create a custom jsonStringify method for structs
+pub fn jsonStringify(comptime T: type, self: T, writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    const info = @typeInfo(T);
+
+    try valueStart(writer_stream);
+
+    try writer_stream.stream.writeByte('{');
+    writer_stream.next_punctuation = .the_beginning;
+    inline for (info.Struct.fields) |field| {
+        var emit_field = true;
+        if (@typeInfo(field.type) == .Optional) {
+            if (@field(self, field.name) == null and !writer_stream.options.emit_null_optional_fields) {
+                emit_field = false;
+            }
         }
 
-        fn innerStringfy(value: anytype, stream_writer: anytype) !void {
-            const info = @typeInfo(@TypeOf(value));
+        if (emit_field) {
+            try valueStart(writer_stream);
+            try std.json.encodeJsonString(field.name, .{}, writer_stream.stream);
+            writer_stream.next_punctuation = .colon;
+            try innerStringify(@field(self, field.name), writer_stream);
+        }
+    }
+    switch (writer_stream.next_punctuation) {
+        .none, .comma => {},
+        else => unreachable,
+    }
+    try writer_stream.stream.writeByte('}');
+    writer_stream.next_punctuation = .comma;
 
-            switch (info) {
-                .Bool => {
-                    try valueStart(stream_writer);
-                    try stream_writer.stream.writeAll(if (value) "true" else "false");
-                    stream_writer.next_punctuation = .comma;
-                },
-                .Int, .ComptimeInt => {
-                    try valueStart(stream_writer);
-                    try stream_writer.stream.writeByte('\"');
-                    try stream_writer.stream.print("0x{x}", .{value});
-                    try stream_writer.stream.writeByte('\"');
-                    stream_writer.next_punctuation = .comma;
-                },
-                .Float, .ComptimeFloat => {
-                    try valueStart(stream_writer);
-                    try stream_writer.stream.print("{d}", .{value});
-                    stream_writer.next_punctuation = .comma;
-                },
-                .Null => {
-                    try valueStart(stream_writer);
-                    try stream_writer.stream.writeAll("null");
-                    stream_writer.next_punctuation = .comma;
-                },
-                .Optional => {
-                    if (value) |val| {
-                        return try innerStringfy(val, stream_writer);
-                    } else return try innerStringfy(null, stream_writer);
-                },
-                .Enum, .EnumLiteral => {
-                    try valueStart(stream_writer);
-                    try std.json.encodeJsonString(@tagName(value), .{}, stream_writer.stream);
-                    stream_writer.next_punctuation = .comma;
-                },
-                .ErrorSet => {
-                    try valueStart(stream_writer);
-                    try std.json.encodeJsonString(@errorName(value), .{}, stream_writer.stream);
-                    stream_writer.next_punctuation = .comma;
-                },
-                .Array => |arr_info| {
-                    try valueStart(stream_writer);
-                    // We assume that we are dealying with hex bytes.
-                    // Mostly usefull for the cases of wanting to hex addresses and hashes
-                    if (arr_info.child == u8) {
-                        switch (arr_info.len) {
-                            20 => {
-                                var buffer: [(arr_info.len * 2) + 2]u8 = undefined;
-                                var hash_buffer: [Keccak256.digest_length]u8 = undefined;
+    return;
+}
+/// Inner parser that enables the behaviour described above.
+/// We don't use the `innerParse` from slice because the slice is get parsed
+/// as a json dynamic `Value`.
+pub fn innerParseValueRequest(comptime T: type, allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!T {
+    const info = @typeInfo(T);
 
-                                const hexed = std.fmt.bytesToHex(value, .lower);
-                                Keccak256.hash(&hexed, &hash_buffer, .{});
+    switch (info) {
+        .Bool => {
+            switch (source) {
+                .string => |val| return try std.fmt.parseInt(u1, val, 0) != 0,
+                else => return std.json.innerParseFromValue(T, allocator, source, options),
+            }
+        },
+        .Int, .ComptimeInt => {
+            switch (source) {
+                .number_string, .string => |str| {
+                    if (std.mem.eql(u8, str, "0x"))
+                        return 0;
 
-                                // Checksum the address
-                                for (buffer[2..], 0..) |*c, i| {
-                                    const char = hexed[i];
-                                    switch (char) {
-                                        'a'...'f' => {
-                                            const mask: u8 = if (i % 2 == 0) 0x80 else 0x08;
-                                            if ((hash_buffer[i / 2] & mask) > 7) {
-                                                c.* = char & 0b11011111;
-                                            } else c.* = char;
-                                        },
-                                        else => {
-                                            c.* = char;
-                                        },
-                                    }
-                                }
-                                @memcpy(buffer[0..2], "0x");
-                                try std.json.encodeJsonString(buffer[0..], .{}, stream_writer.stream);
-                            },
-                            40 => {
-                                // We assume that this is a checksumed address with missing "0x" start.
-                                var buffer: [arr_info.len + 2]u8 = undefined;
-                                @memcpy(buffer[2..], value);
-                                @memcpy(buffer[0..2], "0x");
-                                try std.json.encodeJsonString(buffer[0..], .{}, stream_writer.stream);
-                            },
-                            42 => {
-                                // we just write the checksumed address
-                                try std.json.encodeJsonString(value[0..], .{}, stream_writer.stream);
-                            },
-                            else => {
-                                // Treat the rest as a normal hex encoded value
-                                var buffer: [(arr_info.len * 2) + 2]u8 = undefined;
-                                const hexed = std.fmt.bytesToHex(value, .lower);
-                                @memcpy(buffer[2..], hexed[0..]);
-                                @memcpy(buffer[0..2], "0x");
-                                try std.json.encodeJsonString(buffer[0..], .{}, stream_writer.stream);
-                            },
+                    return std.fmt.parseInt(T, str, 0);
+                },
+                .float => return std.json.innerParseFromValue(T, allocator, source, options),
+                .integer => return std.json.innerParseFromValue(T, allocator, source, options),
+
+                else => return error.UnexpectedToken,
+            }
+        },
+        .Optional => |opt_info| {
+            switch (source) {
+                .null => return null,
+                else => return try innerParseValueRequest(opt_info.child, allocator, source, options),
+            }
+        },
+        .Enum => |enum_info| {
+            switch (source) {
+                .number_string, .string => |slice| {
+                    if (std.meta.stringToEnum(T, slice)) |result| return result;
+
+                    const enum_number = std.fmt.parseInt(enum_info.tag_type, slice, 0) catch return error.InvalidEnumTag;
+                    return std.meta.intToEnum(T, enum_number);
+                },
+                else => return std.json.innerParseFromValue(T, allocator, source, options),
+            }
+        },
+        .Array => |arr_info| {
+            switch (source) {
+                .array => |arr| {
+                    var result: T = undefined;
+                    for (arr.items, 0..) |item, i| {
+                        result[i] = try innerParseValueRequest(arr_info.child, allocator, item, options);
+                    }
+
+                    return result;
+                },
+                .string => |str| {
+                    if (arr_info.child != u8)
+                        return error.UnexpectedToken;
+
+                    var result: T = undefined;
+
+                    const slice = if (std.mem.startsWith(u8, str, "0x")) str[2..] else str[0..];
+                    if (std.fmt.hexToBytes(&result, slice)) |_| {
+                        if (arr_info.len != slice.len / 2)
+                            return error.LengthMismatch;
+
+                        return result;
+                    } else |_| {
+                        if (slice.len != result.len)
+                            return error.LengthMismatch;
+
+                        @memcpy(result[0..], slice[0..]);
+                    }
+                    return result;
+                },
+                else => return std.json.innerParseFromValue(T, allocator, source, options),
+            }
+        },
+        .Pointer => |ptr_info| {
+            switch (ptr_info.size) {
+                .One => {
+                    const result: *ptr_info.child = try allocator.create(ptr_info.child);
+                    result.* = try innerParseValueRequest(ptr_info.child, allocator, source, options);
+                    return result;
+                },
+                .Slice => {
+                    switch (source) {
+                        .array => |array| {
+                            const arr = try allocator.alloc(ptr_info.child, array.items.len);
+                            for (array.items, arr) |item, *res| {
+                                res.* = try innerParseValueRequest(ptr_info.child, allocator, item, options);
+                            }
+
+                            return arr;
+                        },
+                        .string => |str| {
+                            if (ptr_info.child != u8)
+                                return error.UnexpectedToken;
+
+                            if (ptr_info.is_const)
+                                return str;
+
+                            if (str.len & 1 != 0)
+                                return error.InvalidCharacter;
+
+                            const slice = if (std.mem.startsWith(u8, str, "0x")) str[2..] else str[0..];
+                            const result = try allocator.alloc(u8, @divExact(slice.len, 2));
+
+                            _ = std.fmt.hexToBytes(result, slice) catch return error.UnexpectedToken;
+
+                            return result;
+                        },
+                        else => return error.UnexpectedToken,
+                    }
+                },
+                else => @compileError("Unable to parse pointer type " ++ @typeName(T)),
+            }
+        },
+        else => return std.json.innerParseFromValue(T, allocator, source, options),
+    }
+}
+/// Inner stringifier that enables the behaviour described above.
+pub fn innerStringify(value: anytype, stream_writer: anytype) !void {
+    const info = @typeInfo(@TypeOf(value));
+
+    switch (info) {
+        .Bool => {
+            try valueStart(stream_writer);
+            try stream_writer.stream.writeAll(if (value) "true" else "false");
+            stream_writer.next_punctuation = .comma;
+        },
+        .Int, .ComptimeInt => {
+            try valueStart(stream_writer);
+            try stream_writer.stream.writeByte('\"');
+            try stream_writer.stream.print("0x{x}", .{value});
+            try stream_writer.stream.writeByte('\"');
+            stream_writer.next_punctuation = .comma;
+        },
+        .Float, .ComptimeFloat => {
+            try valueStart(stream_writer);
+            try stream_writer.stream.print("{d}", .{value});
+            stream_writer.next_punctuation = .comma;
+        },
+        .Null => {
+            try valueStart(stream_writer);
+            try stream_writer.stream.writeAll("null");
+            stream_writer.next_punctuation = .comma;
+        },
+        .Optional => {
+            if (value) |val| {
+                return try innerStringify(val, stream_writer);
+            } else return try innerStringify(null, stream_writer);
+        },
+        .Enum, .EnumLiteral => {
+            try valueStart(stream_writer);
+            try std.json.encodeJsonString(@tagName(value), .{}, stream_writer.stream);
+            stream_writer.next_punctuation = .comma;
+        },
+        .ErrorSet => {
+            try valueStart(stream_writer);
+            try std.json.encodeJsonString(@errorName(value), .{}, stream_writer.stream);
+            stream_writer.next_punctuation = .comma;
+        },
+        .Array => |arr_info| {
+            try valueStart(stream_writer);
+            // We assume that we are dealying with hex bytes.
+            // Mostly usefull for the cases of wanting to hex addresses and hashes
+            if (arr_info.child == u8) {
+                switch (arr_info.len) {
+                    20 => {
+                        var buffer: [(arr_info.len * 2) + 2]u8 = undefined;
+                        var hash_buffer: [Keccak256.digest_length]u8 = undefined;
+
+                        const hexed = std.fmt.bytesToHex(value, .lower);
+                        Keccak256.hash(&hexed, &hash_buffer, .{});
+
+                        // Checksum the address
+                        for (buffer[2..], 0..) |*c, i| {
+                            const char = hexed[i];
+                            switch (char) {
+                                'a'...'f' => {
+                                    const mask: u8 = if (i % 2 == 0) 0x80 else 0x08;
+                                    if ((hash_buffer[i / 2] & mask) > 7) {
+                                        c.* = char & 0b11011111;
+                                    } else c.* = char;
+                                },
+                                else => {
+                                    c.* = char;
+                                },
+                            }
+                        }
+                        @memcpy(buffer[0..2], "0x");
+                        try std.json.encodeJsonString(buffer[0..], .{}, stream_writer.stream);
+                    },
+                    else => {
+                        // Treat the rest as a normal hex encoded value
+                        var buffer: [(arr_info.len * 2) + 2]u8 = undefined;
+                        const hexed = std.fmt.bytesToHex(value, .lower);
+                        @memcpy(buffer[2..], hexed[0..]);
+                        @memcpy(buffer[0..2], "0x");
+                        try std.json.encodeJsonString(buffer[0..], .{}, stream_writer.stream);
+                    },
+                }
+                stream_writer.next_punctuation = .comma;
+            } else {
+                stream_writer.next_punctuation = .none;
+                return try innerStringify(&value, stream_writer);
+            }
+        },
+        .Pointer => |ptr_info| {
+            switch (ptr_info.size) {
+                .One => switch (@typeInfo(ptr_info.child)) {
+                    .Array => {
+                        const Slice = []const std.meta.Elem(ptr_info.child);
+                        return innerStringify(@as(Slice, value), stream_writer);
+                    },
+                    else => return innerStringify(value.*, stream_writer),
+                },
+                .Many, .Slice => {
+                    if (ptr_info.size == .Many and ptr_info.sentinel == null)
+                        @compileError("Unable to stringify type '" ++ @typeName(@TypeOf(value)) ++ "' without sentinel");
+
+                    const slice = if (ptr_info.size == .Many) std.mem.span(value) else value;
+
+                    try valueStart(stream_writer);
+                    if (ptr_info.child == u8) {
+                        if (ptr_info.is_const) {
+                            try std.json.encodeJsonString(value, .{}, stream_writer.stream);
+                        } else {
+                            // We assume that non const u8 slices are to be hex encoded.
+                            try stream_writer.stream.writeByte('\"');
+                            try stream_writer.stream.writeAll("0x");
+
+                            var buf: [2]u8 = undefined;
+
+                            const charset = "0123456789abcdef";
+                            for (value) |c| {
+                                buf[0] = charset[c >> 4];
+                                buf[1] = charset[c & 15];
+                                try stream_writer.stream.writeAll(&buf);
+                            }
+
+                            try stream_writer.stream.writeByte('\"');
                         }
                         stream_writer.next_punctuation = .comma;
                     } else {
-                        stream_writer.next_punctuation = .none;
-                        return try innerStringfy(&value, stream_writer);
-                    }
-                },
-                .Pointer => |ptr_info| {
-                    switch (ptr_info.size) {
-                        .One => switch (@typeInfo(ptr_info.child)) {
-                            .Array => {
-                                const Slice = []const std.meta.Elem(ptr_info.child);
-                                return try innerStringfy(@as(Slice, value), stream_writer);
-                            },
-                            else => return try innerStringfy(value.*, stream_writer),
-                        },
-                        .Many, .Slice => {
-                            if (ptr_info.size == .Many and ptr_info.sentinel == null)
-                                @compileError("Unable to stringify type '" ++ @typeName(T) ++ "' without sentinel");
-
-                            const slice = if (ptr_info.size == .Many) std.mem.span(value) else value;
-
-                            try valueStart(stream_writer);
-                            if (ptr_info.child == u8) {
-                                if (ptr_info.is_const) {
-                                    try std.json.encodeJsonString(value, .{}, stream_writer.stream);
-                                } else {
-                                    // We assume that non const u8 slices are to be hex encoded.
-                                    try stream_writer.stream.writeByte('\"');
-                                    try stream_writer.stream.writeAll("0x");
-
-                                    var buf: [2]u8 = undefined;
-
-                                    const charset = "0123456789abcdef";
-                                    for (value) |c| {
-                                        buf[0] = charset[c >> 4];
-                                        buf[1] = charset[c & 15];
-                                        try stream_writer.stream.writeAll(&buf);
-                                    }
-
-                                    try stream_writer.stream.writeByte('\"');
-                                }
-                                stream_writer.next_punctuation = .comma;
-                            } else {
-                                try stream_writer.stream.writeByte('[');
-                                stream_writer.next_punctuation = .none;
-
-                                for (slice) |span| {
-                                    try innerStringfy(span, stream_writer);
-                                }
-
-                                switch (stream_writer.next_punctuation) {
-                                    .none, .comma => {},
-                                    else => unreachable,
-                                }
-
-                                try stream_writer.stream.writeByte(']');
-                                stream_writer.next_punctuation = .comma;
-                            }
-                        },
-                        else => @compileError("Unsupported pointer type " ++ @typeName(@TypeOf(value))),
-                    }
-                },
-                // TODO: Change this to migrate from `usingnamespace` since this will most likely
-                // be changed so we must be prepared for it.
-                .Struct => |struct_info| {
-                    if (struct_info.is_tuple) {
-                        try valueStart(stream_writer);
                         try stream_writer.stream.writeByte('[');
+
+                        stream_writer.indent_level += 1;
                         stream_writer.next_punctuation = .none;
-                        inline for (value) |val| {
-                            try innerStringfy(val, stream_writer);
+
+                        for (slice) |span| {
+                            try innerStringify(span, stream_writer);
                         }
+
                         switch (stream_writer.next_punctuation) {
                             .none, .comma => {},
                             else => unreachable,
                         }
+
                         try stream_writer.stream.writeByte(']');
                         stream_writer.next_punctuation = .comma;
-                        return;
-                    } else if (@hasDecl(@TypeOf(value), "jsonStringify")) return value.jsonStringify(stream_writer) else @compileError("Unable to parse structs without jsonStringify custom declaration. TypeName: " ++ @typeName(@TypeOf(value)));
-                },
-                // TODO: Change this to migrate from `usingnamespace` since this will most likely
-                // be changed so we must be prepared for it.
-                .Union => {
-                    if (@hasDecl(@TypeOf(value), "jsonStringify")) return value.jsonStringify(stream_writer) else @compileError("Unable to parse unions without jsonStringify custom declaration. Typename: " ++ @typeName(@TypeOf(value)));
-                },
-                else => @compileError("Unsupported type " ++ @typeName(@TypeOf(value))),
-            }
-        }
-
-        fn valueStart(stream_writer: anytype) !void {
-            switch (stream_writer.next_punctuation) {
-                .the_beginning, .none => {},
-                .comma => try stream_writer.stream.writeByte(','),
-                .colon => try stream_writer.stream.writeByte(':'),
-            }
-        }
-
-        pub fn jsonParse(allocator: Allocator, source: anytype, opts: ParseOptions) ParseError(@TypeOf(source.*))!T {
-            const info = @typeInfo(T);
-            if (.object_begin != try source.next()) return error.UnexpectedToken;
-
-            var result: T = undefined;
-            var seen: std.enums.EnumFieldStruct(ConvertToEnum(T), u32, 0) = .{};
-
-            while (true) {
-                var name_token: ?Token = try source.nextAllocMax(allocator, .alloc_if_needed, opts.max_value_len.?);
-                const field_name = switch (name_token.?) {
-                    inline .string, .allocated_string => |slice| slice,
-                    .object_end => { // No more fields.
-                        break;
-                    },
-                    else => {
-                        return error.UnexpectedToken;
-                    },
-                };
-
-                inline for (info.Struct.fields) |field| {
-                    if (std.mem.eql(u8, field.name, field_name)) {
-                        name_token = null;
-
-                        if (@field(seen, field.name) == 1) {
-                            switch (opts.duplicate_field_behavior) {
-                                .@"error" => return error.DuplicateField,
-                                .use_last => {},
-                                .use_first => {
-                                    _ = try innerParseRequest(field.type, allocator, source, opts);
-
-                                    break;
-                                },
-                            }
-                        }
-                        @field(seen, field.name) = 1;
-                        @field(result, field.name) = try innerParseRequest(field.type, allocator, source, opts);
-                        break;
                     }
-                } else {
-                    if (opts.ignore_unknown_fields) {
-                        try source.skipValue();
-                    } else {
-                        return error.UnknownField;
-                    }
+                },
+                else => @compileError("Unsupported pointer type " ++ @typeName(@TypeOf(value))),
+            }
+        },
+        .Struct => |struct_info| {
+            if (struct_info.is_tuple) {
+                try valueStart(stream_writer);
+                try stream_writer.stream.writeByte('[');
+
+                stream_writer.indent_level += 1;
+                stream_writer.next_punctuation = .none;
+
+                inline for (value) |val| {
+                    try innerStringify(val, stream_writer);
                 }
-            }
 
-            inline for (info.Struct.fields) |field| {
-                switch (@field(seen, field.name)) {
-                    0 => if (field.default_value) |default_value| {
-                        @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
-                    } else return error.MissingField,
-                    1 => {},
-                    else => {
-                        switch (opts.duplicate_field_behavior) {
-                            .@"error" => return error.DuplicateField,
-                            else => {},
-                        }
-                    },
+                switch (stream_writer.next_punctuation) {
+                    .none, .comma => {},
+                    else => unreachable,
                 }
+
+                try stream_writer.stream.writeByte(']');
+                stream_writer.next_punctuation = .comma;
+
+                return;
+            } else {
+                if (@hasDecl(@TypeOf(value), "jsonStringify"))
+                    return value.jsonStringify(stream_writer)
+                else
+                    @compileError("Unable to parse structs without jsonStringify custom declaration. TypeName: " ++ @typeName(@TypeOf(value)));
             }
+        },
+        .Union => {
+            if (@hasDecl(@TypeOf(value), "jsonStringify"))
+                return value.jsonStringify(stream_writer)
+            else
+                @compileError("Unable to parse unions without jsonStringify custom declaration. Typename: " ++ @typeName(@TypeOf(value)));
+        },
+        else => @compileError("Unsupported type " ++ @typeName(@TypeOf(value))),
+    }
+}
 
-            return result;
-        }
-
-        pub fn jsonParseFromValue(allocator: Allocator, source: Value, opts: ParseOptions) ParseFromValueError!T {
-            const info = @typeInfo(T);
-            if (source != .object) return error.UnexpectedToken;
-
-            var result: T = undefined;
-            var seen: std.enums.EnumFieldStruct(ConvertToEnum(T), u32, 0) = .{};
-
-            var iter = source.object.iterator();
-
-            while (iter.next()) |token| {
-                const field_name = token.key_ptr.*;
-
-                inline for (info.Struct.fields) |field| {
-                    if (std.mem.eql(u8, field.name, field_name)) {
-                        if (@field(seen, field.name) == 1) {
-                            switch (opts.duplicate_field_behavior) {
-                                .@"error" => return error.DuplicateField,
-                                .use_last => {},
-                                .use_first => {
-                                    _ = try innerParseValueRequest(field.type, allocator, source, opts);
-
-                                    break;
-                                },
-                            }
-                        }
-                        @field(seen, field.name) = 1;
-                        @field(result, field.name) = try innerParseValueRequest(field.type, allocator, token.value_ptr.*, opts);
-                        break;
-                    }
-                } else {
-                    if (!opts.ignore_unknown_fields)
-                        return error.UnknownField;
-                }
-            }
-
-            inline for (info.Struct.fields) |field| {
-                switch (@field(seen, field.name)) {
-                    0 => if (field.default_value) |default_value| {
-                        @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
-                    } else return error.MissingField,
-                    1 => {},
-                    else => {
-                        switch (opts.duplicate_field_behavior) {
-                            .@"error" => return error.DuplicateField,
-                            else => {},
-                        }
-                    },
-                }
-            }
-
-            return result;
-        }
-
-        fn innerParseValueRequest(comptime TT: type, allocator: Allocator, source: anytype, opts: ParseOptions) ParseFromValueError!TT {
-            switch (@typeInfo(TT)) {
-                .Bool => {
-                    switch (source) {
-                        .bool => |val| return val,
-                        .string => |val| return try std.fmt.parseInt(u1, val, 0) != 0,
-                        else => return error.UnexpectedToken,
-                    }
-                },
-                .Float, .ComptimeFloat => {
-                    switch (source) {
-                        .float => |f| return @as(TT, @floatCast(f)),
-                        .integer => |i| return @as(TT, @floatFromInt(i)),
-                        .number_string, .string => |s| return std.fmt.parseFloat(TT, s),
-                        else => return error.UnexpectedToken,
-                    }
-                },
-                .Int, .ComptimeInt => {
-                    switch (source) {
-                        .number_string, .string => |str| {
-                            if (std.mem.eql(u8, str, "0x"))
-                                return 0;
-
-                            return std.fmt.parseInt(TT, str, 0);
-                        },
-                        .float => |f| {
-                            if (@round(f) != f) return error.InvalidNumber;
-                            if (f > std.math.maxInt(TT)) return error.Overflow;
-                            if (f < std.math.minInt(TT)) return error.Overflow;
-                            return @as(TT, @intFromFloat(f));
-                        },
-                        .integer => |i| {
-                            if (i > std.math.maxInt(TT)) return error.Overflow;
-                            if (i < std.math.minInt(TT)) return error.Overflow;
-                            return @as(TT, @intCast(i));
-                        },
-                        else => return error.UnexpectedToken,
-                    }
-                },
-                .Optional => |opt_info| {
-                    switch (source) {
-                        .null => return null,
-                        else => return try innerParseValueRequest(opt_info.child, allocator, source, opts),
-                    }
-                },
-                .Enum => |enum_info| {
-                    switch (source) {
-                        .float => return error.InvalidEnumTag,
-                        .integer => |num| return std.meta.intToEnum(TT, num),
-                        .number_string, .string => |slice| {
-                            if (std.meta.stringToEnum(TT, slice)) |result| return result;
-
-                            const enum_number = std.fmt.parseInt(enum_info.tag_type, slice, 0) catch return error.InvalidEnumTag;
-                            return std.meta.intToEnum(TT, enum_number);
-                        },
-                        else => return error.UnexpectedToken,
-                    }
-                },
-                .Array => |arr_info| {
-                    switch (source) {
-                        .array => |arr| {
-                            var result: TT = undefined;
-                            for (arr.items, 0..) |item, i| {
-                                result[i] = try innerParseValueRequest(arr_info.child, allocator, item, opts);
-                            }
-
-                            return result;
-                        },
-                        .string => |str| {
-                            if (arr_info.child != u8)
-                                return error.UnexpectedToken;
-
-                            var result: TT = undefined;
-
-                            const slice = if (std.mem.startsWith(u8, str, "0x")) str[2..] else str[0..];
-                            if (std.fmt.hexToBytes(&result, slice)) |_| {
-                                if (arr_info.len != slice.len / 2)
-                                    return error.LengthMismatch;
-
-                                return result;
-                            } else |_| {
-                                if (slice.len != result.len)
-                                    return error.LengthMismatch;
-
-                                @memcpy(result[0..], slice[0..]);
-                            }
-                            return result;
-                        },
-                        else => return error.UnexpectedToken,
-                    }
-                },
-                .Pointer => |ptr_info| {
-                    switch (ptr_info.size) {
-                        .One => {
-                            const result: *ptr_info.child = try allocator.create(ptr_info.child);
-                            result.* = try innerParseRequest(ptr_info.child, allocator, source, opts);
-                            return result;
-                        },
-                        .Slice => {
-                            switch (source) {
-                                .array => |array| {
-                                    const arr = try allocator.alloc(ptr_info.child, array.items.len);
-                                    for (array.items, arr) |item, *res| {
-                                        res.* = try innerParseValueRequest(ptr_info.child, allocator, item, opts);
-                                    }
-
-                                    return arr;
-                                },
-                                .string => |str| {
-                                    if (ptr_info.child != u8)
-                                        return error.UnexpectedToken;
-
-                                    if (ptr_info.is_const)
-                                        return str;
-
-                                    if (str.len & 1 != 0)
-                                        return error.InvalidCharacter;
-
-                                    const slice = if (std.mem.startsWith(u8, str, "0x")) str[2..] else str[0..];
-                                    const result = try allocator.alloc(u8, @divExact(slice.len, 2));
-
-                                    _ = std.fmt.hexToBytes(result, slice) catch return error.UnexpectedToken;
-
-                                    return result;
-                                },
-                                else => return error.UnexpectedToken,
-                            }
-                        },
-                        else => @compileError("Unable to parse type " ++ @typeName(TT)),
-                    }
-                },
-                // TODO: Change this to migrate from `usingnamespace` since this will most likely
-                // be changed so we must be prepared for it.
-                .Struct => {
-                    if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(allocator, source, opts) else @compileError("Unable to parse structs without jsonParseFromValue custom declaration. Typename: " ++ @typeName(TT));
-                },
-                // TODO: Change this to migrate from `usingnamespace` since this will most likely
-                // be changed so we must be prepared for it.
-                .Union => {
-                    if (@hasDecl(TT, "jsonParseFromValue")) return TT.jsonParseFromValue(allocator, source, opts) else @compileError("Unable to parse unions without jsonParseFromValue custom declaration. Typename: " ++ @typeName(TT));
-                },
-
-                else => @compileError("Unable to parse type " ++ @typeName(TT)),
-            }
-        }
-
-        fn innerParseRequest(comptime TT: type, allocator: Allocator, source: anytype, opts: ParseOptions) ParseError(@TypeOf(source.*))!TT {
-            const info = @typeInfo(TT);
-
-            switch (info) {
-                .Bool => {
-                    return switch (try source.next()) {
-                        .true => true,
-                        .false => false,
-                        .string => |slice| try std.fmt.parseInt(u1, slice, 0) != 0,
-                        else => error.UnexpectedToken,
-                    };
-                },
-                .Int, .ComptimeInt => {
-                    const token = try source.nextAllocMax(allocator, .alloc_if_needed, opts.max_value_len.?);
-                    const slice = switch (token) {
-                        inline .number, .allocated_number, .string, .allocated_string => |slice| slice,
-                        else => return error.UnexpectedToken,
-                    };
-
-                    return try std.fmt.parseInt(TT, slice, 0);
-                },
-                .Float, .ComptimeFloat => {
-                    const token = try source.nextAllocMax(allocator, .alloc_if_needed, opts.max_value_len.?);
-                    const slice = switch (token) {
-                        inline .number, .allocated_number, .string, .allocated_string => |slice| slice,
-                        else => return error.UnexpectedToken,
-                    };
-                    return try std.fmt.parseFloat(TT, slice);
-                },
-                .Optional => |opt_info| {
-                    switch (try source.peekNextTokenType()) {
-                        .null => {
-                            _ = try source.next();
-                            return null;
-                        },
-                        else => return try innerParseRequest(opt_info.child, allocator, source, opts),
-                    }
-                },
-                .Enum => |enum_info| {
-                    const token = try source.nextAllocMax(allocator, .alloc_if_needed, opts.max_value_len.?);
-                    switch (token) {
-                        inline .number, .allocated_number, .string, .allocated_string => |slice| {
-                            if (std.meta.stringToEnum(TT, slice)) |converted| return converted;
-
-                            const enum_number = std.fmt.parseInt(enum_info.tag_type, slice, 0) catch return error.InvalidEnumTag;
-                            return std.meta.intToEnum(TT, enum_number);
-                        },
-
-                        else => return error.UnexpectedToken,
-                    }
-                },
-                .Array => |arr_info| {
-                    switch (try source.peekNextTokenType()) {
-                        .array_begin => {
-                            _ = try source.next();
-
-                            var result: TT = undefined;
-
-                            var index: usize = 0;
-                            while (index < arr_info.len) : (index += 1) {
-                                result[index] = try innerParseRequest(arr_info.child, allocator, source, opts);
-                            }
-
-                            if (.array_end != try source.next())
-                                return error.UnexpectedToken;
-
-                            return result;
-                        },
-                        .string => {
-                            if (arr_info.child != u8)
-                                return error.UnexpectedToken;
-
-                            var result: TT = undefined;
-
-                            switch (try source.next()) {
-                                .string => |str| {
-                                    const slice = if (std.mem.startsWith(u8, str, "0x")) str[2..] else return error.UnexpectedToken;
-                                    if (std.fmt.hexToBytes(&result, slice)) |_| {
-                                        return result;
-                                    } else |_| {
-                                        if (slice.len != result.len)
-                                            return error.LengthMismatch;
-
-                                        @memcpy(result[0..], slice[0..]);
-                                    }
-                                    return result;
-                                },
-                                else => return error.UnexpectedToken,
-                            }
-                        },
-                        else => return error.UnexpectedToken,
-                    }
-                },
-
-                .Pointer => |ptrInfo| {
-                    switch (ptrInfo.size) {
-                        .Slice => {
-                            switch (try source.peekNextTokenType()) {
-                                .array_begin => {
-                                    _ = try source.next();
-
-                                    // Typical array.
-                                    var arraylist = std.ArrayList(ptrInfo.child).init(allocator);
-                                    while (true) {
-                                        switch (try source.peekNextTokenType()) {
-                                            .array_end => {
-                                                _ = try source.next();
-                                                break;
-                                            },
-                                            else => {},
-                                        }
-
-                                        try arraylist.ensureUnusedCapacity(1);
-                                        arraylist.appendAssumeCapacity(try innerParseRequest(ptrInfo.child, allocator, source, opts));
-                                    }
-
-                                    return try arraylist.toOwnedSlice();
-                                },
-                                .string => {
-                                    if (ptrInfo.child != u8)
-                                        return error.UnexpectedToken;
-
-                                    if (ptrInfo.is_const) {
-                                        switch (try source.nextAllocMax(allocator, opts.allocate.?, opts.max_value_len.?)) {
-                                            inline .string, .allocated_string => |slice| {
-                                                return slice;
-                                            },
-                                            else => unreachable,
-                                        }
-                                    } else {
-                                        // Have to allocate to get a mutable copy.
-                                        switch (try source.nextAllocMax(allocator, opts.allocate.?, opts.max_value_len.?)) {
-                                            inline .string, .allocated_string => |str| {
-                                                if (str.len & 1 != 0)
-                                                    return error.UnexpectedToken;
-
-                                                const slice = if (std.mem.startsWith(u8, str, "0x")) str[2..] else str[0..];
-                                                const result = try allocator.alloc(u8, @divExact(slice.len, 2));
-
-                                                _ = std.fmt.hexToBytes(result, slice) catch return error.InvalidCharacter;
-
-                                                return result;
-                                            },
-                                            else => unreachable,
-                                        }
-                                    }
-                                },
-                                else => return error.UnexpectedToken,
-                            }
-                        },
-                        else => @compileError("Unable to parse type " ++ @typeName(TT)),
-                    }
-                },
-                // TODO: Change this to migrate from `usingnamespace` since this will most likely
-                // be changed so we must be prepared for it.
-                .Struct => {
-                    if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(allocator, source, opts) else @compileError("Unable to parse structs without jsonParse custom declaration. Typename: " ++ @typeName(TT));
-                },
-                // TODO: Change this to migrate from `usingnamespace` since this will most likely
-                // be changed so we must be prepared for it.
-                .Union => {
-                    if (@hasDecl(TT, "jsonParse")) return TT.jsonParse(allocator, source, opts) else @compileError("Unable to parse unions without jsonParse custom declaration. Typename: " ++ @typeName(TT));
-                },
-                else => @compileError("Unable to parse type " ++ @typeName(TT)),
-            }
-        }
-    };
+fn valueStart(stream_writer: anytype) !void {
+    switch (stream_writer.next_punctuation) {
+        .the_beginning, .none => {},
+        .comma => try stream_writer.stream.writeByte(','),
+        .colon => try stream_writer.stream.writeByte(':'),
+    }
 }
 
 test "Parse/Stringify Json" {

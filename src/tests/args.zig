@@ -116,7 +116,7 @@ fn parseArgValue(comptime T: type, allocator: Allocator, value: []const u8) T {
             return parsed;
         },
         .Optional => |optional_info| {
-            return parseArgValue(optional_info.child, value);
+            return parseArgValue(optional_info.child, allocator, value);
         },
         .Array => |arr_info| {
             if (arr_info.child == u8) {
@@ -135,7 +135,7 @@ fn parseArgValue(comptime T: type, allocator: Allocator, value: []const u8) T {
             var index: usize = 0;
             while (iter.next()) |slice| {
                 assert(index < arr_info.len);
-                arr[index] = try parseArgValue(arr_info.child, slice);
+                arr[index] = try parseArgValue(arr_info.child, allocator, slice);
                 index += 1;
             }
 
@@ -159,7 +159,7 @@ fn parseArgValue(comptime T: type, allocator: Allocator, value: []const u8) T {
 
                     while (iter.next()) |slice| {
                         list.ensureTotalCapacity(1) catch failWithMessage("Process ran out of memory", .{});
-                        list.appendAssumeCapacity(parseArgValue(ptr_info.child, slice));
+                        list.appendAssumeCapacity(parseArgValue(ptr_info.child, allocator, slice));
                     }
 
                     const slice = list.toOwnedSlice() catch failWithMessage("Process ran out of memory", .{});

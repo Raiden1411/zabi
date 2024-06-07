@@ -14,7 +14,6 @@ const Hex = types.Hex;
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
 const ParseOptions = std.json.ParseOptions;
-const RequestParser = meta.json.RequestParser;
 const Scanner = std.json.Scanner;
 const Token = std.json.Token;
 const Transaction = transactions.Transaction;
@@ -57,7 +56,17 @@ pub const Withdrawal = struct {
     address: Address,
     amount: Wei,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The most common block that can be found before the
 /// ethereum merge. Doesn't contain the `withdrawals` or
@@ -86,7 +95,17 @@ pub const LegacyBlock = struct {
     transactionsRoot: Hash,
     uncles: ?[]const Hash = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The most common block that can be found before the
 /// ethereum merge. Doesn't contain the `withdrawals` or
@@ -118,7 +137,17 @@ pub const ArbitrumBlock = struct {
     sendCount: u64,
     sendRoot: Hash,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Possible transactions that can be found in the
 /// block struct fields.
@@ -161,7 +190,7 @@ pub const BlockTransactions = union(enum) {
 
     pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
         switch (self) {
-            inline else => |value| try stream.write(value),
+            inline else => |value| try meta.json.innerStringify(value, stream),
         }
     }
 };
@@ -193,7 +222,17 @@ pub const BeaconBlock = struct {
     withdrawalsRoot: Hash,
     withdrawals: []const Withdrawal,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Almost similar to `BeaconBlock` but with this support blob fields
 pub const BlobBlock = struct {
@@ -225,7 +264,17 @@ pub const BlobBlock = struct {
     withdrawalsRoot: Hash,
     withdrawals: []const Withdrawal,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Union type of the possible blocks found on the network.
 pub const Block = union(enum) {

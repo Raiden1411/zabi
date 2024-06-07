@@ -103,7 +103,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             const games = try self.getGames(limit, block_number);
             defer self.allocator.free(games);
 
-            var rand = std.rand.DefaultPrng.init(block_number * limit);
+            var rand = std.rand.DefaultPrng.init(@intCast(block_number * limit));
 
             if (games.len == 0)
                 return error.GameNotFound;
@@ -242,7 +242,7 @@ pub fn L1Client(comptime client_type: Clients) type {
                     .outputIndex = game.index,
                     .outputRoot = game.rootClaim,
                     .timestamp = game.timestamp,
-                    .l2BlockNumber = game.l2BlockNumber,
+                    .l2BlockNumber = @intCast(game.l2BlockNumber),
                 };
             }
 

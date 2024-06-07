@@ -21,7 +21,6 @@ const Omit = meta.utils.Omit;
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
 const ParseOptions = std.json.ParseOptions;
-const RequestParser = meta.json.RequestParser;
 const StructToTupleType = meta.utils.StructToTupleType;
 const Token = std.json.Token;
 const Value = std.json.Value;
@@ -71,7 +70,17 @@ pub const CancunTransactionEnvelope = struct {
     maxFeePerBlobGas: Gwei,
     blobVersionedHashes: ?[]const Hash = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The transaction envelope from the London hardfork
 pub const LondonTransactionEnvelope = struct {
@@ -85,7 +94,17 @@ pub const LondonTransactionEnvelope = struct {
     data: ?Hex = null,
     accessList: []const AccessList,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The transaction envelope from the Berlin hardfork
 pub const BerlinTransactionEnvelope = struct {
@@ -98,7 +117,17 @@ pub const BerlinTransactionEnvelope = struct {
     data: ?Hex = null,
     accessList: []const AccessList,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The transaction envelope from a legacy transaction
 pub const LegacyTransactionEnvelope = struct {
@@ -110,21 +139,51 @@ pub const LegacyTransactionEnvelope = struct {
     value: Wei,
     data: ?Hex = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Struct representing the accessList field.
 pub const AccessList = struct {
     address: Address,
     storageKeys: []const Hash,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Struct representing the result of create accessList
 pub const AccessListResult = struct {
     accessList: []const AccessList,
     gasUsed: Gwei,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Signed transaction envelope with the signature fields
 pub const TransactionEnvelopeSigned = union(enum) {
@@ -150,7 +209,17 @@ pub const CancunTransactionEnvelopeSigned = struct {
     r: Hash,
     s: Hash,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The transaction envelope from the London hardfork with the signature fields
 pub const LondonTransactionEnvelopeSigned = struct {
@@ -167,7 +236,17 @@ pub const LondonTransactionEnvelopeSigned = struct {
     r: Hash,
     s: Hash,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The transaction envelope from the Berlin hardfork with the signature fields
 pub const BerlinTransactionEnvelopeSigned = struct {
@@ -183,7 +262,17 @@ pub const BerlinTransactionEnvelopeSigned = struct {
     r: Hash,
     s: Hash,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The transaction envelope from a legacy transaction with the signature fields
 pub const LegacyTransactionEnvelopeSigned = struct {
@@ -198,7 +287,17 @@ pub const LegacyTransactionEnvelopeSigned = struct {
     r: ?Hash,
     s: ?Hash,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Same as `Envelope` but were all fields are optionals.
 pub const UnpreparedTransactionEnvelope = struct {
@@ -243,7 +342,17 @@ pub const LondonPendingTransaction = struct {
     chainId: usize,
     yParity: u1,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The legacy representation of a pending transaction.
 pub const LegacyPendingTransaction = struct {
@@ -268,7 +377,17 @@ pub const LegacyPendingTransaction = struct {
     type: TransactionTypes,
     chainId: ?usize = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The Cancun hardfork representation of a transaction.
 pub const L2Transaction = struct {
@@ -300,7 +419,17 @@ pub const L2Transaction = struct {
     queueOrigin: []const u8,
     rawTransaction: Hex,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The Cancun hardfork representation of a transaction.
 pub const CancunTransaction = struct {
@@ -333,7 +462,17 @@ pub const CancunTransaction = struct {
     chainId: usize,
     yParity: ?u1 = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The London hardfork representation of a transaction.
 pub const LondonTransaction = struct {
@@ -364,7 +503,17 @@ pub const LondonTransaction = struct {
     chainId: usize,
     yParity: ?u1 = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The Berlin hardfork representation of a transaction.
 pub const BerlinTransaction = struct {
@@ -393,7 +542,17 @@ pub const BerlinTransaction = struct {
     chainId: usize,
     yParity: ?u1 = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The legacy representation of a transaction.
 pub const LegacyTransaction = struct {
@@ -420,7 +579,17 @@ pub const LegacyTransaction = struct {
     type: ?TransactionTypes = null,
     chainId: ?usize = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// All transactions objects that one might find whilest interaction
 /// with the JSON RPC server.
@@ -495,7 +664,17 @@ pub const LegacyReceipt = struct {
     status: ?bool = null,
     deposit_nonce: ?usize = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Cancun transaction receipt representation
 pub const CancunReceipt = struct {
@@ -518,7 +697,17 @@ pub const CancunReceipt = struct {
     status: ?bool = null,
     deposit_nonce: ?usize = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// L2 transaction receipt representation
 pub const OpstackReceipt = struct {
@@ -543,7 +732,17 @@ pub const OpstackReceipt = struct {
     l1FeeScalar: ?f64 = null,
     root: ?Hex = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// L2 Deposit transaction receipt representation
 pub const DepositReceipt = struct {
@@ -566,7 +765,17 @@ pub const DepositReceipt = struct {
     depositNonceVersion: ?u64 = null,
     root: ?Hex = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Arbitrum transaction receipt representation
 pub const ArbitrumReceipt = struct {
@@ -589,7 +798,17 @@ pub const ArbitrumReceipt = struct {
     status: ?bool = null,
     deposit_nonce: ?usize = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// All possible transaction receipts
 pub const TransactionReceipt = union(enum) {
@@ -652,7 +871,17 @@ pub const LondonEthCall = struct {
     value: ?Wei = null,
     data: ?Hex = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The representation of an `eth_call` struct where all fields are optional
 /// These are optionals so that when we stringify we can
@@ -665,7 +894,17 @@ pub const LegacyEthCall = struct {
     value: ?Wei = null,
     data: ?Hex = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// Return struct for fee estimation calculation.
 pub const EstimateFeeReturn = union(enum) { london: struct {
@@ -694,5 +933,15 @@ pub const FeeHistory = struct {
     /// Depending on the blockCount or the newestBlock this can be null
     reward: ?[]const []const u256 = null,
 
-    pub usingnamespace RequestParser(@This());
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };

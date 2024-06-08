@@ -753,7 +753,7 @@ pub fn sendRequest(self: *Explorer, comptime T: type, uri: Uri) !ExplorerRespons
                 const res_body = try body.toOwnedSlice();
                 defer self.allocator.free(res_body);
 
-                explorer_log.err("Got response from server: {s}", .{res_body});
+                explorer_log.debug("Got response from server: {s}", .{res_body});
 
                 return self.parseExplorerResponse(T, res_body);
             },

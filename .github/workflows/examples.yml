@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        examples: [wallet, transfer, contract, watch]
+        examples: [wallet, transfer, contract, watch, interpreter, block_explorer]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3

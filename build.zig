@@ -59,7 +59,6 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/rpc_test.zig"),
             .target = target,
             .optimize = optimize,
-            .link_libc = true,
         });
         addDependencies(b, &http.root_module, target, optimize);
 
@@ -108,7 +107,6 @@ fn buildIpcServer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
         .root_source_file = b.path("src/ipc_server.zig"),
         .target = target,
         .optimize = optimize,
-        .link_libc = true,
     });
     addDependencies(b, &ipc.root_module, target, optimize);
 
@@ -127,7 +125,6 @@ fn buildWsServer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.
         .root_source_file = b.path("src/ws_server.zig"),
         .target = target,
         .optimize = optimize,
-        .link_libc = true,
     });
     addDependencies(b, &ws.root_module, target, optimize);
 
@@ -146,7 +143,6 @@ fn buildHttpServer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: st
         .root_source_file = b.path("src/rpc_server.zig"),
         .target = target,
         .optimize = optimize,
-        .link_libc = true,
     });
     addDependencies(b, &http.root_module, target, optimize);
 

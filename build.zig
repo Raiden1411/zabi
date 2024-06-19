@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const min_zig_string = "0.14.0-dev.15+d4bc64038";
+const min_zig_string = "0.14.0-dev.65+5f2bdafa3";
 
 pub fn build(b: *std.Build) void {
     comptime {

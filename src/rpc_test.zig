@@ -43,7 +43,7 @@ pub fn main() !void {
 
     var i: usize = 0;
     const runs = parsed.runs orelse 100;
-    var rand = std.rand.DefaultPrng.init(runs);
+    var rand = std.Random.DefaultPrng.init(runs);
 
     const clients = &[_]type{ PubClient, WebSocketClient, IPCClient };
 

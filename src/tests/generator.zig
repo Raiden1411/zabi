@@ -74,30 +74,30 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
 
     switch (info) {
         .Bool => {
-            var rand = std.rand.DefaultPrng.init(seed);
+            var rand = std.Random.DefaultPrng.init(seed);
             return rand.random().boolean();
         },
         .Int => {
-            var rand = std.rand.DefaultPrng.init(seed);
+            var rand = std.Random.DefaultPrng.init(seed);
             const num = rand.random().int(T);
 
             return num;
         },
         .Float => {
-            var rand = std.rand.DefaultPrng.init(seed);
+            var rand = std.Random.DefaultPrng.init(seed);
             const num = rand.random().float(T);
 
             return num;
         },
         .Optional => |optional_child| {
             // Multiplies the seed based on the size of the child type.
-            var rand = std.rand.DefaultPrng.init(seed * if (@sizeOf(optional_child.child) > 0) @sizeOf(optional_child.child) else 1);
+            var rand = std.Random.DefaultPrng.init(seed * if (@sizeOf(optional_child.child) > 0) @sizeOf(optional_child.child) else 1);
 
             // Let the randomizer decide if we return null or not
             return if (rand.random().boolean()) null else try generateRandomDataLeaky(optional_child.child, allocator, seed, opts);
         },
         .Enum => {
-            var rand = std.rand.DefaultPrng.init(seed);
+            var rand = std.Random.DefaultPrng.init(seed);
             const value = rand.random().enumValue(T);
 
             return value;
@@ -112,7 +112,7 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
             const field = comptime field: {
                 if (union_info.fields.len == 1) break :field union_info.fields[0];
 
-                var rand = std.rand.DefaultPrng.init(union_info.fields.len);
+                var rand = std.Random.DefaultPrng.init(union_info.fields.len);
                 const index = rand.random().uintLessThan(usize, union_info.fields.len);
 
                 const active_field = union_info.fields[index];
@@ -130,7 +130,7 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
             comptime assert(struct_info.fields.len > 0); // Cannot return from empty;
 
             var result: T = undefined;
-            var rand = std.rand.DefaultPrng.init(seed);
+            var rand = std.Random.DefaultPrng.init(seed);
 
             inline for (struct_info.fields) |field| {
                 const default = convertDefaultValueType(field);
@@ -164,7 +164,7 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
                     var list = std.ArrayList(ptr_info.child).init(allocator);
                     errdefer list.deinit();
 
-                    var rand = std.rand.DefaultPrng.init(seed);
+                    var rand = std.Random.DefaultPrng.init(seed);
                     const size = opts.slice_size orelse while (true) {
                         const rand_size = rand.random().int(u8);
 
@@ -220,7 +220,7 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
             comptime assert(vec_info.len > 0); // Cannot return empty vec
 
             var result: T = undefined;
-            var rand = std.rand.DefaultPrng.init(seed);
+            var rand = std.Random.DefaultPrng.init(seed);
 
             for (0..vec_info.len) |i| {
                 // Lets generate a new seed for each one.
@@ -235,7 +235,7 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
             comptime assert(arr_info.len > 0); // Cannot return empty arr
 
             var result: T = undefined;
-            var rand = std.rand.DefaultPrng.init(seed);
+            var rand = std.Random.DefaultPrng.init(seed);
 
             if (arr_info.child == u8) {
                 if (opts.ascii.use_on_arrays_and_slices) {

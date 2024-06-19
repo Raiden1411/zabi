@@ -167,7 +167,7 @@ pub const Wordlist = struct {
     fn loadList(raw_list: []const u8) [Wordlist.list_count][]const u8 {
         @setEvalBranchQuota(100000);
 
-        var iter = std.mem.tokenize(u8, raw_list, "\n");
+        var iter = std.mem.tokenizeAny(u8, raw_list, "\n");
         var list_buffer: [Wordlist.list_count][]const u8 = undefined;
 
         var count: usize = 0;

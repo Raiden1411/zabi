@@ -126,8 +126,3 @@ defer block_req.deinit();
 ```
 
 :::
-
-You can take look at our current tests to have a better grasp on using the clients.
-
-For the websocket client start [here](https://github.com/Raiden1411/zabi/blob/94d42c13b4a628c407827a765f03157de7c3dff1/src/WebSocket.zig#L1693) \
-For the http client start [here](https://github.com/Raiden1411/zabi/blob/94d42c13b4a628c407827a765f03157de7c3dff1/src/Client.zig#L888)

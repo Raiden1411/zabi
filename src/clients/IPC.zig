@@ -39,6 +39,7 @@ const FeeHistory = transaction.FeeHistory;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
+const IpcReader = @import("ipc_reader.zig").IpcReader;
 const JsonParsed = std.json.Parsed;
 const Log = log.Log;
 const LogRequest = log.LogRequest;
@@ -91,25 +92,28 @@ pub const IPCErrors = error{
     ReachedMaxRetryLimit,
 } || Allocator.Error || std.fmt.ParseIntError || std.Uri.ParseError || EthereumZigErrors;
 
+/// Set of intial options for the IPC Client.
 pub const InitOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
     allocator: Allocator,
-    /// The path for the IPC path
-    path: []const u8,
+    /// The base fee multiplier used to estimate the gas fees in a transaction
+    base_fee_multiplier: f64 = 1.2,
     /// The client chainId.
     chain_id: ?Chains = null,
+    /// The reader buffer growth rate
+    growth_rate: ?usize = null,
     /// Callback function for when the connection is closed.
     onClose: ?*const fn () void = null,
     /// Callback function for everytime an event is parsed.
     onEvent: ?*const fn (args: JsonParsed(Value)) anyerror!void = null,
     /// Callback function for everytime an error is caught.
     onError: ?*const fn (args: []const u8) anyerror!void = null,
-    /// Retry count for failed connections to server.
-    retries: u8 = 5,
+    /// The path for the IPC path
+    path: []const u8,
     /// The interval to retry the connection. This will get multiplied in ns_per_ms.
     pooling_interval: u64 = 2_000,
-    /// The base fee multiplier used to estimate the gas fees in a transaction
-    base_fee_multiplier: f64 = 1.2,
+    /// Retry count for failed connections to server.
+    retries: u8 = 5,
 };
 
 /// The allocator that will manage the connections memory
@@ -120,10 +124,8 @@ base_fee_multiplier: f64,
 chain_id: usize,
 /// If the client is closed.
 closed: bool,
-/// Channel used to communicate between threads on subscription events.
-sub_channel: Channel(JsonParsed(Value)),
-/// Channel used to communicate between threads on rpc events.
-rpc_channel: Stack(JsonParsed(Value)),
+/// The IPC net stream to read and write requests.
+ipc_reader: IpcReader,
 /// Mutex to manage locks between threads
 mutex: Mutex = .{},
 /// Callback function for when the connection is closed.
@@ -136,8 +138,10 @@ onError: ?*const fn (args: []const u8) anyerror!void,
 pooling_interval: u64,
 /// Retry count for failed connections or requests.
 retries: u8,
-/// The IPC net stream to read and write requests.
-stream: Stream,
+/// Channel used to communicate between threads on rpc events.
+rpc_channel: Stack(JsonParsed(Value)),
+/// Channel used to communicate between threads on subscription events.
+sub_channel: Channel(JsonParsed(Value)),
 
 /// Starts the IPC client and create the connection.
 /// This will also start the read loop in a seperate thread.
@@ -156,7 +160,7 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
         .retries = opts.retries,
         .rpc_channel = Stack(JsonParsed(Value)).init(self.allocator, null),
         .sub_channel = Channel(JsonParsed(Value)).init(self.allocator),
-        .stream = undefined,
+        .ipc_reader = undefined,
     };
 
     errdefer {
@@ -164,7 +168,7 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
         self.sub_channel.deinit();
     }
 
-    self.stream = try self.connect(opts.path);
+    self.ipc_reader = try IpcReader.init(opts.allocator, try self.connect(opts.path), null);
 
     const thread = try std.Thread.spawn(.{}, readLoopOwnedThread, .{self});
     thread.detach();
@@ -188,7 +192,7 @@ pub fn deinit(self: *IPC) void {
         response.deinit();
     }
 
-    self.stream.close();
+    self.ipc_reader.deinit();
     self.rpc_channel.deinit();
     self.sub_channel.deinit();
 }
@@ -1058,20 +1062,14 @@ pub fn newPendingTransactionFilter(self: *IPC) !RPCResponse(u128) {
 /// Creates a read loop to read the socket messages.
 /// If a message is too long it will double the buffer size to read the message.
 pub fn readLoop(self: *IPC) !void {
-    if (@atomicLoad(bool, &self.closed, .acquire))
-        return;
-
     while (true) {
-        var request_buffer: [std.math.maxInt(u16)]u8 = undefined;
-        var list = std.io.fixedBufferStream(&request_buffer);
-        errdefer @atomicStore(bool, &self.closed, true, .release);
-
-        try self.readMessage(list.writer());
-
-        if (@atomicLoad(bool, &self.closed, .acquire))
-            return;
-
-        const message = list.getWritten();
+        const message = self.ipc_reader.readMessage() catch |err| switch (err) {
+            error.Closed, error.ConnectionResetByPeer, error.BrokenPipe => {
+                _ = @cmpxchgStrong(bool, &self.closed, false, true, .monotonic, .monotonic);
+                return;
+            },
+            else => return,
+        };
 
         ipclog.debug("Got message: {s}", .{message});
 
@@ -1083,7 +1081,7 @@ pub fn readLoop(self: *IPC) !void {
                 .tv_sec = @intCast(0),
                 .tv_usec = @intCast(1000),
             });
-            try std.posix.setsockopt(self.stream.handle, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, &timeout);
+            try std.posix.setsockopt(self.ipc_reader.stream.handle, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, &timeout);
 
             return error.FailedToJsonParseResponse;
         };
@@ -1481,7 +1479,7 @@ pub fn waitForTransactionReceiptType(self: *IPC, comptime T: type, tx_hash: Hash
 }
 /// Write messages to the websocket server.
 pub fn writeSocketMessage(self: *IPC, data: []u8) !void {
-    return self.stream.writeAll(data);
+    return self.ipc_reader.writeMessage(data);
 }
 
 // Internals
@@ -1527,39 +1525,6 @@ fn handleErrorResponse(self: *IPC, event: ErrorResponse) EthereumZigErrors {
         .Disconnected => return error.Disconnected,
         .ChainDisconnected => return error.ChainDisconnected,
         _ => return error.UnexpectedRpcErrorCode,
-    }
-}
-/// Reads one json message from the socket. The list growth is super
-/// linear as it's the safest option to ensure that we grab a just one json
-/// message.
-///
-/// Returns whether or not it was able to read a message.
-fn readMessage(self: *IPC, writer: anytype) !void {
-    var depth: usize = 0;
-
-    while (true) {
-        var result: [1]u8 = undefined;
-        const size = try self.stream.read(result[0..]);
-
-        if (size < 1) {
-            if (depth == 0)
-                return;
-
-            return error.EndOfStream;
-        }
-
-        try writer.writeAll(result[0..]);
-
-        switch (result[0]) {
-            '{' => depth += 1,
-            '}' => depth -= 1,
-            else => {},
-        }
-
-        // Check if we read a message or not.
-        if (depth == 0) {
-            return;
-        }
     }
 }
 /// Internal RPC event parser.

@@ -1527,39 +1527,6 @@ fn handleErrorResponse(self: *IPC, event: ErrorResponse) EthereumZigErrors {
         _ => return error.UnexpectedRpcErrorCode,
     }
 }
-/// Reads one json message from the socket. The list growth is super
-/// linear as it's the safest option to ensure that we grab a just one json
-/// message.
-///
-/// Returns whether or not it was able to read a message.
-// fn readMessage(self: *IPC, writer: anytype) !void {
-//     var depth: usize = 0;
-//
-//     while (true) {
-//         var result: [1]u8 = undefined;
-//         const size = try self.stream.read(result[0..]);
-//
-//         if (size < 1) {
-//             if (depth == 0)
-//                 return;
-//
-//             return error.EndOfStream;
-//         }
-//
-//         try writer.writeAll(result[0..]);
-//
-//         switch (result[0]) {
-//             '{' => depth += 1,
-//             '}' => depth -= 1,
-//             else => {},
-//         }
-//
-//         // Check if we read a message or not.
-//         if (depth == 0) {
-//             return;
-//         }
-//     }
-// }
 /// Internal RPC event parser.
 /// Error set is the same as std.json.
 fn parseRPCEvent(self: *IPC, request: []const u8) !JsonParsed(Value) {

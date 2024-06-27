@@ -19,6 +19,10 @@ export const sidebar = {
 					link: "/api/client/public/client",
 				},
 				{
+					text: "Block Explorer",
+					link: "/api/block_explorer/explorer",
+				},
+				{
 					text: "Wallet",
 					link: "/api/client/wallet/client",
 				},

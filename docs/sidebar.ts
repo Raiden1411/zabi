@@ -225,5 +225,15 @@ export const sidebar = {
 				},
 			],
 		},
+		{
+			text: "EVM Interpreter",
+			collapsed: true,
+			items: [
+				{
+					text: "Interpreter",
+					link: "/api/interpreter/interpreter",
+				},
+			],
+		},
 	],
 } satisfies Sidebar;

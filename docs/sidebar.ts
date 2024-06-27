@@ -19,6 +19,10 @@ export const sidebar = {
 					link: "/api/client/public/client",
 				},
 				{
+					text: "Block Explorer",
+					link: "/api/block_explorer/explorer",
+				},
+				{
 					text: "Wallet",
 					link: "/api/client/wallet/client",
 				},
@@ -222,6 +226,16 @@ export const sidebar = {
 				{
 					text: "Meta Functions",
 					link: "/api/meta/metaprogramming",
+				},
+			],
+		},
+		{
+			text: "EVM Interpreter",
+			collapsed: true,
+			items: [
+				{
+					text: "Interpreter",
+					link: "/api/interpreter/interpreter",
 				},
 			],
 		},

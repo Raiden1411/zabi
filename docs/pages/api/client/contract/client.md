@@ -18,28 +18,72 @@ Like it was stated above you can use either runtime or comptime know abis. Depen
 :::code-group
 
 ```zig [runtime.zig]
-const abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }};
-const uri = try std.Uri.parse("http://localhost:8545/");
+const abi = &.{
+    .{
+        .abiFunction = .{
+            .type = .function,
+            .inputs = &.{
+                .{ .type = .{ .address = {} }, .name = "operator" },
+                .{ .type = .{ .bool = {} }, .name = "approved" },
+            },
+            .stateMutability = .nonpayable,
+            .outputs = &.{},
+            .name = "setApprovalForAll",
+        },
+    },
+};
+const uri = try std.Uri.parse("http://localhost:6970/");
 
-var contract: Contract(.http) = undefined;
+var contract: Contract(.websocket) = undefined;
 defer contract.deinit();
 
-try contract.init(.{ .abi = abi, .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
+var buffer: Hash = undefined;
+_ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-const ReturnType = std.meta.Tuple(&[_]type{[]const u8});
-const result = try contract.readContractFunction(ReturnType, "ownerOf", .{69}, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try contract.wallet.getWalletAddress() } });
+try contract.init(.{
+    .abi = abi,
+    .private_key = buffer,
+    .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+});
+
+const result = try contract.simulateWriteCall("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{
+    .type = .london,
+    .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"),
+});
+defer result.deinit();
 ```
 
 ```zig [comptime.zig]
-const abi = &.{.{ .abiFunction = .{ .type = .function, .inputs = &.{ .{ .type = .{ .address = {} }, .name = "operator" }, .{ .type = .{ .bool = {} }, .name = "approved" } }, .stateMutability = .nonpayable, .outputs = &.{}, .name = "setApprovalForAll" } }};
-const uri = try std.Uri.parse("http://localhost:8545/");
+const uri = try std.Uri.parse("http://localhost:6969/");
 
 var contract: ContractComptime(.http) = undefined;
 defer contract.deinit();
 
-try contract.init(.{ .abi = abi, .private_key = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", .wallet_opts = .{ .allocator = testing.allocator, .uri = uri } });
+var buffer: Hash = undefined;
+_ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-const result = try contract.readContractFunction("ownerOf", .{69}, .{ .eip1559 = .{ .to = "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", .from = try contract.wallet.getWalletAddress() } });
+try contract.init(.{
+    .private_key = buffer,
+    .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+});
+
+const result = try contract.simulateWriteCall(.{
+    .type = .function,
+    .inputs = &.{
+        .{ .type = .{ .address = {} }, .name = "operator" },
+        .{ .type = .{ .bool = {} }, .name = "approved" },
+    },
+    .stateMutability = .nonpayable,
+    .outputs = &.{},
+    .name = "setApprovalForAll",
+}, .{ .args = .{
+    try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6547"),
+    true,
+}, .overrides = .{
+    .type = .berlin,
+    .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5"),
+} });
+defer result.deinit();
 ```
 
 :::

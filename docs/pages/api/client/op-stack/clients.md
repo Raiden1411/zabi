@@ -5,6 +5,8 @@
 Zabi supports the OP stack contracts and has custom clients that you can use to interact with them.
 It also has custom wallet clients to interact directly with the contracts.
 
+These client now support fault proofs. They will only be enable if the portal contract major version is higher than 3.
+
 ## Usage
 
 Depending on the type of client you want to init a set of seperate options are available.

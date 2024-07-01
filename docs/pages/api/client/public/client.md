@@ -63,6 +63,7 @@ const InitOptions = struct {
     base_fee_multiplier: f64 = 1.2,
 };
 ```
+
 ### IPC Client
 
 ```zig

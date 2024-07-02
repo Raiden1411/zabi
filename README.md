@@ -98,6 +98,7 @@ The goal of zabi is to be one of the best library to use by the ethereum ecosyst
 ### Contributing
 
 Contributions to Zabi are greatly appreciated! If you're interested in contributing to ZAbi, feel free to create a pull request with a feature or a bug fix.
+You can also read the [contributing guide](/.github/CONTRIBUTING.md) **before submitting a pull request**
 
 ### Sponsors
 

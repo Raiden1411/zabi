@@ -74,6 +74,8 @@ curl -L https://foundry.paradigm.xyz | bash
 
 Once you have cloned the repo and have the correct version of zig running on your computer you can now run `zig build` to ensure that everything gets built properly.
 
+Zabi supports `version 0.12.0` and `version 0.13.0` of zig in seperate branches. You can checkout each seperate branch and work in those branches if that is your goal.
+
 ---
 
 ### Running the test suite

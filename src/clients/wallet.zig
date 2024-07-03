@@ -51,7 +51,11 @@ pub const TransactionEnvelopePool = struct {
 
     pub const Node = TransactionEnvelopeQueue.Node;
 
-    const SearchCriteria = transaction.TransactionTypes;
+    const SearchCriteria = struct {
+        type: transaction.TransactionTypes,
+        nonce: u64,
+    };
+
     const TransactionEnvelopeQueue = std.DoublyLinkedList(TransactionEnvelope);
 
     /// Finds a transaction envelope from the pool based on the
@@ -64,7 +68,11 @@ pub const TransactionEnvelopePool = struct {
         var last_tx_node = pool.pooled_envelopes.last;
 
         while (last_tx_node) |tx_node| : (last_tx_node = tx_node.prev) {
-            if (!std.mem.eql(u8, @tagName(tx_node.data), @tagName(search))) continue;
+            switch (tx_node.data) {
+                inline else => |pooled_tx| if (pooled_tx.nonce != search.nonce) continue,
+            }
+
+            if (!std.mem.eql(u8, @tagName(tx_node.data), @tagName(search.type))) continue;
             defer allocator.destroy(tx_node);
 
             pool.unsafeReleaseEnvelopeFromPool(tx_node);
@@ -183,85 +191,51 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             self.envelopes_pool.deinit(self.allocator);
             self.rpc_client.deinit();
         }
-        /// Signs an ethereum message with the specified prefix.
-        ///
-        /// The Signatures recoverId doesn't include the chain_id
-        pub fn signEthereumMessage(self: *Wallet(client_type), message: []const u8) !Signature {
-            const start = "\x19Ethereum Signed Message:\n";
-            const concated_message = try std.fmt.allocPrint(self.allocator, "{s}{d}{s}", .{ start, message.len, message });
-            defer self.allocator.free(concated_message);
+        /// Asserts that the transactions is ready to be sent.
+        /// Will return errors where the values are not expected
+        pub fn assertTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !void {
+            switch (tx) {
+                .london => |tx_eip1559| {
+                    if (tx_eip1559.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
+                    if (tx_eip1559.maxPriorityFeePerGas > tx_eip1559.maxFeePerGas) return error.TransactionTipToHigh;
+                },
+                .cancun => |tx_eip4844| {
+                    if (tx_eip4844.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
+                    if (tx_eip4844.maxPriorityFeePerGas > tx_eip4844.maxFeePerGas) return error.TransactionTipToHigh;
 
-            var hash: [Keccak256.digest_length]u8 = undefined;
-            Keccak256.hash(concated_message, &hash, .{});
+                    if (tx_eip4844.blobVersionedHashes) |blob_hashes| {
+                        if (blob_hashes.len == 0)
+                            return error.EmptyBlobs;
 
-            return self.signer.sign(hash);
+                        if (blob_hashes.len > constants.MAX_BLOB_NUMBER_PER_BLOCK)
+                            return error.TooManyBlobs;
+
+                        for (blob_hashes) |hashes| {
+                            if (hashes[0] != constants.VERSIONED_HASH_VERSION_KZG)
+                                return error.BlobVersionNotSupported;
+                        }
+                    }
+
+                    if (tx_eip4844.to == null)
+                        return error.CreateBlobTransaction;
+                },
+                .berlin => |tx_eip2930| {
+                    if (tx_eip2930.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
+                },
+                .legacy => |tx_legacy| {
+                    if (tx_legacy.chainId != 0 and tx_legacy.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
+                },
+            }
         }
-        /// Signs a EIP712 message according to the expecification
-        /// https://eips.ethereum.org/EIPS/eip-712
-        ///
-        /// `types` parameter is expected to be a struct where the struct
-        /// keys are used to grab the solidity type information so that the
-        /// encoding and hashing can happen based on it. See the specification
-        /// for more details.
-        ///
-        /// `primary_type` is the expected main type that you want to hash this message.
-        /// Compilation will fail if the provided string doesn't exist on the `types` parameter
-        ///
-        /// `domain` is the values of the defined EIP712Domain. Currently it doesnt not support custom
-        /// domain types.
-        ///
-        /// `message` is expected to be a struct where the solidity types are transalated to the native
-        /// zig types. I.E string -> []const u8 or int256 -> i256 and so on.
-        /// In the future work will be done where the compiler will offer more clearer types
-        /// base on a meta programming type function.
-        ///
-        /// Returns the signature type.
-        pub fn signTypedData(self: *Wallet(client_type), comptime eip_types: anytype, comptime primary_type: []const u8, domain: ?TypedDataDomain, message: anytype) !Signature {
-            return self.signer.sign(try eip712.hashTypedData(self.allocator, eip_types, primary_type, domain, message));
+        /// Find a specific prepared envelope from the pool based on the given search criteria.
+        pub fn findTransactionEnvelopeFromPool(self: *Wallet(client_type), search: TransactionEnvelopePool.SearchCriteria) ?TransactionEnvelope {
+            return self.envelopes_pool.findTransactionEnvelope(self.allocator, search);
         }
         /// Get the wallet address.
         /// Uses the wallet public key to generate the address.
         /// This will allocate and the returned address is already checksumed
         pub fn getWalletAddress(self: *Wallet(client_type)) Address {
             return self.signer.address_bytes;
-        }
-        /// Verifies if a given signature was signed by the current wallet.
-        pub fn verifyMessage(self: *Wallet(client_type), sig: Signature, message: []const u8) bool {
-            var hash_buffer: [Keccak256.digest_length]u8 = undefined;
-            Keccak256.hash(message, &hash_buffer, .{});
-            return self.signer.verifyMessage(hash_buffer, sig);
-        }
-        /// Verifies a EIP712 message according to the expecification
-        /// https://eips.ethereum.org/EIPS/eip-712
-        ///
-        /// `types` parameter is expected to be a struct where the struct
-        /// keys are used to grab the solidity type information so that the
-        /// encoding and hashing can happen based on it. See the specification
-        /// for more details.
-        ///
-        /// `primary_type` is the expected main type that you want to hash this message.
-        /// Compilation will fail if the provided string doesn't exist on the `types` parameter
-        ///
-        /// `domain` is the values of the defined EIP712Domain. Currently it doesnt not support custom
-        /// domain types.
-        ///
-        /// `message` is expected to be a struct where the solidity types are transalated to the native
-        /// zig types. I.E string -> []const u8 or int256 -> i256 and so on.
-        /// In the future work will be done where the compiler will offer more clearer types
-        /// base on a meta programming type function.
-        ///
-        /// Returns the signature type.
-        pub fn verifyTypedData(self: *Wallet(client_type), sig: Signature, comptime eip712_types: anytype, comptime primary_type: []const u8, domain: ?TypedDataDomain, message: anytype) !bool {
-            const hash = try eip712.hashTypedData(self.allocator, eip712_types, primary_type, domain, message);
-
-            const address = try Signer.recoverAddress(sig, hash);
-            const wallet_address = self.getWalletAddress();
-
-            return std.mem.eql(u8, &wallet_address, &address);
-        }
-        /// Find a specific prepared envelope from the pool based on the given search criteria.
-        pub fn findTransactionEnvelopeFromPool(self: *Wallet(client_type), search: TransactionEnvelopePool.SearchCriteria) ?TransactionEnvelope {
-            return self.envelopes_pool.findTransactionEnvelope(self.allocator, search);
         }
         /// Converts unprepared transaction envelopes and stores them in a pool.
         /// If you want to store transaction for the future it's best to manange
@@ -503,76 +477,24 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 _ => return error.UnsupportedTransactionType,
             }
         }
-        /// Asserts that the transactions is ready to be sent.
-        /// Will return errors where the values are not expected
-        pub fn assertTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !void {
-            switch (tx) {
-                .london => |tx_eip1559| {
-                    if (tx_eip1559.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
-                    if (tx_eip1559.maxPriorityFeePerGas > tx_eip1559.maxFeePerGas) return error.TransactionTipToHigh;
-                },
-                .cancun => |tx_eip4844| {
-                    if (tx_eip4844.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
-                    if (tx_eip4844.maxPriorityFeePerGas > tx_eip4844.maxFeePerGas) return error.TransactionTipToHigh;
-
-                    if (tx_eip4844.blobVersionedHashes) |blob_hashes| {
-                        if (blob_hashes.len == 0)
-                            return error.EmptyBlobs;
-
-                        if (blob_hashes.len > constants.MAX_BLOB_NUMBER_PER_BLOCK)
-                            return error.TooManyBlobs;
-
-                        for (blob_hashes) |hashes| {
-                            if (hashes[0] != constants.VERSIONED_HASH_VERSION_KZG)
-                                return error.BlobVersionNotSupported;
-                        }
-                    }
-
-                    if (tx_eip4844.to == null)
-                        return error.CreateBlobTransaction;
-                },
-                .berlin => |tx_eip2930| {
-                    if (tx_eip2930.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
-                },
-                .legacy => |tx_legacy| {
-                    if (tx_legacy.chainId != 0 and tx_legacy.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
-                },
-            }
-        }
-        /// Signs, serializes and send the transaction via `eth_sendRawTransaction`.
-        /// Returns the transaction hash.
-        ///
-        /// Call `waitForTransactionReceipt` to update the wallet nonce or update it manually
-        pub fn sendSignedTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !RPCResponse(Hash) {
-            const serialized = try serialize.serializeTransaction(self.allocator, tx, null);
-            defer self.allocator.free(serialized);
-
-            var hash_buffer: [Keccak256.digest_length]u8 = undefined;
-            Keccak256.hash(serialized, &hash_buffer, .{});
-
-            const signed = try self.signer.sign(hash_buffer);
-            const serialized_signed = try serialize.serializeTransaction(self.allocator, tx, signed);
-            defer self.allocator.free(serialized_signed);
-
-            return self.rpc_client.sendRawTransaction(serialized_signed);
-        }
-        /// Prepares, asserts, signs and sends the transaction via `eth_sendRawTransaction`.
-        /// If any envelope is in the envelope pool it will use that instead in a LIFO order
-        /// Will return an error if the envelope is incorrect
-        ///
-        /// Call `waitForTransactionReceipt` to update the wallet nonce or update it manually
-        pub fn sendTransaction(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !RPCResponse(Hash) {
-            const prepared = self.envelopes_pool.getLastElementFromPool(self.allocator) orelse try self.prepareTransaction(unprepared_envelope);
+        /// Search the internal `TransactionEnvelopePool` to find the specified transaction based on the `type` and nonce.
+        /// If there are duplicate transaction that meet the search criteria it will send the first it can find.
+        /// The search is linear and starts from the first node of the pool.
+        pub fn searchPoolAndSendTransaction(self: *Wallet(client_type), search_opts: TransactionEnvelopePool.SearchCriteria) !RPCResponse(Hash) {
+            const prepared = self.envelopes_pool.findTransactionEnvelope(self.allocator, search_opts) orelse return error.TransactionNotFoundInPool;
 
             try self.assertTransaction(prepared);
 
-            const hash = try self.sendSignedTransaction(prepared);
-
-            return hash;
+            return self.sendSignedTransaction(prepared);
         }
         /// Sends blob transaction to the network
         /// Trusted setup must be loaded otherwise this will fail.
-        pub fn sendBlobTransaction(self: *Wallet(client_type), blobs: []const Blob, unprepared_envelope: UnpreparedTransactionEnvelope, trusted_setup: *KZG4844) !RPCResponse(Hash) {
+        pub fn sendBlobTransaction(
+            self: *Wallet(client_type),
+            blobs: []const Blob,
+            unprepared_envelope: UnpreparedTransactionEnvelope,
+            trusted_setup: *KZG4844,
+        ) !RPCResponse(Hash) {
             if (unprepared_envelope.type != .cancun)
                 return error.InvalidTransactionType;
 
@@ -597,7 +519,11 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         }
         /// Sends blob transaction to the network
         /// This uses and already prepared sidecar.
-        pub fn sendSidecarTransaction(self: *Wallet(client_type), sidecars: []const Sidecar, unprepared_envelope: UnpreparedTransactionEnvelope) !RPCResponse(Hash) {
+        pub fn sendSidecarTransaction(
+            self: *Wallet(client_type),
+            sidecars: []const Sidecar,
+            unprepared_envelope: UnpreparedTransactionEnvelope,
+        ) !RPCResponse(Hash) {
             if (unprepared_envelope.type != .cancun)
                 return error.InvalidTransactionType;
 
@@ -617,11 +543,120 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             return self.rpc_client.sendRawTransaction(serialized_signed);
         }
-        /// Waits until the transaction gets mined and we can grab the receipt.
-        /// If fail if the retry counter is excedded.
+        /// Signs, serializes and send the transaction via `eth_sendRawTransaction`.
+        /// Returns the transaction hash.
+        pub fn sendSignedTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !RPCResponse(Hash) {
+            const serialized = try serialize.serializeTransaction(self.allocator, tx, null);
+            defer self.allocator.free(serialized);
+
+            var hash_buffer: [Keccak256.digest_length]u8 = undefined;
+            Keccak256.hash(serialized, &hash_buffer, .{});
+
+            const signed = try self.signer.sign(hash_buffer);
+            const serialized_signed = try serialize.serializeTransaction(self.allocator, tx, signed);
+            defer self.allocator.free(serialized_signed);
+
+            return self.rpc_client.sendRawTransaction(serialized_signed);
+        }
+        /// Prepares, asserts, signs and sends the transaction via `eth_sendRawTransaction`.
+        /// If any envelope is in the envelope pool it will use that instead in a LIFO order
+        /// Will return an error if the envelope is incorrect
+        pub fn sendTransaction(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !RPCResponse(Hash) {
+            const prepared = self.envelopes_pool.getLastElementFromPool(self.allocator) orelse try self.prepareTransaction(unprepared_envelope);
+
+            try self.assertTransaction(prepared);
+
+            return self.sendSignedTransaction(prepared);
+        }
+        /// Signs an ethereum message with the specified prefix.
         ///
-        /// Nonce will only get updated if it's able to fetch the receipt.
-        /// Use the rpc_client waitForTransactionReceipt if you don't want to update the wallet's nonce.
+        /// The Signatures recoverId doesn't include the chain_id
+        pub fn signEthereumMessage(self: *Wallet(client_type), message: []const u8) !Signature {
+            const start = "\x19Ethereum Signed Message:\n";
+            const concated_message = try std.fmt.allocPrint(self.allocator, "{s}{d}{s}", .{ start, message.len, message });
+            defer self.allocator.free(concated_message);
+
+            var hash: [Keccak256.digest_length]u8 = undefined;
+            Keccak256.hash(concated_message, &hash, .{});
+
+            return self.signer.sign(hash);
+        }
+        /// Signs a EIP712 message according to the expecification
+        /// https://eips.ethereum.org/EIPS/eip-712
+        ///
+        /// `types` parameter is expected to be a struct where the struct
+        /// keys are used to grab the solidity type information so that the
+        /// encoding and hashing can happen based on it. See the specification
+        /// for more details.
+        ///
+        /// `primary_type` is the expected main type that you want to hash this message.
+        /// Compilation will fail if the provided string doesn't exist on the `types` parameter
+        ///
+        /// `domain` is the values of the defined EIP712Domain. Currently it doesnt not support custom
+        /// domain types.
+        ///
+        /// `message` is expected to be a struct where the solidity types are transalated to the native
+        /// zig types. I.E string -> []const u8 or int256 -> i256 and so on.
+        /// In the future work will be done where the compiler will offer more clearer types
+        /// base on a meta programming type function.
+        ///
+        /// Returns the signature type.
+        pub fn signTypedData(
+            self: *Wallet(client_type),
+            comptime eip_types: anytype,
+            comptime primary_type: []const u8,
+            domain: ?TypedDataDomain,
+            message: anytype,
+        ) !Signature {
+            return self.signer.sign(try eip712.hashTypedData(self.allocator, eip_types, primary_type, domain, message));
+        }
+        /// Verifies if a given signature was signed by the current wallet.
+        pub fn verifyMessage(self: *Wallet(client_type), sig: Signature, message: []const u8) bool {
+            var hash_buffer: [Keccak256.digest_length]u8 = undefined;
+            Keccak256.hash(message, &hash_buffer, .{});
+            return self.signer.verifyMessage(hash_buffer, sig);
+        }
+        /// Verifies a EIP712 message according to the expecification
+        /// https://eips.ethereum.org/EIPS/eip-712
+        ///
+        /// `types` parameter is expected to be a struct where the struct
+        /// keys are used to grab the solidity type information so that the
+        /// encoding and hashing can happen based on it. See the specification
+        /// for more details.
+        ///
+        /// `primary_type` is the expected main type that you want to hash this message.
+        /// Compilation will fail if the provided string doesn't exist on the `types` parameter
+        ///
+        /// `domain` is the values of the defined EIP712Domain. Currently it doesnt not support custom
+        /// domain types.
+        ///
+        /// `message` is expected to be a struct where the solidity types are transalated to the native
+        /// zig types. I.E string -> []const u8 or int256 -> i256 and so on.
+        /// In the future work will be done where the compiler will offer more clearer types
+        /// base on a meta programming type function.
+        ///
+        /// Returns the signature type.
+        pub fn verifyTypedData(
+            self: *Wallet(client_type),
+            sig: Signature,
+            comptime eip712_types: anytype,
+            comptime primary_type: []const u8,
+            domain: ?TypedDataDomain,
+            message: anytype,
+        ) !bool {
+            const hash = try eip712.hashTypedData(self.allocator, eip712_types, primary_type, domain, message);
+
+            const address = try Signer.recoverAddress(sig, hash);
+            const wallet_address = self.getWalletAddress();
+
+            return std.mem.eql(u8, &wallet_address, &address);
+        }
+        /// Waits until the transaction gets mined and we can grab the receipt.
+        /// It fails if the retry counter is excedded.
+        ///
+        /// The behaviour of this method varies based on the client type.
+        /// If it's called with the websocket client or the ipc client it will create a subscription for new block and wait
+        /// until the transaction gets mined. Otherwise it will use the rpc_client `pooling_interval` property.
         pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt) {
             return self.rpc_client.waitForTransactionReceipt(tx_hash, confirmations);
         }
@@ -796,12 +831,12 @@ test "Pool transactions" {
         try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
         defer wallet.deinit();
 
-        try wallet.poolTransactionEnvelope(.{ .type = .london });
-        try wallet.poolTransactionEnvelope(.{ .type = .berlin });
-        try wallet.poolTransactionEnvelope(.{ .type = .legacy });
-        try wallet.poolTransactionEnvelope(.{ .type = .cancun });
+        try wallet.poolTransactionEnvelope(.{ .type = .london, .nonce = 0 });
+        try wallet.poolTransactionEnvelope(.{ .type = .berlin, .nonce = 0 });
+        try wallet.poolTransactionEnvelope(.{ .type = .legacy, .nonce = 0 });
+        try wallet.poolTransactionEnvelope(.{ .type = .cancun, .nonce = 0 });
 
-        const env = wallet.findTransactionEnvelopeFromPool(.london);
+        const env = wallet.findTransactionEnvelopeFromPool(.{ .type = .london, .nonce = 0 });
         try testing.expect(env != null);
     }
     {
@@ -814,12 +849,12 @@ test "Pool transactions" {
         try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
         defer wallet.deinit();
 
-        try wallet.poolTransactionEnvelope(.{ .type = .london });
-        try wallet.poolTransactionEnvelope(.{ .type = .berlin });
-        try wallet.poolTransactionEnvelope(.{ .type = .legacy });
-        try wallet.poolTransactionEnvelope(.{ .type = .cancun });
+        try wallet.poolTransactionEnvelope(.{ .type = .london, .nonce = 0 });
+        try wallet.poolTransactionEnvelope(.{ .type = .berlin, .nonce = 0 });
+        try wallet.poolTransactionEnvelope(.{ .type = .legacy, .nonce = 0 });
+        try wallet.poolTransactionEnvelope(.{ .type = .cancun, .nonce = 0 });
 
-        const env = wallet.findTransactionEnvelopeFromPool(.london);
+        const env = wallet.findTransactionEnvelopeFromPool(.{ .type = .london, .nonce = 0 });
         try testing.expect(env != null);
     }
     {
@@ -831,12 +866,12 @@ test "Pool transactions" {
         try wallet.init(buffer, .{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
         defer wallet.deinit();
 
-        try wallet.poolTransactionEnvelope(.{ .type = .london });
-        try wallet.poolTransactionEnvelope(.{ .type = .berlin });
-        try wallet.poolTransactionEnvelope(.{ .type = .legacy });
-        try wallet.poolTransactionEnvelope(.{ .type = .cancun });
+        try wallet.poolTransactionEnvelope(.{ .type = .london, .nonce = 0 });
+        try wallet.poolTransactionEnvelope(.{ .type = .berlin, .nonce = 0 });
+        try wallet.poolTransactionEnvelope(.{ .type = .legacy, .nonce = 0 });
+        try wallet.poolTransactionEnvelope(.{ .type = .cancun, .nonce = 0 });
 
-        const env = wallet.findTransactionEnvelopeFromPool(.london);
+        const env = wallet.findTransactionEnvelopeFromPool(.{ .type = .london, .nonce = 0 });
         try testing.expect(env != null);
     }
 }

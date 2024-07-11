@@ -4,11 +4,32 @@ const zabi_root = @import("zabi");
 
 const bench_log = std.log.scoped(.bench);
 
+const BORDER = "=" ** 80;
+const PADDING = " " ** 35;
+
+const BenchmarkPrinter = struct {
+    writer: std.fs.File.Writer,
+
+    fn init(writer: std.fs.File.Writer) BenchmarkPrinter {
+        return .{ .writer = writer };
+    }
+
+    fn fmt(self: BenchmarkPrinter, comptime format: []const u8, args: anytype) void {
+        std.fmt.format(self.writer, format, args) catch unreachable;
+    }
+
+    fn print(self: BenchmarkPrinter, comptime format: []const u8, args: anytype) void {
+        std.fmt.format(self.writer, format, args) catch @panic("Format failed!");
+        self.fmt("\x1b[0m", .{});
+    }
+};
+
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
+    const printer = BenchmarkPrinter.init(std.io.getStdErr().writer());
 
-    bench_log.debug("Starting benchmark runner...", .{});
-    bench_log.debug("Benchmarking parsing Seaport\n", .{});
+    printer.print("{s}Benchmark running in {s} mode\n", .{ " " ** 20, @tagName(@import("builtin").mode) });
+    printer.print("\x1b[1;32m\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, "Human-Readable ABI", BORDER });
 
     const slice =
         \\constructor(address conduitController)
@@ -101,8 +122,8 @@ pub fn main() !void {
         result.printSummary();
     }
 
-    bench_log.debug("Steping throw encoding functions...", .{});
-    bench_log.debug("Serialize...", .{});
+    printer.print("\x1b[1;32m\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, "ENCODING", BORDER });
+    printer.print("Serialize Transaction... ", .{});
     {
         const access: []const zabi_root.types.transactions.AccessList = &.{};
         const result = try benchmark.benchmark(allocator, zabi_root.encoding.serialize.serializeTransaction, .{ allocator, .{ .london = .{
@@ -119,13 +140,13 @@ pub fn main() !void {
         result.printSummary();
     }
 
-    bench_log.debug("RLP...", .{});
+    printer.print("RLP Encoding... ", .{});
     {
         const result = try benchmark.benchmark(allocator, zabi_root.encoding.rlp.encodeRlp, .{ allocator, .{ 69, "FOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO" } }, .{ .warmup_runs = 5, .runs = 100 });
         result.printSummary();
     }
 
-    bench_log.debug("Abi...", .{});
+    printer.print("ABI Encoding... ", .{});
     {
         const params: []const zabi_root.abi.abi_parameter.AbiParameter = &.{.{
             .type = .{ .tuple = {} },
@@ -154,7 +175,7 @@ pub fn main() !void {
         result.printSummary();
     }
 
-    bench_log.debug("Abi Logs...", .{});
+    printer.print("ABI Logs Encoding... ", .{});
     {
         const event = try zabi_root.human_readable.parsing.parseHumanReadable(zabi_root.abi.abitypes.Event, allocator, "event Foo(uint indexed a, int indexed b, bool indexed c, bytes5 indexed d)");
         defer event.deinit();
@@ -167,8 +188,8 @@ pub fn main() !void {
         result.printSummary();
     }
 
-    bench_log.debug("Steping throw decoding functions...", .{});
-    bench_log.debug("Parse...", .{});
+    printer.print("\x1b[1;32m\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, "DECODING", BORDER });
+    printer.print("Parse serialized transaction... ", .{});
     {
         const access: []const zabi_root.types.transactions.AccessList = &.{};
         const encoded = try zabi_root.encoding.serialize.serializeTransaction(allocator, .{ .london = .{
@@ -188,7 +209,7 @@ pub fn main() !void {
         result.printSummary();
     }
 
-    bench_log.debug("RLP...", .{});
+    printer.print("RLP Decoding...", .{});
     {
         const multi: std.meta.Tuple(&[_]type{ u8, bool, []const u8 }) = .{ 127, false, "foobar" };
         const encoded = try zabi_root.encoding.rlp.encodeRlp(allocator, .{multi});
@@ -202,7 +223,7 @@ pub fn main() !void {
         result.printSummary();
     }
 
-    bench_log.debug("Abi...", .{});
+    printer.print("Abi Decoding... ", .{});
     {
         const params: []const zabi_root.abi.abi_parameter.AbiParameter = &.{.{
             .type = .{ .tuple = {} },
@@ -236,7 +257,7 @@ pub fn main() !void {
         result.printSummary();
     }
 
-    bench_log.debug("Abi Logs...", .{});
+    printer.print("Abi Logs Decoding... ", .{});
     {
         const event = try zabi_root.human_readable.parsing.parseHumanReadable(zabi_root.abi.abitypes.Event, allocator, "event Foo(uint indexed a, int indexed b, bool indexed c, bytes5 indexed d)");
         defer event.deinit();

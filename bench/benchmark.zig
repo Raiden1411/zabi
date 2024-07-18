@@ -21,10 +21,12 @@ const parseTransaction = zabi_root.decoding.parse_transacition.parseTransaction;
 const parseHumanReadable = zabi_root.human_readable.parsing.parseHumanReadable;
 const serializeTransaction = zabi_root.encoding.serialize.serializeTransaction;
 
-const bench_log = std.log.scoped(.bench);
-
 const BORDER = "=" ** 80;
 const PADDING = " " ** 35;
+
+pub const std_options: std.Options = .{
+    .log_level = .info,
+};
 
 const BenchmarkPrinter = struct {
     writer: std.fs.File.Writer,
@@ -47,16 +49,39 @@ pub fn main() !void {
     const allocator = std.heap.page_allocator;
     const printer = BenchmarkPrinter.init(std.io.getStdErr().writer());
 
+    var client: HttpRpcClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("https://ethereum-rpc.publicnode.com");
+    try client.init(.{
+        .allocator = allocator,
+        .uri = uri,
+    });
+
     printer.print("{s}Benchmark running in {s} mode\n", .{ " " ** 20, @tagName(@import("builtin").mode) });
     printer.print("\x1b[1;32m\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, "Human-Readable ABI", BORDER });
 
-    const result = try benchmark.benchmark(
-        allocator,
-        zabi_root.human_readable.parsing.parseHumanReadable,
-        .{ zabi_root.abi.abitypes.Abi, allocator, constants.slice },
-        .{ .warmup_runs = 5, .runs = 100 },
-    );
-    result.printSummary();
+    {
+        const result = try benchmark.benchmark(
+            allocator,
+            zabi_root.human_readable.parsing.parseHumanReadable,
+            .{ zabi_root.abi.abitypes.Abi, allocator, constants.slice },
+            .{ .warmup_runs = 5, .runs = 100 },
+        );
+        result.printSummary();
+    }
+
+    printer.print("\x1b[1;32m\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, "Http Client", BORDER });
+    {
+        printer.print("Get ChainId...", .{});
+        const result = try benchmark.benchmark(
+            allocator,
+            HttpRpcClient.getChainId,
+            .{&client},
+            .{ .runs = 5, .warmup_runs = 1 },
+        );
+        result.printSummary();
+    }
 
     try encodingFunctions(allocator, printer);
     try decodingFunctions(allocator, printer);

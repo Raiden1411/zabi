@@ -8,6 +8,8 @@ const generator = zabi_root.generator;
 const Allocator = std.mem.Allocator;
 const Event = zabi_root.abi.abitypes.Event;
 const HttpRpcClient = zabi_root.clients.PubClient;
+const Keccak256 = std.crypto.hash.sha3.Keccak256;
+const Signer = zabi_root.Signer;
 const TransactionEnvelope = zabi_root.types.transactions.TransactionEnvelope;
 
 // Functions
@@ -58,6 +60,11 @@ pub fn main() !void {
         .uri = uri,
     });
 
+    var buffer: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    const signer = try Signer.init(buffer);
+
     printer.print("{s}Benchmark running in {s} mode\n", .{ " " ** 20, @tagName(@import("builtin").mode) });
     printer.print("\x1b[1;32m\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, "Human-Readable ABI", BORDER });
 
@@ -67,6 +74,25 @@ pub fn main() !void {
             zabi_root.human_readable.parsing.parseHumanReadable,
             .{ zabi_root.abi.abitypes.Abi, allocator, constants.slice },
             .{ .warmup_runs = 5, .runs = 100 },
+        );
+        result.printSummary();
+    }
+
+    printer.print("\x1b[1;32m\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, "Signer", BORDER });
+    {
+        const start = "\x19Ethereum Signed Message:\n";
+        const concated_message = try std.fmt.allocPrint(allocator, "{s}{d}{s}", .{ start, "Hello World!".len, "Hello World!" });
+        defer allocator.free(concated_message);
+
+        var hash: [Keccak256.digest_length]u8 = undefined;
+        Keccak256.hash(concated_message, &hash, .{});
+
+        printer.print("Ethereum message...", .{});
+        const result = try benchmark.benchmark(
+            allocator,
+            Signer.sign,
+            .{ signer, hash },
+            .{ .runs = 100, .warmup_runs = 5 },
         );
         result.printSummary();
     }

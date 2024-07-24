@@ -60,11 +60,6 @@ pub fn main() !void {
         .uri = uri,
     });
 
-    var buffer: [32]u8 = undefined;
-    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
-
-    const signer = try Signer.init(buffer);
-
     printer.print("{s}Benchmark running in {s} mode\n", .{ " " ** 20, @tagName(@import("builtin").mode) });
     printer.print("\x1b[1;32m\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, "Human-Readable ABI", BORDER });
 
@@ -74,25 +69,6 @@ pub fn main() !void {
             zabi_root.human_readable.parsing.parseHumanReadable,
             .{ zabi_root.abi.abitypes.Abi, allocator, constants.slice },
             .{ .warmup_runs = 5, .runs = 100 },
-        );
-        result.printSummary();
-    }
-
-    printer.print("\x1b[1;32m\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, "Signer", BORDER });
-    {
-        const start = "\x19Ethereum Signed Message:\n";
-        const concated_message = try std.fmt.allocPrint(allocator, "{s}{d}{s}", .{ start, "Hello World!".len, "Hello World!" });
-        defer allocator.free(concated_message);
-
-        var hash: [Keccak256.digest_length]u8 = undefined;
-        Keccak256.hash(concated_message, &hash, .{});
-
-        printer.print("Ethereum message...", .{});
-        const result = try benchmark.benchmark(
-            allocator,
-            Signer.sign,
-            .{ signer, hash },
-            .{ .runs = 100, .warmup_runs = 5 },
         );
         result.printSummary();
     }
@@ -111,8 +87,68 @@ pub fn main() !void {
 
     try encodingFunctions(allocator, printer);
     try decodingFunctions(allocator, printer);
+    try signerMethods(allocator, printer);
 }
 
+pub fn signerMethods(allocator: Allocator, printer: BenchmarkPrinter) !void {
+    var buffer: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    const signer = try Signer.init(buffer);
+
+    printer.print("\x1b[1;32m\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, "Signer", BORDER });
+
+    const start = "\x19Ethereum Signed Message:\n";
+    const concated_message = try std.fmt.allocPrint(allocator, "{s}{d}{s}", .{ start, "Hello World!".len, "Hello World!" });
+    defer allocator.free(concated_message);
+
+    var hash: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(concated_message, &hash, .{});
+
+    {
+        printer.print("Ethereum message...", .{});
+        const result = try benchmark.benchmark(
+            allocator,
+            Signer.sign,
+            .{ signer, hash },
+            .{ .runs = 100, .warmup_runs = 5 },
+        );
+        result.printSummary();
+    }
+    {
+        printer.print("Verify message...", .{});
+        const sig = try signer.sign(hash);
+        const result = try benchmark.benchmark(
+            allocator,
+            Signer.verifyMessage,
+            .{ signer, hash, sig },
+            .{ .runs = 100, .warmup_runs = 5 },
+        );
+        result.printSummary();
+    }
+    {
+        printer.print("Recover Address...", .{});
+        const sig = try signer.sign(hash);
+        const result = try benchmark.benchmark(
+            allocator,
+            Signer.recoverAddress,
+            .{ sig, hash },
+            .{ .runs = 100, .warmup_runs = 5 },
+        );
+        result.printSummary();
+    }
+    {
+        printer.print("Recover Public Key...", .{});
+        const sig = try signer.sign(hash);
+        const result = try benchmark.benchmark(
+            allocator,
+            Signer.recoverPubkey,
+            .{ sig, hash },
+            .{ .runs = 100, .warmup_runs = 5 },
+        );
+        result.printSummary();
+    }
+}
 pub fn decodingFunctions(allocator: Allocator, printer: BenchmarkPrinter) !void {
     printer.print("\x1b[1;32m\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, "DECODING", BORDER });
     printer.print("Parse serialized transaction... ", .{});

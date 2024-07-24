@@ -7,6 +7,8 @@ const generator = zabi_root.generator;
 // Types
 const Allocator = std.mem.Allocator;
 const Event = zabi_root.abi.abitypes.Event;
+const HDWalletNode = zabi_root.hdwallet.HDWalletNode;
+const HmacSha512 = std.crypto.auth.hmac.sha2.HmacSha512;
 const HttpRpcClient = zabi_root.clients.PubClient;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Signer = zabi_root.Signer;
@@ -19,9 +21,11 @@ const decodeRlp = zabi_root.decoding.rlp.decodeRlp;
 const encodeAbiParameters = zabi_root.encoding.abi_encoding.encodeAbiParameters;
 const encodeLogTopics = zabi_root.encoding.logs_encoding.encodeLogTopics;
 const encodeRlp = zabi_root.encoding.rlp.encodeRlp;
+const fromEntropy = zabi_root.mnemonic.fromEntropy;
 const parseTransaction = zabi_root.decoding.parse_transacition.parseTransaction;
 const parseHumanReadable = zabi_root.human_readable.parsing.parseHumanReadable;
 const serializeTransaction = zabi_root.encoding.serialize.serializeTransaction;
+const toEntropy = zabi_root.mnemonic.toEntropy;
 
 const BORDER = "=" ** 80;
 const PADDING = " " ** 35;
@@ -140,10 +144,51 @@ pub fn signerMethods(allocator: Allocator, printer: BenchmarkPrinter) !void {
     {
         printer.print("Recover Public Key...", .{});
         const sig = try signer.sign(hash);
+
         const result = try benchmark.benchmark(
             allocator,
             Signer.recoverPubkey,
             .{ sig, hash },
+            .{ .runs = 100, .warmup_runs = 5 },
+        );
+        result.printSummary();
+    }
+    {
+        printer.print("HDWallet Node...", .{});
+        const seed = "test test test test test test test test test test test junk";
+        var hashed: [64]u8 = undefined;
+
+        try std.crypto.pwhash.pbkdf2(&hashed, seed, "mnemonic", 2048, HmacSha512);
+
+        const result = try benchmark.benchmark(
+            allocator,
+            HDWalletNode.fromSeedAndPath,
+            .{ hashed, "m/44'/60'/0'/0/0" },
+            .{ .runs = 100, .warmup_runs = 5 },
+        );
+        result.printSummary();
+    }
+    {
+        printer.print("Mnemonic Entropy...", .{});
+        const seed = "test test test test test test test test test test test junk";
+
+        const result = try benchmark.benchmark(
+            allocator,
+            toEntropy,
+            .{ 12, seed, null },
+            .{ .runs = 100, .warmup_runs = 5 },
+        );
+        result.printSummary();
+    }
+    {
+        printer.print("From Mnemonic Entropy...", .{});
+        const seed = "test test test test test test test test test test test junk";
+        const entropy = try toEntropy(12, seed, null);
+
+        const result = try benchmark.benchmark(
+            allocator,
+            fromEntropy,
+            .{ allocator, 12, entropy, null },
             .{ .runs = 100, .warmup_runs = 5 },
         );
         result.printSummary();

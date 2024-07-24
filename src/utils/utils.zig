@@ -173,8 +173,8 @@ pub inline fn formatInt(int: u256, buffer: *[32]u8) u8 {
         }
     }
 
-    // It should never be reached
-    unreachable;
+    buffer.* = @bitCast(@byteSwap(int));
+    return 32;
 }
 /// Computes the size of a given int
 pub inline fn computeSize(int: u256) u8 {
@@ -184,8 +184,7 @@ pub inline fn computeSize(int: u256) u8 {
         }
     }
 
-    // It should never be reached
-    unreachable;
+    return 32;
 }
 /// Similar to `parseInt` but handles the hex bytes and not the
 /// hex represented string.

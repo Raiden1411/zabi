@@ -1,7 +1,11 @@
+const abi = @import("../abi/abi.zig");
 const block = @import("../types/block.zig");
+const encoder = @import("../encoding/encoder.zig");
 const http = std.http;
 const log = @import("../types/log.zig");
 const meta = @import("../meta/utils.zig");
+const meta_abi = @import("../meta/abi.zig");
+const multicall = @import("multicall.zig");
 const proof = @import("../types/proof.zig");
 const std = @import("std");
 const sync = @import("../types/syncing.zig");
@@ -12,6 +16,7 @@ const txpool = @import("../types/txpool.zig");
 const utils = @import("../utils/utils.zig");
 
 // Types
+const AbiParametersToPrimative = meta_abi.AbiParametersToPrimative;
 const AccessListResult = transaction.AccessListResult;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
@@ -32,6 +37,7 @@ const EthereumRpcMethods = types.EthereumRpcMethods;
 const EstimateFeeReturn = transaction.EstimateFeeReturn;
 const FeeHistory = transaction.FeeHistory;
 const FetchResult = http.Client.FetchResult;
+const Function = abi.Function;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
@@ -969,6 +975,30 @@ pub fn getUncleCountByBlockHash(self: *PubClient, block_hash: Hash) !RPCResponse
 /// RPC Method: [`eth_getUncleCountByBlockNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclecountbyblocknumber)
 pub fn getUncleCountByBlockNumber(self: *PubClient, opts: BlockNumberRequest) !RPCResponse(usize) {
     return self.sendBlockNumberRequest(opts, .eth_getUncleCountByBlockNumber);
+}
+/// Runs the selected multicall3 contracts.
+pub fn multicall3(
+    self: *PubClient,
+    comptime targets: []const multicall.MulticallTargets,
+    function_arguments: multicall.MulticallArguments(targets),
+    allow_failure: bool,
+) !RPCResponse(multicall.Result) {
+    var abi_list = std.ArrayList(multicall.Call3).init(self.allocator);
+    errdefer abi_list.deinit();
+
+    comptime std.debug.assert(targets.len == function_arguments.len);
+
+    inline for (targets, function_arguments) |target, argument| {
+        const encoded = try encoder.encodeAbiFunctionComptime(self.allocator, target.function, argument);
+
+        const call3: multicall.Call3 = .{
+            .target = target.target_address,
+            .callData = encoded,
+            .allowFailure = allow_failure,
+        };
+
+        try abi_list.append(call3);
+    }
 }
 /// Creates a filter in the node, to notify when a new block arrives.
 /// To check if the state has changed, call `getFilterOrLogChanges`.

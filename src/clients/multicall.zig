@@ -1,11 +1,11 @@
-const abi = @import("../abi/abi.zig");
+const abitypes = @import("../abi/abi.zig");
 const meta_abi = @import("../meta/abi.zig");
 const std = @import("std");
 const types = @import("../types/ethereum.zig");
 
 const AbiParametersToPrimative = meta_abi.AbiParametersToPrimative;
 const Address = types.Address;
-const Function = abi.Function;
+const Function = abitypes.Function;
 const Hex = types.Hex;
 
 pub const Call = struct {
@@ -64,3 +64,32 @@ pub fn MulticallArguments(comptime targets: []const MulticallTargets) type {
     }
     return @Type(.{ .Struct = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
 }
+
+pub const abi: Function = .{
+    .name = "aggregate3",
+    .type = .function,
+    .stateMutability = .payable,
+    .inputs = &.{
+        .{
+            .type = .{ .dynamicArray = &.{ .tuple = {} } },
+            .name = "calls",
+            .components = &.{
+                .{ .type = .{ .address = {} }, .name = "target" },
+                .{ .type = .{ .bool = {} }, .name = "allowFailure" },
+                .{ .type = .{ .bytes = {} }, .name = "callData" },
+            },
+        },
+    },
+    .outputs = &.{
+        .{
+            .type = .{ .dynamicArray = &.{ .tuple = {} } },
+            .name = "returnData",
+            .components = &.{
+                .{ .type = .{ .bool = {} }, .name = "success" },
+                .{ .type = .{ .bytes = {} }, .name = "returnData" },
+            },
+        },
+    },
+};
+
+pub const contract = @import("../utils/utils.zig").addressToBytes("0xcA11bde05977b3631167028862bE2a173976CA11") catch unreachable;

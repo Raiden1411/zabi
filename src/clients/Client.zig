@@ -27,6 +27,7 @@ const BlockHashRequest = block.BlockHashRequest;
 const BlockNumberRequest = block.BlockNumberRequest;
 const BlockRequest = block.BlockRequest;
 const BlockTag = block.BlockTag;
+const Call3 = multicall.Call3;
 const Chains = types.PublicChains;
 const EthCall = transaction.EthCall;
 const ErrorResponse = types.ErrorResponse;
@@ -46,6 +47,8 @@ const Log = log.Log;
 const LogRequest = log.LogRequest;
 const LogTagRequest = log.LogTagRequest;
 const Logs = log.Logs;
+const MulticallArguments = multicall.MulticallArguments;
+const MulticallTargets = multicall.MulticallTargets;
 const PoolTransactionByNonce = txpool.PoolTransactionByNonce;
 const ProofResult = proof.ProofResult;
 const ProofBlockTag = block.ProofBlockTag;
@@ -979,11 +982,11 @@ pub fn getUncleCountByBlockNumber(self: *PubClient, opts: BlockNumberRequest) !R
 /// Runs the selected multicall3 contracts.
 pub fn multicall3(
     self: *PubClient,
-    comptime targets: []const multicall.MulticallTargets,
-    function_arguments: multicall.MulticallArguments(targets),
+    comptime targets: []const MulticallTargets,
+    function_arguments: MulticallArguments(targets),
     allow_failure: bool,
-) !RPCResponse(multicall.Result) {
-    var abi_list = std.ArrayList(multicall.Call3).init(self.allocator);
+) !void {
+    var abi_list = std.ArrayList(Call3).init(self.allocator);
     errdefer abi_list.deinit();
 
     comptime std.debug.assert(targets.len == function_arguments.len);
@@ -991,7 +994,7 @@ pub fn multicall3(
     inline for (targets, function_arguments) |target, argument| {
         const encoded = try encoder.encodeAbiFunctionComptime(self.allocator, target.function, argument);
 
-        const call3: multicall.Call3 = .{
+        const call3: Call3 = .{
             .target = target.target_address,
             .callData = encoded,
             .allowFailure = allow_failure,
@@ -999,6 +1002,23 @@ pub fn multicall3(
 
         try abi_list.append(call3);
     }
+
+    const slice = try abi_list.toOwnedSlice();
+    defer {
+        for (slice) |s| self.allocator.free(s.callData);
+        self.allocator.free(slice);
+    }
+
+    const encoded = try encoder.encodeAbiFunctionComptime(self.allocator, multicall.abi, .{@ptrCast(slice)});
+    defer self.allocator.free(encoded);
+
+    const data = try self.sendEthCall(.{ .london = .{
+        .to = multicall.contract,
+        .data = encoded,
+    } }, .{});
+    defer data.deinit();
+
+    std.debug.print("Result: {s}", .{std.fmt.fmtSliceHexLower(data.response)});
 }
 /// Creates a filter in the node, to notify when a new block arrives.
 /// To check if the state has changed, call `getFilterOrLogChanges`.
@@ -2483,3 +2503,29 @@ test "FeeHistory" {
         defer status.deinit();
     }
 }
+
+// test "Multicall" {
+//     var client: PubClient = undefined;
+//     defer client.deinit();
+//
+//     const uri = try std.Uri.parse("http://127.0.0.1:8545/");
+//     try client.init(.{
+//         .allocator = testing.allocator,
+//         .uri = uri,
+//     });
+//
+//     const supply: Function = .{
+//         .type = .function,
+//         .name = "totalSupply",
+//         .stateMutability = .view,
+//         // Not the real outputs represented in the ABI but here we don't really care for it.
+//         // The ABI returns a uint256 but we can just `parseInt` it
+//         .inputs = &.{},
+//         .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
+//     };
+//
+//     const a: []const MulticallTargets = &.{
+//         MulticallTargets{ .function = supply, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
+//     };
+//     try client.multicall3(a, .{{}}, true);
+// }

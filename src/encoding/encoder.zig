@@ -74,6 +74,14 @@ pub fn encodeAbiFunctionComptime(allocator: Allocator, comptime function: Functi
     var hashed: [Keccak256.digest_length]u8 = undefined;
     Keccak256.hash(prep_signature, &hashed, .{});
 
+    if (function.inputs.len == 0) {
+        const buffer = try allocator.alloc(u8, 4);
+
+        @memcpy(buffer[0..4], hashed[0..4]);
+
+        return buffer;
+    }
+
     const encoded_params = try encodeAbiParametersComptime(allocator, function.inputs, values);
     defer encoded_params.deinit();
 

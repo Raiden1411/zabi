@@ -1078,8 +1078,8 @@ pub fn readLoop(self: *IPC) !void {
                 try onError(message);
             }
             const timeout = std.mem.toBytes(std.posix.timeval{
-                .tv_sec = @intCast(0),
-                .tv_usec = @intCast(1000),
+                .sec = @intCast(0),
+                .usec = @intCast(1000),
             });
             try std.posix.setsockopt(self.ipc_reader.stream.handle, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, &timeout);
 

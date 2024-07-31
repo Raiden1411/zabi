@@ -4,6 +4,7 @@ const std = @import("std");
 const types = @import("../types/ethereum.zig");
 
 const AbiParametersToPrimative = meta_abi.AbiParametersToPrimative;
+const Allocator = std.mem.Allocator;
 const Address = types.Address;
 const Function = abitypes.Function;
 const Hex = types.Hex;
@@ -40,6 +41,10 @@ pub const Result = struct {
     success: bool,
     /// The return data from the function call.
     returnData: Hex,
+
+    pub fn deinit(self: Result, allocator: Allocator) void {
+        allocator.free(self.returnData);
+    }
 };
 
 pub const MulticallTargets = struct {

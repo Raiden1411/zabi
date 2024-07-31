@@ -1,5 +1,6 @@
 const abi = @import("../abi/abi.zig");
 const block = @import("../types/block.zig");
+const decoder = @import("../decoding/decoder.zig");
 const encoder = @import("../encoding/encoder.zig");
 const http = std.http;
 const log = @import("../types/log.zig");
@@ -985,7 +986,7 @@ pub fn multicall3(
     comptime targets: []const MulticallTargets,
     function_arguments: MulticallArguments(targets),
     allow_failure: bool,
-) !void {
+) ![]const multicall.Result {
     var abi_list = std.ArrayList(Call3).init(self.allocator);
     errdefer abi_list.deinit();
 
@@ -1018,7 +1019,9 @@ pub fn multicall3(
     } }, .{});
     defer data.deinit();
 
-    std.debug.print("Result: {s}", .{std.fmt.fmtSliceHexLower(data.response)});
+    const decoded = try decoder.decodeAbiParametersRuntime(self.allocator, struct { []const multicall.Result }, multicall.abi.outputs, data.response, .{ .allocate_when = .alloc_always });
+
+    return decoded[0];
 }
 /// Creates a filter in the node, to notify when a new block arrives.
 /// To check if the state has changed, call `getFilterOrLogChanges`.
@@ -2526,6 +2529,15 @@ test "FeeHistory" {
 //
 //     const a: []const MulticallTargets = &.{
 //         MulticallTargets{ .function = supply, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
+//         MulticallTargets{ .function = supply, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
 //     };
-//     try client.multicall3(a, .{{}}, true);
+//     const res = try client.multicall3(a, .{ {}, {} }, true);
+//     defer testing.allocator.free(res);
+//
+//     for (res) |result| {
+//         const decoded = try decoder.decodeAbiParameters(testing.allocator, supply.outputs, result.returnData, .{});
+//         defer result.deinit(testing.allocator);
+//
+//         std.debug.print("Foo: {any}\n", .{decoded});
+//     }
 // }

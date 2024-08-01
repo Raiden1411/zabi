@@ -987,41 +987,9 @@ pub fn multicall3(
     function_arguments: MulticallArguments(targets),
     allow_failure: bool,
 ) ![]const multicall.Result {
-    var abi_list = std.ArrayList(Call3).init(self.allocator);
-    errdefer abi_list.deinit();
+    var multicall_caller = try multicall.Multicall(.http).init(self);
 
-    comptime std.debug.assert(targets.len == function_arguments.len);
-
-    inline for (targets, function_arguments) |target, argument| {
-        const encoded = try encoder.encodeAbiFunctionComptime(self.allocator, target.function, argument);
-
-        const call3: Call3 = .{
-            .target = target.target_address,
-            .callData = encoded,
-            .allowFailure = allow_failure,
-        };
-
-        try abi_list.append(call3);
-    }
-
-    const slice = try abi_list.toOwnedSlice();
-    defer {
-        for (slice) |s| self.allocator.free(s.callData);
-        self.allocator.free(slice);
-    }
-
-    const encoded = try encoder.encodeAbiFunctionComptime(self.allocator, multicall.abi, .{@ptrCast(slice)});
-    defer self.allocator.free(encoded);
-
-    const data = try self.sendEthCall(.{ .london = .{
-        .to = multicall.contract,
-        .data = encoded,
-    } }, .{});
-    defer data.deinit();
-
-    const decoded = try decoder.decodeAbiParametersRuntime(self.allocator, struct { []const multicall.Result }, multicall.abi.outputs, data.response, .{ .allocate_when = .alloc_always });
-
-    return decoded[0];
+    return multicall_caller.multicall3(targets, function_arguments, allow_failure);
 }
 /// Creates a filter in the node, to notify when a new block arrives.
 /// To check if the state has changed, call `getFilterOrLogChanges`.
@@ -2507,37 +2475,55 @@ test "FeeHistory" {
     }
 }
 
-// test "Multicall" {
-//     var client: PubClient = undefined;
-//     defer client.deinit();
-//
-//     const uri = try std.Uri.parse("http://127.0.0.1:8545/");
-//     try client.init(.{
-//         .allocator = testing.allocator,
-//         .uri = uri,
-//     });
-//
-//     const supply: Function = .{
-//         .type = .function,
-//         .name = "totalSupply",
-//         .stateMutability = .view,
-//         // Not the real outputs represented in the ABI but here we don't really care for it.
-//         // The ABI returns a uint256 but we can just `parseInt` it
-//         .inputs = &.{},
-//         .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
-//     };
-//
-//     const a: []const MulticallTargets = &.{
-//         MulticallTargets{ .function = supply, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
-//         MulticallTargets{ .function = supply, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
-//     };
-//     const res = try client.multicall3(a, .{ {}, {} }, true);
-//     defer testing.allocator.free(res);
-//
-//     for (res) |result| {
-//         const decoded = try decoder.decodeAbiParameters(testing.allocator, supply.outputs, result.returnData, .{});
-//         defer result.deinit(testing.allocator);
-//
-//         std.debug.print("Foo: {any}\n", .{decoded});
-//     }
-// }
+test "Multicall" {
+    var client: PubClient = undefined;
+    defer client.deinit();
+
+    const uri = try std.Uri.parse("http://127.0.0.1:8545/");
+    try client.init(.{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
+
+    const supply: Function = .{
+        .type = .function,
+        .name = "totalSupply",
+        .stateMutability = .view,
+        // Not the real outputs represented in the ABI but here we don't really care for it.
+        // The ABI returns a uint256 but we can just `parseInt` it
+        .inputs = &.{},
+        .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
+    };
+
+    const balance: Function = .{
+        .type = .function,
+        .name = "balanceOf",
+        .stateMutability = .view,
+        // Not the real outputs represented in the ABI but here we don't really care for it.
+        // The ABI returns a uint256 but we can just `parseInt` it
+        .inputs = &.{.{ .type = .{ .address = {} }, .name = "balanceOf" }},
+        .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
+    };
+
+    const a: []const MulticallTargets = &.{
+        MulticallTargets{ .function = supply, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
+        MulticallTargets{ .function = balance, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
+    };
+
+    const res = try client.multicall3(a, .{ {}, .{try utils.addressToBytes("0xFded38DF0180039867E54EBdec2012D534862cE3")} }, true);
+    defer {
+        for (res) |r| r.deinit(testing.allocator);
+        testing.allocator.free(res);
+    }
+
+    {
+        const decoded = try decoder.decodeAbiParameters(testing.allocator, supply.outputs, res[0].returnData, .{});
+        std.debug.print("Foo: {any}\n", .{decoded});
+    }
+
+    {
+        std.debug.print("Foo: {any}\n", .{res[1]});
+        const decoded = try decoder.decodeAbiParameters(testing.allocator, balance.outputs, res[1].returnData, .{});
+        std.debug.print("Foo: {any}\n", .{decoded});
+    }
+}

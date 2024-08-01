@@ -45,22 +45,21 @@ pub const Call3Value = struct {
     callData: Hex,
 };
 
+/// The result struct when calling the multicall contract.
 pub const Result = struct {
     /// Weather the call was successfull or not.
     success: bool,
     /// The return data from the function call.
     returnData: Hex,
-
-    pub fn deinit(self: Result, allocator: Allocator) void {
-        allocator.free(self.returnData);
-    }
 };
 
+/// Arguments for the multicall3 function call
 pub const MulticallTargets = struct {
     function: Function,
     target_address: Address,
 };
 
+/// Type function that gets the expected arguments from the provided abi's.
 pub fn MulticallArguments(comptime targets: []const MulticallTargets) type {
     if (targets.len == 0) return void;
     var fields: [targets.len]std.builtin.Type.StructField = undefined;
@@ -79,6 +78,7 @@ pub fn MulticallArguments(comptime targets: []const MulticallTargets) type {
     return @Type(.{ .Struct = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
 }
 
+/// Multicall3 aggregate3 abi representation.
 pub const aggregate3_abi: Function = .{
     .name = "aggregate3",
     .type = .function,
@@ -106,33 +106,8 @@ pub const aggregate3_abi: Function = .{
     },
 };
 
-const multicall_contract_map = std.StaticStringMap(MulticallContract).initComptime(.{
-    .{ "ethereum", .ethereum },
-});
-
-pub const MulticallContract = enum(u160) {
-    ethereum = @bitCast(utils.addressToBytes("0xcA11bde05977b3631167028862bE2a173976CA11") catch unreachable),
-    // goerli = 5,
-    // op_mainnet = 10,
-    // cronos = 25,
-    // bnb = 56,
-    // ethereum_classic = 61,
-    // op_kovan = 69,
-    // gnosis = 100,
-    // polygon = 137,
-    // fantom = 250,
-    // boba = 288,
-    // op_goerli = 420,
-    // base = 8543,
-    // anvil = 31337,
-    // arbitrum = 42161,
-    // arbitrum_nova = 42170,
-    // celo = 42220,
-    // avalanche = 43114,
-    // zora = 7777777,
-    // sepolia = 11155111,
-    // op_sepolia = 11155420,
-};
+/// The multicall3 contract address. Equal across all chains.
+pub const multicall_contract = utils.addressToBytes("0xcA11bde05977b3631167028862bE2a173976CA11") catch unreachable;
 
 /// Wrapper around a rpc_client that exposes the multicall3 functions.
 pub fn Multicall(comptime client: Clients) type {
@@ -147,17 +122,11 @@ pub fn Multicall(comptime client: Clients) type {
 
         /// The underlaying rpc client used by this.
         rpc_client: *Client,
-        /// The multicall contract address based on the client chain.
-        multicall_contract: Address,
 
         /// Creates the initial state for the contract
         pub fn init(rpc_client: *Client) !Self {
-            const chain = try std.meta.intToEnum(Chains, rpc_client.chain_id);
-            const multicall_address: Address = @bitCast(@intFromEnum(multicall_contract_map.get(@tagName(chain)) orelse return error.InvalidChain));
-
             return .{
                 .rpc_client = rpc_client,
-                .multicall_contract = multicall_address,
             };
         }
         /// Runs the selected multicall3 contracts.
@@ -199,7 +168,7 @@ pub fn Multicall(comptime client: Clients) type {
             const encoded = try encoder.encodeAbiFunctionComptime(arena.allocator(), aggregate3_abi, .{@ptrCast(slice)});
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.multicall_contract,
+                .to = multicall_contract,
                 .data = encoded,
             } }, .{});
             defer data.deinit();

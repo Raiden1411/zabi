@@ -1,5 +1,7 @@
+const abi = @import("../abi/abi.zig");
 const block = @import("../types/block.zig");
 const meta = @import("../meta/utils.zig");
+const multicall = @import("multicall.zig");
 const log = @import("../types/log.zig");
 const pipe = @import("../utils/pipe.zig");
 const proof = @import("../types/proof.zig");
@@ -36,6 +38,7 @@ const EthereumSubscribeResponse = types.EthereumSubscribeResponse;
 const EthereumZigErrors = types.EthereumZigErrors;
 const EstimateFeeReturn = transaction.EstimateFeeReturn;
 const FeeHistory = transaction.FeeHistory;
+const Function = abi.Function;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
@@ -45,11 +48,15 @@ const Log = log.Log;
 const LogRequest = log.LogRequest;
 const LogTagRequest = log.LogTagRequest;
 const Logs = log.Logs;
+const Multicall = multicall.Multicall;
+const MulticallArguments = multicall.MulticallArguments;
+const MulticallTargets = multicall.MulticallTargets;
 const Mutex = std.Thread.Mutex;
 const PoolTransactionByNonce = txpool.PoolTransactionByNonce;
 const ProofResult = proof.ProofResult;
 const ProofBlockTag = block.ProofBlockTag;
 const ProofRequest = proof.ProofRequest;
+const Result = multicall.Result;
 const RPCResponse = types.RPCResponse;
 const Stack = @import("../utils/stack.zig").Stack;
 const Stream = std.net.Stream;
@@ -1010,6 +1017,50 @@ pub fn getUncleCountByBlockHash(self: *IPC, block_hash: Hash) !RPCResponse(usize
 /// RPC Method: [`eth_getUncleCountByBlockNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclecountbyblocknumber)
 pub fn getUncleCountByBlockNumber(self: *IPC, opts: BlockNumberRequest) !RPCResponse(usize) {
     return self.sendBlockNumberRequest(opts, .eth_getUncleCountByBlockNumber);
+}
+/// Runs the selected multicall3 contracts.
+/// This enables to read from multiple contract by a single `eth_call`.
+/// Uses the contracts created [here](https://www.multicall3.com/)
+///
+/// To learn more about the multicall contract please go [here](https://github.com/mds1/multicall)
+///
+/// You will need to decoded each of the `Result`.
+///
+/// **Example:**
+/// ```zig
+///  const supply: Function = .{
+///       .type = .function,
+///       .name = "totalSupply",
+///       .stateMutability = .view,
+///       .inputs = &.{},
+///       .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
+///   };
+///
+///   const balance: Function = .{
+///       .type = .function,
+///       .name = "balanceOf",
+///       .stateMutability = .view,
+///       .inputs = &.{.{ .type = .{ .address = {} }, .name = "balanceOf" }},
+///       .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
+///   };
+///
+///   const a: []const MulticallTargets = &.{
+///       .{ .function = supply, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
+///       .{ .function = balance, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
+///   };
+///
+///   const res = try client.multicall3(a, .{ {}, .{try utils.addressToBytes("0xFded38DF0180039867E54EBdec2012D534862cE3")} }, true);
+///   defer res.deinit();
+/// ```
+pub fn multicall3(
+    self: *IPC,
+    comptime targets: []const MulticallTargets,
+    function_arguments: MulticallArguments(targets),
+    allow_failure: bool,
+) !RPCResponse([]const Result) {
+    var multicall_caller = try Multicall(.ipc).init(self);
+
+    return multicall_caller.multicall3(targets, function_arguments, allow_failure);
 }
 /// Creates a filter in the node, to notify when a new block arrives.
 /// To check if the state has changed, call `getFilterOrLogChanges`.
@@ -2337,4 +2388,37 @@ test "FeeHistory" {
         const status = try client.feeHistory(10, .{ .block_number = 101010 }, &.{ 0.1, 0.2 });
         defer status.deinit();
     }
+}
+
+test "Multicall" {
+    if (true) return error.SkipZigTest;
+
+    var client: IPC = undefined;
+    defer client.deinit();
+
+    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" });
+
+    const supply: Function = .{
+        .type = .function,
+        .name = "totalSupply",
+        .stateMutability = .view,
+        .inputs = &.{},
+        .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
+    };
+
+    const balance: Function = .{
+        .type = .function,
+        .name = "balanceOf",
+        .stateMutability = .view,
+        .inputs = &.{.{ .type = .{ .address = {} }, .name = "balanceOf" }},
+        .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
+    };
+
+    const a: []const MulticallTargets = &.{
+        MulticallTargets{ .function = supply, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
+        MulticallTargets{ .function = balance, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
+    };
+
+    const res = try client.multicall3(a, .{ {}, .{try utils.addressToBytes("0xFded38DF0180039867E54EBdec2012D534862cE3")} }, true);
+    defer res.deinit();
 }

@@ -10,10 +10,12 @@ const AbiParametersToPrimative = meta_abi.AbiParametersToPrimative;
 const Allocator = std.mem.Allocator;
 const Address = types.Address;
 const Chains = types.PublicChains;
+const Clients = @import("wallet.zig").WalletClients;
 const Function = abitypes.Function;
 const Hex = types.Hex;
 const IpcClient = @import("IPC.zig");
 const PubClient = @import("Client.zig");
+const RpcResponse = types.RPCResponse;
 const WebSocketClient = @import("WebSocket.zig");
 
 pub const Call = struct {
@@ -104,10 +106,6 @@ pub const aggregate3_abi: Function = .{
     },
 };
 
-pub const multicall_contract = union(enum) {
-    ethereum: Address,
-};
-
 const multicall_contract_map = std.StaticStringMap(MulticallContract).initComptime(.{
     .{ "ethereum", .ethereum },
 });
@@ -136,7 +134,8 @@ pub const MulticallContract = enum(u160) {
     // op_sepolia = 11155420,
 };
 
-pub fn Multicall(comptime client: enum { http, websocket, ipc }) type {
+/// Wrapper around a rpc_client that exposes the multicall3 functions.
+pub fn Multicall(comptime client: Clients) type {
     return struct {
         const Client = switch (client) {
             .http => PubClient,
@@ -162,19 +161,29 @@ pub fn Multicall(comptime client: enum { http, websocket, ipc }) type {
             };
         }
         /// Runs the selected multicall3 contracts.
+        /// This enables to read from multiple contract by a single `eth_call`.
+        /// Uses the contracts created [here](https://www.multicall3.com/)
+        ///
+        /// To learn more about the multicall contract please go [here](https://github.com/mds1/multicall)
         pub fn multicall3(
             self: *Self,
             comptime targets: []const MulticallTargets,
             function_arguments: MulticallArguments(targets),
             allow_failure: bool,
-        ) ![]const Result {
+        ) !RpcResponse([]const Result) {
             comptime std.debug.assert(targets.len == function_arguments.len);
 
-            var abi_list = std.ArrayList(Call3).init(self.rpc_client.allocator);
+            const arena = try self.rpc_client.allocator.create(std.heap.ArenaAllocator);
+            errdefer self.rpc_client.allocator.destroy(arena);
+
+            arena.* = std.heap.ArenaAllocator.init(self.rpc_client.allocator);
+
+            var abi_list = std.ArrayList(Call3).init(arena.allocator());
             errdefer abi_list.deinit();
 
             inline for (targets, function_arguments) |target, argument| {
-                const encoded = try encoder.encodeAbiFunctionComptime(self.rpc_client.allocator, target.function, argument);
+                const encoded = try encoder.encodeAbiFunctionComptime(arena.allocator(), target.function, argument);
+                errdefer arena.deinit();
 
                 const call3: Call3 = .{
                     .target = target.target_address,
@@ -185,14 +194,9 @@ pub fn Multicall(comptime client: enum { http, websocket, ipc }) type {
                 try abi_list.append(call3);
             }
 
+            // We don't free the memory here because we wrap it on a arena.
             const slice = try abi_list.toOwnedSlice();
-            defer {
-                for (slice) |s| self.rpc_client.allocator.free(s.callData);
-                self.rpc_client.allocator.free(slice);
-            }
-
-            const encoded = try encoder.encodeAbiFunctionComptime(self.rpc_client.allocator, aggregate3_abi, .{@ptrCast(slice)});
-            defer self.rpc_client.allocator.free(encoded);
+            const encoded = try encoder.encodeAbiFunctionComptime(arena.allocator(), aggregate3_abi, .{@ptrCast(slice)});
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = self.multicall_contract,
@@ -201,14 +205,14 @@ pub fn Multicall(comptime client: enum { http, websocket, ipc }) type {
             defer data.deinit();
 
             const decoded = try decoder.decodeAbiParametersRuntime(
-                self.rpc_client.allocator,
+                arena.allocator(),
                 struct { []const Result },
                 aggregate3_abi.outputs,
                 data.response,
                 .{ .allocate_when = .alloc_always },
             );
 
-            return decoded[0];
+            return .{ .arena = arena, .response = decoded[0] };
         }
     };
 }

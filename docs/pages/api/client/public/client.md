@@ -14,6 +14,8 @@ You can still use an `ArenaAllocator` if you want to mimic the previous behaviou
 
 Zabi also support custom client for the op-stack that follow this same principle.
 
+Zabi now also supports calls to the multicall3 contract using the rpc clients. Currently we only support the `aggregate3` contract call but we plan to add futher support in future versions. To find out more please go to their [website](https://www.multicall3.com/)
+
 ## Usage
 
 Depending on the type of client you want to init a set of seperate options are available.

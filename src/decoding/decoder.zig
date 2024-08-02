@@ -47,7 +47,7 @@ pub const DecodeOptions = struct {
     allocate_when: enum { alloc_always, alloc_if_needed } = .alloc_if_needed,
 };
 
-pub const DecodedErrors = error{ InvalidBits, InvalidEnumType, InvalidAbiParameter, InvalidSignedness, InvalidArraySize, JunkData, InvalidAbiSignature, BufferOverrun, InvalidLength, NoSpaceLeft, InvalidDecodeDataSize } || Allocator.Error || std.fmt.ParseIntError;
+pub const DecodedErrors = error{ UnknowField, NullComponentType, InvalidBits, InvalidEnumType, InvalidAbiParameter, InvalidSignedness, InvalidArraySize, JunkData, InvalidAbiSignature, BufferOverrun, InvalidLength, NoSpaceLeft, InvalidDecodeDataSize } || Allocator.Error || std.fmt.ParseIntError;
 
 /// Decode the hex values based on the struct signature
 ///

@@ -43,7 +43,7 @@ pub fn main() !void {
             .{ .type = .{ .address = {} }, .name = "to", .indexed = true },
         }, event.response.params.result.topics);
 
-        std.debug.print("Transfer event found. Value transfered: {d} dollars\n", .{value[0] / 1000000});
+        std.debug.print("Transfer event found. Value transfered: {d} dollars\n", .{value / 1000000});
         std.debug.print("From: 0x{s}\n", .{std.fmt.fmtSliceHexLower(&topics[1])});
         std.debug.print("To: 0x{s}\n", .{std.fmt.fmtSliceHexLower(&topics[2])});
     }

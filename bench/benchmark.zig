@@ -236,7 +236,7 @@ pub fn decodingFunctions(allocator: Allocator, printer: BenchmarkPrinter) !void 
         const result = try benchmark.benchmark(
             allocator,
             decodeAbiParameter,
-            .{ allocator, constants.params, encoded.data, .{} },
+            .{ zabi_root.meta.abi.AbiParametersToPrimative(constants.params), allocator, encoded.data, .{} },
             .{ .warmup_runs = 5, .runs = 100 },
         );
         result.printSummary();

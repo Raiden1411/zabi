@@ -4,7 +4,9 @@ const std = @import("std");
 const testing = std.testing;
 
 // Types
+const AbiDecoded = decoder.AbiDecoded;
 const Allocator = std.mem.Allocator;
+const DecodeOptions = decoder.DecodeOptions;
 const ParamType = @import("param_type.zig").ParamType;
 
 /// Struct to represent solidity Abi Paramters
@@ -39,7 +41,6 @@ pub const AbiParameter = struct {
 
         return hexed;
     }
-
     /// Decode the paramters based on self.
     /// Runtime reflection based on the provided values will occur to determine
     /// what is the correct method to use to encode the values
@@ -48,10 +49,8 @@ pub const AbiParameter = struct {
     ///
     /// Consider using `decodeAbiParameters` if the parameter is
     /// comptime know and you want better typesafety from the compiler
-    pub fn decode(self: @This(), allocator: Allocator, comptime T: type, encoded: []const u8, opts: decoder.DecodeOptions) !T {
-        const decoded = try decoder.decodeAbiParametersRuntime(allocator, T, &.{self}, encoded, opts);
-
-        return decoded;
+    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T) {
+        return decoder.decodeAbiParameter(allocator, T, &.{self}, encoded, options);
     }
 
     /// Format the struct into a human readable string.

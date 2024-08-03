@@ -55,8 +55,6 @@ pub inline fn isDynamicType(comptime T: type) bool {
         },
         else => @compileError("Unsupported type " ++ @typeName(T)),
     }
-    // It should never reach this
-    unreachable;
 }
 /// Converts ethereum address to checksum
 pub fn toChecksum(allocator: Allocator, address: []const u8) ![]u8 {

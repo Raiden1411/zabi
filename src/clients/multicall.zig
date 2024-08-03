@@ -6,6 +6,7 @@ const std = @import("std");
 const types = @import("../types/ethereum.zig");
 const utils = @import("../utils/utils.zig");
 
+const AbiDecoded = decoder.AbiDecoded;
 const AbiParametersToPrimative = meta_abi.AbiParametersToPrimative;
 const Allocator = std.mem.Allocator;
 const Address = types.Address;
@@ -139,20 +140,14 @@ pub fn Multicall(comptime client: Clients) type {
             comptime targets: []const MulticallTargets,
             function_arguments: MulticallArguments(targets),
             allow_failure: bool,
-        ) !RpcResponse([]const Result) {
+        ) !AbiDecoded([]const Result) {
             comptime std.debug.assert(targets.len == function_arguments.len);
 
-            const arena = try self.rpc_client.allocator.create(std.heap.ArenaAllocator);
-            errdefer self.rpc_client.allocator.destroy(arena);
-
-            arena.* = std.heap.ArenaAllocator.init(self.rpc_client.allocator);
-
-            var abi_list = std.ArrayList(Call3).init(arena.allocator());
+            var abi_list = std.ArrayList(Call3).init(self.rpc_client.allocator);
             errdefer abi_list.deinit();
 
             inline for (targets, function_arguments) |target, argument| {
-                const encoded = try encoder.encodeAbiFunctionComptime(arena.allocator(), target.function, argument);
-                errdefer arena.deinit();
+                const encoded = try encoder.encodeAbiFunctionComptime(self.rpc_client.allocator, target.function, argument);
 
                 const call3: Call3 = .{
                     .target = target.target_address,
@@ -165,7 +160,13 @@ pub fn Multicall(comptime client: Clients) type {
 
             // We don't free the memory here because we wrap it on a arena.
             const slice = try abi_list.toOwnedSlice();
-            const encoded = try encoder.encodeAbiFunctionComptime(arena.allocator(), aggregate3_abi, .{@ptrCast(slice)});
+            defer {
+                for (slice) |s| self.rpc_client.allocator.free(s.callData);
+                self.rpc_client.allocator.free(slice);
+            }
+
+            const encoded = try encoder.encodeAbiFunctionComptime(self.rpc_client.allocator, aggregate3_abi, .{@ptrCast(slice)});
+            defer self.rpc_client.allocator.free(slice);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = multicall_contract,
@@ -173,15 +174,12 @@ pub fn Multicall(comptime client: Clients) type {
             } }, .{});
             defer data.deinit();
 
-            const decoded = try decoder.decodeAbiParametersRuntime(
-                arena.allocator(),
-                struct { []const Result },
-                aggregate3_abi.outputs,
+            return decoder.decodeAbiParametersRuntime(
+                []const Result,
+                self.rpc_client.allocator,
                 data.response,
                 .{ .allocate_when = .alloc_always },
             );
-
-            return .{ .arena = arena, .response = decoded[0] };
         }
     };
 }

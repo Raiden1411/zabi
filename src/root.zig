@@ -85,7 +85,7 @@ test {
     // _ = @import("crypto/hdwallet.zig");
     // _ = @import("crypto/mnemonic.zig");
     // _ = @import("c-kzg-4844");
-    _ = @import("decoding/decoder_new.zig");
+    _ = @import("decoding/decoder.zig");
     // _ = @import("decoding/logs_decode.zig");
     // _ = @import("decoding/parse_transaction.zig");
     // _ = @import("decoding/rlp_decode.zig");

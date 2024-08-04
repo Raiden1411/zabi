@@ -8,6 +8,7 @@ const testing = std.testing;
 const types = @import("../../types/ethereum.zig");
 const utils = @import("../../utils/utils.zig");
 
+const AbiDecoded = decoder.AbiDecoded;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const BlockNumberRequest = block.BlockNumberRequest;
@@ -85,7 +86,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
         /// Calls the resolver address and decodes with address resolver.
         ///
         /// The names are not normalized so make sure that the names are normalized before hand.
-        pub fn getEnsAddress(self: *ENS, name: []const u8, opts: BlockNumberRequest) !RPCResponse(Address) {
+        pub fn getEnsAddress(self: *ENS, name: []const u8, opts: BlockNumberRequest) !AbiDecoded(Address) {
             const hash = try ens_utils.hashName(name);
 
             const encoded = try abi_ens.addr_resolver.encode(self.allocator, .{hash});
@@ -106,17 +107,18 @@ pub fn ENSClient(comptime client_type: Clients) type {
             if (value.response.len == 0)
                 return error.EvmFailedToExecute;
 
-            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_ens.resolver.outputs, value.response, .{ .allow_junk_data = true });
+            const decoded = try decoder.decodeAbiParameter(struct { []u8, [20]u8 }, self.allocator, value.response, .{ .allow_junk_data = true });
+            defer decoded.deinit();
 
-            if (decoded[0].len == 0)
+            if (decoded.result[0].len == 0)
                 return error.FailedToDecodeResponse;
 
-            const decoded_result = try decoder.decodeAbiParameters(self.allocator, abi_ens.addr_resolver.outputs, decoded[0], .{ .allow_junk_data = true });
+            const decoded_result = try decoder.decodeAbiParameter([20]u8, self.allocator, decoded.result[0], .{ .allow_junk_data = true });
 
-            if (decoded_result[0].len == 0)
+            if (decoded_result.result[0].len == 0)
                 return error.FailedToDecodeResponse;
 
-            return RPCResponse(Address).fromJson(value.arena, decoded_result[0]);
+            return decoded_result;
         }
         /// Gets the ENS name associated with the address.
         ///
@@ -152,12 +154,13 @@ pub fn ENSClient(comptime client_type: Clients) type {
             if (value.response.len == 0)
                 return error.EvmFailedToExecute;
 
-            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_ens.reverse_resolver.outputs, value.response, .{});
+            const decoded = try decoder.decodeAbiParameter(struct { []u8, [20]u8, [20]u8, [20]u8 }, self.allocator, value.response, .{});
+            errdefer decoded.deinit();
 
-            if (!std.mem.eql(u8, &address_bytes, &decoded[1]))
+            if (!std.mem.eql(u8, &address_bytes, &decoded.result[1]))
                 return error.InvalidAddress;
 
-            return RPCResponse([]const u8).fromJson(value.arena, decoded[0]);
+            return RPCResponse([]const u8).fromJson(decoded.arena, decoded.result[0]);
         }
         /// Gets the ENS resolver associated with the name.
         ///

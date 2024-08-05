@@ -102,20 +102,20 @@ pub fn ENSClient(comptime client_type: Clients) type {
                 .to = self.ens_contracts.ensUniversalResolver,
                 .data = resolver_encoded,
             } }, opts);
-            errdefer value.deinit();
+            defer value.deinit();
 
             if (value.response.len == 0)
                 return error.EvmFailedToExecute;
 
-            const decoded = try decoder.decodeAbiParameter(struct { []u8, [20]u8 }, self.allocator, value.response, .{ .allow_junk_data = true });
+            const decoded = try decoder.decodeAbiParameter(struct { []u8, [20]u8 }, self.allocator, value.response, .{ .allow_junk_data = true, .allocate_when = .alloc_always });
             defer decoded.deinit();
 
             if (decoded.result[0].len == 0)
                 return error.FailedToDecodeResponse;
 
-            const decoded_result = try decoder.decodeAbiParameter([20]u8, self.allocator, decoded.result[0], .{ .allow_junk_data = true });
+            const decoded_result = try decoder.decodeAbiParameter([20]u8, self.allocator, decoded.result[0], .{ .allow_junk_data = true, .allocate_when = .alloc_always });
 
-            if (decoded_result.result[0].len == 0)
+            if (decoded_result.result.len == 0)
                 return error.FailedToDecodeResponse;
 
             return decoded_result;
@@ -147,14 +147,14 @@ pub fn ENSClient(comptime client_type: Clients) type {
                 .to = self.ens_contracts.ensUniversalResolver,
                 .data = encoded,
             } }, opts);
-            errdefer value.deinit();
+            defer value.deinit();
 
             const address_bytes = try utils.addressToBytes(address);
 
             if (value.response.len == 0)
                 return error.EvmFailedToExecute;
 
-            const decoded = try decoder.decodeAbiParameter(struct { []u8, [20]u8, [20]u8, [20]u8 }, self.allocator, value.response, .{});
+            const decoded = try decoder.decodeAbiParameter(struct { []u8, [20]u8, [20]u8, [20]u8 }, self.allocator, value.response, .{ .allocate_when = .alloc_always });
             errdefer decoded.deinit();
 
             if (!std.mem.eql(u8, &address_bytes, &decoded.result[1]))
@@ -214,7 +214,8 @@ pub fn ENSClient(comptime client_type: Clients) type {
             const decoded = try decoder.decodeAbiParameter(struct { []u8, Address }, self.allocator, value.response, .{});
             defer decoded.deinit();
 
-            const decoded_text = try decoder.decodeAbiParameter([]const u8, self.allocator, decoded.result[0], .{});
+            const decoded_text = try decoder.decodeAbiParameter([]const u8, self.allocator, decoded.result[0], .{ .allocate_when = .alloc_always });
+            errdefer decoded_text.deinit();
 
             if (decoded_text.result.len == 0)
                 return error.FailedToDecodeResponse;
@@ -285,7 +286,7 @@ test "ENS Address" {
     const value = try ens.getEnsAddress("vitalik.eth", .{});
     defer value.deinit();
 
-    try testing.expectEqualSlices(u8, &value.response, &try utils.addressToBytes("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"));
+    try testing.expectEqualSlices(u8, &value.result, &try utils.addressToBytes("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"));
     try testing.expectError(error.EvmFailedToExecute, ens.getEnsAddress("zzabi.eth", .{}));
 }
 

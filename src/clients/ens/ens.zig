@@ -181,12 +181,9 @@ pub fn ENSClient(comptime client_type: Clients) type {
             } }, opts);
             defer value.deinit();
 
-            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_ens.find_resolver.outputs, value.response, .{ .allow_junk_data = true });
+            const decoded = try decoder.decodeAbiParameterLeaky(struct { Address, [32]u8 }, self.allocator, value.response, .{ .allow_junk_data = true });
 
-            var address: Address = undefined;
-            @memcpy(address[0..], decoded[0][0..]);
-
-            return address;
+            return decoded[0];
         }
         /// Gets a text record for a specific ENS name.
         ///
@@ -194,7 +191,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
         /// Calls the resolver and decodes with the text resolver.
         ///
         /// The names are not normalized so make sure that the names are normalized before hand.
-        pub fn getEnsText(self: *ENS, name: []const u8, key: []const u8, opts: BlockNumberRequest) !RPCResponse([]const u8) {
+        pub fn getEnsText(self: *ENS, name: []const u8, key: []const u8, opts: BlockNumberRequest) !AbiDecoded([]const u8) {
             var buffer: [1024]u8 = undefined;
             const bytes_read = ens_utils.convertEnsToBytes(buffer[0..], name);
 
@@ -214,13 +211,15 @@ pub fn ENSClient(comptime client_type: Clients) type {
             if (value.response.len == 0)
                 return error.EvmFailedToExecute;
 
-            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_ens.resolver.outputs, value.response, .{});
-            const decoded_text = try decoder.decodeAbiParameters(self.allocator, abi_ens.text_resolver.outputs, decoded[0], .{});
+            const decoded = try decoder.decodeAbiParameter(struct { []u8, Address }, self.allocator, value.response, .{});
+            defer decoded.deinit();
 
-            if (decoded_text[0].len == 0)
+            const decoded_text = try decoder.decodeAbiParameter([]const u8, self.allocator, decoded.result[0], .{});
+
+            if (decoded_text.result.len == 0)
                 return error.FailedToDecodeResponse;
 
-            return RPCResponse([]const u8).fromJson(value.arena, decoded_text[0]);
+            return decoded_text;
         }
     };
 }

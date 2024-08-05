@@ -185,7 +185,7 @@ pub fn L2Client(comptime client_type: Clients) type {
             for (receipt.l2_receipt.logs) |log| {
                 const topic_hash: Hash = log.topics[0] orelse return error.ExpectedTopicData;
                 if (std.mem.eql(u8, &hash, &topic_hash)) {
-                    const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.message_passed_params, log.data, .{});
+                    const decoded = try decoder.decodeAbiParameterLeaky(struct { value: u256, gasLimit: u256, data: []u8, withdrawalHash: Hash }, self.allocator, log.data, .{});
 
                     const decoded_logs = try decoder_logs.decodeLogsComptime(abi_items.message_passed_indexed_params, log.topics);
 
@@ -194,10 +194,10 @@ pub fn L2Client(comptime client_type: Clients) type {
                         .nonce = decoded_logs[1],
                         .target = decoded_logs[2],
                         .sender = decoded_logs[3],
-                        .value = decoded[0],
-                        .gasLimit = decoded[1],
-                        .data = decoded[2],
-                        .withdrawalHash = decoded[3],
+                        .value = decoded.value,
+                        .gasLimit = decoded.gasLimit,
+                        .data = decoded.data,
+                        .withdrawalHash = decoded.withdrawalHash,
                     });
                 }
             }

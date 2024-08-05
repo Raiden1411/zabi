@@ -154,13 +154,13 @@ pub fn L1Client(comptime client_type: Clients) type {
             } }, .{});
             defer games.deinit();
 
-            const decoded = try decoder.decodeAbiParametersRuntime(self.allocator, struct { []const Game }, abi_items.find_latest_games.outputs, games.response, .{});
-            defer self.allocator.free(decoded[0]);
+            const decoded = try decoder.decodeAbiParameter([]const Game, self.allocator, games.response, .{});
+            defer decoded.deinit();
 
             var list = std.ArrayList(GameResult).init(self.allocator);
             errdefer list.deinit();
 
-            for (decoded[0]) |game| {
+            for (decoded.result) |game| {
                 const block_num = try utils.bytesToInt(u256, game.extraData);
 
                 if (block_number) |number| {
@@ -257,9 +257,10 @@ pub fn L1Client(comptime client_type: Clients) type {
             } }, .{});
             defer data.deinit();
 
-            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.get_l2_output_func.outputs, data.response, .{});
+            const decoded = try decoder.decodeAbiParameter(struct { outputRoot: Hash, timestamp: u128, l2BlockNumber: u128 }, self.allocator, data.response, .{});
+            defer decoded.denit();
 
-            const l2_output = decoded[0];
+            const l2_output = decoded.result;
 
             return .{
                 .outputIndex = index,
@@ -292,11 +293,9 @@ pub fn L1Client(comptime client_type: Clients) type {
             } }, .{});
             defer version.deinit();
 
-            const decode = try decoder.decodeAbiParameters(self.allocator, &.{
-                .{ .type = .{ .string = {} }, .name = "" },
-            }, version.response, .{});
+            const decode = try decoder.decodeAbiParameterLeaky([]const u8, self.allocator, version.response, .{});
 
-            return SemanticVersion.parse(decode[0]);
+            return SemanticVersion.parse(decode);
         }
         /// Gets a proven withdrawal.
         ///
@@ -312,9 +311,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             } }, .{});
             defer data.deinit();
 
-            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.get_proven_withdrawal.outputs, data.response, .{});
-
-            const proven = decoded[0];
+            const proven = try decoder.decodeAbiParameterLeaky(struct { outputRoot: Hash, timestamp: u128, l2OutputIndex: u128 }, self.allocator, data.response, .{});
 
             if (proven.timestamp == 0)
                 return error.InvalidWithdrawalHash;
@@ -479,7 +476,8 @@ pub fn L1Client(comptime client_type: Clients) type {
                     if (log_event.logIndex == null)
                         return error.UnexpectedNullIndex;
 
-                    const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.transaction_deposited_event_data, log_event.data, .{});
+                    const decoded = try decoder.decodeAbiParameter([]u8, self.allocator, log_event.data, .{ .allocate_when = .alloc_always });
+                    defer decoded.deinit();
 
                     const decoded_logs = try decoder_logs.decodeLogsComptime(abi_items.transaction_deposited_event_args, log_event.topics);
 
@@ -495,7 +493,7 @@ pub fn L1Client(comptime client_type: Clients) type {
                 }
             }
 
-            return try list.toOwnedSlice();
+            return list.toOwnedSlice();
         }
         /// Gets the decoded withdrawl event logs from a given transaction receipt hash.
         pub fn getWithdrawMessages(self: *L1, tx_hash: Hash) !Message {
@@ -517,7 +515,7 @@ pub fn L1Client(comptime client_type: Clients) type {
                 const hash_topic: Hash = logs.topics[0] orelse return error.ExpectedTopicData;
 
                 if (std.mem.eql(u8, &hash, &hash_topic)) {
-                    const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.message_passed_params, logs.data, .{});
+                    const decoded = try decoder.decodeAbiParameterLeaky(struct { value: u256, gasLimit: u256, data: []u8, withdrawalHash: [32]u8 }, self.allocator, logs.data, .{});
 
                     const decoded_logs = try decoder_logs.decodeLogsComptime(abi_items.message_passed_indexed_params, logs.topics);
 
@@ -525,10 +523,10 @@ pub fn L1Client(comptime client_type: Clients) type {
                         .nonce = decoded_logs[1],
                         .target = decoded_logs[2],
                         .sender = decoded_logs[3],
-                        .value = decoded[0],
-                        .gasLimit = decoded[1],
-                        .data = decoded[2],
-                        .withdrawalHash = decoded[3],
+                        .value = decoded.value,
+                        .gasLimit = decoded.gasLimit,
+                        .data = decoded.data,
+                        .withdrawalHash = decoded.withdrawalHash,
                     });
                 }
             }

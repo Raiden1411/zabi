@@ -174,7 +174,7 @@ pub fn Multicall(comptime client: Clients) type {
             } }, .{});
             defer data.deinit();
 
-            return decoder.decodeAbiParametersRuntime(
+            return decoder.decodeAbiParameter(
                 []const Result,
                 self.rpc_client.allocator,
                 data.response,

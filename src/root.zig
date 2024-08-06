@@ -66,9 +66,6 @@ pub const Signer = @import("crypto/Signer.zig");
 pub const WsServerContext = @import("tests/clients/ws_server.zig").WsContext;
 
 test {
-    // _ = @import("clients/ens/ens.zig");
-    // _ = @import("clients/optimism/clients/L1PubClient.zig");
-    // _ = @import("clients/optimism/clients/L2PubClient.zig");
     _ = @import("abi/abi_parameter.zig");
     _ = @import("abi/abi.zig");
     _ = @import("abi/eip712.zig");

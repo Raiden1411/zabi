@@ -36,16 +36,15 @@ pub fn main() !void {
         const event = try socket.getLogsSubEvent();
         defer event.deinit();
 
-        const value = try zabi.decoding.abi_decoder.decodeAbiParameters(gpa.allocator(), &.{
-            .{ .type = .{ .uint = 256 }, .name = "tokenId" },
-        }, event.response.params.result.data, .{});
+        const value = try zabi.decoding.abi_decoder.decodeAbiParameter(u256, gpa.allocator(), event.response.params.result.data, .{});
+        defer value.deinit();
 
         const topics = try zabi.decoding.logs_decoder.decodeLogsComptime(&.{
             .{ .type = .{ .address = {} }, .name = "from", .indexed = true },
             .{ .type = .{ .address = {} }, .name = "to", .indexed = true },
         }, event.response.params.result.topics);
 
-        std.debug.print("Transfer event found. Value transfered: {d} dollars\n", .{value[0] / 1000000});
+        std.debug.print("Transfer event found. Value transfered: {d} dollars\n", .{value.result / 1000000});
         std.debug.print("From: 0x{s}\n", .{std.fmt.fmtSliceHexLower(&topics[1])});
         std.debug.print("To: 0x{s}\n", .{std.fmt.fmtSliceHexLower(&topics[2])});
     }

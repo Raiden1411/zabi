@@ -15,7 +15,7 @@ const Signer = zabi_root.Signer;
 const TransactionEnvelope = zabi_root.types.transactions.TransactionEnvelope;
 
 // Functions
-const decodeAbiParameters = zabi_root.decoding.abi_decoder.decodeAbiParameters;
+const decodeAbiParameter = zabi_root.decoding.abi_decoder.decodeAbiParameter;
 const decodeLogs = zabi_root.decoding.logs_decoder.decodeLogs;
 const decodeRlp = zabi_root.decoding.rlp.decodeRlp;
 const encodeAbiParameters = zabi_root.encoding.abi_encoding.encodeAbiParameters;
@@ -235,8 +235,8 @@ pub fn decodingFunctions(allocator: Allocator, printer: BenchmarkPrinter) !void 
 
         const result = try benchmark.benchmark(
             allocator,
-            decodeAbiParameters,
-            .{ allocator, constants.params, encoded.data, .{} },
+            decodeAbiParameter,
+            .{ zabi_root.meta.abi.AbiParametersToPrimative(constants.params), allocator, encoded.data, .{} },
             .{ .warmup_runs = 5, .runs = 100 },
         );
         result.printSummary();

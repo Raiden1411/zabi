@@ -11,6 +11,7 @@ const utils = @import("../utils/utils.zig");
 
 // Types
 const Abi = abitype.Abi;
+const AbiDecoded = decoder.AbiDecoded;
 const Abitype = abitype.Abitype;
 const AbiItem = abitype.AbiItem;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
@@ -115,7 +116,11 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         /// It won't commit a transaction to the network.
         ///
         /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
-        pub fn readContractFunction(self: *ContractComptime(client_type), comptime func: Function, opts: FunctionOpts(func, EthCall)) !AbiParametersToPrimative(func.outputs) {
+        pub fn readContractFunction(
+            self: *ContractComptime(client_type),
+            comptime func: Function,
+            opts: FunctionOpts(func, EthCall),
+        ) !AbiDecoded(AbiParametersToPrimative(func.outputs)) {
             var copy = opts.overrides;
 
             switch (func.stateMutability) {
@@ -138,7 +143,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             const data = try self.wallet.rpc_client.sendEthCall(copy, .{});
             defer data.deinit();
 
-            const decoded = try decoder.decodeAbiParameters(self.wallet.allocator, func.outputs, data.response, .{});
+            const decoded = try decoder.decodeAbiParameter(AbiParametersToPrimative(func.outputs), self.wallet.allocator, data.response, .{});
 
             return decoded;
         }
@@ -302,7 +307,7 @@ pub fn Contract(comptime client_type: ClientType) type {
         /// It won't commit a transaction to the network.
         ///
         /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
-        pub fn readContractFunction(self: *Contract(client_type), comptime T: type, function_name: []const u8, function_args: anytype, overrides: EthCall) !T {
+        pub fn readContractFunction(self: *Contract(client_type), comptime T: type, function_name: []const u8, function_args: anytype, overrides: EthCall) !AbiDecoded(T) {
             const function_item = try getAbiItem(self.abi, .function, function_name);
             var copy = overrides;
 
@@ -326,7 +331,7 @@ pub fn Contract(comptime client_type: ClientType) type {
             const data = try self.wallet.rpc_client.sendEthCall(copy, .{});
             defer data.deinit();
 
-            const decoded = try decoder.decodeAbiParametersRuntime(self.wallet.allocator, T, function_item.abiFunction.outputs, data.response, .{});
+            const decoded = try decoder.decodeAbiParameter(T, self.wallet.allocator, data.response, .{});
 
             return decoded;
         }

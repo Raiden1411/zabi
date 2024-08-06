@@ -32,6 +32,30 @@ pub inline fn isStaticType(comptime T: type) bool {
     // It should never reach this
     unreachable;
 }
+/// Checks if a given type is static
+pub inline fn isDynamicType(comptime T: type) bool {
+    const info = @typeInfo(T);
+
+    switch (info) {
+        .Bool, .Int, .Null => return false,
+        .Array => |arr_info| return isDynamicType(arr_info.child),
+        .Struct => {
+            inline for (info.Struct.fields) |field| {
+                const dynamic = isDynamicType(field.type);
+
+                if (dynamic)
+                    return true;
+            }
+
+            return false;
+        },
+        .Pointer => switch (info.Pointer.size) {
+            .Many, .Slice, .C => return true,
+            .One => return isStaticType(info.Pointer.child),
+        },
+        else => @compileError("Unsupported type " ++ @typeName(T)),
+    }
+}
 /// Converts ethereum address to checksum
 pub fn toChecksum(allocator: Allocator, address: []const u8) ![]u8 {
     var buf: [40]u8 = undefined;

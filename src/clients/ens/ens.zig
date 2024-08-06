@@ -8,6 +8,7 @@ const testing = std.testing;
 const types = @import("../../types/ethereum.zig");
 const utils = @import("../../utils/utils.zig");
 
+const AbiDecoded = decoder.AbiDecoded;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const BlockNumberRequest = block.BlockNumberRequest;
@@ -85,7 +86,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
         /// Calls the resolver address and decodes with address resolver.
         ///
         /// The names are not normalized so make sure that the names are normalized before hand.
-        pub fn getEnsAddress(self: *ENS, name: []const u8, opts: BlockNumberRequest) !RPCResponse(Address) {
+        pub fn getEnsAddress(self: *ENS, name: []const u8, opts: BlockNumberRequest) !AbiDecoded(Address) {
             const hash = try ens_utils.hashName(name);
 
             const encoded = try abi_ens.addr_resolver.encode(self.allocator, .{hash});
@@ -101,22 +102,23 @@ pub fn ENSClient(comptime client_type: Clients) type {
                 .to = self.ens_contracts.ensUniversalResolver,
                 .data = resolver_encoded,
             } }, opts);
-            errdefer value.deinit();
+            defer value.deinit();
 
             if (value.response.len == 0)
                 return error.EvmFailedToExecute;
 
-            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_ens.resolver.outputs, value.response, .{ .allow_junk_data = true });
+            const decoded = try decoder.decodeAbiParameter(struct { []u8, [20]u8 }, self.allocator, value.response, .{ .allow_junk_data = true, .allocate_when = .alloc_always });
+            defer decoded.deinit();
 
-            if (decoded[0].len == 0)
+            if (decoded.result[0].len == 0)
                 return error.FailedToDecodeResponse;
 
-            const decoded_result = try decoder.decodeAbiParameters(self.allocator, abi_ens.addr_resolver.outputs, decoded[0], .{ .allow_junk_data = true });
+            const decoded_result = try decoder.decodeAbiParameter([20]u8, self.allocator, decoded.result[0], .{ .allow_junk_data = true, .allocate_when = .alloc_always });
 
-            if (decoded_result[0].len == 0)
+            if (decoded_result.result.len == 0)
                 return error.FailedToDecodeResponse;
 
-            return RPCResponse(Address).fromJson(value.arena, decoded_result[0]);
+            return decoded_result;
         }
         /// Gets the ENS name associated with the address.
         ///
@@ -145,19 +147,20 @@ pub fn ENSClient(comptime client_type: Clients) type {
                 .to = self.ens_contracts.ensUniversalResolver,
                 .data = encoded,
             } }, opts);
-            errdefer value.deinit();
+            defer value.deinit();
 
             const address_bytes = try utils.addressToBytes(address);
 
             if (value.response.len == 0)
                 return error.EvmFailedToExecute;
 
-            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_ens.reverse_resolver.outputs, value.response, .{});
+            const decoded = try decoder.decodeAbiParameter(struct { []u8, [20]u8, [20]u8, [20]u8 }, self.allocator, value.response, .{ .allocate_when = .alloc_always });
+            errdefer decoded.deinit();
 
-            if (!std.mem.eql(u8, &address_bytes, &decoded[1]))
+            if (!std.mem.eql(u8, &address_bytes, &decoded.result[1]))
                 return error.InvalidAddress;
 
-            return RPCResponse([]const u8).fromJson(value.arena, decoded[0]);
+            return RPCResponse([]const u8).fromJson(decoded.arena, decoded.result[0]);
         }
         /// Gets the ENS resolver associated with the name.
         ///
@@ -178,12 +181,9 @@ pub fn ENSClient(comptime client_type: Clients) type {
             } }, opts);
             defer value.deinit();
 
-            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_ens.find_resolver.outputs, value.response, .{ .allow_junk_data = true });
+            const decoded = try decoder.decodeAbiParameterLeaky(struct { Address, [32]u8 }, self.allocator, value.response, .{ .allow_junk_data = true });
 
-            var address: Address = undefined;
-            @memcpy(address[0..], decoded[0][0..]);
-
-            return address;
+            return decoded[0];
         }
         /// Gets a text record for a specific ENS name.
         ///
@@ -191,7 +191,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
         /// Calls the resolver and decodes with the text resolver.
         ///
         /// The names are not normalized so make sure that the names are normalized before hand.
-        pub fn getEnsText(self: *ENS, name: []const u8, key: []const u8, opts: BlockNumberRequest) !RPCResponse([]const u8) {
+        pub fn getEnsText(self: *ENS, name: []const u8, key: []const u8, opts: BlockNumberRequest) !AbiDecoded([]const u8) {
             var buffer: [1024]u8 = undefined;
             const bytes_read = ens_utils.convertEnsToBytes(buffer[0..], name);
 
@@ -211,13 +211,16 @@ pub fn ENSClient(comptime client_type: Clients) type {
             if (value.response.len == 0)
                 return error.EvmFailedToExecute;
 
-            const decoded = try decoder.decodeAbiParameters(self.allocator, abi_ens.resolver.outputs, value.response, .{});
-            const decoded_text = try decoder.decodeAbiParameters(self.allocator, abi_ens.text_resolver.outputs, decoded[0], .{});
+            const decoded = try decoder.decodeAbiParameter(struct { []u8, Address }, self.allocator, value.response, .{});
+            defer decoded.deinit();
 
-            if (decoded_text[0].len == 0)
+            const decoded_text = try decoder.decodeAbiParameter([]const u8, self.allocator, decoded.result[0], .{ .allocate_when = .alloc_always });
+            errdefer decoded_text.deinit();
+
+            if (decoded_text.result.len == 0)
                 return error.FailedToDecodeResponse;
 
-            return RPCResponse([]const u8).fromJson(value.arena, decoded_text[0]);
+            return decoded_text;
         }
     };
 }
@@ -283,7 +286,7 @@ test "ENS Address" {
     const value = try ens.getEnsAddress("vitalik.eth", .{});
     defer value.deinit();
 
-    try testing.expectEqualSlices(u8, &value.response, &try utils.addressToBytes("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"));
+    try testing.expectEqualSlices(u8, &value.result, &try utils.addressToBytes("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"));
     try testing.expectError(error.EvmFailedToExecute, ens.getEnsAddress("zzabi.eth", .{}));
 }
 

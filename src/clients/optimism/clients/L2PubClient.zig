@@ -173,7 +173,7 @@ pub fn L2Client(comptime client_type: Clients) type {
 
             const receipt = receipt_message.response;
 
-            if (receipt != .l2_receipt)
+            if (receipt != .op_receipt)
                 return error.InvalidTransactionHash;
 
             var list = std.ArrayList(Withdrawal).init(self.allocator);
@@ -182,10 +182,10 @@ pub fn L2Client(comptime client_type: Clients) type {
             // The hash for the event selector `MessagePassed`
             const hash: Hash = comptime try utils.hashToBytes("0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054");
 
-            for (receipt.l2_receipt.logs) |log| {
+            for (receipt.op_receipt.logs) |log| {
                 const topic_hash: Hash = log.topics[0] orelse return error.ExpectedTopicData;
                 if (std.mem.eql(u8, &hash, &topic_hash)) {
-                    const decoded = try decoder.decodeAbiParameters(self.allocator, abi_items.message_passed_params, log.data, .{});
+                    const decoded = try decoder.decodeAbiParameterLeaky(struct { u256, u256, []u8, Hash }, self.allocator, log.data, .{});
 
                     const decoded_logs = try decoder_logs.decodeLogsComptime(abi_items.message_passed_indexed_params, log.topics);
 
@@ -205,7 +205,7 @@ pub fn L2Client(comptime client_type: Clients) type {
             const messages = try list.toOwnedSlice();
 
             return .{
-                .blockNumber = receipt.l2_receipt.blockNumber.?,
+                .blockNumber = receipt.op_receipt.blockNumber.?,
                 .messages = messages,
             };
         }
@@ -227,7 +227,7 @@ test "GetWithdrawMessages" {
     defer receipt.deinit();
 
     try testing.expect(messages.messages.len != 0);
-    try testing.expect(messages.blockNumber == receipt.response.l2_receipt.blockNumber.?);
+    try testing.expect(messages.blockNumber == receipt.response.op_receipt.blockNumber.?);
 }
 
 test "GetBaseFee" {

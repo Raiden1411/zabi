@@ -1,78 +1,13 @@
-# Encode
-
-## AbiEncoded
-
-Return type for abi encoding.
-
-```zig
-const AbiEncoded = struct {
-    arena: *ArenaAllocator,
-    data: []u8,
-
-    pub fn deinit(self: @This()) void {...}
-};
-```
+# Decode
 
 ## AbiDecoded
 
 Return type for abi parameter decoding 
 
 ```zig
-fn AbiDecoded(comptime params: []const AbiParameter) type {
+fn AbiDecoded(comptime T: type) type {
     return struct {
         arena: *ArenaAllocator,
-        values: AbiParametersToPrimative(params),
-
-        pub fn deinit(self: @This()) void {...}
-    };
-}
-```
-
-## AbiDecodedRuntime
-
-Return type for abi decoding where the parameters are only runtime know.
-
-```zig
-fn AbiDecodedRuntime(comptime T: type) type {
-    const info = @typeInfo(T);
-
-    if (info != .Struct and !info.Struct.is_tuple)
-        @compileError("Expected tuple return type");
-
-    return struct {
-        arena: *ArenaAllocator,
-        values: T,
-
-        pub fn deinit(self: @This()) void {...}
-    };
-}
-```
-
-## AbiSignatureDecoded
-
-Return type for abi struct signatures decoding 
-
-```zig
-fn AbiSignatureDecoded(comptime params: []const AbiParameter) type {
-    return struct {
-        arena: *ArenaAllocator,
-        name: []const u8,
-        values: AbiParametersToPrimative(params),
-
-        pub fn deinit(self: @This()) void {...}
-    };
-}
-```
-
-## AbiSignatureDecodedRuntime
-
-Return type for abi decoding where the struct signatures are only runtime know.
-
-```zig
-fn AbiSignatureDecodedRuntime(comptime T: type) type {
-    return struct {
-        arena: *ArenaAllocator,
-        name: []const u8,
         values: T,
 
         pub fn deinit(self: @This()) void {...}
@@ -85,12 +20,39 @@ fn AbiSignatureDecodedRuntime(comptime T: type) type {
 Set of options that can be used to alter the decoding behaviour.
 
 ```zig
-const DecodeOptions = struct {
+pub const DecodeOptions = struct {
     /// Max amount of bytes allowed to be read by the decoder.
     /// This avoid a DoS vulnerability discovered here:
     /// https://github.com/paulmillr/micro-eth-signer/discussions/20
     max_bytes: u16 = 1024,
     /// By default this is false.
     allow_junk_data: bool = false,
+    /// Tell the decoder if an allocation should be made.
+    /// Allocations are always made if dealing with a type that will require a list i.e `[]const u64`.
+    allocate_when: enum { alloc_always, alloc_if_needed } = .alloc_if_needed,
+    /// Tells the endianess of the bytes that you want to decode
+    /// Addresses are encoded in big endian and bytes1..32 are encoded in little endian.
+    /// There might be some cases where you will need to decode a bytes20 and address at the same time.
+    /// Since they can represent the same type it's advised to decode the address as `u160` and change this value to `little`.
+    /// since it already decodes as big-endian and then `std.mem.writeInt` the value to the expected endianess.
+    bytes_endian: Endian = .big,
+};
+```
+
+## LogDecoderOptions
+
+Set of options that can be used to alter the decoding behaviour.
+
+```zig
+pub const LogDecoderOptions = struct {
+    /// Optional allocation in the case that you want to create a pointer
+    /// That pointer must be destroyed later.
+    allocator: ?Allocator = null,
+    /// Tells the endianess of the bytes that you want to decode
+    /// Addresses are encoded in big endian and bytes1..32 are encoded in little endian.
+    /// There might be some cases where you will need to decode a bytes20 and address at the same time.
+    /// Since they can represent the same type it's advised to decode the address as `u160` and change this value to `little`.
+    /// since it already decodes as big-endian and then `std.mem.writeInt` the value to the expected endianess.
+    bytes_endian: Endian = .big,
 };
 ```

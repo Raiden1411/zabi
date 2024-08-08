@@ -261,7 +261,7 @@ pub fn decodingFunctions(allocator: Allocator, printer: BenchmarkPrinter) !void 
         const result = try benchmark.benchmark(
             allocator,
             decodeLogs,
-            .{ allocator, struct { [32]u8, u256, i256, bool, [5]u8 }, event.value.inputs, encoded },
+            .{ struct { [32]u8, u256, i256, bool, [5]u8 }, encoded, .{ .bytes_endian = .little } },
             .{ .warmup_runs = 5, .runs = 100 },
         );
         result.printSummary();

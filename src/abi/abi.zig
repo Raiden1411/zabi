@@ -14,6 +14,7 @@ const AbiEventParameter = @import("abi_parameter.zig").AbiEventParameter;
 const AbiParameter = @import("abi_parameter.zig").AbiParameter;
 const Allocator = std.mem.Allocator;
 const DecodeOptions = decoder.DecodeOptions;
+const LogDecoderOptions = decoder_logs.LogDecoderOptions;
 const Extract = meta.utils.Extract;
 const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
@@ -250,8 +251,9 @@ pub const Event = struct {
     /// Decode the encoded log topics based on the event signature and the provided type.
     ///
     /// Caller owns the memory.
-    pub fn decodeLogTopics(self: @This(), allocator: Allocator, comptime T: type, encoded: []const ?Hash) !T {
-        return try decoder_logs.decodeLogs(allocator, T, self, encoded);
+    pub fn decodeLogTopics(self: @This(), comptime T: type, encoded: []const ?Hash, options: LogDecoderOptions) !T {
+        _ = self;
+        return try decoder_logs.decodeLogs(T, encoded, options);
     }
 
     /// Format the struct into a human readable string.

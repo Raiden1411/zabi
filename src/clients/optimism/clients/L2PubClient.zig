@@ -187,7 +187,7 @@ pub fn L2Client(comptime client_type: Clients) type {
                 if (std.mem.eql(u8, &hash, &topic_hash)) {
                     const decoded = try decoder.decodeAbiParameterLeaky(struct { u256, u256, []u8, Hash }, self.allocator, log.data, .{});
 
-                    const decoded_logs = try decoder_logs.decodeLogsComptime(abi_items.message_passed_indexed_params, log.topics);
+                    const decoded_logs = try decoder_logs.decodeLogs(struct { Hash, u256, Address, Address }, log.topics);
 
                     try list.ensureUnusedCapacity(1);
                     list.appendAssumeCapacity(.{

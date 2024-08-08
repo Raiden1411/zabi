@@ -475,7 +475,7 @@ pub fn L1Client(comptime client_type: Clients) type {
                     const decoded = try decoder.decodeAbiParameter([]u8, self.allocator, log_event.data, .{ .allocate_when = .alloc_always });
                     defer decoded.deinit();
 
-                    const decoded_logs = try decoder_logs.decodeLogsComptime(abi_items.transaction_deposited_event_args, log_event.topics);
+                    const decoded_logs = try decoder_logs.decodeLogs(struct { Hash, Address, Address, u256 }, log_event.topics);
 
                     try list.append(.{
                         .from = decoded_logs[1],
@@ -513,7 +513,7 @@ pub fn L1Client(comptime client_type: Clients) type {
                 if (std.mem.eql(u8, &hash, &hash_topic)) {
                     const decoded = try decoder.decodeAbiParameterLeaky(struct { u256, u256, []u8, [32]u8 }, self.allocator, logs.data, .{});
 
-                    const decoded_logs = try decoder_logs.decodeLogsComptime(abi_items.message_passed_indexed_params, logs.topics);
+                    const decoded_logs = try decoder_logs.decodeLogs(struct { Hash, u256, Address, Address }, logs.topics);
 
                     try list.append(.{
                         .nonce = decoded_logs[1],

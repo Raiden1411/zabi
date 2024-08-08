@@ -57,8 +57,8 @@ export const sidebar = {
 					link: "/api/abi_utils/encode_constructor",
 				},
 				{
-					text: "ABI Decode Parameters",
-					link: "/api/abi_utils/decode_parameters",
+					text: "ABI Decode Parameter",
+					link: "/api/abi_utils/decode_parameter",
 				},
 				{
 					text: "ABI Decode Function",
@@ -71,6 +71,10 @@ export const sidebar = {
 				{
 					text: "ABI Decode Constructor",
 					link: "/api/abi_utils/decode_constructor",
+				},
+				{
+					text: "ABI Decode Logs",
+					link: "/api/abi_utils/logs_decode",
 				},
 				{
 					text: "Types",

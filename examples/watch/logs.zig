@@ -39,7 +39,7 @@ pub fn main() !void {
         const value = try zabi.decoding.abi_decoder.decodeAbiParameter(u256, gpa.allocator(), event.response.params.result.data, .{});
         defer value.deinit();
 
-        const topics = try zabi.decoding.logs_decoder.decodeLogs(struct { [20]u8, [20]u8 }, event.response.params.result.topics);
+        const topics = try zabi.decoding.logs_decoder.decodeLogs(struct { [32]u8, [20]u8, [20]u8 }, event.response.params.result.topics, .{});
 
         std.debug.print("Transfer event found. Value transfered: {d} dollars\n", .{value.result / 1000000});
         std.debug.print("From: 0x{s}\n", .{std.fmt.fmtSliceHexLower(&topics[1])});

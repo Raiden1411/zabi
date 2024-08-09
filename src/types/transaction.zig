@@ -926,7 +926,7 @@ pub const FeeHistory = struct {
     /// Ratio of gas used out of the total available limit
     gasUsedRatio: []const f64,
     /// Ratio of blob gas used out of the total available limit
-    blobGasUsedRation: ?[]const f64 = null,
+    blobGasUsedRatio: ?[]const f64 = null,
     /// Block corresponding to first response value
     oldestBlock: u64,
     /// List every txs priority fee per block

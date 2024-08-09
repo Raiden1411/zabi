@@ -166,7 +166,7 @@ pub fn Multicall(comptime client: Clients) type {
             }
 
             const encoded = try encoder.encodeAbiFunctionComptime(self.rpc_client.allocator, aggregate3_abi, .{@ptrCast(slice)});
-            defer self.rpc_client.allocator.free(slice);
+            defer self.rpc_client.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
                 .to = multicall_contract,

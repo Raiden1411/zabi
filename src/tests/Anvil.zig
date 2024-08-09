@@ -271,32 +271,20 @@ pub fn stopImpersonatingAccount(self: *Anvil, address: Address) !void {
 }
 /// Start the child process. Use this with init if you want to use this in a seperate theread.
 pub fn start(self: *Anvil) !void {
-    const port = self.localhost.port orelse return error.InvalidAddressPort;
-    var result = std.process.Child.init(&.{ "anvil", "-f", self.fork_url, "--fork-block-number", self.block_number_fork, "--port", port }, self.alloc);
-    result.stdin_behavior = .Pipe;
-    result.stdout_behavior = .Pipe;
-    result.stderr_behavior = .Pipe;
+    const port = try std.fmt.allocPrint(self.alloc, "{d}", .{self.localhost.port orelse return error.InvalidAddressPort});
+    defer self.alloc.free(port);
+
+    const block = try std.fmt.allocPrint(self.alloc, "{d}", .{self.block_number_fork});
+    defer self.alloc.free(block);
+
+    var result = std.process.Child.init(&.{ "anvil", "-f", self.fork_url, "--fork-block-number", block, "--port", port }, self.alloc);
+    result.stdin_behavior = .Ignore;
+    result.stdout_behavior = .Ignore;
+    result.stderr_behavior = .Ignore;
 
     try result.spawn();
 
     self.result = result;
-}
-/// Connects and disconnets on success. Usefull for the test runner so that we block the main thread until we are ready.
-pub fn waitUntilReady(alloc: std.mem.Allocator, pooling_interval: u64) !void {
-    var retry: u32 = 0;
-    var stream: std.net.Stream = undefined;
-    while (true) {
-        if (retry > 20) break;
-        stream = std.net.tcpConnectToHost(alloc, "127.0.0.1", 8545) catch {
-            std.time.sleep(pooling_interval * std.time.ns_per_ms);
-            retry += 1;
-            continue;
-        };
-
-        break;
-    }
-
-    stream.close();
 }
 
 // Internal

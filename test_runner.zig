@@ -2,6 +2,7 @@ const builtin = @import("builtin");
 const std = @import("std");
 const ws = @import("src/tests/clients/ws_server.zig");
 
+const Anvil = @import("src/tests/Anvil.zig");
 const ArenaAllocator = std.heap.ArenaAllocator;
 const HttpClient = @import("src/tests/clients/server.zig");
 const IpcServer = @import("src/tests/clients/ipc_server.zig");
@@ -44,14 +45,23 @@ pub fn main() !void {
 
     const allocator = std.heap.page_allocator;
 
-    // Starts the HTTP server
-    var http_server: HttpClient = undefined;
-    defer http_server.deinit();
+    var anvil: Anvil = undefined;
+    defer anvil.killProcessAndDeinit();
 
-    try http_server.init(.{
-        .allocator = allocator,
+    try anvil.initProcess(.{
+        .alloc = allocator,
+        .fork_url = "https://eth-mainnet.g.alchemy.com/v2/EYebpRd8FEJ0WYXQ3Afl6O85T8vo6XvO",
+        .localhost = "http://localhost:6969/",
     });
-    try http_server.listenLoopInSeperateThread(false);
+
+    // // Starts the HTTP server
+    // var http_server: HttpClient = undefined;
+    // defer http_server.deinit();
+    //
+    // try http_server.init(.{
+    //     .allocator = allocator,
+    // });
+    // try http_server.listenLoopInSeperateThread(false);
 
     // Starts the IPC server
     var ipc_server: IpcServer = undefined;
@@ -60,11 +70,11 @@ pub fn main() !void {
     try ipc_server.init(allocator, .{});
     try ipc_server.listenLoopInSeperateThread();
 
-    // Starts the WS server
-    var arena = ArenaAllocator.init(allocator);
-    defer arena.deinit();
-
-    try ws.listenLoopInSeperateThread(arena.allocator(), 69);
+    // // Starts the WS server
+    // var arena = ArenaAllocator.init(allocator);
+    // defer arena.deinit();
+    //
+    // try ws.listenLoopInSeperateThread(arena.allocator(), 69);
 
     var results: TestResults = .{};
     const printer = TestsPrinter.init(std.io.getStdErr().writer());

@@ -776,7 +776,7 @@ test "sendTransaction" {
         defer receipt.deinit();
     }
     {
-        const uri = try std.Uri.parse("http://localhost:6970/");
+        const uri = try std.Uri.parse("http://localhost:6969/");
         var wallet: Wallet(.websocket) = undefined;
 
         var buffer: Hash = undefined;
@@ -840,7 +840,7 @@ test "Pool transactions" {
         try testing.expect(env != null);
     }
     {
-        const uri = try std.Uri.parse("http://localhost:6970/");
+        const uri = try std.Uri.parse("http://localhost:6969/");
         var wallet: Wallet(.websocket) = undefined;
 
         var buffer: Hash = undefined;

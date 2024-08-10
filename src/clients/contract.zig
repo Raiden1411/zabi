@@ -490,7 +490,7 @@ test "DeployContract" {
                 },
             },
         };
-        const uri = try std.Uri.parse("http://localhost:6970/");
+        const uri = try std.Uri.parse("http://localhost:6969/");
 
         var contract: Contract(.websocket) = undefined;
         defer contract.deinit();
@@ -572,7 +572,7 @@ test "WriteContract" {
                 },
             },
         };
-        const uri = try std.Uri.parse("http://localhost:6970/");
+        const uri = try std.Uri.parse("http://localhost:6969/");
 
         var contract: Contract(.websocket) = undefined;
         defer contract.deinit();
@@ -714,7 +714,7 @@ test "SimulateWriteCall" {
                 },
             },
         };
-        const uri = try std.Uri.parse("http://localhost:6970/");
+        const uri = try std.Uri.parse("http://localhost:6969/");
 
         var contract: Contract(.websocket) = undefined;
         defer contract.deinit();

@@ -659,6 +659,7 @@ pub const LegacyReceipt = struct {
     contractAddress: ?Address,
     logs: Logs,
     logsBloom: Hex,
+    blobGasPrice: ?u64 = null,
     type: ?TransactionTypes = null,
     root: ?Hex = null,
     status: ?bool = null,

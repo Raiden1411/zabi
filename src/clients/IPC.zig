@@ -255,7 +255,7 @@ pub fn estimateBlobMaxFeePerGas(self: *IPC) !Gwei {
     const gas_price = try self.getGasPrice();
     defer gas_price.deinit();
 
-    return if (base.response > gas_price.response) 0 else base.response - gas_price.response;
+    return if (base.response > gas_price.response) 0 else gas_price.response - base.response;
 }
 /// Estimate maxPriorityFeePerGas and maxFeePerGas. Will make more than one network request.
 /// Uses the `baseFeePerGas` included in the block to calculate the gas fees.
@@ -2403,7 +2403,10 @@ test "BlobBaseFee" {
         .path = "/tmp/anvil.ipc",
     });
 
-    try testing.expectError(error.InvalidParams, client.blobBaseFee());
+    const base_fee = try client.blobBaseFee();
+    defer base_fee.deinit();
+
+    try testing.expectEqual(base_fee.response, 0);
 }
 
 test "EstimateBlobMaxFeePerGas" {
@@ -2415,7 +2418,9 @@ test "EstimateBlobMaxFeePerGas" {
         .path = "/tmp/anvil.ipc",
     });
 
-    try testing.expectError(error.InvalidParams, client.estimateBlobMaxFeePerGas());
+    const base_fee = try client.estimateBlobMaxFeePerGas();
+
+    try testing.expect(base_fee != 0);
 }
 
 test "EstimateMaxFeePerGas" {

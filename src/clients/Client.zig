@@ -243,7 +243,7 @@ pub fn estimateBlobMaxFeePerGas(self: *PubClient) !Gwei {
     const gas_price = try self.getGasPrice();
     defer gas_price.deinit();
 
-    return if (base.response > gas_price.response) 0 else base.response - gas_price.response;
+    return if (base.response > gas_price.response) 0 else gas_price.response - base.response;
 }
 /// Estimate maxPriorityFeePerGas and maxFeePerGas. Will make more than one network request.
 /// Uses the `baseFeePerGas` included in the block to calculate the gas fees.
@@ -2315,7 +2315,10 @@ test "BlobBaseFee" {
         .uri = uri,
     });
 
-    try testing.expectError(error.MethodNotFound, client.blobBaseFee());
+    const base_fee = try client.blobBaseFee();
+    defer base_fee.deinit();
+
+    try testing.expectEqual(base_fee.response, 0);
 }
 
 test "EstimateBlobMaxFeePerGas" {
@@ -2328,7 +2331,9 @@ test "EstimateBlobMaxFeePerGas" {
         .uri = uri,
     });
 
-    try testing.expectError(error.MethodNotFound, client.estimateBlobMaxFeePerGas());
+    const estimate = try client.estimateBlobMaxFeePerGas();
+
+    try testing.expect(estimate != 0);
 }
 
 test "EstimateMaxFeePerGas" {

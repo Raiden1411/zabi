@@ -852,7 +852,7 @@ test "Pool transactions" {
         try wallet.poolTransactionEnvelope(.{ .type = .london, .nonce = 0 });
         try wallet.poolTransactionEnvelope(.{ .type = .berlin, .nonce = 0 });
         try wallet.poolTransactionEnvelope(.{ .type = .legacy, .nonce = 0 });
-        // try wallet.poolTransactionEnvelope(.{ .type = .cancun, .nonce = 0 });
+        try wallet.poolTransactionEnvelope(.{ .type = .cancun, .nonce = 0 });
 
         const env = wallet.findTransactionEnvelopeFromPool(.{ .type = .london, .nonce = 0 });
         try testing.expect(env != null);
@@ -869,7 +869,7 @@ test "Pool transactions" {
         try wallet.poolTransactionEnvelope(.{ .type = .london, .nonce = 0 });
         try wallet.poolTransactionEnvelope(.{ .type = .berlin, .nonce = 0 });
         try wallet.poolTransactionEnvelope(.{ .type = .legacy, .nonce = 0 });
-        // try wallet.poolTransactionEnvelope(.{ .type = .cancun, .nonce = 0 });
+        try wallet.poolTransactionEnvelope(.{ .type = .cancun, .nonce = 0 });
 
         const env = wallet.findTransactionEnvelopeFromPool(.{ .type = .london, .nonce = 0 });
         try testing.expect(env != null);

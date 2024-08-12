@@ -110,10 +110,6 @@ pub fn main() !void {
     printer.print("{s}ZABI Tests: \x1b[1;31m{d} failed\n", .{ " " ** 4, results.failed });
     printer.print("{s}ZABI Tests: \x1b[1;33m{d} skipped\n", .{ " " ** 4, results.skipped });
     printer.print("{s}ZABI Tests: \x1b[1;34m{d} leaked\n", .{ " " ** 4, results.leaked });
-
-    // const a = try result.kill();
-    // const a = try anvil.result.kill();
-    // printer.print("Result: {}\n", .{a});
 }
 
 const TestsPrinter = struct {

@@ -15,7 +15,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const mod = b.addModule("zabi", .{ .root_source_file = b.path("src/root.zig"), .link_libc = true });
+    const mod = b.addModule("zabi", .{ .root_source_file = b.path("src/root.zig") });
 
     addDependencies(b, mod, target, optimize);
 
@@ -32,44 +32,6 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
-
-    // Creates and runs the wallet client test runner.
-    {
-        const wallet = b.addExecutable(.{
-            .name = "wallet_test",
-            .root_source_file = b.path("src/wallet_test.zig"),
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        });
-        addDependencies(b, &wallet.root_module, target, optimize);
-
-        var wallet_run = b.addRunArtifact(wallet);
-        wallet_run.has_side_effects = true;
-
-        if (b.args) |args| wallet_run.addArgs(args);
-
-        const wallet_step = b.step("wallet_test", "Run the wallet client tests");
-        wallet_step.dependOn(&wallet_run.step);
-    }
-    // Creates and runs the rpc client http/s test runner.
-    {
-        const http = b.addExecutable(.{
-            .name = "rpc_test",
-            .root_source_file = b.path("src/rpc_test.zig"),
-            .target = target,
-            .optimize = optimize,
-        });
-        addDependencies(b, &http.root_module, target, optimize);
-
-        var http_run = b.addRunArtifact(http);
-        http_run.has_side_effects = true;
-
-        if (b.args) |args| http_run.addArgs(args);
-
-        const http_step = b.step("rpc_test", "Run the http client tests");
-        http_step.dependOn(&http_run.step);
-    }
 
     // Build and run the http server if `zig build server` was ran
     buildHttpServer(b, target, optimize);

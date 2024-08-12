@@ -277,7 +277,7 @@ pub fn start(self: *Anvil) !void {
     const block = try std.fmt.allocPrint(self.alloc, "{d}", .{self.block_number_fork});
     defer self.alloc.free(block);
 
-    var result = std.process.Child.init(&.{ "anvil", "-f", self.fork_url, "--fork-block-number", block, "--port", port }, self.alloc);
+    var result = std.process.Child.init(&.{ "anvil", "-f", self.fork_url, "--fork-block-number", block, "--port", port, "--ipc" }, self.alloc);
     result.stdin_behavior = .Ignore;
     result.stdout_behavior = .Ignore;
     result.stderr_behavior = .Ignore;

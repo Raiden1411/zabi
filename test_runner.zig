@@ -43,39 +43,6 @@ pub fn main() !void {
     if (test_funcs.len <= 1)
         return;
 
-    const allocator = std.heap.page_allocator;
-
-    var anvil: Anvil = undefined;
-    defer anvil.killProcessAndDeinit();
-
-    try anvil.initProcess(.{
-        .alloc = allocator,
-        .fork_url = "https://eth-mainnet.g.alchemy.com/v2/EYebpRd8FEJ0WYXQ3Afl6O85T8vo6XvO",
-        .localhost = "http://localhost:6969/",
-    });
-
-    // // Starts the HTTP server
-    // var http_server: HttpClient = undefined;
-    // defer http_server.deinit();
-    //
-    // try http_server.init(.{
-    //     .allocator = allocator,
-    // });
-    // try http_server.listenLoopInSeperateThread(false);
-
-    // Starts the IPC server
-    var ipc_server: IpcServer = undefined;
-    defer ipc_server.deinit();
-
-    try ipc_server.init(allocator, .{});
-    try ipc_server.listenLoopInSeperateThread();
-
-    // // Starts the WS server
-    // var arena = ArenaAllocator.init(allocator);
-    // defer arena.deinit();
-    //
-    // try ws.listenLoopInSeperateThread(arena.allocator(), 69);
-
     var results: TestResults = .{};
     const printer = TestsPrinter.init(std.io.getStdErr().writer());
 
@@ -143,6 +110,10 @@ pub fn main() !void {
     printer.print("{s}ZABI Tests: \x1b[1;31m{d} failed\n", .{ " " ** 4, results.failed });
     printer.print("{s}ZABI Tests: \x1b[1;33m{d} skipped\n", .{ " " ** 4, results.skipped });
     printer.print("{s}ZABI Tests: \x1b[1;34m{d} leaked\n", .{ " " ** 4, results.leaked });
+
+    // const a = try result.kill();
+    // const a = try anvil.result.kill();
+    // printer.print("Result: {}\n", .{a});
 }
 
 const TestsPrinter = struct {

@@ -547,7 +547,7 @@ test "DeployContract" {
         var buffer_hex: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer_hex, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-        try contract.init(.{ .abi = abi, .private_key = buffer_hex, .wallet_opts = .{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" } });
+        try contract.init(.{ .abi = abi, .private_key = buffer_hex, .wallet_opts = .{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" } });
 
         var buffer: [1024]u8 = undefined;
         const bytes = try std.fmt.hexToBytes(&buffer, "608060405260358060116000396000f3006080604052600080fd00a165627a7a72305820f86ff341f0dff29df244305f8aa88abaf10e3a0719fa6ea1dcdd01b8b7d750970029");
@@ -655,7 +655,7 @@ test "WriteContract" {
         try contract.init(.{
             .abi = abi,
             .private_key = buffer,
-            .wallet_opts = .{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" },
+            .wallet_opts = .{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" },
         });
 
         const result = try contract.writeContractFunction("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{
@@ -826,7 +826,7 @@ test "SimulateWriteCall" {
         try contract.init(.{
             .abi = abi,
             .private_key = buffer,
-            .wallet_opts = .{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" },
+            .wallet_opts = .{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" },
         });
 
         const result = try contract.simulateWriteCall("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });

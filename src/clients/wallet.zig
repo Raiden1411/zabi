@@ -803,7 +803,7 @@ test "sendTransaction" {
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-        try wallet.init(buffer, .{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try wallet.init(buffer, .{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" });
         defer wallet.deinit();
 
         const tx: UnpreparedTransactionEnvelope = .{
@@ -863,7 +863,7 @@ test "Pool transactions" {
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-        try wallet.init(buffer, .{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try wallet.init(buffer, .{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" });
         defer wallet.deinit();
 
         try wallet.poolTransactionEnvelope(.{ .type = .london, .nonce = 0 });

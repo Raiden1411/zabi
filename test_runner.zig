@@ -1,14 +1,7 @@
 const builtin = @import("builtin");
 const std = @import("std");
-const ws = @import("src/tests/clients/ws_server.zig");
 
-const Anvil = @import("src/tests/Anvil.zig");
-const ArenaAllocator = std.heap.ArenaAllocator;
-const HttpClient = @import("src/tests/clients/server.zig");
-const IpcServer = @import("src/tests/clients/ipc_server.zig");
 const TestFn = std.builtin.TestFn;
-const WsContext = @import("src/tests/clients/ws_server.zig").WsContext;
-const WsHandler = @import("src/tests/clients/ws_server.zig").WsHandler;
 
 const TestResults = struct {
     passed: u16 = 0,

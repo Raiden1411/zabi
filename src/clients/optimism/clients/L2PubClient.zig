@@ -83,7 +83,7 @@ pub fn L2Client(comptime client_type: Clients) type {
         }
         /// Frees and destroys any allocated memory
         pub fn deinit(self: *L2) void {
-            const child_allocator = self.rpc_client.allocator;
+            const child_allocator = self.allocator;
 
             self.rpc_client.deinit();
             child_allocator.destroy(self.rpc_client);

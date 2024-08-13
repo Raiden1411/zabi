@@ -50,7 +50,7 @@ pub const IpcReader = struct {
         if (self.position + size > self.buffer.len)
             try self.grow(size);
 
-        std.debug.assert(self.buffer.len > self.position + size);
+        std.debug.assert(self.buffer.len >= self.position + size);
         @memcpy(self.buffer[self.position .. self.position + size], result[0..size]);
         self.position += size;
     }

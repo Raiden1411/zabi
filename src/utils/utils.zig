@@ -217,9 +217,8 @@ pub fn bytesToInt(comptime T: type, slice: []u8) !T {
     const IntType = std.meta.Int(info.Int.signedness, @max(8, info.Int.bits));
     var x: IntType = 0;
 
-    const len: usize = slice.len - 1;
     for (slice, 0..) |bit, i| {
-        x += std.math.shl(T, bit, (len - i) * 8);
+        x += std.math.shl(T, bit, (slice.len - 1 - i) * 8);
     }
 
     return if (T == IntType)

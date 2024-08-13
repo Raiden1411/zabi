@@ -226,7 +226,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
 }
 
 test "ENS Text" {
-    const uri = try std.Uri.parse("http://localhost:8545/");
+    const uri = try std.Uri.parse("http://localhost:6969/");
 
     var ens: ENSClient(.http) = undefined;
     defer ens.deinit();
@@ -241,7 +241,7 @@ test "ENS Text" {
 
 test "ENS Name" {
     {
-        const uri = try std.Uri.parse("http://localhost:8545/");
+        const uri = try std.Uri.parse("http://localhost:6969/");
 
         var ens: ENSClient(.http) = undefined;
         defer ens.deinit();
@@ -258,7 +258,7 @@ test "ENS Name" {
         try testing.expectError(error.EvmFailedToExecute, ens.getEnsName("0xD9DA6Bf26964af9d7Eed9e03e53415D37aa96045", .{}));
     }
     {
-        const uri = try std.Uri.parse("http://localhost:8545/");
+        const uri = try std.Uri.parse("http://localhost:6969/");
 
         var ens: ENSClient(.http) = undefined;
         defer ens.deinit();
@@ -273,7 +273,7 @@ test "ENS Name" {
 }
 
 test "ENS Address" {
-    const uri = try std.Uri.parse("http://localhost:8545/");
+    const uri = try std.Uri.parse("http://localhost:6969/");
 
     var ens: ENSClient(.http) = undefined;
     defer ens.deinit();
@@ -291,7 +291,7 @@ test "ENS Address" {
 }
 
 test "ENS Resolver" {
-    const uri = try std.Uri.parse("http://localhost:8545/");
+    const uri = try std.Uri.parse("http://localhost:6969/");
 
     var ens: ENSClient(.http) = undefined;
     defer ens.deinit();

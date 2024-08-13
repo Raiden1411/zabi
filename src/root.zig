@@ -77,9 +77,12 @@ test {
     _ = @import("clients/WebSocket.zig");
     _ = @import("clients/contract.zig");
     _ = @import("clients/ens/ens_utils.zig");
+    _ = @import("clients/ens/ens.zig");
     _ = @import("clients/optimism/utils.zig");
     _ = @import("clients/optimism/parse_deposit.zig");
     _ = @import("clients/optimism/serialize_deposit.zig");
+    _ = @import("clients/optimism/clients/L1PubClient.zig");
+    _ = @import("clients/optimism/clients/L2PubClient.zig");
     _ = @import("clients/url.zig");
     _ = @import("clients/wallet.zig");
     _ = @import("crypto/hdwallet.zig");

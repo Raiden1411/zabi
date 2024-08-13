@@ -776,7 +776,7 @@ test "sendTransaction" {
         defer receipt.deinit();
     }
     {
-        const uri = try std.Uri.parse("http://localhost:6970/");
+        const uri = try std.Uri.parse("http://localhost:6969/");
         var wallet: Wallet(.websocket) = undefined;
 
         var buffer: Hash = undefined;
@@ -803,7 +803,7 @@ test "sendTransaction" {
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-        try wallet.init(buffer, .{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try wallet.init(buffer, .{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" });
         defer wallet.deinit();
 
         const tx: UnpreparedTransactionEnvelope = .{
@@ -840,7 +840,7 @@ test "Pool transactions" {
         try testing.expect(env != null);
     }
     {
-        const uri = try std.Uri.parse("http://localhost:6970/");
+        const uri = try std.Uri.parse("http://localhost:6969/");
         var wallet: Wallet(.websocket) = undefined;
 
         var buffer: Hash = undefined;
@@ -863,7 +863,7 @@ test "Pool transactions" {
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-        try wallet.init(buffer, .{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try wallet.init(buffer, .{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" });
         defer wallet.deinit();
 
         try wallet.poolTransactionEnvelope(.{ .type = .london, .nonce = 0 });

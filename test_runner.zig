@@ -1,13 +1,7 @@
 const builtin = @import("builtin");
 const std = @import("std");
-const ws = @import("src/tests/clients/ws_server.zig");
 
-const ArenaAllocator = std.heap.ArenaAllocator;
-const HttpClient = @import("src/tests/clients/server.zig");
-const IpcServer = @import("src/tests/clients/ipc_server.zig");
 const TestFn = std.builtin.TestFn;
-const WsContext = @import("src/tests/clients/ws_server.zig").WsContext;
-const WsHandler = @import("src/tests/clients/ws_server.zig").WsHandler;
 
 const TestResults = struct {
     passed: u16 = 0,
@@ -41,30 +35,6 @@ pub fn main() !void {
     // Return if we don't have any tests.
     if (test_funcs.len <= 1)
         return;
-
-    const allocator = std.heap.page_allocator;
-
-    // Starts the HTTP server
-    var http_server: HttpClient = undefined;
-    defer http_server.deinit();
-
-    try http_server.init(.{
-        .allocator = allocator,
-    });
-    try http_server.listenLoopInSeperateThread(false);
-
-    // Starts the IPC server
-    var ipc_server: IpcServer = undefined;
-    defer ipc_server.deinit();
-
-    try ipc_server.init(allocator, .{});
-    try ipc_server.listenLoopInSeperateThread();
-
-    // Starts the WS server
-    var arena = ArenaAllocator.init(allocator);
-    defer arena.deinit();
-
-    try ws.listenLoopInSeperateThread(arena.allocator(), 69);
 
     var results: TestResults = .{};
     const printer = TestsPrinter.init(std.io.getStdErr().writer());

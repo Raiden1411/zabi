@@ -173,8 +173,18 @@ pub fn L2Client(comptime client_type: Clients) type {
 
             const receipt = receipt_message.response;
 
-            if (receipt != .op_receipt)
-                return error.InvalidTransactionHash;
+            switch (receipt_message.response) {
+                .op_receipt => {},
+                inline else => |tx_receipt| {
+                    const to = tx_receipt.to orelse return error.InvalidTransactionHash;
+
+                    const casted_to: u160 = @bitCast(to);
+                    const casted_l2: u160 = @bitCast(self.contracts.l2ToL1MessagePasser);
+
+                    if (casted_to != casted_l2)
+                        return error.InvalidTransactionHash;
+                },
+            }
 
             var list = std.ArrayList(Withdrawal).init(self.allocator);
             errdefer list.deinit();
@@ -182,12 +192,16 @@ pub fn L2Client(comptime client_type: Clients) type {
             // The hash for the event selector `MessagePassed`
             const hash: Hash = comptime try utils.hashToBytes("0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054");
 
-            for (receipt.op_receipt.logs) |log| {
+            const logs = switch (receipt) {
+                inline else => |tx_receipt| tx_receipt.logs,
+            };
+
+            for (logs) |log| {
                 const topic_hash: Hash = log.topics[0] orelse return error.ExpectedTopicData;
                 if (std.mem.eql(u8, &hash, &topic_hash)) {
                     const decoded = try decoder.decodeAbiParameterLeaky(struct { u256, u256, []u8, Hash }, self.allocator, log.data, .{});
 
-                    const decoded_logs = try decoder_logs.decodeLogs(struct { Hash, u256, Address, Address }, log.topics);
+                    const decoded_logs = try decoder_logs.decodeLogs(struct { Hash, u256, Address, Address }, log.topics, .{});
 
                     try list.ensureUnusedCapacity(1);
                     list.appendAssumeCapacity(.{
@@ -204,8 +218,12 @@ pub fn L2Client(comptime client_type: Clients) type {
 
             const messages = try list.toOwnedSlice();
 
+            const block = switch (receipt) {
+                inline else => |tx_receipt| tx_receipt.blockNumber,
+            };
+
             return .{
-                .blockNumber = receipt.op_receipt.blockNumber.?,
+                .blockNumber = block.?,
                 .messages = messages,
             };
         }
@@ -213,7 +231,7 @@ pub fn L2Client(comptime client_type: Clients) type {
 }
 
 test "GetWithdrawMessages" {
-    const uri = try std.Uri.parse("https://sepolia.optimism.io");
+    const uri = try std.Uri.parse("http://localhost:6970");
 
     var op: L2Client(.http) = undefined;
     defer op.deinit();
@@ -227,11 +245,11 @@ test "GetWithdrawMessages" {
     defer receipt.deinit();
 
     try testing.expect(messages.messages.len != 0);
-    try testing.expect(messages.blockNumber == receipt.response.op_receipt.blockNumber.?);
+    try testing.expect(messages.blockNumber == receipt.response.legacy.blockNumber.?);
 }
 
 test "GetBaseFee" {
-    const uri = try std.Uri.parse("https://sepolia.optimism.io");
+    const uri = try std.Uri.parse("http://localhost:6970");
 
     var op: L2Client(.http) = undefined;
     defer op.deinit();
@@ -244,7 +262,7 @@ test "GetBaseFee" {
 }
 
 test "EstimateL1Gas" {
-    const uri = try std.Uri.parse("https://sepolia.optimism.io");
+    const uri = try std.Uri.parse("http://localhost:6970");
 
     var op: L2Client(.http) = undefined;
     defer op.deinit();
@@ -266,7 +284,7 @@ test "EstimateL1Gas" {
 }
 
 test "EstimateL1GasFee" {
-    const uri = try std.Uri.parse("https://sepolia.optimism.io");
+    const uri = try std.Uri.parse("http://localhost:6970");
 
     var op: L2Client(.http) = undefined;
     defer op.deinit();
@@ -288,7 +306,7 @@ test "EstimateL1GasFee" {
 }
 
 test "EstimateTotalGas" {
-    const uri = try std.Uri.parse("https://sepolia.optimism.io");
+    const uri = try std.Uri.parse("http://localhost:6970");
 
     var op: L2Client(.http) = undefined;
     defer op.deinit();
@@ -310,7 +328,7 @@ test "EstimateTotalGas" {
 }
 
 test "EstimateTotalFees" {
-    const uri = try std.Uri.parse("https://sepolia.optimism.io");
+    const uri = try std.Uri.parse("http://localhost:6970");
 
     var op: L2Client(.http) = undefined;
     defer op.deinit();

@@ -125,6 +125,11 @@ pub fn L1Client(comptime client_type: Clients) type {
         /// `block_number` to filter only games that occurred after this block.
         /// If null then it will return all games.
         pub fn getGames(self: *L1, limit: usize, block_number: ?u256) ![]const GameResult {
+            const version = try self.getPortalVersion();
+
+            if (version.major < 3)
+                return error.FaultProofsNotEnabled;
+
             // Selector for "gameCount()"
             const game_count_selector: []u8 = @constCast(&[_]u8{ 0x4d, 0x19, 0x75, 0xb4 });
             // Selector for "respectedGameType()"
@@ -145,7 +150,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             const count = try utils.bytesToInt(u256, game_count.response);
             const gtype = try utils.bytesToInt(u32, game_type.response);
 
-            const encoded = try abi_items.find_latest_games.encode(self.allocator, .{ gtype, @max(0, count - 1), @min(limit, count) });
+            const encoded = try abi_items.find_latest_games.encode(self.allocator, .{ gtype, if (count != 0) @max(0, count - 1) else 0, @min(limit, count) });
             defer self.allocator.free(encoded);
 
             const games = try self.rpc_client.sendEthCall(.{ .london = .{
@@ -475,7 +480,7 @@ pub fn L1Client(comptime client_type: Clients) type {
                     const decoded = try decoder.decodeAbiParameter([]u8, self.allocator, log_event.data, .{ .allocate_when = .alloc_always });
                     defer decoded.deinit();
 
-                    const decoded_logs = try decoder_logs.decodeLogs(struct { Hash, Address, Address, u256 }, log_event.topics);
+                    const decoded_logs = try decoder_logs.decodeLogs(struct { Hash, Address, Address, u256 }, log_event.topics, .{});
 
                     try list.append(.{
                         .from = decoded_logs[1],
@@ -598,116 +603,116 @@ pub fn L1Client(comptime client_type: Clients) type {
     };
 }
 
-// test "GetL2HashFromL1DepositInfo" {
-//     const uri = try std.Uri.parse("http://localhost:8545/");
-//
-//     var op: L1Client(.http) = undefined;
-//     defer op.deinit();
-//
-//     try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
-//
-//     const messages = try op.getL2HashesForDepositTransaction(try utils.hashToBytes("0x33faeeee9c6d5e19edcdfc003f329c6652f05502ffbf3218d9093b92589a42c4"));
-//     defer testing.allocator.free(messages);
-//
-//     try testing.expectEqualSlices(u8, &try utils.hashToBytes("0xed88afbd3f126180bd5488c2212cd033c51a6f9b1765249bdb738dcac1d0cb41"), &messages[0]);
-// }
-//
-// test "GetL2Output" {
-//     const uri = try std.Uri.parse("http://localhost:8545/");
-//
-//     var op: L1Client(.http) = undefined;
-//     defer op.deinit();
-//
-//     try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
-//
-//     const l2_output = try op.getL2Output(2725977);
-//
-//     try testing.expectEqual(l2_output.timestamp, 1686075935);
-//     try testing.expectEqual(l2_output.outputIndex, 0);
-//     try testing.expectEqual(l2_output.l2BlockNumber, 105236863);
-// }
-//
-// test "getSecondsToFinalize" {
-//     const uri = try std.Uri.parse("http://localhost:8545/");
-//
-//     var op: L1Client(.http) = undefined;
-//     defer op.deinit();
-//
-//     try op.init(.{ .uri = uri, .allocator = testing.allocator }, .{ .portalAddress = try utils.addressToBytes("0x49048044D57e1C92A77f79988d21Fa8fAF74E97e") });
-//
-//     const seconds = try op.getSecondsToFinalize(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
-//     try testing.expectEqual(seconds, 0);
-// }
-//
-// test "GetSecondsToNextL2Output" {
-//     const uri = try std.Uri.parse("http://localhost:8545/");
-//
-//     var op: L1Client(.http) = undefined;
-//     defer op.deinit();
-//
-//     try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
-//
-//     const block = try op.getLatestProposedL2BlockNumber();
-//     const seconds = try op.getSecondsToNextL2Output(block);
-//     try testing.expectEqual(seconds, 3600);
-// }
-//
-// test "GetTransactionDepositEvents" {
-//     const uri = try std.Uri.parse("http://localhost:8545/");
-//
-//     var op: L1Client(.http) = undefined;
-//     defer op.deinit();
-//
-//     try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
-//
-//     const deposit_events = try op.getTransactionDepositEvents(try utils.hashToBytes("0xe94031c3174788c3fee7216465c50bb2b72e7a1963f5af807b3768da10827f5c"));
-//     defer {
-//         for (deposit_events) |event| testing.allocator.free(event.opaqueData);
-//         testing.allocator.free(deposit_events);
-//     }
-//
-//     try testing.expect(deposit_events.len != 0);
-//     try testing.expectEqual(deposit_events[0].to, try utils.addressToBytes("0xbc3ed6B537f2980e66f396Fe14210A56ba3f72C4"));
-// }
-//
-// test "GetProvenWithdrawals" {
-//     const uri = try std.Uri.parse("http://localhost:8545/");
-//
-//     var op: L1Client(.http) = undefined;
-//     defer op.deinit();
-//
-//     try op.init(.{ .uri = uri, .allocator = testing.allocator }, .{ .portalAddress = try utils.addressToBytes("0x49048044D57e1C92A77f79988d21Fa8fAF74E97e") });
-//
-//     const proven = try op.getProvenWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
-//
-//     try testing.expectEqual(proven.l2OutputIndex, 1490);
-// }
-//
-// test "GetFinalizedWithdrawals" {
-//     const uri = try std.Uri.parse("http://localhost:8545/");
-//
-//     var op: L1Client(.http) = undefined;
-//     defer op.deinit();
-//
-//     try op.init(.{ .uri = uri, .allocator = testing.allocator }, .{ .portalAddress = try utils.addressToBytes("0x49048044D57e1C92A77f79988d21Fa8fAF74E97e") });
-//
-//     const finalized = try op.getFinalizedWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
-//     try testing.expect(finalized);
-// }
-//
-// test "Errors" {
-//     const uri = try std.Uri.parse("http://localhost:8545/");
-//
-//     var op: L1Client(.http) = undefined;
-//     defer op.deinit();
-//
-//     try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
-//     try testing.expectError(error.InvalidBlockNumber, op.getSecondsToNextL2Output(1));
-//     try testing.expectError(error.InvalidWithdrawalHash, op.getSecondsToFinalize(try utils.hashToBytes("0xe94031c3174788c3fee7216465c50bb2b72e7a1963f5af807b3768da10827f5c")));
-// }
+test "GetL2HashFromL1DepositInfo" {
+    const uri = try std.Uri.parse("http://localhost:6969/");
+
+    var op: L1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
+
+    const messages = try op.getL2HashesForDepositTransaction(try utils.hashToBytes("0x33faeeee9c6d5e19edcdfc003f329c6652f05502ffbf3218d9093b92589a42c4"));
+    defer testing.allocator.free(messages);
+
+    try testing.expectEqualSlices(u8, &try utils.hashToBytes("0xed88afbd3f126180bd5488c2212cd033c51a6f9b1765249bdb738dcac1d0cb41"), &messages[0]);
+}
+
+test "GetL2Output" {
+    const uri = try std.Uri.parse("http://localhost:6969/");
+
+    var op: L1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
+
+    const l2_output = try op.getL2Output(2725977);
+
+    try testing.expectEqual(l2_output.timestamp, 1686075935);
+    try testing.expectEqual(l2_output.outputIndex, 0);
+    try testing.expectEqual(l2_output.l2BlockNumber, 105236863);
+}
+
+test "getSecondsToFinalize" {
+    const uri = try std.Uri.parse("http://localhost:6969/");
+
+    var op: L1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, .{ .portalAddress = try utils.addressToBytes("0x49048044D57e1C92A77f79988d21Fa8fAF74E97e") });
+
+    const seconds = try op.getSecondsToFinalize(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
+    try testing.expectEqual(seconds, 0);
+}
+
+test "GetSecondsToNextL2Output" {
+    const uri = try std.Uri.parse("http://localhost:6969/");
+
+    var op: L1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
+
+    const block = try op.getLatestProposedL2BlockNumber();
+    const seconds = try op.getSecondsToNextL2Output(block);
+    try testing.expectEqual(seconds, 3600);
+}
+
+test "GetTransactionDepositEvents" {
+    const uri = try std.Uri.parse("http://localhost:6969/");
+
+    var op: L1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
+
+    const deposit_events = try op.getTransactionDepositEvents(try utils.hashToBytes("0xe94031c3174788c3fee7216465c50bb2b72e7a1963f5af807b3768da10827f5c"));
+    defer {
+        for (deposit_events) |event| testing.allocator.free(event.opaqueData);
+        testing.allocator.free(deposit_events);
+    }
+
+    try testing.expect(deposit_events.len != 0);
+    try testing.expectEqual(deposit_events[0].to, try utils.addressToBytes("0xbc3ed6B537f2980e66f396Fe14210A56ba3f72C4"));
+}
+
+test "GetProvenWithdrawals" {
+    const uri = try std.Uri.parse("http://localhost:6969/");
+
+    var op: L1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, .{ .portalAddress = try utils.addressToBytes("0x49048044D57e1C92A77f79988d21Fa8fAF74E97e") });
+
+    const proven = try op.getProvenWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
+
+    try testing.expectEqual(proven.l2OutputIndex, 1490);
+}
+
+test "GetFinalizedWithdrawals" {
+    const uri = try std.Uri.parse("http://localhost:6969/");
+
+    var op: L1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, .{ .portalAddress = try utils.addressToBytes("0x49048044D57e1C92A77f79988d21Fa8fAF74E97e") });
+
+    const finalized = try op.getFinalizedWithdrawals(try utils.hashToBytes("0xEC0AD491512F4EDC603C2DD7B9371A0B18D4889A23E74692101BA4C6DC9B5709"));
+    try testing.expect(finalized);
+}
+
+test "Errors" {
+    const uri = try std.Uri.parse("http://localhost:6969/");
+
+    var op: L1Client(.http) = undefined;
+    defer op.deinit();
+
+    try op.init(.{ .uri = uri, .allocator = testing.allocator }, null);
+    try testing.expectError(error.InvalidBlockNumber, op.getSecondsToNextL2Output(1));
+    try testing.expectError(error.InvalidWithdrawalHash, op.getSecondsToFinalize(try utils.hashToBytes("0xe94031c3174788c3fee7216465c50bb2b72e7a1963f5af807b3768da10827f5c")));
+}
 
 test "getSecondsUntilNextGame" {
-    const uri = try std.Uri.parse("http://localhost:8545/");
+    const uri = try std.Uri.parse("http://localhost:6971");
 
     var op: L1Client(.http) = undefined;
     defer op.deinit();
@@ -727,7 +732,7 @@ test "getSecondsUntilNextGame" {
 }
 
 test "Portal Version" {
-    const uri = try std.Uri.parse("http://localhost:8545/");
+    const uri = try std.Uri.parse("http://localhost:6971");
 
     var op: L1Client(.http) = undefined;
     defer op.deinit();
@@ -744,7 +749,7 @@ test "Portal Version" {
 }
 
 test "Get Games" {
-    const uri = try std.Uri.parse("http://localhost:8545/");
+    const uri = try std.Uri.parse("http://localhost:6971");
 
     var op: L1Client(.http) = undefined;
     defer op.deinit();

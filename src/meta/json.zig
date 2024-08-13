@@ -56,10 +56,8 @@ pub fn jsonParseFromValue(comptime T: type, allocator: Allocator, source: Value,
                 break;
             }
         } else {
-            if (!options.ignore_unknown_fields) {
-                std.debug.print("UNKNOWWW: {s}\n\n", .{field_name});
+            if (!options.ignore_unknown_fields)
                 return error.UnknownField;
-            }
         }
     }
 

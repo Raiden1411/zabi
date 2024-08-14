@@ -16,15 +16,11 @@
     // Internet connectivity.
     .dependencies = .{
         .ws = .{
-            .url = "git+https://github.com/karlseguin/websocket.zig.git#9647c2fab733f39450c9ca61bb71fd621631274b",
-            .hash = "122023390f1c3413c7bf8e91744c61c82bbdefd3954842493cd6ebaa89529dd88212",
-        },
-        .@"c-kzg-4844" = .{ .path = "./pkg/c-kzg-4844" },
-        .blst = .{ .path = "./pkg/blst" },
-        .websocket = .{
             .url = "git+https://github.com/karlseguin/websocket.zig.git#3bc67bc7104e25cfbb6621cca784d3edc2d450cc",
             .hash = "1220a36b9f1be391d474a22f7f52a3e8bd8027ac523d2db19c987328a03041ab1412",
         },
+        .@"c-kzg-4844" = .{ .path = "./pkg/c-kzg-4844" },
+        .blst = .{ .path = "./pkg/blst" },
     },
     .paths = .{
         // This makes *all* files, recursively, included in this package. It is generally

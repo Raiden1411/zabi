@@ -21,6 +21,10 @@
         },
         .@"c-kzg-4844" = .{ .path = "./pkg/c-kzg-4844" },
         .blst = .{ .path = "./pkg/blst" },
+        .websocket = .{
+            .url = "git+https://github.com/karlseguin/websocket.zig.git#3bc67bc7104e25cfbb6621cca784d3edc2d450cc",
+            .hash = "1220a36b9f1be391d474a22f7f52a3e8bd8027ac523d2db19c987328a03041ab1412",
+        },
     },
     .paths = .{
         // This makes *all* files, recursively, included in this package. It is generally

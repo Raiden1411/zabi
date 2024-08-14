@@ -31,9 +31,6 @@ pub fn build(b: *std.Build) void {
     var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
     const test_step = b.step("test", "Run unit tests");
-    // Panics if anvil is not installed on the system.
-    checkCommand(test_step, "anvil");
-
     test_step.dependOn(&run_lib_unit_tests.step);
 
     // Build and run the http server if `zig build server` was ran
@@ -157,24 +154,4 @@ fn buildAndRunConverage(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
 
     install_coverage.step.dependOn(&run_lib_unit_tests.step);
     test_step.dependOn(&install_coverage.step);
-}
-/// Checks if a command is installed on the system.
-fn checkCommand(b: *std.Build.Step, comptime command: []const u8) void {
-    const env = std.process.getEnvVarOwned(b.owner.allocator, "PATH") catch unreachable;
-
-    var iter = std.mem.tokenizeAny(u8, env, ":");
-
-    while (iter.next()) |path| {
-        var dir = std.fs.openDirAbsolute(path, .{ .iterate = true }) catch continue;
-
-        var walker = dir.walk(b.owner.allocator) catch continue;
-        defer walker.deinit();
-
-        while (walker.next() catch continue) |sub_path| {
-            if (std.mem.eql(u8, sub_path.basename, command))
-                return;
-        }
-    }
-
-    @panic("Failed to find " ++ command ++ " executable");
 }

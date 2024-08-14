@@ -30,6 +30,8 @@ const Modules = enum {
 };
 
 pub fn main() !void {
+    checkCommand(std.heap.page_allocator, "anvill");
+
     const test_funcs: []const TestFn = builtin.test_functions;
 
     // Return if we don't have any tests.
@@ -121,3 +123,25 @@ const TestsPrinter = struct {
         self.fmt("\x1b[0m", .{});
     }
 };
+
+/// Checks if a command is installed on the system.
+fn checkCommand(allocator: std.mem.Allocator, comptime command: []const u8) void {
+    const env = std.process.getEnvVarOwned(allocator, "PATH") catch unreachable;
+    defer allocator.free(env);
+
+    var iter = std.mem.tokenizeAny(u8, env, ":");
+
+    while (iter.next()) |path| {
+        var dir = std.fs.openDirAbsolute(path, .{ .iterate = true }) catch continue;
+
+        var walker = dir.walk(allocator) catch continue;
+        defer walker.deinit();
+
+        while (walker.next() catch continue) |sub_path| {
+            if (std.mem.eql(u8, sub_path.basename, command))
+                return;
+        }
+    }
+
+    @panic("Failed to find " ++ command ++ " executable");
+}

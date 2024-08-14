@@ -30,7 +30,7 @@ const Modules = enum {
 };
 
 pub fn main() !void {
-    checkCommand(std.heap.page_allocator, "anvill");
+    checkCommand(std.heap.page_allocator, "anvil");
 
     const test_funcs: []const TestFn = builtin.test_functions;
 

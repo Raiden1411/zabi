@@ -8,3 +8,11 @@ pub const eip712 = @import("eip712.zig");
 pub const param_type = @import("param_type.zig");
 /// Function state mutability
 pub const state_mutability = @import("state_mutability.zig");
+
+test "Abi Root" {
+    _ = @import("abi_parameter.test.zig");
+    _ = @import("abi.test.zig");
+    _ = @import("eip712.test.zig");
+    _ = @import("param_type.test.zig");
+    _ = @import("state_mutability.zig");
+}

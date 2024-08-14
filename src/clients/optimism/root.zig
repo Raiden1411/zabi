@@ -23,3 +23,11 @@ const types = @import("types/types.zig");
 const utils = @import("utils.zig");
 /// Specfic types for withdrawal events.
 const withdrawal_types = @import("types/withdrawl.zig");
+
+test "Superchain Root" {
+    _ = @import("utils.test.zig");
+    _ = @import("parse_deposit.test.zig");
+    _ = @import("serialize_deposit.test.zig");
+    _ = @import("clients/l1_public_client.test.zig");
+    _ = @import("clients/l2_public_client.test.zig");
+}

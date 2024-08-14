@@ -14,6 +14,8 @@ You can still use an `ArenaAllocator` if you want to mimic the previous behaviou
 
 Zabi also support custom client for the op-stack that follow this same principle.
 
+Zabi now also supports calls to the multicall3 contract using the rpc clients. Currently we only support the `aggregate3` contract call but we plan to add futher support in future versions. To find out more please go to their [website](https://www.multicall3.com/)
+
 ## Usage
 
 Depending on the type of client you want to init a set of seperate options are available.
@@ -63,6 +65,7 @@ const InitOptions = struct {
     base_fee_multiplier: f64 = 1.2,
 };
 ```
+
 ### IPC Client
 
 ```zig
@@ -126,8 +129,3 @@ defer block_req.deinit();
 ```
 
 :::
-
-You can take look at our current tests to have a better grasp on using the clients.
-
-For the websocket client start [here](https://github.com/Raiden1411/zabi/blob/94d42c13b4a628c407827a765f03157de7c3dff1/src/WebSocket.zig#L1693) \
-For the http client start [here](https://github.com/Raiden1411/zabi/blob/94d42c13b4a628c407827a765f03157de7c3dff1/src/Client.zig#L888)

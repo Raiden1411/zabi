@@ -32,6 +32,30 @@ pub inline fn isStaticType(comptime T: type) bool {
     // It should never reach this
     unreachable;
 }
+/// Checks if a given type is static
+pub inline fn isDynamicType(comptime T: type) bool {
+    const info = @typeInfo(T);
+
+    switch (info) {
+        .Bool, .Int, .Null => return false,
+        .Array => |arr_info| return isDynamicType(arr_info.child),
+        .Struct => {
+            inline for (info.Struct.fields) |field| {
+                const dynamic = isDynamicType(field.type);
+
+                if (dynamic)
+                    return true;
+            }
+
+            return false;
+        },
+        .Pointer => switch (info.Pointer.size) {
+            .Many, .Slice, .C => return true,
+            .One => return isStaticType(info.Pointer.child),
+        },
+        else => @compileError("Unsupported type " ++ @typeName(T)),
+    }
+}
 /// Converts ethereum address to checksum
 pub fn toChecksum(allocator: Allocator, address: []const u8) ![]u8 {
     var buf: [40]u8 = undefined;
@@ -173,8 +197,8 @@ pub inline fn formatInt(int: u256, buffer: *[32]u8) u8 {
         }
     }
 
-    // It should never be reached
-    unreachable;
+    buffer.* = @bitCast(@byteSwap(int));
+    return 32;
 }
 /// Computes the size of a given int
 pub inline fn computeSize(int: u256) u8 {
@@ -184,8 +208,7 @@ pub inline fn computeSize(int: u256) u8 {
         }
     }
 
-    // It should never be reached
-    unreachable;
+    return 32;
 }
 /// Similar to `parseInt` but handles the hex bytes and not the
 /// hex represented string.
@@ -194,9 +217,8 @@ pub fn bytesToInt(comptime T: type, slice: []u8) !T {
     const IntType = std.meta.Int(info.Int.signedness, @max(8, info.Int.bits));
     var x: IntType = 0;
 
-    const len: usize = slice.len - 1;
     for (slice, 0..) |bit, i| {
-        x += std.math.shl(T, bit, (len - i) * 8);
+        x += std.math.shl(T, bit, (slice.len - 1 - i) * 8);
     }
 
     return if (T == IntType)

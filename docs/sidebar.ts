@@ -19,6 +19,10 @@ export const sidebar = {
 					link: "/api/client/public/client",
 				},
 				{
+					text: "Block Explorer",
+					link: "/api/block_explorer/explorer",
+				},
+				{
 					text: "Wallet",
 					link: "/api/client/wallet/client",
 				},
@@ -53,8 +57,8 @@ export const sidebar = {
 					link: "/api/abi_utils/encode_constructor",
 				},
 				{
-					text: "ABI Decode Parameters",
-					link: "/api/abi_utils/decode_parameters",
+					text: "ABI Decode Parameter",
+					link: "/api/abi_utils/decode_parameter",
 				},
 				{
 					text: "ABI Decode Function",
@@ -67,6 +71,10 @@ export const sidebar = {
 				{
 					text: "ABI Decode Constructor",
 					link: "/api/abi_utils/decode_constructor",
+				},
+				{
+					text: "ABI Decode Logs",
+					link: "/api/abi_utils/logs_decode",
 				},
 				{
 					text: "Types",
@@ -222,6 +230,16 @@ export const sidebar = {
 				{
 					text: "Meta Functions",
 					link: "/api/meta/metaprogramming",
+				},
+			],
+		},
+		{
+			text: "EVM Interpreter",
+			collapsed: true,
+			items: [
+				{
+					text: "Interpreter",
+					link: "/api/interpreter/interpreter",
 				},
 			],
 		},

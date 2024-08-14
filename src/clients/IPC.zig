@@ -1,5 +1,8 @@
+const abi = @import("../abi/abi.zig");
 const block = @import("../types/block.zig");
+const decoder = @import("../decoding/decoder.zig");
 const meta = @import("../meta/utils.zig");
+const multicall = @import("multicall.zig");
 const log = @import("../types/log.zig");
 const pipe = @import("../utils/pipe.zig");
 const proof = @import("../types/proof.zig");
@@ -13,6 +16,7 @@ const utils = @import("../utils/utils.zig");
 
 const assert = std.debug.assert;
 
+const AbiDecoded = decoder.AbiDecoded;
 const AccessListResult = transaction.AccessListResult;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
@@ -36,19 +40,25 @@ const EthereumSubscribeResponse = types.EthereumSubscribeResponse;
 const EthereumZigErrors = types.EthereumZigErrors;
 const EstimateFeeReturn = transaction.EstimateFeeReturn;
 const FeeHistory = transaction.FeeHistory;
+const Function = abi.Function;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
+const IpcReader = @import("ipc_reader.zig").IpcReader;
 const JsonParsed = std.json.Parsed;
 const Log = log.Log;
 const LogRequest = log.LogRequest;
 const LogTagRequest = log.LogTagRequest;
 const Logs = log.Logs;
+const Multicall = multicall.Multicall;
+const MulticallArguments = multicall.MulticallArguments;
+const MulticallTargets = multicall.MulticallTargets;
 const Mutex = std.Thread.Mutex;
 const PoolTransactionByNonce = txpool.PoolTransactionByNonce;
 const ProofResult = proof.ProofResult;
 const ProofBlockTag = block.ProofBlockTag;
 const ProofRequest = proof.ProofRequest;
+const Result = multicall.Result;
 const RPCResponse = types.RPCResponse;
 const Stack = @import("../utils/stack.zig").Stack;
 const Stream = std.net.Stream;
@@ -91,25 +101,28 @@ pub const IPCErrors = error{
     ReachedMaxRetryLimit,
 } || Allocator.Error || std.fmt.ParseIntError || std.Uri.ParseError || EthereumZigErrors;
 
+/// Set of intial options for the IPC Client.
 pub const InitOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
     allocator: Allocator,
-    /// The path for the IPC path
-    path: []const u8,
+    /// The base fee multiplier used to estimate the gas fees in a transaction
+    base_fee_multiplier: f64 = 1.2,
     /// The client chainId.
     chain_id: ?Chains = null,
+    /// The reader buffer growth rate
+    growth_rate: ?usize = null,
     /// Callback function for when the connection is closed.
     onClose: ?*const fn () void = null,
     /// Callback function for everytime an event is parsed.
     onEvent: ?*const fn (args: JsonParsed(Value)) anyerror!void = null,
     /// Callback function for everytime an error is caught.
     onError: ?*const fn (args: []const u8) anyerror!void = null,
-    /// Retry count for failed connections to server.
-    retries: u8 = 5,
+    /// The path for the IPC path
+    path: []const u8,
     /// The interval to retry the connection. This will get multiplied in ns_per_ms.
     pooling_interval: u64 = 2_000,
-    /// The base fee multiplier used to estimate the gas fees in a transaction
-    base_fee_multiplier: f64 = 1.2,
+    /// Retry count for failed connections to server.
+    retries: u8 = 5,
 };
 
 /// The allocator that will manage the connections memory
@@ -120,10 +133,8 @@ base_fee_multiplier: f64,
 chain_id: usize,
 /// If the client is closed.
 closed: bool,
-/// Channel used to communicate between threads on subscription events.
-sub_channel: Channel(JsonParsed(Value)),
-/// Channel used to communicate between threads on rpc events.
-rpc_channel: Stack(JsonParsed(Value)),
+/// The IPC net stream to read and write requests.
+ipc_reader: IpcReader,
 /// Mutex to manage locks between threads
 mutex: Mutex = .{},
 /// Callback function for when the connection is closed.
@@ -136,8 +147,10 @@ onError: ?*const fn (args: []const u8) anyerror!void,
 pooling_interval: u64,
 /// Retry count for failed connections or requests.
 retries: u8,
-/// The IPC net stream to read and write requests.
-stream: Stream,
+/// Channel used to communicate between threads on rpc events.
+rpc_channel: Stack(JsonParsed(Value)),
+/// Channel used to communicate between threads on subscription events.
+sub_channel: Channel(JsonParsed(Value)),
 
 /// Starts the IPC client and create the connection.
 /// This will also start the read loop in a seperate thread.
@@ -156,7 +169,7 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
         .retries = opts.retries,
         .rpc_channel = Stack(JsonParsed(Value)).init(self.allocator, null),
         .sub_channel = Channel(JsonParsed(Value)).init(self.allocator),
-        .stream = undefined,
+        .ipc_reader = undefined,
     };
 
     errdefer {
@@ -164,7 +177,7 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
         self.sub_channel.deinit();
     }
 
-    self.stream = try self.connect(opts.path);
+    self.ipc_reader = try IpcReader.init(opts.allocator, try self.connect(opts.path), null);
 
     const thread = try std.Thread.spawn(.{}, readLoopOwnedThread, .{self});
     thread.detach();
@@ -188,7 +201,7 @@ pub fn deinit(self: *IPC) void {
         response.deinit();
     }
 
-    self.stream.close();
+    self.ipc_reader.deinit();
     self.rpc_channel.deinit();
     self.sub_channel.deinit();
 }
@@ -242,7 +255,7 @@ pub fn estimateBlobMaxFeePerGas(self: *IPC) !Gwei {
     const gas_price = try self.getGasPrice();
     defer gas_price.deinit();
 
-    return if (base.response > gas_price.response) 0 else base.response - gas_price.response;
+    return if (base.response > gas_price.response) 0 else gas_price.response - base.response;
 }
 /// Estimate maxPriorityFeePerGas and maxFeePerGas. Will make more than one network request.
 /// Uses the `baseFeePerGas` included in the block to calculate the gas fees.
@@ -1007,6 +1020,50 @@ pub fn getUncleCountByBlockHash(self: *IPC, block_hash: Hash) !RPCResponse(usize
 pub fn getUncleCountByBlockNumber(self: *IPC, opts: BlockNumberRequest) !RPCResponse(usize) {
     return self.sendBlockNumberRequest(opts, .eth_getUncleCountByBlockNumber);
 }
+/// Runs the selected multicall3 contracts.
+/// This enables to read from multiple contract by a single `eth_call`.
+/// Uses the contracts created [here](https://www.multicall3.com/)
+///
+/// To learn more about the multicall contract please go [here](https://github.com/mds1/multicall)
+///
+/// You will need to decoded each of the `Result`.
+///
+/// **Example:**
+/// ```zig
+///  const supply: Function = .{
+///       .type = .function,
+///       .name = "totalSupply",
+///       .stateMutability = .view,
+///       .inputs = &.{},
+///       .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
+///   };
+///
+///   const balance: Function = .{
+///       .type = .function,
+///       .name = "balanceOf",
+///       .stateMutability = .view,
+///       .inputs = &.{.{ .type = .{ .address = {} }, .name = "balanceOf" }},
+///       .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
+///   };
+///
+///   const a: []const MulticallTargets = &.{
+///       .{ .function = supply, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
+///       .{ .function = balance, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
+///   };
+///
+///   const res = try client.multicall3(a, .{ {}, .{try utils.addressToBytes("0xFded38DF0180039867E54EBdec2012D534862cE3")} }, true);
+///   defer res.deinit();
+/// ```
+pub fn multicall3(
+    self: *IPC,
+    comptime targets: []const MulticallTargets,
+    function_arguments: MulticallArguments(targets),
+    allow_failure: bool,
+) !AbiDecoded([]const Result) {
+    var multicall_caller = try Multicall(.ipc).init(self);
+
+    return multicall_caller.multicall3(targets, function_arguments, allow_failure);
+}
 /// Creates a filter in the node, to notify when a new block arrives.
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
@@ -1058,20 +1115,14 @@ pub fn newPendingTransactionFilter(self: *IPC) !RPCResponse(u128) {
 /// Creates a read loop to read the socket messages.
 /// If a message is too long it will double the buffer size to read the message.
 pub fn readLoop(self: *IPC) !void {
-    if (@atomicLoad(bool, &self.closed, .acquire))
-        return;
-
     while (true) {
-        var request_buffer: [std.math.maxInt(u16)]u8 = undefined;
-        var list = std.io.fixedBufferStream(&request_buffer);
-        errdefer @atomicStore(bool, &self.closed, true, .release);
-
-        try self.readMessage(list.writer());
-
-        if (@atomicLoad(bool, &self.closed, .acquire))
-            return;
-
-        const message = list.getWritten();
+        const message = self.ipc_reader.readMessage() catch |err| switch (err) {
+            error.Closed, error.ConnectionResetByPeer, error.BrokenPipe => {
+                _ = @cmpxchgStrong(bool, &self.closed, false, true, .monotonic, .monotonic);
+                return;
+            },
+            else => return,
+        };
 
         ipclog.debug("Got message: {s}", .{message});
 
@@ -1083,7 +1134,7 @@ pub fn readLoop(self: *IPC) !void {
                 .tv_sec = @intCast(0),
                 .tv_usec = @intCast(1000),
             });
-            try std.posix.setsockopt(self.stream.handle, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, &timeout);
+            try std.posix.setsockopt(self.ipc_reader.stream.handle, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, &timeout);
 
             return error.FailedToJsonParseResponse;
         };
@@ -1481,7 +1532,7 @@ pub fn waitForTransactionReceiptType(self: *IPC, comptime T: type, tx_hash: Hash
 }
 /// Write messages to the websocket server.
 pub fn writeSocketMessage(self: *IPC, data: []u8) !void {
-    return self.stream.writeAll(data);
+    return self.ipc_reader.writeMessage(data);
 }
 
 // Internals
@@ -1527,39 +1578,6 @@ fn handleErrorResponse(self: *IPC, event: ErrorResponse) EthereumZigErrors {
         .Disconnected => return error.Disconnected,
         .ChainDisconnected => return error.ChainDisconnected,
         _ => return error.UnexpectedRpcErrorCode,
-    }
-}
-/// Reads one json message from the socket. The list growth is super
-/// linear as it's the safest option to ensure that we grab a just one json
-/// message.
-///
-/// Returns whether or not it was able to read a message.
-fn readMessage(self: *IPC, writer: anytype) !void {
-    var depth: usize = 0;
-
-    while (true) {
-        var result: [1]u8 = undefined;
-        const size = try self.stream.read(result[0..]);
-
-        if (size < 1) {
-            if (depth == 0)
-                return;
-
-            return error.EndOfStream;
-        }
-
-        try writer.writeAll(result[0..]);
-
-        switch (result[0]) {
-            '{' => depth += 1,
-            '}' => depth -= 1,
-            else => {},
-        }
-
-        // Check if we read a message or not.
-        if (depth == 0) {
-            return;
-        }
     }
 }
 /// Internal RPC event parser.
@@ -1691,7 +1709,10 @@ test "BlockByNumber" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const block_number = try client.getBlockByNumber(.{ .block_number = 10 });
         defer block_number.deinit();
@@ -1700,7 +1721,7 @@ test "BlockByNumber" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" });
 
         const block_number = try client.getBlockByNumber(.{});
         defer block_number.deinit();
@@ -1709,7 +1730,10 @@ test "BlockByNumber" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const block_number = try client.getBlockByNumber(.{ .include_transaction_objects = true });
         defer block_number.deinit();
@@ -1718,7 +1742,10 @@ test "BlockByNumber" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const block_number = try client.getBlockByNumber(.{ .block_number = 1000000, .include_transaction_objects = true });
         defer block_number.deinit();
@@ -1730,19 +1757,36 @@ test "BlockByHash" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const block_number = try client.getBlockByHash(.{ .block_hash = [_]u8{0} ** 32 });
+        const block_number = try client.getBlockByHash(.{
+            .block_hash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"),
+        });
         defer block_number.deinit();
+
+        try testing.expect(block_number.response == .beacon);
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const block_number = try client.getBlockByHash(.{ .block_hash = [_]u8{0} ** 32, .include_transaction_objects = true });
+        const block_number = try client.getBlockByHash(.{
+            .block_hash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"),
+            .include_transaction_objects = true,
+        });
         defer block_number.deinit();
+
+        try testing.expect(block_number.response == .beacon);
+        try testing.expect(block_number.response.beacon.transactions != null);
+        try testing.expect(block_number.response.beacon.transactions.? == .objects);
     }
 }
 
@@ -1750,10 +1794,15 @@ test "BlockTransactionCountByHash" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
-    const block_number = try client.getBlockTransactionCountByHash([_]u8{0} ** 32);
+    const block_number = try client.getBlockTransactionCountByHash(try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"));
     defer block_number.deinit();
+
+    try testing.expect(block_number.response != 0);
 }
 
 test "BlockTransactionCountByNumber" {
@@ -1761,19 +1810,29 @@ test "BlockTransactionCountByNumber" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const block_number = try client.getBlockTransactionCountByNumber(.{ .block_number = 100101 });
         defer block_number.deinit();
+
+        try testing.expectEqual(block_number.response, 0);
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const block_number = try client.getBlockTransactionCountByNumber(.{});
         defer block_number.deinit();
+
+        try testing.expect(block_number.response != 0);
     }
 }
 
@@ -1782,19 +1841,34 @@ test "AddressBalance" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const block_number = try client.getAddressBalance(.{ .address = [_]u8{0} ** 20, .block_number = 100101 });
+        const block_number = try client.getAddressBalance(.{
+            .address = try utils.addressToBytes("0x0689f41a1461D176F722E824B682F439a9b9FDbf"),
+            .block_number = 100101,
+        });
         defer block_number.deinit();
+
+        try testing.expectEqual(block_number.response, 0);
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const block_number = try client.getAddressBalance(.{ .address = [_]u8{0} ** 20 });
+        const block_number = try client.getAddressBalance(.{
+            .address = try utils.addressToBytes("0x0689f41a1461D176F722E824B682F439a9b9FDbf"),
+        });
         defer block_number.deinit();
+
+        try testing.expect(block_number.response != 0);
     }
 }
 
@@ -1803,19 +1877,34 @@ test "AddressNonce" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const block_number = try client.getAddressTransactionCount(.{ .address = [_]u8{0} ** 20 });
+        const block_number = try client.getAddressTransactionCount(.{
+            .address = try utils.addressToBytes("0x0689f41a1461D176F722E824B682F439a9b9FDbf"),
+        });
         defer block_number.deinit();
+
+        try testing.expect(block_number.response != 0);
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const block_number = try client.getAddressTransactionCount(.{ .address = [_]u8{0} ** 20, .block_number = 100012 });
+        const block_number = try client.getAddressTransactionCount(.{
+            .address = try utils.addressToBytes("0x0689f41a1461D176F722E824B682F439a9b9FDbf"),
+            .block_number = 100012,
+        });
         defer block_number.deinit();
+
+        try testing.expectEqual(block_number.response, 0);
     }
 }
 
@@ -1823,22 +1912,30 @@ test "BlockNumber" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
     const block_number = try client.getBlockNumber();
     defer block_number.deinit();
+
+    try testing.expectEqual(block_number.response, 19062632);
 }
 
 test "GetChainId" {
-    // CI dislikes this test!
-    if (true) return error.SkipZigTest;
-
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
-    try testing.expectError(error.InvalidChainId, client.getChainId());
+    const chain = try client.getChainId();
+    defer chain.deinit();
+
+    try testing.expectEqual(chain.response, 1);
 }
 
 test "GetStorage" {
@@ -1846,19 +1943,29 @@ test "GetStorage" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const storage = try client.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{});
         defer storage.deinit();
+
+        try testing.expectEqual(@as(u256, @bitCast(storage.response)), 0);
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const storage = try client.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{ .block_number = 101010 });
         defer storage.deinit();
+
+        try testing.expectEqual(@as(u256, @bitCast(storage.response)), 0);
     }
 }
 
@@ -1866,10 +1973,16 @@ test "GetAccounts" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
     const accounts = try client.getAccounts();
     defer accounts.deinit();
+
+    try testing.expectEqual(accounts.response.len, 10);
+    try testing.expectEqualSlices(u8, &accounts.response[0], &try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"));
 }
 
 test "GetContractCode" {
@@ -1877,19 +1990,34 @@ test "GetContractCode" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const code = try client.getContractCode(.{ .address = [_]u8{0} ** 20 });
+        const code = try client.getContractCode(.{
+            .address = try utils.addressToBytes("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
+        });
         defer code.deinit();
+
+        try testing.expect(code.response.len != 0);
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const code = try client.getContractCode(.{ .address = [_]u8{0} ** 20, .block_number = 101010 });
+        const code = try client.getContractCode(.{
+            .address = try utils.addressToBytes("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
+            .block_number = 101010,
+        });
         defer code.deinit();
+
+        try testing.expectEqual(code.response.len, 0);
     }
 }
 
@@ -1897,20 +2025,32 @@ test "GetTransactionByHash" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
-    const tx = try client.getTransactionByHash([_]u8{0} ** 32);
+    const tx = try client.getTransactionByHash(try utils.hashToBytes("0x360bf48bf75f0020d05cc97526b246d67c266dcf91897c01cf7acfe94fe2154e"));
     defer tx.deinit();
+
+    try testing.expect(tx.response == .london);
+    try testing.expectEqual(tx.response.london.blockHash, try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"));
 }
 
 test "GetReceipt" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
-    const receipt = try client.getTransactionReceipt([_]u8{0} ** 32);
+    const receipt = try client.getTransactionReceipt(try utils.hashToBytes("0x360bf48bf75f0020d05cc97526b246d67c266dcf91897c01cf7acfe94fe2154e"));
     defer receipt.deinit();
+
+    try testing.expect(receipt.response == .legacy);
+    try testing.expectEqual(receipt.response.legacy.blockHash, try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"));
 }
 
 test "GetFilter" {
@@ -1918,28 +2058,38 @@ test "GetFilter" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const filter = try client.getFilterOrLogChanges(0, .eth_getFilterChanges);
         defer filter.deinit();
+
+        try testing.expectEqual(filter.response.len, 0);
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const filter = try client.getFilterOrLogChanges(0, .eth_getFilterLogs);
         defer filter.deinit();
+
+        try testing.expectEqual(filter.response.len, 0);
     }
     {
-        // CI dislikes this test!
-        if (true) return error.SkipZigTest;
-
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         try testing.expectError(error.InvalidRpcMethod, client.getFilterOrLogChanges(0, .eth_chainId));
     }
@@ -1949,20 +2099,30 @@ test "GetGasPrice" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
     const gas = try client.getGasPrice();
     defer gas.deinit();
+
+    try testing.expect(gas.response != 0);
 }
 
 test "GetUncleCountByBlockHash" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
-    const uncle = try client.getUncleCountByBlockHash([_]u8{0} ** 32);
+    const uncle = try client.getUncleCountByBlockHash(try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"));
     defer uncle.deinit();
+
+    try testing.expectEqual(uncle.response, 0);
 }
 
 test "GetUncleCountByBlockNumber" {
@@ -1970,19 +2130,29 @@ test "GetUncleCountByBlockNumber" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const uncle = try client.getUncleCountByBlockNumber(.{});
         defer uncle.deinit();
+
+        try testing.expectEqual(uncle.response, 0);
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const uncle = try client.getUncleCountByBlockNumber(.{ .block_number = 101010 });
         defer uncle.deinit();
+
+        try testing.expectEqual(uncle.response, 0);
     }
 }
 
@@ -1991,19 +2161,26 @@ test "GetUncleByBlockNumberAndIndex" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const uncle = try client.getUncleByBlockNumberAndIndex(.{}, 0);
-        defer uncle.deinit();
+        try testing.expectError(error.InvalidBlockNumberOrIndex, client.getUncleByBlockNumberAndIndex(.{}, 0));
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const uncle = try client.getUncleByBlockNumberAndIndex(.{ .block_number = 101010 }, 0);
+        const uncle = try client.getUncleByBlockNumberAndIndex(.{ .block_number = 15537381 }, 0);
         defer uncle.deinit();
+
+        try testing.expect(uncle.response == .legacy);
     }
 }
 
@@ -2011,10 +2188,15 @@ test "GetUncleByBlockHashAndIndex" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
-    const tx = try client.getUncleByBlockHashAndIndex([_]u8{0} ** 32, 0);
+    const tx = try client.getUncleByBlockHashAndIndex(try utils.hashToBytes("0x4e216c95f527e9ba0f1161a1c4609b893302c704f05a520da8141ca91878f63e"), 0);
     defer tx.deinit();
+
+    try testing.expect(tx.response == .legacy);
 }
 
 test "GetTransactionByBlockNumberAndIndex" {
@@ -2022,19 +2204,26 @@ test "GetTransactionByBlockNumberAndIndex" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const tx = try client.getTransactionByBlockNumberAndIndex(.{}, 0);
-        defer tx.deinit();
+        try testing.expectError(error.TransactionNotFound, client.getTransactionByBlockNumberAndIndex(.{}, 0));
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const tx = try client.getTransactionByBlockNumberAndIndex(.{ .block_number = 101010 }, 0);
+        const tx = try client.getTransactionByBlockNumberAndIndex(.{ .block_number = 15537381 }, 0);
         defer tx.deinit();
+
+        try testing.expect(tx.response == .london);
     }
 }
 
@@ -2043,37 +2232,54 @@ test "EstimateGas" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const fee = try client.estimateGas(.{ .london = .{ .gas = 10 } }, .{});
-        defer fee.deinit();
+        try testing.expectError(error.TransactionRejected, client.estimateGas(.{ .london = .{ .gas = 10 } }, .{}));
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const fee = try client.estimateGas(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 });
         defer fee.deinit();
+
+        try testing.expect(fee.response != 0);
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const fee = try client.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{});
+        const fee = try client.estimateGas(.{ .legacy = .{ .value = 10 } }, .{});
         defer fee.deinit();
+
+        try testing.expect(fee.response != 0);
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const fee = try client.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 });
         defer fee.deinit();
+
+        try testing.expect(fee.response != 0);
     }
 }
 
@@ -2082,37 +2288,40 @@ test "CreateAccessList" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const access = try client.createAccessList(.{ .london = .{ .gas = 10 } }, .{});
+        const access = try client.createAccessList(.{ .london = .{ .value = 10 } }, .{});
         defer access.deinit();
+
+        try testing.expect(access.response.gasUsed != 0);
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const access = try client.createAccessList(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 });
-        defer access.deinit();
+        try testing.expectError(error.InternalError, client.createAccessList(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        const access = try client.createAccessList(.{ .legacy = .{ .gas = 10 } }, .{});
+        const access = try client.createAccessList(.{ .legacy = .{ .value = 10 } }, .{});
         defer access.deinit();
-    }
-    {
-        var client: IPC = undefined;
-        defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
-
-        const access = try client.createAccessList(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 });
-        defer access.deinit();
+        try testing.expect(access.response.gasUsed != 0);
     }
 }
 
@@ -2120,69 +2329,113 @@ test "GetNetworkPeerCount" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
-    const count = try client.getNetworkPeerCount();
-    defer count.deinit();
+    try testing.expectError(error.InvalidParams, client.getNetworkPeerCount());
 }
 
 test "GetNetworkVersionId" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
     const id = try client.getNetworkVersionId();
     defer id.deinit();
+
+    try testing.expectEqual(id.response, 1);
 }
 
 test "GetNetworkListenStatus" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
-    const status = try client.getNetworkListenStatus();
-    defer status.deinit();
+    const id = try client.getNetworkListenStatus();
+    defer id.deinit();
+
+    try testing.expectEqual(id.response, true);
 }
 
 test "GetSha3Hash" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
-    const hash = try client.getSha3Hash("foobar");
-    defer hash.deinit();
+    try testing.expectError(error.InvalidParams, client.getSha3Hash("foobar"));
 }
 
 test "GetClientVersion" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
     const version = try client.getClientVersion();
     defer version.deinit();
+
+    try testing.expect(version.response.len != 0);
 }
 
 test "BlobBaseFee" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
-    const blob = try client.blobBaseFee();
-    defer blob.deinit();
+    const base_fee = try client.blobBaseFee();
+    defer base_fee.deinit();
+
+    try testing.expectEqual(base_fee.response, 0);
 }
 
 test "EstimateBlobMaxFeePerGas" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
-    _ = try client.estimateBlobMaxFeePerGas();
+    const base_fee = try client.estimateBlobMaxFeePerGas();
+
+    try testing.expect(base_fee != 0);
+}
+
+test "EstimateMaxFeePerGas" {
+    var client: IPC = undefined;
+    defer client.deinit();
+
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
+
+    const fees = try client.estimateMaxFeePerGas();
+    defer fees.deinit();
+
+    try testing.expect(fees.response != 0);
 }
 
 test "EstimateFeePerGas" {
@@ -2190,36 +2443,43 @@ test "EstimateFeePerGas" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        _ = try client.estimateFeesPerGas(.{ .london = .{} }, null);
+        const fee = try client.estimateFeesPerGas(.{ .london = .{} }, null);
+
+        try testing.expect(fee.london.max_fee_gas != 0);
+        try testing.expect(fee.london.max_priority_fee != 0);
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        _ = try client.estimateFeesPerGas(.{ .legacy = .{} }, null);
+        const fee = try client.estimateFeesPerGas(.{ .legacy = .{} }, null);
+
+        try testing.expect(fee.legacy.gas_price != 0);
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
-        _ = try client.estimateFeesPerGas(.{ .london = .{} }, 1000);
+        const fee = try client.estimateFeesPerGas(.{ .london = .{} }, 1000);
+
+        try testing.expect(fee.london.max_fee_gas != 0);
+        try testing.expect(fee.london.max_priority_fee != 0);
     }
-}
-
-test "EstimateMaxFeePerGas" {
-    var client: IPC = undefined;
-    defer client.deinit();
-
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
-
-    const max = try client.estimateMaxFeePerGas();
-    defer max.deinit();
 }
 
 test "GetProof" {
@@ -2227,19 +2487,29 @@ test "GetProof" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const proofs = try client.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{}, .blockNumber = 101010 }, null);
         defer proofs.deinit();
+
+        try testing.expect(proofs.response.balance != 0);
     }
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const proofs = try client.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{} }, .latest);
         defer proofs.deinit();
+
+        try testing.expect(proofs.response.balance != 0);
     }
 }
 
@@ -2248,7 +2518,10 @@ test "GetLogs" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const logs = try client.getLogs(.{ .toBlock = 101010, .fromBlock = 101010 }, null);
         defer logs.deinit();
@@ -2257,7 +2530,10 @@ test "GetLogs" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const logs = try client.getLogs(.{}, .latest);
         defer logs.deinit();
@@ -2269,7 +2545,10 @@ test "NewLogFilter" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const logs = try client.newLogFilter(.{}, .latest);
         defer logs.deinit();
@@ -2278,7 +2557,10 @@ test "NewLogFilter" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const logs = try client.newLogFilter(.{ .fromBlock = 101010, .toBlock = 101010 }, null);
         defer logs.deinit();
@@ -2289,7 +2571,10 @@ test "NewBlockFilter" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
     const block_id = try client.newBlockFilter();
     defer block_id.deinit();
@@ -2299,17 +2584,23 @@ test "NewPendingTransactionFilter" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
     const tx_id = try client.newPendingTransactionFilter();
     defer tx_id.deinit();
 }
 
-test "UninstalllFilter" {
+test "UninstallFilter" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
     const status = try client.uninstallFilter(1);
     defer status.deinit();
@@ -2319,46 +2610,38 @@ test "GetProtocolVersion" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
-    const version = try client.getProtocolVersion();
-    defer version.deinit();
+    try testing.expectError(error.InvalidParams, client.getProtocolVersion());
 }
 
 test "SyncStatus" {
     var client: IPC = undefined;
     defer client.deinit();
 
-    try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
 
     const status = try client.getSyncStatus();
     defer if (status) |s| s.deinit();
 }
 
 test "FeeHistory" {
+    if (true) return error.SkipZigTest;
+
     {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
-
-        const status = try client.feeHistory(10, .{}, null);
-        defer status.deinit();
-    }
-    {
-        var client: IPC = undefined;
-        defer client.deinit();
-
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
-
-        const status = try client.feeHistory(10, .{ .block_number = 101010 }, null);
-        defer status.deinit();
-    }
-    {
-        var client: IPC = undefined;
-        defer client.deinit();
-
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const status = try client.feeHistory(10, .{}, &.{ 0.1, 0.2 });
         defer status.deinit();
@@ -2367,9 +2650,73 @@ test "FeeHistory" {
         var client: IPC = undefined;
         defer client.deinit();
 
-        try client.init(.{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" });
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
+
+        const status = try client.feeHistory(10, .{ .block_number = 101010 }, null);
+        defer status.deinit();
+    }
+    {
+        var client: IPC = undefined;
+        defer client.deinit();
+
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
+
+        const status = try client.feeHistory(10, .{}, &.{ 0.1, 0.2 });
+        defer status.deinit();
+    }
+    {
+        var client: IPC = undefined;
+        defer client.deinit();
+
+        try client.init(.{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
 
         const status = try client.feeHistory(10, .{ .block_number = 101010 }, &.{ 0.1, 0.2 });
         defer status.deinit();
     }
+}
+
+test "Multicall" {
+    var client: IPC = undefined;
+    defer client.deinit();
+
+    try client.init(.{
+        .allocator = testing.allocator,
+        .path = "/tmp/anvil.ipc",
+    });
+
+    const supply: Function = .{
+        .type = .function,
+        .name = "totalSupply",
+        .stateMutability = .view,
+        .inputs = &.{},
+        .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
+    };
+
+    const balance: Function = .{
+        .type = .function,
+        .name = "balanceOf",
+        .stateMutability = .view,
+        .inputs = &.{.{ .type = .{ .address = {} }, .name = "balanceOf" }},
+        .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
+    };
+
+    const a: []const MulticallTargets = &.{
+        MulticallTargets{ .function = supply, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
+        MulticallTargets{ .function = balance, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
+    };
+
+    const res = try client.multicall3(a, .{ {}, .{try utils.addressToBytes("0xFded38DF0180039867E54EBdec2012D534862cE3")} }, true);
+    defer res.deinit();
+
+    try testing.expect(res.result.len != 0);
+    try testing.expectEqual(res.result[0].success, true);
 }

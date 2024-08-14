@@ -1,7 +1,7 @@
 # `serializeTransaction`
 
 ## Definition
-Serializes a transaction. Supports signed & unsigned Berlin, London and Legacy Transactions
+Serializes a transaction. Supports signed & unsigned Cancun, Berlin, London and Legacy Transactions
 
 ## Usage
 

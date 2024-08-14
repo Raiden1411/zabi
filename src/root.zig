@@ -32,6 +32,8 @@ pub const kzg4844 = @import("c-kzg-4844");
 pub const meta = @import("meta/root.zig");
 /// Implementation of BIP39 for mnemonic seeding and wallets.
 pub const mnemonic = @import("crypto/mnemonic.zig");
+/// Multicall contract wrapper that exposes contract functions.
+pub const multicall = @import("clients/multicall.zig");
 /// The signatures types that zabi uses. Supports compact signatures.
 pub const signature = @import("crypto/signature.zig");
 /// Superchain contracts, methods and clients. Fault proofs aren't yet supported.
@@ -75,9 +77,12 @@ test {
     _ = @import("clients/WebSocket.zig");
     _ = @import("clients/contract.zig");
     _ = @import("clients/ens/ens_utils.zig");
+    _ = @import("clients/ens/ens.zig");
     _ = @import("clients/optimism/utils.zig");
     _ = @import("clients/optimism/parse_deposit.zig");
     _ = @import("clients/optimism/serialize_deposit.zig");
+    _ = @import("clients/optimism/clients/L1PubClient.zig");
+    _ = @import("clients/optimism/clients/L2PubClient.zig");
     _ = @import("clients/url.zig");
     _ = @import("clients/wallet.zig");
     _ = @import("crypto/hdwallet.zig");

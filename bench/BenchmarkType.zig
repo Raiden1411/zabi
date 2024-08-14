@@ -8,15 +8,18 @@ pub const BenchmarkOptions = struct {
     warmup_runs: u32 = 100,
 };
 
+/// Benchmarks result state.
 pub const BenchmarkResult = struct {
     const Self = @This();
 
-    allocator: std.mem.Allocator,
+    /// Allocator used for the benchmark allocations.
+    allocator: Allocator,
+    /// Benchmarking options
     opts: BenchmarkOptions,
+    /// The mean time it takes to run the function
     mean: u64,
 
     pub fn printSummary(self: *const Self) void {
-        std.debug.print("Benchmark summary for {d} trials:\n", .{self.opts.runs});
         std.debug.print("Mean: {s}\n", .{std.fmt.fmtDuration(self.mean)});
     }
 };

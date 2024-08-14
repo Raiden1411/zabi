@@ -11,6 +11,7 @@ const utils = @import("../utils/utils.zig");
 
 // Types
 const Abi = abitype.Abi;
+const AbiDecoded = decoder.AbiDecoded;
 const Abitype = abitype.Abitype;
 const AbiItem = abitype.AbiItem;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
@@ -115,7 +116,11 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         /// It won't commit a transaction to the network.
         ///
         /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
-        pub fn readContractFunction(self: *ContractComptime(client_type), comptime func: Function, opts: FunctionOpts(func, EthCall)) !AbiParametersToPrimative(func.outputs) {
+        pub fn readContractFunction(
+            self: *ContractComptime(client_type),
+            comptime func: Function,
+            opts: FunctionOpts(func, EthCall),
+        ) !AbiDecoded(AbiParametersToPrimative(func.outputs)) {
             var copy = opts.overrides;
 
             switch (func.stateMutability) {
@@ -138,7 +143,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             const data = try self.wallet.rpc_client.sendEthCall(copy, .{});
             defer data.deinit();
 
-            const decoded = try decoder.decodeAbiParameters(self.wallet.allocator, func.outputs, data.response, .{});
+            const decoded = try decoder.decodeAbiParameter(AbiParametersToPrimative(func.outputs), self.wallet.allocator, data.response, .{});
 
             return decoded;
         }
@@ -302,7 +307,7 @@ pub fn Contract(comptime client_type: ClientType) type {
         /// It won't commit a transaction to the network.
         ///
         /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
-        pub fn readContractFunction(self: *Contract(client_type), comptime T: type, function_name: []const u8, function_args: anytype, overrides: EthCall) !T {
+        pub fn readContractFunction(self: *Contract(client_type), comptime T: type, function_name: []const u8, function_args: anytype, overrides: EthCall) !AbiDecoded(T) {
             const function_item = try getAbiItem(self.abi, .function, function_name);
             var copy = overrides;
 
@@ -326,7 +331,7 @@ pub fn Contract(comptime client_type: ClientType) type {
             const data = try self.wallet.rpc_client.sendEthCall(copy, .{});
             defer data.deinit();
 
-            const decoded = try decoder.decodeAbiParametersRuntime(self.wallet.allocator, T, function_item.abiFunction.outputs, data.response, .{});
+            const decoded = try decoder.decodeAbiParameter(T, self.wallet.allocator, data.response, .{});
 
             return decoded;
         }
@@ -485,7 +490,7 @@ test "DeployContract" {
                 },
             },
         };
-        const uri = try std.Uri.parse("http://localhost:6970/");
+        const uri = try std.Uri.parse("http://localhost:6969/");
 
         var contract: Contract(.websocket) = undefined;
         defer contract.deinit();
@@ -542,7 +547,7 @@ test "DeployContract" {
         var buffer_hex: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer_hex, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-        try contract.init(.{ .abi = abi, .private_key = buffer_hex, .wallet_opts = .{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" } });
+        try contract.init(.{ .abi = abi, .private_key = buffer_hex, .wallet_opts = .{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" } });
 
         var buffer: [1024]u8 = undefined;
         const bytes = try std.fmt.hexToBytes(&buffer, "608060405260358060116000396000f3006080604052600080fd00a165627a7a72305820f86ff341f0dff29df244305f8aa88abaf10e3a0719fa6ea1dcdd01b8b7d750970029");
@@ -567,7 +572,7 @@ test "WriteContract" {
                 },
             },
         };
-        const uri = try std.Uri.parse("http://localhost:6970/");
+        const uri = try std.Uri.parse("http://localhost:6969/");
 
         var contract: Contract(.websocket) = undefined;
         defer contract.deinit();
@@ -650,7 +655,7 @@ test "WriteContract" {
         try contract.init(.{
             .abi = abi,
             .private_key = buffer,
-            .wallet_opts = .{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" },
+            .wallet_opts = .{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" },
         });
 
         const result = try contract.writeContractFunction("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{
@@ -709,7 +714,7 @@ test "SimulateWriteCall" {
                 },
             },
         };
-        const uri = try std.Uri.parse("http://localhost:6970/");
+        const uri = try std.Uri.parse("http://localhost:6969/");
 
         var contract: Contract(.websocket) = undefined;
         defer contract.deinit();
@@ -821,7 +826,7 @@ test "SimulateWriteCall" {
         try contract.init(.{
             .abi = abi,
             .private_key = buffer,
-            .wallet_opts = .{ .allocator = testing.allocator, .path = "/tmp/zabi.ipc" },
+            .wallet_opts = .{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" },
         });
 
         const result = try contract.simulateWriteCall("setApprovalForAll", .{ try utils.addressToBytes("0x19bb64b80CbF61E61965B0E5c2560CC7364c6546"), true }, .{ .type = .london, .to = try utils.addressToBytes("0x5Af0D9827E0c53E4799BB226655A1de152A425a5") });

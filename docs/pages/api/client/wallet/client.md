@@ -12,7 +12,7 @@ With this client you will also be able to send transactions to the network. You 
 
 The wallet client also supports waiting for the transaction to be mined via `waitForTransactionReceipt`.
 
-In a future release it's expected that you will be able to pool prepared transacitions so that you can leave them in memory and the client can use them.
+You can also pool prepared transactions that later can be used to be sent to the network.
 
 ## Usage
 

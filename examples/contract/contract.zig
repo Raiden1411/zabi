@@ -45,8 +45,10 @@ pub fn main() !void {
 
     std.debug.print("Transaction receipt: {}", .{receipt.response});
 
-    const balance = try contract.readContractFunction(struct { u256 }, "balanceOf", .{contract.wallet.getWalletAddress()}, .{
+    const balance = try contract.readContractFunction(u256, "balanceOf", .{contract.wallet.getWalletAddress()}, .{
         .london = .{ .to = try utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") },
     });
-    std.debug.print("BALANCE: {d}\n", .{balance[0]});
+    defer balance.deinit();
+
+    std.debug.print("BALANCE: {d}\n", .{balance.result});
 }

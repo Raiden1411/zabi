@@ -49,7 +49,7 @@ pub fn hashName(name: []const u8) !Hash {
     if (name.len == 0)
         return hashed_result;
 
-    var iter = std.mem.splitBackwards(u8, name, ".");
+    var iter = std.mem.splitBackwardsAny(u8, name, ".");
 
     while (iter.next()) |label| {
         var bytes: Hash = undefined;

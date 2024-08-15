@@ -283,7 +283,7 @@ pub fn stopImpersonatingAccount(self: *Anvil, address: Address) !void {
 }
 /// Start the child process. Use this with init if you want to use this in a seperate theread.
 pub fn start(self: *Anvil, fork_url: []const u8) !Child {
-    const port = try std.fmt.allocPrint(self.allocator, "{d}", .{self.localhost.port orelse return error.InvalidAddressPort});
+    const port = try std.fmt.allocPrint(self.allocator, "{d}", .{self.uri.port orelse return error.InvalidAddressPort});
     defer self.allocator.free(port);
 
     const block = try std.fmt.allocPrint(self.allocator, "{d}", .{self.block_number_fork});

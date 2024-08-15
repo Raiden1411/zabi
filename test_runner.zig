@@ -1,6 +1,7 @@
 const builtin = @import("builtin");
 const std = @import("std");
 
+const Anvil = @import("src/tests/Anvil.zig");
 const TestFn = std.builtin.TestFn;
 
 const TestResults = struct {
@@ -31,7 +32,6 @@ const Modules = enum {
 
 pub fn main() !void {
     checkCommand(std.heap.page_allocator, "anvil");
-
     const test_funcs: []const TestFn = builtin.test_functions;
 
     // Return if we don't have any tests.

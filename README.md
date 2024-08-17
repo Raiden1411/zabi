@@ -83,7 +83,7 @@ Explore the [docs](https://zabi.sh) to find out more on how you can use or integ
 - Parsing of encoded transactions and serialization of transaction objects.
 - Support for all transaction types and the new EIP4844 KZG commitments.
 - Support for OPStack and ENS.
-- Custom meta programming functions to transalate ABI's into zig types.
+- Custom meta programming functions to translate ABI's into zig types.
 - Support for interacting with test chains such as Anvil or Hardhat.
 - Custom RPC server used to fuzz data. Support http, ws and ipc.
 - Custom cli args parser that translates commands to zig types and can be used to pass data to methods.

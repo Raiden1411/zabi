@@ -4,6 +4,7 @@ const std = @import("std");
 const Anvil = @import("src/tests/Anvil.zig");
 const TestFn = std.builtin.TestFn;
 
+/// Struct that will contain the test results.
 const TestResults = struct {
     passed: u16 = 0,
     failed: u16 = 0,
@@ -18,6 +19,7 @@ pub const std_options: std.Options = .{
 const BORDER = "=" ** 80;
 const PADDING = " " ** 35;
 
+/// Enum of the possible test modules.
 const Modules = enum {
     abi,
     clients,

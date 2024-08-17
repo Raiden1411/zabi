@@ -1,5 +1,6 @@
 const meta_json = @import("../meta/json.zig");
 const meta_utils = @import("../meta/utils.zig");
+const specification = @import("../evm/specification.zig");
 const std = @import("std");
 const types = @import("../types/ethereum.zig");
 const utils = @import("../utils/utils.zig");
@@ -15,6 +16,7 @@ const Hex = types.Hex;
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
 const ParseOptions = std.json.ParseOptions;
+const SpecId = specification.SpecId;
 const Value = std.json.Value;
 
 /// Values needed for the `anvil_reset` request.
@@ -101,7 +103,7 @@ pub const AnvilStartOptions = struct {
     /// Block time in seconds for interval mining.
     @"block-time": ?u64 = null,
     /// Choose the EVM hardfork to use.
-    hardfork: ?[]const u8 = null,
+    hardfork: ?SpecId = null,
     /// The path to initialize the `genesis.json` file.
     init: ?[]const u8 = null,
     /// BIP39 mnemonic phrase used to generate accounts.
@@ -109,7 +111,7 @@ pub const AnvilStartOptions = struct {
     /// Disable auto and interval mining.
     @"no-mining": bool = false,
     /// The order were the transactions are ordered in the mempool.
-    order: ?[]const u8 = null,
+    order: ?enum { fifo, fees } = null,
     /// The port number to listen on.
     port: ?u16 = null,
     /// Enables steps tracing for debug calls. Returns geth style traces.

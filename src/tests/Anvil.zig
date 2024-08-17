@@ -252,7 +252,7 @@ pub fn initProcess(allocator: Allocator, options: AnvilStartOptions) !Child {
     const args_slice = try options.parseToArgumentsSlice(allocator);
     defer allocator.free(args_slice);
 
-    var result = std.process.Child.init(args_slice);
+    var result = std.process.Child.init(args_slice, allocator);
     result.stdin_behavior = .Ignore;
     result.stdout_behavior = .Ignore;
     result.stderr_behavior = .Ignore;

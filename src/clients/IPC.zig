@@ -130,8 +130,6 @@ allocator: Allocator,
 base_fee_multiplier: f64,
 /// The chain id of the attached network
 chain_id: usize,
-/// If the client is closed.
-closed: bool,
 /// The IPC net stream to read and write requests.
 ipc_reader: IpcReader,
 /// Mutex to manage locks between threads
@@ -160,7 +158,6 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
         .allocator = opts.allocator,
         .base_fee_multiplier = opts.base_fee_multiplier,
         .chain_id = @intFromEnum(chain_id),
-        .closed = false,
         .onClose = opts.onClose,
         .onError = opts.onError,
         .onEvent = opts.onEvent,
@@ -176,7 +173,15 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
         self.sub_channel.deinit();
     }
 
-    self.ipc_reader = try IpcReader.init(opts.allocator, try self.connect(opts.path), null);
+    self.ipc_reader = .{
+        .allocator = opts.allocator,
+        .buffer = try opts.allocator.alloc(u8, opts.growth_rate orelse std.math.maxInt(u16)),
+        .growth_rate = opts.growth_rate orelse std.math.maxInt(u16),
+        .stream = undefined,
+        .closed = false,
+    };
+
+    self.ipc_reader.stream = try self.connect(opts.path);
 
     const thread = try std.Thread.spawn(.{}, readLoopOwnedThread, .{self});
     thread.detach();
@@ -188,10 +193,6 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
 pub fn deinit(self: *IPC) void {
     self.mutex.lock();
 
-    while (@atomicRmw(bool, &self.closed, .Xchg, true, .seq_cst)) {
-        std.time.sleep(10 * std.time.ns_per_ms);
-    }
-
     while (self.sub_channel.getOrNull()) |response| {
         response.deinit();
     }
@@ -200,9 +201,9 @@ pub fn deinit(self: *IPC) void {
         response.deinit();
     }
 
-    self.ipc_reader.deinit();
     self.rpc_channel.deinit();
     self.sub_channel.deinit();
+    self.ipc_reader.deinit();
 }
 /// Connects to the socket. Will try to reconnect in case of failures.
 /// Fails when match retries are reached or a invalid ipc path is provided
@@ -212,8 +213,10 @@ pub fn connect(self: *IPC, path: []const u8) !Stream {
 
     var retries: u8 = 0;
     const stream = while (true) : (retries += 1) {
-        if (retries > self.retries)
+        if (retries > self.retries) {
+            @atomicStore(bool, &self.ipc_reader.closed, true, .release);
             return error.FailedToConnect;
+        }
 
         switch (retries) {
             0...2 => {},
@@ -1116,9 +1119,9 @@ pub fn newPendingTransactionFilter(self: *IPC) !RPCResponse(u128) {
 pub fn readLoop(self: *IPC) !void {
     while (true) {
         const message = self.ipc_reader.readMessage() catch |err| switch (err) {
-            error.Closed, error.ConnectionResetByPeer, error.BrokenPipe => {
-                _ = @cmpxchgStrong(bool, &self.closed, false, true, .monotonic, .monotonic);
-                return;
+            error.Closed, error.ConnectionResetByPeer, error.BrokenPipe, error.NotOpenForReading => {
+                _ = @atomicStore(bool, &self.ipc_reader.closed, true, .monotonic);
+                return error.Closed;
             },
             else => return,
         };

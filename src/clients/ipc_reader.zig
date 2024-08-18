@@ -24,6 +24,8 @@ pub const IpcReader = struct {
     position: usize = 0,
     /// The stream used to read or write.
     stream: Stream,
+    /// If the stream is closed for reading.
+    closed: bool,
 
     /// Sets the initial reader state in order to perform any necessary actions.
     pub fn init(allocator: Allocator, stream: Stream, growth_rate: ?usize) !@This() {
@@ -37,6 +39,10 @@ pub const IpcReader = struct {
     /// Frees the buffer and closes the stream.
     pub fn deinit(self: @This()) void {
         self.allocator.free(self.buffer);
+
+        if (@atomicLoad(bool, &self.closed, .acquire))
+            return;
+
         self.stream.close();
     }
     /// Reads the bytes directly from the socket. Will allocate more memory as needed.

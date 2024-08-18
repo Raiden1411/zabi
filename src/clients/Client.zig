@@ -165,6 +165,23 @@ pub fn init(self: *PubClient, opts: InitOptions) !void {
 }
 /// Clears the memory arena and destroys all pointers created
 pub fn deinit(self: *PubClient) void {
+    // We have a lingering connection so we close it and destroy it
+    if (self.client.connection_pool.used.first != null) {
+        self.client.connection_pool.used.first = null;
+        const scheme = protocol_map.get(self.uri.scheme) orelse {
+            self.client = undefined;
+            return;
+        };
+
+        if (scheme == .tls) {
+            self.client.ca_bundle.deinit(self.client.allocator);
+        }
+
+        self.client = undefined;
+
+        return;
+    }
+
     self.client.deinit();
 }
 /// Connects to the RPC server and relases the connection from the client pool.

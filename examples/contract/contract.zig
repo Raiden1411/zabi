@@ -34,19 +34,36 @@ pub fn main() !void {
     defer abi_parsed.deinit();
 
     var contract: Contract = undefined;
-    try contract.init(.{ .private_key = parsed.priv_key, .abi = abi_parsed.value, .wallet_opts = .{ .allocator = gpa.allocator(), .uri = uri } });
     defer contract.deinit();
 
-    const approve = try contract.writeContractFunction("transfer", .{ try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), 69421 }, .{ .type = .london, .to = try utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") });
+    try contract.init(.{
+        .private_key = parsed.priv_key,
+        .abi = abi_parsed.value,
+        .wallet_opts = .{
+            .allocator = gpa.allocator(),
+            .uri = uri,
+        },
+    });
+
+    const approve = try contract.writeContractFunction("transfer", .{ try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), 0 }, .{
+        .type = .london,
+        .to = try utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+    });
     defer approve.deinit();
 
     var receipt = try contract.wallet.waitForTransactionReceipt(approve.response, 0);
     defer receipt.deinit();
 
-    std.debug.print("Transaction receipt: {}", .{receipt.response});
+    const hash = switch (receipt.response) {
+        inline else => |tx_receipt| tx_receipt.transactionHash,
+    };
+
+    std.debug.print("Transaction receipt: {s}", .{std.fmt.fmtSliceHexLower(&hash)});
 
     const balance = try contract.readContractFunction(u256, "balanceOf", .{contract.wallet.getWalletAddress()}, .{
-        .london = .{ .to = try utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") },
+        .london = .{
+            .to = try utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+        },
     });
     defer balance.deinit();
 

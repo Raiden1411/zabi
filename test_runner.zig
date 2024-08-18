@@ -55,7 +55,7 @@ pub fn main() !void {
             continue;
         }
 
-        var iter = std.mem.splitScalar(u8, test_runner.name, '.');
+        var iter = std.mem.splitAny(u8, test_runner.name, ".");
         const module_name = iter.next().?;
 
         const current_module = std.meta.stringToEnum(Modules, module_name);

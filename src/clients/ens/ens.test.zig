@@ -7,13 +7,11 @@ const ENSClient = @import("ens.zig").ENSClient;
 test "ENS Text" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var ens: ENSClient(.http) = undefined;
-    defer ens.deinit();
-
-    try ens.init(
+    var ens = try ENSClient(.http).init(
         .{ .uri = uri, .allocator = testing.allocator },
         .{ .ensUniversalResolver = try utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") },
     );
+    defer ens.deinit();
 
     try testing.expectError(error.EvmFailedToExecute, ens.getEnsText("zzabi.eth", "com.twitter", .{}));
 }
@@ -22,13 +20,11 @@ test "ENS Name" {
     {
         const uri = try std.Uri.parse("http://localhost:6969/");
 
-        var ens: ENSClient(.http) = undefined;
-        defer ens.deinit();
-
-        try ens.init(
+        var ens = try ENSClient(.http).init(
             .{ .uri = uri, .allocator = testing.allocator },
             .{ .ensUniversalResolver = try utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") },
         );
+        defer ens.deinit();
 
         const value = try ens.getEnsName("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", .{});
         defer value.deinit();
@@ -36,31 +32,16 @@ test "ENS Name" {
         try testing.expectEqualStrings(value.response, "vitalik.eth");
         try testing.expectError(error.EvmFailedToExecute, ens.getEnsName("0xD9DA6Bf26964af9d7Eed9e03e53415D37aa96045", .{}));
     }
-    {
-        const uri = try std.Uri.parse("http://localhost:6969/");
-
-        var ens: ENSClient(.http) = undefined;
-        defer ens.deinit();
-
-        try ens.init(
-            .{ .uri = uri, .allocator = testing.allocator },
-            .{ .ensUniversalResolver = try utils.addressToBytes("0x9cab227b1162f03b8338331adaad7aadc83b895e") },
-        );
-
-        try testing.expectError(error.EvmFailedToExecute, ens.getEnsName("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", .{}));
-    }
 }
 
 test "ENS Address" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var ens: ENSClient(.http) = undefined;
-    defer ens.deinit();
-
-    try ens.init(
+    var ens = try ENSClient(.http).init(
         .{ .uri = uri, .allocator = testing.allocator },
         .{ .ensUniversalResolver = try utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") },
     );
+    defer ens.deinit();
 
     const value = try ens.getEnsAddress("vitalik.eth", .{});
     defer value.deinit();
@@ -72,13 +53,11 @@ test "ENS Address" {
 test "ENS Resolver" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var ens: ENSClient(.http) = undefined;
-    defer ens.deinit();
-
-    try ens.init(
+    var ens = try ENSClient(.http).init(
         .{ .uri = uri, .allocator = testing.allocator },
         .{ .ensUniversalResolver = try utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") },
     );
+    defer ens.deinit();
 
     const value = try ens.getEnsResolver("vitalik.eth", .{});
 

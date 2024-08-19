@@ -131,12 +131,14 @@ test "verifyTypedData" {
 test "sendTransaction" {
     {
         const uri = try std.Uri.parse("http://localhost:6969/");
-        var wallet: Wallet(.http) = undefined;
 
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-        try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
+        var wallet = try Wallet(.http).init(buffer, .{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
         defer wallet.deinit();
 
         const tx: UnpreparedTransactionEnvelope = .{
@@ -153,12 +155,14 @@ test "sendTransaction" {
     }
     {
         const uri = try std.Uri.parse("http://localhost:6969/");
-        var wallet: Wallet(.websocket) = undefined;
 
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-        try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
+        var wallet = try Wallet(.websocket).init(buffer, .{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
         defer wallet.deinit();
 
         const tx: UnpreparedTransactionEnvelope = .{
@@ -174,12 +178,13 @@ test "sendTransaction" {
         defer receipt.deinit();
     }
     {
-        var wallet: Wallet(.ipc) = undefined;
-
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-        try wallet.init(buffer, .{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" });
+        var wallet = try Wallet(.ipc).init(buffer, .{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
         defer wallet.deinit();
 
         const tx: UnpreparedTransactionEnvelope = .{
@@ -199,12 +204,14 @@ test "sendTransaction" {
 test "Pool transactions" {
     {
         const uri = try std.Uri.parse("http://localhost:6969/");
-        var wallet: Wallet(.http) = undefined;
 
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-        try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
+        var wallet = try Wallet(.http).init(buffer, .{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
         defer wallet.deinit();
 
         try wallet.poolTransactionEnvelope(.{ .type = .london, .nonce = 0 });
@@ -217,12 +224,14 @@ test "Pool transactions" {
     }
     {
         const uri = try std.Uri.parse("http://localhost:6969/");
-        var wallet: Wallet(.websocket) = undefined;
 
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-        try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
+        var wallet = try Wallet(.websocket).init(buffer, .{
+            .allocator = testing.allocator,
+            .uri = uri,
+        });
         defer wallet.deinit();
 
         try wallet.poolTransactionEnvelope(.{ .type = .london, .nonce = 0 });
@@ -234,12 +243,13 @@ test "Pool transactions" {
         try testing.expect(env != null);
     }
     {
-        var wallet: Wallet(.ipc) = undefined;
-
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-        try wallet.init(buffer, .{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" });
+        var wallet = try Wallet(.ipc).init(buffer, .{
+            .allocator = testing.allocator,
+            .path = "/tmp/anvil.ipc",
+        });
         defer wallet.deinit();
 
         try wallet.poolTransactionEnvelope(.{ .type = .london, .nonce = 0 });
@@ -254,12 +264,14 @@ test "Pool transactions" {
 
 test "Get First element" {
     const uri = try std.Uri.parse("http://localhost:6969/");
-    var wallet: Wallet(.http) = undefined;
 
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
+    var wallet = try Wallet(.http).init(buffer, .{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
     defer wallet.deinit();
 
     {
@@ -286,12 +298,14 @@ test "assertTransaction" {
     var tx: TransactionEnvelope = undefined;
 
     const uri = try std.Uri.parse("http://localhost:6969/");
-    var wallet: Wallet(.http) = undefined;
 
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
+    var wallet = try Wallet(.http).init(buffer, .{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
     defer wallet.deinit();
 
     {
@@ -347,12 +361,14 @@ test "assertTransactionLegacy" {
     var tx: TransactionEnvelope = undefined;
 
     const uri = try std.Uri.parse("http://localhost:6969/");
-    var wallet: Wallet(.http) = undefined;
 
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-    try wallet.init(buffer, .{ .allocator = testing.allocator, .uri = uri });
+    var wallet = try Wallet(.http).init(buffer, .{
+        .allocator = testing.allocator,
+        .uri = uri,
+    });
     defer wallet.deinit();
 
     tx = .{ .berlin = .{

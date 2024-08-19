@@ -82,7 +82,7 @@ pub fn main() !void {
         const result = try benchmark.benchmark(
             allocator,
             HttpRpcClient.getChainId,
-            .{&client},
+            .{client},
             .{ .runs = 5, .warmup_runs = 1 },
         );
         result.printSummary();

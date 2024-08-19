@@ -2,7 +2,7 @@ const args_parser = zabi.args;
 const std = @import("std");
 const zabi = @import("zabi");
 
-const WebSocket = zabi.client.WebSocket;
+const WebSocket = zabi.clients.WebSocket;
 
 pub const CliOptions = struct {
     url: []const u8,

@@ -54,9 +54,9 @@ pub fn ENSClient(comptime client_type: Clients) type {
 
         /// Starts the RPC connection
         /// If the contracts are null it defaults to mainnet contracts.
-        pub fn init(self: *ENS, opts: InitOpts, ens_contracts: ?EnsContracts) !void {
-            const ens_client = try opts.allocator.create(ClientType);
-            errdefer opts.allocator.destroy(ens_client);
+        pub fn init(opts: InitOpts, ens_contracts: ?EnsContracts) !*ENS {
+            const self = try opts.allocator.create(ENS);
+            errdefer opts.allocator.destroy(self);
 
             if (opts.chain_id) |id| {
                 switch (id) {
@@ -65,20 +65,19 @@ pub fn ENSClient(comptime client_type: Clients) type {
                 }
             }
 
-            try ens_client.init(opts);
-
             self.* = .{
-                .rpc_client = ens_client,
+                .rpc_client = try ClientType.init(opts),
                 .allocator = opts.allocator,
                 .ens_contracts = ens_contracts orelse .{},
             };
+
+            return self;
         }
         /// Frees and destroys any allocated memory
         pub fn deinit(self: *ENS) void {
             self.rpc_client.deinit();
-            self.allocator.destroy(self.rpc_client);
-
-            self.* = undefined;
+            const allocator = self.allocator;
+            allocator.destroy(self);
         }
         /// Gets the ENS address associated with the ENS name.
         ///

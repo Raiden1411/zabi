@@ -142,11 +142,14 @@ const PubClient = @This();
 /// Init the client instance. Caller must call `deinit` to free the memory.
 /// Most of the client method are replicas of the JSON RPC methods name with the `eth_` start.
 /// The client will handle request with 429 errors via exponential backoff but not the rest.
-pub fn init(self: *PubClient, opts: InitOptions) !void {
+pub fn init(opts: InitOptions) !*PubClient {
     const chain: Chains = opts.chain_id orelse .ethereum;
     const id = switch (chain) {
         inline else => |id| @intFromEnum(id),
     };
+
+    const self = try opts.allocator.create(PubClient);
+    errdefer opts.allocator.destroy(self);
 
     self.* = .{
         .uri = opts.uri,
@@ -155,13 +158,14 @@ pub fn init(self: *PubClient, opts: InitOptions) !void {
         .retries = opts.retries,
         .pooling_interval = opts.pooling_interval,
         .base_fee_multiplier = opts.base_fee_multiplier,
-        .client = http.Client{ .allocator = self.allocator },
+        .client = http.Client{ .allocator = opts.allocator },
         .connection = undefined,
     };
-
     errdefer self.client.deinit();
 
     self.connection = try self.connectRpcServer();
+
+    return self;
 }
 /// Clears the memory arena and destroys all pointers created
 pub fn deinit(self: *PubClient) void {
@@ -179,10 +183,16 @@ pub fn deinit(self: *PubClient) void {
 
         self.client = undefined;
 
+        const allocator = self.allocator;
+        allocator.destroy(self);
+
         return;
     }
 
     self.client.deinit();
+
+    const allocator = self.allocator;
+    allocator.destroy(self);
 }
 /// Connects to the RPC server and relases the connection from the client pool.
 /// This is done so that future fetchs can use the connection that is already freed.

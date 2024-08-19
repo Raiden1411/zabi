@@ -167,14 +167,17 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// This is thread safe.
         envelopes_pool: TransactionEnvelopePool,
         /// Http client used to make request. Supports almost all rpc methods.
-        rpc_client: ClientType,
+        rpc_client: *ClientType,
         /// Signer that will sign transactions or ethereum messages.
         /// Its based on a custom implementation meshed with zig's source code.
         signer: Signer,
 
         /// Init wallet instance. Must call `deinit` to clean up.
         /// The init opts will depend on the `client_type`.
-        pub fn init(self: *Wallet(client_type), private_key: ?Hash, opts: InitOpts) !void {
+        pub fn init(private_key: ?Hash, opts: InitOpts) !*Wallet(client_type) {
+            const self = try opts.allocator.create(Wallet(client_type));
+            errdefer opts.allocator.destroy(self);
+
             const signer = try Signer.init(private_key);
 
             self.* = .{
@@ -184,12 +187,17 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 .envelopes_pool = .{ .pooled_envelopes = .{} },
             };
 
-            try self.rpc_client.init(opts);
+            self.rpc_client = try ClientType.init(opts);
+
+            return self;
         }
         /// Clears memory and destroys any created pointers
         pub fn deinit(self: *Wallet(client_type)) void {
             self.envelopes_pool.deinit(self.allocator);
             self.rpc_client.deinit();
+
+            const allocator = self.allocator;
+            allocator.destroy(self);
         }
         /// Asserts that the transactions is ready to be sent.
         /// Will return errors where the values are not expected

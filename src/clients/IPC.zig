@@ -151,8 +151,11 @@ sub_channel: Channel(JsonParsed(Value)),
 
 /// Starts the IPC client and create the connection.
 /// This will also start the read loop in a seperate thread.
-pub fn init(self: *IPC, opts: InitOptions) !void {
+pub fn init(opts: InitOptions) !*IPC {
     const chain_id: Chains = opts.chain_id orelse .ethereum;
+
+    const self = try opts.allocator.create(IPC);
+    errdefer opts.allocator.destroy(self);
 
     self.* = .{
         .allocator = opts.allocator,
@@ -163,8 +166,8 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
         .onEvent = opts.onEvent,
         .pooling_interval = opts.pooling_interval,
         .retries = opts.retries,
-        .rpc_channel = Stack(JsonParsed(Value)).init(self.allocator, null),
-        .sub_channel = Channel(JsonParsed(Value)).init(self.allocator),
+        .rpc_channel = Stack(JsonParsed(Value)).init(opts.allocator, null),
+        .sub_channel = Channel(JsonParsed(Value)).init(opts.allocator),
         .ipc_reader = undefined,
     };
 
@@ -185,6 +188,8 @@ pub fn init(self: *IPC, opts: InitOptions) !void {
 
     const thread = try std.Thread.spawn(.{}, readLoopOwnedThread, .{self});
     thread.detach();
+
+    return self;
 }
 /// Clears memory, closes the stream and destroys any
 /// previously created pointers.
@@ -204,6 +209,9 @@ pub fn deinit(self: *IPC) void {
     self.rpc_channel.deinit();
     self.sub_channel.deinit();
     self.ipc_reader.deinit();
+
+    const allocator = self.allocator;
+    allocator.destroy(self);
 }
 /// Connects to the socket. Will try to reconnect in case of failures.
 /// Fails when match retries are reached or a invalid ipc path is provided

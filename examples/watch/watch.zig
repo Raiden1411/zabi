@@ -2,6 +2,8 @@ const args_parser = zabi.args;
 const std = @import("std");
 const zabi = @import("zabi");
 
+const WebSocket = zabi.client.WebSocket;
+
 pub const CliOptions = struct {
     url: []const u8,
 };
@@ -17,10 +19,8 @@ pub fn main() !void {
 
     const uri = try std.Uri.parse(parsed.url);
 
-    var socket: zabi.clients.WebSocket = undefined;
+    var socket = try WebSocket.init(.{ .uri = uri, .allocator = gpa.allocator() });
     defer socket.deinit();
-
-    try socket.init(.{ .uri = uri, .allocator = gpa.allocator() });
 
     const id = try socket.watchTransactions();
     defer id.deinit();

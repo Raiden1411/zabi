@@ -33,10 +33,7 @@ pub fn main() !void {
     var abi_parsed = try human.parseHumanReadable(Abi, gpa.allocator(), slice);
     defer abi_parsed.deinit();
 
-    var contract: Contract = undefined;
-    defer contract.deinit();
-
-    try contract.init(.{
+    var contract = try Contract.init(.{
         .private_key = parsed.priv_key,
         .abi = abi_parsed.value,
         .wallet_opts = .{
@@ -44,6 +41,7 @@ pub fn main() !void {
             .uri = uri,
         },
     });
+    defer contract.deinit();
 
     const approve = try contract.writeContractFunction("transfer", .{ try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), 0 }, .{
         .type = .london,

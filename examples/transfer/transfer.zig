@@ -21,9 +21,7 @@ pub fn main() !void {
 
     const uri = try std.Uri.parse(parsed.url);
 
-    var wallet: Wallet = undefined;
-
-    try wallet.init(parsed.priv_key, .{
+    var wallet = try Wallet.init(parsed.priv_key, .{
         .allocator = gpa.allocator(),
         .uri = uri,
         .chain_id = .sepolia,

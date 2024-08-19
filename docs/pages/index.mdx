@@ -36,18 +36,18 @@ pub fn main() !void {
     var iter = try std.process.argsWithAllocator(gpa.allocator());
     defer iter.deinit();
 
-    // Allocations are only made to pointer types.
     const parsed = args_parser.parseArgs(CliOptions, gpa.allocator(), &iter);
 
     const uri = try std.Uri.parse(parsed.url);
 
-    var wallet: Wallet = undefined;
-    try wallet.init(parsed.priv_key, .{ .allocator = gpa.allocator(), .uri = uri });
+    var wallet = try Wallet.init(parsed.priv_key, .{ .allocator = gpa.allocator(), .uri = uri });
     defer wallet.deinit();
 
     const message = try wallet.signEthereumMessage("Hello World");
+
     const hexed = try message.toHex(wallet.allocator);
-    defer wallet.allocator.free(hexed);
+    defer gpa.allocator().free(hexed);
+
     std.debug.print("Ethereum message: {s}\n", .{hexed});
 }
 ```

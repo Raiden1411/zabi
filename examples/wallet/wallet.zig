@@ -19,12 +19,13 @@ pub fn main() !void {
 
     const uri = try std.Uri.parse(parsed.url);
 
-    var wallet: Wallet = undefined;
-    try wallet.init(parsed.priv_key, .{ .allocator = gpa.allocator(), .uri = uri });
+    var wallet = try Wallet.init(parsed.priv_key, .{ .allocator = gpa.allocator(), .uri = uri });
     defer wallet.deinit();
 
     const message = try wallet.signEthereumMessage("Hello World");
+
     const hexed = try message.toHex(wallet.allocator);
     defer gpa.allocator().free(hexed);
+
     std.debug.print("Ethereum message: {s}\n", .{hexed});
 }

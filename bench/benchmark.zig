@@ -55,14 +55,13 @@ pub fn main() !void {
     const allocator = std.heap.page_allocator;
     const printer = BenchmarkPrinter.init(std.io.getStdErr().writer());
 
-    var client: HttpRpcClient = undefined;
-    defer client.deinit();
-
     const uri = try std.Uri.parse("https://ethereum-rpc.publicnode.com");
-    try client.init(.{
+
+    var client = try HttpRpcClient.init(.{
         .allocator = allocator,
         .uri = uri,
     });
+    defer client.deinit();
 
     printer.print("{s}Benchmark running in {s} mode\n", .{ " " ** 20, @tagName(@import("builtin").mode) });
     printer.print("\x1b[1;32m\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, "Human-Readable ABI", BORDER });
@@ -83,7 +82,7 @@ pub fn main() !void {
         const result = try benchmark.benchmark(
             allocator,
             HttpRpcClient.getChainId,
-            .{&client},
+            .{client},
             .{ .runs = 5, .warmup_runs = 1 },
         );
         result.printSummary();

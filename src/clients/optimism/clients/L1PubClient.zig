@@ -67,9 +67,9 @@ pub fn L1Client(comptime client_type: Clients) type {
 
         /// Starts the RPC connection
         /// If the contracts are null it defaults to OP contracts.
-        pub fn init(self: *L1, opts: InitOpts, op_contracts: ?OpMainNetContracts) !void {
-            const op_client = try opts.allocator.create(ClientType);
-            errdefer opts.allocator.destroy(op_client);
+        pub fn init(opts: InitOpts, op_contracts: ?OpMainNetContracts) !*L1 {
+            const self = try opts.allocator.create(L1);
+            errdefer opts.allocator.destroy(self);
 
             if (opts.chain_id) |id| {
                 switch (id) {
@@ -78,18 +78,20 @@ pub fn L1Client(comptime client_type: Clients) type {
                 }
             }
 
-            try op_client.init(opts);
-
             self.* = .{
-                .rpc_client = op_client,
+                .rpc_client = try ClientType.init(opts),
                 .allocator = opts.allocator,
                 .contracts = op_contracts orelse .{},
             };
+
+            return self;
         }
         /// Frees and destroys any allocated memory
         pub fn deinit(self: *L1) void {
             self.rpc_client.deinit();
-            self.allocator.destroy(self.rpc_client);
+
+            const allocator = self.allocator;
+            allocator.destroy(self);
         }
         /// Retrieves a valid dispute game on an L2 that occurred after a provided L2 block number.
         /// Returns an error if no game was found.

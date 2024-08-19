@@ -62,9 +62,9 @@ pub fn L2Client(comptime client_type: Clients) type {
 
         /// Starts the RPC connection
         /// If the contracts are null it defaults to OP contracts.
-        pub fn init(self: *L2, opts: InitOpts, op_contracts: ?OpMainNetContracts) !void {
-            const op_client = try opts.allocator.create(ClientType);
-            errdefer opts.allocator.destroy(op_client);
+        pub fn init(opts: InitOpts, op_contracts: ?OpMainNetContracts) !*L2 {
+            const self = try opts.allocator.create(L2);
+            errdefer opts.allocator.destroy(self);
 
             if (opts.chain_id) |id| {
                 switch (id) {
@@ -73,22 +73,20 @@ pub fn L2Client(comptime client_type: Clients) type {
                 }
             } else return error.ExpectedChainId;
 
-            try op_client.init(opts);
-
             self.* = .{
-                .rpc_client = op_client,
-                .allocator = op_client.allocator,
+                .rpc_client = try ClientType.init(opts),
+                .allocator = opts.allocator,
                 .contracts = op_contracts orelse .{},
             };
+
+            return self;
         }
         /// Frees and destroys any allocated memory
         pub fn deinit(self: *L2) void {
             const child_allocator = self.allocator;
 
             self.rpc_client.deinit();
-            child_allocator.destroy(self.rpc_client);
-
-            self.* = undefined;
+            child_allocator.destroy(self);
         }
         /// Returns the L1 gas used to execute L2 transactions
         pub fn estimateL1Gas(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {

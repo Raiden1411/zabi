@@ -193,8 +193,11 @@ pub fn serverMessage(self: *WebSocketHandler, message: []u8, message_type: ws.Me
 
 /// Populates the WebSocketHandler pointer.
 /// Starts the connection in a seperate process.
-pub fn init(self: *WebSocketHandler, opts: InitOptions) InitErrors!void {
+pub fn init(opts: InitOptions) InitErrors!*WebSocketHandler {
     const chain: Chains = opts.chain_id orelse .ethereum;
+
+    const self = try opts.allocator.create(WebSocketHandler);
+    errdefer opts.allocator.destroy(self);
 
     self.* = .{
         .allocator = opts.allocator,
@@ -205,8 +208,8 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) InitErrors!void {
         .onEvent = opts.onEvent,
         .pooling_interval = opts.pooling_interval,
         .retries = opts.retries,
-        .rpc_channel = Stack(JsonParsed(Value)).init(self.allocator, null),
-        .sub_channel = Channel(JsonParsed(Value)).init(self.allocator),
+        .rpc_channel = Stack(JsonParsed(Value)).init(opts.allocator, null),
+        .sub_channel = Channel(JsonParsed(Value)).init(opts.allocator),
         .uri = opts.uri,
         .ws_client = undefined,
     };
@@ -220,6 +223,8 @@ pub fn init(self: *WebSocketHandler, opts: InitOptions) InitErrors!void {
 
     const thread = try std.Thread.spawn(.{}, readLoopOwned, .{self});
     thread.detach();
+
+    return self;
 }
 /// All future interactions will deadlock
 /// If you are using the subscription channel this operation can take time
@@ -245,6 +250,9 @@ pub fn deinit(self: *WebSocketHandler) void {
     self.sub_channel.deinit();
     self.rpc_channel.deinit();
     self.ws_client.deinit();
+
+    const allocator = self.allocator;
+    allocator.destroy(self);
 }
 /// Connects to a socket client. This is a blocking operation.
 pub fn connect(self: *WebSocketHandler) ConnectionErrors!ws.Client {

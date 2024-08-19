@@ -62,17 +62,14 @@ pub fn WalletL1Client(client_type: Clients) type {
         ///
         /// If the contracts are null it defaults to OP contracts.
         /// Caller must deinit after use.
-        pub fn init(self: *WalletL1, priv_key: ?Hash, opts: InitOpts, op_contracts: ?OpMainNetContracts) !void {
-            const op_client = try opts.allocator.create(ClientType);
-            errdefer opts.allocator.destroy(op_client);
-
-            try op_client.init(opts, op_contracts);
-            errdefer op_client.deinit();
+        pub fn init(priv_key: ?Hash, opts: InitOpts, op_contracts: ?OpMainNetContracts) !*WalletL1 {
+            const self = try opts.allocator.create(WalletL1);
+            errdefer opts.allocator.destroy(self);
 
             const op_signer = try Signer.init(priv_key);
 
             self.* = .{
-                .op_client = op_client,
+                .op_client = try ClientType.init(opts, op_contracts),
                 .signer = op_signer,
             };
         }
@@ -82,9 +79,7 @@ pub fn WalletL1Client(client_type: Clients) type {
 
             self.op_client.deinit();
 
-            child_allocator.destroy(self.op_client);
-
-            self.* = undefined;
+            child_allocator.destroy(self);
         }
         /// Invokes the contract method to `depositTransaction`. This will send
         /// a transaction to the network.

@@ -56,7 +56,7 @@ You can also use [zvm](https://www.zvm.app/) which is the recommended way of man
 
 ### Installing Foundry
 
-Zabi uses [Foundry](https://book.getfoundry.sh/) for some testing (`zig build rpc_test` and `zig build wallet_test`). We run a local [Anvil](https://github.com/foundry-rs/foundry/tree/master/anvil) instance against a forked Ethereum node, where we can also use tools like [Forge](https://book.getfoundry.sh/forge/) to deploy test contracts to it.
+Zabi uses [Foundry](https://book.getfoundry.sh/) for testing. We run 3 local [Anvil](https://github.com/foundry-rs/foundry/tree/master/anvil) instance against a forked Ethereum node, where we can also use tools like [Forge](https://book.getfoundry.sh/forge/) to deploy test contracts to it.
 
 Install Foundry using the following command:
 
@@ -80,7 +80,9 @@ Zabi supports `version 0.12.0` and `version 0.13.0` of zig in seperate branches.
 
 ### Running the test suite
 
-You can also run `zig build test -freference-trace` to run our test suite to ensure that you don't have any issues running the tests.
+Before running the tests you will need to either remove the client tests if you dont't want to start the anvil instances or you will need to start 3 anvil instances for Mainnet ethereum, Mainnet Sepolia and Optimism Sepolia in order to run the tests successfully.
+
+Then you can run `zig build test -freference-trace` to run our test suite to ensure that you don't have any issues when making changes.
 
 When adding new features or fixing bugs, it's important to add test cases to cover the new/updated behavior.
 

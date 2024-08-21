@@ -44,6 +44,9 @@ pub fn build(b: *std.Build) void {
 
     // Build and run coverage test runner if `zig build coverage` was ran
     buildAndRunConverage(b, target, optimize);
+
+    // Build and generate docs for zabi. Uses the `doc_comments` spread across the codebase.
+    docsGenerate(b, target, optimize);
 }
 /// Adds zabi project dependencies.
 fn addDependencies(b: *std.Build, mod: *std.Build.Module, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
@@ -154,4 +157,20 @@ fn buildAndRunConverage(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
 
     install_coverage.step.dependOn(&run_lib_unit_tests.step);
     test_step.dependOn(&install_coverage.step);
+}
+/// Builds and runs a runner to generate documentation based on the `doc_comments` tokens in the codebase.
+fn docsGenerate(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
+    const docs = b.addExecutable(.{
+        .name = "docs_generate",
+        .root_source_file = b.path("src/docs_generate.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    addDependencies(b, &docs.root_module, target, optimize);
+
+    var docs_run = b.addRunArtifact(docs);
+    docs_run.has_side_effects = true;
+
+    const docs_step = b.step("docs_generate", "Run the ipc server");
+    docs_step.dependOn(&docs_run.step);
 }

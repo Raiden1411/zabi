@@ -11,15 +11,12 @@ pub fn main() !void {
 
     const tokens: []const std.zig.Token.Tag = ast.tokens.items(.tag);
 
-    var index: u32 = 0;
     var state: State = .none;
 
     var abi_file = try std.fs.cwd().createFile("src/foo.md", .{});
     defer abi_file.close();
 
-    while (index < tokens.len) : (index += 1) {
-        const token = tokens[index];
-
+    for (tokens, 0..) |token, index| {
         switch (token) {
             .keyword_pub => state = .public,
             .keyword_const => state = if (state == .public) .constant_decl else continue,
@@ -27,11 +24,17 @@ pub fn main() !void {
             .identifier => {
                 switch (state) {
                     .fn_decl => {
-                        try abi_file.writeAll("\n### ");
-                        try abi_file.writeAll(ast.tokenSlice(index));
+                        try abi_file.writeAll("### ");
+
+                        const func_name = ast.tokenSlice(@intCast(index));
+                        const upper = std.ascii.toUpper(func_name[0]);
+
+                        try abi_file.writer().writeByte(upper);
+                        try abi_file.writeAll(func_name[1..]);
+
                         try abi_file.writeAll("\n");
 
-                        const doc_comments = try eatDocComments(gpa.allocator(), index - 2, ast, tokens);
+                        const doc_comments = try eatDocComments(gpa.allocator(), @intCast(index - 2), ast, tokens);
                         defer gpa.allocator().free(doc_comments);
 
                         try abi_file.writeAll(doc_comments);
@@ -39,11 +42,11 @@ pub fn main() !void {
                         state = .none;
                     },
                     .constant_decl => {
-                        try abi_file.writeAll("\n## ");
-                        try abi_file.writeAll(ast.tokenSlice(index));
+                        try abi_file.writeAll("## ");
+                        try abi_file.writeAll(ast.tokenSlice(@intCast(index)));
                         try abi_file.writeAll("\n");
 
-                        const doc_comments = try eatDocComments(gpa.allocator(), index - 2, ast, tokens);
+                        const doc_comments = try eatDocComments(gpa.allocator(), @intCast(index - 2), ast, tokens);
                         defer gpa.allocator().free(doc_comments);
 
                         try abi_file.writeAll(doc_comments);
@@ -86,7 +89,12 @@ fn eatDocComments(allocator: std.mem.Allocator, index: std.zig.Ast.TokenIndex, a
 
         const slice = ast.tokenSlice(@intCast(doc_index));
 
-        try lines.append(slice[3..]);
+        const comments = slice[3..];
+
+        if (comments.len == 0)
+            continue;
+
+        try lines.append(if (comments[0] != ' ') comments else comments[1..]);
     }
 
     const lines_slice = try lines.toOwnedSlice();
@@ -97,10 +105,15 @@ fn eatDocComments(allocator: std.mem.Allocator, index: std.zig.Ast.TokenIndex, a
 
     var writer = list.writer();
 
-    for (lines_slice) |line| {
+    for (lines_slice, 0..) |line, i| {
         try writer.writeAll(line);
+
+        if (i < lines_slice.len - 1)
+            try writer.writeAll("\\");
+
         try writer.writeAll("\n");
     }
+    try writer.writeAll("\n");
 
     return list.toOwnedSlice();
 }

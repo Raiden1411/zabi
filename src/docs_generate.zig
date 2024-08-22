@@ -52,7 +52,7 @@ pub const DocsGenerator = struct {
                 .identifier => {
                     switch (self.state) {
                         .fn_decl => {
-                            try out_file.writeAll("### ");
+                            try out_file.writeAll("## ");
 
                             const func_name = self.ast.tokenSlice(@intCast(index));
                             const upper = std.ascii.toUpper(func_name[0]);
@@ -146,12 +146,17 @@ pub fn main() !void {
     defer _ = gpa.deinit();
 
     const exclude_files = std.StaticStringMap(void).initComptime(.{
+        // Files
         .{ "ws_server.zig", {} },
         .{ "rpc_server.zig", {} },
         .{ "ipc_server.zig", {} },
         .{ "docs_generate.zig", {} },
         .{ "constants.zig", {} },
+        .{ "server.zig", {} },
         .{ "root.zig", {} },
+
+        // Folders
+        .{ "wordlists", {} },
     });
 
     var dir = try std.fs.cwd().openDir("src", .{ .iterate = true });

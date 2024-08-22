@@ -1,4 +1,4 @@
-import { Sidebar } from "vocs";
+import type { Sidebar } from "vocs";
 
 export const sidebar = {
 	"/": [
@@ -11,28 +11,70 @@ export const sidebar = {
 			items: [{ text: "Integrating Zabi", link: "/integration" }],
 		},
 		{
-			text: "Client",
+			text: "Clients",
 			collapsed: true,
 			items: [
 				{
-					text: "HTTP, Websocket and IPC",
-					link: "/api/client/public/client",
+					text: "HTTP",
+					link: "/api/clients/Client",
+				},
+				{
+					text: "Websocket",
+					link: "/api/clients/Websocket",
+				},
+				{
+					text: "IPC",
+					link: "/api/clients/IPC",
 				},
 				{
 					text: "Block Explorer",
-					link: "/api/block_explorer/explorer",
+					link: "/api/clients/BlockExplorer",
 				},
 				{
 					text: "Wallet",
-					link: "/api/client/wallet/client",
+					link: "/api/clients/wallet",
 				},
 				{
 					text: "Contract",
-					link: "/api/client/contract/client",
+					link: "/api/clients/contract",
 				},
 				{
-					text: "OP Stack",
-					link: "/api/client/op-stack/clients",
+					text: "ENS",
+					link: "/api/clients/ens/ens",
+				},
+				{
+					text: "Multicall",
+					link: "/api/clients/multicall",
+				},
+				{
+					text: "OP L1 Public Client",
+					link: "/api/clients/optimism/clients/L1PubClient",
+				},
+				{
+					text: "OP L2 Public Client",
+					link: "/api/clients/optimism/clients/L2PubClient",
+				},
+				{
+					text: "OP L1 Wallet Client",
+					link: "/api/clients/optimism/clients/L1WalletClient",
+				},
+				{
+					text: "OP L2 Wallet Client",
+					link: "/api/clients/optimism/clients/L2WalletClient",
+				},
+				{
+					text: "Test Clients",
+					collapsed: true,
+					items: [
+						{
+							text: "Anvil",
+							link: "/api/tests/Anvil",
+						},
+						{
+							text: "Hardhat",
+							link: "/api/tests/Hardhat",
+						},
+					],
 				},
 			],
 		},
@@ -41,44 +83,24 @@ export const sidebar = {
 			collapsed: true,
 			items: [
 				{
-					text: "ABI Encode Parameters",
-					link: "/api/abi_utils/encode_parameters",
+					text: "ABI Encode",
+					link: "/api/encoding/encoder",
 				},
 				{
-					text: "ABI Encode Function",
-					link: "/api/abi_utils/encode_function",
-				},
-				{
-					text: "ABI Encode Error",
-					link: "/api/abi_utils/encode_error",
-				},
-				{
-					text: "ABI Encode Constructor",
-					link: "/api/abi_utils/encode_constructor",
+					text: "ABI Encode Logs",
+					link: "/api/encoding/logs",
 				},
 				{
 					text: "ABI Decode Parameter",
-					link: "/api/abi_utils/decode_parameter",
-				},
-				{
-					text: "ABI Decode Function",
-					link: "/api/abi_utils/decode_function",
-				},
-				{
-					text: "ABI Decode Error",
-					link: "/api/abi_utils/decode_error",
-				},
-				{
-					text: "ABI Decode Constructor",
-					link: "/api/abi_utils/decode_constructor",
+					link: "/api/decoding/decoder",
 				},
 				{
 					text: "ABI Decode Logs",
-					link: "/api/abi_utils/logs_decode",
+					link: "/api/decoding/logs_decode",
 				},
 				{
-					text: "Types",
-					link: "/api/abi_utils/types",
+					text: "EIP712",
+					link: "/api/abi/eip712",
 				},
 			],
 		},
@@ -87,56 +109,88 @@ export const sidebar = {
 			collapsed: true,
 			items: [
 				{
-					text: "Function",
-					link: "/api/abi/function",
-				},
-				{
-					text: "Event",
-					link: "/api/abi/event",
-				},
-				{
-					text: "Error",
-					link: "/api/abi/error",
-				},
-				{
-					text: "Constructor",
-					link: "/api/abi/constructor",
-				},
-				{
-					text: "Receive",
-					link: "/api/abi/receive",
-				},
-				{
-					text: "Fallback",
-					link: "/api/abi/fallback",
-				},
-				{
 					text: "Abi",
 					link: "/api/abi/abi",
 				},
 				{
 					text: "ABI Parameter",
-					link: "/api/abi/parameters",
+					link: "/api/abi/abi_parameter",
+				},
+				{
+					text: "Parameter Type",
+					link: "/api/abi/param_type",
 				},
 			],
 		},
 		{
-			text: "Human readable",
+			text: "Zabi Types",
+			collapsed: true,
+			items: [
+				{
+					text: "Block",
+					link: "/api/types/block",
+				},
+				{
+					text: "Transaction",
+					link: "/api/types/transaction",
+				},
+				{
+					text: "Transaction Pool",
+					link: "/api/types/txpool",
+				},
+				{
+					text: "Proofs",
+					link: "/api/types/proof",
+				},
+				{
+					text: "Syncing",
+					link: "/api/types/syncing",
+				},
+				{
+					text: "Ethereum",
+					link: "/api/types/ethereum",
+				},
+				{
+					text: "Logs",
+					link: "/api/types/log",
+				},
+				{
+					text: "Block Explorer",
+					link: "/api/types/explorer",
+				},
+				{
+					text: "Op Stack Transaction",
+					link: "/api/clients/optimism/types/transaction",
+				},
+				{
+					text: "Op Stack General Types",
+					link: "/api/clients/optimism/types/types",
+				},
+				{
+					text: "Op Stack Withdrawl",
+					link: "/api/clients/optimism/types/withdrawl",
+				},
+			],
+		},
+		{
+			text: "Human readable Parsing",
 			collapsed: true,
 			items: [
 				{
 					text: "Human Readable",
-					link: "/api/abi/human",
+					link: "/api/human-readable/abi_parsing",
 				},
-			],
-		},
-		{
-			text: "EIP712",
-			collapsed: true,
-			items: [
 				{
-					text: "EIP712 Utils",
-					link: "/api/abi/eip712",
+					text: "Parser",
+					link: "/api/human-readable/Parser",
+				},
+				{
+					text: "Lexer",
+					link: "/api/human-readable/lexer",
+				},
+				{
+					text: "Solidity tokens",
+					link: "/api/human-readable/tokens",
 				},
 			],
 		},
@@ -145,32 +199,34 @@ export const sidebar = {
 			collapsed: true,
 			items: [
 				{
-					text: "Address",
+					text: "General utilities",
+					collapsed: true,
 					items: [
 						{
-							text: "isAddress",
-							link: "/api/utilities/address/isAddress",
+							text: "General",
+							link: "/api/utils/utils",
 						},
 						{
-							text: "isHash",
-							link: "/api/utilities/address/isHash",
+							text: "Op Stack",
+							link: "/api/clients/optimism/utils",
 						},
 						{
-							text: "toChecksum",
-							link: "/api/utilities/address/toChecksum",
+							text: "Ens",
+							link: "/api/clients/ens/ens_utils",
 						},
 					],
 				},
 				{
-					text: "Units",
+					text: "Client",
+					collapsed: true,
 					items: [
 						{
-							text: "parseGwei",
-							link: "/api/utilities/units/parseGwei",
+							text: "Ipc Reader",
+							link: "/api/clients/ipc_reader",
 						},
 						{
-							text: "parseEther",
-							link: "/api/utilities/units/parseEther",
+							text: "Url Writer",
+							link: "/api/clients/url",
 						},
 					],
 				},
@@ -179,32 +235,19 @@ export const sidebar = {
 					items: [
 						{
 							text: "RLP Encoding",
-							link: "/api/utilities/encoding/rlp_encode",
+							link: "/api/encoding/rlp",
 						},
 						{
 							text: "RLP Decode",
-							link: "/api/utilities/encoding/rlp_decode",
+							link: "/api/decoding/rlp_decode",
 						},
 						{
 							text: "SSZ Encoding",
-							link: "/api/utilities/encoding/ssz_encode",
+							link: "/api/encoding/ssz",
 						},
 						{
 							text: "SSZ Decode",
-							link: "/api/utilities/encoding/ssz_decode",
-						},
-					],
-				},
-				{
-					text: "Signature",
-					items: [
-						{
-							text: "Signature",
-							link: "/api/utilities/signature/signature",
-						},
-						{
-							text: "Signer",
-							link: "/api/utilities/signature/signer",
+							link: "/api/decoding/ssz_decode",
 						},
 					],
 				},
@@ -213,11 +256,53 @@ export const sidebar = {
 					items: [
 						{
 							text: "Parse",
-							link: "/api/utilities/transaction/parse",
+							link: "/api/decoding/parse_transaction",
+						},
+						{
+							text: "Parse Deposit Transaction",
+							link: "/api/clients/optimism/parse_deposit",
 						},
 						{
 							text: "Serialize",
-							link: "/api/utilities/transaction/serialize",
+							link: "/api/encoding/serialize",
+						},
+						{
+							text: "Serialize Deposit Transaction",
+							link: "/api/clients/optimism/serialize_deposit",
+						},
+					],
+				},
+				{
+					text: "Crypto",
+					items: [
+						{
+							text: "ECDSA Signer",
+							link: "/api/crypto/Signer",
+						},
+						{
+							text: "BIP39 HD Wallets",
+							link: "/api/crypto/hdwallet",
+						},
+						{
+							text: "BIP32 Mnemonic Wallets",
+							link: "/api/crypto/mnemonic",
+						},
+						{
+							text: "Signature Types",
+							link: "/api/crypto/signature",
+						},
+					],
+				},
+				{
+					text: "Testing",
+					items: [
+						{
+							text: "Value Generator",
+							link: "/api/tests/generator",
+						},
+						{
+							text: "Cli Parser",
+							link: "/api/tests/args",
 						},
 					],
 				},
@@ -228,8 +313,16 @@ export const sidebar = {
 			collapsed: true,
 			items: [
 				{
-					text: "Meta Functions",
-					link: "/api/meta/metaprogramming",
+					text: "Abi",
+					link: "/api/meta/abi",
+				},
+				{
+					text: "Json",
+					link: "/api/meta/json",
+				},
+				{
+					text: "Utils",
+					link: "/api/meta/utils",
 				},
 			],
 		},
@@ -239,7 +332,39 @@ export const sidebar = {
 			items: [
 				{
 					text: "Interpreter",
-					link: "/api/interpreter/interpreter",
+					link: "/api/evm/Interpreter",
+				},
+				{
+					text: "Memory",
+					link: "/api/evm/memory",
+				},
+				{
+					text: "Interpreter actions",
+					link: "/api/evm/actions",
+				},
+				{
+					text: "Opcodes",
+					link: "/api/evm/opcodes",
+				},
+				{
+					text: "Specification",
+					link: "/api/evm/Specification",
+				},
+				{
+					text: "Bytecode",
+					link: "/api/evm/bytecode",
+				},
+				{
+					text: "Bytecode Analysis",
+					link: "/api/evm/analysis",
+				},
+				{
+					text: "Contract",
+					link: "/api/evm/contract",
+				},
+				{
+					text: "Enviroment",
+					link: "/api/evm/enviroment",
 				},
 			],
 		},

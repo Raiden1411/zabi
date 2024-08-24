@@ -76,69 +76,6 @@ For before `CANCUN` checks if `blob_hashes` and `max_fee_per_blob_gas` are null 
 pub fn validateTransaction(self: EVMEnviroment, spec: SpecId) !void
 ```
 
-## Default
-Creates a default EVM enviroment.
-
-### Signature
-
-```zig
-pub fn default() EVMEnviroment
-```
-
-## EffectiveGasPrice
-Calculates the effective gas price of the transaction.
-
-### Signature
-
-```zig
-pub fn effectiveGasPrice(self: EVMEnviroment) u256
-```
-
-## CalculateDataFee
-Calculates the `data_fee` of the transaction.\
-This will return null if cancun is not enabled.\
-See EIP-4844:
-<https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md#execution-layer-validation>
-
-### Signature
-
-```zig
-pub fn calculateDataFee(self: EVMEnviroment) ?u256
-```
-
-## CalculateMaxDataFee
-Calculates the max `data_fee` of the transaction.\
-This will return null if cancun is not enabled.\
-See EIP-4844:
-<https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md#execution-layer-validation>
-
-### Signature
-
-```zig
-pub fn calculateMaxDataFee(self: EVMEnviroment) ?u256
-```
-
-## ValidateBlockEnviroment
-Validates the inner block enviroment based on the provided `SpecId`
-
-### Signature
-
-```zig
-pub fn validateBlockEnviroment(self: EVMEnviroment, spec: SpecId) !void
-```
-
-## ValidateTransaction
-Validates the transaction enviroment.\
-For `CANCUN` enabled and later checks the gas price is not more than the transactions max
-and checks if the blob_hashes are correctly set.\
-For before `CANCUN` checks if `blob_hashes` and `max_fee_per_blob_gas` are null / empty.
-
-### Signature
-
-```zig
-pub fn validateTransaction(self: EVMEnviroment, spec: SpecId) !void
-```
-
 ## ConfigEnviroment
 
 The EVM Configuration enviroment.
@@ -185,15 +122,6 @@ Returns the set of default values for a `ConfigEnviroment`.
 pub fn default() ConfigEnviroment
 ```
 
-## Default
-Returns the set of default values for a `ConfigEnviroment`.
-
-### Signature
-
-```zig
-pub fn default() ConfigEnviroment
-```
-
 ## BlobExcessGasAndPrice
 
 Type that representes the excess blob gas and it's price.
@@ -206,15 +134,6 @@ blob_excess_gas: u256
 ```
 
 ### Init
-Calculates the price based on the provided `excess_gas`.
-
-### Signature
-
-```zig
-pub fn init(excess_gas: u64) BlobExcessGasAndPrice
-```
-
-## Init
 Calculates the price based on the provided `excess_gas`.
 
 ### Signature
@@ -265,15 +184,6 @@ blob_excess_gas_and_price: ?BlobExcessGasAndPrice
 ```
 
 ### Default
-Returns a set of default values for this `BlockEnviroment`.
-
-### Signature
-
-```zig
-pub fn default() BlockEnviroment
-```
-
-## Default
 Returns a set of default values for this `BlockEnviroment`.
 
 ### Signature
@@ -358,24 +268,6 @@ Gets the total blob gas in this `TxEnviroment`.
 pub fn getTotalBlobGas(self: TxEnviroment) u64
 ```
 
-## Default
-Returns a default `TxEnviroment`.
-
-### Signature
-
-```zig
-pub fn default() TxEnviroment
-```
-
-## GetTotalBlobGas
-Gets the total blob gas in this `TxEnviroment`.
-
-### Signature
-
-```zig
-pub fn getTotalBlobGas(self: TxEnviroment) u64
-```
-
 ## OptimismFields
 
 Set of `Optimism` fields for the transaction enviroment.
@@ -413,15 +305,6 @@ enveloped_tx: ?[]u8
 ```
 
 ### Default
-Returns default values for `OptimismFields`
-
-### Signature
-
-```zig
-pub fn default() OptimismFields
-```
-
-## Default
 Returns default values for `OptimismFields`
 
 ### Signature

@@ -24,15 +24,6 @@ Clears any memory with the associated action.
 pub fn deinit(self: @This(), allocator: Allocator) void
 ```
 
-## Deinit
-Clears any memory with the associated action.
-
-### Signature
-
-```zig
-pub fn deinit(self: @This(), allocator: Allocator) void
-```
-
 ## InterpreterStatus
 
 The status of execution for the interpreter.
@@ -50,15 +41,6 @@ Copy's the contract's bytecode independent of it's state.
 
 ```zig
 pub fn init(self: *Interpreter, allocator: Allocator, contract_instance: Contract, evm_host: Host, opts: InterpreterInitOptions) !void
-```
-
-## Deinit
-Clear memory and destroy's any created pointers.
-
-### Signature
-
-```zig
-pub fn deinit(self: *Interpreter) void
 ```
 
 ## AdvanceProgramCounter

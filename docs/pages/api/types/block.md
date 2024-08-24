@@ -64,27 +64,6 @@ pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOpt
 pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
 ```
 
-## JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-## JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-## JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
 ## LegacyBlock
 
 The most common block that can be found before the
@@ -133,27 +112,6 @@ pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOpt
 ```
 
 ### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
-## JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-## JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-## JsonStringify
 ### Signature
 
 ```zig
@@ -217,27 +175,6 @@ pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOpt
 pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
 ```
 
-## JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-## JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-## JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
 ## BlockTransactions
 
 Possible transactions that can be found in the
@@ -265,27 +202,6 @@ pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOpt
 ```
 
 ### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void
-```
-
-## JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-## JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-## JsonStringify
 ### Signature
 
 ```zig
@@ -341,27 +257,6 @@ pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOpt
 ```
 
 ### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
-## JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-## JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-## JsonStringify
 ### Signature
 
 ```zig
@@ -425,27 +320,6 @@ pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOpt
 pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
 ```
 
-## JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-## JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-## JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
 ## Block
 
 Union type of the possible blocks found on the network.
@@ -474,27 +348,6 @@ pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOpt
 ```
 
 ### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void
-```
-
-## JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-## JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-## JsonStringify
 ### Signature
 
 ```zig

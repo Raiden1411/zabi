@@ -194,10 +194,10 @@ pub const DocsGenerator = struct {
         const nodes: []const Ast.Node.Tag = self.ast.nodes.items(.tag);
         const tokens: []const Tag = self.ast.tokens.items(.tag);
 
-        for (nodes, 0..) |node, i| {
-            var duplicate = std.StringHashMap(void).init(self.allocator);
-            defer duplicate.deinit();
+        var duplicate = std.StringHashMap(void).init(self.allocator);
+        defer duplicate.deinit();
 
+        for (nodes, 0..) |node, i| {
             switch (node) {
                 .simple_var_decl => try self.extractFromSimpleVar(out_file, @intCast(i), &duplicate),
                 .fn_decl => {

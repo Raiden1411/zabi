@@ -40,24 +40,6 @@ Gets the associated operation for the provided opcode.
 pub fn getInstruction(self: @This(), opcode: u8) Operations
 ```
 
-## Init
-Creates the instruction table.
-
-### Signature
-
-```zig
-pub fn init() InstructionTable
-```
-
-## GetInstruction
-Gets the associated operation for the provided opcode.
-
-### Signature
-
-```zig
-pub fn getInstruction(self: @This(), opcode: u8) Operations
-```
-
 ## Operations
 
 Opcode operations and checks.

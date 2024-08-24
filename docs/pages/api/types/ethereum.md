@@ -214,27 +214,6 @@ pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOpt
 pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
 ```
 
-## JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-## JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-## JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
 ## ContractErrorResponse
 
 Zig struct representation of a contract error response
@@ -243,13 +222,6 @@ Zig struct representation of a contract error response
 
 Ethereum RPC error codes.\
 https://eips.ethereum.org/EIPS/eip-1474#error-codes
-
-## JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(code: EthereumErrorCodes, stream: anytype) @TypeOf(stream.*).Error!void
-```
 
 ## EthereumZigErrors
 
@@ -282,27 +254,6 @@ pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOpt
 ```
 
 ### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
-## JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-## JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-## JsonStringify
 ### Signature
 
 ```zig

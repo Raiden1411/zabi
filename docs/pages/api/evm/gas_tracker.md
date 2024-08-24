@@ -118,33 +118,6 @@ Updates the gas tracker based on the opcode cost.
 pub inline fn updateTracker(self: *GasTracker, cost: u64) error{ OutOfGas, GasOverflow }!void
 ```
 
-## Init
-Sets the tracker's initial state.
-
-### Signature
-
-```zig
-pub fn init(gas_limit: u64) GasTracker
-```
-
-## AvailableGas
-Returns the remaining gas that can be used.
-
-### Signature
-
-```zig
-pub fn availableGas(self: GasTracker) u64
-```
-
-## UpdateTracker
-Updates the gas tracker based on the opcode cost.
-
-### Signature
-
-```zig
-pub inline fn updateTracker(self: *GasTracker, cost: u64) error{ OutOfGas, GasOverflow }!void
-```
-
 ## CalculateCallCost
 Calculates the gas cost for the `CALL` opcode.
 

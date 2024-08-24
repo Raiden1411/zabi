@@ -20,13 +20,6 @@ encoded: []u8
 pub fn deinit(self: @This(), alloc: std.mem.Allocator) void
 ```
 
-## Deinit
-### Signature
-
-```zig
-pub fn deinit(self: @This(), alloc: std.mem.Allocator) void
-```
-
 ## AbiEncoded
 
 ### Properties
@@ -37,13 +30,6 @@ data: []u8
 ```
 
 ### Deinit
-### Signature
-
-```zig
-pub fn deinit(self: @This()) void
-```
-
-## Deinit
 ### Signature
 
 ```zig

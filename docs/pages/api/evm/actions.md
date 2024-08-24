@@ -35,15 +35,6 @@ Creates an instance for this action.
 pub fn init(tx_env: TxEnviroment, gas_limit: u64) ?CallAction
 ```
 
-## Init
-Creates an instance for this action.
-
-### Signature
-
-```zig
-pub fn init(tx_env: TxEnviroment, gas_limit: u64) ?CallAction
-```
-
 ## CallValue
 
 Evm call value types.
@@ -59,15 +50,6 @@ limbo: u256
 ```
 
 ### GetCurrentValue
-Gets the current value independent of the active union member.
-
-### Signature
-
-```zig
-pub fn getCurrentValue(self: CallValue) u256
-```
-
-## GetCurrentValue
 Gets the current value independent of the active union member.
 
 ### Signature
@@ -100,15 +82,6 @@ gas_limit: u64
 ```
 
 ### Init
-Creates an instance for this action.
-
-### Signature
-
-```zig
-pub fn init(tx_env: TxEnviroment, gas_limit: u64) ?CallAction
-```
-
-## Init
 Creates an instance for this action.
 
 ### Signature

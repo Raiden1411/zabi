@@ -47,26 +47,6 @@ Uses the `QueryWriter` to build the searchUrlParams.
 pub fn buildDefaultQuery(self: @This(), writer: anytype) !void
 ```
 
-## BuildQuery
-Build the query based on the provided `value` and it's inner state.\
-Uses the `QueryWriter` to build the searchUrlParams.
-
-### Signature
-
-```zig
-pub fn buildQuery(self: @This(), value: anytype, writer: anytype) !void
-```
-
-## BuildDefaultQuery
-Build the query parameters without any provided values.\
-Uses the `QueryWriter` to build the searchUrlParams.
-
-### Signature
-
-```zig
-pub fn buildDefaultQuery(self: @This(), writer: anytype) !void
-```
-
 ## Init
 Creates the initial client state.\
 This client only supports the free api endpoints via the api. We will not support PRO methods.\

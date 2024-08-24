@@ -2,9 +2,29 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 const Ast = std.zig.Ast;
+const Dir = std.fs.Dir;
 const File = std.fs.File;
 const Tag = std.zig.Token.Tag;
 const TokenIndex = std.zig.Ast.TokenIndex;
+
+/// Files and folder to be excluded from the docs generation.
+const exclude_files_and_folders = std.StaticStringMap(void).initComptime(.{
+    // Files
+    .{ "ws_server.zig", {} },
+    .{ "rpc_server.zig", {} },
+    .{ "ipc_server.zig", {} },
+    .{ "docs_generate.zig", {} },
+    .{ "constants.zig", {} },
+    .{ "server.zig", {} },
+    .{ "state_mutability.zig", {} },
+    .{ "english.txt", {} },
+    .{ "pipe.zig", {} },
+    .{ "channel.zig", {} },
+    .{ "root.zig", {} },
+
+    // Folders
+    .{ "wordlists", {} },
+});
 
 /// The state the generator is in whilst traversing the AST.
 pub const LookupState = enum {
@@ -39,50 +59,162 @@ pub const DocsGenerator = struct {
     pub fn deinit(self: *DocsGenerator) void {
         self.ast.deinit(self.allocator);
     }
+    /// Extracts the source and builds the mardown file when we have a `simple_var_decl` node.
+    pub fn extractFromSimpleVar(self: *DocsGenerator, out_file: File, node_index: Ast.Node.Index, duplicate: *std.StringHashMap(void)) !void {
+        const tokens: []const Tag = self.ast.tokens.items(.tag);
+
+        const variable = self.ast.simpleVarDecl(node_index);
+        const first_token = variable.firstToken();
+
+        if (tokens[first_token] != .keyword_pub)
+            return;
+
+        try out_file.writeAll("## ");
+        // Format -> .keyword_pub, .keyword_const, .identifier
+        // So we move ahead by 2 tokens
+        try out_file.writeAll(self.ast.tokenSlice(first_token + 2));
+        try out_file.writeAll("\n\n");
+
+        const comments = try self.eatDocComments(first_token);
+        defer self.allocator.free(comments);
+
+        try out_file.writeAll(comments);
+
+        return self.extractFromContainerDecl(out_file, variable.ast.init_node, duplicate);
+    }
+    /// Extracts the source and builds the mardown file when we have a `container_decl` or `tagged_union` node.
+    pub fn extractFromContainerDecl(self: *DocsGenerator, out_file: File, init_node: Ast.Node.Index, duplicate: *std.StringHashMap(void)) !void {
+        const nodes: []const Ast.Node.Tag = self.ast.nodes.items(.tag);
+        const tokens: []const Tag = self.ast.tokens.items(.tag);
+
+        const container = switch (nodes[init_node]) {
+            .container_decl => self.ast.containerDecl(init_node),
+            .tagged_union => self.ast.taggedUnion(init_node),
+            .merge_error_sets => {
+                try out_file.writeAll("```zig\n");
+                try out_file.writeAll(self.ast.getNodeSource(init_node));
+                try out_file.writeAll("\n```\n\n");
+                return;
+            },
+            else => return,
+        };
+
+        const container_token = self.ast.firstToken(init_node);
+
+        switch (tokens[container_token]) {
+            .keyword_struct, .keyword_union => {
+                var fn_idx: usize = 0;
+
+                try out_file.writeAll("### Properties\n\n");
+
+                try out_file.writeAll("```zig\n");
+                for (container.ast.members, 0..) |member, mem_idx| {
+                    const first_token = self.ast.firstToken(member);
+
+                    switch (tokens[first_token]) {
+                        .identifier => {
+                            // Grabs the first `doc_comment` index
+                            const start_index: usize = start_index: for (0..first_token) |i| {
+                                const reverse_i = first_token - i - 1;
+                                const token = tokens[reverse_i];
+                                if (token != .doc_comment) break :start_index reverse_i + 1;
+                            } else unreachable;
+
+                            for (start_index..first_token) |idx| {
+                                try out_file.writeAll(self.ast.tokenSlice(@intCast(idx)));
+                                try out_file.writeAll("\n");
+                            }
+
+                            try out_file.writeAll(self.ast.getNodeSource(member));
+                            try out_file.writeAll("\n");
+                        },
+                        .keyword_pub => {
+                            fn_idx = mem_idx;
+                            break;
+                        },
+                        else => break,
+                    }
+                }
+                try out_file.writeAll("```\n\n");
+
+                for (container.ast.members[fn_idx..]) |member| {
+                    var buffer = [_]u32{member};
+
+                    if (nodes[member] != .fn_decl)
+                        return;
+
+                    const fn_proto = self.ast.fullFnProto(&buffer, member);
+
+                    const proto = fn_proto orelse return;
+
+                    if (tokens[proto.visib_token orelse return] != .keyword_pub)
+                        continue;
+
+                    const func_name = self.ast.tokenSlice(proto.name_token orelse return);
+                    try duplicate.put(func_name, {});
+
+                    try self.extractFromFnProto(proto, out_file, true);
+                }
+            },
+            .keyword_enum => {
+                try out_file.writeAll("```zig\n");
+                try out_file.writeAll(self.ast.getNodeSource(init_node));
+                try out_file.writeAll("\n```\n\n");
+            },
+            else => return,
+        }
+    }
+    /// Extracts the source and builds the mardown file when we have a `fn_decl` node.
+    pub fn extractFromFnProto(self: *DocsGenerator, proto: Ast.full.FnProto, out_file: File, child: bool) !void {
+        const func_name = self.ast.tokenSlice(proto.name_token orelse unreachable);
+        const upper = std.ascii.toUpper(func_name[0]);
+
+        // Writes the function name
+        if (child) try out_file.writeAll("### ") else try out_file.writeAll("## ");
+
+        try out_file.writer().writeByte(upper);
+        try out_file.writeAll(func_name[1..]);
+        try out_file.writeAll("\n");
+
+        // Writes the docs
+        const docs = try self.eatDocComments(proto.firstToken());
+        defer self.allocator.free(docs);
+
+        try out_file.writeAll(docs);
+
+        // Writes the signature
+        try out_file.writeAll("### Signature\n\n");
+        try out_file.writeAll("```zig\n");
+        try out_file.writeAll(self.ast.getNodeSource(proto.ast.proto_node));
+        try out_file.writeAll("\n```\n\n");
+    }
     /// Extracts the `doc_comments` from the source code and writes them to `out_file`.
     /// Also extracts the function names and public constants as headers for markdown.
     pub fn extractDocs(self: *DocsGenerator, out_file: File) !void {
+        const nodes: []const Ast.Node.Tag = self.ast.nodes.items(.tag);
         const tokens: []const Tag = self.ast.tokens.items(.tag);
 
-        for (tokens, 0..) |token, index| {
-            switch (token) {
-                .keyword_pub => self.state = .public,
-                .keyword_const => self.state = if (self.state == .public) .constant_decl else continue,
-                .keyword_fn => self.state = if (self.state == .public) .fn_decl else continue,
-                .identifier => {
-                    switch (self.state) {
-                        .fn_decl => {
-                            try out_file.writeAll("## ");
+        for (nodes, 0..) |node, i| {
+            var duplicate = std.StringHashMap(void).init(self.allocator);
+            defer duplicate.deinit();
 
-                            const func_name = self.ast.tokenSlice(@intCast(index));
-                            const upper = std.ascii.toUpper(func_name[0]);
+            switch (node) {
+                .simple_var_decl => try self.extractFromSimpleVar(out_file, @intCast(i), &duplicate),
+                .fn_decl => {
+                    var buffer = [_]u32{@intCast(i)};
+                    const fn_proto = self.ast.fullFnProto(&buffer, @intCast(i));
 
-                            try out_file.writer().writeByte(upper);
-                            try out_file.writeAll(func_name[1..]);
+                    const proto = fn_proto orelse continue;
 
-                            try out_file.writeAll("\n");
+                    if (tokens[proto.visib_token orelse continue] != .keyword_pub)
+                        continue;
 
-                            const doc_comments = try self.eatDocComments(@intCast(index - 2));
-                            defer self.allocator.free(doc_comments);
+                    const func_name = self.ast.tokenSlice(proto.name_token orelse continue);
 
-                            try out_file.writeAll(doc_comments);
+                    if (duplicate.get(func_name) != null)
+                        continue;
 
-                            self.state = .none;
-                        },
-                        .constant_decl => {
-                            try out_file.writeAll("## ");
-                            try out_file.writeAll(self.ast.tokenSlice(@intCast(index)));
-                            try out_file.writeAll("\n");
-
-                            const doc_comments = try self.eatDocComments(@intCast(index - 2));
-                            defer self.allocator.free(doc_comments);
-
-                            try out_file.writeAll(doc_comments);
-
-                            self.state = .none;
-                        },
-                        else => continue,
-                    }
+                    try self.extractFromFnProto(proto, out_file, false);
                 },
                 else => continue,
             }
@@ -135,7 +267,9 @@ pub const DocsGenerator = struct {
 
             try writer.writeAll("\n");
         }
-        try writer.writeAll("\n");
+
+        if (lines_slice.len > 0)
+            try writer.writeAll("\n");
 
         return list.toOwnedSlice();
     }
@@ -144,20 +278,6 @@ pub const DocsGenerator = struct {
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
-
-    const exclude_files = std.StaticStringMap(void).initComptime(.{
-        // Files
-        .{ "ws_server.zig", {} },
-        .{ "rpc_server.zig", {} },
-        .{ "ipc_server.zig", {} },
-        .{ "docs_generate.zig", {} },
-        .{ "constants.zig", {} },
-        .{ "server.zig", {} },
-        .{ "root.zig", {} },
-
-        // Folders
-        .{ "wordlists", {} },
-    });
 
     var dir = try std.fs.cwd().openDir("src", .{ .iterate = true });
     defer dir.close();
@@ -169,47 +289,52 @@ pub fn main() !void {
         if (std.mem.endsWith(u8, sub_path.basename, "test.zig"))
             continue;
 
-        if (exclude_files.get(sub_path.basename) != null)
+        if (exclude_files_and_folders.get(sub_path.basename) != null)
             continue;
 
         switch (sub_path.kind) {
-            .directory => {
-                var buffer: [std.fs.max_path_bytes]u8 = undefined;
-                const real_path = try sub_path.dir.realpath(sub_path.basename, &buffer);
-
-                const out_name = try std.mem.replaceOwned(u8, gpa.allocator(), real_path, "src", "docs/pages/api");
-                defer gpa.allocator().free(out_name);
-
-                std.fs.makeDirAbsolute(out_name) catch |err| switch (err) {
-                    error.PathAlreadyExists => continue,
-                    else => return err,
-                };
+            .directory => createFolders(gpa.allocator(), sub_path.dir, sub_path.basename) catch |err| switch (err) {
+                error.PathAlreadyExists => continue,
+                else => return err,
             },
-            .file => {
-                var buffer: [std.fs.max_path_bytes]u8 = undefined;
-                const real_path = try sub_path.dir.realpath(sub_path.basename, &buffer);
-
-                var file = try std.fs.openFileAbsolute(real_path, .{});
-                defer file.close();
-
-                const source = try file.readToEndAllocOptions(gpa.allocator(), std.math.maxInt(u32), null, @alignOf(u8), 0);
-                defer gpa.allocator().free(source);
-
-                const out_absolute_path = try std.mem.replaceOwned(u8, gpa.allocator(), real_path, "src", "docs/pages/api");
-                defer gpa.allocator().free(out_absolute_path);
-
-                const out_name = try std.mem.replaceOwned(u8, gpa.allocator(), out_absolute_path, ".zig", ".md");
-                defer gpa.allocator().free(out_name);
-
-                var out_file = try std.fs.createFileAbsolute(out_name, .{});
-                defer out_file.close();
-
-                var docs_gen = try DocsGenerator.init(gpa.allocator(), source);
-                defer docs_gen.deinit();
-
-                try docs_gen.extractDocs(out_file);
-            },
+            .file => try generateMarkdownFile(gpa.allocator(), sub_path.dir, sub_path.basename),
             else => continue,
         }
     }
+}
+
+/// Creates the folder that will contain the `md` files.
+fn createFolders(allocator: Allocator, sub_path: Dir, basename: []const u8) !void {
+    var buffer: [std.fs.max_path_bytes]u8 = undefined;
+    const real_path = try sub_path.realpath(basename, &buffer);
+
+    const out_name = try std.mem.replaceOwned(u8, allocator, real_path, "src", "docs/pages/api");
+    defer allocator.free(out_name);
+
+    try std.fs.makeDirAbsolute(out_name);
+}
+/// Generates the `md` files on the `docs` folder location.
+fn generateMarkdownFile(allocator: Allocator, sub_path: Dir, basename: []const u8) !void {
+    var buffer: [std.fs.max_path_bytes]u8 = undefined;
+    const real_path = try sub_path.realpath(basename, &buffer);
+
+    var file = try std.fs.openFileAbsolute(real_path, .{});
+    defer file.close();
+
+    const source = try file.readToEndAllocOptions(allocator, std.math.maxInt(u32), null, @alignOf(u8), 0);
+    defer allocator.free(source);
+
+    const out_absolute_path = try std.mem.replaceOwned(u8, allocator, real_path, "src", "docs/pages/api");
+    defer allocator.free(out_absolute_path);
+
+    const out_name = try std.mem.replaceOwned(u8, allocator, out_absolute_path, ".zig", ".md");
+    defer allocator.free(out_name);
+
+    var out_file = try std.fs.createFileAbsolute(out_name, .{});
+    defer out_file.close();
+
+    var docs_gen = try DocsGenerator.init(allocator, source);
+    defer docs_gen.deinit();
+
+    try docs_gen.extractDocs(out_file);
 }

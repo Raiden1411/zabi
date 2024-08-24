@@ -1,16 +1,29 @@
 ## Call
 
+### Properties
+
+```zig
+struct {
+  /// The target address.
+  target: Address
+  /// The calldata from the function that you want to run.
+  callData: Hex
+}
+```
+
 ## Call3
 
 ### Properties
 
 ```zig
-/// The target address.
-target: Address
-/// Tells the contract weather to allow the call to fail or not.
-allowFailure: bool
-/// The calldata used to call the function you want to run.
-callData: Hex
+struct {
+  /// The target address.
+  target: Address
+  /// Tells the contract weather to allow the call to fail or not.
+  allowFailure: bool
+  /// The calldata used to call the function you want to run.
+  callData: Hex
+}
 ```
 
 ## Call3Value
@@ -18,23 +31,45 @@ callData: Hex
 ### Properties
 
 ```zig
-/// The target address.
-target: Address
-/// Tells the contract weather to allow the call to fail or not.
-allowFailure: bool
-/// The value sent in the call.
-value: u256
-/// The calldata from the function that you want to run.
-callData: Hex
+struct {
+  /// The target address.
+  target: Address
+  /// Tells the contract weather to allow the call to fail or not.
+  allowFailure: bool
+  /// The value sent in the call.
+  value: u256
+  /// The calldata from the function that you want to run.
+  callData: Hex
+}
 ```
 
 ## Result
 
 The result struct when calling the multicall contract.
 
+### Properties
+
+```zig
+struct {
+  /// Weather the call was successfull or not.
+  success: bool
+  /// The return data from the function call.
+  returnData: Hex
+}
+```
+
 ## MulticallTargets
 
 Arguments for the multicall3 function call
+
+### Properties
+
+```zig
+struct {
+  function: Function
+  target_address: Address
+}
+```
 
 ## MulticallArguments
 Type function that gets the expected arguments from the provided abi's.

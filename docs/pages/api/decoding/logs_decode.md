@@ -2,6 +2,22 @@
 
 Set of options that can alter the decoder behaviour.
 
+### Properties
+
+```zig
+struct {
+  /// Optional allocation in the case that you want to create a pointer
+  /// That pointer must be destroyed later.
+  allocator: ?Allocator = null
+  /// Tells the endianess of the bytes that you want to decode
+  /// Addresses are encoded in big endian and bytes1..32 are encoded in little endian.
+  /// There might be some cases where you will need to decode a bytes20 and address at the same time.
+  /// Since they can represent the same type it's advised to decode the address as `u160` and change this value to `little`.
+  /// since it already decodes as big-endian and then `std.mem.writeInt` the value to the expected endianess.
+  bytes_endian: Endian = .big
+}
+```
+
 ## DecodeLogs
 Decodes the abi encoded slice. This will ensure that the provided type
 is always a tuple struct type and that the first member type is a [32]u8 type.\

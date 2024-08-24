@@ -2,8 +2,14 @@
 
 The type of client used by the wallet instance.
 
+### Properties
+
 ```zig
-enum { http, websocket, ipc }
+enum {
+  http
+  websocket
+  ipc
+}
 ```
 
 ## WalletHttpClient
@@ -23,8 +29,10 @@ Wallet instance with rpc ipc client.
 ### Properties
 
 ```zig
-mutex: Mutex = .{}
-pooled_envelopes: TransactionEnvelopeQueue
+struct {
+  mutex: Mutex = .{}
+  pooled_envelopes: TransactionEnvelopeQueue
+}
 ```
 
 ## Node

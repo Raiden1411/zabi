@@ -31,26 +31,28 @@ Set of intial options for the IPC Client.
 ### Properties
 
 ```zig
-/// Allocator to use to create the ChildProcess and other allocations
-allocator: Allocator
-/// The base fee multiplier used to estimate the gas fees in a transaction
-base_fee_multiplier: f64 = 1.2
-/// The client chainId.
-chain_id: ?Chains = null
-/// The reader buffer growth rate
-growth_rate: ?usize = null
-/// Callback function for when the connection is closed.
-onClose: ?*const fn () void = null
-/// Callback function for everytime an event is parsed.
-onEvent: ?*const fn (args: JsonParsed(Value)) anyerror!void = null
-/// Callback function for everytime an error is caught.
-onError: ?*const fn (args: []const u8) anyerror!void = null
-/// The path for the IPC path
-path: []const u8
-/// The interval to retry the connection. This will get multiplied in ns_per_ms.
-pooling_interval: u64 = 2_000
-/// Retry count for failed connections to server.
-retries: u8 = 5
+struct {
+  /// Allocator to use to create the ChildProcess and other allocations
+  allocator: Allocator
+  /// The base fee multiplier used to estimate the gas fees in a transaction
+  base_fee_multiplier: f64 = 1.2
+  /// The client chainId.
+  chain_id: ?Chains = null
+  /// The reader buffer growth rate
+  growth_rate: ?usize = null
+  /// Callback function for when the connection is closed.
+  onClose: ?*const fn () void = null
+  /// Callback function for everytime an event is parsed.
+  onEvent: ?*const fn (args: JsonParsed(Value)) anyerror!void = null
+  /// Callback function for everytime an error is caught.
+  onError: ?*const fn (args: []const u8) anyerror!void = null
+  /// The path for the IPC path
+  path: []const u8
+  /// The interval to retry the connection. This will get multiplied in ns_per_ms.
+  pooling_interval: u64 = 2_000
+  /// Retry count for failed connections to server.
+  retries: u8 = 5
+}
 ```
 
 ## Init

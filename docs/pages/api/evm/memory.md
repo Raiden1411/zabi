@@ -5,18 +5,20 @@ A extendable memory used by the evm interpreter.
 ### Properties
 
 ```zig
-/// The inner allocator used to grow the memory
-allocator: Allocator
-/// The underlaying memory buffer.
-buffer: []u8
-/// Set of memory checkpoints
-checkpoints: ArrayList(usize)
-/// The last memory checkpoint
-last_checkpoint: usize
-/// The max memory size
-memory_limit: u64
-/// The total allocated capacity of this memory.
-total_capacity: usize
+struct {
+  /// The inner allocator used to grow the memory
+  allocator: Allocator
+  /// The underlaying memory buffer.
+  buffer: []u8
+  /// Set of memory checkpoints
+  checkpoints: ArrayList(usize)
+  /// The last memory checkpoint
+  last_checkpoint: usize
+  /// The max memory size
+  memory_limit: u64
+  /// The total allocated capacity of this memory.
+  total_capacity: usize
+}
 ```
 
 ### InitEmpty

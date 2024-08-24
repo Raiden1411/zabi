@@ -83,12 +83,14 @@ Gas tracker used to track gas usage by the EVM.
 ### Properties
 
 ```zig
-/// The gas size limit that the interpreter can run.
-gas_limit: u64
-/// The amount of gas that has already been used.
-used_amount: u64
-/// The amount of gas to refund to the caller.
-refund_amount: i64
+struct {
+  /// The gas size limit that the interpreter can run.
+  gas_limit: u64
+  /// The amount of gas that has already been used.
+  used_amount: u64
+  /// The amount of gas to refund to the caller.
+  refund_amount: i64
+}
 ```
 
 ### Init

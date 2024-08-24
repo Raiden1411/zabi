@@ -23,17 +23,19 @@ further this behaviour.
 ### Properties
 
 ```zig
-/// Control the size of the slice that you want to create.
-slice_size: ?usize = null
-/// If the provided type is consider a potential "string"
-/// Tell the generator to use only ascii letter bytes and
-/// if you want lower or uppercase chars
-ascii: struct {
+struct {
+  /// Control the size of the slice that you want to create.
+  slice_size: ?usize = null
+  /// If the provided type is consider a potential "string"
+  /// Tell the generator to use only ascii letter bytes and
+  /// if you want lower or uppercase chars
+  ascii: struct {
         use_on_arrays_and_slices: bool = false,
         format_bytes: enum { lowercase, uppercase } = .lowercase,
     } = .{}
-/// Tell the generator to use the types default values.
-use_default_values: bool = false
+  /// Tell the generator to use the types default values.
+  use_default_values: bool = false
+}
 ```
 
 ## GenerateRandomData

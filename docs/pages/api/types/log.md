@@ -5,17 +5,19 @@ Zig struct representation of the log RPC response.
 ### Properties
 
 ```zig
-blockHash: ?Hash
-address: Address
-logIndex: ?usize
-data: Hex
-removed: bool
-topics: []const ?Hash
-blockNumber: ?u64
-transactionIndex: ?usize
-transactionHash: ?Hash
-transactionLogIndex: ?usize = null
-blockTimestamp: ?u64 = null
+struct {
+  blockHash: ?Hash
+  address: Address
+  logIndex: ?usize
+  data: Hex
+  removed: bool
+  topics: []const ?Hash
+  blockNumber: ?u64
+  transactionIndex: ?usize
+  transactionHash: ?Hash
+  transactionLogIndex: ?usize = null
+  blockTimestamp: ?u64 = null
+}
 ```
 
 ### JsonParse
@@ -52,11 +54,13 @@ we can use `ignore_null_fields` to omit these fields
 ### Properties
 
 ```zig
-fromBlock: ?u64 = null
-toBlock: ?u64 = null
-address: ?Address = null
-topics: ?[]const ?Hex = null
-blockHash: ?Hash = null
+struct {
+  fromBlock: ?u64 = null
+  toBlock: ?u64 = null
+  address: ?Address = null
+  topics: ?[]const ?Hex = null
+  blockHash: ?Hash = null
+}
 ```
 
 ### JsonParse
@@ -88,11 +92,13 @@ Same as `LogRequest` but `fromBlock` and
 ### Properties
 
 ```zig
-fromBlock: ?BalanceBlockTag = null
-toBlock: ?BalanceBlockTag = null
-address: ?Address = null
-topics: ?[]const ?Hex = null
-blockHash: ?Hash = null
+struct {
+  fromBlock: ?BalanceBlockTag = null
+  toBlock: ?BalanceBlockTag = null
+  address: ?Address = null
+  topics: ?[]const ?Hex = null
+  blockHash: ?Hash = null
+}
 ```
 
 ### JsonParse
@@ -123,8 +129,10 @@ Options for `watchLogs` websocket request.
 ### Properties
 
 ```zig
-address: Address
-topics: ?[]const ?Hex = null
+struct {
+  address: Address
+  topics: ?[]const ?Hex = null
+}
 ```
 
 ### JsonParse

@@ -8,22 +8,24 @@ Calling `deinit` will close the socket and clear the buffer.
 ### Properties
 
 ```zig
-/// The underlaying allocator used to manage the buffer.
-allocator: Allocator
-/// Buffer that contains all messages. Grows based on `growth_rate`.
-buffer: []u8
-/// The growth rate of the message buffer.
-growth_rate: usize
-/// The end of a json message.
-message_end: usize = 0
-/// The start of the json message.
-message_start: usize = 0
-/// The current position in the buffer.
-position: usize = 0
-/// The stream used to read or write.
-stream: Stream
-/// If the stream is closed for reading.
-closed: bool
+struct {
+  /// The underlaying allocator used to manage the buffer.
+  allocator: Allocator
+  /// Buffer that contains all messages. Grows based on `growth_rate`.
+  buffer: []u8
+  /// The growth rate of the message buffer.
+  growth_rate: usize
+  /// The end of a json message.
+  message_end: usize = 0
+  /// The start of the json message.
+  message_start: usize = 0
+  /// The current position in the buffer.
+  position: usize = 0
+  /// The stream used to read or write.
+  stream: Stream
+  /// If the stream is closed for reading.
+  closed: bool
+}
 ```
 
 ### Init

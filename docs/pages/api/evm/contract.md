@@ -5,18 +5,20 @@ EVM contract representation.
 ### Properties
 
 ```zig
-/// The bytecode associated with this contract.
-bytecode: Bytecode
-/// Address that called this contract.
-caller: Address
-/// Keccak hash of the bytecode.
-code_hash: ?Hash = null
-/// The calldata input to use in this contract.
-input: []u8
-/// The address of this contract.
-target_address: Address
-/// Value in wei associated with this contract.
-value: u256
+struct {
+  /// The bytecode associated with this contract.
+  bytecode: Bytecode
+  /// Address that called this contract.
+  caller: Address
+  /// Keccak hash of the bytecode.
+  code_hash: ?Hash = null
+  /// The calldata input to use in this contract.
+  input: []u8
+  /// The address of this contract.
+  target_address: Address
+  /// Value in wei associated with this contract.
+  value: u256
+}
 ```
 
 ### Init

@@ -5,8 +5,10 @@ State of the contract's bytecode.
 ### Properties
 
 ```zig
-raw: []u8
-analyzed: AnalyzedBytecode
+union(enum) {
+  raw: []u8
+  analyzed: AnalyzedBytecode
+}
 ```
 
 ### Deinit
@@ -44,9 +46,11 @@ Representation of the analyzed bytecode.
 ### Properties
 
 ```zig
-bytecode: []u8
-original_length: usize
-jump_table: JumpTable
+struct {
+  bytecode: []u8
+  original_length: usize
+  jump_table: JumpTable
+}
 ```
 
 ### Init
@@ -75,7 +79,9 @@ Essentially a `BitVec`
 ### Properties
 
 ```zig
-bytes: []u8
+struct {
+  bytes: []u8
+}
 ```
 
 ### Init

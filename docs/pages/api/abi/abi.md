@@ -1,7 +1,16 @@
 ## Abitype
 
+### Properties
+
 ```zig
-enum { function, @"error", event, constructor, fallback, receive }
+enum {
+  function
+  @"error"
+  event
+  constructor
+  fallback
+  receive
+}
 ```
 
 ## Function
@@ -12,23 +21,25 @@ Reference: ["function"](https://docs.soliditylang.org/en/latest/abi-spec.html#js
 ### Properties
 
 ```zig
-type: Extract(Abitype, "function")
-/// Deprecated. Use either 'pure' or 'view'.
-///
-/// https://github.com/ethereum/solidity/issues/992
-constant: ?bool = null
-/// Deprecated. Older vyper compiler versions used to provide gas estimates.
-///
-/// https://github.com/vyperlang/vyper/issues/2151
-gas: ?i64 = null
-inputs: []const AbiParameter
-name: []const u8
-outputs: []const AbiParameter
-/// Deprecated. Use 'nonpayable' or 'payable'. Consider using `StateMutability`.
-///
-/// https://github.com/ethereum/solidity/issues/992
-payable: ?bool = null
-stateMutability: StateMutability
+struct {
+  type: Extract(Abitype, "function")
+  /// Deprecated. Use either 'pure' or 'view'.
+  ///
+  /// https://github.com/ethereum/solidity/issues/992
+  constant: ?bool = null
+  /// Deprecated. Older vyper compiler versions used to provide gas estimates.
+  ///
+  /// https://github.com/vyperlang/vyper/issues/2151
+  gas: ?i64 = null
+  inputs: []const AbiParameter
+  name: []const u8
+  outputs: []const AbiParameter
+  /// Deprecated. Use 'nonpayable' or 'payable'. Consider using `StateMutability`.
+  ///
+  /// https://github.com/ethereum/solidity/issues/992
+  payable: ?bool = null
+  stateMutability: StateMutability
+}
 ```
 
 ### Deinit
@@ -135,10 +146,12 @@ Reference: ["event"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
 ### Properties
 
 ```zig
-type: Extract(Abitype, "event")
-name: []const u8
-inputs: []const AbiEventParameter
-anonymous: ?bool = null
+struct {
+  type: Extract(Abitype, "event")
+  name: []const u8
+  inputs: []const AbiEventParameter
+  anonymous: ?bool = null
+}
 ```
 
 ### Deinit
@@ -220,9 +233,11 @@ Reference: ["error"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
 ### Properties
 
 ```zig
-type: Extract(Abitype, "error")
-name: []const u8
-inputs: []const AbiParameter
+struct {
+  type: Extract(Abitype, "error")
+  name: []const u8
+  inputs: []const AbiParameter
+}
 ```
 
 ### Deinit
@@ -299,13 +314,15 @@ Reference: ["constructor"](https://docs.soliditylang.org/en/latest/abi-spec.html
 ### Properties
 
 ```zig
-type: Extract(Abitype, "constructor")
-inputs: []const AbiParameter
-/// Deprecated. Use 'nonpayable' or 'payable'. Consider using `StateMutability`.
-///
-/// https://github.com/ethereum/solidity/issues/992
-payable: ?bool = null
-stateMutability: Extract(StateMutability, "payable,nonpayable")
+struct {
+  type: Extract(Abitype, "constructor")
+  inputs: []const AbiParameter
+  /// Deprecated. Use 'nonpayable' or 'payable'. Consider using `StateMutability`.
+  ///
+  /// https://github.com/ethereum/solidity/issues/992
+  payable: ?bool = null
+  stateMutability: Extract(StateMutability, "payable,nonpayable")
+}
 ```
 
 ### Deinit
@@ -361,12 +378,14 @@ Reference: ["fallback"](https://docs.soliditylang.org/en/latest/abi-spec.html#js
 ### Properties
 
 ```zig
-type: Extract(Abitype, "fallback")
-/// Deprecated. Use 'nonpayable' or 'payable'. Consider using `StateMutability`.
-///
-/// https://github.com/ethereum/solidity/issues/992
-payable: ?bool = null
-stateMutability: Extract(StateMutability, "payable,nonpayable")
+struct {
+  type: Extract(Abitype, "fallback")
+  /// Deprecated. Use 'nonpayable' or 'payable'. Consider using `StateMutability`.
+  ///
+  /// https://github.com/ethereum/solidity/issues/992
+  payable: ?bool = null
+  stateMutability: Extract(StateMutability, "payable,nonpayable")
+}
 ```
 
 ### Format
@@ -386,8 +405,10 @@ Reference: ["receive"](https://docs.soliditylang.org/en/latest/abi-spec.html#jso
 ### Properties
 
 ```zig
-type: Extract(Abitype, "receive")
-stateMutability: Extract(StateMutability, "payable")
+struct {
+  type: Extract(Abitype, "receive")
+  stateMutability: Extract(StateMutability, "payable")
+}
 ```
 
 ### Format
@@ -406,12 +427,14 @@ Union representing all of the possible Abi members.
 ### Properties
 
 ```zig
-abiFunction: Function
-abiEvent: Event
-abiError: Error
-abiConstructor: Constructor
-abiFallback: Fallback
-abiReceive: Receive
+union(enum) {
+  abiFunction: Function
+  abiEvent: Event
+  abiError: Error
+  abiConstructor: Constructor
+  abiFallback: Fallback
+  abiReceive: Receive
+}
 ```
 
 ### JsonParse

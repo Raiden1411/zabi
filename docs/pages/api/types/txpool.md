@@ -5,8 +5,10 @@ Result tx pool status.
 ### Properties
 
 ```zig
-pending: u64
-queued: u64
+struct {
+  pending: u64
+  queued: u64
+}
 ```
 
 ### JsonParse
@@ -37,8 +39,10 @@ Result tx pool content.
 ### Properties
 
 ```zig
-pending: Subpool
-queued: Subpool
+struct {
+  pending: Subpool
+  queued: Subpool
+}
 ```
 
 ### JsonParse
@@ -67,8 +71,10 @@ pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_strea
 ### Properties
 
 ```zig
-pending: InspectSubpool
-queued: InspectSubpool
+struct {
+  pending: InspectSubpool
+  queued: InspectSubpool
+}
 ```
 
 ### JsonParse
@@ -99,7 +105,9 @@ Geth mempool subpool type
 ### Properties
 
 ```zig
-address: AddressHashMap
+struct {
+  address: AddressHashMap
+}
 ```
 
 ### JsonParse
@@ -137,7 +145,9 @@ Geth mempool inspect subpool type
 ### Properties
 
 ```zig
-address: InspectAddressHashMap
+struct {
+  address: InspectAddressHashMap
+}
 ```
 
 ### JsonParse
@@ -175,7 +185,9 @@ Geth inspect transaction object dump from mempool by nonce.
 ### Properties
 
 ```zig
-nonce: InspectPoolPendingTransactionHashMap
+struct {
+  nonce: InspectPoolPendingTransactionHashMap
+}
 ```
 
 ### JsonParse
@@ -213,7 +225,9 @@ Geth transaction object dump from mempool by nonce.
 ### Properties
 
 ```zig
-nonce: PoolPendingTransactionHashMap
+struct {
+  nonce: PoolPendingTransactionHashMap
+}
 ```
 
 ### JsonParse

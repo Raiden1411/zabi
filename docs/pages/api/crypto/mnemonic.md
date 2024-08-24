@@ -47,6 +47,8 @@ The word lists that are valid for mnemonic passphrases.
 ### Properties
 
 ```zig
+struct {
+}
 ```
 
 ## LoadRawList

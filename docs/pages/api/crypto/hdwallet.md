@@ -6,12 +6,14 @@ It doesnt have support yet for extended keys.
 ### Properties
 
 ```zig
-/// The nodes private key that is used to derive the childs private keys.
-priv_key: [32]u8
-/// The compressed sec1 public key.
-pub_key: [33]u8
-/// The chain code that is used to derive public keys.
-chain_code: [32]u8
+struct {
+  /// The nodes private key that is used to derive the childs private keys.
+  priv_key: [32]u8
+  /// The compressed sec1 public key.
+  pub_key: [33]u8
+  /// The chain code that is used to derive public keys.
+  chain_code: [32]u8
+}
 ```
 
 ## FromSeed
@@ -70,10 +72,12 @@ can still be used to derive public keys and chain codes.
 ### Properties
 
 ```zig
-/// The compressed sec1 public key.
-pub_key: [33]u8
-/// The chain code that is used to derive public keys.
-chain_code: [32]u8
+struct {
+  /// The compressed sec1 public key.
+  pub_key: [33]u8
+  /// The chain code that is used to derive public keys.
+  chain_code: [32]u8
+}
 ```
 
 ## DeriveChild

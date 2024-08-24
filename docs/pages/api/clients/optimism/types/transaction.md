@@ -3,14 +3,16 @@
 ### Properties
 
 ```zig
-sourceHash: Hash
-from: Address
-to: ?Address
-mint: u256
-value: Wei
-gas: Gwei
-isSystemTx: bool
-data: ?Hex
+struct {
+  sourceHash: Hash
+  from: Address
+  to: ?Address
+  mint: u256
+  value: Wei
+  gas: Gwei
+  isSystemTx: bool
+  data: ?Hex
+}
 ```
 
 ## DepositTransactionSigned
@@ -18,29 +20,31 @@ data: ?Hex
 ### Properties
 
 ```zig
-hash: Hash
-nonce: u64
-blockHash: ?Hash
-blockNumber: ?u64
-transactionIndex: ?u64
-from: Address
-to: ?Address
-value: Wei
-gasPrice: Gwei
-gas: Gwei
-input: Hex
-v: usize
-/// Represented as values instead of the hash because
-/// a valid signature is not guaranteed to be 32 bits
-r: u256
-/// Represented as values instead of the hash because
-/// a valid signature is not guaranteed to be 32 bits
-s: u256
-type: TransactionTypes
-sourceHash: Hex
-mint: ?u256 = null
-isSystemTx: ?bool = null
-depositReceiptVersion: ?u64 = null
+struct {
+  hash: Hash
+  nonce: u64
+  blockHash: ?Hash
+  blockNumber: ?u64
+  transactionIndex: ?u64
+  from: Address
+  to: ?Address
+  value: Wei
+  gasPrice: Gwei
+  gas: Gwei
+  input: Hex
+  v: usize
+  /// Represented as values instead of the hash because
+  /// a valid signature is not guaranteed to be 32 bits
+  r: u256
+  /// Represented as values instead of the hash because
+  /// a valid signature is not guaranteed to be 32 bits
+  s: u256
+  type: TransactionTypes
+  sourceHash: Hex
+  mint: ?u256 = null
+  isSystemTx: ?bool = null
+  depositReceiptVersion: ?u64 = null
+}
 ```
 
 ### JsonParse
@@ -69,11 +73,13 @@ pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_strea
 ### Properties
 
 ```zig
-mint: u256
-value: Wei
-gas: Gwei
-creation: bool
-data: ?Hex
+struct {
+  mint: u256
+  value: Wei
+  gas: Gwei
+  creation: bool
+  data: ?Hex
+}
 ```
 
 ## TransactionDeposited
@@ -81,12 +87,14 @@ data: ?Hex
 ### Properties
 
 ```zig
-from: Address
-to: Address
-version: u256
-opaqueData: Hex
-logIndex: usize
-blockHash: Hash
+struct {
+  from: Address
+  to: Address
+  version: u256
+  opaqueData: Hex
+  logIndex: usize
+  blockHash: Hash
+}
 ```
 
 ## DepositTransactionEnvelope
@@ -94,11 +102,13 @@ blockHash: Hash
 ### Properties
 
 ```zig
-gas: ?Gwei = null
-mint: ?Wei = null
-value: ?Wei = null
-creation: bool = false
-data: ?Hex = null
-to: ?Address = null
+struct {
+  gas: ?Gwei = null
+  mint: ?Wei = null
+  value: ?Wei = null
+  creation: bool = false
+  data: ?Hex = null
+  to: ?Address = null
+}
 ```
 

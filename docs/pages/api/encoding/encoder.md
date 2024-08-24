@@ -9,8 +9,10 @@ std.mem.Allocator.Error || error{ InvalidIntType, Overflow, BufferExceedsMaxSize
 ### Properties
 
 ```zig
-dynamic: bool
-encoded: []u8
+struct {
+  dynamic: bool
+  encoded: []u8
+}
 ```
 
 ### Deinit
@@ -25,8 +27,10 @@ pub fn deinit(self: @This(), alloc: std.mem.Allocator) void
 ### Properties
 
 ```zig
-arena: *ArenaAllocator
-data: []u8
+struct {
+  arena: *ArenaAllocator
+  data: []u8
+}
 ```
 
 ### Deinit

@@ -5,10 +5,12 @@ Struct to represent solidity Abi Paramters
 ### Properties
 
 ```zig
-name: []const u8
-type: ParamType
-internalType: ?[]const u8 = null
-components: ?[]const AbiParameter = null
+struct {
+  name: []const u8
+  type: ParamType
+  internalType: ?[]const u8 = null
+  components: ?[]const AbiParameter = null
+}
 ```
 
 ### Deinit
@@ -72,11 +74,13 @@ Struct to represent solidity Abi Event Paramters
 ### Properties
 
 ```zig
-name: []const u8
-type: ParamType
-internalType: ?[]const u8 = null
-indexed: bool
-components: ?[]const AbiParameter = null
+struct {
+  name: []const u8
+  type: ParamType
+  internalType: ?[]const u8 = null
+  indexed: bool
+  components: ?[]const AbiParameter = null
+}
 ```
 
 ### Deinit

@@ -6,22 +6,33 @@ error{ InvalidEnumTag, InvalidCharacter, LengthMismatch, Overflow } || Allocator
 
 ## FixedArray
 
+### Properties
+
+```zig
+struct {
+  child: *const ParamType
+  size: usize
+}
+```
+
 ## ParamType
 
 ### Properties
 
 ```zig
-address
-string
-bool
-bytes
-tuple
-uint: usize
-int: usize
-fixedBytes: usize
-@"enum": usize
-fixedArray: FixedArray
-dynamicArray: *const ParamType
+union(enum) {
+  address
+  string
+  bool
+  bytes
+  tuple
+  uint: usize
+  int: usize
+  fixedBytes: usize
+  @"enum": usize
+  fixedArray: FixedArray
+  dynamicArray: *const ParamType
+}
 ```
 
 ### FreeArrayParamType

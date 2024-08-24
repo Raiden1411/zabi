@@ -5,25 +5,27 @@ Inputs for a call action.
 ### Properties
 
 ```zig
-/// The calldata of this action.
-inputs: []u8
-/// The return memory offset where the output of this call
-/// gets written to.
-return_memory_offset: struct { u64, u64 }
-/// The gas limit of this call.
-gas_limit: u64
-/// The account address of bytecode that is going to be executed.
-bytecode_address: Address
-/// Target address. This account's storage will get modified.
-target_address: Address
-/// The address that is invoking this call.
-caller: Address
-/// The call value. Depeding on the scheme value might not get transfered.
-value: CallValue
-/// The call scheme.
-scheme: CallScheme
-/// Whether this call is static or initialized inside a static call.
-is_static: bool
+struct {
+  /// The calldata of this action.
+  inputs: []u8
+  /// The return memory offset where the output of this call
+  /// gets written to.
+  return_memory_offset: struct { u64, u64 }
+  /// The gas limit of this call.
+  gas_limit: u64
+  /// The account address of bytecode that is going to be executed.
+  bytecode_address: Address
+  /// Target address. This account's storage will get modified.
+  target_address: Address
+  /// The address that is invoking this call.
+  caller: Address
+  /// The call value. Depeding on the scheme value might not get transfered.
+  value: CallValue
+  /// The call scheme.
+  scheme: CallScheme
+  /// Whether this call is static or initialized inside a static call.
+  is_static: bool
+}
 ```
 
 ### Init
@@ -42,11 +44,13 @@ Evm call value types.
 ### Properties
 
 ```zig
-/// The concrete value that will get transfered from the caller to the callee.
-transfer: u256
-/// The transfer value that lives in limbo where the value gets set but
-/// it will **never** get transfered.
-limbo: u256
+union(enum) {
+  /// The concrete value that will get transfered from the caller to the callee.
+  transfer: u256
+  /// The transfer value that lives in limbo where the value gets set but
+  /// it will **never** get transfered.
+  limbo: u256
+}
 ```
 
 ### GetCurrentValue
@@ -62,12 +66,14 @@ pub fn getCurrentValue(self: CallValue) u256
 
 EVM Call scheme.
 
+### Properties
+
 ```zig
 enum {
-    call,
-    callcode,
-    delegate,
-    static,
+  call
+  callcode
+  delegate
+  static
 }
 ```
 
@@ -78,16 +84,18 @@ Inputs for a create call.
 ### Properties
 
 ```zig
-/// Caller address of the EVM.
-caller: Address
-/// The schema used for the create action
-scheme: CreateScheme
-/// Value to transfer
-value: u256
-/// The contract's init code.
-init_code: []u8
-/// The gas limit of this call.
-gas_limit: u64
+struct {
+  /// Caller address of the EVM.
+  caller: Address
+  /// The schema used for the create action
+  scheme: CreateScheme
+  /// Value to transfer
+  value: u256
+  /// The contract's init code.
+  init_code: []u8
+  /// The gas limit of this call.
+  gas_limit: u64
+}
 ```
 
 ### Init
@@ -110,11 +118,13 @@ The result of the interpreter operation
 ### Properties
 
 ```zig
-/// The result of the instruction execution.
-result: InterpreterStatus
-/// The return output slice.
-output: []u8
-/// The tracker with gas usage.
-gas: GasTracker
+struct {
+  /// The result of the instruction execution.
+  result: InterpreterStatus
+  /// The return output slice.
+  output: []u8
+  /// The tracker with gas usage.
+  gas: GasTracker
+}
 ```
 

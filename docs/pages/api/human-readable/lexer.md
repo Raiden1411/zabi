@@ -7,8 +7,10 @@ solidity compatable Lexer.
 ### Properties
 
 ```zig
-position: u32
-currentText: [:0]const u8
+struct {
+  position: u32
+  currentText: [:0]const u8
+}
 ```
 
 ## Init

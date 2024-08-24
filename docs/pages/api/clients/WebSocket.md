@@ -37,24 +37,26 @@ ConnectionErrors || Allocator.Error || std.Thread.SpawnError
 ### Properties
 
 ```zig
-/// Allocator to use to create the ChildProcess and other allocations
-allocator: Allocator
-/// The uri of the server to connect to.
-uri: std.Uri
-/// The client chainId.
-chain_id: ?Chains = null
-/// Callback function for when the connection is closed.
-onClose: ?*const fn () void = null
-/// Callback function for everytime an event is parsed.
-onEvent: ?*const fn (args: JsonParsed(Value)) anyerror!void = null
-/// Callback function for everytime an error is caught.
-onError: ?*const fn (args: []const u8) anyerror!void = null
-/// Retry count for failed connections to the server.
-retries: u8 = 5
-/// The interval to retry the connection. This will get multiplied in ns_per_ms.
-pooling_interval: u64 = 2_000
-/// The base fee multiplier used to estimate the gas fees in a transaction
-base_fee_multiplier: f64 = 1.2
+struct {
+  /// Allocator to use to create the ChildProcess and other allocations
+  allocator: Allocator
+  /// The uri of the server to connect to.
+  uri: std.Uri
+  /// The client chainId.
+  chain_id: ?Chains = null
+  /// Callback function for when the connection is closed.
+  onClose: ?*const fn () void = null
+  /// Callback function for everytime an event is parsed.
+  onEvent: ?*const fn (args: JsonParsed(Value)) anyerror!void = null
+  /// Callback function for everytime an error is caught.
+  onError: ?*const fn (args: []const u8) anyerror!void = null
+  /// Retry count for failed connections to the server.
+  retries: u8 = 5
+  /// The interval to retry the connection. This will get multiplied in ns_per_ms.
+  pooling_interval: u64 = 2_000
+  /// The base fee multiplier used to estimate the gas fees in a transaction
+  base_fee_multiplier: f64 = 1.2
+}
 ```
 
 ## ServerMessage

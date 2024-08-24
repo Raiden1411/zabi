@@ -39,18 +39,20 @@ error{
 ### Properties
 
 ```zig
-/// Allocator used to manage the memory arena.
-allocator: Allocator
-/// The base fee multiplier used to estimate the gas fees in a transaction
-base_fee_multiplier: f64 = 1.2
-/// The client chainId.
-chain_id: ?Chains = null
-/// The interval to retry the request. This will get multiplied in ns_per_ms.
-pooling_interval: u64 = 2_000
-/// Retry count for failed requests.
-retries: u8 = 5
-/// Uri for the client to connect to
-uri: std.Uri
+struct {
+  /// Allocator used to manage the memory arena.
+  allocator: Allocator
+  /// The base fee multiplier used to estimate the gas fees in a transaction
+  base_fee_multiplier: f64 = 1.2
+  /// The client chainId.
+  chain_id: ?Chains = null
+  /// The interval to retry the request. This will get multiplied in ns_per_ms.
+  pooling_interval: u64 = 2_000
+  /// Retry count for failed requests.
+  retries: u8 = 5
+  /// Uri for the client to connect to
+  uri: std.Uri
+}
 ```
 
 ## Init

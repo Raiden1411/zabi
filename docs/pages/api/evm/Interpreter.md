@@ -5,14 +5,16 @@ The set of next interpreter actions.
 ### Properties
 
 ```zig
-/// Call action.
-call_action: CallAction
-/// Create action.
-create_action: CreateAction
-/// Return action.
-return_action: ReturnAction
-/// No action for the interpreter to take.
-no_action
+union(enum) {
+  /// Call action.
+  call_action: CallAction
+  /// Create action.
+  create_action: CreateAction
+  /// Return action.
+  return_action: ReturnAction
+  /// No action for the interpreter to take.
+  no_action
+}
 ```
 
 ### Deinit
@@ -28,20 +30,22 @@ pub fn deinit(self: @This(), allocator: Allocator) void
 
 The status of execution for the interpreter.
 
+### Properties
+
 ```zig
 enum {
-    call_or_create,
-    call_with_value_not_allowed_in_static_call,
-    create_code_size_limit,
-    invalid,
-    invalid_jump,
-    invalid_offset,
-    opcode_not_found,
-    returned,
-    reverted,
-    running,
-    self_destructed,
-    stopped,
+  call_or_create
+  call_with_value_not_allowed_in_static_call
+  create_code_size_limit
+  invalid
+  invalid_jump
+  invalid_offset
+  opcode_not_found
+  returned
+  reverted
+  running
+  self_destructed
+  stopped
 }
 ```
 
@@ -53,12 +57,14 @@ for it to be able to run.
 ### Properties
 
 ```zig
-/// Maximum amount of gas available to perform the operations
-gas_limit: u64 = 30_000_000
-/// Tells the interperter if it's going to run as a static call
-is_static: bool = false
-/// Sets the interperter spec based on the hardforks.
-spec_id: SpecId = .LATEST
+struct {
+  /// Maximum amount of gas available to perform the operations
+  gas_limit: u64 = 30_000_000
+  /// Tells the interperter if it's going to run as a static call
+  is_static: bool = false
+  /// Sets the interperter spec based on the hardforks.
+  spec_id: SpecId = .LATEST
+}
 ```
 
 ## Init

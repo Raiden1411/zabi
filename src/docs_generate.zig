@@ -162,18 +162,28 @@ pub const DocsGenerator = struct {
                 try out_file.writeAll("\n```\n\n");
                 return;
             },
+            .container_decl_arg_trailing, .container_decl_arg => self.ast.containerDeclArg(init_node),
+            .container_decl_two, .container_decl_two_trailing => self.ast.containerDeclTwo(@constCast(&.{ init_node, init_node }), init_node),
+            // std.debug.print("FOOOO: {s}\n", .{self.ast.getNodeSource(init_node)});
+            // return;
             else => return,
         };
 
         const container_token = self.ast.firstToken(init_node);
 
         switch (self.tokens[container_token]) {
-            .keyword_struct, .keyword_union => {
-                var fn_idx: usize = 0;
-
+            .keyword_struct, .keyword_union, .keyword_enum => {
                 try out_file.writeAll("### Properties\n\n");
-
                 try out_file.writeAll("```zig\n");
+
+                switch (self.tokens[container_token]) {
+                    .keyword_enum => try out_file.writeAll("enum {\n"),
+                    .keyword_struct => try out_file.writeAll("struct {\n"),
+                    .keyword_union => try out_file.writeAll("union(enum) {\n"),
+                    else => unreachable,
+                }
+
+                var fn_idx: usize = 0;
                 for (container.ast.members, 0..) |member, mem_idx| {
                     const first_token = self.ast.firstToken(member);
 
@@ -187,10 +197,12 @@ pub const DocsGenerator = struct {
                             } else unreachable;
 
                             for (start_index..first_token) |idx| {
+                                try out_file.writeAll("  ");
                                 try out_file.writeAll(self.ast.tokenSlice(@intCast(idx)));
                                 try out_file.writeAll("\n");
                             }
 
+                            try out_file.writeAll("  ");
                             try out_file.writeAll(self.ast.getNodeSource(member));
                             try out_file.writeAll("\n");
                         },
@@ -201,7 +213,7 @@ pub const DocsGenerator = struct {
                         else => break,
                     }
                 }
-                try out_file.writeAll("```\n\n");
+                try out_file.writeAll("}\n```\n\n");
 
                 for (container.ast.members[fn_idx..]) |member| {
                     var buffer = [_]u32{member};
@@ -221,11 +233,6 @@ pub const DocsGenerator = struct {
 
                     try self.extractFromFnProto(proto, out_file);
                 }
-            },
-            .keyword_enum => {
-                try out_file.writeAll("```zig\n");
-                try out_file.writeAll(self.ast.getNodeSource(init_node));
-                try out_file.writeAll("\n```\n\n");
             },
             else => return,
         }

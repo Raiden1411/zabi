@@ -2,8 +2,16 @@
 
 Block tag used for RPC requests.
 
+### Properties
+
 ```zig
-enum { latest, earliest, pending, safe, finalized }
+enum {
+  latest
+  earliest
+  pending
+  safe
+  finalized
+}
 ```
 
 ## BalanceBlockTag
@@ -21,14 +29,25 @@ Used in the RPC method requests
 ### Properties
 
 ```zig
-block_number: ?u64 = null
-tag: ?BlockTag = .latest
-include_transaction_objects: ?bool = false
+struct {
+  block_number: ?u64 = null
+  tag: ?BlockTag = .latest
+  include_transaction_objects: ?bool = false
+}
 ```
 
 ## BlockHashRequest
 
 Used in the RPC method requests
+
+### Properties
+
+```zig
+struct {
+  block_hash: Hash
+  include_transaction_objects: ?bool = false
+}
+```
 
 ## BalanceRequest
 
@@ -37,14 +56,25 @@ Used in the RPC method requests
 ### Properties
 
 ```zig
-address: Address
-block_number: ?u64 = null
-tag: ?BalanceBlockTag = .latest
+struct {
+  address: Address
+  block_number: ?u64 = null
+  tag: ?BalanceBlockTag = .latest
+}
 ```
 
 ## BlockNumberRequest
 
 Used in the RPC method requests
+
+### Properties
+
+```zig
+struct {
+  block_number: ?u64 = null
+  tag: ?BalanceBlockTag = .latest
+}
+```
 
 ## Withdrawal
 
@@ -53,10 +83,12 @@ Withdrawal field struct type.
 ### Properties
 
 ```zig
-index: u64
-validatorIndex: u64
-address: Address
-amount: Wei
+struct {
+  index: u64
+  validatorIndex: u64
+  address: Address
+  amount: Wei
+}
 ```
 
 ### JsonParse
@@ -89,28 +121,30 @@ ethereum merge. Doesn't contain the `withdrawals` or
 ### Properties
 
 ```zig
-baseFeePerGas: ?Gwei = null
-difficulty: u256
-extraData: Hex
-gasLimit: Gwei
-gasUsed: Gwei
-hash: ?Hash
-logsBloom: ?Hex
-miner: Address
-mixHash: ?Hash = null
-nonce: ?u64
-number: ?u64
-parentHash: Hash
-receiptsRoot: Hash
-sealFields: ?[]const Hex = null
-sha3Uncles: Hash
-size: u64
-stateRoot: Hash
-timestamp: u64
-totalDifficulty: ?u256 = null
-transactions: ?BlockTransactions = null
-transactionsRoot: Hash
-uncles: ?[]const Hash = null
+struct {
+  baseFeePerGas: ?Gwei = null
+  difficulty: u256
+  extraData: Hex
+  gasLimit: Gwei
+  gasUsed: Gwei
+  hash: ?Hash
+  logsBloom: ?Hex
+  miner: Address
+  mixHash: ?Hash = null
+  nonce: ?u64
+  number: ?u64
+  parentHash: Hash
+  receiptsRoot: Hash
+  sealFields: ?[]const Hex = null
+  sha3Uncles: Hash
+  size: u64
+  stateRoot: Hash
+  timestamp: u64
+  totalDifficulty: ?u256 = null
+  transactions: ?BlockTransactions = null
+  transactionsRoot: Hash
+  uncles: ?[]const Hash = null
+}
 ```
 
 ### JsonParse
@@ -143,31 +177,33 @@ ethereum merge. Doesn't contain the `withdrawals` or
 ### Properties
 
 ```zig
-baseFeePerGas: ?Gwei = null
-difficulty: u256
-extraData: Hex
-gasLimit: Gwei
-gasUsed: Gwei
-hash: ?Hash
-logsBloom: ?Hex
-miner: Address
-mixHash: ?Hash = null
-nonce: ?u64
-number: ?u64
-parentHash: Hash
-receiptsRoot: Hash
-sealFields: ?[]const Hex = null
-sha3Uncles: Hash
-size: u64
-stateRoot: Hash
-timestamp: u64
-totalDifficulty: ?u256 = null
-transactions: ?BlockTransactions = null
-transactionsRoot: Hash
-uncles: ?[]const Hash = null
-l1BlockNumber: u64
-sendCount: u64
-sendRoot: Hash
+struct {
+  baseFeePerGas: ?Gwei = null
+  difficulty: u256
+  extraData: Hex
+  gasLimit: Gwei
+  gasUsed: Gwei
+  hash: ?Hash
+  logsBloom: ?Hex
+  miner: Address
+  mixHash: ?Hash = null
+  nonce: ?u64
+  number: ?u64
+  parentHash: Hash
+  receiptsRoot: Hash
+  sealFields: ?[]const Hex = null
+  sha3Uncles: Hash
+  size: u64
+  stateRoot: Hash
+  timestamp: u64
+  totalDifficulty: ?u256 = null
+  transactions: ?BlockTransactions = null
+  transactionsRoot: Hash
+  uncles: ?[]const Hash = null
+  l1BlockNumber: u64
+  sendCount: u64
+  sendRoot: Hash
+}
 ```
 
 ### JsonParse
@@ -199,8 +235,10 @@ block struct fields.
 ### Properties
 
 ```zig
-hashes: []const Hash
-objects: []const Transaction
+union(enum) {
+  hashes: []const Hash
+  objects: []const Transaction
+}
 ```
 
 ### JsonParse
@@ -232,30 +270,32 @@ the `withdrawalsRoot` and `withdrawals` fields.
 ### Properties
 
 ```zig
-baseFeePerGas: ?Gwei
-difficulty: u256
-extraData: Hex
-gasLimit: Gwei
-gasUsed: Gwei
-hash: ?Hash
-logsBloom: ?Hex
-miner: Address
-mixHash: ?Hash = null
-nonce: ?u64
-number: ?u64
-parentHash: Hash
-receiptsRoot: Hash
-sealFields: ?[]const Hex = null
-sha3Uncles: Hash
-size: u64
-stateRoot: Hash
-timestamp: u64
-totalDifficulty: ?u256 = null
-transactions: ?BlockTransactions = null
-transactionsRoot: Hash
-uncles: ?[]const Hash = null
-withdrawalsRoot: Hash
-withdrawals: []const Withdrawal
+struct {
+  baseFeePerGas: ?Gwei
+  difficulty: u256
+  extraData: Hex
+  gasLimit: Gwei
+  gasUsed: Gwei
+  hash: ?Hash
+  logsBloom: ?Hex
+  miner: Address
+  mixHash: ?Hash = null
+  nonce: ?u64
+  number: ?u64
+  parentHash: Hash
+  receiptsRoot: Hash
+  sealFields: ?[]const Hex = null
+  sha3Uncles: Hash
+  size: u64
+  stateRoot: Hash
+  timestamp: u64
+  totalDifficulty: ?u256 = null
+  transactions: ?BlockTransactions = null
+  transactionsRoot: Hash
+  uncles: ?[]const Hash = null
+  withdrawalsRoot: Hash
+  withdrawals: []const Withdrawal
+}
 ```
 
 ### JsonParse
@@ -286,33 +326,35 @@ Almost similar to `BeaconBlock` but with this support blob fields
 ### Properties
 
 ```zig
-baseFeePerGas: ?Gwei
-blobGasUsed: Gwei
-difficulty: u256
-excessBlobGas: Gwei
-extraData: Hex
-gasLimit: Gwei
-gasUsed: Gwei
-hash: ?Hash
-logsBloom: ?Hex
-miner: Address
-mixHash: ?Hash = null
-nonce: ?u64
-number: ?u64
-parentBeaconBlockRoot: Hash
-parentHash: Hash
-receiptsRoot: Hash
-sealFields: ?[]const Hex = null
-sha3Uncles: Hash
-size: u64
-stateRoot: Hash
-timestamp: u64
-totalDifficulty: ?u256 = null
-transactions: ?BlockTransactions = null
-transactionsRoot: Hash
-uncles: ?[]const Hash = null
-withdrawalsRoot: Hash
-withdrawals: []const Withdrawal
+struct {
+  baseFeePerGas: ?Gwei
+  blobGasUsed: Gwei
+  difficulty: u256
+  excessBlobGas: Gwei
+  extraData: Hex
+  gasLimit: Gwei
+  gasUsed: Gwei
+  hash: ?Hash
+  logsBloom: ?Hex
+  miner: Address
+  mixHash: ?Hash = null
+  nonce: ?u64
+  number: ?u64
+  parentBeaconBlockRoot: Hash
+  parentHash: Hash
+  receiptsRoot: Hash
+  sealFields: ?[]const Hex = null
+  sha3Uncles: Hash
+  size: u64
+  stateRoot: Hash
+  timestamp: u64
+  totalDifficulty: ?u256 = null
+  transactions: ?BlockTransactions = null
+  transactionsRoot: Hash
+  uncles: ?[]const Hash = null
+  withdrawalsRoot: Hash
+  withdrawals: []const Withdrawal
+}
 ```
 
 ### JsonParse
@@ -343,10 +385,12 @@ Union type of the possible blocks found on the network.
 ### Properties
 
 ```zig
-beacon: BeaconBlock
-legacy: LegacyBlock
-cancun: BlobBlock
-arbitrum: ArbitrumBlock
+union(enum) {
+  beacon: BeaconBlock
+  legacy: LegacyBlock
+  cancun: BlobBlock
+  arbitrum: ArbitrumBlock
+}
 ```
 
 ### JsonParse

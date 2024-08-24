@@ -1,14 +1,25 @@
 ## Message
 
+### Properties
+
+```zig
+struct {
+  blockNumber: u64
+  messages: []const Withdrawal
+}
+```
+
 ## WithdrawalRequest
 
 ### Properties
 
 ```zig
-data: ?Hex = null
-gas: ?Gwei = null
-to: Address
-value: ?Wei = null
+struct {
+  data: ?Hex = null
+  gas: ?Gwei = null
+  to: Address
+  value: ?Wei = null
+}
 ```
 
 ## PreparedWithdrawal
@@ -16,10 +27,12 @@ value: ?Wei = null
 ### Properties
 
 ```zig
-data: Hex
-gas: Gwei
-to: Address
-value: Wei
+struct {
+  data: Hex
+  gas: Gwei
+  to: Address
+  value: Wei
+}
 ```
 
 ## Withdrawal
@@ -27,13 +40,15 @@ value: Wei
 ### Properties
 
 ```zig
-nonce: Wei
-sender: Address
-target: Address
-value: Wei
-gasLimit: Wei
-data: Hex
-withdrawalHash: Hash
+struct {
+  nonce: Wei
+  sender: Address
+  target: Address
+  value: Wei
+  gasLimit: Wei
+  data: Hex
+  withdrawalHash: Hash
+}
 ```
 
 ## WithdrawalNoHash
@@ -43,10 +58,12 @@ withdrawalHash: Hash
 ### Properties
 
 ```zig
-version: Hash
-stateRoot: Hash
-messagePasserStorageRoot: Hash
-latestBlockhash: Hash
+struct {
+  version: Hash
+  stateRoot: Hash
+  messagePasserStorageRoot: Hash
+  latestBlockhash: Hash
+}
 ```
 
 ## Proofs
@@ -54,9 +71,11 @@ latestBlockhash: Hash
 ### Properties
 
 ```zig
-outputRootProof: WithdrawalRootProof
-withdrawalProof: []const Hex
-l2OutputIndex: u256
+struct {
+  outputRootProof: WithdrawalRootProof
+  withdrawalProof: []const Hex
+  l2OutputIndex: u256
+}
 ```
 
 ## WithdrawalEnvelope
@@ -66,9 +85,11 @@ l2OutputIndex: u256
 ### Properties
 
 ```zig
-outputRoot: Hash
-timestamp: u128
-l2OutputIndex: u128
+struct {
+  outputRoot: Hash
+  timestamp: u128
+  l2OutputIndex: u128
+}
 ```
 
 ## Game
@@ -76,11 +97,13 @@ l2OutputIndex: u128
 ### Properties
 
 ```zig
-index: u256
-metadata: Hash
-timestamp: u64
-rootClaim: Hash
-extraData: Hex
+struct {
+  index: u256
+  metadata: Hash
+  timestamp: u64
+  rootClaim: Hash
+  extraData: Hex
+}
 ```
 
 ## GameResult
@@ -88,11 +111,13 @@ extraData: Hex
 ### Properties
 
 ```zig
-index: u256
-metadata: Hash
-timestamp: u64
-rootClaim: Hash
-l2BlockNumber: u256
+struct {
+  index: u256
+  metadata: Hash
+  timestamp: u64
+  rootClaim: Hash
+  l2BlockNumber: u256
+}
 ```
 
 ## NextGameTimings
@@ -100,8 +125,10 @@ l2BlockNumber: u256
 ### Properties
 
 ```zig
-interval: i64
-seconds: i64
-timestamp: ?i64
+struct {
+  interval: i64
+  seconds: i64
+  timestamp: ?i64
+}
 ```
 

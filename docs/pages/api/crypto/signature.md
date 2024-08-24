@@ -5,9 +5,11 @@ Zig representation of an ethereum signature.
 ### Properties
 
 ```zig
-r: [Secp256k1.scalar.encoded_length]u8
-s: [Secp256k1.scalar.encoded_length]u8
-v: u2
+struct {
+  r: [Secp256k1.scalar.encoded_length]u8
+  s: [Secp256k1.scalar.encoded_length]u8
+  v: u2
+}
 ```
 
 ### FromCompact
@@ -54,8 +56,10 @@ Zig representation of a compact ethereum signature.
 ### Properties
 
 ```zig
-r: [Secp256k1.scalar.encoded_length]u8
-yParityWithS: [Secp256k1.scalar.encoded_length]u8
+struct {
+  r: [Secp256k1.scalar.encoded_length]u8
+  yParityWithS: [Secp256k1.scalar.encoded_length]u8
+}
 ```
 
 ### ToCompact

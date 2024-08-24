@@ -2,18 +2,18 @@
 
 The block explorer modules.
 
+### Properties
+
 ```zig
 enum {
-    account,
-    contract,
-    transaction,
-    block,
-    logs,
-    stats,
-    gastracker,
-
-    // PRO module only
-    token,
+  account
+  contract
+  transaction
+  block
+  logs
+  stats
+  gastracker
+  token
 }
 ```
 
@@ -21,72 +21,53 @@ enum {
 
 The block explorer actions.
 
+### Properties
+
 ```zig
 enum {
-    // Account actions
-    balance,
-    balancemulti,
-    txlist,
-    txlistinternal,
-    tokentx,
-    tokennfttx,
-    token1155tx,
-    tokenbalance,
-
-    // Only available in PRO plans. We will not support these methods.
-    balancehistory,
-    tokenbalancehistory,
-    addresstokenbalance,
-    addresstokennftbalance,
-    addresstokennftinventory,
-
-    // Contract actions
-    getabi,
-    getsourcecode,
-    getcontractcreation,
-
-    // Transaction actions
-    getstatus,
-    gettxreceiptstatus,
-
-    // Block actions
-    getblockreward,
-    getblockcountdown,
-    getblocknobytime,
-
-    // PRO actions only
-    dailyavgblocksize,
-    dailyblkcount,
-    dailyuncleblkcount,
-
-    // Log actions
-    getLogs,
-
-    // Gastracker actions
-    gasestimate,
-    gasoracle,
-
-    // Stats actions
-    tokensupply,
-    ethprice,
-    ethsupply,
-
-    // Only available in PRO plans. We will not support these methods.
-    dailyblockrewards,
-    dailyavgblocktime,
-    tokensupplyhistory,
-    dailyavggaslimit,
-    dailygasused,
-    dailyavggasprice,
-    ethdailyprice,
-    dailytxnfee,
-    dailynewaddress,
-    dailynetutilization,
-    dailytx,
-
-    // Token actions. PRO only.
-    tokenholderlist,
-    tokeninfo,
+  balance
+  balancemulti
+  txlist
+  txlistinternal
+  tokentx
+  tokennfttx
+  token1155tx
+  tokenbalance
+  balancehistory
+  tokenbalancehistory
+  addresstokenbalance
+  addresstokennftbalance
+  addresstokennftinventory
+  getabi
+  getsourcecode
+  getcontractcreation
+  getstatus
+  gettxreceiptstatus
+  getblockreward
+  getblockcountdown
+  getblocknobytime
+  dailyavgblocksize
+  dailyblkcount
+  dailyuncleblkcount
+  getLogs
+  gasestimate
+  gasoracle
+  tokensupply
+  ethprice
+  ethsupply
+  dailyblockrewards
+  dailyavgblocktime
+  tokensupplyhistory
+  dailyavggaslimit
+  dailygasused
+  dailyavggasprice
+  ethdailyprice
+  dailytxnfee
+  dailynewaddress
+  dailynetutilization
+  dailytx
+  tokenholderlist
+  tokeninfo
 }
 ```
 
@@ -97,15 +78,17 @@ The client init options
 ### Properties
 
 ```zig
-allocator: Allocator
-/// The Explorer api key.
-apikey: []const u8
-/// Set of supported endpoints.
-endpoint: EndPoints = .{ .optimism = null }
-/// The max size that the fetch call can use
-max_append_size: usize = std.math.maxInt(u16)
-/// The number of retries for the client to make on 429 errors.
-retries: usize = 5
+struct {
+  allocator: Allocator
+  /// The Explorer api key.
+  apikey: []const u8
+  /// Set of supported endpoints.
+  endpoint: EndPoints = .{ .optimism = null }
+  /// The max size that the fetch call can use
+  max_append_size: usize = std.math.maxInt(u16)
+  /// The number of retries for the client to make on 429 errors.
+  retries: usize = 5
+}
 ```
 
 ## QueryParameters
@@ -115,14 +98,16 @@ Used by the `Explorer` client to build the uri query parameters.
 ### Properties
 
 ```zig
-/// The module of the endpoint to target.
-module: Modules
-/// The action endpoint to target.
-action: Actions
-/// Set of pagination options.
-options: QueryOptions
-/// Endpoint api key.
-apikey: []const u8
+struct {
+  /// The module of the endpoint to target.
+  module: Modules
+  /// The action endpoint to target.
+  action: Actions
+  /// Set of pagination options.
+  options: QueryOptions
+  /// Endpoint api key.
+  apikey: []const u8
+}
 ```
 
 ### BuildQuery

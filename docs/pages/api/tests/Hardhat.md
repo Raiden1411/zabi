@@ -3,10 +3,12 @@
 ### Properties
 
 ```zig
-forking: struct {
+struct {
+  forking: struct {
         jsonRpcUrl: []const u8,
         blockNumber: u64,
     }
+}
 ```
 
 ### JsonParse
@@ -39,24 +41,37 @@ pub fn HardhatRequest(comptime T: type) type
 
 ## HardhatMethods
 
+### Properties
+
 ```zig
 enum {
-    hardhat_setBalance,
-    hardhat_setCode,
-    hardhat_setChainId,
-    hardhat_setNonce,
-    hardhat_setNextBlockBaseFeePerGas,
-    hardhat_setMinGasPrice,
-    hardhat_dropTransaction,
-    hardhat_mine,
-    hardhat_reset,
-    hardhat_impersonateAccount,
-    hardhat_stopImpersonatingAccount,
-    hardhat_setRpcUrl,
+  hardhat_setBalance
+  hardhat_setCode
+  hardhat_setChainId
+  hardhat_setNonce
+  hardhat_setNextBlockBaseFeePerGas
+  hardhat_setMinGasPrice
+  hardhat_dropTransaction
+  hardhat_mine
+  hardhat_reset
+  hardhat_impersonateAccount
+  hardhat_stopImpersonatingAccount
+  hardhat_setRpcUrl
 }
 ```
 
 ## StartUpOptions
+
+### Properties
+
+```zig
+struct {
+  /// Allocator to use to create the ChildProcess and other allocations
+  allocator: Allocator
+  /// The localhost address.
+  localhost: []const u8 = "http://127.0.0.1:8545/"
+}
+```
 
 ## InitClient
 ### Signature

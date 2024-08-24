@@ -1,11 +1,23 @@
 ## DecoderErrors
+
 Set of possible errors when the decoder runs.
 
+```zig
+error{ NoJunkDataAllowed, BufferOverrun, InvalidBitFound } || Allocator.Error
+```
+
 ## DecodeOptions
+
 Set of options to control the abi decoder behaviour.
 
 ## Decoded
 Result type of decoded objects.
+
+### Signature
+
+```zig
+pub fn Decoded(comptime T: type) type
+```
 
 ## AbiDecoded
 Result type of a abi decoded slice. Allocations are managed via an arena.\
@@ -18,7 +30,18 @@ Allocations:
     Other types are not supported.\
 If the type provided doesn't make allocations consider using `decodeAbiParameterLeaky`.
 
+### Signature
+
+```zig
+pub fn AbiDecoded(comptime T: type) type
+```
+
 ## Deinit
+### Signature
+
+```zig
+pub fn deinit(self: @This()) void
+```
 
 ## DecodeAbiFunction
 Decodes the abi encoded slice. All allocations are managed in an `ArenaAllocator`.\
@@ -39,6 +62,12 @@ defer decoded.deinit();
 ```
 If the type provided doesn't make allocations consider using `decodeAbiParameterLeaky`.
 
+### Signature
+
+```zig
+pub fn decodeAbiFunction(comptime T: type, allocator: Allocator, encoded: []u8, options: DecodeOptions) DecoderErrors!AbiDecoded(T)
+```
+
 ## DecodeAbiError
 Decodes the abi encoded slice. All allocations are managed in an `ArenaAllocator`.\
 Assumes that the encoded slice contracts the error signature and removes it from the
@@ -58,6 +87,12 @@ defer decoded.deinit();
 ```
 If the type provided doesn't make allocations consider using `decodeAbiParameterLeaky`.
 
+### Signature
+
+```zig
+pub fn decodeAbiError(comptime T: type, allocator: Allocator, encoded: []u8, options: DecodeOptions) DecoderErrors!AbiDecoded(T)
+```
+
 ## DecodeAbiFunctionOutputs
 Decodes the abi encoded slice. All allocations are managed in an `ArenaAllocator`.\
 Since abi encoded function output values don't have signature in the encoded slice this is essentially a wrapper for `decodeAbiParameter`.\
@@ -76,6 +111,12 @@ defer decoded.deinit();
 ```
 If the type provided doesn't make allocations consider using `decodeAbiParameterLeaky`.
 
+### Signature
+
+```zig
+pub fn decodeAbiFunctionOutputs(comptime T: type, allocator: Allocator, encoded: []u8, options: DecodeOptions) DecoderErrors!AbiDecoded(T)
+```
+
 ## DecodeAbiConstructor
 Decodes the abi encoded slice. All allocations are managed in an `ArenaAllocator`.\
 Since abi encoded constructor values don't have signature in the encoded slice this is essentially a wrapper for `decodeAbiParameter`.\
@@ -93,6 +134,12 @@ const decoded =  try decodeAbiConstructor([]const i256, testing.allocator, bytes
 defer decoded.deinit();
 ```
 If the type provided doesn't make allocations consider using `decodeAbiParameterLeaky`.
+
+### Signature
+
+```zig
+pub fn decodeAbiConstructor(comptime T: type, allocator: Allocator, encoded: []u8, options: DecodeOptions) DecoderErrors!AbiDecoded(T)
+```
 
 ## DecodeAbiParameter
 Decodes the abi encoded slice. All allocations are managed in an `ArenaAllocator`.\
@@ -113,6 +160,12 @@ defer decoded.deinit();
 ```
 If the type provided doesn't make allocations consider using `decodeAbiParameterLeaky`.
 
+### Signature
+
+```zig
+pub fn decodeAbiParameter(comptime T: type, allocator: Allocator, encoded: []u8, options: DecodeOptions) !AbiDecoded(T)
+```
+
 ## DecodeAbiParameterLeaky
 Decodes the abi encoded slice. This doesn't clean any allocated memory.\
 Usefull if the type that you want do decode to doesn't create any allocations or you already
@@ -129,5 +182,11 @@ var buffer: [1024]u8 = undefined;
 const bytes = try std.fmt.hexToBytes(&buffer, "00000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000002");
 const decoded =  try decodeParameter([2]i256, testing.allocator, bytes, .{});
 defer decoded.deinit();
+```
+
+### Signature
+
+```zig
+pub fn decodeAbiParameterLeaky(comptime T: type, allocator: Allocator, encoded: []u8, options: DecodeOptions) DecoderErrors!T
 ```
 

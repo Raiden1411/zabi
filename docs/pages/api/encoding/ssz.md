@@ -3,3 +3,9 @@ Performs ssz encoding according to the [specification](https://ethereum.org/deve
 Almost all zig types are supported.\
 Caller owns the memory
 
+### Signature
+
+```zig
+pub fn encodeSSZ(allocator: Allocator, value: anytype) ![]u8
+```
+

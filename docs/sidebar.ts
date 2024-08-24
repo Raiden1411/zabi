@@ -366,6 +366,47 @@ export const sidebar = {
 					text: "Enviroment",
 					link: "/api/evm/enviroment",
 				},
+				{
+					text: "Instructions",
+					items: [
+						{
+							text: "Arithmetic",
+							link: "/api/evm/instructions/arithmetic",
+						},
+						{
+							text: "Bitwise",
+							link: "/api/evm/instructions/bitwise",
+						},
+						{
+							text: "Contract",
+							link: "/api/evm/instructions/contract",
+						},
+						{
+							text: "Control",
+							link: "/api/evm/instructions/control",
+						},
+						{
+							text: "Enviroment",
+							link: "/api/evm/instructions/enviroment",
+						},
+						{
+							text: "Host",
+							link: "/api/evm/instructions/host",
+						},
+						{
+							text: "Memory",
+							link: "/api/evm/instructions/memory",
+						},
+						{
+							text: "Stack",
+							link: "/api/evm/instructions/stack",
+						},
+						{
+							text: "System",
+							link: "/api/evm/instructions/system",
+						},
+					],
+				},
 			],
 		},
 	],

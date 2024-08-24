@@ -1,4 +1,5 @@
 ## LogDecoderOptions
+
 Set of options that can alter the decoder behaviour.
 
 ## DecodeLogs
@@ -15,6 +16,12 @@ const encodeds = try decodeLogs(
 );
 ```
 
+### Signature
+
+```zig
+pub fn decodeLogs(comptime T: type, encoded: []const ?Hash, options: LogDecoderOptions) !T
+```
+
 ## DecodeLog
 Decodes the abi encoded bytes. Not all types are supported.\
 Bellow there is a list of supported types.\
@@ -25,5 +32,11 @@ For Pointer types the pointers on `One` size are supported. All other are unsupp
 **Example:**
 ```zig
 const decoded = try decodeLog(u256, try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0"), .{});
+```
+
+### Signature
+
+```zig
+pub fn decodeLog(comptime T: type, encoded: Hash, options: LogDecoderOptions) !T
 ```
 

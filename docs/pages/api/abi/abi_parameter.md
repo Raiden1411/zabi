@@ -48,15 +48,6 @@ comptime know and you want better typesafety from the compiler
 pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T)
 ```
 
-### Format
-Format the struct into a human readable string.
-
-### Signature
-
-```zig
-pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void
-```
-
 ### Prepare
 Format the struct into a human readable string.\
 Intended to use for hashing purposes.
@@ -88,15 +79,6 @@ struct {
 
 ```zig
 pub fn deinit(self: @This(), alloc: std.mem.Allocator) void
-```
-
-### Format
-Format the struct into a human readable string.
-
-### Signature
-
-```zig
-pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void
 ```
 
 ### Prepare

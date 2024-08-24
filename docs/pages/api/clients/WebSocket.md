@@ -26,6 +26,10 @@ error{
 
 ## ConnectionErrors
 
+```zig
+error{ UnsupportedSchema, FailedToConnect, MissingUrlPath, OutOfMemory, UnspecifiedHostName }
+```
+
 ## InitErrors
 
 ```zig

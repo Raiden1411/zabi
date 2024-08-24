@@ -111,6 +111,13 @@ pub fn init(tx_env: TxEnviroment, gas_limit: u64) ?CallAction
 
 EVM Create scheme.
 
+```zig
+union(enum) {
+    create,
+    create2: u256,
+}
+```
+
 ## ReturnAction
 
 The result of the interpreter operation

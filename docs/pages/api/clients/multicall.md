@@ -84,9 +84,42 @@ pub fn MulticallArguments(comptime targets: []const MulticallTargets) type
 
 Multicall3 aggregate3 abi representation.
 
+```zig
+.{
+    .name = "aggregate3",
+    .type = .function,
+    .stateMutability = .payable,
+    .inputs = &.{
+        .{
+            .type = .{ .dynamicArray = &.{ .tuple = {} } },
+            .name = "calls",
+            .components = &.{
+                .{ .type = .{ .address = {} }, .name = "target" },
+                .{ .type = .{ .bool = {} }, .name = "allowFailure" },
+                .{ .type = .{ .bytes = {} }, .name = "callData" },
+            },
+        },
+    },
+    .outputs = &.{
+        .{
+            .type = .{ .dynamicArray = &.{ .tuple = {} } },
+            .name = "returnData",
+            .components = &.{
+                .{ .type = .{ .bool = {} }, .name = "success" },
+                .{ .type = .{ .bytes = {} }, .name = "returnData" },
+            },
+        },
+    },
+}
+```
+
 ## multicall_contract
 
 The multicall3 contract address. Equal across all chains.
+
+```zig
+utils.addressToBytes("0xcA11bde05977b3631167028862bE2a173976CA11") catch unreachable
+```
 
 ## Multicall
 Wrapper around a rpc_client that exposes the multicall3 functions.

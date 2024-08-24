@@ -2,6 +2,10 @@
 
 Wordlist of valid english mnemonic words.
 
+```zig
+Wordlist.loadRawList(@embedFile("wordlists/english.txt"))
+```
+
 ## EntropyArray
 The array of entropy bytes of an mnemonic passphrase
 Compilation will fail if the count is not 12/15/18/21/24

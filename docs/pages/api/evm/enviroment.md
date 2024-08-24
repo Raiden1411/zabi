@@ -329,6 +329,15 @@ pub fn default() OptimismFields
 
 The target address kind.
 
+```zig
+union(enum) {
+    /// Simple call `address`.
+    call: Address,
+    /// Contract creation.
+    create,
+}
+```
+
 ## AnalysisKind
 
 The type of analysis to perform.

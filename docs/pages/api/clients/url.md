@@ -73,7 +73,15 @@ pub fn QueryWriter(comptime OutStream: type) type
 
 ## Stream
 
+```zig
+OutStream
+```
+
 ## Error
+
+```zig
+Stream.Error
+```
 
 ## Init
 Start the writer initial state.

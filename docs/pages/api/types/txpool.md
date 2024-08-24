@@ -11,27 +11,6 @@ struct {
 }
 ```
 
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
 ## TxPoolContent
 
 Result tx pool content.
@@ -45,27 +24,6 @@ struct {
 }
 ```
 
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
 ## TxPoolInspect
 
 ### Properties
@@ -75,27 +33,6 @@ struct {
   pending: InspectSubpool
   queued: InspectSubpool
 }
-```
-
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
 ```
 
 ## Subpool
@@ -110,34 +47,6 @@ struct {
 }
 ```
 
-### JsonParse
-Parses as a dynamic value and then uses that value to json parse
-
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!Subpool
-```
-
-### JsonStringify
-Address are checksumed on stringify.
-
-### Signature
-
-```zig
-pub fn jsonStringify(value: Subpool, source: anytype) !void
-```
-
-### JsonParseFromValue
-Uses similar approach as `jsonParse` but the value is already pre parsed from
-a dynamic `Value`
-
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!Subpool
-```
-
 ## InspectSubpool
 
 Geth mempool inspect subpool type
@@ -148,34 +57,6 @@ Geth mempool inspect subpool type
 struct {
   address: InspectAddressHashMap
 }
-```
-
-### JsonParse
-Parses as a dynamic value and then uses that value to json parse
-
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!InspectSubpool
-```
-
-### JsonStringify
-Address are checksumed on stringify.
-
-### Signature
-
-```zig
-pub fn jsonStringify(value: InspectSubpool, source: anytype) !void
-```
-
-### JsonParseFromValue
-Uses similar approach as `jsonParse` but the value is already pre parsed from
-a dynamic `Value`
-
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!InspectSubpool
 ```
 
 ## InspectPoolTransactionByNonce
@@ -190,34 +71,6 @@ struct {
 }
 ```
 
-### JsonParse
-Parses as a dynamic value and then uses that value to json parse
-
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!InspectPoolTransactionByNonce
-```
-
-### JsonParseFromValue
-Uses similar approach as `jsonParse` but the value is already pre parsed from
-a dynamic `Value`
-
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!InspectPoolTransactionByNonce
-```
-
-### JsonStringify
-Converts the nonces into strings.
-
-### Signature
-
-```zig
-pub fn jsonStringify(value: InspectPoolTransactionByNonce, source: anytype) !void
-```
-
 ## PoolTransactionByNonce
 
 Geth transaction object dump from mempool by nonce.
@@ -228,33 +81,5 @@ Geth transaction object dump from mempool by nonce.
 struct {
   nonce: PoolPendingTransactionHashMap
 }
-```
-
-### JsonParse
-Parses as a dynamic value and then uses that value to json parse
-
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!PoolTransactionByNonce
-```
-
-### JsonParseFromValue
-Uses similar approach as `jsonParse` but the value is already pre parsed from
-a dynamic `Value`
-
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!PoolTransactionByNonce
-```
-
-### JsonStringify
-Converts the nonces into strings.
-
-### Signature
-
-```zig
-pub fn jsonStringify(value: PoolTransactionByNonce, source: anytype) !void
 ```
 

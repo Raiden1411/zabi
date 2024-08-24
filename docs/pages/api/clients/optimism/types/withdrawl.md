@@ -53,6 +53,10 @@ struct {
 
 ## WithdrawalNoHash
 
+```zig
+Omit(Withdrawal, &.{"withdrawalHash"})
+```
+
 ## WithdrawalRootProof
 
 ### Properties
@@ -79,6 +83,10 @@ struct {
 ```
 
 ## WithdrawalEnvelope
+
+```zig
+MergeStructs(WithdrawalNoHash, Proofs)
+```
 
 ## ProvenWithdrawal
 

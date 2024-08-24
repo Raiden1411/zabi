@@ -18,9 +18,17 @@ enum {
 
 Specific tags used in some RPC requests
 
+```zig
+Extract(BlockTag, "latest,pending,earliest")
+```
+
 ## ProofBlockTag
 
 Specific tags used in some RPC requests
+
+```zig
+Extract(BlockTag, "latest,earliest")
+```
 
 ## BlockRequest
 
@@ -91,27 +99,6 @@ struct {
 }
 ```
 
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
 ## LegacyBlock
 
 The most common block that can be found before the
@@ -145,27 +132,6 @@ struct {
   transactionsRoot: Hash
   uncles: ?[]const Hash = null
 }
-```
-
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
 ```
 
 ## ArbitrumBlock
@@ -206,27 +172,6 @@ struct {
 }
 ```
 
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
 ## BlockTransactions
 
 Possible transactions that can be found in the
@@ -239,27 +184,6 @@ union(enum) {
   hashes: []const Hash
   objects: []const Transaction
 }
-```
-
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void
 ```
 
 ## BeaconBlock
@@ -296,27 +220,6 @@ struct {
   withdrawalsRoot: Hash
   withdrawals: []const Withdrawal
 }
-```
-
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
 ```
 
 ## BlobBlock
@@ -357,27 +260,6 @@ struct {
 }
 ```
 
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
 ## Block
 
 Union type of the possible blocks found on the network.
@@ -391,26 +273,5 @@ union(enum) {
   cancun: BlobBlock
   arbitrum: ArbitrumBlock
 }
-```
-
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void
 ```
 

@@ -1,12 +1,32 @@
 ## Hex
 
+```zig
+[]u8
+```
+
 ## Gwei
+
+```zig
+u64
+```
 
 ## Wei
 
+```zig
+u256
+```
+
 ## Hash
 
+```zig
+[32]u8
+```
+
 ## Address
+
+```zig
+[20]u8
+```
 
 ## Subscriptions
 
@@ -293,27 +313,6 @@ struct {
 }
 ```
 
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
 ## ContractErrorResponse
 
 Zig struct representation of a contract error response
@@ -360,16 +359,34 @@ enum {
 }
 ```
 
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(code: EthereumErrorCodes, stream: anytype) @TypeOf(stream.*).Error!void
-```
-
 ## EthereumZigErrors
 
 RPC errors in zig format
+
+```zig
+error{
+    EvmFailedToExecute,
+    TooManyRequests,
+    InvalidInput,
+    ResourceNotFound,
+    ResourceUnavailable,
+    TransactionRejected,
+    MethodNotSupported,
+    LimitExceeded,
+    RpcVersionNotSupported,
+    InvalidRequest,
+    MethodNotFound,
+    InvalidParams,
+    InternalError,
+    ParseError,
+    UnexpectedRpcErrorCode,
+    UserRejectedRequest,
+    Unauthorized,
+    UnsupportedMethod,
+    Disconnected,
+    ChainDisconnected,
+}
+```
 
 ## EthereumErrorResponse
 
@@ -383,26 +400,5 @@ struct {
   id: ?usize = null
   @"error": ErrorResponse
 }
-```
-
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
 ```
 

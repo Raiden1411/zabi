@@ -108,15 +108,6 @@ comptime know and you dont want to provided the return type.
 pub fn decodeOutputs(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T)
 ```
 
-### Format
-Format the struct into a human readable string.
-
-### Signature
-
-```zig
-pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void
-```
-
 ### AllocPrepare
 Format the struct into a human readable string.\
 Intended to use for hashing purposes.\
@@ -159,15 +150,6 @@ struct {
 
 ```zig
 pub fn deinit(self: @This(), allocator: std.mem.Allocator) void
-```
-
-### Format
-Format the struct into a human readable string.
-
-### Signature
-
-```zig
-pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void
 ```
 
 ### Encode
@@ -247,15 +229,6 @@ struct {
 pub fn deinit(self: @This(), allocator: std.mem.Allocator) void
 ```
 
-### Format
-Format the struct into a human readable string.
-
-### Signature
-
-```zig
-pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void
-```
-
 ### Encode
 Encode the struct signature based on the values provided.\
 Runtime reflection based on the provided values will occur to determine
@@ -332,15 +305,6 @@ struct {
 pub fn deinit(self: @This(), allocator: std.mem.Allocator) void
 ```
 
-### Format
-Format the struct into a human readable string.
-
-### Signature
-
-```zig
-pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void
-```
-
 ### Encode
 Encode the struct signature based on the values provided.\
 Runtime reflection based on the provided values will occur to determine
@@ -388,15 +352,6 @@ struct {
 }
 ```
 
-### Format
-Format the struct into a human readable string.
-
-### Signature
-
-```zig
-pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void
-```
-
 ## Receive
 
 Solidity Abi function representation.\
@@ -409,15 +364,6 @@ struct {
   type: Extract(Abitype, "receive")
   stateMutability: Extract(StateMutability, "payable")
 }
-```
-
-### Format
-Format the struct into a human readable string.
-
-### Signature
-
-```zig
-pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void
 ```
 
 ## AbiItem
@@ -437,20 +383,6 @@ union(enum) {
 }
 ```
 
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
 ### Deinit
 ### Signature
 
@@ -458,14 +390,11 @@ pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOpt
 pub fn deinit(self: @This(), allocator: Allocator) void
 ```
 
-### Format
-### Signature
-
-```zig
-pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void
-```
-
 ## Abi
 
 Abi representation in ZIG.
+
+```zig
+[]const AbiItem
+```
 

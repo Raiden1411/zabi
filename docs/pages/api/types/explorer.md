@@ -65,27 +65,6 @@ struct {
 }
 ```
 
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
 ## ExplorerRequestResponse
 The response represented as a union of possible responses.\
 Returns the `@error` field from json parsing in case the message is `NOK`.
@@ -157,27 +136,6 @@ struct {
 }
 ```
 
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
 ## TokenExplorerTransaction
 
 Token transaction represented by a `etherscan` like client.
@@ -229,20 +187,6 @@ struct {
 }
 ```
 
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
 ## InternalExplorerTransaction
 
 Internal transaction represented by a `etherscan` like client.
@@ -280,20 +224,6 @@ struct {
   /// The error code in case it exists.
   errCode: ?i64
 }
-```
-
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
 ```
 
 ## ExplorerTransaction
@@ -345,20 +275,6 @@ struct {
 }
 ```
 
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
 ## GetSourceResult
 
 ### Properties
@@ -392,20 +308,6 @@ struct {
   /// The bzzr swarm source.
   SwarmSource: Uri
 }
-```
-
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
 ```
 
 ## Erc1155TokenEventRequest
@@ -511,20 +413,6 @@ struct {
 }
 ```
 
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
 ## TransactionStatus
 
 ### Properties
@@ -538,20 +426,6 @@ struct {
 }
 ```
 
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
 ## ReceiptStatus
 
 ### Properties
@@ -561,20 +435,6 @@ struct {
   /// The receipt status
   status: ?u1
 }
-```
-
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
 ```
 
 ## BlockRewards
@@ -598,20 +458,6 @@ struct {
   /// The reward value included in uncle blocks.
   uncleInclusionReward: u256
 }
-```
-
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
 ```
 
 ## LogRequest
@@ -664,27 +510,6 @@ struct {
 }
 ```
 
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
 ## BlockCountdown
 
 ### Properties
@@ -700,27 +525,6 @@ struct {
   /// The seconds until `CountdownBlock` is reached.
   EstimateTimeInSec: f64
 }
-```
-
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
 ```
 
 ## BlocktimeRequest
@@ -768,27 +572,6 @@ struct {
 }
 ```
 
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
-```
-
-### JsonStringify
-### Signature
-
-```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
-```
-
 ## GasOracle
 
 ### Properties
@@ -808,19 +591,5 @@ struct {
   /// Gas used ratio.
   gasUsedRatio: []const f64
 }
-```
-
-### JsonParse
-### Signature
-
-```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
-```
-
-### JsonParseFromValue
-### Signature
-
-```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
 ```
 

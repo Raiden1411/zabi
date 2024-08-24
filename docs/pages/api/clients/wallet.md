@@ -16,13 +16,25 @@ enum {
 
 Wallet instance with rpc http/s client.
 
+```zig
+Wallet(.http)
+```
+
 ## WalletWsClient
 
 Wallet instance with rpc ws/s client.
 
+```zig
+Wallet(.websocket)
+```
+
 ## WalletIpcClient
 
 Wallet instance with rpc ipc client.
+
+```zig
+Wallet(.ipc)
+```
 
 ## TransactionEnvelopePool
 
@@ -36,6 +48,10 @@ struct {
 ```
 
 ## Node
+
+```zig
+TransactionEnvelopeQueue.Node
+```
 
 ## FindTransactionEnvelope
 Finds a transaction envelope from the pool based on the

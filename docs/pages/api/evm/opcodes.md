@@ -1,5 +1,9 @@
 ## instruction_table
 
+```zig
+InstructionTable.init()
+```
+
 ## Opcodes
 
 EVM Opcodes.

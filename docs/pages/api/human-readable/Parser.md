@@ -1,5 +1,13 @@
 ## TokenList
 
+```zig
+std.MultiArrayList(struct {
+    token_type: Tokens,
+    start: u32,
+    end: u32,
+})
+```
+
 ## ParseError
 
 ```zig

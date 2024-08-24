@@ -11,7 +11,7 @@ const NodeTag = Ast.Node.Tag;
 const TokenIndex = std.zig.Ast.TokenIndex;
 
 /// Files and folder to be excluded from the docs generation.
-const exclude_files_and_folders = std.StaticStringMap(void).initComptime(.{
+const excludes = std.StaticStringMap(void).initComptime(.{
     // Files
     .{ "ws_server.zig", {} },
     .{ "rpc_server.zig", {} },
@@ -27,6 +27,12 @@ const exclude_files_and_folders = std.StaticStringMap(void).initComptime(.{
 
     // Folders
     .{ "wordlists", {} },
+
+    // Function declarations. Only used on `container_decl` tokens and alike.
+    .{ "jsonStringify", {} },
+    .{ "jsonParseFromValue", {} },
+    .{ "jsonParse", {} },
+    .{ "format", {} },
 });
 
 /// The state the generator is in whilst traversing the AST.
@@ -151,12 +157,29 @@ pub const DocsGenerator = struct {
 
         return list.toOwnedSlice();
     }
-    /// Extracts the source and builds the mardown file when we have a `container_decl` or `tagged_union` node.
+    /// Extracts the source and builds the mardown file when we have a `container_decl*`, `tagged_union` or `merge_error_sets` node.
     pub fn extractFromContainerDecl(self: *DocsGenerator, out_file: File, init_node: NodeIndex, duplicate: *std.StringHashMap(void)) !void {
         const container = switch (self.nodes[init_node]) {
             .container_decl, .container_decl_trailing => self.ast.containerDecl(init_node),
-            .tagged_union => self.ast.taggedUnion(init_node),
-            .merge_error_sets => {
+            .tagged_union, .tagged_union_trailing => self.ast.taggedUnion(init_node),
+            .merge_error_sets,
+            .call,
+            .call_one,
+            .error_set_decl,
+            .array_type,
+            .ptr_type,
+            .identifier,
+            .ptr_type_aligned,
+            .struct_init,
+            .struct_init_one,
+            .struct_init_comma,
+            .struct_init_one_comma,
+            .@"catch",
+            .field_access,
+            .tagged_union_two_trailing,
+            .struct_init_dot_comma,
+            .address_of,
+            => {
                 try out_file.writeAll("```zig\n");
                 try out_file.writeAll(self.ast.getNodeSource(init_node));
                 try out_file.writeAll("\n```\n\n");
@@ -164,9 +187,8 @@ pub const DocsGenerator = struct {
             },
             .container_decl_arg_trailing, .container_decl_arg => self.ast.containerDeclArg(init_node),
             .container_decl_two, .container_decl_two_trailing => self.ast.containerDeclTwo(@constCast(&.{ init_node, init_node }), init_node),
-            // std.debug.print("FOOOO: {s}\n", .{self.ast.getNodeSource(init_node)});
-            // return;
-            else => return,
+            .number_literal, .sub => return,
+            else => std.debug.panic("Unexpected token found: {s}\n", .{@tagName(self.nodes[init_node])}),
         };
 
         const container_token = self.ast.firstToken(init_node);
@@ -230,6 +252,9 @@ pub const DocsGenerator = struct {
 
                     const func_name = self.ast.tokenSlice(proto.name_token orelse return);
                     try duplicate.put(func_name, {});
+
+                    if (excludes.get(func_name) != null)
+                        continue;
 
                     try self.extractFromFnProto(proto, out_file);
                 }
@@ -304,7 +329,7 @@ pub fn main() !void {
         if (std.mem.endsWith(u8, sub_path.basename, "test.zig"))
             continue;
 
-        if (exclude_files_and_folders.get(sub_path.basename) != null)
+        if (excludes.get(sub_path.basename) != null)
             continue;
 
         switch (sub_path.kind) {

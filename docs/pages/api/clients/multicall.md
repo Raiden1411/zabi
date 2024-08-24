@@ -2,7 +2,31 @@
 
 ## Call3
 
+### Properties
+
+```zig
+/// The target address.
+target: Address
+/// Tells the contract weather to allow the call to fail or not.
+allowFailure: bool
+/// The calldata used to call the function you want to run.
+callData: Hex
+```
+
 ## Call3Value
+
+### Properties
+
+```zig
+/// The target address.
+target: Address
+/// Tells the contract weather to allow the call to fail or not.
+allowFailure: bool
+/// The value sent in the call.
+value: u256
+/// The calldata from the function that you want to run.
+callData: Hex
+```
 
 ## Result
 

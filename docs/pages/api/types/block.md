@@ -18,6 +18,14 @@ Specific tags used in some RPC requests
 
 Used in the RPC method requests
 
+### Properties
+
+```zig
+block_number: ?u64 = null
+tag: ?BlockTag = .latest
+include_transaction_objects: ?bool = false
+```
+
 ## BlockHashRequest
 
 Used in the RPC method requests
@@ -25,6 +33,14 @@ Used in the RPC method requests
 ## BalanceRequest
 
 Used in the RPC method requests
+
+### Properties
+
+```zig
+address: Address
+block_number: ?u64 = null
+tag: ?BalanceBlockTag = .latest
+```
 
 ## BlockNumberRequest
 

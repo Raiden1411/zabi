@@ -1,5 +1,18 @@
 ## DepositTransaction
 
+### Properties
+
+```zig
+sourceHash: Hash
+from: Address
+to: ?Address
+mint: u256
+value: Wei
+gas: Gwei
+isSystemTx: bool
+data: ?Hex
+```
+
 ## DepositTransactionSigned
 
 ### Properties
@@ -53,7 +66,39 @@ pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_strea
 
 ## DepositData
 
+### Properties
+
+```zig
+mint: u256
+value: Wei
+gas: Gwei
+creation: bool
+data: ?Hex
+```
+
 ## TransactionDeposited
 
+### Properties
+
+```zig
+from: Address
+to: Address
+version: u256
+opaqueData: Hex
+logIndex: usize
+blockHash: Hash
+```
+
 ## DepositTransactionEnvelope
+
+### Properties
+
+```zig
+gas: ?Gwei = null
+mint: ?Wei = null
+value: ?Wei = null
+creation: bool = false
+data: ?Hex = null
+to: ?Address = null
+```
 

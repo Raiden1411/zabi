@@ -154,7 +154,7 @@ pub const DocsGenerator = struct {
     /// Extracts the source and builds the mardown file when we have a `container_decl` or `tagged_union` node.
     pub fn extractFromContainerDecl(self: *DocsGenerator, out_file: File, init_node: NodeIndex, duplicate: *std.StringHashMap(void)) !void {
         const container = switch (self.nodes[init_node]) {
-            .container_decl => self.ast.containerDecl(init_node),
+            .container_decl, .container_decl_trailing => self.ast.containerDecl(init_node),
             .tagged_union => self.ast.taggedUnion(init_node),
             .merge_error_sets => {
                 try out_file.writeAll("```zig\n");

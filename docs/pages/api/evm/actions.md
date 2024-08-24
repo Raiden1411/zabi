@@ -62,6 +62,15 @@ pub fn getCurrentValue(self: CallValue) u256
 
 EVM Call scheme.
 
+```zig
+enum {
+    call,
+    callcode,
+    delegate,
+    static,
+}
+```
+
 ## CreateAction
 
 Inputs for a create call.
@@ -97,4 +106,15 @@ EVM Create scheme.
 ## ReturnAction
 
 The result of the interpreter operation
+
+### Properties
+
+```zig
+/// The result of the instruction execution.
+result: InterpreterStatus
+/// The return output slice.
+output: []u8
+/// The tracker with gas usage.
+gas: GasTracker
+```
 

@@ -396,9 +396,46 @@ pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOpt
 
 ## Erc1155TokenEventRequest
 
+### Properties
+
+```zig
+/// The target address.
+address: Address
+/// The target contract address.
+contractaddress: Address
+/// The start block from where you want to grab the list.
+startblock: usize
+/// The end block from where you want to grab the list.
+endblock: BlockTag
+```
+
 ## TokenEventRequest
 
+### Properties
+
+```zig
+/// The target address.
+address: Address
+/// The target contract address.
+contractaddress: Address
+/// The start block from where you want to grab the list.
+startblock: usize
+/// The end block from where you want to grab the list.
+endblock: usize
+```
+
 ## TransactionListRequest
+
+### Properties
+
+```zig
+/// The target address.
+address: Address
+/// The start block from where you want to grab the list.
+startblock: usize
+/// The end block from where you want to grab the list.
+endblock: usize
+```
 
 ## MultiAddressBalanceRequest
 
@@ -520,6 +557,17 @@ pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOpt
 
 `getLogs` request via a block explorer.
 
+### Properties
+
+```zig
+/// The address where you want to grab the logs.
+address: Address
+/// The start block range where you want search from.
+fromBlock: u64
+/// The en block range where you want search to.
+toBlock: u64
+```
+
 ## ExplorerLog
 
 Zig struct representation of the log explorer response.
@@ -611,6 +659,17 @@ pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_strea
 ## BlocktimeRequest
 
 ## TokenBalanceRequest
+
+### Properties
+
+```zig
+/// The target address.
+address: Address
+/// The target contract address.
+contractaddress: Address
+/// The block tag to use to query this information.
+tag: BlockTag
+```
 
 ## EtherPriceResponse
 

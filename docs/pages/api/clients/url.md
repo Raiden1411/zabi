@@ -2,6 +2,18 @@
 
 The block explorers api query options.
 
+### Properties
+
+```zig
+/// The page number if pagination is enabled.
+page: ?usize = null
+/// The number of items displayed per page.
+offset: ?usize = null
+/// The prefered sorting sequence.
+/// Asc for ascending and desc for descending.
+sort: ?enum { asc, desc } = null
+```
+
 ## SearchUrlParams
 Writes the given value to the `std.io.Writer` stream.\
 See `QueryWriter` for a more detailed documentation.

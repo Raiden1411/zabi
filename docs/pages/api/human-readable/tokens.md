@@ -2,6 +2,13 @@
 
 Tokens tags consumedd by the Lexer
 
+### Properties
+
+```zig
+syntax: SoliditySyntax
+location: Location
+```
+
 ## Location
 
 ## TypesKeyword

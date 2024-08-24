@@ -438,6 +438,24 @@ pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_strea
 
 Same as `Envelope` but were all fields are optionals.
 
+### Properties
+
+```zig
+type: TransactionTypes
+chainId: ?usize = null
+nonce: ?u64 = null
+maxFeePerBlobGas: ?Gwei = null
+maxPriorityFeePerGas: ?Gwei = null
+maxFeePerGas: ?Gwei = null
+gas: ?Gwei = null
+gasPrice: ?Gwei = null
+to: ?Address = null
+value: ?Wei = null
+data: ?Hex = null
+accessList: ?[]const AccessList = null
+blobVersionedHashes: ?[]const Hash = null
+```
+
 ## LondonPendingTransaction
 
 The representation of a London hardfork pending transaction.

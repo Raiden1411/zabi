@@ -39,6 +39,23 @@ pub fn HardhatRequest(comptime T: type) type
 
 ## HardhatMethods
 
+```zig
+enum {
+    hardhat_setBalance,
+    hardhat_setCode,
+    hardhat_setChainId,
+    hardhat_setNonce,
+    hardhat_setNextBlockBaseFeePerGas,
+    hardhat_setMinGasPrice,
+    hardhat_dropTransaction,
+    hardhat_mine,
+    hardhat_reset,
+    hardhat_impersonateAccount,
+    hardhat_stopImpersonatingAccount,
+    hardhat_setRpcUrl,
+}
+```
+
 ## StartUpOptions
 
 ## InitClient

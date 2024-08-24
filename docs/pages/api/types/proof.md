@@ -2,6 +2,14 @@
 
 Eth get proof rpc request.
 
+### Properties
+
+```zig
+address: Address
+storageKeys: []const Hash
+blockNumber: ?u64 = null
+```
+
 ## ProofResult
 
 Result of eth_getProof

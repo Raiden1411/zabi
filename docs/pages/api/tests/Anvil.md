@@ -74,6 +74,23 @@ pub fn AnvilRequest(comptime T: type) type
 
 Set of methods implemented by this client for use with anvil.
 
+```zig
+enum {
+    anvil_setBalance,
+    anvil_setCode,
+    anvil_setChainId,
+    anvil_setNonce,
+    anvil_setNextBlockBaseFeePerGas,
+    anvil_setMinGasPrice,
+    anvil_dropTransaction,
+    anvil_mine,
+    anvil_reset,
+    anvil_impersonateAccount,
+    anvil_stopImpersonatingAccount,
+    anvil_setRpcUrl,
+}
+```
+
 ## AnvilStartOptions
 
 All startup options for starting an anvil proccess.\

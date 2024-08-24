@@ -28,10 +28,38 @@ pub fn deinit(self: @This(), allocator: Allocator) void
 
 The status of execution for the interpreter.
 
+```zig
+enum {
+    call_or_create,
+    call_with_value_not_allowed_in_static_call,
+    create_code_size_limit,
+    invalid,
+    invalid_jump,
+    invalid_offset,
+    opcode_not_found,
+    returned,
+    reverted,
+    running,
+    self_destructed,
+    stopped,
+}
+```
+
 ## InterpreterInitOptions
 
 Set of default options that the interperter needs
 for it to be able to run.
+
+### Properties
+
+```zig
+/// Maximum amount of gas available to perform the operations
+gas_limit: u64 = 30_000_000
+/// Tells the interperter if it's going to run as a static call
+is_static: bool = false
+/// Sets the interperter spec based on the hardforks.
+spec_id: SpecId = .LATEST
+```
 
 ## Init
 Sets the interpreter to it's expected initial state.\

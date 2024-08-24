@@ -10,9 +10,75 @@
 
 ## Subscriptions
 
+```zig
+enum {
+    newHeads,
+    logs,
+    newPendingTransactions,
+}
+```
+
 ## EthereumRpcMethods
 
 Set of public rpc actions.
+
+```zig
+enum {
+    web3_clientVersion,
+    web3_sha3,
+    net_version,
+    net_listening,
+    net_peerCount,
+    eth_chainId,
+    eth_gasPrice,
+    eth_accounts,
+    eth_getBalance,
+    eth_getBlockByNumber,
+    eth_getBlockByHash,
+    eth_blockNumber,
+    eth_getTransactionCount,
+    eth_getBlockTransactionCountByHash,
+    eth_getBlockTransactionCountByNumber,
+    eth_getUncleCountByBlockHash,
+    eth_getUncleCountByBlockNumber,
+    eth_getCode,
+    eth_getTransactionByHash,
+    eth_getTransactionByBlockHashAndIndex,
+    eth_getTransactionByBlockNumberAndIndex,
+    eth_getTransactionReceipt,
+    eth_getUncleByBlockHashAndIndex,
+    eth_getUncleByBlockNumberAndIndex,
+    eth_newFilter,
+    eth_newBlockFilter,
+    eth_newPendingTransactionFilter,
+    eth_uninstallFilter,
+    eth_getFilterChanges,
+    eth_getFilterLogs,
+    eth_getLogs,
+    eth_sign,
+    eth_signTransaction,
+    eth_sendTransaction,
+    eth_sendRawTransaction,
+    eth_call,
+    eth_estimateGas,
+    eth_maxPriorityFeePerGas,
+    eth_subscribe,
+    eth_unsubscribe,
+    eth_signTypedData_v4,
+    eth_blobBaseFee,
+    eth_createAccessList,
+    eth_feeHistory,
+    eth_getStorageAt,
+    eth_getProof,
+    eth_protocolVersion,
+    eth_syncing,
+    eth_getRawTransactionByHash,
+    txpool_content,
+    txpool_contentFrom,
+    txpool_inspect,
+    txpool_status,
+}
+```
 
 ## PublicChains
 
@@ -217,6 +283,14 @@ pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_strea
 ## ContractErrorResponse
 
 Zig struct representation of a contract error response
+
+### Properties
+
+```zig
+code: EthereumErrorCodes
+message: []const u8
+data: []const u8
+```
 
 ## EthereumErrorCodes
 

@@ -1,5 +1,5 @@
 /// Set of Abi items used for the clients
-const abi_items = @import("abi.zig");
+const abi_items = @import("abi_optimism.zig");
 /// A public client to interacting on L1.
 const l1_public_client = @import("clients/L1PubClient.zig");
 /// A wallet client to interacting on L1.

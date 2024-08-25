@@ -1,5 +1,5 @@
 /// Set of abi items for interacting with the ENS contracts.
-pub const abi = @import("abi.zig");
+pub const abi = @import("abi_ens.zig");
 /// ENS Universal Resolver.
 pub const contracts = @import("contracts.zig");
 /// Set of utils to interact with the ENS contracts.

@@ -1,4 +1,4 @@
-const abi_items = @import("../abi.zig");
+const abi_items = @import("../abi_optimism.zig");
 const clients = @import("../../root.zig");
 const contracts = @import("../contracts.zig");
 const serialize = @import("../../../encoding/serialize.zig");

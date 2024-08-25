@@ -1,4 +1,4 @@
-const abi_ens = @import("abi.zig");
+const abi_ens = @import("abi_ens.zig");
 const block = @import("../../types/block.zig");
 const clients = @import("../../root.zig");
 const decoder = @import("../../decoding/decoder.zig");

@@ -163,7 +163,7 @@ fn buildAndRunConverage(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
 fn docsGenerate(b: *std.Build, target: std.Build.ResolvedTarget) void {
     const docs = b.addExecutable(.{
         .name = "docs_generate",
-        .root_source_file = b.path("src/docs_generate.zig"),
+        .root_source_file = b.path("docs_generate.zig"),
         .target = target,
         .optimize = .ReleaseFast,
     });

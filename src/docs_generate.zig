@@ -47,8 +47,15 @@ pub const LookupState = enum {
 };
 
 /// Parses and generates based on the `doc_comments` on the provided source code.
-/// This writes as markdown text. `pub const` are written as H2 and
-/// `pub fn` are written as H3.
+/// This writes the contents as markdown text.
+///
+/// Member functions are written as H3.
+/// Functions from struct file like `Client.zig` are written as H2.
+/// Structs, Unions and Enums `container_field_init` and `simple_var_decl` nodes will be written
+/// with markdown support for shiki.
+///
+/// All functions will have their `Signature` exported so that it's possible
+/// to see the arguments and return types.
 pub const DocsGenerator = struct {
     /// The allocator used to manage memory.
     allocator: Allocator,
@@ -83,25 +90,23 @@ pub const DocsGenerator = struct {
         var duplicate = std.StringHashMap(void).init(self.allocator);
         defer duplicate.deinit();
 
-        for (self.nodes, 0..) |node, i| {
+        for (self.nodes, 0..) |node, index| {
             switch (node) {
-                .simple_var_decl => try self.extractFromSimpleVar(out_file, @intCast(i), &duplicate),
+                .simple_var_decl => try self.extractFromSimpleVar(out_file, @intCast(index), &duplicate),
                 .fn_decl => {
-                    var buffer = [_]u32{@intCast(i)};
-                    const fn_proto = self.ast.fullFnProto(&buffer, @intCast(i));
+                    var buffer = [_]u32{@intCast(index)};
+                    const fn_proto = self.ast.fullFnProto(&buffer, @intCast(index)) orelse continue;
 
-                    const proto = fn_proto orelse continue;
-
-                    if (self.tokens[proto.visib_token orelse continue] != .keyword_pub)
+                    if (self.tokens[fn_proto.visib_token orelse continue] != .keyword_pub)
                         continue;
 
-                    const func_name = self.ast.tokenSlice(proto.name_token orelse continue);
+                    const func_name = self.ast.tokenSlice(fn_proto.name_token orelse continue);
 
                     if (duplicate.get(func_name) != null)
                         continue;
 
                     self.state = .fn_decl;
-                    try self.extractFromFnProto(proto, out_file);
+                    try self.extractFromFnProto(fn_proto, out_file);
                 },
                 else => continue,
             }
@@ -172,7 +177,6 @@ pub const DocsGenerator = struct {
             .tagged_union, .tagged_union_trailing => self.ast.taggedUnion(init_node),
             .container_decl_arg_trailing, .container_decl_arg => self.ast.containerDeclArg(init_node),
             .container_decl_two, .container_decl_two_trailing => self.ast.containerDeclTwo(@constCast(&.{ init_node, init_node }), init_node),
-            .field_access => std.debug.panic("FOOO: {s}", .{self.ast.getNodeSource(init_node)}),
             else => std.debug.panic("Unexpected token found: {s}\n", .{@tagName(self.nodes[init_node])}),
         };
 

@@ -11,7 +11,13 @@ const NodeTag = Ast.Node.Tag;
 const TokenIndex = std.zig.Ast.TokenIndex;
 
 /// Set of possible errors from the generation.
-pub const GeneratorErrors = File.WriteError || Allocator.Error;
+const CreateFolderErrors = Dir.MakeError || Allocator.Error || Dir.RealPathError;
+
+/// Set of possible errors from the generation.
+const CreateFileErrors = Allocator.Error || Dir.RealPathError || File.OpenError || File.ReadError || File.WriteError;
+
+/// Set of possible errors when running the script.
+const RunnerErrors = CreateFileErrors || CreateFolderErrors;
 
 /// Files and folder to be excluded from the docs generation.
 const excludes = std.StaticStringMap(void).initComptime(.{
@@ -70,6 +76,9 @@ pub const DocsGenerator = struct {
     /// The token tags produced by zig's lexer.
     tokens: []const Tag,
 
+    /// ArrayList writer used by the generator.
+    pub const GeneratorWriter = std.ArrayList(u8).Writer;
+
     /// Starts the generaton and pre parses the source code.
     pub fn init(allocator: Allocator, source: [:0]const u8) Allocator.Error!DocsGenerator {
         const ast = try Ast.parse(allocator, source, .zig);
@@ -88,20 +97,25 @@ pub const DocsGenerator = struct {
     }
     /// Extracts the `doc_comments` from the source code and writes them to `out_file`.
     /// Also extracts the function names and public constants as headers for markdown.
-    pub fn extractDocs(self: *DocsGenerator, out_file: File) GeneratorErrors!void {
+    pub fn extractDocs(self: *DocsGenerator) Allocator.Error![]const u8 {
+        var content = std.ArrayList(u8).init(self.allocator);
+        errdefer content.deinit();
+
         var duplicate = std.StringHashMap(void).init(self.allocator);
         defer duplicate.deinit();
 
         for (self.nodes, 0..) |node, index| {
             switch (node) {
-                .simple_var_decl => try self.extractFromSimpleVar(out_file, @intCast(index), &duplicate),
+                .simple_var_decl => try self.extractFromSimpleVar(content.writer(), @intCast(index), &duplicate),
                 .fn_decl => {
                     self.state = .fn_decl;
-                    try self.extractFromFnProto(@intCast(index), out_file, &duplicate);
+                    try self.extractFromFnProto(@intCast(index), content.writer(), &duplicate);
                 },
                 else => continue,
             }
         }
+
+        return content.toOwnedSlice();
     }
     /// Traverses the ast to find the associated doc comments.
     ///
@@ -159,10 +173,10 @@ pub const DocsGenerator = struct {
     /// Extracts the source and builds the mardown file when we have a `container_decl*`, `tagged_union` or `merge_error_sets` node.
     pub fn extractFromContainerDecl(
         self: *DocsGenerator,
-        out_file: File,
+        out_file: GeneratorWriter,
         init_node: NodeIndex,
         duplicate: *std.StringHashMap(void),
-    ) GeneratorErrors!void {
+    ) !void {
         const container = self.ast.fullContainerDecl(@constCast(&.{ init_node, init_node }), init_node) orelse
             std.debug.panic("Unexpected token found: {s}\n", .{@tagName(self.nodes[init_node])});
 
@@ -197,7 +211,7 @@ pub const DocsGenerator = struct {
         }
     }
     /// Writes a container field from a `struct`, `union` or `enum` with their `doc_comment` tokens.
-    pub fn extractFromContainerField(self: *DocsGenerator, out_file: File, member: NodeIndex) File.WriteError!void {
+    pub fn extractFromContainerField(self: *DocsGenerator, out_file: GeneratorWriter, member: NodeIndex) !void {
         const field = self.ast.containerFieldInit(member);
         const first_token = field.firstToken();
 
@@ -219,7 +233,7 @@ pub const DocsGenerator = struct {
         try out_file.writeAll("\n");
     }
     /// Extracts the source and builds the mardown file when we have a `fn_decl` node.
-    pub fn extractFromFnProto(self: *DocsGenerator, index: NodeIndex, out_file: File, duplicate: *std.StringHashMap(void)) GeneratorErrors!void {
+    pub fn extractFromFnProto(self: *DocsGenerator, index: NodeIndex, out_file: GeneratorWriter, duplicate: *std.StringHashMap(void)) !void {
         var buffer = [_]u32{@intCast(index)};
         const fn_proto = self.ast.fullFnProto(&buffer, @intCast(index)) orelse return;
 
@@ -249,7 +263,7 @@ pub const DocsGenerator = struct {
             => unreachable,
         }
 
-        try out_file.writer().writeByte(upper);
+        try out_file.writeByte(upper);
         try out_file.writeAll(func_name[1..]);
         try out_file.writeAll("\n");
 
@@ -268,10 +282,10 @@ pub const DocsGenerator = struct {
     /// Extracts the source and builds the mardown file when we have a `simple_var_decl` node.
     pub fn extractFromSimpleVar(
         self: *DocsGenerator,
-        out_file: File,
+        out_file: std.ArrayList(u8).Writer,
         node_index: NodeIndex,
         duplicate: *std.StringHashMap(void),
-    ) GeneratorErrors!void {
+    ) Allocator.Error!void {
         const variable = self.ast.simpleVarDecl(node_index);
         const first_token = variable.firstToken();
 
@@ -324,7 +338,7 @@ pub const DocsGenerator = struct {
         }
     }
     /// Extracts the name from the token and writes it as H2 markdown file.
-    pub fn extractNameFromVariable(self: *DocsGenerator, out_file: File, first_token: TokenIndex) GeneratorErrors!void {
+    pub fn extractNameFromVariable(self: *DocsGenerator, out_file: GeneratorWriter, first_token: TokenIndex) !void {
         try out_file.writeAll("## ");
         // Format -> .keyword_pub, .keyword_const, .identifier
         // So we move ahead by 2 tokens
@@ -339,14 +353,13 @@ pub const DocsGenerator = struct {
     }
 };
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
+pub fn main() RunnerErrors!void {
+    const allocator = std.heap.c_allocator;
 
     var dir = try std.fs.cwd().openDir("src", .{ .iterate = true });
     defer dir.close();
 
-    var walker = try dir.walk(gpa.allocator());
+    var walker = try dir.walk(allocator);
     defer walker.deinit();
 
     while (try walker.next()) |sub_path| {
@@ -357,18 +370,18 @@ pub fn main() !void {
             continue;
 
         switch (sub_path.kind) {
-            .directory => createFolders(gpa.allocator(), sub_path.dir, sub_path.basename) catch |err| switch (err) {
+            .directory => createFolders(allocator, sub_path.dir, sub_path.basename) catch |err| switch (err) {
                 error.PathAlreadyExists => continue,
                 else => return err,
             },
-            .file => try generateMarkdownFile(gpa.allocator(), sub_path.dir, sub_path.basename),
+            .file => try generateMarkdownFile(allocator, sub_path.dir, sub_path.basename),
             else => continue,
         }
     }
 }
 
 /// Creates the folder that will contain the `md` files.
-fn createFolders(allocator: Allocator, sub_path: Dir, basename: []const u8) !void {
+fn createFolders(allocator: Allocator, sub_path: Dir, basename: []const u8) CreateFolderErrors!void {
     var buffer: [std.fs.max_path_bytes]u8 = undefined;
     const real_path = try sub_path.realpath(basename, &buffer);
 
@@ -378,7 +391,7 @@ fn createFolders(allocator: Allocator, sub_path: Dir, basename: []const u8) !voi
     try std.fs.makeDirAbsolute(out_name);
 }
 /// Generates the `md` files on the `docs` folder location.
-fn generateMarkdownFile(allocator: Allocator, sub_path: Dir, basename: []const u8) !void {
+fn generateMarkdownFile(allocator: Allocator, sub_path: Dir, basename: []const u8) CreateFileErrors!void {
     var buffer: [std.fs.max_path_bytes]u8 = undefined;
     const real_path = try sub_path.realpath(basename, &buffer);
 
@@ -400,5 +413,8 @@ fn generateMarkdownFile(allocator: Allocator, sub_path: Dir, basename: []const u
     var docs_gen = try DocsGenerator.init(allocator, source);
     defer docs_gen.deinit();
 
-    try docs_gen.extractDocs(out_file);
+    const slice = try docs_gen.extractDocs();
+    defer allocator.free(slice);
+
+    try out_file.writeAll(slice);
 }

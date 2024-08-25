@@ -166,6 +166,7 @@ fn docsGenerate(b: *std.Build, target: std.Build.ResolvedTarget) void {
         .root_source_file = b.path("docs_generate.zig"),
         .target = target,
         .optimize = .ReleaseFast,
+        .link_libc = true,
     });
 
     var docs_run = b.addRunArtifact(docs);

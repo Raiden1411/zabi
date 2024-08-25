@@ -96,19 +96,8 @@ pub const DocsGenerator = struct {
             switch (node) {
                 .simple_var_decl => try self.extractFromSimpleVar(out_file, @intCast(index), &duplicate),
                 .fn_decl => {
-                    var buffer = [_]u32{@intCast(index)};
-                    const fn_proto = self.ast.fullFnProto(&buffer, @intCast(index)) orelse continue;
-
-                    if (self.tokens[fn_proto.visib_token orelse continue] != .keyword_pub)
-                        continue;
-
-                    const func_name = self.ast.tokenSlice(fn_proto.name_token orelse continue);
-
-                    if (duplicate.get(func_name) != null)
-                        continue;
-
                     self.state = .fn_decl;
-                    try self.extractFromFnProto(fn_proto, out_file);
+                    try self.extractFromFnProto(@intCast(index), out_file, &duplicate);
                 },
                 else => continue,
             }
@@ -174,13 +163,8 @@ pub const DocsGenerator = struct {
         init_node: NodeIndex,
         duplicate: *std.StringHashMap(void),
     ) GeneratorErrors!void {
-        const container = switch (self.nodes[init_node]) {
-            .container_decl, .container_decl_trailing => self.ast.containerDecl(init_node),
-            .tagged_union, .tagged_union_trailing => self.ast.taggedUnion(init_node),
-            .container_decl_arg_trailing, .container_decl_arg => self.ast.containerDeclArg(init_node),
-            .container_decl_two, .container_decl_two_trailing => self.ast.containerDeclTwo(@constCast(&.{ init_node, init_node }), init_node),
-            else => std.debug.panic("Unexpected token found: {s}\n", .{@tagName(self.nodes[init_node])}),
-        };
+        const container = self.ast.fullContainerDecl(@constCast(&.{ init_node, init_node }), init_node) orelse
+            std.debug.panic("Unexpected token found: {s}\n", .{@tagName(self.nodes[init_node])});
 
         const container_token = self.ast.firstToken(init_node);
 
@@ -205,22 +189,7 @@ pub const DocsGenerator = struct {
 
         for (container.ast.members) |member| {
             switch (self.nodes[member]) {
-                .fn_decl => {
-                    var buffer = [_]u32{member};
-
-                    const fn_proto = self.ast.fullFnProto(&buffer, member) orelse continue;
-
-                    if (self.tokens[fn_proto.visib_token orelse continue] != .keyword_pub)
-                        continue;
-
-                    const func_name = self.ast.tokenSlice(fn_proto.name_token orelse continue);
-                    try duplicate.put(func_name, {});
-
-                    if (excludes.get(func_name) != null)
-                        continue;
-
-                    try self.extractFromFnProto(fn_proto, out_file);
-                },
+                .fn_decl => try self.extractFromFnProto(member, out_file, duplicate),
                 .simple_var_decl => try self.extractFromSimpleVar(out_file, member, duplicate),
                 .container_field_init => continue,
                 else => std.debug.panic("Unexpected node token found: {s}", .{@tagName(self.nodes[member])}),
@@ -250,15 +219,34 @@ pub const DocsGenerator = struct {
         try out_file.writeAll("\n");
     }
     /// Extracts the source and builds the mardown file when we have a `fn_decl` node.
-    pub fn extractFromFnProto(self: *DocsGenerator, proto: FnProto, out_file: File) GeneratorErrors!void {
-        const func_name = self.ast.tokenSlice(proto.name_token orelse unreachable);
+    pub fn extractFromFnProto(self: *DocsGenerator, index: NodeIndex, out_file: File, duplicate: *std.StringHashMap(void)) GeneratorErrors!void {
+        var buffer = [_]u32{@intCast(index)};
+        const fn_proto = self.ast.fullFnProto(&buffer, @intCast(index)) orelse return;
+
+        if (self.tokens[fn_proto.visib_token orelse return] != .keyword_pub)
+            return;
+
+        const func_name = self.ast.tokenSlice(fn_proto.name_token orelse return);
         const upper = std.ascii.toUpper(func_name[0]);
 
-        // Writes the function name
         switch (self.state) {
-            .constant_decl => try out_file.writeAll("### "),
-            .fn_decl => try out_file.writeAll("## "),
-            .none, .public => unreachable,
+            .fn_decl => {
+                if (duplicate.get(func_name) != null)
+                    return;
+
+                try out_file.writeAll("## ");
+            },
+            .constant_decl => {
+                try duplicate.put(func_name, {});
+
+                if (excludes.get(func_name) != null)
+                    return;
+
+                try out_file.writeAll("### ");
+            },
+            .none,
+            .public,
+            => unreachable,
         }
 
         try out_file.writer().writeByte(upper);
@@ -266,7 +254,7 @@ pub const DocsGenerator = struct {
         try out_file.writeAll("\n");
 
         // Writes the docs
-        const docs = try self.extractDocComments(proto.firstToken());
+        const docs = try self.extractDocComments(fn_proto.firstToken());
         defer self.allocator.free(docs);
 
         try out_file.writeAll(docs);
@@ -274,7 +262,7 @@ pub const DocsGenerator = struct {
         // Writes the signature
         try out_file.writeAll("### Signature\n\n");
         try out_file.writeAll("```zig\n");
-        try out_file.writeAll(self.ast.getNodeSource(proto.ast.proto_node));
+        try out_file.writeAll(self.ast.getNodeSource(fn_proto.ast.proto_node));
         try out_file.writeAll("\n```\n\n");
     }
     /// Extracts the source and builds the mardown file when we have a `simple_var_decl` node.
@@ -299,6 +287,9 @@ pub const DocsGenerator = struct {
             .container_decl_two,
             .tagged_union,
             .tagged_union_trailing,
+            .tagged_union_two,
+            .tagged_union_enum_tag,
+            .tagged_union_enum_tag_trailing,
             => {
                 try self.extractNameFromVariable(out_file, first_token);
 

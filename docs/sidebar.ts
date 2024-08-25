@@ -367,6 +367,10 @@ export const sidebar = {
 					link: "/api/evm/enviroment",
 				},
 				{
+					text: "Gas Tracker",
+					link: "/api/evm/gas_tracker",
+				},
+				{
 					text: "Instructions",
 					items: [
 						{

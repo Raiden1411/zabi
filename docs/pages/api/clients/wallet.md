@@ -53,7 +53,7 @@ struct {
 TransactionEnvelopeQueue.Node
 ```
 
-## FindTransactionEnvelope
+### FindTransactionEnvelope
 Finds a transaction envelope from the pool based on the
 transaction type. This is thread safe.\
 Returns null if no transaction was found
@@ -64,7 +64,7 @@ Returns null if no transaction was found
 pub fn findTransactionEnvelope(pool: *TransactionEnvelopePool, allocator: Allocator, search: SearchCriteria) ?TransactionEnvelope
 ```
 
-## AddEnvelopeToPool
+### AddEnvelopeToPool
 Adds a new node into the pool. This is thread safe.
 
 ### Signature
@@ -73,7 +73,7 @@ Adds a new node into the pool. This is thread safe.
 pub fn addEnvelopeToPool(pool: *TransactionEnvelopePool, node: *Node) void
 ```
 
-## UnsafeReleaseEnvelopeFromPool
+### UnsafeReleaseEnvelopeFromPool
 Removes a node from the pool. This is not thread safe.
 
 ### Signature
@@ -82,7 +82,7 @@ Removes a node from the pool. This is not thread safe.
 pub fn unsafeReleaseEnvelopeFromPool(pool: *TransactionEnvelopePool, node: *Node) void
 ```
 
-## ReleaseEnvelopeFromPool
+### ReleaseEnvelopeFromPool
 Removes a node from the pool. This is thread safe.
 
 ### Signature
@@ -91,7 +91,7 @@ Removes a node from the pool. This is thread safe.
 pub fn releaseEnvelopeFromPool(pool: *TransactionEnvelopePool, node: *Node) void
 ```
 
-## GetFirstElementFromPool
+### GetFirstElementFromPool
 Gets the last node from the pool and removes it.\
 This is thread safe.
 
@@ -101,7 +101,7 @@ This is thread safe.
 pub fn getFirstElementFromPool(pool: *TransactionEnvelopePool, allocator: Allocator) ?TransactionEnvelope
 ```
 
-## GetLastElementFromPool
+### GetLastElementFromPool
 Gets the last node from the pool and removes it.\
 This is thread safe.
 
@@ -111,7 +111,7 @@ This is thread safe.
 pub fn getLastElementFromPool(pool: *TransactionEnvelopePool, allocator: Allocator) ?TransactionEnvelope
 ```
 
-## Deinit
+### Deinit
 Destroys all created pointer. All future operations will deadlock.\
 This is thread safe.
 
@@ -119,6 +119,12 @@ This is thread safe.
 
 ```zig
 pub fn deinit(pool: *TransactionEnvelopePool, allocator: Allocator) void
+```
+
+## Node
+
+```zig
+TransactionEnvelopeQueue.Node
 ```
 
 ## Wallet
@@ -143,15 +149,6 @@ The init opts will depend on the `client_type`.
 
 ```zig
 pub fn init(private_key: ?Hash, opts: InitOpts) !*Wallet(client_type)
-```
-
-## Deinit
-Clears memory and destroys any created pointers
-
-### Signature
-
-```zig
-pub fn deinit(self: *Wallet(client_type)) void
 ```
 
 ## AssertTransaction

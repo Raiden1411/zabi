@@ -10,6 +10,9 @@ const NodeIndex = Ast.Node.Index;
 const NodeTag = Ast.Node.Tag;
 const TokenIndex = std.zig.Ast.TokenIndex;
 
+/// Set of possible errors from the generation.
+pub const GeneratorErrors = File.WriteError || Allocator.Error;
+
 /// Files and folder to be excluded from the docs generation.
 const excludes = std.StaticStringMap(void).initComptime(.{
     // Files
@@ -59,7 +62,7 @@ pub const DocsGenerator = struct {
     tokens: []const Tag,
 
     /// Starts the generaton and pre parses the source code.
-    pub fn init(allocator: Allocator, source: [:0]const u8) !DocsGenerator {
+    pub fn init(allocator: Allocator, source: [:0]const u8) Allocator.Error!DocsGenerator {
         const ast = try Ast.parse(allocator, source, .zig);
 
         return .{
@@ -76,7 +79,7 @@ pub const DocsGenerator = struct {
     }
     /// Extracts the `doc_comments` from the source code and writes them to `out_file`.
     /// Also extracts the function names and public constants as headers for markdown.
-    pub fn extractDocs(self: *DocsGenerator, out_file: File) !void {
+    pub fn extractDocs(self: *DocsGenerator, out_file: File) GeneratorErrors!void {
         var duplicate = std.StringHashMap(void).init(self.allocator);
         defer duplicate.deinit();
 
@@ -107,7 +110,7 @@ pub const DocsGenerator = struct {
     /// Traverses the ast to find the associated doc comments.
     ///
     /// Retuns an empty string if none can be found.
-    pub fn extractDocComments(self: DocsGenerator, index: TokenIndex) ![]const u8 {
+    pub fn extractDocComments(self: DocsGenerator, index: TokenIndex) Allocator.Error![]const u8 {
         const tokens = self.ast.tokens.items(.tag);
 
         const start_index: usize = start_index: for (0..index) |i| {
@@ -158,112 +161,90 @@ pub const DocsGenerator = struct {
         return list.toOwnedSlice();
     }
     /// Extracts the source and builds the mardown file when we have a `container_decl*`, `tagged_union` or `merge_error_sets` node.
-    pub fn extractFromContainerDecl(self: *DocsGenerator, out_file: File, init_node: NodeIndex, duplicate: *std.StringHashMap(void)) !void {
+    pub fn extractFromContainerDecl(
+        self: *DocsGenerator,
+        out_file: File,
+        init_node: NodeIndex,
+        duplicate: *std.StringHashMap(void),
+    ) GeneratorErrors!void {
         const container = switch (self.nodes[init_node]) {
             .container_decl, .container_decl_trailing => self.ast.containerDecl(init_node),
             .tagged_union, .tagged_union_trailing => self.ast.taggedUnion(init_node),
-            .merge_error_sets,
-            .call,
-            .call_one,
-            .error_set_decl,
-            .array_type,
-            .ptr_type,
-            .identifier,
-            .ptr_type_aligned,
-            .struct_init,
-            .struct_init_one,
-            .struct_init_comma,
-            .struct_init_one_comma,
-            .@"catch",
-            .field_access,
-            .tagged_union_two_trailing,
-            .struct_init_dot_comma,
-            .address_of,
-            => {
-                try out_file.writeAll("```zig\n");
-                try out_file.writeAll(self.ast.getNodeSource(init_node));
-                try out_file.writeAll("\n```\n\n");
-                return;
-            },
             .container_decl_arg_trailing, .container_decl_arg => self.ast.containerDeclArg(init_node),
             .container_decl_two, .container_decl_two_trailing => self.ast.containerDeclTwo(@constCast(&.{ init_node, init_node }), init_node),
-            .number_literal, .sub => return,
+            .field_access => std.debug.panic("FOOO: {s}", .{self.ast.getNodeSource(init_node)}),
             else => std.debug.panic("Unexpected token found: {s}\n", .{@tagName(self.nodes[init_node])}),
         };
 
         const container_token = self.ast.firstToken(init_node);
 
+        try out_file.writeAll("### Properties\n\n");
+        try out_file.writeAll("```zig\n");
+
         switch (self.tokens[container_token]) {
-            .keyword_struct, .keyword_union, .keyword_enum => {
-                try out_file.writeAll("### Properties\n\n");
-                try out_file.writeAll("```zig\n");
+            .keyword_enum => try out_file.writeAll("enum {\n"),
+            .keyword_struct => try out_file.writeAll("struct {\n"),
+            .keyword_union => try out_file.writeAll("union(enum) {\n"),
+            else => std.debug.panic("Unexpected node token found: {s}", .{@tagName(self.tokens[container_token])}),
+        }
 
-                switch (self.tokens[container_token]) {
-                    .keyword_enum => try out_file.writeAll("enum {\n"),
-                    .keyword_struct => try out_file.writeAll("struct {\n"),
-                    .keyword_union => try out_file.writeAll("union(enum) {\n"),
-                    else => unreachable,
-                }
+        for (container.ast.members) |member| {
+            switch (self.nodes[member]) {
+                .container_field_init => try self.extractFromContainerField(out_file, member),
+                .fn_decl, .simple_var_decl => continue,
+                else => std.debug.panic("Unexpected node token found: {s}", .{@tagName(self.nodes[member])}),
+            }
+        }
+        try out_file.writeAll("}\n```\n\n");
 
-                var fn_idx: usize = 0;
-                for (container.ast.members, 0..) |member, mem_idx| {
-                    const first_token = self.ast.firstToken(member);
-
-                    switch (self.tokens[first_token]) {
-                        .identifier => {
-                            // Grabs the first `doc_comment` index
-                            const start_index: usize = start_index: for (0..first_token) |i| {
-                                const reverse_i = first_token - i - 1;
-                                const token = self.tokens[reverse_i];
-                                if (token != .doc_comment) break :start_index reverse_i + 1;
-                            } else unreachable;
-
-                            for (start_index..first_token) |idx| {
-                                try out_file.writeAll("  ");
-                                try out_file.writeAll(self.ast.tokenSlice(@intCast(idx)));
-                                try out_file.writeAll("\n");
-                            }
-
-                            try out_file.writeAll("  ");
-                            try out_file.writeAll(self.ast.getNodeSource(member));
-                            try out_file.writeAll("\n");
-                        },
-                        .keyword_pub => {
-                            fn_idx = mem_idx;
-                            break;
-                        },
-                        else => break,
-                    }
-                }
-                try out_file.writeAll("}\n```\n\n");
-
-                for (container.ast.members[fn_idx..]) |member| {
+        for (container.ast.members) |member| {
+            switch (self.nodes[member]) {
+                .fn_decl => {
                     var buffer = [_]u32{member};
 
-                    if (self.nodes[member] != .fn_decl)
-                        return;
+                    const fn_proto = self.ast.fullFnProto(&buffer, member) orelse continue;
 
-                    const fn_proto = self.ast.fullFnProto(&buffer, member);
-
-                    const proto = fn_proto orelse return;
-
-                    if (self.tokens[proto.visib_token orelse return] != .keyword_pub)
+                    if (self.tokens[fn_proto.visib_token orelse continue] != .keyword_pub)
                         continue;
 
-                    const func_name = self.ast.tokenSlice(proto.name_token orelse return);
+                    const func_name = self.ast.tokenSlice(fn_proto.name_token orelse continue);
                     try duplicate.put(func_name, {});
 
                     if (excludes.get(func_name) != null)
                         continue;
 
-                    try self.extractFromFnProto(proto, out_file);
-                }
-            },
-            else => return,
+                    try self.extractFromFnProto(fn_proto, out_file);
+                },
+                .simple_var_decl => try self.extractFromSimpleVar(out_file, member, duplicate),
+                .container_field_init => continue,
+                else => std.debug.panic("Unexpected node token found: {s}", .{@tagName(self.nodes[member])}),
+            }
         }
     }
+    /// Writes a container field from a `struct`, `union` or `enum` with their `doc_comment` tokens.
+    pub fn extractFromContainerField(self: *DocsGenerator, out_file: File, member: NodeIndex) File.WriteError!void {
+        const field = self.ast.containerFieldInit(member);
+        const first_token = field.firstToken();
+
+        // Grabs the first `doc_comment` index
+        const start_index: usize = start_index: for (0..first_token) |i| {
+            const reverse_i = first_token - i - 1;
+            const token = self.tokens[reverse_i];
+            if (token != .doc_comment) break :start_index reverse_i + 1;
+        } else unreachable;
+
+        for (start_index..first_token) |idx| {
+            try out_file.writeAll("  ");
+            try out_file.writeAll(self.ast.tokenSlice(@intCast(idx)));
+            try out_file.writeAll("\n");
+        }
+
+        try out_file.writeAll("  ");
+        try out_file.writeAll(self.ast.getNodeSource(member));
+        try out_file.writeAll("\n");
+    }
     /// Extracts the source and builds the mardown file when we have a `fn_decl` node.
-    pub fn extractFromFnProto(self: *DocsGenerator, proto: FnProto, out_file: File) !void {
+    pub fn extractFromFnProto(self: *DocsGenerator, proto: FnProto, out_file: File) GeneratorErrors!void {
         const func_name = self.ast.tokenSlice(proto.name_token orelse unreachable);
         const upper = std.ascii.toUpper(func_name[0]);
 
@@ -291,18 +272,66 @@ pub const DocsGenerator = struct {
         try out_file.writeAll("\n```\n\n");
     }
     /// Extracts the source and builds the mardown file when we have a `simple_var_decl` node.
-    pub fn extractFromSimpleVar(self: *DocsGenerator, out_file: File, node_index: NodeIndex, duplicate: *std.StringHashMap(void)) !void {
+    pub fn extractFromSimpleVar(
+        self: *DocsGenerator,
+        out_file: File,
+        node_index: NodeIndex,
+        duplicate: *std.StringHashMap(void),
+    ) GeneratorErrors!void {
         const variable = self.ast.simpleVarDecl(node_index);
         const first_token = variable.firstToken();
 
         if (self.tokens[first_token] != .keyword_pub)
             return;
 
-        self.state = .constant_decl;
+        switch (self.nodes[variable.ast.init_node]) {
+            .container_decl,
+            .container_decl_trailing,
+            .container_decl_arg_trailing,
+            .container_decl_arg,
+            .container_decl_two_trailing,
+            .container_decl_two,
+            .tagged_union,
+            .tagged_union_trailing,
+            => {
+                try self.extractNameFromVariable(out_file, first_token);
 
+                self.state = .constant_decl;
+                return self.extractFromContainerDecl(out_file, variable.ast.init_node, duplicate);
+            },
+            .merge_error_sets,
+            .call,
+            .call_one,
+            .error_set_decl,
+            .array_type,
+            .ptr_type,
+            .identifier,
+            .ptr_type_aligned,
+            .struct_init,
+            .struct_init_one,
+            .struct_init_comma,
+            .struct_init_one_comma,
+            .@"catch",
+            .field_access,
+            .tagged_union_two_trailing,
+            .struct_init_dot_comma,
+            .address_of,
+            => {
+                try self.extractNameFromVariable(out_file, first_token);
+                try out_file.writeAll("```zig\n");
+                try out_file.writeAll(self.ast.getNodeSource(variable.ast.init_node));
+                return out_file.writeAll("\n```\n\n");
+            },
+            .number_literal, .sub => return,
+            else => std.debug.panic("Unexpected token found: {s}\n", .{@tagName(self.nodes[variable.ast.init_node])}),
+        }
+    }
+    /// Extracts the name from the token and writes it as H2 markdown file.
+    pub fn extractNameFromVariable(self: *DocsGenerator, out_file: File, first_token: TokenIndex) GeneratorErrors!void {
         try out_file.writeAll("## ");
         // Format -> .keyword_pub, .keyword_const, .identifier
         // So we move ahead by 2 tokens
+        std.debug.assert(self.tokens[first_token + 2] == .identifier); // Unexpected token.
         try out_file.writeAll(self.ast.tokenSlice(first_token + 2));
         try out_file.writeAll("\n\n");
 
@@ -310,8 +339,6 @@ pub const DocsGenerator = struct {
         defer self.allocator.free(comments);
 
         try out_file.writeAll(comments);
-
-        return self.extractFromContainerDecl(out_file, variable.ast.init_node, duplicate);
     }
 };
 

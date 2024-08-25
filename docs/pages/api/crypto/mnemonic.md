@@ -52,10 +52,11 @@ The word lists that are valid for mnemonic passphrases.
 
 ```zig
 struct {
+  word_list: [Wordlist.list_count][]const u8
 }
 ```
 
-## LoadRawList
+### LoadRawList
 Loads word in it's raw format and parses it.\
 It expects that the string is seperated by "\n"
 
@@ -65,7 +66,7 @@ It expects that the string is seperated by "\n"
 pub fn loadRawList(raw_list: []const u8) List
 ```
 
-## GetIndex
+### GetIndex
 Performs binary search on the word list
 as we assume that the list is alphabetically ordered.\
 Returns null if the word isn't on the list

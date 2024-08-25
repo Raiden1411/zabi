@@ -13,28 +13,28 @@ struct {
 }
 ```
 
-## Init
+### Init
 ### Signature
 
 ```zig
 pub fn init(text: [:0]const u8) Lexer
 ```
 
-## Reset
+### Reset
 ### Signature
 
 ```zig
 pub fn reset(self: *Lexer, newText: []const u8, pos: ?u32) void
 ```
 
-## TokenSlice
+### TokenSlice
 ### Signature
 
 ```zig
 pub fn tokenSlice(self: *Lexer, start: usize, end: usize) []const u8
 ```
 
-## Scan
+### Scan
 ### Signature
 
 ```zig

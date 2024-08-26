@@ -22,36 +22,50 @@ const RunnerErrors = CreateFileErrors || CreateFolderErrors;
 /// Files and folder to be excluded from the docs generation.
 const excludes = std.StaticStringMap(void).initComptime(.{
     // Files
-    .{ "ws_server.zig", {} },
-    .{ "rpc_server.zig", {} },
-    .{ "ipc_server.zig", {} },
-    .{ "constants.zig", {} },
-    .{ "server.zig", {} },
-    .{ "state_mutability.zig", {} },
-    .{ "english.txt", {} },
-    .{ "pipe.zig", {} },
-    .{ "abi_optimism.zig", {} },
     .{ "abi_ens.zig", {} },
-    .{ "contracts.zig", {} },
+    .{ "abi_optimism.zig", {} },
+    .{ "blst.h", {} },
+    .{ "blst_aux.h", {} },
+    .{ "build.zig", {} },
+    .{ "build.zig.zon", {} },
+    .{ "c.zig", {} },
     .{ "channel.zig", {} },
+    .{ "constants.zig", {} },
+    .{ "contracts.zig", {} },
+    .{ "ipc_server.zig", {} },
+    .{ "pipe.zig", {} },
     .{ "root.zig", {} },
+    .{ "rpc_server.zig", {} },
+    .{ "state_mutability.zig", {} },
+    .{ "server.zig", {} },
+    .{ "ws_server.zig", {} },
 
     // Folders
+    .{ ".zig-cache", {} },
+    .{ "blst", {} },
+    .{ "tests_blobs", {} },
     .{ "wordlists", {} },
+    .{ "zig-out", {} },
 
     // Function declarations. Only used on `container_decl` tokens and alike.
-    .{ "jsonStringify", {} },
+    .{ "format", {} },
     .{ "jsonParseFromValue", {} },
     .{ "jsonParse", {} },
-    .{ "format", {} },
+    .{ "jsonStringify", {} },
 });
 
 /// The state the generator is in whilst traversing the AST.
-pub const LookupState = enum {
+const LookupState = enum {
     public,
     constant_decl,
     fn_decl,
     none,
+};
+
+/// Root folders to generate documentation from.
+const RootFolders = enum {
+    src,
+    pkg,
 };
 
 /// Parses and generates based on the `doc_comments` on the provided source code.
@@ -356,44 +370,26 @@ pub const DocsGenerator = struct {
 pub fn main() RunnerErrors!void {
     const allocator = std.heap.c_allocator;
 
-    var dir = try std.fs.cwd().openDir("src", .{ .iterate = true });
-    defer dir.close();
-
-    var walker = try dir.walk(allocator);
-    defer walker.deinit();
-
-    while (try walker.next()) |sub_path| {
-        if (std.mem.endsWith(u8, sub_path.basename, "test.zig"))
-            continue;
-
-        if (excludes.get(sub_path.basename) != null)
-            continue;
-
-        switch (sub_path.kind) {
-            .directory => createFolders(allocator, sub_path.dir, sub_path.basename) catch |err| switch (err) {
-                error.PathAlreadyExists => continue,
-                else => return err,
-            },
-            .file => try generateMarkdownFile(allocator, sub_path.dir, sub_path.basename),
-            else => continue,
-        }
+    // Makes it easier if we want to add a new root folder to search from.
+    inline for (@typeInfo(RootFolders).Enum.fields) |field| {
+        try generateDocumentationFromFolder(allocator, @enumFromInt(field.value));
     }
 }
 
 /// Creates the folder that will contain the `md` files.
-fn createFolders(allocator: Allocator, sub_path: Dir, basename: []const u8) CreateFolderErrors!void {
+fn createFolders(allocator: Allocator, sub_path: Dir.Walker.Entry, search_root_folder: RootFolders) CreateFolderErrors!void {
     var buffer: [std.fs.max_path_bytes]u8 = undefined;
-    const real_path = try sub_path.realpath(basename, &buffer);
+    const real_path = try sub_path.dir.realpath(sub_path.basename, &buffer);
 
-    const out_name = try std.mem.replaceOwned(u8, allocator, real_path, "src", "docs/pages/api");
+    const out_name = try std.mem.replaceOwned(u8, allocator, real_path, @tagName(search_root_folder), "docs/pages/api");
     defer allocator.free(out_name);
 
     try std.fs.makeDirAbsolute(out_name);
 }
 /// Generates the `md` files on the `docs` folder location.
-fn generateMarkdownFile(allocator: Allocator, sub_path: Dir, basename: []const u8) CreateFileErrors!void {
+fn generateMarkdownFile(allocator: Allocator, sub_path: Dir.Walker.Entry, search_root_folder: RootFolders) CreateFileErrors!void {
     var buffer: [std.fs.max_path_bytes]u8 = undefined;
-    const real_path = try sub_path.realpath(basename, &buffer);
+    const real_path = try sub_path.dir.realpath(sub_path.basename, &buffer);
 
     var file = try std.fs.openFileAbsolute(real_path, .{});
     defer file.close();
@@ -401,7 +397,7 @@ fn generateMarkdownFile(allocator: Allocator, sub_path: Dir, basename: []const u
     const source = try file.readToEndAllocOptions(allocator, std.math.maxInt(u32), null, @alignOf(u8), 0);
     defer allocator.free(source);
 
-    const out_absolute_path = try std.mem.replaceOwned(u8, allocator, real_path, "src", "docs/pages/api");
+    const out_absolute_path = try std.mem.replaceOwned(u8, allocator, real_path, @tagName(search_root_folder), "docs/pages/api");
     defer allocator.free(out_absolute_path);
 
     const out_name = try std.mem.replaceOwned(u8, allocator, out_absolute_path, ".zig", ".md");
@@ -417,4 +413,37 @@ fn generateMarkdownFile(allocator: Allocator, sub_path: Dir, basename: []const u
     defer allocator.free(slice);
 
     try out_file.writeAll(slice);
+}
+/// Generates the documentation based on a `RootFolders` member.
+fn generateDocumentationFromFolder(allocator: Allocator, search_root_folder: RootFolders) !void {
+    var dir = try std.fs.cwd().openDir(@tagName(search_root_folder), .{ .iterate = true });
+    defer dir.close();
+
+    var walker = try dir.walk(allocator);
+    defer walker.deinit();
+
+    while (try walker.next()) |sub_path| {
+        if (std.mem.endsWith(u8, sub_path.basename, "test.zig"))
+            continue;
+
+        switch (sub_path.kind) {
+            .directory => {
+                if (excludes.get(sub_path.basename) != null) {
+                    _ = walker.stack.pop();
+                    continue;
+                }
+                createFolders(allocator, sub_path, search_root_folder) catch |err| switch (err) {
+                    error.PathAlreadyExists => continue,
+                    else => return err,
+                };
+            },
+            .file => {
+                if (excludes.get(sub_path.basename) != null)
+                    continue;
+
+                try generateMarkdownFile(allocator, sub_path, search_root_folder);
+            },
+            else => continue,
+        }
+    }
 }

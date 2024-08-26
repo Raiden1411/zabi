@@ -7,7 +7,17 @@ const Tuple = std.meta.Tuple;
 
 const KZG4844 = @This();
 
-pub const Eip4844Errors = error{ ExpectedZByte, ExpectJsonFile, ExpectedBlobData, SetupMustBeInitialized, SetupAlreadyLoaded, InvalidProof, InvalidG1Length, InvalidG2Length, InvalidSize };
+pub const Eip4844Errors = error{
+    ExpectedZByte,
+    ExpectJsonFile,
+    ExpectedBlobData,
+    SetupMustBeInitialized,
+    SetupAlreadyLoaded,
+    InvalidProof,
+    InvalidG1Length,
+    InvalidG2Length,
+    InvalidSize,
+};
 
 pub const Blob = [c.BYTES_PER_BLOB]u8;
 pub const KZGProof = [c.BYTES_PER_PROOF]u8;
@@ -385,7 +395,7 @@ pub fn verifyBlobKZGProofBatch(self: *KZG4844, blobs: []c.Blob, commitment_bytes
 
 test "Compute Hash" {
     var trusted: KZG4844 = .{};
-    try trusted.initTrustedSetupFromFile("./tests/trusted_setup.txt");
+    try trusted.initTrustedSetupFromFile("./tests_blobs/trusted_setup.txt");
     defer trusted.deinitTrustSetupFile();
 
     const bytes = "picklerick" ** 20000;
@@ -412,10 +422,10 @@ test "BytesToBlob" {
 
 test "Blob_to_kzg_commitment" {
     var trusted: KZG4844 = .{};
-    try trusted.initTrustedSetupFromFile("./tests/trusted_setup.txt");
+    try trusted.initTrustedSetupFromFile("./tests_blobs/trusted_setup.txt");
     defer trusted.deinitTrustSetupFile();
 
-    var file = try std.fs.cwd().openFile("./tests/blob_to_kzg_commitment.json", .{});
+    var file = try std.fs.cwd().openFile("./tests_blobs/blob_to_kzg_commitment.json", .{});
     defer file.close();
 
     const end = try file.getEndPos();
@@ -443,10 +453,10 @@ test "Blob_to_kzg_commitment" {
 
 test "Compute_kzg_proof" {
     var trusted: KZG4844 = .{};
-    try trusted.initTrustedSetupFromFile("./tests/trusted_setup.txt");
+    try trusted.initTrustedSetupFromFile("./tests_blobs/trusted_setup.txt");
     defer trusted.deinitTrustSetupFile();
 
-    var file = try std.fs.cwd().openFile("./tests/compute_kzg_proof.json", .{});
+    var file = try std.fs.cwd().openFile("./tests_blobs/compute_kzg_proof.json", .{});
     defer file.close();
 
     const end = try file.getEndPos();
@@ -475,10 +485,10 @@ test "Compute_kzg_proof" {
 
 test "Verify_kzg_proof" {
     var trusted: KZG4844 = .{};
-    try trusted.initTrustedSetupFromFile("./tests/trusted_setup.txt");
+    try trusted.initTrustedSetupFromFile("./tests_blobs/trusted_setup.txt");
     defer trusted.deinitTrustSetupFile();
 
-    var file = try std.fs.cwd().openFile("./tests/verify_kzg_proof.json", .{});
+    var file = try std.fs.cwd().openFile("./tests_blobs/verify_kzg_proof.json", .{});
     defer file.close();
 
     const end = try file.getEndPos();
@@ -510,10 +520,10 @@ test "Verify_kzg_proof" {
 
 test "Verify_blob_kzg_proof" {
     var trusted: KZG4844 = .{};
-    try trusted.initTrustedSetupFromFile("./tests/trusted_setup.txt");
+    try trusted.initTrustedSetupFromFile("./tests_blobs/trusted_setup.txt");
     defer trusted.deinitTrustSetupFile();
 
-    var file = try std.fs.cwd().openFile("./tests/verify_blob_kzg_proof.json", .{});
+    var file = try std.fs.cwd().openFile("./tests_blobs/verify_blob_kzg_proof.json", .{});
     defer file.close();
 
     const end = try file.getEndPos();
@@ -543,10 +553,10 @@ test "Verify_blob_kzg_proof" {
 
 test "Verify_blob_kzg_proof_batch" {
     var trusted: KZG4844 = .{};
-    try trusted.initTrustedSetupFromFile("./tests/trusted_setup.txt");
+    try trusted.initTrustedSetupFromFile("./tests_blobs/trusted_setup.txt");
     defer trusted.deinitTrustSetupFile();
 
-    var file = try std.fs.cwd().openFile("./tests/verify_blob_kzg_proof_batch.json", .{});
+    var file = try std.fs.cwd().openFile("./tests_blobs/verify_blob_kzg_proof_batch.json", .{});
     defer file.close();
 
     const end = try file.getEndPos();

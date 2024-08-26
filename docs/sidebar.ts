@@ -280,11 +280,11 @@ export const sidebar = {
 							link: "/api/crypto/Signer",
 						},
 						{
-							text: "BIP39 HD Wallets",
+							text: "BIP32 HD Wallets",
 							link: "/api/crypto/hdwallet",
 						},
 						{
-							text: "BIP32 Mnemonic Wallets",
+							text: "BIP39 Mnemonic Wallets",
 							link: "/api/crypto/mnemonic",
 						},
 						{
@@ -292,6 +292,10 @@ export const sidebar = {
 							link: "/api/crypto/signature",
 						},
 					],
+				},
+				{
+					text: "EIP 4844",
+					link: "/api/c-kzg-4844/ckzg4844",
 				},
 				{
 					text: "Testing",

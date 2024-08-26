@@ -367,83 +367,122 @@ pub const DocsGenerator = struct {
     }
 };
 
-pub fn main() RunnerErrors!void {
-    const allocator = std.heap.c_allocator;
+/// Main runner that will extract the documentation from `zabi` source code.
+/// Will create folders and files as needed. It overrides all previous information on
+/// any previously created file.
+const Runner = struct {
+    /// The runners allocator.
+    allocator: Allocator,
 
-    // Makes it easier if we want to add a new root folder to search from.
-    inline for (@typeInfo(RootFolders).Enum.fields) |field| {
-        try generateDocumentationFromFolder(allocator, @enumFromInt(field.value));
+    /// Creates the runners initial state.
+    pub fn init(allocator: Allocator) Runner {
+        return .{ .allocator = allocator };
     }
-}
+    /// Runs the generation for all targeted root folders.
+    pub fn run(self: Runner) RunnerErrors!void {
+        // Makes it easier if we want to add a new root folder to search from.
+        inline for (@typeInfo(RootFolders).Enum.fields) |field| {
 
-/// Creates the folder that will contain the `md` files.
-fn createFolders(allocator: Allocator, sub_path: Dir.Walker.Entry, search_root_folder: RootFolders) CreateFolderErrors!void {
-    var buffer: [std.fs.max_path_bytes]u8 = undefined;
-    const real_path = try sub_path.dir.realpath(sub_path.basename, &buffer);
-
-    const out_name = try std.mem.replaceOwned(u8, allocator, real_path, @tagName(search_root_folder), "docs/pages/api");
-    defer allocator.free(out_name);
-
-    try std.fs.makeDirAbsolute(out_name);
-}
-/// Generates the `md` files on the `docs` folder location.
-fn generateMarkdownFile(allocator: Allocator, sub_path: Dir.Walker.Entry, search_root_folder: RootFolders) CreateFileErrors!void {
-    var buffer: [std.fs.max_path_bytes]u8 = undefined;
-    const real_path = try sub_path.dir.realpath(sub_path.basename, &buffer);
-
-    var file = try std.fs.openFileAbsolute(real_path, .{});
-    defer file.close();
-
-    const source = try file.readToEndAllocOptions(allocator, std.math.maxInt(u32), null, @alignOf(u8), 0);
-    defer allocator.free(source);
-
-    const out_absolute_path = try std.mem.replaceOwned(u8, allocator, real_path, @tagName(search_root_folder), "docs/pages/api");
-    defer allocator.free(out_absolute_path);
-
-    const out_name = try std.mem.replaceOwned(u8, allocator, out_absolute_path, ".zig", ".md");
-    defer allocator.free(out_name);
-
-    var out_file = try std.fs.createFileAbsolute(out_name, .{});
-    defer out_file.close();
-
-    var docs_gen = try DocsGenerator.init(allocator, source);
-    defer docs_gen.deinit();
-
-    const slice = try docs_gen.extractDocs();
-    defer allocator.free(slice);
-
-    try out_file.writeAll(slice);
-}
-/// Generates the documentation based on a `RootFolders` member.
-fn generateDocumentationFromFolder(allocator: Allocator, search_root_folder: RootFolders) !void {
-    var dir = try std.fs.cwd().openDir(@tagName(search_root_folder), .{ .iterate = true });
-    defer dir.close();
-
-    var walker = try dir.walk(allocator);
-    defer walker.deinit();
-
-    while (try walker.next()) |sub_path| {
-        if (std.mem.endsWith(u8, sub_path.basename, "test.zig"))
-            continue;
-
-        switch (sub_path.kind) {
-            .directory => {
-                if (excludes.get(sub_path.basename) != null) {
-                    _ = walker.stack.pop();
-                    continue;
-                }
-                createFolders(allocator, sub_path, search_root_folder) catch |err| switch (err) {
-                    error.PathAlreadyExists => continue,
-                    else => return err,
-                };
-            },
-            .file => {
-                if (excludes.get(sub_path.basename) != null)
-                    continue;
-
-                try generateMarkdownFile(allocator, sub_path, search_root_folder);
-            },
-            else => continue,
+            // Creates the documentation tree based on the current `RootFolders`.
+            try self.generateDocumentationFromFolder(@enumFromInt(field.value));
         }
     }
+    /// Creates the folder that will contain the `md` files.
+    pub fn createFolders(self: Runner, sub_path: Dir.Walker.Entry) CreateFolderErrors!void {
+        var path = std.ArrayList(u8).init(self.allocator);
+        errdefer path.deinit();
+
+        var buffer: [std.fs.max_path_bytes]u8 = undefined;
+        var path_writer = path.writer();
+
+        try path_writer.print("{s}{s}{s}", .{
+            try std.fs.cwd().realpath(".", &buffer),
+            "/docs/pages/api/",
+            sub_path.path,
+        });
+
+        const joined = try path.toOwnedSlice();
+        defer self.allocator.free(joined);
+
+        try std.fs.makeDirAbsolute(joined);
+    }
+    /// Generates the `md` files on the `docs/pages/api` folder location.
+    pub fn createMarkdownFile(self: Runner, sub_path: Dir.Walker.Entry) CreateFileErrors!void {
+        var buffer: [std.fs.max_path_bytes]u8 = undefined;
+        const real_path = try sub_path.dir.realpath(sub_path.basename, &buffer);
+
+        var file = try std.fs.openFileAbsolute(real_path, .{});
+        defer file.close();
+
+        const source = try file.readToEndAllocOptions(self.allocator, std.math.maxInt(u32), null, @alignOf(u8), 0);
+        defer self.allocator.free(source);
+
+        var path = std.ArrayList(u8).init(self.allocator);
+        errdefer path.deinit();
+
+        var path_writer = path.writer();
+
+        try path_writer.print("{s}{s}{s}{s}", .{
+            try std.fs.cwd().realpath(".", &buffer),
+            "/docs/pages/api/",
+            sub_path.path[0 .. sub_path.path.len - 3],
+            "md",
+        });
+
+        const joined = try path.toOwnedSlice();
+
+        var out_file = try std.fs.createFileAbsolute(joined, .{});
+        defer out_file.close();
+
+        var docs_gen = try DocsGenerator.init(self.allocator, source);
+        defer docs_gen.deinit();
+
+        const slice = try docs_gen.extractDocs();
+        defer self.allocator.free(slice);
+
+        try out_file.writeAll(slice);
+    }
+    /// Generates the documentation based on a `RootFolders` member.
+    pub fn generateDocumentationFromFolder(self: Runner, search_root_folder: RootFolders) !void {
+        var dir = try std.fs.cwd().openDir(@tagName(search_root_folder), .{ .iterate = true });
+        defer dir.close();
+
+        var walker = try dir.walk(self.allocator);
+        defer walker.deinit();
+
+        while (try walker.next()) |sub_path| {
+            if (std.mem.endsWith(u8, sub_path.basename, "test.zig"))
+                continue;
+
+            switch (sub_path.kind) {
+                .directory => {
+                    if (excludes.get(sub_path.basename) != null) {
+                        var curr = walker.stack.pop();
+                        curr.iter.dir.close();
+
+                        continue;
+                    }
+
+                    self.createFolders(sub_path) catch |err| switch (err) {
+                        error.PathAlreadyExists => continue,
+                        else => return err,
+                    };
+                },
+                .file => {
+                    if (excludes.get(sub_path.basename) != null)
+                        continue;
+
+                    try self.createMarkdownFile(sub_path);
+                },
+                else => continue,
+            }
+        }
+    }
+};
+
+pub fn main() RunnerErrors!void {
+    const allocator = std.heap.c_allocator;
+    const runner = Runner.init(allocator);
+
+    try runner.run();
 }

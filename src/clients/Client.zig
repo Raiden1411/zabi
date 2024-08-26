@@ -2,6 +2,7 @@ const block = @import("../types/block.zig");
 const decoder = @import("../decoding/decoder.zig");
 const http = std.http;
 const log = @import("../types/log.zig");
+const network = @import("network.zig");
 const meta = @import("../meta/utils.zig");
 const meta_abi = @import("../meta/abi.zig");
 const multicall = @import("multicall.zig");
@@ -48,6 +49,7 @@ const Logs = log.Logs;
 const Multicall = multicall.Multicall;
 const MulticallArguments = multicall.MulticallArguments;
 const MulticallTargets = multicall.MulticallTargets;
+const NetworkConfig = network.NetworkConfig;
 const PoolTransactionByNonce = txpool.PoolTransactionByNonce;
 const ProofResult = proof.ProofResult;
 const ProofBlockTag = block.ProofBlockTag;
@@ -108,34 +110,18 @@ const protocol_map = std.StaticStringMap(HttpConnection.Protocol).initComptime(.
 pub const InitOptions = struct {
     /// Allocator used to manage the memory arena.
     allocator: Allocator,
-    /// The base fee multiplier used to estimate the gas fees in a transaction
-    base_fee_multiplier: f64 = 1.2,
-    /// The client chainId.
-    chain_id: ?Chains = null,
-    /// The interval to retry the request. This will get multiplied in ns_per_ms.
-    pooling_interval: u64 = 2_000,
-    /// Retry count for failed requests.
-    retries: u8 = 5,
-    /// Uri for the client to connect to
-    uri: std.Uri,
+    /// The network config for the client to use.
+    network_config: NetworkConfig,
 };
 
 /// This allocator will get set by the arena.
 allocator: Allocator,
-/// The base fee multiplier used to estimate the gas fees in a transaction
-base_fee_multiplier: f64,
-/// The client chainId.
-chain_id: usize,
 /// The underlaying http client used to manage all the calls.
 client: http.Client,
 /// Connection used as a reference for http client connections
 connection: *HttpConnection,
-/// The interval to retry the request. This will get multiplied in ns_per_ms.
-pooling_interval: u64,
-/// Retry count for failed requests.
-retries: u8,
-/// The uri of the provided init string.
-uri: Uri,
+/// The network config that the client is connected to.
+network_config: NetworkConfig,
 
 const PubClient = @This();
 
@@ -143,23 +129,17 @@ const PubClient = @This();
 /// Most of the client method are replicas of the JSON RPC methods name with the `eth_` start.
 /// The client will handle request with 429 errors via exponential backoff but not the rest.
 pub fn init(opts: InitOptions) !*PubClient {
-    const chain: Chains = opts.chain_id orelse .ethereum;
-    const id = switch (chain) {
-        inline else => |id| @intFromEnum(id),
-    };
-
     const self = try opts.allocator.create(PubClient);
     errdefer opts.allocator.destroy(self);
 
+    if (opts.network_config.endpoint != .uri)
+        return error.InvalidPathConfigOption;
+
     self.* = .{
-        .uri = opts.uri,
         .allocator = opts.allocator,
-        .chain_id = id,
-        .retries = opts.retries,
-        .pooling_interval = opts.pooling_interval,
-        .base_fee_multiplier = opts.base_fee_multiplier,
         .client = http.Client{ .allocator = opts.allocator },
         .connection = undefined,
+        .network_config = opts.network_config,
     };
     errdefer self.client.deinit();
 
@@ -169,10 +149,12 @@ pub fn init(opts: InitOptions) !*PubClient {
 }
 /// Clears the memory arena and destroys all pointers created
 pub fn deinit(self: *PubClient) void {
+    std.debug.assert(self.network_config.endpoint == .uri); // Invalid config.
+
     // We have a lingering connection so we close it and destroy it
     if (self.client.connection_pool.used.first != null) {
         self.client.connection_pool.used.first = null;
-        const scheme = protocol_map.get(self.uri.scheme) orelse {
+        const scheme = protocol_map.get(self.network_config.endpoint.uri.scheme) orelse {
             self.client = undefined;
             return;
         };
@@ -197,21 +179,23 @@ pub fn deinit(self: *PubClient) void {
 /// Connects to the RPC server and relases the connection from the client pool.
 /// This is done so that future fetchs can use the connection that is already freed.
 pub fn connectRpcServer(self: *PubClient) !*HttpConnection {
-    const scheme = protocol_map.get(self.uri.scheme) orelse return error.UnsupportedSchema;
-    const port: u16 = self.uri.port orelse switch (scheme) {
+    const uri = self.network_config.getNetworkUri() orelse return error.InvalidEndpointConfig;
+
+    const scheme = protocol_map.get(uri.scheme) orelse return error.UnsupportedSchema;
+    const port: u16 = uri.port orelse switch (scheme) {
         .plain => 80,
         .tls => 443,
     };
 
     var retries: usize = 0;
     const connection = while (true) : (retries += 1) {
-        if (retries > self.retries)
+        if (retries > self.network_config.retries)
             return error.FailedToConnect;
 
         switch (retries) {
             0...2 => {},
             else => {
-                const sleep_timing: u64 = @min(10_000, self.pooling_interval * retries);
+                const sleep_timing: u64 = @min(10_000, self.network_config.pooling_interval * retries);
                 std.time.sleep(sleep_timing * std.time.ns_per_ms);
             },
         }
@@ -229,7 +213,7 @@ pub fn connectRpcServer(self: *PubClient) !*HttpConnection {
             }
         }
 
-        const hostname = switch (self.uri.host.?) {
+        const hostname = switch (uri.host.?) {
             .raw => |raw| raw,
             .percent_encoded => |host| host,
         };
@@ -289,7 +273,7 @@ pub fn estimateFeesPerGas(self: *PubClient, call_object: EthCall, base_fee_per_g
             const base_fee = current_fee orelse return error.UnableToFetchFeeInfoFromBlock;
             const max_priority = if (tx.maxPriorityFeePerGas) |max| max else try self.estimateMaxFeePerGasManual(base_fee);
 
-            const mutiplier = std.math.ceil(@as(f64, @floatFromInt(base_fee)) * self.base_fee_multiplier);
+            const mutiplier = std.math.ceil(@as(f64, @floatFromInt(base_fee)) * self.network_config.base_fee_multiplier);
             const max_fee = if (tx.maxFeePerGas) |max| max else @as(Gwei, @intFromFloat(mutiplier)) + max_priority;
 
             return .{
@@ -307,7 +291,7 @@ pub fn estimateFeesPerGas(self: *PubClient, call_object: EthCall, base_fee_per_g
 
                 break :gas gas_price.response;
             };
-            const mutiplier = std.math.ceil(@as(f64, @floatFromInt(gas_price)) * self.base_fee_multiplier);
+            const mutiplier = std.math.ceil(@as(f64, @floatFromInt(gas_price)) * self.network_config.base_fee_multiplier);
             const price: u64 = @intFromFloat(mutiplier);
             return .{
                 .legacy = .{ .gas_price = price },
@@ -361,7 +345,7 @@ pub fn feeHistory(self: *PubClient, blockCount: u64, newest_block: BlockNumberRe
         const request: EthereumRequest(struct { u64, u64, ?[]const f64 }) = .{
             .params = .{ blockCount, number, reward_percentil },
             .method = .eth_feeHistory,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -369,7 +353,7 @@ pub fn feeHistory(self: *PubClient, blockCount: u64, newest_block: BlockNumberRe
         const request: EthereumRequest(struct { u64, BalanceBlockTag, ?[]const f64 }) = .{
             .params = .{ blockCount, tag, reward_percentil },
             .method = .eth_feeHistory,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -416,7 +400,7 @@ pub fn getBlockByHashType(self: *PubClient, comptime T: type, opts: BlockHashReq
     const request: EthereumRequest(struct { Hash, bool }) = .{
         .params = .{ opts.block_hash, include },
         .method = .eth_getBlockByHash,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -460,7 +444,7 @@ pub fn getBlockByNumberType(self: *PubClient, comptime T: type, opts: BlockReque
         const request: EthereumRequest(struct { u64, bool }) = .{
             .params = .{ number, include },
             .method = .eth_getBlockByNumber,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -468,7 +452,7 @@ pub fn getBlockByNumberType(self: *PubClient, comptime T: type, opts: BlockReque
         const request: EthereumRequest(struct { BlockTag, bool }) = .{
             .params = .{ tag, include },
             .method = .eth_getBlockByNumber,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -536,7 +520,7 @@ pub fn getFilterOrLogChanges(self: *PubClient, filter_id: u128, method: Ethereum
     const request: EthereumRequest(struct { u128 }) = .{
         .params = .{filter_id},
         .method = method,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     try std.json.stringify(request, .{}, buf_writter.writer());
@@ -573,7 +557,7 @@ pub fn getLogs(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !RPCRe
                 .topics = opts.topics,
             }},
             .method = .eth_getLogs,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
@@ -581,7 +565,7 @@ pub fn getLogs(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !RPCRe
         const request: EthereumRequest(struct { LogRequest }) = .{
             .params = .{opts},
             .method = .eth_getLogs,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
@@ -626,7 +610,7 @@ pub fn getProof(self: *PubClient, opts: ProofRequest, tag: ?ProofBlockTag) !RPCR
         const request: EthereumRequest(struct { Address, []const Hash, block.ProofBlockTag }) = .{
             .params = .{ opts.address, opts.storageKeys, request_tag },
             .method = .eth_getProof,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -636,7 +620,7 @@ pub fn getProof(self: *PubClient, opts: ProofRequest, tag: ?ProofBlockTag) !RPCR
         const request: EthereumRequest(struct { Address, []const Hash, u64 }) = .{
             .params = .{ opts.address, opts.storageKeys, number },
             .method = .eth_getProof,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -657,7 +641,7 @@ pub fn getRawTransactionByHash(self: *PubClient, tx_hash: Hash) !RPCResponse(Hex
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{tx_hash},
         .method = .eth_getRawTransactionByHash,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -678,7 +662,7 @@ pub fn getSha3Hash(self: *PubClient, message: []const u8) !RPCResponse(Hash) {
     const request: EthereumRequest(struct { []const u8 }) = .{
         .params = .{message_hex},
         .method = .web3_sha3,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [4096]u8 = undefined;
@@ -701,7 +685,7 @@ pub fn getStorage(self: *PubClient, address: Address, storage_key: Hash, opts: B
         const request: EthereumRequest(struct { Address, Hash, u64 }) = .{
             .params = .{ address, storage_key, number },
             .method = .eth_getStorageAt,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -709,7 +693,7 @@ pub fn getStorage(self: *PubClient, address: Address, storage_key: Hash, opts: B
         const request: EthereumRequest(struct { Address, Hash, BalanceBlockTag }) = .{
             .params = .{ address, storage_key, tag },
             .method = .eth_getStorageAt,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -743,7 +727,7 @@ pub fn getTransactionByBlockHashAndIndexType(self: *PubClient, comptime T: type,
     const request: EthereumRequest(struct { Hash, usize }) = .{
         .params = .{ block_hash, index },
         .method = .eth_getTransactionByBlockHashAndIndex,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -783,7 +767,7 @@ pub fn getTransactionByBlockNumberAndIndexType(self: *PubClient, comptime T: typ
         const request: EthereumRequest(struct { u64, usize }) = .{
             .params = .{ number, index },
             .method = .eth_getTransactionByBlockNumberAndIndex,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -791,7 +775,7 @@ pub fn getTransactionByBlockNumberAndIndexType(self: *PubClient, comptime T: typ
         const request: EthereumRequest(struct { BalanceBlockTag, usize }) = .{
             .params = .{ tag, index },
             .method = .eth_getTransactionByBlockNumberAndIndex,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -826,7 +810,7 @@ pub fn getTransactionByHashType(self: *PubClient, comptime T: type, transaction_
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{transaction_hash},
         .method = .eth_getTransactionByHash,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -851,7 +835,7 @@ pub fn getTransactionReceipt(self: *PubClient, transaction_hash: Hash) !RPCRespo
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{transaction_hash},
         .method = .eth_getTransactionReceipt,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -888,7 +872,7 @@ pub fn getTxPoolContentFrom(self: *PubClient, from: Address) !RPCResponse([]cons
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{from},
         .method = .txpool_contentFrom,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -931,7 +915,7 @@ pub fn getUncleByBlockHashAndIndexType(self: *PubClient, comptime T: type, block
     const request: EthereumRequest(struct { Hash, usize }) = .{
         .params = .{ block_hash, index },
         .method = .eth_getUncleByBlockHashAndIndex,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -974,7 +958,7 @@ pub fn getUncleByBlockNumberAndIndexType(self: *PubClient, comptime T: type, opt
         const request: EthereumRequest(struct { u64, usize }) = .{
             .params = .{ number, index },
             .method = .eth_getUncleByBlockNumberAndIndex,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -982,7 +966,7 @@ pub fn getUncleByBlockNumberAndIndexType(self: *PubClient, comptime T: type, opt
         const request: EthereumRequest(struct { BalanceBlockTag, usize }) = .{
             .params = .{ tag, index },
             .method = .eth_getUncleByBlockNumberAndIndex,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -1079,7 +1063,7 @@ pub fn newLogFilter(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !
                 .topics = opts.topics,
             }},
             .method = .eth_newFilter,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
@@ -1087,7 +1071,7 @@ pub fn newLogFilter(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !
         const request: EthereumRequest(struct { LogRequest }) = .{
             .params = .{opts},
             .method = .eth_newFilter,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
@@ -1121,7 +1105,7 @@ pub fn sendRawTransaction(self: *PubClient, serialized_tx: Hex) !RPCResponse(Has
     const request: EthereumRequest(struct { Hex }) = .{
         .params = .{serialized_tx},
         .method = .eth_sendRawTransaction,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [8 * 1024]u8 = undefined;
@@ -1179,7 +1163,7 @@ pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash
     var retries: u8 = if (receipt != null) 1 else 0;
     var valid_confirmations: u8 = if (receipt != null) 1 else 0;
     while (true) : (retries += 1) {
-        if (retries - valid_confirmations > self.retries)
+        if (retries - valid_confirmations > self.network_config.retries)
             return error.FailedToGetReceipt;
 
         if (receipt) |tx_receipt| {
@@ -1192,7 +1176,7 @@ pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash
                 break;
             } else {
                 valid_confirmations += 1;
-                std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
                 continue;
             }
         }
@@ -1201,7 +1185,7 @@ pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash
             tx = self.getTransactionByHash(tx_hash) catch |err| switch (err) {
                 // If it fails we keep trying
                 error.TransactionNotFound => {
-                    std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                    std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
                     continue;
                 },
                 else => return err,
@@ -1227,14 +1211,14 @@ pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash
 
                 const block_transactions = switch (current_block.response) {
                     inline else => |blocks| if (blocks.transactions) |block_txs| block_txs else {
-                        std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                        std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
                         continue;
                     },
                 };
 
                 const pending_transaction = switch (block_transactions) {
                     .hashes => {
-                        std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                        std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
                         continue;
                     },
                     .objects => |tx_objects| tx_objects,
@@ -1281,7 +1265,7 @@ pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash
                         break;
                 }
 
-                std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
                 continue;
             },
             else => return err,
@@ -1296,7 +1280,7 @@ pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash
             break;
         } else {
             valid_confirmations += 1;
-            std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+            std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
             continue;
         }
     }
@@ -1311,7 +1295,7 @@ pub fn uninstallFilter(self: *PubClient, id: usize) !RPCResponse(bool) {
     const request: EthereumRequest(struct { usize }) = .{
         .params = .{id},
         .method = .eth_uninstallFilter,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -1320,36 +1304,6 @@ pub fn uninstallFilter(self: *PubClient, id: usize) !RPCResponse(bool) {
     try std.json.stringify(request, .{}, buf_writter.writer());
 
     return self.sendRpcRequest(bool, buf_writter.getWritten());
-}
-/// Switch the client network and chainId.
-/// Invalidates all of the client connections and pointers.
-///
-/// This will also try to automatically connect to the new RPC.
-pub fn switchNetwork(self: *PubClient, new_chain_id: Chains, new_url: []const u8) !void {
-    self.chain_id = @intFromEnum(new_chain_id);
-
-    const uri = try Uri.parse(new_url);
-    self.uri = uri;
-
-    var next_node = self.client.connection_pool.free.first;
-
-    while (next_node) |node| {
-        defer self.allocator.destroy(node);
-        next_node = node.next;
-
-        node.data.close(self.allocator);
-    }
-
-    next_node = self.client.connection_pool.used;
-
-    while (next_node) |node| {
-        defer self.allocator.destroy(node);
-        next_node = node.next;
-
-        node.data.close(self.allocator);
-    }
-
-    self.connection.* = try self.connectRpcServer();
 }
 /// Writes request to RPC server and parses the response according to the provided type.
 /// Handles 429 errors but not the rest.
@@ -1361,7 +1315,7 @@ pub fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) !
 
     var retries: u8 = 0;
     while (true) : (retries += 1) {
-        if (retries > self.retries)
+        if (retries > self.network_config.retries)
             return error.ReachedMaxRetryLimit;
 
         const req = try self.internalFetch(request, &body);
@@ -1404,7 +1358,7 @@ fn sendBlockNumberRequest(self: *PubClient, opts: BlockNumberRequest, method: Et
         const request: EthereumRequest(struct { u64 }) = .{
             .params = .{number},
             .method = method,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -1412,7 +1366,7 @@ fn sendBlockNumberRequest(self: *PubClient, opts: BlockNumberRequest, method: Et
         const request: EthereumRequest(struct { BalanceBlockTag }) = .{
             .params = .{tag},
             .method = method,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -1425,7 +1379,7 @@ fn sendBlockHashRequest(self: *PubClient, block_hash: Hash, method: EthereumRpcM
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{block_hash},
         .method = method,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -1446,7 +1400,7 @@ fn sendAddressRequest(self: *PubClient, comptime T: type, opts: BalanceRequest, 
         const request: EthereumRequest(struct { Address, u64 }) = .{
             .params = .{ opts.address, number },
             .method = method,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -1454,7 +1408,7 @@ fn sendAddressRequest(self: *PubClient, comptime T: type, opts: BalanceRequest, 
         const request: EthereumRequest(struct { Address, BalanceBlockTag }) = .{
             .params = .{ opts.address, tag },
             .method = method,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -1467,7 +1421,7 @@ fn sendBasicRequest(self: *PubClient, comptime T: type, method: EthereumRpcMetho
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
         .params = .{},
         .method = method,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -1488,7 +1442,7 @@ fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, 
         const request: EthereumRequest(struct { EthCall, u64 }) = .{
             .params = .{ call_object, number },
             .method = method,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
@@ -1496,7 +1450,7 @@ fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, 
         const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{
             .params = .{ call_object, tag },
             .method = method,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
@@ -1507,8 +1461,9 @@ fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, 
 /// Internal PubClient fetch. Optimized for our use case.
 fn internalFetch(self: *PubClient, payload: []const u8, body: *std.ArrayList(u8)) !FetchResult {
     var server_header_buffer: [16 * 1024]u8 = undefined;
+    const uri = self.network_config.getNetworkUri() orelse return error.InvalidEndpointConfig;
 
-    var request = try self.client.open(.POST, self.uri, .{
+    var request = try self.client.open(.POST, uri, .{
         .server_header_buffer = &server_header_buffer,
         .redirect_behavior = .unhandled,
         .headers = .{ .content_type = .{ .override = "application/json" } },

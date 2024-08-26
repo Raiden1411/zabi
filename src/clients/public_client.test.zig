@@ -16,7 +16,9 @@ test "BlockByNumber" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -28,7 +30,9 @@ test "BlockByNumber" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -40,7 +44,9 @@ test "BlockByNumber" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -52,7 +58,9 @@ test "BlockByNumber" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -67,7 +75,9 @@ test "BlockByHash" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -83,7 +93,9 @@ test "BlockByHash" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -104,7 +116,9 @@ test "BlockTransactionCountByHash" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -120,7 +134,9 @@ test "BlockTransactionCountByNumber" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -134,7 +150,9 @@ test "BlockTransactionCountByNumber" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -151,7 +169,9 @@ test "AddressBalance" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -168,7 +188,9 @@ test "AddressBalance" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -187,7 +209,9 @@ test "AddressNonce" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -203,7 +227,9 @@ test "AddressNonce" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -222,7 +248,9 @@ test "BlockNumber" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -237,7 +265,9 @@ test "GetChainId" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -253,7 +283,9 @@ test "GetStorage" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -267,7 +299,9 @@ test "GetStorage" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -283,7 +317,9 @@ test "GetAccounts" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -300,7 +336,9 @@ test "GetContractCode" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -316,7 +354,9 @@ test "GetContractCode" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -335,7 +375,9 @@ test "GetTransactionByHash" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -351,7 +393,9 @@ test "GetReceipt" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -368,7 +412,9 @@ test "GetFilter" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -382,7 +428,9 @@ test "GetFilter" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -396,7 +444,9 @@ test "GetFilter" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -409,7 +459,9 @@ test "GetGasPrice" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -424,7 +476,9 @@ test "GetUncleCountByBlockHash" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -440,7 +494,9 @@ test "GetUncleCountByBlockNumber" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -454,7 +510,9 @@ test "GetUncleCountByBlockNumber" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -471,7 +529,9 @@ test "GetUncleByBlockNumberAndIndex" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -482,7 +542,9 @@ test "GetUncleByBlockNumberAndIndex" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -498,7 +560,9 @@ test "GetUncleByBlockHashAndIndex" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -514,7 +578,9 @@ test "GetTransactionByBlockNumberAndIndex" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -525,7 +591,9 @@ test "GetTransactionByBlockNumberAndIndex" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -542,7 +610,9 @@ test "EstimateGas" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -553,7 +623,9 @@ test "EstimateGas" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -567,7 +639,9 @@ test "EstimateGas" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -581,7 +655,9 @@ test "EstimateGas" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -598,7 +674,9 @@ test "CreateAccessList" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -612,7 +690,9 @@ test "CreateAccessList" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -623,7 +703,9 @@ test "CreateAccessList" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -639,7 +721,9 @@ test "GetNetworkPeerCount" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -651,7 +735,9 @@ test "GetNetworkVersionId" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -666,7 +752,9 @@ test "GetNetworkListenStatus" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -681,7 +769,9 @@ test "GetSha3Hash" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -699,7 +789,9 @@ test "GetClientVersion" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -714,7 +806,9 @@ test "BlobBaseFee" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -729,7 +823,9 @@ test "EstimateBlobMaxFeePerGas" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -743,7 +839,9 @@ test "EstimateMaxFeePerGas" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -759,7 +857,9 @@ test "EstimateFeePerGas" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -773,7 +873,9 @@ test "EstimateFeePerGas" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -786,7 +888,9 @@ test "EstimateFeePerGas" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -803,7 +907,9 @@ test "GetProof" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -817,7 +923,9 @@ test "GetProof" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -834,7 +942,9 @@ test "GetLogs" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -846,7 +956,9 @@ test "GetLogs" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -861,7 +973,9 @@ test "NewLogFilter" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -873,7 +987,9 @@ test "NewLogFilter" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -887,7 +1003,9 @@ test "NewBlockFilter" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -900,7 +1018,9 @@ test "NewPendingTransactionFilter" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -913,7 +1033,9 @@ test "UninstallFilter" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -926,7 +1048,9 @@ test "GetProtocolVersion" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -938,7 +1062,9 @@ test "SyncStatus" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 
@@ -954,7 +1080,9 @@ test "FeeHistory" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -966,7 +1094,9 @@ test "FeeHistory" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -978,7 +1108,9 @@ test "FeeHistory" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -990,7 +1122,9 @@ test "FeeHistory" {
 
         var client = try PubClient.init(.{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer client.deinit();
 
@@ -1004,7 +1138,9 @@ test "Multicall" {
 
     var client = try PubClient.init(.{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer client.deinit();
 

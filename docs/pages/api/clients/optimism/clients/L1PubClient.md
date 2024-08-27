@@ -15,7 +15,7 @@ If the contracts are null it defaults to OP contracts.
 ### Signature
 
 ```zig
-pub fn init(opts: InitOpts, op_contracts: ?OpMainNetContracts) !*L1
+pub fn init(opts: InitOpts) !*L1
 ```
 
 ## Deinit

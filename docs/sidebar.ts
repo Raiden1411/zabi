@@ -131,6 +131,10 @@ export const sidebar = {
 					link: "/api/types/block",
 				},
 				{
+					text: "Chain Config",
+					link: "/api/clients/network",
+				},
+				{
 					text: "Transaction",
 					link: "/api/types/transaction",
 				},

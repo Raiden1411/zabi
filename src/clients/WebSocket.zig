@@ -1,9 +1,10 @@
 const abi = @import("../abi/abi.zig");
 const block = @import("../types/block.zig");
 const decoder = @import("../decoding/decoder.zig");
+const log = @import("../types/log.zig");
 const meta = @import("../meta/utils.zig");
 const multicall = @import("multicall.zig");
-const log = @import("../types/log.zig");
+const network = @import("network.zig");
 const pipe = @import("../utils/pipe.zig");
 const proof = @import("../types/proof.zig");
 const std = @import("std");
@@ -51,6 +52,7 @@ const Multicall = multicall.Multicall;
 const MulticallArguments = multicall.MulticallArguments;
 const MulticallTargets = multicall.MulticallTargets;
 const Mutex = std.Thread.Mutex;
+const NetworkConfig = network.NetworkConfig;
 const PoolTransactionByNonce = txpool.PoolTransactionByNonce;
 const ProofResult = proof.ProofResult;
 const ProofBlockTag = block.ProofBlockTag;
@@ -97,54 +99,45 @@ pub const WebSocketHandlerErrors = error{
     ReachedMaxRetryLimit,
 } || InitErrors || std.fmt.ParseIntError || std.Uri.ParseError || EthereumZigErrors;
 
-pub const ConnectionErrors = error{ UnsupportedSchema, FailedToConnect, MissingUrlPath, OutOfMemory, UnspecifiedHostName };
+pub const ConnectionErrors = error{
+    UnsupportedSchema,
+    FailedToConnect,
+    MissingUrlPath,
+    OutOfMemory,
+    UnspecifiedHostName,
+    InvalidNetworkConfig,
+};
 pub const InitErrors = ConnectionErrors || Allocator.Error || std.Thread.SpawnError;
 
 pub const InitOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
     allocator: Allocator,
-    /// The uri of the server to connect to.
-    uri: std.Uri,
-    /// The client chainId.
-    chain_id: ?Chains = null,
+    /// The chains config
+    network_config: NetworkConfig,
     /// Callback function for when the connection is closed.
     onClose: ?*const fn () void = null,
     /// Callback function for everytime an event is parsed.
     onEvent: ?*const fn (args: JsonParsed(Value)) anyerror!void = null,
     /// Callback function for everytime an error is caught.
     onError: ?*const fn (args: []const u8) anyerror!void = null,
-    /// Retry count for failed connections to the server.
-    retries: u8 = 5,
-    /// The interval to retry the connection. This will get multiplied in ns_per_ms.
-    pooling_interval: u64 = 2_000,
-    /// The base fee multiplier used to estimate the gas fees in a transaction
-    base_fee_multiplier: f64 = 1.2,
 };
 
 /// The allocator that will manage the connections memory
 allocator: Allocator,
-/// The base fee multiplier used to estimate the gas fees in a transaction
-base_fee_multiplier: f64,
-/// The chain id of the attached network
-chain_id: usize,
 /// Channel used to communicate between threads on subscription events.
 sub_channel: Channel(JsonParsed(Value)),
 /// Channel used to communicate between threads on rpc events.
 rpc_channel: Stack(JsonParsed(Value)),
 /// Mutex to manage locks between threads
 mutex: Mutex = .{},
+/// The chains config
+network_config: NetworkConfig,
 /// Callback function for when the connection is closed.
 onClose: ?*const fn () void = null,
 /// Callback function that will run once a socket event is parsed
 onEvent: ?*const fn (args: JsonParsed(Value)) anyerror!void,
 /// Callback function that will run once a error is parsed.
 onError: ?*const fn (args: []const u8) anyerror!void,
-/// The interval to retry the connection. This will get multiplied in ns_per_ms.
-pooling_interval: u64,
-/// Retry count for failed connections to the server.
-retries: u8,
-/// The uri of the connection
-uri: std.Uri,
 /// The underlaying websocket client
 ws_client: ws.Client,
 
@@ -194,23 +187,20 @@ pub fn serverMessage(self: *WebSocketHandler, message: []u8, message_type: ws.Me
 /// Populates the WebSocketHandler pointer.
 /// Starts the connection in a seperate process.
 pub fn init(opts: InitOptions) InitErrors!*WebSocketHandler {
-    const chain: Chains = opts.chain_id orelse .ethereum;
-
     const self = try opts.allocator.create(WebSocketHandler);
     errdefer opts.allocator.destroy(self);
 
+    if (opts.network_config.endpoint != .uri)
+        return error.InvalidNetworkConfig;
+
     self.* = .{
         .allocator = opts.allocator,
-        .base_fee_multiplier = opts.base_fee_multiplier,
-        .chain_id = @intFromEnum(chain),
+        .network_config = opts.network_config,
         .onClose = opts.onClose,
         .onError = opts.onError,
         .onEvent = opts.onEvent,
-        .pooling_interval = opts.pooling_interval,
-        .retries = opts.retries,
         .rpc_channel = Stack(JsonParsed(Value)).init(opts.allocator, null),
         .sub_channel = Channel(JsonParsed(Value)).init(opts.allocator),
-        .uri = opts.uri,
         .ws_client = undefined,
     };
 
@@ -256,26 +246,28 @@ pub fn deinit(self: *WebSocketHandler) void {
 }
 /// Connects to a socket client. This is a blocking operation.
 pub fn connect(self: *WebSocketHandler) ConnectionErrors!ws.Client {
-    const scheme = protocol_map.get(self.uri.scheme) orelse return error.UnsupportedSchema;
-    const port: u16 = self.uri.port orelse switch (scheme) {
+    const uri = self.network_config.getNetworkUri() orelse return error.InvalidNetworkConfig;
+
+    const scheme = protocol_map.get(uri.scheme) orelse return error.UnsupportedSchema;
+    const port: u16 = uri.port orelse switch (scheme) {
         .plain => 80,
         .tls => 443,
     };
 
     var retries: u8 = 0;
     const client = while (true) : (retries += 1) {
-        if (retries > self.retries)
+        if (retries > self.network_config.retries)
             break error.FailedToConnect;
 
         switch (retries) {
             0...2 => {},
             else => {
-                const sleep_timing: u64 = @min(5_000, self.pooling_interval * retries);
+                const sleep_timing: u64 = @min(5_000, self.network_config.pooling_interval * retries);
                 std.time.sleep(sleep_timing * std.time.ns_per_ms);
             },
         }
 
-        const hostname = switch (self.uri.host orelse return error.UnspecifiedHostName) {
+        const hostname = switch (uri.host orelse return error.UnspecifiedHostName) {
             .raw => |raw| raw,
             .percent_encoded => |host| host,
         };
@@ -295,10 +287,10 @@ pub fn connect(self: *WebSocketHandler) ConnectionErrors!ws.Client {
         const headers = try std.fmt.allocPrint(self.allocator, "Host: {s}", .{hostname});
         defer self.allocator.free(headers);
 
-        if (self.uri.path.isEmpty())
+        if (uri.path.isEmpty())
             return error.MissingUrlPath;
 
-        const path = switch (self.uri.path) {
+        const path = switch (uri.path) {
             .raw => |raw| raw,
             .percent_encoded => |host| host,
         };
@@ -362,7 +354,7 @@ pub fn estimateFeesPerGas(self: *WebSocketHandler, call_object: EthCall, base_fe
             const base_fee = current_fee orelse return error.UnableToFetchFeeInfoFromBlock;
             const max_priority = if (tx.maxPriorityFeePerGas) |max| max else try self.estimateMaxFeePerGasManual(base_fee);
 
-            const mutiplier = std.math.ceil(@as(f64, @floatFromInt(base_fee)) * self.base_fee_multiplier);
+            const mutiplier = std.math.ceil(@as(f64, @floatFromInt(base_fee)) * self.network_config.base_fee_multiplier);
             const max_fee = if (tx.maxFeePerGas) |max| max else @as(Gwei, @intFromFloat(mutiplier)) + max_priority;
 
             return .{
@@ -380,7 +372,7 @@ pub fn estimateFeesPerGas(self: *WebSocketHandler, call_object: EthCall, base_fe
 
                 break :gas gas_price.response;
             };
-            const mutiplier = std.math.ceil(@as(f64, @floatFromInt(gas_price)) * self.base_fee_multiplier);
+            const mutiplier = std.math.ceil(@as(f64, @floatFromInt(gas_price)) * self.network_config.base_fee_multiplier);
             const price: u64 = @intFromFloat(mutiplier);
             return .{
                 .legacy = .{ .gas_price = price },
@@ -434,7 +426,7 @@ pub fn feeHistory(self: *WebSocketHandler, blockCount: u64, newest_block: BlockN
         const request: EthereumRequest(struct { u64, u64, ?[]const f64 }) = .{
             .params = .{ blockCount, number, reward_percentil },
             .method = .eth_feeHistory,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -442,7 +434,7 @@ pub fn feeHistory(self: *WebSocketHandler, blockCount: u64, newest_block: BlockN
         const request: EthereumRequest(struct { u64, BalanceBlockTag, ?[]const f64 }) = .{
             .params = .{ blockCount, tag, reward_percentil },
             .method = .eth_feeHistory,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -489,7 +481,7 @@ pub fn getBlockByHashType(self: *WebSocketHandler, comptime T: type, opts: Block
     const request: EthereumRequest(struct { Hash, bool }) = .{
         .params = .{ opts.block_hash, include },
         .method = .eth_getBlockByHash,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -533,7 +525,7 @@ pub fn getBlockByNumberType(self: *WebSocketHandler, comptime T: type, opts: Blo
         const request: EthereumRequest(struct { u64, bool }) = .{
             .params = .{ number, include },
             .method = .eth_getBlockByNumber,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -541,7 +533,7 @@ pub fn getBlockByNumberType(self: *WebSocketHandler, comptime T: type, opts: Blo
         const request: EthereumRequest(struct { BlockTag, bool }) = .{
             .params = .{ tag, include },
             .method = .eth_getBlockByNumber,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -623,7 +615,7 @@ pub fn getFilterOrLogChanges(self: *WebSocketHandler, filter_id: u128, method: E
     const request: EthereumRequest(struct { u128 }) = .{
         .params = .{filter_id},
         .method = method,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     try std.json.stringify(request, .{}, buf_writter.writer());
@@ -660,7 +652,7 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
                 .topics = opts.topics,
             }},
             .method = .eth_getLogs,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
@@ -668,7 +660,7 @@ pub fn getLogs(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag)
         const request: EthereumRequest(struct { LogRequest }) = .{
             .params = .{opts},
             .method = .eth_getLogs,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
@@ -725,7 +717,7 @@ pub fn getProof(self: *WebSocketHandler, opts: ProofRequest, tag: ?ProofBlockTag
         const request: EthereumRequest(struct { Address, []const Hash, block.ProofBlockTag }) = .{
             .params = .{ opts.address, opts.storageKeys, request_tag },
             .method = .eth_getProof,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -735,7 +727,7 @@ pub fn getProof(self: *WebSocketHandler, opts: ProofRequest, tag: ?ProofBlockTag
         const request: EthereumRequest(struct { Address, []const Hash, u64 }) = .{
             .params = .{ opts.address, opts.storageKeys, number },
             .method = .eth_getProof,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -756,7 +748,7 @@ pub fn getRawTransactionByHash(self: *WebSocketHandler, tx_hash: Hash) !RPCRespo
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{tx_hash},
         .method = .eth_getRawTransactionByHash,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -776,7 +768,7 @@ pub fn getSha3Hash(self: *WebSocketHandler, message: []const u8) !RPCResponse(Ha
     const request: EthereumRequest(struct { []const u8 }) = .{
         .params = .{message},
         .method = .web3_sha3,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [4096]u8 = undefined;
@@ -799,7 +791,7 @@ pub fn getStorage(self: *WebSocketHandler, address: Address, storage_key: Hash, 
         const request: EthereumRequest(struct { Address, Hash, u64 }) = .{
             .params = .{ address, storage_key, number },
             .method = .eth_getStorageAt,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -807,7 +799,7 @@ pub fn getStorage(self: *WebSocketHandler, address: Address, storage_key: Hash, 
         const request: EthereumRequest(struct { Address, Hash, BalanceBlockTag }) = .{
             .params = .{ address, storage_key, tag },
             .method = .eth_getStorageAt,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -841,7 +833,7 @@ pub fn getTransactionByBlockHashAndIndexType(self: *WebSocketHandler, comptime T
     const request: EthereumRequest(struct { Hash, usize }) = .{
         .params = .{ block_hash, index },
         .method = .eth_getTransactionByBlockHashAndIndex,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -881,7 +873,7 @@ pub fn getTransactionByBlockNumberAndIndexType(self: *WebSocketHandler, comptime
         const request: EthereumRequest(struct { u64, usize }) = .{
             .params = .{ number, index },
             .method = .eth_getTransactionByBlockNumberAndIndex,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -889,7 +881,7 @@ pub fn getTransactionByBlockNumberAndIndexType(self: *WebSocketHandler, comptime
         const request: EthereumRequest(struct { BalanceBlockTag, usize }) = .{
             .params = .{ tag, index },
             .method = .eth_getTransactionByBlockNumberAndIndex,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -924,7 +916,7 @@ pub fn getTransactionByHashType(self: *WebSocketHandler, comptime T: type, trans
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{transaction_hash},
         .method = .eth_getTransactionByHash,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -949,7 +941,7 @@ pub fn getTransactionReceipt(self: *WebSocketHandler, transaction_hash: Hash) !R
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{transaction_hash},
         .method = .eth_getTransactionReceipt,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -986,7 +978,7 @@ pub fn getTxPoolContentFrom(self: *WebSocketHandler, from: Address) !RPCResponse
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{from},
         .method = .txpool_contentFrom,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -1029,7 +1021,7 @@ pub fn getUncleByBlockHashAndIndexType(self: *WebSocketHandler, comptime T: type
     const request: EthereumRequest(struct { Hash, usize }) = .{
         .params = .{ block_hash, index },
         .method = .eth_getUncleByBlockHashAndIndex,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -1072,7 +1064,7 @@ pub fn getUncleByBlockNumberAndIndexType(self: *WebSocketHandler, comptime T: ty
         const request: EthereumRequest(struct { u64, usize }) = .{
             .params = .{ number, index },
             .method = .eth_getUncleByBlockNumberAndIndex,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -1080,7 +1072,7 @@ pub fn getUncleByBlockNumberAndIndexType(self: *WebSocketHandler, comptime T: ty
         const request: EthereumRequest(struct { BalanceBlockTag, usize }) = .{
             .params = .{ tag, index },
             .method = .eth_getUncleByBlockNumberAndIndex,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -1177,7 +1169,7 @@ pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBloc
                 .topics = opts.topics,
             }},
             .method = .eth_newFilter,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
@@ -1185,7 +1177,7 @@ pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBloc
         const request: EthereumRequest(struct { LogRequest }) = .{
             .params = .{opts},
             .method = .eth_newFilter,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
@@ -1240,7 +1232,7 @@ pub fn sendRawTransaction(self: *WebSocketHandler, serialized_tx: Hex) !RPCRespo
     const request: EthereumRequest(struct { Hex }) = .{
         .params = .{serialized_tx},
         .method = .eth_sendRawTransaction,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [8 * 1024]u8 = undefined;
@@ -1255,7 +1247,7 @@ pub fn sendRawTransaction(self: *WebSocketHandler, serialized_tx: Hex) !RPCRespo
 pub fn sendRpcRequest(self: *WebSocketHandler, comptime T: type, message: []u8) !RPCResponse(T) {
     var retries: u8 = 0;
     while (true) : (retries += 1) {
-        if (retries > self.retries)
+        if (retries > self.network_config.retries)
             return error.ReachedMaxRetryLimit;
 
         try self.writeSocketMessage(message);
@@ -1292,7 +1284,7 @@ pub fn uninstallFilter(self: *WebSocketHandler, id: usize) !RPCResponse(bool) {
     const request: EthereumRequest(struct { usize }) = .{
         .params = .{id},
         .method = .eth_uninstallFilter,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -1310,7 +1302,7 @@ pub fn unsubscribe(self: *WebSocketHandler, sub_id: u128) !RPCResponse(bool) {
     const request: EthereumRequest(struct { u128 }) = .{
         .params = .{sub_id},
         .method = .eth_unsubscribe,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -1327,7 +1319,7 @@ pub fn watchNewBlocks(self: *WebSocketHandler) !RPCResponse(u128) {
     const request: EthereumRequest(struct { Subscriptions }) = .{
         .params = .{.newHeads},
         .method = .eth_subscribe,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -1347,7 +1339,7 @@ pub fn watchLogs(self: *WebSocketHandler, opts: WatchLogsRequest) !RPCResponse(u
     const request: EthereumRequest(struct { Subscriptions, WatchLogsRequest }) = .{
         .params = .{ .logs, opts },
         .method = .eth_subscribe,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
@@ -1361,7 +1353,7 @@ pub fn watchTransactions(self: *WebSocketHandler) !RPCResponse(u128) {
     const request: EthereumRequest(struct { Subscriptions }) = .{
         .params = .{.newPendingTransactions},
         .method = .eth_subscribe,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -1381,7 +1373,7 @@ pub fn watchWebsocketEvent(self: *WebSocketHandler, method: []const u8) !RPCResp
     const request: EthereumRequest(struct { []const u8 }) = .{
         .params = .{method},
         .method = .eth_subscribe,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -1442,7 +1434,7 @@ pub fn waitForTransactionReceiptType(self: *WebSocketHandler, comptime T: type, 
     var retries: u8 = 0;
     var valid_confirmations: u8 = if (receipt != null) 1 else 0;
     while (true) {
-        if (retries - valid_confirmations > self.retries)
+        if (retries - valid_confirmations > self.network_config.retries)
             return error.FailedToGetReceipt;
 
         const event = try self.getNewHeadsBlockSubEvent();
@@ -1459,7 +1451,7 @@ pub fn waitForTransactionReceiptType(self: *WebSocketHandler, comptime T: type, 
             } else {
                 valid_confirmations += 1;
                 retries += 1;
-                std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+                std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
                 continue;
             }
         }
@@ -1562,7 +1554,7 @@ pub fn waitForTransactionReceiptType(self: *WebSocketHandler, comptime T: type, 
             break;
         } else {
             valid_confirmations += 1;
-            std.time.sleep(std.time.ns_per_ms * self.pooling_interval);
+            std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
             retries += 1;
             continue;
         }
@@ -1626,7 +1618,7 @@ fn sendBasicRequest(self: *WebSocketHandler, comptime T: type, method: EthereumR
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
         .params = .{},
         .method = method,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -1648,7 +1640,7 @@ fn sendBlockNumberRequest(self: *WebSocketHandler, opts: BlockNumberRequest, met
         const request: EthereumRequest(struct { u64 }) = .{
             .params = .{number},
             .method = method,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -1656,7 +1648,7 @@ fn sendBlockNumberRequest(self: *WebSocketHandler, opts: BlockNumberRequest, met
         const request: EthereumRequest(struct { BalanceBlockTag }) = .{
             .params = .{tag},
             .method = method,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -1669,7 +1661,7 @@ fn sendBlockHashRequest(self: *WebSocketHandler, block_hash: Hash, method: Ether
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{block_hash},
         .method = method,
-        .id = self.chain_id,
+        .id = @intFromEnum(self.network_config.chain_id),
     };
 
     var request_buffer: [1024]u8 = undefined;
@@ -1690,7 +1682,7 @@ fn sendAddressRequest(self: *WebSocketHandler, comptime T: type, opts: BalanceRe
         const request: EthereumRequest(struct { Address, u64 }) = .{
             .params = .{ opts.address, number },
             .method = method,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -1698,7 +1690,7 @@ fn sendAddressRequest(self: *WebSocketHandler, comptime T: type, opts: BalanceRe
         const request: EthereumRequest(struct { Address, BalanceBlockTag }) = .{
             .params = .{ opts.address, tag },
             .method = method,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{}, buf_writter.writer());
@@ -1717,7 +1709,7 @@ fn sendEthCallRequest(self: *WebSocketHandler, comptime T: type, call_object: Et
         const request: EthereumRequest(struct { EthCall, u64 }) = .{
             .params = .{ call_object, number },
             .method = method,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
@@ -1725,7 +1717,7 @@ fn sendEthCallRequest(self: *WebSocketHandler, comptime T: type, call_object: Et
         const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{
             .params = .{ call_object, tag },
             .method = method,
-            .id = self.chain_id,
+            .id = @intFromEnum(self.network_config.chain_id),
         };
 
         try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());

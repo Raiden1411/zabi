@@ -81,6 +81,8 @@ pub fn ENSClient(comptime client_type: Clients) type {
         ///
         /// The names are not normalized so make sure that the names are normalized before hand.
         pub fn getEnsAddress(self: *ENS, name: []const u8, opts: BlockNumberRequest) !AbiDecoded(Address) {
+            const contracts = self.rpc_client.network_config.ens_contracts orelse return error.ExpectedEnsContracts;
+
             const hash = try ens_utils.hashName(name);
 
             const encoded = try abi_ens.addr_resolver.encode(self.allocator, .{hash});
@@ -93,7 +95,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
             defer self.allocator.free(resolver_encoded);
 
             const value = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.rpc_client.network_config.ens_contracts.ensUniversalResolver,
+                .to = contracts.ensUniversalResolver,
                 .data = resolver_encoded,
             } }, opts);
             defer value.deinit();
@@ -121,6 +123,8 @@ pub fn ENSClient(comptime client_type: Clients) type {
         ///
         /// This will fail if its not a valid checksumed address.
         pub fn getEnsName(self: *ENS, address: []const u8, opts: BlockNumberRequest) !RPCResponse([]const u8) {
+            const contracts = self.rpc_client.network_config.ens_contracts orelse return error.ExpectedEnsContracts;
+
             if (!utils.isAddress(address))
                 return error.InvalidAddress;
 
@@ -138,7 +142,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const value = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.rpc_client.network_config.ens_contracts.ensUniversalResolver,
+                .to = contracts.ensUniversalResolver,
                 .data = encoded,
             } }, opts);
             defer value.deinit();
@@ -163,6 +167,8 @@ pub fn ENSClient(comptime client_type: Clients) type {
         ///
         /// The names are not normalized so make sure that the names are normalized before hand.
         pub fn getEnsResolver(self: *ENS, name: []const u8, opts: BlockNumberRequest) !Address {
+            const contracts = self.rpc_client.network_config.ens_contracts orelse return error.ExpectedEnsContracts;
+
             var buffer: [1024]u8 = undefined;
             const bytes_read = ens_utils.convertEnsToBytes(buffer[0..], name);
 
@@ -170,7 +176,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const value = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.rpc_client.network_config.ens_contracts.ensUniversalResolver,
+                .to = contracts.ensUniversalResolver,
                 .data = encoded,
             } }, opts);
             defer value.deinit();
@@ -186,6 +192,8 @@ pub fn ENSClient(comptime client_type: Clients) type {
         ///
         /// The names are not normalized so make sure that the names are normalized before hand.
         pub fn getEnsText(self: *ENS, name: []const u8, key: []const u8, opts: BlockNumberRequest) !AbiDecoded([]const u8) {
+            const contracts = self.rpc_client.network_config.ens_contracts orelse return error.ExpectedEnsContracts;
+
             var buffer: [1024]u8 = undefined;
             const bytes_read = ens_utils.convertEnsToBytes(buffer[0..], name);
 
@@ -197,7 +205,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const value = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.rpc_client.network_config.ens_contracts.ensUniversalResolver,
+                .to = contracts.ensUniversalResolver,
                 .data = encoded,
             } }, opts);
             errdefer value.deinit();

@@ -1,6 +1,5 @@
 const abi_items = @import("../abi_optimism.zig");
 const clients = @import("../../root.zig");
-const contracts = @import("../contracts.zig");
 const decoder = @import("../../../decoding/decoder.zig");
 const decoder_logs = @import("../../../decoding/logs_decode.zig");
 const serialize = @import("../../../encoding/serialize.zig");
@@ -25,7 +24,6 @@ const IpcClient = clients.IpcClient;
 const LondonTransactionEnvelope = transactions.LondonTransactionEnvelope;
 const L2Output = op_types.L2Output;
 const Message = withdrawal_types.Message;
-const OpMainNetContracts = contracts.OpMainNetContracts;
 const ProvenWithdrawal = withdrawal_types.ProvenWithdrawal;
 const PubClient = clients.PubClient;
 const WebSocketClient = clients.WebSocket;
@@ -85,6 +83,8 @@ pub fn L2Client(comptime client_type: Clients) type {
         }
         /// Returns the L1 gas used to execute L2 transactions
         pub fn estimateL1Gas(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
+            const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
+
             const serialized = try serialize.serializeTransaction(self.allocator, .{ .london = london_envelope }, null);
             defer self.allocator.free(serialized);
 
@@ -92,7 +92,7 @@ pub fn L2Client(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.rpc_client.network_config.op_stack_contracts.gasPriceOracle,
+                .to = contracts.gasPriceOracle,
                 .data = encoded,
             } }, .{});
             defer data.deinit();
@@ -101,6 +101,8 @@ pub fn L2Client(comptime client_type: Clients) type {
         }
         /// Returns the L1 fee used to execute L2 transactions
         pub fn estimateL1GasFee(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
+            const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
+
             const serialized = try serialize.serializeTransaction(self.allocator, .{ .london = london_envelope }, null);
             defer self.allocator.free(serialized);
 
@@ -108,7 +110,7 @@ pub fn L2Client(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.rpc_client.network_config.op_stack_contracts.gasPriceOracle,
+                .to = contracts.gasPriceOracle,
                 .data = encoded,
             } }, .{});
             defer data.deinit();
@@ -148,11 +150,13 @@ pub fn L2Client(comptime client_type: Clients) type {
         }
         /// Returns the base fee on L1
         pub fn getBaseL1Fee(self: *L2) !Wei {
+            const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
+
             // Selector for "l1BaseFee()"
             const selector: []u8 = @constCast(&[_]u8{ 0x51, 0x9b, 0x4b, 0xd3 });
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.rpc_client.network_config.op_stack_contracts.gasPriceOracle,
+                .to = contracts.gasPriceOracle,
                 .data = selector,
             } }, .{});
             defer data.deinit();
@@ -161,6 +165,8 @@ pub fn L2Client(comptime client_type: Clients) type {
         }
         /// Gets the decoded withdrawl event logs from a given transaction receipt hash.
         pub fn getWithdrawMessages(self: *L2, tx_hash: Hash) !Message {
+            const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
+
             const receipt_message = try self.rpc_client.getTransactionReceipt(tx_hash);
             defer receipt_message.deinit();
 
@@ -172,7 +178,7 @@ pub fn L2Client(comptime client_type: Clients) type {
                     const to = tx_receipt.to orelse return error.InvalidTransactionHash;
 
                     const casted_to: u160 = @bitCast(to);
-                    const casted_l2: u160 = @bitCast(self.rpc_client.network_config.op_stack_contracts.l2ToL1MessagePasser);
+                    const casted_l2: u160 = @bitCast(contracts.l2ToL1MessagePasser);
 
                     if (casted_to != casted_l2)
                         return error.InvalidTransactionHash;

@@ -13,6 +13,7 @@ test "GetWithdrawMessages" {
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .chain_id = .op_sepolia,
+            .op_stack_contracts = .{},
         },
     });
     defer op.deinit();
@@ -35,6 +36,7 @@ test "GetBaseFee" {
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .chain_id = .op_sepolia,
+            .op_stack_contracts = .{},
         },
     });
     defer op.deinit();
@@ -52,6 +54,7 @@ test "EstimateL1Gas" {
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .chain_id = .op_sepolia,
+            .op_stack_contracts = .{},
         },
     });
     defer op.deinit();
@@ -78,6 +81,7 @@ test "EstimateL1GasFee" {
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .chain_id = .op_sepolia,
+            .op_stack_contracts = .{},
         },
     });
     defer op.deinit();
@@ -104,6 +108,7 @@ test "EstimateTotalGas" {
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .chain_id = .op_sepolia,
+            .op_stack_contracts = .{},
         },
     });
     defer op.deinit();
@@ -130,6 +135,7 @@ test "EstimateTotalFees" {
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .chain_id = .op_sepolia,
+            .op_stack_contracts = .{},
         },
     });
     defer op.deinit();

@@ -56,11 +56,11 @@ pub const NetworkConfig = struct {
     /// The client chainId.
     chain_id: Chains = .ethereum,
     /// Ens contract on configured chain.
-    ens_contracts: EnsContracts = .{},
+    ens_contracts: ?EnsContracts = null,
     /// The multicall3 contract address.
     multicall_contract: Address = utils.addressToBytes("0xcA11bde05977b3631167028862bE2a173976CA11") catch unreachable,
     /// L1 and L2 op_stack contracts
-    op_stack_contracts: OpMainNetContracts = .{},
+    op_stack_contracts: ?OpMainNetContracts = null,
     /// The interval to retry the request. This will get multiplied in ns_per_ms.
     pooling_interval: u64 = 2_000,
     /// Retry count for failed requests.
@@ -84,4 +84,10 @@ pub const NetworkConfig = struct {
             .path => null,
         };
     }
+};
+
+/// The chain configuration for ethereum mainnet.
+pub const ethereum_mainet: NetworkConfig = .{
+    .endpoint = .{ .uri = Uri.parse("https://cloudflare-eth.com'") catch unreachable },
+    .ens_contracts = .{},
 };

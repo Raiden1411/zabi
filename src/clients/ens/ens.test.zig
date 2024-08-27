@@ -12,6 +12,7 @@ test "ENS Text" {
             .allocator = testing.allocator,
             .network_config = .{
                 .endpoint = .{ .uri = uri },
+                .ens_contracts = .{},
             },
         },
     );
@@ -29,6 +30,7 @@ test "ENS Name" {
                 .allocator = testing.allocator,
                 .network_config = .{
                     .endpoint = .{ .uri = uri },
+                    .ens_contracts = .{},
                 },
             },
         );
@@ -50,6 +52,7 @@ test "ENS Address" {
             .allocator = testing.allocator,
             .network_config = .{
                 .endpoint = .{ .uri = uri },
+                .ens_contracts = .{},
             },
         },
     );
@@ -70,6 +73,7 @@ test "ENS Resolver" {
             .allocator = testing.allocator,
             .network_config = .{
                 .endpoint = .{ .uri = uri },
+                .ens_contracts = .{},
             },
         },
     );

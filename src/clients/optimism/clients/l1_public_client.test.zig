@@ -10,7 +10,10 @@ test "GetL2HashFromL1DepositInfo" {
 
     var op = try L1Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{ .endpoint = .{ .uri = uri } },
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .op_stack_contracts = .{},
+        },
     });
     defer op.deinit();
 
@@ -25,7 +28,10 @@ test "GetL2Output" {
 
     var op = try L1Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{ .endpoint = .{ .uri = uri } },
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .op_stack_contracts = .{},
+        },
     });
     defer op.deinit();
 
@@ -57,7 +63,10 @@ test "GetSecondsToNextL2Output" {
 
     var op = try L1Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{ .endpoint = .{ .uri = uri } },
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .op_stack_contracts = .{},
+        },
     });
     defer op.deinit();
 
@@ -71,7 +80,10 @@ test "GetTransactionDepositEvents" {
 
     var op = try L1Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{ .endpoint = .{ .uri = uri } },
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .op_stack_contracts = .{},
+        },
     });
     defer op.deinit();
 
@@ -123,7 +135,10 @@ test "Errors" {
 
     var op = try L1Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{ .endpoint = .{ .uri = uri } },
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .op_stack_contracts = .{},
+        },
     });
     defer op.deinit();
 

@@ -57,26 +57,21 @@ pub fn L2Client(comptime client_type: Clients) type {
         allocator: Allocator,
         /// The http or ws client that will be use to query the rpc server
         rpc_client: *ClientType,
-        /// List of know contracts from OP
-        contracts: OpMainNetContracts,
 
         /// Starts the RPC connection
         /// If the contracts are null it defaults to OP contracts.
-        pub fn init(opts: InitOpts, op_contracts: ?OpMainNetContracts) !*L2 {
+        pub fn init(opts: InitOpts) !*L2 {
             const self = try opts.allocator.create(L2);
             errdefer opts.allocator.destroy(self);
 
-            if (opts.chain_id) |id| {
-                switch (id) {
-                    .op_mainnet, .op_sepolia, .base, .zora => {},
-                    else => return error.InvalidChain,
-                }
-            } else return error.ExpectedChainId;
+            switch (opts.network_config.chain_id) {
+                .op_mainnet, .op_sepolia, .base, .zora => {},
+                else => return error.InvalidChain,
+            }
 
             self.* = .{
                 .rpc_client = try ClientType.init(opts),
                 .allocator = opts.allocator,
-                .contracts = op_contracts orelse .{},
             };
 
             return self;
@@ -97,7 +92,7 @@ pub fn L2Client(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.gasPriceOracle,
+                .to = self.rpc_client.network_config.op_stack_contracts.gasPriceOracle,
                 .data = encoded,
             } }, .{});
             defer data.deinit();
@@ -113,7 +108,7 @@ pub fn L2Client(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.gasPriceOracle,
+                .to = self.rpc_client.network_config.op_stack_contracts.gasPriceOracle,
                 .data = encoded,
             } }, .{});
             defer data.deinit();
@@ -157,7 +152,7 @@ pub fn L2Client(comptime client_type: Clients) type {
             const selector: []u8 = @constCast(&[_]u8{ 0x51, 0x9b, 0x4b, 0xd3 });
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.gasPriceOracle,
+                .to = self.rpc_client.network_config.op_stack_contracts.gasPriceOracle,
                 .data = selector,
             } }, .{});
             defer data.deinit();
@@ -177,7 +172,7 @@ pub fn L2Client(comptime client_type: Clients) type {
                     const to = tx_receipt.to orelse return error.InvalidTransactionHash;
 
                     const casted_to: u160 = @bitCast(to);
-                    const casted_l2: u160 = @bitCast(self.contracts.l2ToL1MessagePasser);
+                    const casted_l2: u160 = @bitCast(self.rpc_client.network_config.op_stack_contracts.l2ToL1MessagePasser);
 
                     if (casted_to != casted_l2)
                         return error.InvalidTransactionHash;

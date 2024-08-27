@@ -30,7 +30,7 @@ pub const OpMainNetContracts = struct {
 
 /// ENS Contracts
 pub const EnsContracts = struct {
-    ensUniversalResolver: Address = utils.addressToBytes("0xce01f8eee7E479C928F8919abD53E553a36CeF67") catch unreachable,
+    ensUniversalResolver: Address = utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") catch unreachable,
 };
 
 /// Possible endpoint locations.

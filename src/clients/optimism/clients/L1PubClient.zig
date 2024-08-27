@@ -62,26 +62,21 @@ pub fn L1Client(comptime client_type: Clients) type {
         allocator: Allocator,
         /// The http or ws client that will be use to query the rpc server
         rpc_client: *ClientType,
-        /// List of know contracts from OP
-        contracts: OpMainNetContracts,
 
         /// Starts the RPC connection
         /// If the contracts are null it defaults to OP contracts.
-        pub fn init(opts: InitOpts, op_contracts: ?OpMainNetContracts) !*L1 {
+        pub fn init(opts: InitOpts) !*L1 {
             const self = try opts.allocator.create(L1);
             errdefer opts.allocator.destroy(self);
 
-            if (opts.chain_id) |id| {
-                switch (id) {
-                    .ethereum, .sepolia => {},
-                    else => return error.InvalidChain,
-                }
+            switch (opts.network_config.chain_id) {
+                .ethereum, .sepolia => {},
+                else => return error.InvalidChain,
             }
 
             self.* = .{
                 .rpc_client = try ClientType.init(opts),
                 .allocator = opts.allocator,
-                .contracts = op_contracts orelse .{},
             };
 
             return self;
@@ -138,13 +133,13 @@ pub fn L1Client(comptime client_type: Clients) type {
             const game_type_selector: []u8 = @constCast(&[_]u8{ 0x3c, 0x9f, 0x39, 0x7c });
 
             const game_count = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.disputeGameFactory,
+                .to = self.rpc_client.network_config.op_stack_contracts.disputeGameFactory,
                 .data = game_count_selector,
             } }, .{});
             defer game_count.deinit();
 
             const game_type = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.portalAddress,
+                .to = self.rpc_client.network_config.op_stack_contracts.portalAddress,
                 .data = game_type_selector,
             } }, .{});
             defer game_type.deinit();
@@ -156,7 +151,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const games = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.disputeGameFactory,
+                .to = self.rpc_client.network_config.op_stack_contracts.disputeGameFactory,
                 .data = encoded,
             } }, .{});
             defer games.deinit();
@@ -193,7 +188,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.portalAddress,
+                .to = self.rpc_client.network_config.op_stack_contracts.portalAddress,
                 .data = encoded,
             } }, .{});
             defer data.deinit();
@@ -206,7 +201,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             const selector: []u8 = @constCast(&[_]u8{ 0x45, 0x99, 0xc7, 0x88 });
 
             const block = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.l2OutputOracle,
+                .to = self.rpc_client.network_config.op_stack_contracts.l2OutputOracle,
                 .data = selector,
             } }, .{});
             defer block.deinit();
@@ -259,7 +254,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.l2OutputOracle,
+                .to = self.rpc_client.network_config.op_stack_contracts.l2OutputOracle,
                 .data = encoded,
             } }, .{});
             defer data.deinit();
@@ -282,7 +277,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.l2OutputOracle,
+                .to = self.rpc_client.network_config.op_stack_contracts.l2OutputOracle,
                 .data = encoded,
             } }, .{});
             defer data.deinit();
@@ -295,7 +290,7 @@ pub fn L1Client(comptime client_type: Clients) type {
         pub fn getPortalVersion(self: *L1) !SemanticVersion {
             const selector_version: []u8 = @constCast(&[_]u8{ 0x54, 0xfd, 0x4d, 0x50 });
             const version = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.portalAddress,
+                .to = self.rpc_client.network_config.op_stack_contracts.portalAddress,
                 .data = selector_version,
             } }, .{});
             defer version.deinit();
@@ -313,7 +308,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.portalAddress,
+                .to = self.rpc_client.network_config.op_stack_contracts.portalAddress,
                 .data = encoded,
             } }, .{});
             defer data.deinit();
@@ -338,7 +333,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             const selector: []u8 = @constCast(&[_]u8{ 0x52, 0x99, 0x33, 0xdf });
 
             const submission = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.l2OutputOracle,
+                .to = self.rpc_client.network_config.op_stack_contracts.l2OutputOracle,
                 .data = selector,
             } }, .{});
             defer submission.deinit();
@@ -348,7 +343,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             // Selector for "L2_BLOCK_TIME()"
             const selector_time: []u8 = @constCast(&[_]u8{ 0x00, 0x21, 0x34, 0xcc });
             const block = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.l2OutputOracle,
+                .to = self.rpc_client.network_config.op_stack_contracts.l2OutputOracle,
                 .data = selector_time,
             } }, .{});
             defer block.deinit();
@@ -368,7 +363,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             // Selector for "FINALIZATION_PERIOD_SECONDS()"
             const selector: []u8 = @constCast(&[_]u8{ 0xf4, 0xda, 0xa2, 0x91 });
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.l2OutputOracle,
+                .to = self.rpc_client.network_config.op_stack_contracts.l2OutputOracle,
                 .data = selector,
             } }, .{});
             defer data.deinit();
@@ -387,7 +382,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             // Selector for "proofMaturityDelaySeconds()"
             const selector: []u8 = @constCast(&[_]u8{ 0xbf, 0x65, 0x3a, 0x5c });
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.portalAddress,
+                .to = self.rpc_client.network_config.op_stack_contracts.portalAddress,
                 .data = selector,
             } }, .{});
             defer data.deinit();
@@ -549,12 +544,12 @@ pub fn L1Client(comptime client_type: Clients) type {
 
             var retries: usize = 0;
             const game: GameResult = while (true) : (retries += 1) {
-                if (retries > self.rpc_client.retries)
+                if (retries > self.rpc_client.network_config.retries)
                     return error.ExceedRetriesAmount;
 
                 const output = self.getGame(limit, l2BlockNumber, .random) catch |err| switch (err) {
                     error.EvmFailedToExecute, error.GameNotFound => {
-                        std.time.sleep(self.rpc_client.pooling_interval);
+                        std.time.sleep(self.rpc_client.network_config.pooling_interval);
                         continue;
                     },
                     else => return err,
@@ -573,12 +568,12 @@ pub fn L1Client(comptime client_type: Clients) type {
 
             var retries: usize = 0;
             const l2_output = while (true) : (retries += 1) {
-                if (retries > self.rpc_client.retries)
+                if (retries > self.rpc_client.network_config.retries)
                     return error.ExceedRetriesAmount;
 
                 const output = self.getL2Output(latest_l2_block) catch |err| switch (err) {
                     error.EvmFailedToExecute => {
-                        std.time.sleep(self.rpc_client.pooling_interval);
+                        std.time.sleep(self.rpc_client.network_config.retries);
                         continue;
                     },
                     else => return err,

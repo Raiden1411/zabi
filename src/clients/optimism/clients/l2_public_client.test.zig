@@ -9,10 +9,12 @@ test "GetWithdrawMessages" {
     const uri = try std.Uri.parse("http://localhost:6970");
 
     var op = try L2Client(.http).init(.{
-        .uri = uri,
         .allocator = testing.allocator,
-        .chain_id = .op_sepolia,
-    }, null);
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .chain_id = .op_sepolia,
+        },
+    });
     defer op.deinit();
 
     const messages = try op.getWithdrawMessages(try utils.hashToBytes("0x078be3962b143952b4fd8567640b14c3682b8a941000c7d92394faf0e40cb1e8"));
@@ -29,10 +31,12 @@ test "GetBaseFee" {
     const uri = try std.Uri.parse("http://localhost:6970");
 
     var op = try L2Client(.http).init(.{
-        .uri = uri,
         .allocator = testing.allocator,
-        .chain_id = .op_sepolia,
-    }, null);
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .chain_id = .op_sepolia,
+        },
+    });
     defer op.deinit();
 
     const fee = try op.getBaseL1Fee();
@@ -44,10 +48,12 @@ test "EstimateL1Gas" {
     const uri = try std.Uri.parse("http://localhost:6970");
 
     var op = try L2Client(.http).init(.{
-        .uri = uri,
         .allocator = testing.allocator,
-        .chain_id = .op_sepolia,
-    }, null);
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .chain_id = .op_sepolia,
+        },
+    });
     defer op.deinit();
 
     const fee = try op.estimateL1Gas(.{
@@ -68,10 +74,12 @@ test "EstimateL1GasFee" {
     const uri = try std.Uri.parse("http://localhost:6970");
 
     var op = try L2Client(.http).init(.{
-        .uri = uri,
         .allocator = testing.allocator,
-        .chain_id = .op_sepolia,
-    }, null);
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .chain_id = .op_sepolia,
+        },
+    });
     defer op.deinit();
 
     const fee = try op.estimateL1GasFee(.{
@@ -92,10 +100,12 @@ test "EstimateTotalGas" {
     const uri = try std.Uri.parse("http://localhost:6970");
 
     var op = try L2Client(.http).init(.{
-        .uri = uri,
         .allocator = testing.allocator,
-        .chain_id = .op_sepolia,
-    }, null);
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .chain_id = .op_sepolia,
+        },
+    });
     defer op.deinit();
 
     const fee = try op.estimateTotalGas(.{
@@ -116,10 +126,12 @@ test "EstimateTotalFees" {
     const uri = try std.Uri.parse("http://localhost:6970");
 
     var op = try L2Client(.http).init(.{
-        .uri = uri,
         .allocator = testing.allocator,
-        .chain_id = .op_sepolia,
-    }, null);
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .chain_id = .op_sepolia,
+        },
+    });
     defer op.deinit();
 
     const fee = try op.estimateL1Gas(.{

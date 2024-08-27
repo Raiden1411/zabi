@@ -62,14 +62,14 @@ pub fn WalletL1Client(client_type: Clients) type {
         ///
         /// If the contracts are null it defaults to OP contracts.
         /// Caller must deinit after use.
-        pub fn init(priv_key: ?Hash, opts: InitOpts, op_contracts: ?OpMainNetContracts) !*WalletL1 {
+        pub fn init(priv_key: ?Hash, opts: InitOpts) !*WalletL1 {
             const self = try opts.allocator.create(WalletL1);
             errdefer opts.allocator.destroy(self);
 
             const op_signer = try Signer.init(priv_key);
 
             self.* = .{
-                .op_client = try ClientType.init(opts, op_contracts),
+                .op_client = try ClientType.init(opts),
                 .signer = op_signer,
             };
         }
@@ -103,7 +103,7 @@ pub fn WalletL1Client(client_type: Clients) type {
             defer gas.deinit();
 
             const call: LondonEthCall = .{
-                .to = self.op_client.contracts.portalAddress,
+                .to = self.op_client.rpc_client.network_config.op_stack_contracts.portalAddress,
                 .from = address,
                 .gas = gas.response,
                 .data = data,
@@ -120,11 +120,11 @@ pub fn WalletL1Client(client_type: Clients) type {
             const tx: LondonTransactionEnvelope = .{
                 .gas = gas.response,
                 .data = data,
-                .to = self.op_client.contracts.portalAddress,
+                .to = self.op_client.rpc_client.network_config.op_stack_contracts.portalAddress,
                 .value = deposit_data.value,
                 .accessList = &.{},
                 .nonce = nonce.response,
-                .chainId = self.op_client.rpc_client.chain_id,
+                .chainId = @intFromEnum(self.op_client.rpc_client.network_config.chain_id),
                 .maxFeePerGas = fees.london.max_fee_gas,
                 .maxPriorityFeePerGas = fees.london.max_priority_fee,
             };
@@ -135,21 +135,21 @@ pub fn WalletL1Client(client_type: Clients) type {
         /// Uses the portalAddress. The data is expected to be hex abi encoded data.
         pub fn estimateDepositTransaction(self: *WalletL1, data: Hex) !RPCResponse(Gwei) {
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
-                .to = self.op_client.contracts.portalAddress,
+                .to = self.op_client.rpc_client.network_config.op_stack_contracts.portalAddress,
                 .data = data,
             } }, .{});
         }
         /// Estimates the gas cost for calling `finalizeWithdrawal`
         pub fn estimateFinalizeWithdrawal(self: *WalletL1, data: Hex) !RPCResponse(Gwei) {
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
-                .to = self.op_client.contracts.portalAddress,
+                .to = self.op_client.rpc_client.network_config.op_stack_contracts.portalAddress,
                 .data = data,
             } }, .{});
         }
         /// Estimates the gas cost for calling `proveWithdrawal`
         pub fn estimateProveWithdrawal(self: *WalletL1, data: Hex) !RPCResponse(Gwei) {
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
-                .to = self.op_client.contracts.portalAddress,
+                .to = self.op_client.rpc_client.network_config.op_stack_contracts.portalAddress,
                 .data = data,
             } }, .{});
         }
@@ -164,7 +164,7 @@ pub fn WalletL1Client(client_type: Clients) type {
             defer gas.deinit();
 
             const call: LondonEthCall = .{
-                .to = self.op_client.contracts.portalAddress,
+                .to = self.op_client.rpc_client.network_config.op_stack_contracts.portalAddress,
                 .from = address,
                 .gas = gas.response,
                 .data = data,
@@ -180,11 +180,11 @@ pub fn WalletL1Client(client_type: Clients) type {
             const tx: LondonTransactionEnvelope = .{
                 .gas = gas.response,
                 .data = data,
-                .to = self.op_client.contracts.portalAddress,
+                .to = self.op_client.rpc_client.network_config.op_stack_contracts.portalAddress,
                 .value = 0,
                 .accessList = &.{},
                 .nonce = nonce.response,
-                .chainId = self.op_client.rpc_client.chain_id,
+                .chainId = @intFromEnum(self.op_client.rpc_client.network_config.chain_id),
                 .maxFeePerGas = fees.london.max_fee_gas,
                 .maxPriorityFeePerGas = fees.london.max_priority_fee,
             };
@@ -195,7 +195,7 @@ pub fn WalletL1Client(client_type: Clients) type {
         pub fn prepareWithdrawalProofTransaction(self: *WalletL1, withdrawal: Withdrawal, l2_output: L2Output) !WithdrawalEnvelope {
             const storage_slot = op_utils.getWithdrawalHashStorageSlot(withdrawal.withdrawalHash);
             const proof = try self.op_client.rpc_client.getProof(.{
-                .address = self.op_client.contracts.l2ToL1MessagePasser,
+                .to = self.op_client.rpc_client.network_config.op_stack_contracts.l2ToL1MessagePasser,
                 .storageKeys = &.{storage_slot},
                 .blockNumber = @intCast(l2_output.l2BlockNumber),
             }, null);
@@ -245,7 +245,7 @@ pub fn WalletL1Client(client_type: Clients) type {
             defer gas.deinit();
 
             const call: LondonEthCall = .{
-                .to = self.op_client.contracts.portalAddress,
+                .to = self.op_client.rpc_client.network_config.op_stack_contracts.portalAddress,
                 .from = address,
                 .gas = gas.response,
                 .data = data,
@@ -261,11 +261,11 @@ pub fn WalletL1Client(client_type: Clients) type {
             const tx: LondonTransactionEnvelope = .{
                 .gas = gas.response,
                 .data = data,
-                .to = self.op_client.contracts.portalAddress,
+                .to = self.op_client.rpc_client.network_config.op_stack_contracts.portalAddress,
                 .value = 0,
                 .accessList = &.{},
                 .nonce = nonce.response,
-                .chainId = self.op_client.rpc_client.chain_id,
+                .chainId = @intFromEnum(self.op_client.rpc_client.network_config.chain_id),
                 .maxFeePerGas = fees.london.max_fee_gas,
                 .maxPriorityFeePerGas = fees.london.max_priority_fee,
             };

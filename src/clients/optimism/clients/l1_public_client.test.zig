@@ -8,7 +8,10 @@ const L1Client = client.L1Client;
 test "GetL2HashFromL1DepositInfo" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var op = try L1Client(.http).init(.{ .uri = uri, .allocator = testing.allocator }, null);
+    var op = try L1Client(.http).init(.{
+        .allocator = testing.allocator,
+        .network_config = .{ .endpoint = .{ .uri = uri } },
+    });
     defer op.deinit();
 
     const messages = try op.getL2HashesForDepositTransaction(try utils.hashToBytes("0x33faeeee9c6d5e19edcdfc003f329c6652f05502ffbf3218d9093b92589a42c4"));
@@ -20,7 +23,10 @@ test "GetL2HashFromL1DepositInfo" {
 test "GetL2Output" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var op = try L1Client(.http).init(.{ .uri = uri, .allocator = testing.allocator }, null);
+    var op = try L1Client(.http).init(.{
+        .allocator = testing.allocator,
+        .network_config = .{ .endpoint = .{ .uri = uri } },
+    });
     defer op.deinit();
 
     const l2_output = try op.getL2Output(2725977);
@@ -33,8 +39,12 @@ test "GetL2Output" {
 test "getSecondsToFinalize" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var op = try L1Client(.http).init(.{ .uri = uri, .allocator = testing.allocator }, .{
-        .portalAddress = try utils.addressToBytes("0x49048044D57e1C92A77f79988d21Fa8fAF74E97e"),
+    var op = try L1Client(.http).init(.{
+        .allocator = testing.allocator,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .op_stack_contracts = .{ .portalAddress = try utils.addressToBytes("0x49048044D57e1C92A77f79988d21Fa8fAF74E97e") },
+        },
     });
     defer op.deinit();
 
@@ -45,7 +55,10 @@ test "getSecondsToFinalize" {
 test "GetSecondsToNextL2Output" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var op = try L1Client(.http).init(.{ .uri = uri, .allocator = testing.allocator }, null);
+    var op = try L1Client(.http).init(.{
+        .allocator = testing.allocator,
+        .network_config = .{ .endpoint = .{ .uri = uri } },
+    });
     defer op.deinit();
 
     const block = try op.getLatestProposedL2BlockNumber();
@@ -56,7 +69,10 @@ test "GetSecondsToNextL2Output" {
 test "GetTransactionDepositEvents" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var op = try L1Client(.http).init(.{ .uri = uri, .allocator = testing.allocator }, null);
+    var op = try L1Client(.http).init(.{
+        .allocator = testing.allocator,
+        .network_config = .{ .endpoint = .{ .uri = uri } },
+    });
     defer op.deinit();
 
     const deposit_events = try op.getTransactionDepositEvents(try utils.hashToBytes("0xe94031c3174788c3fee7216465c50bb2b72e7a1963f5af807b3768da10827f5c"));
@@ -72,8 +88,12 @@ test "GetTransactionDepositEvents" {
 test "GetProvenWithdrawals" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var op = try L1Client(.http).init(.{ .uri = uri, .allocator = testing.allocator }, .{
-        .portalAddress = try utils.addressToBytes("0x49048044D57e1C92A77f79988d21Fa8fAF74E97e"),
+    var op = try L1Client(.http).init(.{
+        .allocator = testing.allocator,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .op_stack_contracts = .{ .portalAddress = try utils.addressToBytes("0x49048044D57e1C92A77f79988d21Fa8fAF74E97e") },
+        },
     });
     defer op.deinit();
 
@@ -85,8 +105,12 @@ test "GetProvenWithdrawals" {
 test "GetFinalizedWithdrawals" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var op = try L1Client(.http).init(.{ .uri = uri, .allocator = testing.allocator }, .{
-        .portalAddress = try utils.addressToBytes("0x49048044D57e1C92A77f79988d21Fa8fAF74E97e"),
+    var op = try L1Client(.http).init(.{
+        .allocator = testing.allocator,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .op_stack_contracts = .{ .portalAddress = try utils.addressToBytes("0x49048044D57e1C92A77f79988d21Fa8fAF74E97e") },
+        },
     });
     defer op.deinit();
 
@@ -97,7 +121,10 @@ test "GetFinalizedWithdrawals" {
 test "Errors" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var op = try L1Client(.http).init(.{ .uri = uri, .allocator = testing.allocator }, null);
+    var op = try L1Client(.http).init(.{
+        .allocator = testing.allocator,
+        .network_config = .{ .endpoint = .{ .uri = uri } },
+    });
     defer op.deinit();
 
     try testing.expectError(error.InvalidBlockNumber, op.getSecondsToNextL2Output(1));
@@ -108,10 +135,13 @@ test "getSecondsUntilNextGame" {
     const uri = try std.Uri.parse("http://localhost:6971");
 
     var op = try L1Client(.http).init(.{
-        .uri = uri,
         .allocator = testing.allocator,
-        .chain_id = .sepolia,
-    }, .{ .portalAddress = try utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC") });
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .op_stack_contracts = .{ .portalAddress = try utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC") },
+            .chain_id = .sepolia,
+        },
+    });
     defer op.deinit();
 
     const games = try op.getGames(1, null);
@@ -126,10 +156,13 @@ test "Portal Version" {
     const uri = try std.Uri.parse("http://localhost:6971");
 
     var op = try L1Client(.http).init(.{
-        .uri = uri,
         .allocator = testing.allocator,
-        .chain_id = .sepolia,
-    }, .{ .portalAddress = try utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC") });
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .op_stack_contracts = .{ .portalAddress = try utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC") },
+            .chain_id = .sepolia,
+        },
+    });
     defer op.deinit();
 
     const version = try op.getPortalVersion();
@@ -141,10 +174,13 @@ test "Get Games" {
     const uri = try std.Uri.parse("http://localhost:6971");
 
     var op = try L1Client(.http).init(.{
-        .uri = uri,
         .allocator = testing.allocator,
-        .chain_id = .sepolia,
-    }, .{ .portalAddress = try utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC") });
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .op_stack_contracts = .{ .portalAddress = try utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC") },
+            .chain_id = .sepolia,
+        },
+    });
     defer op.deinit();
 
     const games = try op.getGames(5, 69);

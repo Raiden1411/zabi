@@ -12,7 +12,9 @@ test "BlockByNumber" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -22,7 +24,9 @@ test "BlockByNumber" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -32,7 +36,9 @@ test "BlockByNumber" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -42,7 +48,9 @@ test "BlockByNumber" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -55,7 +63,9 @@ test "BlockByHash" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -69,7 +79,9 @@ test "BlockByHash" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -88,7 +100,9 @@ test "BlockByHash" {
 test "BlockTransactionCountByHash" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -102,7 +116,9 @@ test "BlockTransactionCountByNumber" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -114,7 +130,9 @@ test "BlockTransactionCountByNumber" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -129,7 +147,9 @@ test "AddressBalance" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -144,7 +164,9 @@ test "AddressBalance" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -161,7 +183,9 @@ test "AddressNonce" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -175,7 +199,9 @@ test "AddressNonce" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -192,7 +218,9 @@ test "AddressNonce" {
 test "BlockNumber" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -205,7 +233,9 @@ test "BlockNumber" {
 test "GetChainId" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -219,7 +249,9 @@ test "GetStorage" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -231,7 +263,9 @@ test "GetStorage" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -245,7 +279,9 @@ test "GetStorage" {
 test "GetAccounts" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -260,7 +296,9 @@ test "GetContractCode" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -274,7 +312,9 @@ test "GetContractCode" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -291,7 +331,9 @@ test "GetContractCode" {
 test "GetTransactionByHash" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -305,7 +347,9 @@ test "GetTransactionByHash" {
 test "GetReceipt" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -320,7 +364,9 @@ test "GetFilter" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -332,7 +378,9 @@ test "GetFilter" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -344,7 +392,9 @@ test "GetFilter" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -355,7 +405,9 @@ test "GetFilter" {
 test "GetGasPrice" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -368,7 +420,9 @@ test "GetGasPrice" {
 test "GetUncleCountByBlockHash" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -382,7 +436,9 @@ test "GetUncleCountByBlockNumber" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -394,7 +450,9 @@ test "GetUncleCountByBlockNumber" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -409,7 +467,9 @@ test "GetUncleByBlockNumberAndIndex" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -418,7 +478,9 @@ test "GetUncleByBlockNumberAndIndex" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -432,7 +494,9 @@ test "GetUncleByBlockNumberAndIndex" {
 test "GetUncleByBlockHashAndIndex" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -446,7 +510,9 @@ test "GetTransactionByBlockNumberAndIndex" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -455,7 +521,9 @@ test "GetTransactionByBlockNumberAndIndex" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -470,7 +538,9 @@ test "EstimateGas" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -479,7 +549,9 @@ test "EstimateGas" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -491,7 +563,9 @@ test "EstimateGas" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -503,7 +577,9 @@ test "EstimateGas" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -518,7 +594,9 @@ test "CreateAccessList" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -530,7 +608,9 @@ test "CreateAccessList" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -539,7 +619,9 @@ test "CreateAccessList" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -553,7 +635,9 @@ test "CreateAccessList" {
 test "GetNetworkPeerCount" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -563,7 +647,9 @@ test "GetNetworkPeerCount" {
 test "GetNetworkVersionId" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -576,7 +662,9 @@ test "GetNetworkVersionId" {
 test "GetNetworkListenStatus" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -589,7 +677,9 @@ test "GetNetworkListenStatus" {
 test "GetSha3Hash" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -599,7 +689,9 @@ test "GetSha3Hash" {
 test "GetClientVersion" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -612,7 +704,9 @@ test "GetClientVersion" {
 test "BlobBaseFee" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -625,7 +719,9 @@ test "BlobBaseFee" {
 test "EstimateBlobMaxFeePerGas" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -637,7 +733,9 @@ test "EstimateBlobMaxFeePerGas" {
 test "EstimateMaxFeePerGas" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -651,7 +749,9 @@ test "EstimateFeePerGas" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -663,7 +763,9 @@ test "EstimateFeePerGas" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -674,7 +776,9 @@ test "EstimateFeePerGas" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -689,7 +793,9 @@ test "GetProof" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -701,7 +807,9 @@ test "GetProof" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -716,7 +824,9 @@ test "GetLogs" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -726,7 +836,9 @@ test "GetLogs" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -739,7 +851,9 @@ test "NewLogFilter" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -749,7 +863,9 @@ test "NewLogFilter" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -761,7 +877,9 @@ test "NewLogFilter" {
 test "NewBlockFilter" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -772,7 +890,9 @@ test "NewBlockFilter" {
 test "NewPendingTransactionFilter" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -783,7 +903,9 @@ test "NewPendingTransactionFilter" {
 test "UninstallFilter" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -794,7 +916,9 @@ test "UninstallFilter" {
 test "GetProtocolVersion" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -804,7 +928,9 @@ test "GetProtocolVersion" {
 test "SyncStatus" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 
@@ -818,7 +944,9 @@ test "FeeHistory" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -828,7 +956,9 @@ test "FeeHistory" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -838,7 +968,9 @@ test "FeeHistory" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -848,7 +980,9 @@ test "FeeHistory" {
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer client.deinit();
 
@@ -860,7 +994,9 @@ test "FeeHistory" {
 test "Multicall" {
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .path = "/tmp/anvil.ipc",
+        .network_config = .{
+            .endpoint = .{ .path = "/tmp/anvil.ipc" },
+        },
     });
     defer client.deinit();
 

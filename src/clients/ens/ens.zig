@@ -49,26 +49,21 @@ pub fn ENSClient(comptime client_type: Clients) type {
         allocator: Allocator,
         /// The http or ws client that will be use to query the rpc server
         rpc_client: *ClientType,
-        /// ENS contracts to be used by this client.
-        ens_contracts: EnsContracts,
 
         /// Starts the RPC connection
         /// If the contracts are null it defaults to mainnet contracts.
-        pub fn init(opts: InitOpts, ens_contracts: ?EnsContracts) !*ENS {
+        pub fn init(opts: InitOpts) !*ENS {
             const self = try opts.allocator.create(ENS);
             errdefer opts.allocator.destroy(self);
 
-            if (opts.chain_id) |id| {
-                switch (id) {
-                    .ethereum, .sepolia => {},
-                    else => return error.InvalidChain,
-                }
+            switch (opts.network_config.chain_id) {
+                .ethereum, .sepolia => {},
+                else => return error.InvalidChain,
             }
 
             self.* = .{
                 .rpc_client = try ClientType.init(opts),
                 .allocator = opts.allocator,
-                .ens_contracts = ens_contracts orelse .{},
             };
 
             return self;
@@ -98,7 +93,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
             defer self.allocator.free(resolver_encoded);
 
             const value = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.ens_contracts.ensUniversalResolver,
+                .to = self.rpc_client.network_config.ens_contracts.ensUniversalResolver,
                 .data = resolver_encoded,
             } }, opts);
             defer value.deinit();
@@ -143,7 +138,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const value = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.ens_contracts.ensUniversalResolver,
+                .to = self.rpc_client.network_config.ens_contracts.ensUniversalResolver,
                 .data = encoded,
             } }, opts);
             defer value.deinit();
@@ -175,7 +170,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const value = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.ens_contracts.ensUniversalResolver,
+                .to = self.rpc_client.network_config.ens_contracts.ensUniversalResolver,
                 .data = encoded,
             } }, opts);
             defer value.deinit();
@@ -202,7 +197,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const value = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.ens_contracts.ensUniversalResolver,
+                .to = self.rpc_client.network_config.ens_contracts.ensUniversalResolver,
                 .data = encoded,
             } }, opts);
             errdefer value.deinit();

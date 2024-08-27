@@ -8,8 +8,12 @@ test "ENS Text" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
     var ens = try ENSClient(.http).init(
-        .{ .uri = uri, .allocator = testing.allocator },
-        .{ .ensUniversalResolver = try utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") },
+        .{
+            .allocator = testing.allocator,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
+        },
     );
     defer ens.deinit();
 
@@ -21,8 +25,12 @@ test "ENS Name" {
         const uri = try std.Uri.parse("http://localhost:6969/");
 
         var ens = try ENSClient(.http).init(
-            .{ .uri = uri, .allocator = testing.allocator },
-            .{ .ensUniversalResolver = try utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") },
+            .{
+                .allocator = testing.allocator,
+                .network_config = .{
+                    .endpoint = .{ .uri = uri },
+                },
+            },
         );
         defer ens.deinit();
 
@@ -38,8 +46,12 @@ test "ENS Address" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
     var ens = try ENSClient(.http).init(
-        .{ .uri = uri, .allocator = testing.allocator },
-        .{ .ensUniversalResolver = try utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") },
+        .{
+            .allocator = testing.allocator,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
+        },
     );
     defer ens.deinit();
 
@@ -54,8 +66,12 @@ test "ENS Resolver" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
     var ens = try ENSClient(.http).init(
-        .{ .uri = uri, .allocator = testing.allocator },
-        .{ .ensUniversalResolver = try utils.addressToBytes("0x8cab227b1162f03b8338331adaad7aadc83b895e") },
+        .{
+            .allocator = testing.allocator,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
+        },
     );
     defer ens.deinit();
 

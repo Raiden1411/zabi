@@ -59,7 +59,7 @@ pub fn main() !void {
 
     var client = try HttpRpcClient.init(.{
         .allocator = allocator,
-        .uri = uri,
+        .network_config = .{ .endpoint = .{ .uri = uri } },
     });
     defer client.deinit();
 

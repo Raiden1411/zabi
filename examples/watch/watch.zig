@@ -19,7 +19,10 @@ pub fn main() !void {
 
     const uri = try std.Uri.parse(parsed.url);
 
-    var socket = try WebSocket.init(.{ .uri = uri, .allocator = gpa.allocator() });
+    var socket = try WebSocket.init(.{
+        .network_config = .{ .endpoint = .{ .uri = uri } },
+        .allocator = gpa.allocator(),
+    });
     defer socket.deinit();
 
     const id = try socket.watchTransactions();

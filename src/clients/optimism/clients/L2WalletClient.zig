@@ -1,6 +1,5 @@
 const abi_items = @import("../abi_optimism.zig");
 const clients = @import("../../root.zig");
-const contracts = @import("../contracts.zig");
 const serialize = @import("../../../encoding/serialize.zig");
 const std = @import("std");
 const testing = std.testing;
@@ -21,7 +20,6 @@ const InitOptsWs = clients.WebSocket.InitOptions;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const LondonEthCall = transactions.LondonEthCall;
 const LondonTransactionEnvelope = transactions.LondonTransactionEnvelope;
-const OpMainNetContracts = contracts.OpMainNetContracts;
 const PreparedWithdrawal = withdrawal_types.PreparedWithdrawal;
 const RPCResponse = types.RPCResponse;
 const Signer = @import("../../../crypto/Signer.zig");
@@ -55,14 +53,14 @@ pub fn L2WalletClient(client_type: Clients) type {
         ///
         /// If the contracts are null it defaults to OP contracts.
         /// Caller must deinit after use.
-        pub fn init(priv_key: ?Hash, opts: InitOpts, op_contracts: ?OpMainNetContracts) !*L2Wallet {
+        pub fn init(priv_key: ?Hash, opts: InitOpts) !*L2Wallet {
             const self = try opts.allocator.create(L2Wallet);
             errdefer opts.allocator.destroy(self);
 
             const op_signer = try Signer.init(priv_key);
 
             self.* = .{
-                .op_client = try ClientType.init(opts, op_contracts),
+                .op_client = try ClientType.init(opts),
                 .signer = op_signer,
             };
         }
@@ -76,14 +74,18 @@ pub fn L2WalletClient(client_type: Clients) type {
         }
         /// Estimates the gas cost for calling `initiateWithdrawal`
         pub fn estimateInitiateWithdrawal(self: *L2Wallet, data: Hex) !RPCResponse(Gwei) {
+            const contracts = self.op_client.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
+
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
-                .to = self.op_client.contracts.l2ToL1MessagePasser,
+                .to = contracts.l2ToL1MessagePasser,
                 .data = data,
             } }, .{});
         }
         /// Invokes the contract method to `initiateWithdrawal`. This will send
         /// a transaction to the network.
         pub fn initiateWithdrawal(self: *L2Wallet, request: WithdrawalRequest) !RPCResponse(Hash) {
+            const contracts = self.op_client.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
+
             const address = self.signer.address_bytes;
 
             const prepared = try self.prepareInitiateWithdrawal(request);
@@ -98,7 +100,7 @@ pub fn L2WalletClient(client_type: Clients) type {
             defer gas.deinit();
 
             const call: LondonEthCall = .{
-                .to = self.op_client.contracts.l2ToL1MessagePasser,
+                .to = contracts.l2ToL1MessagePasser,
                 .from = address,
                 .gas = gas.response,
                 .data = data,
@@ -114,11 +116,11 @@ pub fn L2WalletClient(client_type: Clients) type {
             const tx: LondonTransactionEnvelope = .{
                 .gas = gas.response,
                 .data = data,
-                .to = self.op_client.contracts.l2ToL1MessagePasser,
+                .to = contracts.l2ToL1MessagePasser,
                 .value = prepared.value,
                 .accessList = &.{},
                 .nonce = nonce.response,
-                .chainId = self.op_client.rpc_client.chain_id,
+                .chainId = @intFromEnum(self.op_client.rpc_client.network_config.chain_id),
                 .maxFeePerGas = fees.london.max_fee_gas,
                 .maxPriorityFeePerGas = fees.london.max_priority_fee,
             };

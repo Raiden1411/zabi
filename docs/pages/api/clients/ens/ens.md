@@ -15,7 +15,7 @@ If the contracts are null it defaults to mainnet contracts.
 ### Signature
 
 ```zig
-pub fn init(opts: InitOpts, ens_contracts: ?EnsContracts) !*ENS
+pub fn init(opts: InitOpts) !*ENS
 ```
 
 ## Deinit

@@ -27,7 +27,12 @@ test "DeployContract" {
         var contract = try Contract(.websocket).init(.{
             .abi = abi,
             .private_key = buffer_hex,
-            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+            .wallet_opts = .{
+                .allocator = testing.allocator,
+                .network_config = .{
+                    .endpoint = .{ .uri = uri },
+                },
+            },
         });
         defer contract.deinit();
 
@@ -54,7 +59,12 @@ test "DeployContract" {
         var contract = try Contract(.http).init(.{
             .abi = abi,
             .private_key = buffer_hex,
-            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+            .wallet_opts = .{
+                .allocator = testing.allocator,
+                .network_config = .{
+                    .endpoint = .{ .uri = uri },
+                },
+            },
         });
         defer contract.deinit();
 
@@ -80,7 +90,12 @@ test "DeployContract" {
         var contract = try Contract(.ipc).init(.{
             .abi = abi,
             .private_key = buffer_hex,
-            .wallet_opts = .{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" },
+            .wallet_opts = .{
+                .allocator = testing.allocator,
+                .network_config = .{
+                    .endpoint = .{ .path = "/tmp/anvil.ipc" },
+                },
+            },
         });
         defer contract.deinit();
 
@@ -115,7 +130,12 @@ test "WriteContract" {
         var contract = try Contract(.websocket).init(.{
             .abi = abi,
             .private_key = buffer_hex,
-            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+            .wallet_opts = .{
+                .allocator = testing.allocator,
+                .network_config = .{
+                    .endpoint = .{ .uri = uri },
+                },
+            },
         });
         defer contract.deinit();
 
@@ -151,7 +171,12 @@ test "WriteContract" {
         var contract = try Contract(.websocket).init(.{
             .abi = abi,
             .private_key = buffer_hex,
-            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+            .wallet_opts = .{
+                .allocator = testing.allocator,
+                .network_config = .{
+                    .endpoint = .{ .uri = uri },
+                },
+            },
         });
         defer contract.deinit();
 
@@ -183,7 +208,12 @@ test "WriteContract" {
         var contract = try Contract(.ipc).init(.{
             .abi = abi,
             .private_key = buffer_hex,
-            .wallet_opts = .{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" },
+            .wallet_opts = .{
+                .allocator = testing.allocator,
+                .network_config = .{
+                    .endpoint = .{ .path = "/tmp/anvil.ipc" },
+                },
+            },
         });
         defer contract.deinit();
 
@@ -201,7 +231,12 @@ test "WriteContract" {
 
         var contract = try ContractComptime(.http).init(.{
             .private_key = buffer_hex,
-            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+            .wallet_opts = .{
+                .allocator = testing.allocator,
+                .network_config = .{
+                    .endpoint = .{ .uri = uri },
+                },
+            },
         });
         defer contract.deinit();
 
@@ -249,7 +284,12 @@ test "SimulateWriteCall" {
         var contract = try Contract(.websocket).init(.{
             .abi = abi,
             .private_key = buffer_hex,
-            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+            .wallet_opts = .{
+                .allocator = testing.allocator,
+                .network_config = .{
+                    .endpoint = .{ .uri = uri },
+                },
+            },
         });
         defer contract.deinit();
 
@@ -282,7 +322,12 @@ test "SimulateWriteCall" {
         var contract = try Contract(.http).init(.{
             .abi = abi,
             .private_key = buffer_hex,
-            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+            .wallet_opts = .{
+                .allocator = testing.allocator,
+                .network_config = .{
+                    .endpoint = .{ .uri = uri },
+                },
+            },
         });
         defer contract.deinit();
 
@@ -312,7 +357,12 @@ test "SimulateWriteCall" {
         var contract = try Contract(.http).init(.{
             .abi = abi,
             .private_key = buffer_hex,
-            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+            .wallet_opts = .{
+                .allocator = testing.allocator,
+                .network_config = .{
+                    .endpoint = .{ .uri = uri },
+                },
+            },
         });
         defer contract.deinit();
 
@@ -344,7 +394,12 @@ test "SimulateWriteCall" {
         var contract = try Contract(.ipc).init(.{
             .abi = abi,
             .private_key = buffer_hex,
-            .wallet_opts = .{ .allocator = testing.allocator, .path = "/tmp/anvil.ipc" },
+            .wallet_opts = .{
+                .allocator = testing.allocator,
+                .network_config = .{
+                    .endpoint = .{ .path = "/tmp/anvil.ipc" },
+                },
+            },
         });
         defer contract.deinit();
 
@@ -359,7 +414,12 @@ test "SimulateWriteCall" {
 
         var contract = try ContractComptime(.http).init(.{
             .private_key = buffer_hex,
-            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+            .wallet_opts = .{
+                .allocator = testing.allocator,
+                .network_config = .{
+                    .endpoint = .{ .uri = uri },
+                },
+            },
         });
         defer contract.deinit();
 
@@ -389,7 +449,12 @@ test "SimulateWriteCall" {
 
         var contract = try ContractComptime(.http).init(.{
             .private_key = buffer_hex,
-            .wallet_opts = .{ .allocator = testing.allocator, .uri = uri },
+            .wallet_opts = .{
+                .allocator = testing.allocator,
+                .network_config = .{
+                    .endpoint = .{ .uri = uri },
+                },
+            },
         });
         defer contract.deinit();
 

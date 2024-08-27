@@ -1,6 +1,5 @@
 const abi_items = @import("../abi_optimism.zig");
 const clients = @import("../../root.zig");
-const contracts = @import("../contracts.zig");
 const decoder = @import("../../../decoding/decoder.zig");
 const decoder_logs = @import("../../../decoding/logs_decode.zig");
 const log = @import("../../../types/log.zig");
@@ -28,7 +27,6 @@ const Logs = log.Logs;
 const L2Output = op_types.L2Output;
 const Message = withdrawal_types.Message;
 const NextGameTimings = withdrawal_types.NextGameTimings;
-const OpMainNetContracts = contracts.OpMainNetContracts;
 const ProvenWithdrawal = withdrawal_types.ProvenWithdrawal;
 const PubClient = clients.PubClient;
 const SemanticVersion = std.SemanticVersion;
@@ -62,26 +60,21 @@ pub fn L1Client(comptime client_type: Clients) type {
         allocator: Allocator,
         /// The http or ws client that will be use to query the rpc server
         rpc_client: *ClientType,
-        /// List of know contracts from OP
-        contracts: OpMainNetContracts,
 
         /// Starts the RPC connection
         /// If the contracts are null it defaults to OP contracts.
-        pub fn init(opts: InitOpts, op_contracts: ?OpMainNetContracts) !*L1 {
+        pub fn init(opts: InitOpts) !*L1 {
             const self = try opts.allocator.create(L1);
             errdefer opts.allocator.destroy(self);
 
-            if (opts.chain_id) |id| {
-                switch (id) {
-                    .ethereum, .sepolia => {},
-                    else => return error.InvalidChain,
-                }
+            switch (opts.network_config.chain_id) {
+                .ethereum, .sepolia => {},
+                else => return error.InvalidChain,
             }
 
             self.* = .{
                 .rpc_client = try ClientType.init(opts),
                 .allocator = opts.allocator,
-                .contracts = op_contracts orelse .{},
             };
 
             return self;
@@ -127,6 +120,8 @@ pub fn L1Client(comptime client_type: Clients) type {
         /// `block_number` to filter only games that occurred after this block.
         /// If null then it will return all games.
         pub fn getGames(self: *L1, limit: usize, block_number: ?u256) ![]const GameResult {
+            const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
+
             const version = try self.getPortalVersion();
 
             if (version.major < 3)
@@ -138,13 +133,13 @@ pub fn L1Client(comptime client_type: Clients) type {
             const game_type_selector: []u8 = @constCast(&[_]u8{ 0x3c, 0x9f, 0x39, 0x7c });
 
             const game_count = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.disputeGameFactory,
+                .to = contracts.disputeGameFactory,
                 .data = game_count_selector,
             } }, .{});
             defer game_count.deinit();
 
             const game_type = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.portalAddress,
+                .to = contracts.portalAddress,
                 .data = game_type_selector,
             } }, .{});
             defer game_type.deinit();
@@ -156,7 +151,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const games = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.disputeGameFactory,
+                .to = contracts.disputeGameFactory,
                 .data = encoded,
             } }, .{});
             defer games.deinit();
@@ -189,11 +184,13 @@ pub fn L1Client(comptime client_type: Clients) type {
         }
         /// Returns if a withdrawal has finalized or not.
         pub fn getFinalizedWithdrawals(self: *L1, withdrawal_hash: Hash) !bool {
+            const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
+
             const encoded = try abi_items.get_finalized_withdrawal.encode(self.allocator, .{withdrawal_hash});
             defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.portalAddress,
+                .to = contracts.portalAddress,
                 .data = encoded,
             } }, .{});
             defer data.deinit();
@@ -202,11 +199,13 @@ pub fn L1Client(comptime client_type: Clients) type {
         }
         /// Gets the latest proposed L2 block number from the Oracle.
         pub fn getLatestProposedL2BlockNumber(self: *L1) !u64 {
+            const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
+
             // Selector for `latestBlockNumber`
             const selector: []u8 = @constCast(&[_]u8{ 0x45, 0x99, 0xc7, 0x88 });
 
             const block = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.l2OutputOracle,
+                .to = contracts.l2OutputOracle,
                 .data = selector,
             } }, .{});
             defer block.deinit();
@@ -240,6 +239,8 @@ pub fn L1Client(comptime client_type: Clients) type {
         }
         /// Calls to the L2OutputOracle contract on L1 to get the output for a given L2 block
         pub fn getL2Output(self: *L1, l2_block_number: u256) !L2Output {
+            const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
+
             const version = try self.getPortalVersion();
 
             if (version.major >= 3) {
@@ -259,7 +260,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.l2OutputOracle,
+                .to = contracts.l2OutputOracle,
                 .data = encoded,
             } }, .{});
             defer data.deinit();
@@ -278,11 +279,13 @@ pub fn L1Client(comptime client_type: Clients) type {
         }
         /// Calls to the L2OutputOracle on L1 to get the output index.
         pub fn getL2OutputIndex(self: *L1, l2_block_number: u256) !u256 {
+            const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
+
             const encoded = try abi_items.get_l2_index_func.encode(self.allocator, .{l2_block_number});
             defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.l2OutputOracle,
+                .to = contracts.l2OutputOracle,
                 .data = encoded,
             } }, .{});
             defer data.deinit();
@@ -293,9 +296,11 @@ pub fn L1Client(comptime client_type: Clients) type {
         ///
         /// If the major is at least 3 it means that fault proofs are enabled.
         pub fn getPortalVersion(self: *L1) !SemanticVersion {
+            const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
+
             const selector_version: []u8 = @constCast(&[_]u8{ 0x54, 0xfd, 0x4d, 0x50 });
             const version = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.portalAddress,
+                .to = contracts.portalAddress,
                 .data = selector_version,
             } }, .{});
             defer version.deinit();
@@ -309,11 +314,13 @@ pub fn L1Client(comptime client_type: Clients) type {
         /// Will call the portal contract to get the information. If the timestamp is 0
         /// this will error with invalid withdrawal hash.
         pub fn getProvenWithdrawals(self: *L1, withdrawal_hash: Hash) !ProvenWithdrawal {
+            const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
+
             const encoded = try abi_items.get_proven_withdrawal.encode(self.allocator, .{withdrawal_hash});
             defer self.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.portalAddress,
+                .to = contracts.portalAddress,
                 .data = encoded,
             } }, .{});
             defer data.deinit();
@@ -329,6 +336,7 @@ pub fn L1Client(comptime client_type: Clients) type {
         ///
         /// Calls the l2OutputOracle to get this information.
         pub fn getSecondsToNextL2Output(self: *L1, latest_l2_block: u64) !u128 {
+            const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
             const latest = try self.getLatestProposedL2BlockNumber();
 
             if (latest_l2_block < latest)
@@ -338,7 +346,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             const selector: []u8 = @constCast(&[_]u8{ 0x52, 0x99, 0x33, 0xdf });
 
             const submission = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.l2OutputOracle,
+                .to = contracts.l2OutputOracle,
                 .data = selector,
             } }, .{});
             defer submission.deinit();
@@ -348,7 +356,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             // Selector for "L2_BLOCK_TIME()"
             const selector_time: []u8 = @constCast(&[_]u8{ 0x00, 0x21, 0x34, 0xcc });
             const block = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.l2OutputOracle,
+                .to = contracts.l2OutputOracle,
                 .data = selector_time,
             } }, .{});
             defer block.deinit();
@@ -363,12 +371,13 @@ pub fn L1Client(comptime client_type: Clients) type {
         ///
         /// Calls the l2OutputOracle to get this information.
         pub fn getSecondsToFinalize(self: *L1, withdrawal_hash: Hash) !u64 {
+            const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
             const proven = try self.getProvenWithdrawals(withdrawal_hash);
 
             // Selector for "FINALIZATION_PERIOD_SECONDS()"
             const selector: []u8 = @constCast(&[_]u8{ 0xf4, 0xda, 0xa2, 0x91 });
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.l2OutputOracle,
+                .to = contracts.l2OutputOracle,
                 .data = selector,
             } }, .{});
             defer data.deinit();
@@ -382,12 +391,13 @@ pub fn L1Client(comptime client_type: Clients) type {
         ///
         /// Uses the portal to find this information. Will error if the time is 0.
         pub fn getSecondsToFinalizeGame(self: *L1, withdrawal_hash: Hash) !u64 {
+            const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
             const proven = try self.getProvenWithdrawals(withdrawal_hash);
 
             // Selector for "proofMaturityDelaySeconds()"
             const selector: []u8 = @constCast(&[_]u8{ 0xbf, 0x65, 0x3a, 0x5c });
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = self.contracts.portalAddress,
+                .to = contracts.portalAddress,
                 .data = selector,
             } }, .{});
             defer data.deinit();
@@ -549,12 +559,12 @@ pub fn L1Client(comptime client_type: Clients) type {
 
             var retries: usize = 0;
             const game: GameResult = while (true) : (retries += 1) {
-                if (retries > self.rpc_client.retries)
+                if (retries > self.rpc_client.network_config.retries)
                     return error.ExceedRetriesAmount;
 
                 const output = self.getGame(limit, l2BlockNumber, .random) catch |err| switch (err) {
                     error.EvmFailedToExecute, error.GameNotFound => {
-                        std.time.sleep(self.rpc_client.pooling_interval);
+                        std.time.sleep(self.rpc_client.network_config.pooling_interval);
                         continue;
                     },
                     else => return err,
@@ -573,12 +583,12 @@ pub fn L1Client(comptime client_type: Clients) type {
 
             var retries: usize = 0;
             const l2_output = while (true) : (retries += 1) {
-                if (retries > self.rpc_client.retries)
+                if (retries > self.rpc_client.network_config.retries)
                     return error.ExceedRetriesAmount;
 
                 const output = self.getL2Output(latest_l2_block) catch |err| switch (err) {
                     error.EvmFailedToExecute => {
-                        std.time.sleep(self.rpc_client.pooling_interval);
+                        std.time.sleep(self.rpc_client.network_config.retries);
                         continue;
                     },
                     else => return err,

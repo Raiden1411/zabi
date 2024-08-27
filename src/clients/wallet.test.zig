@@ -137,7 +137,9 @@ test "sendTransaction" {
 
         var wallet = try Wallet(.http).init(buffer, .{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer wallet.deinit();
 
@@ -161,7 +163,9 @@ test "sendTransaction" {
 
         var wallet = try Wallet(.websocket).init(buffer, .{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer wallet.deinit();
 
@@ -183,7 +187,9 @@ test "sendTransaction" {
 
         var wallet = try Wallet(.ipc).init(buffer, .{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer wallet.deinit();
 
@@ -210,7 +216,9 @@ test "Pool transactions" {
 
         var wallet = try Wallet(.http).init(buffer, .{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer wallet.deinit();
 
@@ -230,7 +238,9 @@ test "Pool transactions" {
 
         var wallet = try Wallet(.websocket).init(buffer, .{
             .allocator = testing.allocator,
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         });
         defer wallet.deinit();
 
@@ -248,7 +258,9 @@ test "Pool transactions" {
 
         var wallet = try Wallet(.ipc).init(buffer, .{
             .allocator = testing.allocator,
-            .path = "/tmp/anvil.ipc",
+            .network_config = .{
+                .endpoint = .{ .path = "/tmp/anvil.ipc" },
+            },
         });
         defer wallet.deinit();
 
@@ -270,7 +282,9 @@ test "Get First element" {
 
     var wallet = try Wallet(.http).init(buffer, .{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer wallet.deinit();
 
@@ -304,7 +318,9 @@ test "assertTransaction" {
 
     var wallet = try Wallet(.http).init(buffer, .{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer wallet.deinit();
 
@@ -367,7 +383,9 @@ test "assertTransactionLegacy" {
 
     var wallet = try Wallet(.http).init(buffer, .{
         .allocator = testing.allocator,
-        .uri = uri,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
     });
     defer wallet.deinit();
 

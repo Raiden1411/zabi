@@ -19,7 +19,7 @@ Caller must deinit after use.
 ### Signature
 
 ```zig
-pub fn init(priv_key: ?Hash, opts: InitOpts, op_contracts: ?OpMainNetContracts) !*WalletL1
+pub fn init(priv_key: ?Hash, opts: InitOpts) !*WalletL1
 ```
 
 ## Deinit

@@ -23,9 +23,11 @@ pub fn main() !void {
 
     var wallet = try Wallet.init(parsed.priv_key, .{
         .allocator = gpa.allocator(),
-        .uri = uri,
-        .chain_id = .sepolia,
-        .base_fee_multiplier = 3.2,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+            .chain_id = .sepolia,
+            .base_fee_multiplier = 3.2,
+        },
     });
     defer wallet.deinit();
 

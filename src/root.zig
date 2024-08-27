@@ -34,6 +34,8 @@ pub const meta = @import("meta/root.zig");
 pub const mnemonic = @import("crypto/mnemonic.zig");
 /// Multicall contract wrapper that exposes contract functions.
 pub const multicall = @import("clients/multicall.zig");
+/// Network config for different type of chains and associated contracts.
+pub const network = @import("clients/network.zig");
 /// The signatures types that zabi uses. Supports compact signatures.
 pub const signature = @import("crypto/signature.zig");
 /// Superchain contracts, methods and clients. Fault proofs aren't yet supported.

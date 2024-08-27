@@ -1,7 +1,6 @@
 const builtin = @import("builtin");
 const std = @import("std");
 
-const Anvil = @import("src/tests/Anvil.zig");
 const TestFn = std.builtin.TestFn;
 
 /// Struct that will contain the test results.

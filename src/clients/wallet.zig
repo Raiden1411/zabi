@@ -204,11 +204,11 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         pub fn assertTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !void {
             switch (tx) {
                 .london => |tx_eip1559| {
-                    if (tx_eip1559.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
+                    if (tx_eip1559.chainId != @intFromEnum(self.rpc_client.network_config.chain_id)) return error.InvalidChainId;
                     if (tx_eip1559.maxPriorityFeePerGas > tx_eip1559.maxFeePerGas) return error.TransactionTipToHigh;
                 },
                 .cancun => |tx_eip4844| {
-                    if (tx_eip4844.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
+                    if (tx_eip4844.chainId != @intFromEnum(self.rpc_client.network_config.chain_id)) return error.InvalidChainId;
                     if (tx_eip4844.maxPriorityFeePerGas > tx_eip4844.maxFeePerGas) return error.TransactionTipToHigh;
 
                     if (tx_eip4844.blobVersionedHashes) |blob_hashes| {
@@ -228,10 +228,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         return error.CreateBlobTransaction;
                 },
                 .berlin => |tx_eip2930| {
-                    if (tx_eip2930.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
+                    if (tx_eip2930.chainId != @intFromEnum(self.rpc_client.network_config.chain_id)) return error.InvalidChainId;
                 },
                 .legacy => |tx_legacy| {
-                    if (tx_legacy.chainId != 0 and tx_legacy.chainId != self.rpc_client.chain_id) return error.InvalidChainId;
+                    if (tx_legacy.chainId != 0 and tx_legacy.chainId != @intFromEnum(self.rpc_client.network_config.chain_id)) return error.InvalidChainId;
                 },
             }
         }
@@ -283,7 +283,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         inline else => |block_info| block_info.baseFeePerGas,
                     };
 
-                    const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
+                    const chain_id = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
                     const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
                     const max_fee_per_blob = unprepared_envelope.maxFeePerBlobGas orelse try self.rpc_client.estimateBlobMaxFeePerGas();
                     const blob_version = unprepared_envelope.blobVersionedHashes orelse &.{};
@@ -344,7 +344,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         inline else => |block_info| block_info.baseFeePerGas,
                     };
 
-                    const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
+                    const chain_id = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
                     const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
 
                     const nonce: u64 = unprepared_envelope.nonce orelse blk: {
@@ -400,7 +400,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         inline else => |block_info| block_info.baseFeePerGas,
                     };
 
-                    const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
+                    const chain_id = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
                     const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
 
                     const nonce: u64 = unprepared_envelope.nonce orelse blk: {
@@ -450,7 +450,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         inline else => |block_info| block_info.baseFeePerGas,
                     };
 
-                    const chain_id = unprepared_envelope.chainId orelse self.rpc_client.chain_id;
+                    const chain_id = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
 
                     const nonce: u64 = unprepared_envelope.nonce orelse blk: {
                         const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });

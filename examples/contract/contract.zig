@@ -38,7 +38,9 @@ pub fn main() !void {
         .abi = abi_parsed.value,
         .wallet_opts = .{
             .allocator = gpa.allocator(),
-            .uri = uri,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
         },
     });
     defer contract.deinit();

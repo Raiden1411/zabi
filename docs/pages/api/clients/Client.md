@@ -42,16 +42,8 @@ error{
 struct {
   /// Allocator used to manage the memory arena.
   allocator: Allocator
-  /// The base fee multiplier used to estimate the gas fees in a transaction
-  base_fee_multiplier: f64 = 1.2
-  /// The client chainId.
-  chain_id: ?Chains = null
-  /// The interval to retry the request. This will get multiplied in ns_per_ms.
-  pooling_interval: u64 = 2_000
-  /// Retry count for failed requests.
-  retries: u8 = 5
-  /// Uri for the client to connect to
-  uri: std.Uri
+  /// The network config for the client to use.
+  network_config: NetworkConfig
 }
 ```
 
@@ -774,17 +766,6 @@ RPC Method: [`eth_uninstallFilter`](https://ethereum.org/en/developers/docs/apis
 
 ```zig
 pub fn uninstallFilter(self: *PubClient, id: usize) !RPCResponse(bool)
-```
-
-## SwitchNetwork
-Switch the client network and chainId.\
-Invalidates all of the client connections and pointers.\
-This will also try to automatically connect to the new RPC.
-
-### Signature
-
-```zig
-pub fn switchNetwork(self: *PubClient, new_chain_id: Chains, new_url: []const u8) !void
 ```
 
 ## SendRpcRequest

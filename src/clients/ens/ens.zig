@@ -13,7 +13,6 @@ const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const BlockNumberRequest = block.BlockNumberRequest;
 const Clients = clients.clients.wallet.WalletClients;
-const EnsContracts = @import("contracts.zig").EnsContracts;
 const Hex = types.Hex;
 const InitOptsHttp = PubClient.InitOptions;
 const InitOptsWs = WebSocketClient.InitOptions;

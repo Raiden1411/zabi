@@ -12,8 +12,6 @@ const l2_wallet_client = @import("clients/L2WalletClient.zig");
 const parse = @import("parse_deposit.zig");
 /// Serialize a deposit.
 const serialize = @import("serialize_deposit.zig");
-/// Set of contracts used in by the superchain.
-const superchain_contracts = @import("contracts.zig");
 /// Superchain transaction types.
 const transaction_types = @import("types/transaction.zig");
 /// Types specific for the superchain.

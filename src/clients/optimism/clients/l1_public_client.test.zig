@@ -153,7 +153,10 @@ test "getSecondsUntilNextGame" {
         .allocator = testing.allocator,
         .network_config = .{
             .endpoint = .{ .uri = uri },
-            .op_stack_contracts = .{ .portalAddress = try utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC") },
+            .op_stack_contracts = .{
+                .portalAddress = try utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC"),
+                .disputeGameFactory = try utils.addressToBytes("0xe5965Ab5962eDc7477C8520243A95517CD252fA9"),
+            },
             .chain_id = .sepolia,
         },
     });
@@ -174,7 +177,10 @@ test "Portal Version" {
         .allocator = testing.allocator,
         .network_config = .{
             .endpoint = .{ .uri = uri },
-            .op_stack_contracts = .{ .portalAddress = try utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC") },
+            .op_stack_contracts = .{
+                .portalAddress = try utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC"),
+                .disputeGameFactory = try utils.addressToBytes("0xe5965Ab5962eDc7477C8520243A95517CD252fA9"),
+            },
             .chain_id = .sepolia,
         },
     });
@@ -192,7 +198,10 @@ test "Get Games" {
         .allocator = testing.allocator,
         .network_config = .{
             .endpoint = .{ .uri = uri },
-            .op_stack_contracts = .{ .portalAddress = try utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC") },
+            .op_stack_contracts = .{
+                .portalAddress = try utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC"),
+                .disputeGameFactory = try utils.addressToBytes("0xe5965Ab5962eDc7477C8520243A95517CD252fA9"),
+            },
             .chain_id = .sepolia,
         },
     });

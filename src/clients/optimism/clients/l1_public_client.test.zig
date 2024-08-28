@@ -2,18 +2,14 @@ const client = @import("L1PubClient.zig");
 const std = @import("std");
 const testing = std.testing;
 const utils = @import("../../../utils/utils.zig");
+const test_clients = @import("../../../tests/constants.zig");
 
 const L1Client = client.L1Client;
 
 test "GetL2HashFromL1DepositInfo" {
-    const uri = try std.Uri.parse("http://localhost:6969/");
-
     var op = try L1Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{
-            .endpoint = .{ .uri = uri },
-            .op_stack_contracts = .{},
-        },
+        .network_config = test_clients.anvil_mainnet,
     });
     defer op.deinit();
 
@@ -24,14 +20,9 @@ test "GetL2HashFromL1DepositInfo" {
 }
 
 test "GetL2Output" {
-    const uri = try std.Uri.parse("http://localhost:6969/");
-
     var op = try L1Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{
-            .endpoint = .{ .uri = uri },
-            .op_stack_contracts = .{},
-        },
+        .network_config = test_clients.anvil_mainnet,
     });
     defer op.deinit();
 
@@ -76,14 +67,9 @@ test "GetSecondsToNextL2Output" {
 }
 
 test "GetTransactionDepositEvents" {
-    const uri = try std.Uri.parse("http://localhost:6969/");
-
     var op = try L1Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{
-            .endpoint = .{ .uri = uri },
-            .op_stack_contracts = .{},
-        },
+        .network_config = test_clients.anvil_mainnet,
     });
     defer op.deinit();
 
@@ -147,18 +133,9 @@ test "Errors" {
 }
 
 test "getSecondsUntilNextGame" {
-    const uri = try std.Uri.parse("http://localhost:6971");
-
     var op = try L1Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{
-            .endpoint = .{ .uri = uri },
-            .op_stack_contracts = .{
-                .portalAddress = try utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC"),
-                .disputeGameFactory = try utils.addressToBytes("0x05F9613aDB30026FFd634f38e5C4dFd30a197Fa1"),
-            },
-            .chain_id = .sepolia,
-        },
+        .network_config = test_clients.anvil_sepolia,
     });
     defer op.deinit();
 
@@ -171,18 +148,9 @@ test "getSecondsUntilNextGame" {
 }
 
 test "Portal Version" {
-    const uri = try std.Uri.parse("http://localhost:6971");
-
     var op = try L1Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{
-            .endpoint = .{ .uri = uri },
-            .op_stack_contracts = .{
-                .portalAddress = try utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC"),
-                .disputeGameFactory = try utils.addressToBytes("0x05F9613aDB30026FFd634f38e5C4dFd30a197Fa1"),
-            },
-            .chain_id = .sepolia,
-        },
+        .network_config = test_clients.anvil_sepolia,
     });
     defer op.deinit();
 
@@ -192,18 +160,9 @@ test "Portal Version" {
 }
 
 test "Get Games" {
-    const uri = try std.Uri.parse("http://localhost:6971");
-
     var op = try L1Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{
-            .endpoint = .{ .uri = uri },
-            .op_stack_contracts = .{
-                .portalAddress = try utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC"),
-                .disputeGameFactory = try utils.addressToBytes("0x05F9613aDB30026FFd634f38e5C4dFd30a197Fa1"),
-            },
-            .chain_id = .sepolia,
-        },
+        .network_config = test_clients.anvil_sepolia,
     });
     defer op.deinit();
 

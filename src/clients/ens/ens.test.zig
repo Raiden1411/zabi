@@ -1,19 +1,15 @@
 const std = @import("std");
+const test_clients = @import("../../tests/constants.zig");
 const testing = std.testing;
 const utils = @import("../../utils/utils.zig");
 
 const ENSClient = @import("ens.zig").ENSClient;
 
 test "ENS Text" {
-    const uri = try std.Uri.parse("http://localhost:6969/");
-
     var ens = try ENSClient(.http).init(
         .{
             .allocator = testing.allocator,
-            .network_config = .{
-                .endpoint = .{ .uri = uri },
-                .ens_contracts = .{},
-            },
+            .network_config = test_clients.anvil_mainnet,
         },
     );
     defer ens.deinit();
@@ -23,15 +19,10 @@ test "ENS Text" {
 
 test "ENS Name" {
     {
-        const uri = try std.Uri.parse("http://localhost:6969/");
-
         var ens = try ENSClient(.http).init(
             .{
                 .allocator = testing.allocator,
-                .network_config = .{
-                    .endpoint = .{ .uri = uri },
-                    .ens_contracts = .{},
-                },
+                .network_config = test_clients.anvil_mainnet,
             },
         );
         defer ens.deinit();
@@ -45,15 +36,10 @@ test "ENS Name" {
 }
 
 test "ENS Address" {
-    const uri = try std.Uri.parse("http://localhost:6969/");
-
     var ens = try ENSClient(.http).init(
         .{
             .allocator = testing.allocator,
-            .network_config = .{
-                .endpoint = .{ .uri = uri },
-                .ens_contracts = .{},
-            },
+            .network_config = test_clients.anvil_mainnet,
         },
     );
     defer ens.deinit();
@@ -66,15 +52,10 @@ test "ENS Address" {
 }
 
 test "ENS Resolver" {
-    const uri = try std.Uri.parse("http://localhost:6969/");
-
     var ens = try ENSClient(.http).init(
         .{
             .allocator = testing.allocator,
-            .network_config = .{
-                .endpoint = .{ .uri = uri },
-                .ens_contracts = .{},
-            },
+            .network_config = test_clients.anvil_mainnet,
         },
     );
     defer ens.deinit();

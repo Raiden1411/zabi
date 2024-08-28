@@ -1,20 +1,15 @@
 const client = @import("L2PubClient.zig");
 const std = @import("std");
+const test_clients = @import("../../../tests/constants.zig");
 const testing = std.testing;
 const utils = @import("../../../utils/utils.zig");
 
 const L2Client = client.L2Client;
 
 test "GetWithdrawMessages" {
-    const uri = try std.Uri.parse("http://localhost:6970");
-
     var op = try L2Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{
-            .endpoint = .{ .uri = uri },
-            .chain_id = .op_sepolia,
-            .op_stack_contracts = .{},
-        },
+        .network_config = test_clients.anvil_op_sepolia,
     });
     defer op.deinit();
 
@@ -29,15 +24,9 @@ test "GetWithdrawMessages" {
 }
 
 test "GetBaseFee" {
-    const uri = try std.Uri.parse("http://localhost:6970");
-
     var op = try L2Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{
-            .endpoint = .{ .uri = uri },
-            .chain_id = .op_sepolia,
-            .op_stack_contracts = .{},
-        },
+        .network_config = test_clients.anvil_op_sepolia,
     });
     defer op.deinit();
 
@@ -47,15 +36,9 @@ test "GetBaseFee" {
 }
 
 test "EstimateL1Gas" {
-    const uri = try std.Uri.parse("http://localhost:6970");
-
     var op = try L2Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{
-            .endpoint = .{ .uri = uri },
-            .chain_id = .op_sepolia,
-            .op_stack_contracts = .{},
-        },
+        .network_config = test_clients.anvil_op_sepolia,
     });
     defer op.deinit();
 
@@ -74,15 +57,9 @@ test "EstimateL1Gas" {
 }
 
 test "EstimateL1GasFee" {
-    const uri = try std.Uri.parse("http://localhost:6970");
-
     var op = try L2Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{
-            .endpoint = .{ .uri = uri },
-            .chain_id = .op_sepolia,
-            .op_stack_contracts = .{},
-        },
+        .network_config = test_clients.anvil_op_sepolia,
     });
     defer op.deinit();
 
@@ -101,15 +78,9 @@ test "EstimateL1GasFee" {
 }
 
 test "EstimateTotalGas" {
-    const uri = try std.Uri.parse("http://localhost:6970");
-
     var op = try L2Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{
-            .endpoint = .{ .uri = uri },
-            .chain_id = .op_sepolia,
-            .op_stack_contracts = .{},
-        },
+        .network_config = test_clients.anvil_op_sepolia,
     });
     defer op.deinit();
 
@@ -128,15 +99,9 @@ test "EstimateTotalGas" {
 }
 
 test "EstimateTotalFees" {
-    const uri = try std.Uri.parse("http://localhost:6970");
-
     var op = try L2Client(.http).init(.{
         .allocator = testing.allocator,
-        .network_config = .{
-            .endpoint = .{ .uri = uri },
-            .chain_id = .op_sepolia,
-            .op_stack_contracts = .{},
-        },
+        .network_config = test_clients.anvil_op_sepolia,
     });
     defer op.deinit();
 

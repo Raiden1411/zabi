@@ -26,6 +26,8 @@ pub const OpMainNetContracts = struct {
     portalAddress: Address = utils.addressToBytes("0xbEb5Fc579115071764c7423A4f12eDde41f106Ed") catch unreachable,
     /// L1 specific. DisputeGameFactoryProxy contract. Make sure that the chain has fault proofs enabled.
     disputeGameFactory: Address = utils.addressToBytes("0x05F9613aDB30026FFd634f38e5C4dFd30a197Fa1") catch unreachable,
+    /// L1 specific. L1 bridge contract.
+    l1StandardBridge: Address = utils.addressToBytes("0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1") catch unreachable,
 };
 
 /// ENS Contracts
@@ -88,6 +90,33 @@ pub const NetworkConfig = struct {
 
 /// The chain configuration for ethereum mainnet.
 pub const ethereum_mainet: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://cloudflare-eth.com'") catch unreachable },
+    .endpoint = .{ .uri = Uri.parse("https://cloudflare-eth.com") catch unreachable },
     .ens_contracts = .{},
+};
+
+/// The chain configuration for sepolia testnet.
+pub const sepolia_mainet: NetworkConfig = .{
+    .endpoint = .{ .uri = Uri.parse("https://rpc.sepolia.org") catch unreachable },
+    .chain_id = .sepolia,
+    .ens_contracts = .{
+        .ensUniversalResolver = utils.addressToBytes("0xc8Af999e38273D658BE1b921b88A9Ddf005769cC") catch unreachable,
+    },
+};
+
+/// The chain configuration for optimism mainnet.
+pub const optimism: NetworkConfig = .{
+    .endpoint = .{ .uri = Uri.parse("https://mainnet.optimism.io") catch unreachable },
+    .chain_id = .op_mainnet,
+    .op_stack_contracts = .{},
+};
+
+/// The chain configuration for optimism sepolia testnet.
+pub const optimism_sepolia: NetworkConfig = .{
+    .endpoint = .{ .uri = Uri.parse("https://sepolia.optimism.io") catch unreachable },
+    .chain_id = .op_sepolia,
+    .op_stack_contracts = .{
+        .disputeGameFactory = utils.addressToBytes("0x05F9613aDB30026FFd634f38e5C4dFd30a197Fa1") catch unreachable,
+        .portalAddress = utils.addressToBytes("0x16Fc5058F25648194471939df75CF27A2fdC48BC") catch unreachable,
+        .l2OutputOracle = utils.addressToBytes("0x90E9c4f8a994a250F6aEfd61CAFb4F2e895D458F") catch unreachable,
+    },
 };

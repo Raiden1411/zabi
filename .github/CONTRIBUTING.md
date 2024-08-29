@@ -74,7 +74,7 @@ curl -L https://foundry.paradigm.xyz | bash
 
 Once you have cloned the repo and have the correct version of zig running on your computer you can now run `zig build` to ensure that everything gets built properly.
 
-Zabi supports `version 0.12.0` and `version 0.13.0` of zig in seperate branches. You can checkout each seperate branch and work in those branches if that is your goal.
+Zabi supports `version 0.13.0` of zig in seperate branches. You can checkout each seperate branch and work in those branches if that is your goal.
 
 ---
 
@@ -100,7 +100,8 @@ Documentation is crucial to helping developers of all experience levels use zabi
 pnpm dev 
 ```
 
-Try to keep documentation brief and use plain language so people of all experience levels can understand. If you think something is unclear or could be explained better, you are welcome to open a pull request.
+Zabi use mostly auto-generated documentation from its source code. If you make a change to the code make sure that to run `zig build docs_generate` in order to update any changes.
+If you create a new file and want to add it to the website make to update `docs/sidebar.ts` to include it.
 
 <div align="right">
   <a href="#basic-guide">&uarr; back to top</a></b>

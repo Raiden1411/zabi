@@ -249,7 +249,7 @@ pub const BlobBlock = struct {
     mixHash: ?Hash = null,
     nonce: ?u64,
     number: ?u64,
-    parentBeaconBlockRoot: Hash,
+    parentBeaconBlockRoot: ?Hash = null,
     parentHash: Hash,
     receiptsRoot: Hash,
     sealFields: ?[]const Hex = null,
@@ -261,8 +261,8 @@ pub const BlobBlock = struct {
     transactions: ?BlockTransactions = null,
     transactionsRoot: Hash,
     uncles: ?[]const Hash = null,
-    withdrawalsRoot: Hash,
-    withdrawals: []const Withdrawal,
+    withdrawalsRoot: ?Hash = null,
+    withdrawals: ?[]const Withdrawal = null,
 
     pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);

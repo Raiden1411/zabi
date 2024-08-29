@@ -27,5 +27,8 @@ test "Superchain Root" {
     _ = @import("parse_deposit.test.zig");
     _ = @import("serialize_deposit.test.zig");
     _ = @import("clients/l1_public_client.test.zig");
+    _ = @import("clients/l1_wallet_client.test.zig");
+    // Runs on op_mainnet
+    // _ = @import("clients/l2_wallet_client.test.zig");
     _ = @import("clients/l2_public_client.test.zig");
 }

@@ -67,10 +67,10 @@ pub fn L1Client(comptime client_type: Clients) type {
             const self = try opts.allocator.create(L1);
             errdefer opts.allocator.destroy(self);
 
-            switch (opts.network_config.chain_id) {
-                .ethereum, .sepolia => {},
-                else => return error.InvalidChain,
-            }
+            // switch (opts.network_config.chain_id) {
+            //     .ethereum, .sepolia => {},
+            //     else => return error.InvalidChain,
+            // }
 
             self.* = .{
                 .rpc_client = try ClientType.init(opts),

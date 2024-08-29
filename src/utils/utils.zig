@@ -16,14 +16,14 @@ pub inline fn isStaticType(comptime T: type) bool {
     const info = @typeInfo(T);
 
     switch (info) {
-        .Bool, .Int, .Null => return true,
-        .Array => return false,
-        .Struct => inline for (info.Struct.fields) |field| {
+        .bool, .int, .null => return true,
+        .array => return false,
+        .@"struct" => inline for (info.@"struct".fields) |field| {
             if (!isStaticType(field.type)) {
                 return false;
             }
         },
-        .Pointer => switch (info.Pointer.size) {
+        .pointer => switch (info.pointer.size) {
             .Many, .Slice, .C => return false,
             .One => return isStaticType(info.Pointer.child),
         },
@@ -37,10 +37,10 @@ pub inline fn isDynamicType(comptime T: type) bool {
     const info = @typeInfo(T);
 
     switch (info) {
-        .Bool, .Int, .Null => return false,
-        .Array => |arr_info| return isDynamicType(arr_info.child),
-        .Struct => {
-            inline for (info.Struct.fields) |field| {
+        .bool, .int, .null => return false,
+        .array => |arr_info| return isDynamicType(arr_info.child),
+        .@"struct" => {
+            inline for (info.@"struct".fields) |field| {
                 const dynamic = isDynamicType(field.type);
 
                 if (dynamic)
@@ -49,7 +49,7 @@ pub inline fn isDynamicType(comptime T: type) bool {
 
             return false;
         },
-        .Pointer => switch (info.Pointer.size) {
+        .pointer => switch (info.pointer.size) {
             .Many, .Slice, .C => return true,
             .One => return isStaticType(info.Pointer.child),
         },
@@ -214,7 +214,7 @@ pub inline fn computeSize(int: u256) u8 {
 /// hex represented string.
 pub fn bytesToInt(comptime T: type, slice: []u8) !T {
     const info = @typeInfo(T);
-    const IntType = std.meta.Int(info.Int.signedness, @max(8, info.Int.bits));
+    const IntType = std.meta.Int(info.int.signedness, @max(8, info.int.bits));
     var x: IntType = 0;
 
     for (slice, 0..) |bit, i| {
@@ -242,7 +242,7 @@ pub fn calcultateBlobGasPrice(excess_gas: u64) u128 {
 }
 /// Saturated addition. If it overflows it will return the max `T`
 pub fn saturatedAddition(comptime T: type, a: T, b: T) T {
-    comptime std.debug.assert(@typeInfo(T) == .Int); // Only supports int types
+    comptime std.debug.assert(@typeInfo(T) == .int); // Only supports int types
 
     const result, const overflow = @addWithOverflow(a, b);
 
@@ -253,7 +253,7 @@ pub fn saturatedAddition(comptime T: type, a: T, b: T) T {
 }
 /// Saturated multiplication. If it overflows it will return the max `T`
 pub fn saturatedMultiplication(comptime T: type, a: T, b: T) T {
-    std.debug.assert(@typeInfo(T) == .Int); // Only supports int types
+    std.debug.assert(@typeInfo(T) == .int); // Only supports int types
 
     const result, const overflow = @mulWithOverflow(a, b);
 

@@ -158,8 +158,8 @@ pub const QueryParameters = struct {
         const info = @typeInfo(@TypeOf(value));
 
         comptime {
-            std.debug.assert(info == .Struct); // Must be a non tuple struct type
-            std.debug.assert(!info.Struct.is_tuple); // Must be a non tuple struct type
+            std.debug.assert(info == .@"struct"); // Must be a non tuple struct type
+            std.debug.assert(!info.@"struct".is_tuple); // Must be a non tuple struct type
         }
 
         var stream = QueryWriter(@TypeOf(writer)).init(writer);
@@ -172,7 +172,7 @@ pub const QueryParameters = struct {
         try stream.writeParameter("action");
         try stream.writeValue(self.action);
 
-        inline for (info.Struct.fields) |field| {
+        inline for (info.@"struct".fields) |field| {
             try stream.writeParameter(field.name);
             try stream.writeValue(@field(value, field.name));
         }

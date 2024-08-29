@@ -384,7 +384,7 @@ const Runner = struct {
     /// Runs the generation for all targeted root folders.
     pub fn run(self: Runner) RunnerErrors!void {
         // Makes it easier if we want to add a new root folder to search from.
-        inline for (@typeInfo(RootFolders).Enum.fields) |field| {
+        inline for (@typeInfo(RootFolders).@"enum".fields) |field| {
 
             // Creates the documentation tree based on the current `RootFolders`.
             try self.generateDocumentationFromFolder(@enumFromInt(field.value));

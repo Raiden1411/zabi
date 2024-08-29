@@ -14,8 +14,8 @@ test "Meta" {
 }
 
 fn expectEqualStructs(comptime expected: type, comptime actual: type) !void {
-    const expectInfo = @typeInfo(expected).Struct;
-    const actualInfo = @typeInfo(actual).Struct;
+    const expectInfo = @typeInfo(expected).@"struct";
+    const actualInfo = @typeInfo(actual).@"struct";
 
     try testing.expectEqual(expectInfo.layout, actualInfo.layout);
     try testing.expectEqual(expectInfo.decls.len, actualInfo.decls.len);
@@ -24,16 +24,16 @@ fn expectEqualStructs(comptime expected: type, comptime actual: type) !void {
 
     inline for (expectInfo.fields, actualInfo.fields) |e, a| {
         try testing.expectEqualStrings(e.name, a.name);
-        if (@typeInfo(e.type) == .Struct) return try expectEqualStructs(e.type, a.type);
-        if (@typeInfo(e.type) == .Union) return try expectEqualUnions(e.type, a.type);
+        if (@typeInfo(e.type) == .@"struct") return try expectEqualStructs(e.type, a.type);
+        if (@typeInfo(e.type) == .@"struct") return try expectEqualUnions(e.type, a.type);
         try testing.expectEqual(e.type, a.type);
         try testing.expectEqual(e.alignment, a.alignment);
     }
 }
 
 fn expectEqualUnions(comptime expected: type, comptime actual: type) !void {
-    const expectInfo = @typeInfo(expected).Union;
-    const actualInfo = @typeInfo(actual).Union;
+    const expectInfo = @typeInfo(expected).@"union";
+    const actualInfo = @typeInfo(actual).@"union";
 
     try testing.expectEqual(expectInfo.layout, actualInfo.layout);
     try testing.expectEqual(expectInfo.decls.len, actualInfo.decls.len);
@@ -41,8 +41,8 @@ fn expectEqualUnions(comptime expected: type, comptime actual: type) !void {
 
     inline for (expectInfo.fields, actualInfo.fields) |e, a| {
         try testing.expectEqualStrings(e.name, a.name);
-        if (@typeInfo(e.type) == .Struct) return try expectEqualStructs(e.type, a.type);
-        if (@typeInfo(e.type) == .Union) return try expectEqualUnions(e.type, a.type);
+        if (@typeInfo(e.type) == .@"struct") return try expectEqualStructs(e.type, a.type);
+        if (@typeInfo(e.type) == .@"union") return try expectEqualUnions(e.type, a.type);
         try testing.expectEqual(e.type, a.type);
         try testing.expectEqual(e.alignment, a.alignment);
     }

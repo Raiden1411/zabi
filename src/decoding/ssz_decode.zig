@@ -15,9 +15,9 @@ pub fn decodeSSZ(comptime T: type, serialized: []const u8) !T {
     const info = @typeInfo(T);
 
     switch (info) {
-        .Bool => return serialized[0] != 0,
-        .Int => |int_info| return std.mem.readInt(T, serialized[0..@divExact(int_info.bits, 8)], .little),
-        .Optional => |opt_info| {
+        .bool => return serialized[0] != 0,
+        .int => |int_info| return std.mem.readInt(T, serialized[0..@divExact(int_info.bits, 8)], .little),
+        .optional => |opt_info| {
             const index = serialized[0];
 
             if (index != 0) {
@@ -25,12 +25,12 @@ pub fn decodeSSZ(comptime T: type, serialized: []const u8) !T {
                 return result;
             } else return null;
         },
-        .Enum => {
+        .@"enum" => {
             const to_enum = std.meta.stringToEnum(T, serialized[0..]) orelse return error.InvalidEnumType;
 
             return to_enum;
         },
-        .Array => |arr_info| {
+        .array => |arr_info| {
             if (arr_info.child == u8) {
                 return serialized[0..];
             }
@@ -77,7 +77,7 @@ pub fn decodeSSZ(comptime T: type, serialized: []const u8) !T {
 
             return result;
         },
-        .Vector => |vec_info| {
+        .vector => |vec_info| {
             var result: T = undefined;
 
             if (vec_info.child == bool) {
@@ -102,8 +102,8 @@ pub fn decodeSSZ(comptime T: type, serialized: []const u8) !T {
 
             return result;
         },
-        .Pointer => return serialized[0..],
-        .Union => |union_info| {
+        .pointer => return serialized[0..],
+        .@"union" => |union_info| {
             const union_index = try decodeSSZ(u8, serialized);
 
             inline for (union_info.fields, 0..) |field, i| {
@@ -112,11 +112,11 @@ pub fn decodeSSZ(comptime T: type, serialized: []const u8) !T {
                 }
             }
         },
-        .Struct => |struct_info| {
+        .@"struct" => |struct_info| {
             comptime var num_fields = 0;
             inline for (struct_info.fields) |field| {
                 switch (@typeInfo(field.type)) {
-                    .Bool, .Int => continue,
+                    .bool, .int => continue,
                     else => num_fields += 1,
                 }
             }
@@ -128,7 +128,7 @@ pub fn decodeSSZ(comptime T: type, serialized: []const u8) !T {
             comptime var field_index = 0;
             inline for (struct_info.fields) |field| {
                 switch (@typeInfo(field.type)) {
-                    .Bool, .Int => {
+                    .bool, .int => {
                         @field(result, field.name) = try decodeSSZ(field.type, serialized[index .. index + @sizeOf(field.type)]);
                         index += @sizeOf(field.type);
                     },
@@ -143,7 +143,7 @@ pub fn decodeSSZ(comptime T: type, serialized: []const u8) !T {
             comptime var final_index = 0;
             inline for (struct_info.fields) |field| {
                 switch (@typeInfo(field.type)) {
-                    .Bool, .Int => continue,
+                    .bool, .int => continue,
                     else => {
                         const final = if (final_index == indices.len - 1) serialized.len else indices[final_index + 1];
                         @field(result, field.name) = try decodeSSZ(field.type, serialized[indices[final_index]..final]);

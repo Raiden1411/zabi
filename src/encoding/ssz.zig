@@ -27,28 +27,28 @@ fn encodeItem(value: anytype, list: *std.ArrayList(u8)) !void {
     var writer = list.writer();
 
     switch (info) {
-        .Bool => try writer.writeInt(u8, @intFromBool(value), .little),
-        .Int => |int_info| {
+        .bool => try writer.writeInt(u8, @intFromBool(value), .little),
+        .int => |int_info| {
             switch (int_info.bits) {
                 8, 16, 32, 64, 128, 256 => try writer.writeInt(@TypeOf(value), value, .little),
                 else => @compileError(std.fmt.comptimePrint("Unsupported {d} bits for ssz encoding", .{int_info.bits})),
             }
         },
-        .ComptimeInt => {
+        .comptime_int => {
             const size = comptime utils.computeSize(@intCast(value)) * 8;
             switch (size) {
                 8, 16, 32, 64, 128, 256 => try writer.writeInt(@Type(.{ .Int = .{ .signedness = .unsigned, .bits = size } }), value, .little),
                 else => @compileError(std.fmt.comptimePrint("Unsupported {d} bits for ssz encoding", .{size})),
             }
         },
-        .Null => return,
-        .Optional => {
+        .null => return,
+        .optional => {
             if (value) |val| {
                 try writer.writeInt(u8, 1, .little);
                 return try encodeItem(val, list);
             } else try writer.writeInt(u8, 0, .little);
         },
-        .Union => |union_info| {
+        .@"union" => |union_info| {
             if (union_info.tag_type == null)
                 @compileError("Untagged unions are not supported");
 
@@ -59,7 +59,7 @@ fn encodeItem(value: anytype, list: *std.ArrayList(u8)) !void {
                 }
             }
         },
-        .Pointer => |ptr_info| {
+        .pointer => |ptr_info| {
             switch (ptr_info.size) {
                 .One => return try encodeItem(value.*, list),
                 .Slice => {
@@ -75,7 +75,7 @@ fn encodeItem(value: anytype, list: *std.ArrayList(u8)) !void {
                 else => @compileError("Unsupported pointer type " ++ @typeName(@TypeOf(value))),
             }
         },
-        .Vector => |vec_info| {
+        .vector => |vec_info| {
             if (vec_info.child == bool) {
                 var as_byte: u8 = 0;
                 for (value, 0..) |val, i| {
@@ -99,9 +99,9 @@ fn encodeItem(value: anytype, list: *std.ArrayList(u8)) !void {
                 try encodeItem(value[i], list);
             }
         },
-        .Enum, .EnumLiteral => try writer.writeAll(@tagName(value)),
-        .ErrorSet => try writer.writeAll(@errorName(value)),
-        .Array => |arr_info| {
+        .@"enum", .enum_literal => try writer.writeAll(@tagName(value)),
+        .error_set => try writer.writeAll(@errorName(value)),
+        .array => |arr_info| {
             if (arr_info.child == u8) {
                 try writer.writeAll(&value);
                 return;
@@ -145,11 +145,11 @@ fn encodeItem(value: anytype, list: *std.ArrayList(u8)) !void {
                 offset_start += 4;
             }
         },
-        .Struct => |struct_info| {
+        .@"struct" => |struct_info| {
             comptime var start: usize = 0;
             inline for (struct_info.fields) |field| {
                 switch (@typeInfo(field.type)) {
-                    .Int, .Bool => start += @sizeOf(field.type),
+                    .int, .bool => start += @sizeOf(field.type),
                     else => start += 4,
                 }
             }
@@ -157,7 +157,7 @@ fn encodeItem(value: anytype, list: *std.ArrayList(u8)) !void {
             var accumulate: usize = start;
             inline for (struct_info.fields) |field| {
                 switch (@typeInfo(field.type)) {
-                    .Int, .Bool => try encodeItem(@field(value, field.name), list),
+                    .int, .bool => try encodeItem(@field(value, field.name), list),
                     else => {
                         try encodeItem(@as(u32, @truncate(accumulate)), list);
                         accumulate += sizeOfValue(@field(value, field.name));
@@ -168,7 +168,7 @@ fn encodeItem(value: anytype, list: *std.ArrayList(u8)) !void {
             if (accumulate > start) {
                 inline for (struct_info.fields) |field| {
                     switch (@typeInfo(field.type)) {
-                        .Bool, .Int => continue,
+                        .bool, .int => continue,
                         else => try encodeItem(@field(value, field.name), list),
                     }
                 }
@@ -183,16 +183,16 @@ fn sizeOfValue(value: anytype) usize {
     const info = @typeInfo(@TypeOf(value));
 
     switch (info) {
-        .Array => return value.len,
-        .Pointer => switch (info.Pointer.size) {
+        .array => return value.len,
+        .pointer => switch (info.pointer.size) {
             .Slice => return value.len,
             else => return sizeOfValue(value.*),
         },
-        .Optional => return if (value == null)
+        .optional => return if (value == null)
             @intCast(1)
         else
             1 + sizeOfValue(value.?),
-        .Null => return @intCast(0),
+        .null => return @intCast(0),
         else => @compileError("Unsupported type " ++ @typeName(@TypeOf(value))),
     }
     // It should never reach this

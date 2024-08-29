@@ -160,7 +160,7 @@ pub const ParamType = union(enum) {
 
         const info = @typeInfo(ParamType);
 
-        inline for (info.Union.fields) |union_field| {
+        inline for (info.@"union".fields) |union_field| {
             if (std.mem.eql(u8, union_field.name, abitype)) {
                 if (union_field.type == void) {
                     return @unionInit(ParamType, union_field.name, {});

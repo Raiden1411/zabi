@@ -22,13 +22,13 @@ pub const QueryOptions = struct {
 pub fn searchUrlParams(value: anytype, options: QueryOptions, out_stream: anytype) @TypeOf(out_stream).Error!void {
     const info = @typeInfo(@TypeOf(value));
 
-    std.debug.assert(info == .Struct); // Must be a non tuple struct type
-    std.debug.assert(!info.Struct.is_tuple); // Must be a non tuple struct type
+    std.debug.assert(info == .@"struct"); // Must be a non tuple struct type
+    std.debug.assert(!info.@"struct".is_tuple); // Must be a non tuple struct type
 
     var writer = writeStream(out_stream);
 
     try writer.beginQuery();
-    inline for (info.Struct.fields) |field| {
+    inline for (info.@"struct".fields) |field| {
         try writer.writeParameter(field.name);
         try writer.writeValue(@field(value, field.name));
     }
@@ -136,43 +136,43 @@ pub fn QueryWriter(comptime OutStream: type) type {
             const info = @typeInfo(@TypeOf(value));
 
             switch (info) {
-                .Bool => {
+                .bool => {
                     try self.valueOrParameterStart();
                     if (value) try self.stream.writeAll("true") else try self.stream.writeAll("false");
                     self.valueDone();
                     return;
                 },
-                .Int => {
+                .int => {
                     try self.valueOrParameterStart();
                     try self.stream.print("{}", .{value});
                     self.valueDone();
                     return;
                 },
-                .ComptimeInt => return self.writeValue(@as(std.math.IntFittingRange(value, value), value)),
-                .Float, .ComptimeFloat => {
+                .comptime_int => return self.writeValue(@as(std.math.IntFittingRange(value, value), value)),
+                .float, .comptime_float => {
                     try self.valueOrParameterStart();
                     try self.stream.print("{}", .{value});
                     self.valueDone();
                     return;
                 },
-                .Optional => {
+                .optional => {
                     if (value) |val| {
                         return self.writeValue(val);
                     }
 
                     return self.writeValue(null);
                 },
-                .Null => {
+                .null => {
                     try self.valueOrParameterStart();
                     try self.stream.writeAll("null");
                     self.valueDone();
                 },
-                .Enum, .EnumLiteral => {
+                .@"enum", .enum_literal => {
                     try self.valueOrParameterStart();
                     try self.stream.writeAll(@tagName(value));
                     self.valueDone();
                 },
-                .Array => |arr_info| {
+                .array => |arr_info| {
                     if (arr_info.child != u8)
                         @compileError("Unable to parse non `u8` array types");
 
@@ -210,10 +210,10 @@ pub fn QueryWriter(comptime OutStream: type) type {
                     }
                     self.valueDone();
                 },
-                .Pointer => |ptr_info| {
+                .pointer => |ptr_info| {
                     switch (ptr_info.size) {
                         .One => switch (@typeInfo(ptr_info.child)) {
-                            .Array => {
+                            .array => {
                                 const Slice = []const std.meta.Elem(ptr_info.child);
                                 return try self.writeValue(@as(Slice, value));
                             },

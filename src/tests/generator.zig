@@ -68,36 +68,36 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
     const info = @typeInfo(T);
 
     switch (info) {
-        .Bool => {
+        .bool => {
             var rand = std.Random.DefaultPrng.init(seed);
             return rand.random().boolean();
         },
-        .Int => {
+        .int => {
             var rand = std.Random.DefaultPrng.init(seed);
             const num = rand.random().int(T);
 
             return num;
         },
-        .Float => {
+        .float => {
             var rand = std.Random.DefaultPrng.init(seed);
             const num = rand.random().float(T);
 
             return num;
         },
-        .Optional => |optional_child| {
+        .optional => |optional_child| {
             // Multiplies the seed based on the size of the child type.
             var rand = std.Random.DefaultPrng.init(seed * if (@sizeOf(optional_child.child) > 0) @sizeOf(optional_child.child) else 1);
 
             // Let the randomizer decide if we return null or not
             return if (rand.random().boolean()) null else try generateRandomDataLeaky(optional_child.child, allocator, seed, opts);
         },
-        .Enum => {
+        .@"enum" => {
             var rand = std.Random.DefaultPrng.init(seed);
             const value = rand.random().enumValue(T);
 
             return value;
         },
-        .Union => |union_info| {
+        .@"union" => |union_info| {
             if (union_info.tag_type == null)
                 @compileError("Unable to generate random data for untagged union'" ++ @typeName(T) ++ "'");
 
@@ -121,7 +121,7 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
 
             return @unionInit(T, field.name, try generateRandomDataLeaky(field.type, allocator, seed, opts));
         },
-        .Struct => |struct_info| {
+        .@"struct" => |struct_info| {
             comptime assert(struct_info.fields.len > 0); // Cannot return from empty;
 
             var result: T = undefined;
@@ -145,7 +145,7 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
 
             return result;
         },
-        .Pointer => |ptr_info| {
+        .pointer => |ptr_info| {
             switch (ptr_info.size) {
                 .One => {
                     const pointer = try allocator.create(ptr_info.child);
@@ -211,7 +211,7 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
                 else => @compileError("Unsupported pointer type '" ++ @typeName(T) ++ "'"),
             }
         },
-        .Vector => |vec_info| {
+        .vector => |vec_info| {
             comptime assert(vec_info.len > 0); // Cannot return empty vec
 
             var result: T = undefined;
@@ -226,7 +226,7 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
 
             return result;
         },
-        .Array => |arr_info| {
+        .array => |arr_info| {
             comptime assert(arr_info.len > 0); // Cannot return empty arr
 
             var result: T = undefined;
@@ -262,8 +262,8 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
 
             return result;
         },
-        .Void => return {},
-        .Null => return null,
+        .void => return {},
+        .null => return null,
         else => @compileError("Unsupported type '" ++ @typeName(T) ++ "'"),
     }
 }

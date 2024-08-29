@@ -76,7 +76,7 @@ pub fn MulticallArguments(comptime targets: []const MulticallTargets) type {
             .alignment = if (@sizeOf(Arguments) > 0) @alignOf(Arguments) else 0,
         };
     }
-    return @Type(.{ .Struct = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+    return @Type(.{ .@"struct" = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
 }
 
 /// Multicall3 aggregate3 abi representation.

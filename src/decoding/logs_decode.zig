@@ -43,8 +43,8 @@ pub const LogDecoderOptions = struct {
 pub fn decodeLogs(comptime T: type, encoded: []const ?Hash, options: LogDecoderOptions) !T {
     const info = @typeInfo(T);
     comptime {
-        std.debug.assert(info == .Struct and info.Struct.is_tuple); // Must be a struct type and tuple struct type.
-        std.debug.assert(info.Struct.fields[0].type == Hash); // The first member must always be a [32]u8 type.
+        std.debug.assert(info == .@"struct" and info.@"struct".is_tuple); // Must be a struct type and tuple struct type.
+        std.debug.assert(info.@"struct".fields[0].type == Hash); // The first member must always be a [32]u8 type.
     }
 
     if (encoded.len == 0)
@@ -52,7 +52,7 @@ pub fn decodeLogs(comptime T: type, encoded: []const ?Hash, options: LogDecoderO
 
     var result: T = undefined;
 
-    const fields = info.Struct.fields;
+    const fields = info.@"struct".fields;
 
     inline for (fields, encoded, 0..) |field, enc, i| {
         if (enc) |non_null| {
@@ -60,7 +60,7 @@ pub fn decodeLogs(comptime T: type, encoded: []const ?Hash, options: LogDecoderO
         } else {
             const opt_info = @typeInfo(field.type);
 
-            if (opt_info != .Optional)
+            if (opt_info != .optional)
                 return error.UnexpectedTupleFieldType;
 
             result[i] = null;
@@ -87,12 +87,12 @@ pub fn decodeLog(comptime T: type, encoded: Hash, options: LogDecoderOptions) !T
     const info = @typeInfo(T);
 
     switch (info) {
-        .Bool => {
+        .bool => {
             const value = std.mem.readInt(u256, &encoded, .big);
 
             return @as(u1, @truncate(value)) != 0;
         },
-        .Int => |int_value| {
+        .int => |int_value| {
             const IntType = switch (int_value.signedness) {
                 .signed => i256,
                 .unsigned => u256,
@@ -102,15 +102,15 @@ pub fn decodeLog(comptime T: type, encoded: Hash, options: LogDecoderOptions) !T
 
             return @as(T, @truncate(value));
         },
-        .Optional => |opt_info| return try decodeLog(opt_info.child, encoded, options),
-        .Array => |arr_info| {
+        .optional => |opt_info| return try decodeLog(opt_info.child, encoded, options),
+        .array => |arr_info| {
             if (arr_info.child != u8)
                 @compileError("Only u8 arrays are supported. Found: " ++ @typeName(T));
 
             if (arr_info.len > 32)
                 @compileError("Only [32]u8 arrays and lower are supported. Found: " ++ @typeName(T));
 
-            const AsInt = @Type(.{ .Int = .{ .signedness = .unsigned, .bits = arr_info.len * 8 } });
+            const AsInt = @Type(.{ .int = .{ .signedness = .unsigned, .bits = arr_info.len * 8 } });
 
             var result: T = undefined;
 
@@ -119,7 +119,7 @@ pub fn decodeLog(comptime T: type, encoded: Hash, options: LogDecoderOptions) !T
 
             return result;
         },
-        .Pointer => |ptr_info| {
+        .pointer => |ptr_info| {
             switch (ptr_info.size) {
                 .One => {
                     const allocator = options.allocator orelse return error.ExpectedAllocator;

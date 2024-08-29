@@ -119,10 +119,10 @@ pub fn encodeStruct(allocator: Allocator, comptime types: anytype, comptime prim
     const info = @typeInfo(@TypeOf(types));
     const data_info = @typeInfo(@TypeOf(data));
 
-    if (info != .Struct or info.Struct.is_tuple)
+    if (info != .@"struct" or info.@"struct".is_tuple)
         @compileError("Expected struct type but found: " ++ @typeName(@TypeOf(types)));
 
-    if (data_info != .Struct or info.Struct.is_tuple)
+    if (data_info != .@"struct" or info.@"struct".is_tuple)
         @compileError("Expected struct type but found: " ++ @typeName(@TypeOf(data)));
 
     const type_hash = try hashType(allocator, types, primary_type);
@@ -131,7 +131,7 @@ pub fn encodeStruct(allocator: Allocator, comptime types: anytype, comptime prim
     const fields = @field(types, primary_type);
 
     inline for (fields) |message_prop| {
-        inline for (data_info.Struct.fields) |field| {
+        inline for (data_info.@"struct".fields) |field| {
             if (std.mem.eql(u8, field.name, message_prop.name)) {
                 try encodeStructField(allocator, types, message_prop.type, @field(data, message_prop.name), writer);
             }
@@ -158,7 +158,7 @@ pub fn encodeStructField(allocator: Allocator, comptime types: anytype, comptime
     }
 
     switch (info) {
-        .Bool => {
+        .bool => {
             const param_type = try ParamType.typeToUnion(primary_type, allocator);
             errdefer if (param_type == .dynamicArray or param_type == .fixedArray) param_type.freeArrayParamType(allocator);
 
@@ -167,7 +167,7 @@ pub fn encodeStructField(allocator: Allocator, comptime types: anytype, comptime
                 else => return error.UnexpectTypeFound,
             }
         },
-        .Int, .ComptimeInt => {
+        .int, .comptime_int => {
             const param_type = try ParamType.typeToUnion(primary_type, allocator);
             errdefer if (param_type == .dynamicArray or param_type == .fixedArray) param_type.freeArrayParamType(allocator);
 
@@ -176,12 +176,12 @@ pub fn encodeStructField(allocator: Allocator, comptime types: anytype, comptime
                 else => return error.UnexpectTypeFound,
             }
         },
-        .Optional => {
+        .optional => {
             if (value) |v| {
                 try encodeStructField(allocator, types, primary_type, v, writer);
             }
         },
-        .Array => |arr_info| {
+        .array => |arr_info| {
             if (arr_info.child == u8) {
                 const param_type = try ParamType.typeToUnion(primary_type, allocator);
                 errdefer if (param_type == .dynamicArray or param_type == .fixedArray) param_type.freeArrayParamType(allocator);
@@ -248,7 +248,7 @@ pub fn encodeStructField(allocator: Allocator, comptime types: anytype, comptime
                 else => return error.UnexpectTypeFound,
             }
         },
-        .Pointer => |ptr_info| {
+        .pointer => |ptr_info| {
             switch (ptr_info.size) {
                 .One => return try encodeStructField(allocator, types, primary_type, value.*, writer),
                 .Slice => {
@@ -321,7 +321,7 @@ pub fn encodeStructField(allocator: Allocator, comptime types: anytype, comptime
                 else => @compileError("Pointer type not supported " ++ @typeName(@TypeOf(value))),
             }
         },
-        .Struct => |struct_info| {
+        .@"struct" => |struct_info| {
             if (struct_info.is_tuple) {
                 const param_type = try ParamType.typeToUnion(primary_type, allocator);
                 defer if (param_type == .dynamicArray or param_type == .fixedArray) param_type.freeArrayParamType(allocator);
@@ -383,7 +383,7 @@ pub fn encodeType(allocator: Allocator, comptime types_fields: anytype, comptime
     if (!result.swapRemove(primary_type))
         return error.InvalidPrimType;
 
-    inline for (info.Struct.fields) |field| {
+    inline for (info.@"struct".fields) |field| {
         if (std.mem.eql(u8, field.name, primary_type)) {
             const values = @field(types_fields, field.name);
             inline for (values, 0..) |value, i| {
@@ -409,7 +409,7 @@ pub fn encodeType(allocator: Allocator, comptime types_fields: anytype, comptime
     }.lessThan);
 
     for (keys) |key| {
-        inline for (info.Struct.fields) |field| {
+        inline for (info.@"struct".fields) |field| {
             if (std.mem.eql(u8, field.name, key)) {
                 const values = @field(types_fields, field.name);
                 try writer.writeAll(field.name);
@@ -434,7 +434,7 @@ pub fn findTypeDependencies(comptime types_fields: anytype, comptime primary_typ
 
     const info = @typeInfo(@TypeOf(types_fields));
 
-    inline for (info.Struct.fields) |field| {
+    inline for (info.@"struct".fields) |field| {
         if (std.mem.eql(u8, field.name, primary_type)) {
             try result.put(primary_type, {});
             const messages = @field(types_fields, field.name);

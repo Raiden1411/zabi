@@ -174,7 +174,7 @@ pub fn encodeAbiParameters(alloc: Allocator, parameters: []const AbiParameter, v
 pub fn encodeAbiParametersLeaky(alloc: Allocator, params: []const AbiParameter, values: anytype) EncodeErrors![]u8 {
     const fields = @typeInfo(@TypeOf(values));
 
-    if (fields != .Struct or !fields.Struct.is_tuple)
+    if (fields != .@"struct" or !fields.@"struct".is_tuple)
         @compileError("Expected " ++ @typeName(@TypeOf(values)) ++ " to be a tuple value instead");
 
     const prepared = try preEncodeParams(alloc, params, values);
@@ -190,7 +190,7 @@ pub fn encodeAbiParametersLeaky(alloc: Allocator, params: []const AbiParameter, 
 pub fn encodePacked(allocator: Allocator, values: anytype) ![]u8 {
     const fields = @typeInfo(@TypeOf(values));
 
-    if (fields != .Struct or !fields.Struct.is_tuple)
+    if (fields != .@"struct" or !fields.@"struct".is_tuple)
         @compileError("Expected " ++ @typeName(@TypeOf(values)) ++ " to be a tuple value instead");
 
     var list = std.ArrayList(u8).init(allocator);
@@ -209,14 +209,14 @@ fn encodePackedParameters(value: anytype, writer: anytype, is_slice: bool) !void
     const info = @typeInfo(@TypeOf(value));
 
     switch (info) {
-        .Bool => {
+        .bool => {
             const as_int = @intFromBool(value);
             if (is_slice) {
                 try writer.writeInt(u256, as_int, .big);
             } else try writer.writeInt(u8, as_int, .big);
         },
-        .Int => return if (is_slice) writer.writeInt(u256, value, .big) else writer.writeInt(@TypeOf(value), value, .big),
-        .ComptimeInt => {
+        .int => return if (is_slice) writer.writeInt(u256, value, .big) else writer.writeInt(@TypeOf(value), value, .big),
+        .comptime_int => {
             var buffer: [32]u8 = undefined;
             const size = utils.formatInt(@intCast(value), &buffer);
 
@@ -225,19 +225,19 @@ fn encodePackedParameters(value: anytype, writer: anytype, is_slice: bool) !void
             else
                 try writer.writeAll(buffer[32 - size ..]);
         },
-        .Optional => |opt_info| {
+        .optional => |opt_info| {
             if (value) |val| {
                 return encodePackedParameters(@as(opt_info.child, val), writer, is_slice);
             }
         },
-        .Enum, .EnumLiteral => return encodePackedParameters(@tagName(value), writer, is_slice),
-        .ErrorSet => return encodePackedParameters(@errorName(value), writer, is_slice),
-        .Vector => |vec_info| {
+        .@"enum", .enum_literal => return encodePackedParameters(@tagName(value), writer, is_slice),
+        .error_set => return encodePackedParameters(@errorName(value), writer, is_slice),
+        .vector => |vec_info| {
             for (0..vec_info.len) |i| {
                 try encodePackedParameters(value[i], writer, true);
             }
         },
-        .Array => |arr_info| {
+        .array => |arr_info| {
             if (arr_info.child == u8) {
                 if (arr_info.len == 20) {
                     if (is_slice) {
@@ -254,7 +254,7 @@ fn encodePackedParameters(value: anytype, writer: anytype, is_slice: bool) !void
                 try encodePackedParameters(val, writer, true);
             }
         },
-        .Pointer => |ptr_info| {
+        .pointer => |ptr_info| {
             switch (ptr_info.size) {
                 .One => return encodePackedParameters(value.*, writer, is_slice),
                 .Slice => {
@@ -268,7 +268,7 @@ fn encodePackedParameters(value: anytype, writer: anytype, is_slice: bool) !void
                 else => @compileError("Unsupported ponter type '" ++ @typeName(@TypeOf(value)) ++ "'"),
             }
         },
-        .Struct => |struct_info| {
+        .@"struct" => |struct_info| {
             inline for (struct_info.fields) |field| {
                 try encodePackedParameters(@field(value, field.name), writer, if (struct_info.is_tuple) true else false);
             }
@@ -327,7 +327,7 @@ fn preEncodeParam(allocator: Allocator, param: AbiParameter, value: anytype) !Pr
     const info = @typeInfo(@TypeOf(value));
 
     switch (info) {
-        .Pointer => |ptr_info| {
+        .pointer => |ptr_info| {
             switch (ptr_info.size) {
                 .One => return try preEncodeParam(allocator, param, value.*),
                 .Slice => {
@@ -363,32 +363,32 @@ fn preEncodeParam(allocator: Allocator, param: AbiParameter, value: anytype) !Pr
                 else => @compileError("Unsupported pointer type " ++ @typeName(@TypeOf(value))),
             }
         },
-        .Bool => {
+        .bool => {
             return switch (param.type) {
                 .bool => try encodeBool(allocator, value),
                 inline else => return error.InvalidParamType,
             };
         },
-        .Int => {
-            return switch (info.Int.signedness) {
+        .int => {
+            return switch (info.int.signedness) {
                 .signed => try encodeNumber(allocator, i256, value),
                 .unsigned => try encodeNumber(allocator, u256, value),
             };
         },
-        .ComptimeInt => {
+        .comptime_int => {
             return switch (param.type) {
                 .int => try encodeNumber(allocator, i256, value),
                 .uint => try encodeNumber(allocator, u256, value),
                 inline else => error.InvalidParamType,
             };
         },
-        .Struct => {
+        .@"struct" => {
             return switch (param.type) {
                 .tuple => try encodeTuples(allocator, param, value),
                 inline else => error.InvalidParamType,
             };
         },
-        .Array => |arr_info| {
+        .array => |arr_info| {
             if (arr_info.child == u8) {
                 switch (arr_info.len) {
                     1...19, 21...32 => {
@@ -545,7 +545,7 @@ fn encodeArray(allocator: Allocator, param: AbiParameter, values: anytype, size:
 }
 
 fn encodeTuples(allocator: Allocator, param: AbiParameter, values: anytype) !PreEncodedParam {
-    const info = @typeInfo(@TypeOf(values)).Struct;
+    const info = @typeInfo(@TypeOf(values)).@"struct";
     if (info.is_tuple)
         @compileError("Expected normal struct type but found tuple instead");
 

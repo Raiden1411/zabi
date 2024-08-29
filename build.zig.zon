@@ -16,8 +16,8 @@
     // Internet connectivity.
     .dependencies = .{
         .ws = .{
-            .url = "git+https://github.com/karlseguin/websocket.zig.git#3bc67bc7104e25cfbb6621cca784d3edc2d450cc",
-            .hash = "1220a36b9f1be391d474a22f7f52a3e8bd8027ac523d2db19c987328a03041ab1412",
+            .url = "git+https://github.com/karlseguin/websocket.zig.git#48eddb46e3fe3b210dd41696aec2ca00cfaf1e70",
+            .hash = "12208cd2d414b4477c365c5eb4c04b077216f8dbe1e2174615c9aab8d495a8c5f231",
         },
         .@"c-kzg-4844" = .{ .path = "./pkg/c-kzg-4844" },
         .blst = .{ .path = "./pkg/blst" },

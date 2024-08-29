@@ -71,7 +71,7 @@ pub fn encodeLogTopicsComptime(allocator: Allocator, comptime event: AbiEvent, v
 pub fn encodeLogTopics(allocator: Allocator, event: AbiEvent, values: anytype) ![]const ?Hash {
     const info = @typeInfo(@TypeOf(values));
 
-    if (info != .Struct or !info.Struct.is_tuple)
+    if (info != .@"struct" or !info.@"struct".is_tuple)
         @compileError("Expected tuple type but found " ++ @typeName(@TypeOf(values)));
 
     var list = try std.ArrayList(?Hash).initCapacity(allocator, values.len + 1);
@@ -101,7 +101,7 @@ fn encodeLog(allocator: Allocator, param: AbiEventParameter, value: anytype) !?H
     const info = @typeInfo(@TypeOf(value));
 
     switch (info) {
-        .Bool => {
+        .bool => {
             switch (param.type) {
                 .bool => {
                     var buffer: [32]u8 = undefined;
@@ -112,7 +112,7 @@ fn encodeLog(allocator: Allocator, param: AbiEventParameter, value: anytype) !?H
                 else => return error.InvalidParamType,
             }
         },
-        .Int => |int_info| {
+        .int => |int_info| {
             if (value > std.math.maxInt(u256))
                 return error.Overflow;
 
@@ -138,16 +138,16 @@ fn encodeLog(allocator: Allocator, param: AbiEventParameter, value: anytype) !?H
                 else => return error.InvalidParamType,
             }
         },
-        .ComptimeInt => {
+        .comptime_int => {
             const IntType = std.math.IntFittingRange(value, value);
 
             return try encodeLog(allocator, param, @as(IntType, value));
         },
-        .Null => return null,
-        .Optional => {
+        .null => return null,
+        .optional => {
             if (value) |val| return try encodeLog(allocator, param, val) else return null;
         },
-        .Array => |arr_info| {
+        .array => |arr_info| {
             if (arr_info.child == u8) {
                 switch (param.type) {
                     .string, .bytes => {
@@ -239,7 +239,7 @@ fn encodeLog(allocator: Allocator, param: AbiEventParameter, value: anytype) !?H
 
             return buffer;
         },
-        .Pointer => |ptr_info| {
+        .pointer => |ptr_info| {
             switch (ptr_info.size) {
                 .One => return try encodeLog(allocator, param, value.*),
                 .Slice => {
@@ -321,7 +321,7 @@ fn encodeLog(allocator: Allocator, param: AbiEventParameter, value: anytype) !?H
                 else => @compileError("Unsupported pointer type " ++ @typeName(value)),
             }
         },
-        .Struct => |struct_info| {
+        .@"struct" => |struct_info| {
             if (struct_info.is_tuple)
                 @compileError("Tuple types are not supported");
 
@@ -368,13 +368,13 @@ fn flattenSliceOrArray(comptime T: type, value: anytype, list: *std.ArrayList(T)
         const info = @typeInfo(@TypeOf(value));
 
         switch (info) {
-            .Array => {
+            .array => {
                 if (@TypeOf(val) == T)
                     try list.append(val)
                 else
                     try flattenSliceOrArray(T, val, list);
             },
-            .Pointer => {
+            .pointer => {
                 if (@TypeOf(val) == T)
                     try list.append(val)
                 else
@@ -389,8 +389,8 @@ fn findNestedType(comptime T: type) type {
     const info = @typeInfo(T);
 
     switch (info) {
-        .Array => |arr_info| return findNestedType(arr_info.child),
-        .Pointer => |ptr_info| return findNestedType(ptr_info.child),
+        .array => |arr_info| return findNestedType(arr_info.child),
+        .pointer => |ptr_info| return findNestedType(ptr_info.child),
         else => return T,
     }
 }

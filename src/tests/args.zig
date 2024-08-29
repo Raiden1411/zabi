@@ -14,16 +14,16 @@ const assert = std.debug.assert;
 pub fn parseArgs(comptime T: type, allocator: Allocator, args: *std.process.ArgIterator) T {
     const info = @typeInfo(T);
 
-    assert(info == .Struct);
+    assert(info == .@"struct");
 
-    const fields_count = info.Struct.fields.len;
+    const fields_count = info.@"struct".fields.len;
 
     // Optional fields must have null value defaults
     // and bool fields must be false.
-    inline for (info.Struct.fields) |field| {
+    inline for (info.@"struct".fields) |field| {
         switch (@typeInfo(field.type)) {
-            .Optional => assert(convertDefaultValueType(field).? == null),
-            .Bool => assert(convertDefaultValueType(field).? == false),
+            .optional => assert(convertDefaultValueType(field).? == null),
+            .bool => assert(convertDefaultValueType(field).? == false),
             else => {},
         }
     }
@@ -34,7 +34,7 @@ pub fn parseArgs(comptime T: type, allocator: Allocator, args: *std.process.ArgI
     assert(args.skip());
 
     next: while (args.next()) |args_str| {
-        inline for (info.Struct.fields) |field| {
+        inline for (info.@"struct".fields) |field| {
             const arg_flag = convertToArgFlag(field.name);
             if (std.mem.startsWith(u8, args_str, arg_flag)) {
                 @field(seen, field.name) += 1;
@@ -45,7 +45,7 @@ pub fn parseArgs(comptime T: type, allocator: Allocator, args: *std.process.ArgI
         }
     }
 
-    inline for (info.Struct.fields[0..fields_count]) |field| {
+    inline for (info.@"struct".fields[0..fields_count]) |field| {
         const arg_flag = convertToArgFlag(field.name);
         switch (@field(seen, field.name)) {
             0 => if (convertDefaultValueType(field)) |default_value| {
@@ -100,7 +100,7 @@ fn parseArgValue(comptime T: type, allocator: Allocator, value: []const u8) T {
         return value;
 
     switch (@typeInfo(T)) {
-        .Int => {
+        .int => {
             const parsed = std.fmt.parseInt(T, value, 0) catch |err| switch (err) {
                 error.Overflow => failWithMessage("value bits {s} exceeds to provided type {s} capacity", .{ value, @typeName(T) }),
                 error.InvalidCharacter => failWithMessage("expected a digit string but found '{s}'", .{value}),
@@ -108,17 +108,17 @@ fn parseArgValue(comptime T: type, allocator: Allocator, value: []const u8) T {
 
             return parsed;
         },
-        .Float => {
+        .float => {
             const parsed = std.fmt.parseFloat(T, value) catch |err| switch (err) {
                 error.InvalidCharacter => failWithMessage("expected a digit string but found '{s}'", .{value}),
             };
 
             return parsed;
         },
-        .Optional => |optional_info| {
+        .optional => |optional_info| {
             return parseArgValue(optional_info.child, allocator, value);
         },
-        .Array => |arr_info| {
+        .array => |arr_info| {
             if (arr_info.child == u8) {
                 var buffer: T = undefined;
 
@@ -141,7 +141,7 @@ fn parseArgValue(comptime T: type, allocator: Allocator, value: []const u8) T {
 
             return arr;
         },
-        .Pointer => |ptr_info| {
+        .pointer => |ptr_info| {
             switch (ptr_info.size) {
                 .One => {
                     const pointer = allocator.create(ptr_info.child) catch failWithMessage("Process ran out of memory", .{});
@@ -186,8 +186,8 @@ fn convertDefaultValueType(comptime field: std.builtin.Type.StructField) ?field.
 }
 /// Fails with message and exit's the process.
 fn failWithMessage(comptime message: []const u8, values: anytype) noreturn {
-    assert(@typeInfo(@TypeOf(values)) == .Struct);
-    assert(@typeInfo(@TypeOf(values)).Struct.is_tuple);
+    assert(@typeInfo(@TypeOf(values)) == .@"struct");
+    assert(@typeInfo(@TypeOf(values)).@"struct".is_tuple);
 
     const stderr = std.io.getStdErr().writer();
     stderr.print("Failed with message: " ++ message ++ "\n", values) catch {};

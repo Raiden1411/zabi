@@ -13,8 +13,8 @@ pub const RlpEncodeErrors = error{ NegativeNumber, Overflow } || Allocator.Error
 pub fn encodeRlp(alloc: Allocator, items: anytype) ![]u8 {
     const info = @typeInfo(@TypeOf(items));
 
-    if (info != .Struct) @compileError("Expected tuple type instead found " ++ @typeName(@TypeOf(items)));
-    if (!info.Struct.is_tuple) @compileError("Expected tuple type instead found " ++ @typeName(@TypeOf(items)));
+    if (info != .@"struct") @compileError("Expected tuple type instead found " ++ @typeName(@TypeOf(items)));
+    if (!info.@"struct".is_tuple) @compileError("Expected tuple type instead found " ++ @typeName(@TypeOf(items)));
 
     var list = std.ArrayList(u8).init(alloc);
     var writer = list.writer();
@@ -30,8 +30,8 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
     const info = @typeInfo(@TypeOf(payload));
 
     switch (info) {
-        .Bool => if (payload) try writer.writeByte(0x01) else try writer.writeByte(0x80),
-        .Int => {
+        .bool => if (payload) try writer.writeByte(0x01) else try writer.writeByte(0x80),
+        .int => {
             if (payload < 0) return error.NegativeNumber;
 
             if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intCast(payload)) else {
@@ -41,7 +41,7 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 try writer.writeAll(buffer[32 - size_slice ..]);
             }
         },
-        .ComptimeInt => {
+        .comptime_int => {
             if (payload < 0) return error.NegativeNumber;
 
             if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intCast(payload)) else {
@@ -49,13 +49,13 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 return try encodeItem(alloc, @as(IntType, @intCast(payload)), writer);
             }
         },
-        .Float => |float_info| {
+        .float => |float_info| {
             if (payload < 0)
                 return error.NegativeNumber;
 
             if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intFromFloat(payload)) else {
                 const bits = float_info.bits;
-                const IntType = @Type(.{ .Int = .{ .signedness = .unsigned, .bits = bits } });
+                const IntType = @Type(.{ .int = .{ .signedness = .unsigned, .bits = bits } });
                 const as_int = @as(IntType, @bitCast(payload));
                 var buffer: [32]u8 = undefined;
                 const size_slice = utils.formatInt(as_int, &buffer);
@@ -63,7 +63,7 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 try writer.writeAll(buffer[32 - size_slice ..]);
             }
         },
-        .ComptimeFloat => {
+        .comptime_float => {
             if (payload < 0) return error.NegativeNumber;
 
             if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intFromFloat(payload)) else {
@@ -77,13 +77,13 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 try writer.writeAll(buffer[32 - size_slice ..]);
             }
         },
-        .Null => try writer.writeByte(0x80),
-        .Optional => {
+        .null => try writer.writeByte(0x80),
+        .optional => {
             if (payload) |item| try encodeItem(alloc, item, writer) else try writer.writeByte(0x80);
         },
-        .Enum, .EnumLiteral => try encodeItem(alloc, @tagName(payload), writer),
-        .ErrorSet => try encodeItem(alloc, @errorName(payload), writer),
-        .Array => |arr_info| {
+        .@"enum", .enum_literal => try encodeItem(alloc, @tagName(payload), writer),
+        .error_set => try encodeItem(alloc, @errorName(payload), writer),
+        .array => |arr_info| {
             if (arr_info.child == u8) {
                 if (payload.len == 0) try writer.writeByte(0x80) else if (payload.len < 56) {
                     try writer.writeByte(@intCast(0x80 + payload.len));
@@ -127,7 +127,7 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 }
             }
         },
-        .Pointer => |ptr_info| {
+        .pointer => |ptr_info| {
             switch (ptr_info.size) {
                 .One => {
                     try encodeItem(alloc, payload.*, writer);
@@ -179,7 +179,7 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 else => @compileError("Unable to parse pointer type " ++ @typeName(@TypeOf(payload))),
             }
         },
-        .Struct => |struct_info| {
+        .@"struct" => |struct_info| {
             if (struct_info.is_tuple) {
                 if (payload.len == 0) try writer.writeByte(0xc0) else {
                     var tuple = std.ArrayList(u8).init(alloc);
@@ -213,7 +213,7 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 }
             }
         },
-        .Union => |union_info| {
+        .@"union" => |union_info| {
             if (union_info.tag_type) |TagType| {
                 inline for (union_info.fields) |u_field| {
                     if (payload == @field(TagType, u_field.name)) {
@@ -224,7 +224,7 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
                 }
             } else try encodeItem(alloc, @tagName(payload), writer);
         },
-        .Vector => |vec_info| {
+        .vector => |vec_info| {
             if (vec_info.len == 0) try writer.writeByte(0xc0) else {
                 var slice = std.ArrayList(u8).init(alloc);
                 errdefer slice.deinit();

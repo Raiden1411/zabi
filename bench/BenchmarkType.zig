@@ -25,9 +25,9 @@ pub const BenchmarkResult = struct {
 };
 
 fn invoke(comptime func: anytype, args: anytype) void {
-    const ReturnType = @typeInfo(@TypeOf(func)).Fn.return_type.?;
+    const ReturnType = @typeInfo(@TypeOf(func)).@"fn".return_type.?;
     switch (@typeInfo(ReturnType)) {
-        .ErrorUnion => {
+        .error_union => {
             const item = @call(.never_inline, func, args) catch {
                 if (@errorReturnTrace()) |trace| {
                     std.debug.dumpStackTrace(trace.*);
@@ -36,7 +36,7 @@ fn invoke(comptime func: anytype, args: anytype) void {
             };
             const info = @typeInfo(@TypeOf(item));
 
-            if (info != .Struct)
+            if (info != .@"struct")
                 return;
 
             if (@hasDecl(@TypeOf(item), "deinit")) item.deinit();
@@ -45,7 +45,7 @@ fn invoke(comptime func: anytype, args: anytype) void {
             const item = @call(.never_inline, func, args);
             const info = @typeInfo(@TypeOf(item));
 
-            if (info != .Struct)
+            if (info != .@"struct")
                 return;
 
             if (@hasDecl(@TypeOf(item), "deinit")) item.deinit();

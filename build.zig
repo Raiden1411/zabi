@@ -172,6 +172,6 @@ fn docsGenerate(b: *std.Build, target: std.Build.ResolvedTarget) void {
     var docs_run = b.addRunArtifact(docs);
     docs_run.has_side_effects = true;
 
-    const docs_step = b.step("docs_generate", "Run the ipc server");
+    const docs_step = b.step("docs_generate", "Generate documentation based on the source code.");
     docs_step.dependOn(&docs_run.step);
 }

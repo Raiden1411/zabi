@@ -4,10 +4,10 @@
 //! This sends responses based on the RPC method
 //! and the responses are filled with random data.
 //! This is mostly usefull for testing/fuzzing.
-const args_parse = @import("tests/args.zig");
+const args_parse = @import("utils/args.zig");
 const std = @import("std");
 
-const Server = @import("tests/clients/server.zig");
+const Server = @import("server/server.zig");
 
 const Options = struct {
     send_error: bool = false,

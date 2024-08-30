@@ -12,8 +12,3 @@ pub const Lexer = lexer.Lexer;
 pub const Parser = @import("Parser.zig");
 /// Solidity tags.
 pub const TokensTag = tokens.Tag;
-
-test "Human Readable Root" {
-    _ = @import("abi_parsing.test.zig");
-    _ = @import("lexer.test.zig");
-}

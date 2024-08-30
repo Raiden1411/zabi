@@ -44,6 +44,7 @@ const excludes = std.StaticStringMap(void).initComptime(.{
     .{ ".zig-cache", {} },
     .{ "blst", {} },
     .{ "tests_blobs", {} },
+    .{ "tests", {} },
     .{ "wordlists", {} },
     .{ "zig-out", {} },
 
@@ -454,9 +455,6 @@ const Runner = struct {
         defer walker.deinit();
 
         while (try walker.next()) |sub_path| {
-            if (std.mem.endsWith(u8, sub_path.basename, "test.zig"))
-                continue;
-
             switch (sub_path.kind) {
                 .directory => {
                     if (excludes.get(sub_path.basename) != null) {

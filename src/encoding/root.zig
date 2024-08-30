@@ -8,11 +8,3 @@ pub const rlp = @import("rlp.zig");
 pub const serialize = @import("serialize.zig");
 /// SSZ encoding. Most zig types are supported.
 pub const ssz = @import("ssz.zig");
-
-test "Encoding Root" {
-    _ = @import("encoder.test.zig");
-    _ = @import("logs.test.zig");
-    _ = @import("rlp.test.zig");
-    _ = @import("serialize.test.zig");
-    _ = @import("ssz.test.zig");
-}

@@ -1,4 +1,3 @@
-const generator = @import("../tests/generator.zig");
 const std = @import("std");
 const testing = std.testing;
 const types = @import("../types/root.zig");

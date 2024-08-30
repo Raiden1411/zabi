@@ -1,6 +1,6 @@
-const args_parse = @import("tests/args.zig");
+const args_parse = @import("utils/args.zig");
 const std = @import("std");
-const ws_server = @import("tests/clients/ws_server.zig");
+const ws_server = @import("server/ws_server.zig");
 const ws = @import("ws");
 
 const WsContext = ws_server.WsContext;

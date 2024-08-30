@@ -18,7 +18,8 @@ pub fn EntropyArray(comptime word_count: comptime_int) type
 
 ## MnemonicToSeed
 Converts a mnemonic passphrase into a hashed seed that
-can be used later for HDWallets.\
+can be used later for HDWallets.
+
 Uses `pbkdf2` for the hashing with `HmacSha512` for the
 pseudo random function to use
 
@@ -57,7 +58,7 @@ struct {
 ```
 
 ### LoadRawList
-Loads word in it's raw format and parses it.\
+Loads word in it's raw format and parses it.
 It expects that the string is seperated by "\n"
 
 ### Signature
@@ -68,7 +69,8 @@ pub fn loadRawList(raw_list: []const u8) List
 
 ### GetIndex
 Performs binary search on the word list
-as we assume that the list is alphabetically ordered.\
+as we assume that the list is alphabetically ordered.
+
 Returns null if the word isn't on the list
 
 ### Signature

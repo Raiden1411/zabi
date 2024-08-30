@@ -165,7 +165,7 @@ enum {
 ```
 
 ### ToOpcode
-Converts `u8` to associated opcode.\
+Converts `u8` to associated opcode.
 Will return null for unknown opcodes
 
 ### Signature

@@ -1,8 +1,9 @@
 ## SerializeTransaction
-Main function to serialize transactions.\
-Support london, berlin and legacy transaction envelopes.\
+Main function to serialize transactions.
+Support london, berlin and legacy transaction envelopes.
 For cancun transactions with blobs use the `serializeCancunTransactionWithBlob` function. This
-will panic if you call this with the cancun transaction envelope.\
+will panic if you call this with the cancun transaction envelope.
+
 Caller ownes the memory
 
 ### Signature
@@ -12,7 +13,8 @@ pub fn serializeTransaction(allocator: Allocator, tx: TransactionEnvelope, sig: 
 ```
 
 ## SerializeCancunTransaction
-Serializes a cancun type transactions without blobs.\
+Serializes a cancun type transactions without blobs.
+
 Please use `serializeCancunTransactionWithSidecars` or
 `serializeCancunTransactionWithBlobs` if you want to
 serialize them as a wrapper
@@ -42,7 +44,7 @@ pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTr
 ```
 
 ## SerializeTransactionEIP1559
-Function to serialize eip1559 transactions.\
+Function to serialize eip1559 transactions.
 Caller ownes the memory
 
 ### Signature
@@ -52,7 +54,7 @@ pub fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEn
 ```
 
 ## SerializeTransactionEIP2930
-Function to serialize eip2930 transactions.\
+Function to serialize eip2930 transactions.
 Caller ownes the memory
 
 ### Signature
@@ -62,7 +64,7 @@ pub fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEn
 ```
 
 ## SerializeTransactionLegacy
-Function to serialize legacy transactions.\
+Function to serialize legacy transactions.
 Caller ownes the memory
 
 ### Signature

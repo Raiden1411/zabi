@@ -31,7 +31,7 @@ Slice of the struct log
 ## LogRequest
 
 Its default all null so that when it gets stringified
-Logs request struct used by the RPC request methods.\
+Logs request struct used by the RPC request methods.
 we can use `ignore_null_fields` to omit these fields
 
 ### Properties

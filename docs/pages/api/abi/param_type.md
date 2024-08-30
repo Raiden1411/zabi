@@ -36,7 +36,7 @@ union(enum) {
 ```
 
 ### FreeArrayParamType
-User must call this if the union type contains a fixedArray or dynamicArray field.\
+User must call this if the union type contains a fixedArray or dynamicArray field.
 They create pointers so they must be destroyed after.
 
 ### Signature
@@ -61,7 +61,8 @@ pub fn typeToString(self: @This(), writer: anytype) !void
 
 ### TypeToUnion
 Helper function that is used to convert solidity types into zig unions,
-the function will allocate if a array or a fixed array is used.\
+the function will allocate if a array or a fixed array is used.
+
 Consider using `freeArrayParamType` to destroy the pointers
 or call the destroy method on your allocator manually
 

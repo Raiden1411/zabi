@@ -15,7 +15,7 @@ enum {
 
 ## Function
 
-Solidity Abi function representation.\
+Solidity Abi function representation.
 Reference: ["function"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
 
 ### Properties
@@ -50,10 +50,12 @@ pub fn deinit(self: @This(), allocator: std.mem.Allocator) void
 ```
 
 ### Encode
-Encode the struct signature based on the values provided.\
+Encode the struct signature based on the values provided.
 Runtime reflection based on the provided values will occur to determine
 what is the correct method to use to encode the values
-Caller owns the memory.\
+
+Caller owns the memory.
+
 Consider using `EncodeAbiFunctionComptime` if the struct is
 comptime know and you want better typesafety from the compiler
 
@@ -64,11 +66,13 @@ pub fn encode(self: @This(), allocator: Allocator, values: anytype) ![]u8
 ```
 
 ### EncodeOutputs
-Encode the struct signature based on the values provided.\
+Encode the struct signature based on the values provided.
 Runtime reflection based on the provided values will occur to determine
-what is the correct method to use to encode the values.\
-This methods will run the values against the `outputs` proprety.\
-Caller owns the memory.\
+what is the correct method to use to encode the values.
+This methods will run the values against the `outputs` proprety.
+
+Caller owns the memory.
+
 Consider using `EncodeAbiFunctionComptime` if the struct is
 comptime know and you want better typesafety from the compiler
 
@@ -79,11 +83,13 @@ pub fn encodeOutputs(self: @This(), allocator: Allocator, values: anytype) ![]u8
 ```
 
 ### Decode
-Decode a encoded function based on itself.\
+Decode a encoded function based on itself.
 Runtime reflection based on the provided values will occur to determine
-what is the correct method to use to encode the values.\
-This methods will run the values against the `inputs` proprety.\
-Caller owns the memory.\
+what is the correct method to use to encode the values.
+This methods will run the values against the `inputs` proprety.
+
+Caller owns the memory.
+
 Consider using `decodeAbiFunction` if the struct is
 comptime know and you dont want to provided the return type.
 
@@ -94,11 +100,13 @@ pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []
 ```
 
 ### DecodeOutputs
-Decode a encoded function based on itself.\
+Decode a encoded function based on itself.
 Runtime reflection based on the provided values will occur to determine
-what is the correct method to use to encode the values.\
-This methods will run the values against the `outputs` proprety.\
-Caller owns the memory.\
+what is the correct method to use to encode the values.
+This methods will run the values against the `outputs` proprety.
+
+Caller owns the memory.
+
 Consider using `decodeAbiFunction` if the struct is
 comptime know and you dont want to provided the return type.
 
@@ -109,8 +117,9 @@ pub fn decodeOutputs(self: @This(), comptime T: type, allocator: Allocator, enco
 ```
 
 ### AllocPrepare
-Format the struct into a human readable string.\
-Intended to use for hashing purposes.\
+Format the struct into a human readable string.
+Intended to use for hashing purposes.
+
 Caller owns the memory.
 
 ### Signature
@@ -120,7 +129,7 @@ pub fn allocPrepare(self: @This(), allocator: Allocator) ![]u8
 ```
 
 ### Prepare
-Format the struct into a human readable string.\
+Format the struct into a human readable string.
 Intended to use for hashing purposes.
 
 ### Signature
@@ -131,7 +140,7 @@ pub fn prepare(self: @This(), writer: anytype) !void
 
 ## Event
 
-Solidity Abi function representation.\
+Solidity Abi function representation.
 Reference: ["event"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
 
 ### Properties
@@ -153,8 +162,10 @@ pub fn deinit(self: @This(), allocator: std.mem.Allocator) void
 ```
 
 ### Encode
-Encode the struct signature based it's hash.\
-Caller owns the memory.\
+Encode the struct signature based it's hash.
+
+Caller owns the memory.
+
 Consider using `EncodeAbiEventComptime` if the struct is
 comptime know and you want better typesafety from the compiler
 
@@ -165,9 +176,10 @@ pub fn encode(self: @This(), allocator: Allocator) !Hash
 ```
 
 ### EncodeLogTopics
-Encode the struct signature based on the values provided.\
+Encode the struct signature based on the values provided.
 Runtime reflection based on the provided values will occur to determine
 what is the correct method to use to encode the values
+
 Caller owns the memory.
 
 ### Signature
@@ -177,7 +189,8 @@ pub fn encodeLogTopics(self: @This(), allocator: Allocator, values: anytype) ![]
 ```
 
 ### DecodeLogTopics
-Decode the encoded log topics based on the event signature and the provided type.\
+Decode the encoded log topics based on the event signature and the provided type.
+
 Caller owns the memory.
 
 ### Signature
@@ -187,8 +200,9 @@ pub fn decodeLogTopics(self: @This(), comptime T: type, encoded: []const ?Hash, 
 ```
 
 ### AllocPrepare
-Format the struct into a human readable string.\
-Intended to use for hashing purposes.\
+Format the struct into a human readable string.
+Intended to use for hashing purposes.
+
 Caller owns the memory.
 
 ### Signature
@@ -198,7 +212,7 @@ pub fn allocPrepare(self: @This(), allocator: Allocator) ![]u8
 ```
 
 ### Prepare
-Format the struct into a human readable string.\
+Format the struct into a human readable string.
 Intended to use for hashing purposes.
 
 ### Signature
@@ -209,7 +223,7 @@ pub fn prepare(self: @This(), writer: anytype) !void
 
 ## Error
 
-Solidity Abi function representation.\
+Solidity Abi function representation.
 Reference: ["error"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
 
 ### Properties
@@ -230,10 +244,12 @@ pub fn deinit(self: @This(), allocator: std.mem.Allocator) void
 ```
 
 ### Encode
-Encode the struct signature based on the values provided.\
+Encode the struct signature based on the values provided.
 Runtime reflection based on the provided values will occur to determine
 what is the correct method to use to encode the values
-Caller owns the memory.\
+
+Caller owns the memory.
+
 Consider using `EncodeAbiErrorComptime` if the struct is
 comptime know and you want better typesafety from the compiler
 
@@ -244,11 +260,13 @@ pub fn encode(self: @This(), allocator: Allocator, values: anytype) ![]u8
 ```
 
 ### Decode
-Decode a encoded error based on itself.\
+Decode a encoded error based on itself.
 Runtime reflection based on the provided values will occur to determine
-what is the correct method to use to encode the values.\
-This methods will run the values against the `inputs` proprety.\
-Caller owns the memory.\
+what is the correct method to use to encode the values.
+This methods will run the values against the `inputs` proprety.
+
+Caller owns the memory.
+
 Consider using `decodeAbiError` if the struct is
 comptime know and you dont want to provided the return type.
 
@@ -259,8 +277,9 @@ pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []
 ```
 
 ### AllocPrepare
-Format the struct into a human readable string.\
-Intended to use for hashing purposes.\
+Format the struct into a human readable string.
+Intended to use for hashing purposes.
+
 Caller owns the memory.
 
 ### Signature
@@ -270,7 +289,7 @@ pub fn allocPrepare(self: @This(), allocator: Allocator) ![]u8
 ```
 
 ### Prepare
-Format the struct into a human readable string.\
+Format the struct into a human readable string.
 Intended to use for hashing purposes.
 
 ### Signature
@@ -281,7 +300,7 @@ pub fn prepare(self: @This(), writer: anytype) !void
 
 ## Constructor
 
-Solidity Abi function representation.\
+Solidity Abi function representation.
 Reference: ["constructor"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
 
 ### Properties
@@ -306,10 +325,12 @@ pub fn deinit(self: @This(), allocator: std.mem.Allocator) void
 ```
 
 ### Encode
-Encode the struct signature based on the values provided.\
+Encode the struct signature based on the values provided.
 Runtime reflection based on the provided values will occur to determine
 what is the correct method to use to encode the values
-Caller owns the memory.\
+
+Caller owns the memory.
+
 Consider using `EncodeAbiConstructorComptime` if the struct is
 comptime know and you want better typesafety from the compiler
 
@@ -320,11 +341,13 @@ pub fn encode(self: @This(), allocator: Allocator, values: anytype) !AbiEncoded
 ```
 
 ### Decode
-Decode a encoded constructor arguments based on itself.\
+Decode a encoded constructor arguments based on itself.
 Runtime reflection based on the provided values will occur to determine
-what is the correct method to use to encode the values.\
-This methods will run the values against the `inputs` proprety.\
-Caller owns the memory.\
+what is the correct method to use to encode the values.
+This methods will run the values against the `inputs` proprety.
+
+Caller owns the memory.
+
 Consider using `decodeAbiConstructor` if the struct is
 comptime know and you dont want to provided the return type.
 
@@ -336,7 +359,7 @@ pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []
 
 ## Fallback
 
-Solidity Abi function representation.\
+Solidity Abi function representation.
 Reference: ["fallback"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
 
 ### Properties
@@ -354,7 +377,7 @@ struct {
 
 ## Receive
 
-Solidity Abi function representation.\
+Solidity Abi function representation.
 Reference: ["receive"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
 
 ### Properties

@@ -1,5 +1,5 @@
 ## AndInstruction
-Performs and instruction for the interpreter.\
+Performs and instruction for the interpreter.
 AND -> 0x15
 
 ### Signature
@@ -9,7 +9,7 @@ pub fn andInstruction(self: *Interpreter) !void
 ```
 
 ## ByteInstruction
-Performs byte instruction for the interpreter.\
+Performs byte instruction for the interpreter.
 AND -> 0x1A
 
 ### Signature
@@ -19,7 +19,7 @@ pub fn byteInstruction(self: *Interpreter) !void
 ```
 
 ## EqualInstruction
-Performs equal instruction for the interpreter.\
+Performs equal instruction for the interpreter.
 EQ -> 0x14
 
 ### Signature
@@ -29,7 +29,7 @@ pub fn equalInstruction(self: *Interpreter) !void
 ```
 
 ## GreaterThanInstruction
-Performs equal instruction for the interpreter.\
+Performs equal instruction for the interpreter.
 GT -> 0x11
 
 ### Signature
@@ -39,7 +39,7 @@ pub fn greaterThanInstruction(self: *Interpreter) !void
 ```
 
 ## IsZeroInstruction
-Performs iszero instruction for the interpreter.\
+Performs iszero instruction for the interpreter.
 ISZERO -> 0x15
 
 ### Signature
@@ -49,7 +49,7 @@ pub fn isZeroInstruction(self: *Interpreter) !void
 ```
 
 ## LowerThanInstruction
-Performs LT instruction for the interpreter.\
+Performs LT instruction for the interpreter.
 LT -> 0x10
 
 ### Signature
@@ -59,7 +59,7 @@ pub fn lowerThanInstruction(self: *Interpreter) !void
 ```
 
 ## NotInstruction
-Performs NOT instruction for the interpreter.\
+Performs NOT instruction for the interpreter.
 NOT -> 0x19
 
 ### Signature
@@ -69,7 +69,7 @@ pub fn notInstruction(self: *Interpreter) !void
 ```
 
 ## OrInstruction
-Performs OR instruction for the interpreter.\
+Performs OR instruction for the interpreter.
 OR -> 0x17
 
 ### Signature
@@ -79,7 +79,7 @@ pub fn orInstruction(self: *Interpreter) !void
 ```
 
 ## ShiftLeftInstruction
-Performs shl instruction for the interpreter.\
+Performs shl instruction for the interpreter.
 SHL -> 0x1B
 
 ### Signature
@@ -89,7 +89,7 @@ pub fn shiftLeftInstruction(self: *Interpreter) !void
 ```
 
 ## ShiftRightInstruction
-Performs shr instruction for the interpreter.\
+Performs shr instruction for the interpreter.
 SHR -> 0x1C
 
 ### Signature
@@ -99,7 +99,7 @@ pub fn shiftRightInstruction(self: *Interpreter) !void
 ```
 
 ## SignedGreaterThanInstruction
-Performs SGT instruction for the interpreter.\
+Performs SGT instruction for the interpreter.
 SGT -> 0x12
 
 ### Signature
@@ -109,7 +109,7 @@ pub fn signedGreaterThanInstruction(self: *Interpreter) !void
 ```
 
 ## SignedLowerThanInstruction
-Performs SLT instruction for the interpreter.\
+Performs SLT instruction for the interpreter.
 SLT -> 0x12
 
 ### Signature
@@ -119,7 +119,7 @@ pub fn signedLowerThanInstruction(self: *Interpreter) !void
 ```
 
 ## SignedShiftRightInstruction
-Performs SAR instruction for the interpreter.\
+Performs SAR instruction for the interpreter.
 SAR -> 0x1D
 
 ### Signature
@@ -129,7 +129,7 @@ pub fn signedShiftRightInstruction(self: *Interpreter) !void
 ```
 
 ## XorInstruction
-Performs XOR instruction for the interpreter.\
+Performs XOR instruction for the interpreter.
 XOR -> 0x18
 
 ### Signature

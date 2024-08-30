@@ -17,7 +17,8 @@ struct {
 ```
 
 ## SearchUrlParams
-Writes the given value to the `std.io.Writer` stream.\
+Writes the given value to the `std.io.Writer` stream.
+
 See `QueryWriter` for a more detailed documentation.
 
 ### Signature
@@ -27,9 +28,10 @@ pub fn searchUrlParams(value: anytype, options: QueryOptions, out_stream: anytyp
 ```
 
 ## SearchUrlParamsAlloc
-Writes the given value to an `ArrayList` stream.\
-This will allocated memory instead of writting to `std.io.Writer`.\
-You will need to free the allocated memory.\
+Writes the given value to an `ArrayList` stream.
+This will allocated memory instead of writting to `std.io.Writer`.
+You will need to free the allocated memory.
+
 See `QueryWriter` for a more detailed documentation.
 
 ### Signature
@@ -49,20 +51,22 @@ pub fn writeStream(out_stream: anytype) QueryWriter(@TypeOf(out_stream))
 
 ## QueryWriter
 Essentially a wrapper for a `Writer` interface
-specified for query parameters.\
+specified for query parameters.
 The final expected sequence is something like: **"?foo=1&bar=2"**
+
 Supported types:
   * Zig `bool` -> "true" or "false"
-  * Zig `?T` -> "null" for null values or it renders `T` if it's supported.\
-  * Zig `u32`, `i64`, etc -> the string representation of the number.\
-  * Zig `floats` -> the string representation of the float.\
-  * Zig `[N]u8` -> it assumes as a hex encoded string. For arrays of size 20,40,42 it will assume as a ethereum address.\
-  * Zig `enum` -> the tagname of the enum.\
-  * Zig `*T` -> the rending of T if it's supported.\
-  * Zig `[]const u8` -> it writes it as a normal string.\
-  * Zig `[]u8` -> it writes it as a hex encoded string.\
+  * Zig `?T` -> "null" for null values or it renders `T` if it's supported.
+  * Zig `u32`, `i64`, etc -> the string representation of the number.
+  * Zig `floats` -> the string representation of the float.
+  * Zig `[N]u8` -> it assumes as a hex encoded string. For arrays of size 20,40,42 it will assume as a ethereum address.
+  * Zig `enum` -> the tagname of the enum.
+  * Zig `*T` -> the rending of T if it's supported.
+  * Zig `[]const u8` -> it writes it as a normal string.
+  * Zig `[]u8` -> it writes it as a hex encoded string.
   * Zig `[]const T` -> the rendering of T if it's supported. Values are comma seperated in case
-  of multiple values. It will not place the brackets on the query parameters.\
+  of multiple values. It will not place the brackets on the query parameters.
+
 All other types are currently not supported.
 
 ### Signature
@@ -129,7 +133,7 @@ pub fn parameterDone(self: *Self) void
 ```
 
 ## WriteQueryOptions
-Writes the query options into the `Stream`.\
+Writes the query options into the `Stream`.
 It will only write non null values otherwise it will do nothing.
 
 ### Signature
@@ -148,7 +152,7 @@ pub fn writeParameter(self: *Self, name: []const u8) Error!void
 ```
 
 ## WriteValue
-Writes the value of the parameter of the query string.\
+Writes the value of the parameter of the query string.
 Not all types are accepted.
 
 ### Signature

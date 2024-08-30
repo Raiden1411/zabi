@@ -34,8 +34,9 @@ pub fn effectiveGasPrice(self: EVMEnviroment) u256
 ```
 
 ### CalculateDataFee
-Calculates the `data_fee` of the transaction.\
-This will return null if cancun is not enabled.\
+Calculates the `data_fee` of the transaction.
+This will return null if cancun is not enabled.
+
 See EIP-4844:
 <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md#execution-layer-validation>
 
@@ -46,8 +47,9 @@ pub fn calculateDataFee(self: EVMEnviroment) ?u256
 ```
 
 ### CalculateMaxDataFee
-Calculates the max `data_fee` of the transaction.\
-This will return null if cancun is not enabled.\
+Calculates the max `data_fee` of the transaction.
+This will return null if cancun is not enabled.
+
 See EIP-4844:
 <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md#execution-layer-validation>
 
@@ -67,9 +69,10 @@ pub fn validateBlockEnviroment(self: EVMEnviroment, spec: SpecId) !void
 ```
 
 ### ValidateTransaction
-Validates the transaction enviroment.\
+Validates the transaction enviroment.
 For `CANCUN` enabled and later checks the gas price is not more than the transactions max
-and checks if the blob_hashes are correctly set.\
+and checks if the blob_hashes are correctly set.
+
 For before `CANCUN` checks if `blob_hashes` and `max_fee_per_blob_gas` are null / empty.
 
 ### Signature

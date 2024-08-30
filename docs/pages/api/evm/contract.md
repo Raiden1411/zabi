@@ -22,7 +22,7 @@ struct {
 ```
 
 ### Init
-Creates a contract instance from the provided inputs.\
+Creates a contract instance from the provided inputs.
 This will also prepare the provided bytecode in case it's given in a `raw` state.
 
 ### Signature
@@ -32,7 +32,7 @@ pub fn init(allocator: Allocator, data: []u8, bytecode: Bytecode, hash: ?Hash, v
 ```
 
 ### InitFromEnviroment
-Creates a contract instance from a given enviroment.\
+Creates a contract instance from a given enviroment.
 This will also prepare the provided bytecode in case it's given in a `raw` state.
 
 ### Signature

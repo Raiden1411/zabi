@@ -1,6 +1,6 @@
 ## L2WalletClient
-Optimism wallet client used for L1 interactions.\
-Currently only supports OP and not other chains of the superchain.\
+Optimism wallet client used for L1 interactions.
+Currently only supports OP and not other chains of the superchain.
 This implementation is not as robust as the `Wallet` implementation.
 
 ### Signature
@@ -10,10 +10,11 @@ pub fn L2WalletClient(client_type: Clients) type
 ```
 
 ## Init
-Starts the wallet client. Init options depend on the client type.\
+Starts the wallet client. Init options depend on the client type.
 This has all the expected L1 actions. If you are looking for L2 actions
 consider using `L2WalletClient`
-If the contracts are null it defaults to OP contracts.\
+
+If the contracts are null it defaults to OP contracts.
 Caller must deinit after use.
 
 ### Signature
@@ -42,7 +43,7 @@ pub fn depositTransaction(self: *WalletL2, deposit_envelope: DepositEnvelope) !R
 ```
 
 ## EstimateDepositTransaction
-Estimate the gas cost for the deposit transaction.\
+Estimate the gas cost for the deposit transaction.
 Uses the portalAddress. The data is expected to be hex abi encoded data.
 
 ### Signature

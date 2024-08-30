@@ -66,7 +66,7 @@ struct {
 ```
 
 ## ExplorerRequestResponse
-The response represented as a union of possible responses.\
+The response represented as a union of possible responses.
 Returns the `@error` field from json parsing in case the message is `NOK`.
 
 ### Signature
@@ -77,7 +77,7 @@ pub fn ExplorerRequestResponse(comptime T: type) type
 
 ## EndPoints
 
-Set of predefined block explorer endpoints.\
+Set of predefined block explorer endpoints.
 For now these must have support for TLS v1.3
 This only supports etherscan like block explorers.
 

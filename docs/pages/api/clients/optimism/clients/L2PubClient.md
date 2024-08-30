@@ -1,5 +1,5 @@
 ## L2Client
-Optimism client used for L2 interactions.\
+Optimism client used for L2 interactions.
 Currently only supports OP and not other chains of the superchain.
 
 ### Signature

@@ -1,5 +1,5 @@
 ## ConditionalJumpInstruction
-Runs the jumpi instruction opcode for the interpreter.\
+Runs the jumpi instruction opcode for the interpreter.
 0x57 -> JUMPI
 
 ### Signature
@@ -9,7 +9,7 @@ pub fn conditionalJumpInstruction(self: *Interpreter) !void
 ```
 
 ## ProgramCounterInstruction
-Runs the pc instruction opcode for the interpreter.\
+Runs the pc instruction opcode for the interpreter.
 0x58 -> PC
 
 ### Signature
@@ -19,7 +19,7 @@ pub fn programCounterInstruction(self: *Interpreter) !void
 ```
 
 ## JumpInstruction
-Runs the jump instruction opcode for the interpreter.\
+Runs the jump instruction opcode for the interpreter.
 0x56 -> JUMP
 
 ### Signature
@@ -29,7 +29,7 @@ pub fn jumpInstruction(self: *Interpreter) !void
 ```
 
 ## JumpDestInstruction
-Runs the jumpdest instruction opcode for the interpreter.\
+Runs the jumpdest instruction opcode for the interpreter.
 0x5B -> JUMPDEST
 
 ### Signature
@@ -39,7 +39,7 @@ pub fn jumpDestInstruction(self: *Interpreter) !void
 ```
 
 ## InvalidInstruction
-Runs the invalid instruction opcode for the interpreter.\
+Runs the invalid instruction opcode for the interpreter.
 0xFE -> INVALID
 
 ### Signature
@@ -49,7 +49,7 @@ pub fn invalidInstruction(self: *Interpreter) !void
 ```
 
 ## StopInstruction
-Runs the stop instruction opcode for the interpreter.\
+Runs the stop instruction opcode for the interpreter.
 0x00 -> STOP
 
 ### Signature
@@ -59,7 +59,7 @@ pub fn stopInstruction(self: *Interpreter) !void
 ```
 
 ## ReturnInstruction
-Runs the return instruction opcode for the interpreter.\
+Runs the return instruction opcode for the interpreter.
 0xF3 -> RETURN
 
 ### Signature
@@ -69,7 +69,7 @@ pub fn returnInstruction(self: *Interpreter) !void
 ```
 
 ## RevertInstruction
-Runs the rever instruction opcode for the interpreter.\
+Runs the rever instruction opcode for the interpreter.
 0xFD -> REVERT
 
 ### Signature

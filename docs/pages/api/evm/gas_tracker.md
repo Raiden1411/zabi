@@ -61,7 +61,7 @@ pub inline fn calculateCodeSizeCost(spec: SpecId, is_cold: bool) u64
 ```
 
 ## CalculateCostPerMemoryWord
-Calculates the gas cost per `Memory` word.\
+Calculates the gas cost per `Memory` word.
 Returns null in case of overflow.
 
 ### Signature
@@ -71,7 +71,7 @@ pub inline fn calculateCostPerMemoryWord(length: u64, multiple: u64) ?u64
 ```
 
 ## CalculateCreateCost
-Calculates the cost of using the `CREATE` opcode.\
+Calculates the cost of using the `CREATE` opcode.
 **PANICS** if the gas cost overflows
 
 ### Signature
@@ -81,7 +81,7 @@ pub inline fn calculateCreateCost(length: u64) u64
 ```
 
 ## CalculateCreate2Cost
-Calculates the cost of using the `CREATE2` opcode.\
+Calculates the cost of using the `CREATE2` opcode.
 Returns null in case of overflow.
 
 ### Signature
@@ -109,7 +109,7 @@ pub inline fn calculateExtCodeCopyCost(spec: SpecId, len: u64, is_cold: bool) ?u
 ```
 
 ## CalculateKeccakCost
-Calculates the cost of using the `KECCAK256` opcode.\
+Calculates the cost of using the `KECCAK256` opcode.
 Returns null in case of overflow.
 
 ### Signature

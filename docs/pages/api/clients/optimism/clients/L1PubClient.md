@@ -1,5 +1,5 @@
 ## L1Client
-Optimism client used for L1 interactions.\
+Optimism client used for L1 interactions.
 Currently only supports OP and not other chains of the superchain.
 
 ### Signature
@@ -28,10 +28,13 @@ pub fn deinit(self: *L1) void
 ```
 
 ## GetGame
-Retrieves a valid dispute game on an L2 that occurred after a provided L2 block number.\
-Returns an error if no game was found.\
+Retrieves a valid dispute game on an L2 that occurred after a provided L2 block number.
+Returns an error if no game was found.
+
 `limit` is the max amount of game to search
-`block_number` to filter only games that occurred after this block.\
+
+`block_number` to filter only games that occurred after this block.
+
 `strategy` is weather to provide the latest game or one at random with the scope of the games that where found given the filters.
 
 ### Signature
@@ -42,8 +45,10 @@ pub fn getGame(self: *L1, limit: usize, block_number: u256, strategy: enum { ran
 
 ## GetGames
 Retrieves the dispute games for an L2
+
 `limit` is the max amount of game to search
-`block_number` to filter only games that occurred after this block.\
+
+`block_number` to filter only games that occurred after this block.
 If null then it will return all games.
 
 ### Signature
@@ -71,7 +76,8 @@ pub fn getLatestProposedL2BlockNumber(self: *L1) !u64
 ```
 
 ## GetL2HashesForDepositTransaction
-Gets the l2 transaction hashes for the deposit transaction event.\
+Gets the l2 transaction hashes for the deposit transaction event.
+
 `hash` is expected to be the transaction hash from the deposit transaction.
 
 ### Signature
@@ -99,7 +105,8 @@ pub fn getL2OutputIndex(self: *L1, l2_block_number: u256) !u256
 ```
 
 ## GetPortalVersion
-Retrieves the current version of the Portal contract.\
+Retrieves the current version of the Portal contract.
+
 If the major is at least 3 it means that fault proofs are enabled.
 
 ### Signature
@@ -109,7 +116,8 @@ pub fn getPortalVersion(self: *L1) !SemanticVersion
 ```
 
 ## GetProvenWithdrawals
-Gets a proven withdrawal.\
+Gets a proven withdrawal.
+
 Will call the portal contract to get the information. If the timestamp is 0
 this will error with invalid withdrawal hash.
 
@@ -120,7 +128,8 @@ pub fn getProvenWithdrawals(self: *L1, withdrawal_hash: Hash) !ProvenWithdrawal
 ```
 
 ## GetSecondsToNextL2Output
-Gets the amount of time to wait in ms until the next output is posted.\
+Gets the amount of time to wait in ms until the next output is posted.
+
 Calls the l2OutputOracle to get this information.
 
 ### Signature
@@ -130,7 +139,8 @@ pub fn getSecondsToNextL2Output(self: *L1, latest_l2_block: u64) !u128
 ```
 
 ## GetSecondsToFinalize
-Gets the amount of time to wait until a withdrawal is finalized.\
+Gets the amount of time to wait until a withdrawal is finalized.
+
 Calls the l2OutputOracle to get this information.
 
 ### Signature
@@ -141,6 +151,7 @@ pub fn getSecondsToFinalize(self: *L1, withdrawal_hash: Hash) !u64
 
 ## GetSecondsToFinalizeGame
 Gets the amount of time to wait until a dispute game has finalized
+
 Uses the portal to find this information. Will error if the time is 0.
 
 ### Signature
@@ -159,7 +170,8 @@ pub fn getSecondsUntilNextGame(self: *L1, interval_buffer: f64, l2BlockNumber: u
 ```
 
 ## GetTransactionDepositEvents
-Gets the `TransactionDeposited` event logs from a transaction hash.\
+Gets the `TransactionDeposited` event logs from a transaction hash.
+
 To free the memory of this slice you will also need to loop through the
 returned slice and free the `opaqueData` field. Memory will be duped
 on that field because we destroy the Arena from the RPC request that owns
@@ -191,7 +203,7 @@ pub fn waitForNextGame(self: *L1, limit: usize, interval_buffer: f64, l2BlockNum
 ```
 
 ## WaitForNextL2Output
-Waits until the next L2 output is posted.\
+Waits until the next L2 output is posted.
 This will keep pooling until it can get the L2Output or it exceeds the max retries.
 
 ### Signature

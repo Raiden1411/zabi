@@ -13,7 +13,7 @@ pub fn deinit(self: @This()) void
 ```
 
 ## ParseTransaction
-Parses unsigned serialized transactions. Creates and arena to manage memory.\
+Parses unsigned serialized transactions. Creates and arena to manage memory.
 Caller needs to call deinit to free memory.
 
 ### Signature
@@ -68,7 +68,7 @@ pub fn parseLegacyTransaction(allocator: Allocator, serialized: []const u8) !Leg
 ```
 
 ## ParseSignedTransaction
-Parses signed serialized transactions. Creates and arena to manage memory.\
+Parses signed serialized transactions. Creates and arena to manage memory.
 Caller needs to call deinit to free memory.
 
 ### Signature

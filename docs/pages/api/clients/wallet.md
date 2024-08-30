@@ -55,7 +55,7 @@ TransactionEnvelopeQueue.Node
 
 ### FindTransactionEnvelope
 Finds a transaction envelope from the pool based on the
-transaction type. This is thread safe.\
+transaction type. This is thread safe.
 Returns null if no transaction was found
 
 ### Signature
@@ -92,7 +92,7 @@ pub fn releaseEnvelopeFromPool(pool: *TransactionEnvelopePool, node: *Node) void
 ```
 
 ### GetFirstElementFromPool
-Gets the last node from the pool and removes it.\
+Gets the last node from the pool and removes it.
 This is thread safe.
 
 ### Signature
@@ -102,7 +102,7 @@ pub fn getFirstElementFromPool(pool: *TransactionEnvelopePool, allocator: Alloca
 ```
 
 ### GetLastElementFromPool
-Gets the last node from the pool and removes it.\
+Gets the last node from the pool and removes it.
 This is thread safe.
 
 ### Signature
@@ -112,7 +112,7 @@ pub fn getLastElementFromPool(pool: *TransactionEnvelopePool, allocator: Allocat
 ```
 
 ### Deinit
-Destroys all created pointer. All future operations will deadlock.\
+Destroys all created pointer. All future operations will deadlock.
 This is thread safe.
 
 ### Signature
@@ -131,8 +131,9 @@ TransactionEnvelopeQueue.Node
 Creates a wallet instance based on which type of client defined in
 `WalletClients`. Depending on the type of client the underlaying methods
 of `rpc_client` can be changed. The http and websocket client do not
-mirror 100% in terms of their methods.\
-The client's methods can all be accessed under `rpc_client`.\
+mirror 100% in terms of their methods.
+
+The client's methods can all be accessed under `rpc_client`.
 The same goes for the signer.
 
 ### Signature
@@ -142,7 +143,7 @@ pub fn Wallet(comptime client_type: WalletClients) type
 ```
 
 ## Init
-Init wallet instance. Must call `deinit` to clean up.\
+Init wallet instance. Must call `deinit` to clean up.
 The init opts will depend on the `client_type`.
 
 ### Signature
@@ -152,7 +153,7 @@ pub fn init(private_key: ?Hash, opts: InitOpts) !*Wallet(client_type)
 ```
 
 ## AssertTransaction
-Asserts that the transactions is ready to be sent.\
+Asserts that the transactions is ready to be sent.
 Will return errors where the values are not expected
 
 ### Signature
@@ -171,8 +172,8 @@ pub fn findTransactionEnvelopeFromPool(self: *Wallet(client_type), search: Trans
 ```
 
 ## GetWalletAddress
-Get the wallet address.\
-Uses the wallet public key to generate the address.\
+Get the wallet address.
+Uses the wallet public key to generate the address.
 This will allocate and the returned address is already checksumed
 
 ### Signature
@@ -182,7 +183,7 @@ pub fn getWalletAddress(self: *Wallet(client_type)) Address
 ```
 
 ## PoolTransactionEnvelope
-Converts unprepared transaction envelopes and stores them in a pool.\
+Converts unprepared transaction envelopes and stores them in a pool.
 If you want to store transaction for the future it's best to manange
 the wallet nonce manually since otherwise they might get stored with
 the same nonce if the wallet was unable to update it.
@@ -194,8 +195,8 @@ pub fn poolTransactionEnvelope(self: *Wallet(client_type), unprepared_envelope: 
 ```
 
 ## PrepareTransaction
-Prepares a transaction based on it's type so that it can be sent through the network.\
-Only the null struct properties will get changed.\
+Prepares a transaction based on it's type so that it can be sent through the network.
+Only the null struct properties will get changed.
 Everything that gets set before will not be touched.
 
 ### Signature
@@ -205,8 +206,8 @@ pub fn prepareTransaction(self: *Wallet(client_type), unprepared_envelope: Unpre
 ```
 
 ## SearchPoolAndSendTransaction
-Search the internal `TransactionEnvelopePool` to find the specified transaction based on the `type` and nonce.\
-If there are duplicate transaction that meet the search criteria it will send the first it can find.\
+Search the internal `TransactionEnvelopePool` to find the specified transaction based on the `type` and nonce.
+If there are duplicate transaction that meet the search criteria it will send the first it can find.
 The search is linear and starts from the first node of the pool.
 
 ### Signature
@@ -245,7 +246,7 @@ pub fn sendSidecarTransaction(
 ```
 
 ## SendSignedTransaction
-Signs, serializes and send the transaction via `eth_sendRawTransaction`.\
+Signs, serializes and send the transaction via `eth_sendRawTransaction`.
 Returns the transaction hash.
 
 ### Signature
@@ -255,7 +256,7 @@ pub fn sendSignedTransaction(self: *Wallet(client_type), tx: TransactionEnvelope
 ```
 
 ## SendTransaction
-Prepares, asserts, signs and sends the transaction via `eth_sendRawTransaction`.\
+Prepares, asserts, signs and sends the transaction via `eth_sendRawTransaction`.
 If any envelope is in the envelope pool it will use that instead in a LIFO order
 Will return an error if the envelope is incorrect
 
@@ -266,7 +267,8 @@ pub fn sendTransaction(self: *Wallet(client_type), unprepared_envelope: Unprepar
 ```
 
 ## SignEthereumMessage
-Signs an ethereum message with the specified prefix.\
+Signs an ethereum message with the specified prefix.
+
 The Signatures recoverId doesn't include the chain_id
 
 ### Signature
@@ -278,18 +280,23 @@ pub fn signEthereumMessage(self: *Wallet(client_type), message: []const u8) !Sig
 ## SignTypedData
 Signs a EIP712 message according to the expecification
 https://eips.ethereum.org/EIPS/eip-712
+
 `types` parameter is expected to be a struct where the struct
 keys are used to grab the solidity type information so that the
 encoding and hashing can happen based on it. See the specification
-for more details.\
-`primary_type` is the expected main type that you want to hash this message.\
+for more details.
+
+`primary_type` is the expected main type that you want to hash this message.
 Compilation will fail if the provided string doesn't exist on the `types` parameter
+
 `domain` is the values of the defined EIP712Domain. Currently it doesnt not support custom
-domain types.\
+domain types.
+
 `message` is expected to be a struct where the solidity types are transalated to the native
-zig types. I.E string -> []const u8 or int256 -> i256 and so on.\
+zig types. I.E string -> []const u8 or int256 -> i256 and so on.
 In the future work will be done where the compiler will offer more clearer types
-base on a meta programming type function.\
+base on a meta programming type function.
+
 Returns the signature type.
 
 ### Signature
@@ -316,18 +323,23 @@ pub fn verifyMessage(self: *Wallet(client_type), sig: Signature, message: []cons
 ## VerifyTypedData
 Verifies a EIP712 message according to the expecification
 https://eips.ethereum.org/EIPS/eip-712
+
 `types` parameter is expected to be a struct where the struct
 keys are used to grab the solidity type information so that the
 encoding and hashing can happen based on it. See the specification
-for more details.\
-`primary_type` is the expected main type that you want to hash this message.\
+for more details.
+
+`primary_type` is the expected main type that you want to hash this message.
 Compilation will fail if the provided string doesn't exist on the `types` parameter
+
 `domain` is the values of the defined EIP712Domain. Currently it doesnt not support custom
-domain types.\
+domain types.
+
 `message` is expected to be a struct where the solidity types are transalated to the native
-zig types. I.E string -> []const u8 or int256 -> i256 and so on.\
+zig types. I.E string -> []const u8 or int256 -> i256 and so on.
 In the future work will be done where the compiler will offer more clearer types
-base on a meta programming type function.\
+base on a meta programming type function.
+
 Returns the signature type.
 
 ### Signature
@@ -344,9 +356,10 @@ pub fn verifyTypedData(
 ```
 
 ## WaitForTransactionReceipt
-Waits until the transaction gets mined and we can grab the receipt.\
-It fails if the retry counter is excedded.\
-The behaviour of this method varies based on the client type.\
+Waits until the transaction gets mined and we can grab the receipt.
+It fails if the retry counter is excedded.
+
+The behaviour of this method varies based on the client type.
 If it's called with the websocket client or the ipc client it will create a subscription for new block and wait
 until the transaction gets mined. Otherwise it will use the rpc_client `pooling_interval` property.
 

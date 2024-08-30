@@ -68,7 +68,7 @@ struct {
 ```
 
 ## Init
-Sets the interpreter to it's expected initial state.\
+Sets the interpreter to it's expected initial state.
 Copy's the contract's bytecode independent of it's state.
 
 ### Signature
@@ -97,8 +97,8 @@ pub fn runInstruction(self: *Interpreter) !void
 ```
 
 ## Run
-Runs the associated contract bytecode.\
-Depending on the interperter final `status` this can return errors.\
+Runs the associated contract bytecode.
+Depending on the interperter final `status` this can return errors.
 The bytecode that will get run will be padded with `STOP` instructions
 at the end to make sure that we don't have index out of bounds panics.
 

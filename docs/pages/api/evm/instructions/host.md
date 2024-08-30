@@ -1,5 +1,5 @@
 ## BalanceInstruction
-Runs the balance opcode for the interpreter.\
+Runs the balance opcode for the interpreter.
 0x31 -> BALANCE
 
 ### Signature
@@ -9,7 +9,7 @@ pub fn balanceInstruction(self: *Interpreter) !void
 ```
 
 ## BlockHashInstruction
-Runs the blockhash opcode for the interpreter.\
+Runs the blockhash opcode for the interpreter.
 0x40 -> BLOCKHASH
 
 ### Signature
@@ -19,7 +19,7 @@ pub fn blockHashInstruction(self: *Interpreter) !void
 ```
 
 ## ExtCodeCopyInstruction
-Runs the extcodecopy opcode for the interpreter.\
+Runs the extcodecopy opcode for the interpreter.
 0x3B -> EXTCODECOPY
 
 ### Signature
@@ -29,7 +29,7 @@ pub fn extCodeCopyInstruction(self: *Interpreter) !void
 ```
 
 ## ExtCodeHashInstruction
-Runs the extcodehash opcode for the interpreter.\
+Runs the extcodehash opcode for the interpreter.
 0x3F -> EXTCODEHASH
 
 ### Signature
@@ -39,7 +39,7 @@ pub fn extCodeHashInstruction(self: *Interpreter) !void
 ```
 
 ## ExtCodeSizeInstruction
-Runs the extcodesize opcode for the interpreter.\
+Runs the extcodesize opcode for the interpreter.
 0x3B -> EXTCODESIZE
 
 ### Signature
@@ -49,7 +49,7 @@ pub fn extCodeSizeInstruction(self: *Interpreter) !void
 ```
 
 ## LogInstruction
-Runs the logs opcode for the interpreter.\
+Runs the logs opcode for the interpreter.
 0xA0..0xA4 -> LOG0..LOG4
 
 ### Signature
@@ -59,7 +59,7 @@ pub fn logInstruction(self: *Interpreter, size: u8) !void
 ```
 
 ## SelfBalanceInstruction
-Runs the selfbalance opcode for the interpreter.\
+Runs the selfbalance opcode for the interpreter.
 0x47 -> SELFBALANCE
 
 ### Signature
@@ -69,7 +69,7 @@ pub fn selfBalanceInstruction(self: *Interpreter) !void
 ```
 
 ## SelfDestructInstruction
-Runs the selfbalance opcode for the interpreter.\
+Runs the selfbalance opcode for the interpreter.
 0xFF -> SELFDESTRUCT
 
 ### Signature
@@ -79,7 +79,7 @@ pub fn selfDestructInstruction(self: *Interpreter) !void
 ```
 
 ## SloadInstruction
-Runs the sload opcode for the interpreter.\
+Runs the sload opcode for the interpreter.
 0x54 -> SLOAD
 
 ### Signature
@@ -89,7 +89,7 @@ pub fn sloadInstruction(self: *Interpreter) !void
 ```
 
 ## SstoreInstruction
-Runs the sstore opcode for the interpreter.\
+Runs the sstore opcode for the interpreter.
 0x55 -> SSTORE
 
 ### Signature
@@ -99,7 +99,7 @@ pub fn sstoreInstruction(self: *Interpreter) !void
 ```
 
 ## TloadInstruction
-Runs the tload opcode for the interpreter.\
+Runs the tload opcode for the interpreter.
 0x5C -> TLOAD
 
 ### Signature
@@ -109,7 +109,7 @@ pub fn tloadInstruction(self: *Interpreter) !void
 ```
 
 ## TstoreInstruction
-Runs the tstore opcode for the interpreter.\
+Runs the tstore opcode for the interpreter.
 0x5D -> TSTORE
 
 ### Signature

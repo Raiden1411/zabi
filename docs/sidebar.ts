@@ -15,52 +15,76 @@ export const sidebar = {
 			collapsed: true,
 			items: [
 				{
-					text: "HTTP",
-					link: "/api/clients/Client",
+					text: "JsonRpc Clients",
+					collapsed: true,
+					items: [
+						{
+							text: "HTTP",
+							link: "/api/clients/Client",
+						},
+						{
+							text: "Websocket",
+							link: "/api/clients/Websocket",
+						},
+						{
+							text: "IPC",
+							link: "/api/clients/IPC",
+						},
+					],
 				},
 				{
-					text: "Websocket",
-					link: "/api/clients/Websocket",
+					text: "Wallet Clients",
+					collapsed: true,
+					items: [
+						{
+							text: "Wallet",
+							link: "/api/clients/wallet",
+						},
+						{
+							text: "Contract",
+							link: "/api/clients/contract",
+						},
+					],
 				},
 				{
-					text: "IPC",
-					link: "/api/clients/IPC",
+					text: "OpStack",
+					collapsed: true,
+					items: [
+						{
+							text: "L1 Public Client",
+							link: "/api/clients/optimism/clients/L1PubClient",
+						},
+						{
+							text: "L2 Public Client",
+							link: "/api/clients/optimism/clients/L2PubClient",
+						},
+						{
+							text: "L1 Wallet Client",
+							link: "/api/clients/optimism/clients/L1WalletClient",
+						},
+						{
+							text: "L2 Wallet Client",
+							link: "/api/clients/optimism/clients/L2WalletClient",
+						},
+					],
 				},
 				{
-					text: "Block Explorer",
-					link: "/api/clients/BlockExplorer",
-				},
-				{
-					text: "Wallet",
-					link: "/api/clients/wallet",
-				},
-				{
-					text: "Contract",
-					link: "/api/clients/contract",
-				},
-				{
-					text: "ENS",
-					link: "/api/clients/ens/ens",
-				},
-				{
-					text: "Multicall",
-					link: "/api/clients/multicall",
-				},
-				{
-					text: "OP L1 Public Client",
-					link: "/api/clients/optimism/clients/L1PubClient",
-				},
-				{
-					text: "OP L2 Public Client",
-					link: "/api/clients/optimism/clients/L2PubClient",
-				},
-				{
-					text: "OP L1 Wallet Client",
-					link: "/api/clients/optimism/clients/L1WalletClient",
-				},
-				{
-					text: "OP L2 Wallet Client",
-					link: "/api/clients/optimism/clients/L2WalletClient",
+					text: "Other",
+					collapsed: true,
+					items: [
+						{
+							text: "Block Explorer",
+							link: "/api/clients/BlockExplorer",
+						},
+						{
+							text: "ENS",
+							link: "/api/clients/ens/ens",
+						},
+						{
+							text: "Multicall",
+							link: "/api/clients/multicall",
+						},
+					],
 				},
 				{
 					text: "Test Clients",

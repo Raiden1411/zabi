@@ -106,7 +106,7 @@ enum {
 
 ## PublicChains
 
-Enum of know chains.\
+Enum of know chains.
 More will be added in the future.
 
 ### Properties
@@ -329,7 +329,7 @@ struct {
 
 ## EthereumErrorCodes
 
-Ethereum RPC error codes.\
+Ethereum RPC error codes.
 https://eips.ethereum.org/EIPS/eip-1474#error-codes
 
 ### Properties

@@ -1,5 +1,5 @@
 ## BaseFeeInstruction
-Performs the basefee instruction for the interpreter.\
+Performs the basefee instruction for the interpreter.
 0x48 -> BASEFEE
 
 ### Signature
@@ -9,7 +9,7 @@ pub fn baseFeeInstruction(self: *Interpreter) !void
 ```
 
 ## BlobBaseFeeInstruction
-Performs the blobbasefee instruction for the interpreter.\
+Performs the blobbasefee instruction for the interpreter.
 0x4A -> BLOBBASEFEE
 
 ### Signature
@@ -19,7 +19,7 @@ pub fn blobBaseFeeInstruction(self: *Interpreter) !void
 ```
 
 ## BlobHashInstruction
-Performs the blobhash instruction for the interpreter.\
+Performs the blobhash instruction for the interpreter.
 0x49 -> BLOBHASH
 
 ### Signature
@@ -29,7 +29,7 @@ pub fn blobHashInstruction(self: *Interpreter) !void
 ```
 
 ## BlockNumberInstruction
-Performs the number instruction for the interpreter.\
+Performs the number instruction for the interpreter.
 0x43 -> NUMBER
 
 ### Signature
@@ -39,7 +39,7 @@ pub fn blockNumberInstruction(self: *Interpreter) !void
 ```
 
 ## ChainIdInstruction
-Performs the chainid instruction for the interpreter.\
+Performs the chainid instruction for the interpreter.
 0x46 -> CHAINID
 
 ### Signature
@@ -49,7 +49,7 @@ pub fn chainIdInstruction(self: *Interpreter) !void
 ```
 
 ## CoinbaseInstruction
-Performs the coinbase instruction for the interpreter.\
+Performs the coinbase instruction for the interpreter.
 0x41 -> COINBASE
 
 ### Signature
@@ -59,7 +59,7 @@ pub fn coinbaseInstruction(self: *Interpreter) !void
 ```
 
 ## DifficultyInstruction
-Performs the prevrandao/difficulty instruction for the interpreter.\
+Performs the prevrandao/difficulty instruction for the interpreter.
 0x44 -> PREVRANDAO/DIFFICULTY
 
 ### Signature
@@ -69,7 +69,7 @@ pub fn difficultyInstruction(self: *Interpreter) !void
 ```
 
 ## GasLimitInstruction
-Performs the gaslimit instruction for the interpreter.\
+Performs the gaslimit instruction for the interpreter.
 0x45 -> GASLIMIT
 
 ### Signature
@@ -79,7 +79,7 @@ pub fn gasLimitInstruction(self: *Interpreter) !void
 ```
 
 ## GasPriceInstruction
-Performs the gasprice instruction for the interpreter.\
+Performs the gasprice instruction for the interpreter.
 0x3A -> GASPRICE
 
 ### Signature
@@ -89,7 +89,7 @@ pub fn gasPriceInstruction(self: *Interpreter) !void
 ```
 
 ## OriginInstruction
-Performs the origin instruction for the interpreter.\
+Performs the origin instruction for the interpreter.
 0x32 -> ORIGIN
 
 ### Signature
@@ -99,7 +99,7 @@ pub fn originInstruction(self: *Interpreter) !void
 ```
 
 ## TimestampInstruction
-Performs the timestamp instruction for the interpreter.\
+Performs the timestamp instruction for the interpreter.
 0x42 -> TIMESTAMP
 
 ### Signature

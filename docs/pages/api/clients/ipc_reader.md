@@ -1,8 +1,9 @@
 ## IpcReader
 
 Socket reader that is expected to be reading socket messages
-that are json messages. Growth is linearly based on the provided `growth_rate`.\
-Will only allocate more memory if required.\
+that are json messages. Growth is linearly based on the provided `growth_rate`.
+
+Will only allocate more memory if required.
 Calling `deinit` will close the socket and clear the buffer.
 
 ### Properties
@@ -76,8 +77,8 @@ pub fn jsonMessage(self: *@This()) usize
 ```
 
 ### ReadMessage
-Reads one message from the socket stream.\
-Will only make the socket read request if the buffer is at max capacity.\
+Reads one message from the socket stream.
+Will only make the socket read request if the buffer is at max capacity.
 Will grow the buffer as needed.
 
 ### Signature

@@ -1,5 +1,5 @@
 ## AddInstruction
-Performs add instruction for the interpreter.\
+Performs add instruction for the interpreter.
 ADD -> 0x01
 
 ### Signature
@@ -9,7 +9,7 @@ pub fn addInstruction(self: *Interpreter) !void
 ```
 
 ## DivInstruction
-Performs div instruction for the interpreter.\
+Performs div instruction for the interpreter.
 DIV -> 0x04
 
 ### Signature
@@ -19,7 +19,7 @@ pub fn divInstruction(self: *Interpreter) !void
 ```
 
 ## ExponentInstruction
-Performs exponent instruction for the interpreter.\
+Performs exponent instruction for the interpreter.
 EXP -> 0x0A
 
 ### Signature
@@ -29,7 +29,7 @@ pub fn exponentInstruction(self: *Interpreter) !void
 ```
 
 ## ModAdditionInstruction
-Performs addition + mod instruction for the interpreter.\
+Performs addition + mod instruction for the interpreter.
 ADDMOD -> 0x08
 
 ### Signature
@@ -39,7 +39,7 @@ pub fn modAdditionInstruction(self: *Interpreter) !void
 ```
 
 ## ModInstruction
-Performs mod instruction for the interpreter.\
+Performs mod instruction for the interpreter.
 MOD -> 0x06
 
 ### Signature
@@ -49,7 +49,7 @@ pub fn modInstruction(self: *Interpreter) !void
 ```
 
 ## ModMultiplicationInstruction
-Performs mul + mod instruction for the interpreter.\
+Performs mul + mod instruction for the interpreter.
 MULMOD -> 0x09
 
 ### Signature
@@ -59,7 +59,7 @@ pub fn modMultiplicationInstruction(self: *Interpreter) !void
 ```
 
 ## MulInstruction
-Performs mul instruction for the interpreter.\
+Performs mul instruction for the interpreter.
 MUL -> 0x02
 
 ### Signature
@@ -69,7 +69,7 @@ pub fn mulInstruction(self: *Interpreter) !void
 ```
 
 ## SignedDivInstruction
-Performs signed division instruction for the interpreter.\
+Performs signed division instruction for the interpreter.
 SDIV -> 0x05
 
 ### Signature
@@ -79,7 +79,7 @@ pub fn signedDivInstruction(self: *Interpreter) !void
 ```
 
 ## SignExtendInstruction
-Performs signextend instruction for the interpreter.\
+Performs signextend instruction for the interpreter.
 SIGNEXTEND -> 0x0B
 
 ### Signature
@@ -89,7 +89,7 @@ pub fn signExtendInstruction(self: *Interpreter) !void
 ```
 
 ## SignedModInstruction
-Performs sub instruction for the interpreter.\
+Performs sub instruction for the interpreter.
 SMOD -> 0x07
 
 ### Signature
@@ -99,7 +99,7 @@ pub fn signedModInstruction(self: *Interpreter) !void
 ```
 
 ## SubInstruction
-Performs sub instruction for the interpreter.\
+Performs sub instruction for the interpreter.
 SUB -> 0x03
 
 ### Signature

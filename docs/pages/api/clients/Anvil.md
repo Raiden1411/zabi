@@ -57,7 +57,8 @@ enum {
 
 ## AnvilStartOptions
 
-All startup options for starting an anvil proccess.\
+All startup options for starting an anvil proccess.
+
 All `null` or `false` will not be emitted if you use `parseToArgumentsSlice`
 
 ### Properties
@@ -157,7 +158,7 @@ struct {
 ```
 
 ## InitClient
-Inits the client but doesn't start a seperate process.\
+Inits the client but doesn't start a seperate process.
 Use this if you already have an `anvil` instance running
 
 ### Signature
@@ -168,7 +169,8 @@ pub fn initClient(self: *Anvil, options: InitOptions) void
 
 ## InitProcess
 Start the `anvil` as a child process. The arguments list will be created based on
-`AnvilStartOptions`. This will need to allocate memory since it will create the list.\
+`AnvilStartOptions`. This will need to allocate memory since it will create the list.
+
 If `options` are set to their default value it will only start with `anvil` and no arguments.
 
 ### Signature

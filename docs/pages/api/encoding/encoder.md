@@ -41,7 +41,7 @@ pub fn deinit(self: @This()) void
 ```
 
 ## EncodeAbiConstructorComptime
-Encode the struct signature based on the values provided.\
+Encode the struct signature based on the values provided.
 Caller owns the memory.
 
 ### Signature
@@ -51,7 +51,7 @@ pub fn encodeAbiConstructorComptime(allocator: Allocator, comptime constructor: 
 ```
 
 ## EncodeAbiErrorComptime
-Encode the struct signature based on the values provided.\
+Encode the struct signature based on the values provided.
 Caller owns the memory.
 
 ### Signature
@@ -61,7 +61,7 @@ pub fn encodeAbiErrorComptime(allocator: Allocator, comptime err: Error, values:
 ```
 
 ## EncodeAbiFunctionComptime
-Encode the struct signature based on the values provided.\
+Encode the struct signature based on the values provided.
 Caller owns the memory.
 
 ### Signature
@@ -71,7 +71,7 @@ pub fn encodeAbiFunctionComptime(allocator: Allocator, comptime function: Functi
 ```
 
 ## EncodeAbiFunctionOutputsComptime
-Encode the struct signature based on the values provided.\
+Encode the struct signature based on the values provided.
 Caller owns the memory.
 
 ### Signature
@@ -81,8 +81,9 @@ pub fn encodeAbiFunctionOutputsComptime(allocator: Allocator, comptime function:
 ```
 
 ## EncodeAbiParametersComptime
-Main function that will be used to encode abi paramters.\
-This will allocate and a ArenaAllocator will be used to manage the memory.\
+Main function that will be used to encode abi paramters.
+This will allocate and a ArenaAllocator will be used to manage the memory.
+
 Caller owns the memory.
 
 ### Signature
@@ -94,7 +95,8 @@ pub fn encodeAbiParametersComptime(alloc: Allocator, comptime parameters: []cons
 ## EncodeAbiParametersLeakyComptime
 Subset function used for encoding. Its highly recommend to use an ArenaAllocator
 or a FixedBufferAllocator to manage memory since allocations will not be freed when done,
-and with those all of the memory can be freed at once.\
+and with those all of the memory can be freed at once.
+
 Caller owns the memory.
 
 ### Signature
@@ -104,11 +106,13 @@ pub fn encodeAbiParametersLeakyComptime(alloc: Allocator, comptime params: []con
 ```
 
 ## EncodeAbiParameters
-Main function that will be used to encode abi paramters.\
-This will allocate and a ArenaAllocator will be used to manage the memory.\
-Caller owns the memory.\
+Main function that will be used to encode abi paramters.
+This will allocate and a ArenaAllocator will be used to manage the memory.
+
+Caller owns the memory.
+
 If the parameters are comptime know consider using `encodeAbiParametersComptime`
-This will provided type safe values to be passed into the function.\
+This will provided type safe values to be passed into the function.
 However runtime reflection will happen to best determine what values should be used based
 on the parameters passed in.
 
@@ -121,10 +125,12 @@ pub fn encodeAbiParameters(alloc: Allocator, parameters: []const AbiParameter, v
 ## EncodeAbiParametersLeaky
 Subset function used for encoding. Its highly recommend to use an ArenaAllocator
 or a FixedBufferAllocator to manage memory since allocations will not be freed when done,
-and with those all of the memory can be freed at once.\
-Caller owns the memory.\
+and with those all of the memory can be freed at once.
+
+Caller owns the memory.
+
 If the parameters are comptime know consider using `encodeAbiParametersComptimeLeaky`
-This will provided type safe values to be passed into the function.\
+This will provided type safe values to be passed into the function.
 However runtime reflection will happen to best determine what values should be used based
 on the parameters passed in.
 
@@ -135,8 +141,9 @@ pub fn encodeAbiParametersLeaky(alloc: Allocator, params: []const AbiParameter, 
 ```
 
 ## EncodePacked
-Encode values based on solidity's `encodePacked`.\
-Solidity types are infered from zig ones since it closely follows them.\
+Encode values based on solidity's `encodePacked`.
+Solidity types are infered from zig ones since it closely follows them.
+
 Caller owns the memory and it must free them.
 
 ### Signature

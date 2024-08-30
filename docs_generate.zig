@@ -157,9 +157,6 @@ pub const DocsGenerator = struct {
 
             const comments = slice[3..];
 
-            if (comments.len == 0)
-                continue;
-
             try lines.append(if (comments[0] != ' ') comments else comments[1..]);
         }
 
@@ -171,11 +168,8 @@ pub const DocsGenerator = struct {
 
         var writer = list.writer();
 
-        for (lines_slice, 0..) |line, i| {
+        for (lines_slice) |line| {
             try writer.writeAll(line);
-
-            if (i < lines_slice.len - 1 and line[line.len - 1] == '.')
-                try writer.writeAll("\\");
 
             try writer.writeAll("\n");
         }

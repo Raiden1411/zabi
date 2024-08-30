@@ -8,8 +8,10 @@ pub fn ConvertToEnum(comptime T: type) type
 ```
 
 ## Extract
-Type function use to extract enum members from any enum.\
-The needle can be just the tagName of a single member or a comma seperated value.\
+Type function use to extract enum members from any enum.
+
+The needle can be just the tagName of a single member or a comma seperated value.
+
 Compilation will fail if a invalid needle is provided.
 
 ### Signature

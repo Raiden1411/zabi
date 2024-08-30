@@ -107,6 +107,9 @@ const protocol_map = std.StaticStringMap(HttpConnection.Protocol).initComptime(.
     .{ "wss", .tls },
 });
 
+/// Init options for defining the initial state of the http/s client.
+///
+/// Consider using the network options defined [here](/api/clients/network#ethereum_mainnet) if you need a default network config.
 pub const InitOptions = struct {
     /// Allocator used to manage the memory arena.
     allocator: Allocator,
@@ -125,9 +128,29 @@ network_config: NetworkConfig,
 
 const PubClient = @This();
 
-/// Init the client instance. Caller must call `deinit` to free the memory.
+/// Sets the clients initial state. This is the HTTP/S implementation of the JSON RPC client.
+///
 /// Most of the client method are replicas of the JSON RPC methods name with the `eth_` start.
-/// The client will handle request with 429 errors via exponential backoff but not the rest.
+///
+/// The client will handle request with 429 errors via exponential backoff
+/// but not the rest of the http error codes.
+///
+/// **Example:**
+/// ```zig
+/// const std = @import("std");
+/// const zabi = @import("zabi");
+///
+/// const RpcClient = zabi.clients.PubClient;
+///
+/// const allocator = std.heap.page_allocator;
+/// const uri = std.Uri.parse("http://localhost:8545/");
+///
+/// var client = try RpcClient.init(.{
+///     .network_config = .{.endpoint = .{.uri = uri }, .chain_id = .ethereum, },
+///     .allocator = allocator,
+/// })
+/// defer client.deinit();
+/// ```
 pub fn init(opts: InitOptions) !*PubClient {
     const self = try opts.allocator.create(PubClient);
     errdefer opts.allocator.destroy(self);
@@ -147,7 +170,7 @@ pub fn init(opts: InitOptions) !*PubClient {
 
     return self;
 }
-/// Clears the memory arena and destroys all pointers created
+/// Clears all allocated memory and destroys any created pointers.
 pub fn deinit(self: *PubClient) void {
     std.debug.assert(self.network_config.endpoint == .uri); // Invalid config.
 
@@ -176,8 +199,10 @@ pub fn deinit(self: *PubClient) void {
     const allocator = self.allocator;
     allocator.destroy(self);
 }
-/// Connects to the RPC server and relases the connection from the client pool.
-/// This is done so that future fetchs can use the connection that is already freed.
+/// Connects to the target JSON-RPC endpoint.
+///
+/// In case of failure this will retry the connect by the amount of times defined in the `network_config`.\
+/// This also increments the waiting period by the `pooling_interval` set in the initial config.
 pub fn connectRpcServer(self: *PubClient) !*HttpConnection {
     const uri = self.network_config.getNetworkUri() orelse return error.InvalidEndpointConfig;
 
@@ -230,7 +255,7 @@ pub fn connectRpcServer(self: *PubClient) !*HttpConnection {
 
     return connection;
 }
-/// Grabs the current base blob fee.
+/// Grabs the current base blob fee. Make sure that your endpoint supports `eth_blobBaseFee`
 ///
 /// RPC Method: [eth_blobBaseFee](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_blobbasefee)
 pub fn blobBaseFee(self: *PubClient) !RPCResponse(Gwei) {
@@ -239,11 +264,32 @@ pub fn blobBaseFee(self: *PubClient) !RPCResponse(Gwei) {
 /// Create an accessList of addresses and storageKeys for an transaction to access
 ///
 /// RPC Method: [eth_createAccessList](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_createaccesslist)
+///
+/// **Example:**
+/// ```zig
+/// const std = @import("std");
+/// const zabi = @import("zabi");
+///
+/// const RpcClient = zabi.clients.PubClient;
+///
+/// const allocator = std.heap.page_allocator;
+/// const uri = std.Uri.parse("http://localhost:8545/");
+///
+/// var client = try RpcClient.init(.{
+///     .network_config = .{.endpoint = .{.uri = uri }, .chain_id = .ethereum, },
+///     .allocator = allocator,
+/// })
+/// defer client.deinit();
+///
+/// const access = try client.createAccessList(.{ .london = .{ .value = 10 } }, .{});
+/// defer access.deinit();
+/// ```
 pub fn createAccessList(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(AccessListResult) {
     return self.sendEthCallRequest(AccessListResult, call_object, opts, .eth_createAccessList);
 }
-/// Estimate the gas used for blobs
-/// Uses `blobBaseFee` and `gasPrice` to calculate this estimation
+/// Estimate the gas used for blobs.
+///
+/// Uses `blobBaseFee` and `gasPrice` to calculate this estimation.
 pub fn estimateBlobMaxFeePerGas(self: *PubClient) !Gwei {
     const base = try self.blobBaseFee();
     defer base.deinit();
@@ -253,9 +299,31 @@ pub fn estimateBlobMaxFeePerGas(self: *PubClient) !Gwei {
 
     return if (base.response > gas_price.response) 0 else gas_price.response - base.response;
 }
-/// Estimate maxPriorityFeePerGas and maxFeePerGas. Will make more than one network request.
+/// Estimate `maxPriorityFeePerGas` and `maxFeePerGas` for london enabled chains and `gasPrice` if not.\
+/// This method will make multiple http requests in order to calculate this.
+///
 /// Uses the `baseFeePerGas` included in the block to calculate the gas fees.
+///
 /// Will return an error in case the `baseFeePerGas` is null.
+///
+/// **Example:**
+/// ```zig
+/// const std = @import("std");
+/// const zabi = @import("zabi");
+///
+/// const RpcClient = zabi.clients.PubClient;
+///
+/// const allocator = std.heap.page_allocator;
+/// const uri = std.Uri.parse("http://localhost:8545/");
+///
+/// var client = try RpcClient.init(.{
+///     .network_config = .{.endpoint = .{.uri = uri }, .chain_id = .ethereum, },
+///     .allocator = allocator,
+/// })
+/// defer client.deinit();
+///
+/// const fees = try client.estimateFeesPerGas(.{ .london = .{ .value = 10 } }, null);
+/// defer fees.deinit();
 pub fn estimateFeesPerGas(self: *PubClient, call_object: EthCall, base_fee_per_gas: ?Gwei) !EstimateFeeReturn {
     const current_fee: ?Gwei = block: {
         if (base_fee_per_gas) |fee| break :block fee;
@@ -300,16 +368,40 @@ pub fn estimateFeesPerGas(self: *PubClient, call_object: EthCall, base_fee_per_g
     }
 }
 /// Generates and returns an estimate of how much gas is necessary to allow the transaction to complete.
+///
 /// The transaction will not be added to the blockchain.
+///
 /// Note that the estimate may be significantly more than the amount of gas actually used by the transaction,
 /// for a variety of reasons including EVM mechanics and node performance.
 ///
 /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
+///
+/// **Example:**
+/// ```zig
+/// const std = @import("std");
+/// const zabi = @import("zabi");
+///
+/// const RpcClient = zabi.clients.PubClient;
+///
+/// const allocator = std.heap.page_allocator;
+/// const uri = std.Uri.parse("http://localhost:8545/");
+///
+/// var client = try RpcClient.init(.{
+///     .network_config = .{.endpoint = .{.uri = uri }, .chain_id = .ethereum, },
+///     .allocator = allocator,
+/// })
+/// defer client.deinit();
+///
+/// const gas = try client.estimateGas(.{ .london = .{ .value = 10 } }, .{});
+/// defer gas.deinit();
 pub fn estimateGas(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Gwei) {
     return self.sendEthCallRequest(Gwei, call_object, opts, .eth_estimateGas);
 }
-/// Estimates maxPriorityFeePerGas manually. If the node you are currently using
-/// supports `eth_maxPriorityFeePerGas` consider using `estimateMaxFeePerGas`.
+/// Estimates `maxPriorityFeePerGas` manually.
+///
+/// Gets the information based on the latest block if `base_fee_per_gas` is set to null.
+///
+/// If the node you are currently using supports `eth_maxPriorityFeePerGas` consider using [estimateMaxFeePerGas](/api/clients/Client#estimateMaxFeePerGas).
 pub fn estimateMaxFeePerGasManual(self: *PubClient, base_fee_per_gas: ?Gwei) !Gwei {
     const current_fee: ?Gwei = block: {
         if (base_fee_per_gas) |fee| break :block fee;
@@ -387,11 +479,8 @@ pub fn getBlockByHash(self: *PubClient, opts: BlockHashRequest) !RPCResponse(Blo
 }
 /// Returns information about a block by hash.
 ///
-/// Ask for a expected type since the way that our json parser works
-/// on unions it will try to parse it until it can complete it for a
-/// union member. This can be slow so if you know exactly what is the
-/// expected type you can pass it and it will return the json parsed
-/// response.
+/// Consider using this method if the provided `Block` types fail to json parse the request and
+/// you know extractly the shape of the data that the block is expected to be like.
 ///
 /// RPC Method: [eth_getBlockByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblockbyhash)
 pub fn getBlockByHashType(self: *PubClient, comptime T: type, opts: BlockHashRequest) !RPCResponse(T) {
@@ -408,7 +497,7 @@ pub fn getBlockByHashType(self: *PubClient, comptime T: type, opts: BlockHashReq
 
     try std.json.stringify(request, .{}, buf_writter.writer());
 
-    const request_block = try self.sendRpcRequest(?Block, buf_writter.getWritten());
+    const request_block = try self.sendRpcRequest(?T, buf_writter.getWritten());
     errdefer request_block.deinit();
 
     const block_info = request_block.response orelse return error.InvalidBlockHash;
@@ -426,11 +515,8 @@ pub fn getBlockByNumber(self: *PubClient, opts: BlockRequest) !RPCResponse(Block
 }
 /// Returns information about a block by number.
 ///
-/// Ask for a expected type since the way that our json parser works
-/// on unions it will try to parse it until it can complete it for a
-/// union member. This can be slow so if you know exactly what is the
-/// expected type you can pass it and it will return the json parsed
-/// response.
+/// Consider using this method if the provided `Block` types fail to json parse the request and
+/// you know extractly the shape of the data that the block is expected to be like.
 ///
 /// RPC Method: [eth_getBlockByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblockbynumber)
 pub fn getBlockByNumberType(self: *PubClient, comptime T: type, opts: BlockRequest) !RPCResponse(T) {
@@ -458,7 +544,7 @@ pub fn getBlockByNumberType(self: *PubClient, comptime T: type, opts: BlockReque
         try std.json.stringify(request, .{}, buf_writter.writer());
     }
 
-    const request_block = try self.sendRpcRequest(?Block, buf_writter.getWritten());
+    const request_block = try self.sendRpcRequest(?T, buf_writter.getWritten());
     errdefer request_block.deinit();
 
     const block_info = request_block.response orelse return error.InvalidBlockNumber;
@@ -505,8 +591,9 @@ pub fn getContractCode(self: *PubClient, opts: BalanceRequest) !RPCResponse(Hex)
     return self.sendAddressRequest(Hex, opts, .eth_getCode);
 }
 /// Polling method for a filter, which returns an array of logs which occurred since last poll or
-/// Returns an array of all logs matching filter with given id depending on the selected method
-/// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterchanges
+/// returns an array of all logs matching filter with given id depending on the selected method
+///
+/// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterchanges \
 /// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterlogs
 pub fn getFilterOrLogChanges(self: *PubClient, filter_id: u128, method: EthereumRpcMethods) !RPCResponse(Logs) {
     var request_buffer: [1024]u8 = undefined;
@@ -716,11 +803,8 @@ pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: Hash, ind
 }
 /// Returns information about a transaction by block hash and transaction index position.
 ///
-/// Ask for a expected type since the way that our json parser works
-/// on unions it will try to parse it until it can complete it for a
-/// union member. This can be slow so if you know exactly what is the
-/// expected type you can pass it and it will return the json parsed
-/// response.
+/// Consider using this method if the provided `Transaction` types fail to json parse the request and
+/// you know extractly the shape of the data that the transaction is expected to be like.
 ///
 /// RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblockhashandindex)
 pub fn getTransactionByBlockHashAndIndexType(self: *PubClient, comptime T: type, block_hash: Hash, index: usize) !RPCResponse(T) {
@@ -735,7 +819,7 @@ pub fn getTransactionByBlockHashAndIndexType(self: *PubClient, comptime T: type,
 
     try std.json.stringify(request, .{}, buf_writter.writer());
 
-    const possible_tx = try self.sendRpcRequest(?Transaction, buf_writter.getWritten());
+    const possible_tx = try self.sendRpcRequest(?T, buf_writter.getWritten());
     errdefer possible_tx.deinit();
 
     const tx = possible_tx.response orelse return error.TransactionNotFound;
@@ -750,11 +834,8 @@ pub fn getTransactionByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRe
 }
 /// Returns information about a transaction by block number and transaction index position.
 ///
-/// Ask for a expected type since the way that our json parser works
-/// on unions it will try to parse it until it can complete it for a
-/// union member. This can be slow so if you know exactly what is the
-/// expected type you can pass it and it will return the json parsed
-/// response.
+/// Consider using this method if the provided `Transaction` types fail to json parse the request and
+/// you know extractly the shape of the data that the transaction is expected to be like.
 ///
 /// RPC Method: [eth_getTransactionByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblocknumberandindex)
 pub fn getTransactionByBlockNumberAndIndexType(self: *PubClient, comptime T: type, opts: BlockNumberRequest, index: usize) !RPCResponse(T) {
@@ -781,7 +862,7 @@ pub fn getTransactionByBlockNumberAndIndexType(self: *PubClient, comptime T: typ
         try std.json.stringify(request, .{}, buf_writter.writer());
     }
 
-    const possible_tx = try self.sendRpcRequest(?Transaction, buf_writter.getWritten());
+    const possible_tx = try self.sendRpcRequest(?T, buf_writter.getWritten());
     errdefer possible_tx.deinit();
 
     const tx = possible_tx.response orelse return error.TransactionNotFound;
@@ -799,11 +880,8 @@ pub fn getTransactionByHash(self: *PubClient, transaction_hash: Hash) !RPCRespon
 }
 /// Returns the information about a transaction requested by transaction hash.
 ///
-/// Ask for a expected type since the way that our json parser works
-/// on unions it will try to parse it until it can complete it for a
-/// union member. This can be slow so if you know exactly what is the
-/// expected type you can pass it and it will return the json parsed
-/// response.
+/// Consider using this method if the provided `Transaction` types fail to json parse the request and
+/// you know extractly the shape of the data that the transaction is expected to be like.
 ///
 /// RPC Method: [eth_getTransactionByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyhash)
 pub fn getTransactionByHashType(self: *PubClient, comptime T: type, transaction_hash: Hash) !RPCResponse(T) {
@@ -818,7 +896,7 @@ pub fn getTransactionByHashType(self: *PubClient, comptime T: type, transaction_
 
     try std.json.stringify(request, .{}, buf_writter.writer());
 
-    const possible_tx = try self.sendRpcRequest(?Transaction, buf_writter.getWritten());
+    const possible_tx = try self.sendRpcRequest(?T, buf_writter.getWritten());
     errdefer possible_tx.deinit();
 
     const tx = possible_tx.response orelse return error.TransactionNotFound;
@@ -830,8 +908,17 @@ pub fn getTransactionByHashType(self: *PubClient, comptime T: type, transaction_
 }
 /// Returns the receipt of a transaction by transaction hash.
 ///
+/// Consider using this method if the provided `TransactionReceipt` types fail to json parse the request and
+/// you know extractly the shape of the data that the receipt is expected to be like.
+///
 /// RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
 pub fn getTransactionReceipt(self: *PubClient, transaction_hash: Hash) !RPCResponse(TransactionReceipt) {
+    return self.getTransactionReceiptType(TransactionReceipt, transaction_hash);
+}
+/// Returns the receipt of a transaction by transaction hash.
+///
+/// RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
+pub fn getTransactionReceiptType(self: *PubClient, comptime T: type, transaction_hash: Hash) !RPCResponse(TransactionReceipt) {
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{transaction_hash},
         .method = .eth_getTransactionReceipt,
@@ -843,7 +930,7 @@ pub fn getTransactionReceipt(self: *PubClient, transaction_hash: Hash) !RPCRespo
 
     try std.json.stringify(request, .{}, buf_writter.writer());
 
-    const possible_receipt = try self.sendRpcRequest(?TransactionReceipt, buf_writter.getWritten());
+    const possible_receipt = try self.sendRpcRequest(?T, buf_writter.getWritten());
     errdefer possible_receipt.deinit();
 
     const receipt = possible_receipt.response orelse return error.TransactionReceiptNotFound;
@@ -856,8 +943,8 @@ pub fn getTransactionReceipt(self: *PubClient, transaction_hash: Hash) !RPCRespo
 /// The content inspection property can be queried to list the exact details of all the transactions currently pending for inclusion in the next block(s),
 /// as well as the ones that are being scheduled for future execution only.
 ///
-/// The result is an object with two fields pending and queued.
-/// Each of these fields are associative arrays, in which each entry maps an origin-address to a batch of scheduled transactions.
+/// The result is an object with two fields pending and queued.\
+/// Each of these fields are associative arrays, in which each entry maps an origin-address to a batch of scheduled transactions.\
 /// These batches themselves are maps associating nonces with actual transactions.
 ///
 /// RPC Method: [txpool_content](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
@@ -882,7 +969,7 @@ pub fn getTxPoolContentFrom(self: *PubClient, from: Address) !RPCResponse([]cons
     return self.sendRpcRequest([]const PoolTransactionByNonce, buf_writter.getWritten());
 }
 /// The inspect inspection property can be queried to list a textual summary of all the transactions currently pending for inclusion in the next block(s),
-/// as well as the ones that are being scheduled for future execution only.
+/// as well as the ones that are being scheduled for future execution only.\
 /// This is a method specifically tailored to developers to quickly see the transactions in the pool and find any potential issues.
 ///
 /// RPC Method: [txpool_inspect](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
@@ -904,11 +991,8 @@ pub fn getUncleByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: us
 }
 /// Returns information about a uncle of a block by hash and uncle index position.
 ///
-/// Ask for a expected type since the way that our json parser works
-/// on unions it will try to parse it until it can complete it for a
-/// union member. This can be slow so if you know exactly what is the
-/// expected type you can pass it and it will return the json parsed
-/// response.
+/// Consider using this method if the provided `Block` types fail to json parse the request and
+/// you know extractly the shape of the data that the block is expected to be like.
 ///
 /// RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblockhashandindex)
 pub fn getUncleByBlockHashAndIndexType(self: *PubClient, comptime T: type, block_hash: Hash, index: usize) !RPCResponse(T) {
@@ -923,7 +1007,7 @@ pub fn getUncleByBlockHashAndIndexType(self: *PubClient, comptime T: type, block
 
     try std.json.stringify(request, .{}, buf_writter.writer());
 
-    const request_block = try self.sendRpcRequest(?Block, buf_writter.getWritten());
+    const request_block = try self.sendRpcRequest(?T, buf_writter.getWritten());
     errdefer request_block.deinit();
 
     const block_info = request_block.response orelse return error.InvalidBlockHashOrIndex;
@@ -941,11 +1025,8 @@ pub fn getUncleByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRequest,
 }
 /// Returns information about a uncle of a block by number and uncle index position.
 ///
-/// Ask for a expected type since the way that our json parser works
-/// on unions it will try to parse it until it can complete it for a
-/// union member. This can be slow so if you know exactly what is the
-/// expected type you can pass it and it will return the json parsed
-/// response.
+/// Consider using this method if the provided `Block` types fail to json parse the request and
+/// you know extractly the shape of the data that the block is expected to be like.
 ///
 /// RPC Method: [eth_getUncleByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblocknumberandindex)
 pub fn getUncleByBlockNumberAndIndexType(self: *PubClient, comptime T: type, opts: BlockNumberRequest, index: usize) !RPCResponse(T) {
@@ -972,7 +1053,7 @@ pub fn getUncleByBlockNumberAndIndexType(self: *PubClient, comptime T: type, opt
         try std.json.stringify(request, .{}, buf_writter.writer());
     }
 
-    const request_block = try self.sendRpcRequest(?Block, buf_writter.getWritten());
+    const request_block = try self.sendRpcRequest(?T, buf_writter.getWritten());
     errdefer request_block.deinit();
 
     const block_info = request_block.response orelse return error.InvalidBlockNumberOrIndex;
@@ -995,7 +1076,8 @@ pub fn getUncleCountByBlockNumber(self: *PubClient, opts: BlockNumberRequest) !R
     return self.sendBlockNumberRequest(opts, .eth_getUncleCountByBlockNumber);
 }
 /// Runs the selected multicall3 contracts.
-/// This enables to read from multiple contract by a single `eth_call`.
+///
+/// This enables to read from multiple contract by a single `eth_call`.\
 /// Uses the contracts created [here](https://www.multicall3.com/)
 ///
 /// To learn more about the multicall contract please go [here](https://github.com/mds1/multicall)
@@ -1039,6 +1121,7 @@ pub fn multicall3(
     return multicall_caller.multicall3(targets, function_arguments, allow_failure);
 }
 /// Creates a filter in the node, to notify when a new block arrives.
+///
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newBlockFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newblockfilter)
@@ -1046,6 +1129,7 @@ pub fn newBlockFilter(self: *PubClient) !RPCResponse(u128) {
     return self.sendBasicRequest(u128, .eth_newBlockFilter);
 }
 /// Creates a filter object, based on filter options, to notify when the state changes (logs).
+///
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newfilter)
@@ -1080,13 +1164,14 @@ pub fn newLogFilter(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) !
     return self.sendRpcRequest(u128, buf_writter.getWritten());
 }
 /// Creates a filter in the node, to notify when new pending transactions arrive.
+///
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newPendingTransactionFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newpendingtransactionfilter)
 pub fn newPendingTransactionFilter(self: *PubClient) !RPCResponse(u128) {
     return self.sendBasicRequest(u128, .eth_newPendingTransactionFilter);
 }
-/// Executes a new message call immediately without creating a transaction on the block chain.
+/// Executes a new message call immediately without creating a transaction on the block chain.\
 /// Often used for executing read-only smart contract functions,
 /// for example the balanceOf for an ERC-20 contract.
 ///
@@ -1115,7 +1200,7 @@ pub fn sendRawTransaction(self: *PubClient, serialized_tx: Hex) !RPCResponse(Has
 
     return self.sendRpcRequest(Hash, buf_writter.getWritten());
 }
-/// Waits until a transaction gets mined and the receipt can be grabbed.
+/// Waits until a transaction gets mined and the receipt can be grabbed.\
 /// This is retry based on either the amount of `confirmations` given.
 ///
 /// If 0 confirmations are given the transaction receipt can be null in case
@@ -1126,18 +1211,15 @@ pub fn sendRawTransaction(self: *PubClient, serialized_tx: Hex) !RPCResponse(Has
 pub fn waitForTransactionReceipt(self: *PubClient, tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt) {
     return self.waitForTransactionReceiptType(TransactionReceipt, tx_hash, confirmations);
 }
-/// Waits until a transaction gets mined and the receipt can be grabbed.
+/// Waits until a transaction gets mined and the receipt can be grabbed.\
 /// This is retry based on either the amount of `confirmations` given.
 ///
 /// If 0 confirmations are given the transaction receipt can be null in case
 /// the transaction has not been mined yet. It's recommened to have atleast one confirmation
 /// because some nodes might be slower to sync.
 ///
-/// Ask for a expected type since the way that our json parser works
-/// on unions it will try to parse it until it can complete it for a
-/// union member. This can be slow so if you know exactly what is the
-/// expected type you can pass it and it will return the json parsed
-/// response.
+/// Consider using this method if the provided `TransactionReceipt` types fail to json parse the request and
+/// you know extractly the shape of the data that the receipt is expected to be like.
 ///
 /// RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
 pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash: Hash, confirmations: u8) !RPCResponse(T) {
@@ -1288,6 +1370,7 @@ pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash
     return if (receipt) |tx_receipt| tx_receipt else error.FailedToGetReceipt;
 }
 /// Uninstalls a filter with given id. Should always be called when watch is no longer needed.
+///
 /// Additionally Filters timeout when they aren't requested with `getFilterOrLogChanges` for a period of time.
 ///
 /// RPC Method: [`eth_uninstallFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_uninstallfilter)

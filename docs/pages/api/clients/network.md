@@ -43,8 +43,9 @@ struct {
 
 ## Endpoint
 
-Possible endpoint locations.\
-For http/s and ws/s use `Uri` and for IPC use `path`.\
+Possible endpoint locations.
+For http/s and ws/s use `Uri` and for IPC use `path`.
+
 If a uri connection is set for the IPC client it will create and error and vice versa.
 
 ```zig
@@ -58,9 +59,11 @@ union(enum) {
 
 ## NetworkConfig
 
-The possible configuration of a network.\
+The possible configuration of a network.
+
 The only required field is the `endpoint` so that the client's
-know where they can connect to.\
+know where they can connect to.
+
 All other fields have default values and adjust them as you need.
 
 ### Properties

@@ -111,7 +111,7 @@ struct {
 ```
 
 ### BuildQuery
-Build the query based on the provided `value` and it's inner state.\
+Build the query based on the provided `value` and it's inner state.
 Uses the `QueryWriter` to build the searchUrlParams.
 
 ### Signature
@@ -121,7 +121,7 @@ pub fn buildQuery(self: @This(), value: anytype, writer: anytype) !void
 ```
 
 ### BuildDefaultQuery
-Build the query parameters without any provided values.\
+Build the query parameters without any provided values.
 Uses the `QueryWriter` to build the searchUrlParams.
 
 ### Signature
@@ -131,9 +131,9 @@ pub fn buildDefaultQuery(self: @This(), writer: anytype) !void
 ```
 
 ## Init
-Creates the initial client state.\
-This client only supports the free api endpoints via the api. We will not support PRO methods.\
-But `zabi` has all the tools you will need to create the methods to target those endpoints.\
+Creates the initial client state.
+This client only supports the free api endpoints via the api. We will not support PRO methods.
+But `zabi` has all the tools you will need to create the methods to target those endpoints.
 This only supports etherscan like block explorers.
 
 ### Signature
@@ -233,8 +233,9 @@ pub fn getErc20TokenSupply(self: *Explorer, address: Address) !ExplorerResponse(
 ```
 
 ## GetErc20TokenTransferEvents
-Queries the api endpoint to find the `address` and `contractaddress` erc20 token transaction events based on a block range.\
-This can fail because the response can be higher than `max_append_size`.\
+Queries the api endpoint to find the `address` and `contractaddress` erc20 token transaction events based on a block range.
+
+This can fail because the response can be higher than `max_append_size`.
 If the stack trace points to the reader failing consider either changing the provided `QueryOptions`
 or increasing the `max_append_size`
 
@@ -245,8 +246,9 @@ pub fn getErc20TokenTransferEvents(self: *Explorer, request: TokenEventRequest, 
 ```
 
 ## GetErc721TokenTransferEvents
-Queries the api endpoint to find the `address` and `contractaddress` erc20 token transaction events based on a block range.\
-This can fail because the response can be higher than `max_append_size`.\
+Queries the api endpoint to find the `address` and `contractaddress` erc20 token transaction events based on a block range.
+
+This can fail because the response can be higher than `max_append_size`.
 If the stack trace points to the reader failing consider either changing the provided `QueryOptions`
 or increasing the `max_append_size`
 
@@ -257,8 +259,9 @@ pub fn getErc721TokenTransferEvents(self: *Explorer, request: TokenEventRequest,
 ```
 
 ## GetErc1155TokenTransferEvents
-Queries the api endpoint to find the `address` and `contractaddress` erc20 token transaction events based on a block range.\
-This can fail because the response can be higher than `max_append_size`.\
+Queries the api endpoint to find the `address` and `contractaddress` erc20 token transaction events based on a block range.
+
+This can fail because the response can be higher than `max_append_size`.
 If the stack trace points to the reader failing consider either changing the provided `QueryOptions`
 or increasing the `max_append_size`
 
@@ -278,8 +281,9 @@ pub fn getEtherPrice(self: *Explorer) !ExplorerResponse(EtherPriceResponse)
 ```
 
 ## GetInternalTransactionList
-Queries the api endpoint to find the `address` internal transaction list based on a block range.\
-This can fail because the response can be higher than `max_append_size`.\
+Queries the api endpoint to find the `address` internal transaction list based on a block range.
+
+This can fail because the response can be higher than `max_append_size`.
 If the stack trace points to the reader failing consider either changing the provided `QueryOptions`
 or increasing the `max_append_size`.
 
@@ -290,8 +294,9 @@ pub fn getInternalTransactionList(self: *Explorer, request: TransactionListReque
 ```
 
 ## GetInternalTransactionListByHash
-Queries the api endpoint to find the internal transactions from a transaction hash.\
-This can fail because the response can be higher than `max_append_size`.\
+Queries the api endpoint to find the internal transactions from a transaction hash.
+
+This can fail because the response can be higher than `max_append_size`.
 If the stack trace points to the reader failing consider either changing the provided `QueryOptions`
 or increasing the `max_append_size`.
 
@@ -303,7 +308,8 @@ pub fn getInternalTransactionListByHash(self: *Explorer, tx_hash: Hash) !Explore
 
 ## GetInternalTransactionListByRange
 Queries the api endpoint to find the `address` balances at the specified `tag`
-This can fail because the response can be higher than `max_append_size`.\
+
+This can fail because the response can be higher than `max_append_size`.
 If the stack trace points to the reader failing consider either changing the provided `QueryOptions`
 or increasing the `max_append_size`
 
@@ -332,8 +338,8 @@ pub fn getMultiAddressBalance(self: *Explorer, request: MultiAddressBalanceReque
 ```
 
 ## GetSourceCode
-Queries the api endpoint to find the `address` contract source information if it's present.\
-The api might send the result with empty field in case the source information is not present.\
+Queries the api endpoint to find the `address` contract source information if it's present.
+The api might send the result with empty field in case the source information is not present.
 This will cause the json parse to fail.
 
 ### Signature
@@ -352,8 +358,9 @@ pub fn getTotalEtherSupply(self: *Explorer) !ExplorerResponse(u256)
 ```
 
 ## GetTransactionList
-Queries the api endpoint to find the `address` transaction list based on a block range.\
-This can fail because the response can be higher than `max_append_size`.\
+Queries the api endpoint to find the `address` transaction list based on a block range.
+
+This can fail because the response can be higher than `max_append_size`.
 If the stack trace points to the reader failing consider either changing the provided `QueryOptions`
 or increasing the `max_append_size`
 
@@ -382,10 +389,12 @@ pub fn getTransactionStatus(self: *Explorer, hash: Hash) !ExplorerResponse(Trans
 ```
 
 ## SendRequest
-Writes request to endpoint and parses the response according to the provided type.\
-Handles 429 errors but not the rest.\
+Writes request to endpoint and parses the response according to the provided type.
+Handles 429 errors but not the rest.
+
 Builds the uri from the endpoint's api url plus the query parameters from the provided `value`
-and possible set `QueryOptions`. The current max buffer size is 4096.\
+and possible set `QueryOptions`. The current max buffer size is 4096.
+
 `value` must be a non tuple struct type.
 
 ### Signature

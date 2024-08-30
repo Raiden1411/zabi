@@ -1,5 +1,6 @@
 ## ENSClient
-A public client that interacts with the ENS contracts.\
+A public client that interacts with the ENS contracts.
+
 Currently ENSAvatar is not supported but will be in future versions.
 
 ### Signature
@@ -28,9 +29,11 @@ pub fn deinit(self: *ENS) void
 ```
 
 ## GetEnsAddress
-Gets the ENS address associated with the ENS name.\
-Caller owns the memory if the request is successfull.\
-Calls the resolver address and decodes with address resolver.\
+Gets the ENS address associated with the ENS name.
+
+Caller owns the memory if the request is successfull.
+Calls the resolver address and decodes with address resolver.
+
 The names are not normalized so make sure that the names are normalized before hand.
 
 ### Signature
@@ -40,9 +43,11 @@ pub fn getEnsAddress(self: *ENS, name: []const u8, opts: BlockNumberRequest) !Ab
 ```
 
 ## GetEnsName
-Gets the ENS name associated with the address.\
-Caller owns the memory if the request is successfull.\
-Calls the reverse resolver and decodes with the same.\
+Gets the ENS name associated with the address.
+
+Caller owns the memory if the request is successfull.
+Calls the reverse resolver and decodes with the same.
+
 This will fail if its not a valid checksumed address.
 
 ### Signature
@@ -52,9 +57,11 @@ pub fn getEnsName(self: *ENS, address: []const u8, opts: BlockNumberRequest) !RP
 ```
 
 ## GetEnsResolver
-Gets the ENS resolver associated with the name.\
-Caller owns the memory if the request is successfull.\
-Calls the find resolver and decodes with the same one.\
+Gets the ENS resolver associated with the name.
+
+Caller owns the memory if the request is successfull.
+Calls the find resolver and decodes with the same one.
+
 The names are not normalized so make sure that the names are normalized before hand.
 
 ### Signature
@@ -64,9 +71,11 @@ pub fn getEnsResolver(self: *ENS, name: []const u8, opts: BlockNumberRequest) !A
 ```
 
 ## GetEnsText
-Gets a text record for a specific ENS name.\
-Caller owns the memory if the request is successfull.\
-Calls the resolver and decodes with the text resolver.\
+Gets a text record for a specific ENS name.
+
+Caller owns the memory if the request is successfull.
+Calls the resolver and decodes with the text resolver.
+
 The names are not normalized so make sure that the names are normalized before hand.
 
 ### Signature

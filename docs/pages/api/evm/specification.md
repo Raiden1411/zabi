@@ -1,6 +1,7 @@
 ## SpecId
 
-Specification IDs and their activation block.\
+Specification IDs and their activation block.
+
 Information can be found here [Ethereum Execution Specification](https://github.com/ethereum/execution-specs)
 
 ### Properties

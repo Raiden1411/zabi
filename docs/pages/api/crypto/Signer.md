@@ -1,5 +1,6 @@
 ## RecoverPubkey
 Recovers the public key from a message
+
 Returns the public key in an uncompressed sec1 format so that
 it can be used later to recover the address.
 
@@ -31,7 +32,7 @@ pub fn init(private_key: ?Hash) !Signer
 ```
 
 ## Sign
-Signs an ethereum or EVM like chains message.\
+Signs an ethereum or EVM like chains message.
 Since ecdsa signatures are malliable EVM chains only accept
 signature with low s values. We enforce this behaviour as well
 as using RFC 6979 for generating deterministic scalars for recoverying
@@ -62,7 +63,7 @@ pub fn getPublicKeyUncompressed(self: Signer) [65]u8
 ```
 
 ## GenerateNonce
-Implementation of RFC 6979 of deterministic k values for deterministic signature generation.\
+Implementation of RFC 6979 of deterministic k values for deterministic signature generation.
 Reference: https://datatracker.ietf.org/doc/html/rfc6979
 
 ### Signature

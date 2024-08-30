@@ -22,7 +22,7 @@ struct {
 ```
 
 ### InitEmpty
-Create the interpreter's memory. This will not error.\
+Create the interpreter's memory. This will not error.
 No initial capacity is set. It's essentially empty memory.
 
 ### Signature
@@ -96,7 +96,7 @@ pub fn getSlice(self: Memory) []u8
 ```
 
 ### MemoryCopy
-Copies elements from one part of the buffer to another part of itself.\
+Copies elements from one part of the buffer to another part of itself.
 Asserts that the provided indexes are not out of bound.
 
 ### Signature
@@ -115,8 +115,8 @@ pub fn newContext(self: *Memory) !void
 ```
 
 ### Resize
-Resizes the underlaying memory buffer.\
-Uses the allocator's `resize` method in case it's possible.\
+Resizes the underlaying memory buffer.
+Uses the allocator's `resize` method in case it's possible.
 If the new len is lower than the current buffer size data will be lost.
 
 ### Signature
@@ -126,7 +126,7 @@ pub fn resize(self: *Memory, new_len: usize) !void
 ```
 
 ### WordToInt
-Converts a memory "Word" into a u256 number.\
+Converts a memory "Word" into a u256 number.
 This reads the word as `Big` endian.
 
 ### Signature
@@ -136,7 +136,7 @@ pub fn wordToInt(self: Memory, offset: usize) u256
 ```
 
 ### WriteByte
-Writes a single byte into this memory buffer.\
+Writes a single byte into this memory buffer.
 This can overwrite to existing memory.
 
 ### Signature
@@ -146,7 +146,7 @@ pub fn writeByte(self: Memory, offset: usize, byte: u8) !void
 ```
 
 ### WriteWord
-Writes a memory `Word` into the memory buffer.\
+Writes a memory `Word` into the memory buffer.
 This can overwrite existing memory.
 
 ### Signature
@@ -156,7 +156,7 @@ pub fn writeWord(self: Memory, offset: usize, word: [32]u8) !void
 ```
 
 ### WriteInt
-Writes a `u256` number into the memory buffer.\
+Writes a `u256` number into the memory buffer.
 This can overwrite to existing memory.
 
 ### Signature
@@ -166,7 +166,7 @@ pub fn writeInt(self: Memory, offset: usize, data: u256) !void
 ```
 
 ### Write
-Writes a slice to the memory buffer based on a offset.\
+Writes a slice to the memory buffer based on a offset.
 This can overwrite to existing memory.
 
 ### Signature
@@ -176,7 +176,7 @@ pub fn write(self: Memory, offset: usize, data: []const u8) !void
 ```
 
 ### WriteData
-Writes a slice to a given offset in memory + the provided data's offset.\
+Writes a slice to a given offset in memory + the provided data's offset.
 This can overwrite existing memory.
 
 ### Signature

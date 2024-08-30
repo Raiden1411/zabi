@@ -140,9 +140,10 @@ pub fn init(rpc_client: *Client) !Self
 ```
 
 ## Multicall3
-Runs the selected multicall3 contracts.\
-This enables to read from multiple contract by a single `eth_call`.\
+Runs the selected multicall3 contracts.
+This enables to read from multiple contract by a single `eth_call`.
 Uses the contracts created [here](https://www.multicall3.com/)
+
 To learn more about the multicall contract please go [here](https://github.com/mds1/multicall)
 
 ### Signature

@@ -26,7 +26,7 @@ pub fn fromSeed(seed: [64]u8) !Node
 ```
 
 ### FromSeedAndPath
-Derive a node from a mnemonic seed and path. Use `pbkdf2` to generate the seed.\
+Derive a node from a mnemonic seed and path. Use `pbkdf2` to generate the seed.
 The path must follow the specification. Example: m/44'/60'/0'/0/0 (Most common for ethereum)
 
 ### Signature
@@ -36,7 +36,7 @@ pub fn fromSeedAndPath(seed: [64]u8, path: []const u8) !Node
 ```
 
 ### DerivePath
-Derives a child node from a path.\
+Derives a child node from a path.
 The path must follow the specification. Example: m/44'/60'/0'/0/0 (Most common for ethereum)
 
 ### Signature
@@ -82,7 +82,7 @@ struct {
 
 ### DeriveChild
 Derive a child node based on the index
-If the index is higher than std.math.maxInt(u32) this will error.\
+If the index is higher than std.math.maxInt(u32) this will error.
 EunuchWalletNodes cannot derive hardned nodes.
 
 ### Signature
@@ -92,7 +92,7 @@ pub fn deriveChild(self: Node, index: u32) !Node
 ```
 
 ### DerivePath
-Derives a child node from a path. This cannot derive hardned nodes.\
+Derives a child node from a path. This cannot derive hardned nodes.
 The path must follow the specification. Example: m/44/60/0/0/0 (Most common for ethereum)
 
 ### Signature

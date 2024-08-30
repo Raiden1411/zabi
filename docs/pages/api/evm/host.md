@@ -243,7 +243,7 @@ struct {
   /// The transient storage of this host.
   transient_storage: Storage
   /// The logs of this host.
-  log: ArrayList(Log)
+  log_storage: ArrayList(Log)
 }
 ```
 

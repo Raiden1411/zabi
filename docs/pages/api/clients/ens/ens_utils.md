@@ -1,6 +1,6 @@
 ## ConvertToHash
-Converts ens name to it's representing hash.\
-Its it's a labelhash it will return the hash bytes.\
+Converts ens name to it's representing hash.
+Its it's a labelhash it will return the hash bytes.
 Make sure that the string is normalized beforehand.
 
 ### Signature
@@ -19,7 +19,7 @@ pub fn isLabelHash(label: []const u8) bool
 ```
 
 ## HashName
-Hashes the ENS name to it's ens label hash.\
+Hashes the ENS name to it's ens label hash.
 Make sure that the string is normalized beforehand.
 
 ### Signature

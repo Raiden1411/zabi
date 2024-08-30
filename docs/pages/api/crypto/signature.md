@@ -31,7 +31,8 @@ pub fn toBytes(sig: Signature) [65]u8
 ```
 
 ### ToHex
-Converts the struct signature into a hex string.\
+Converts the struct signature into a hex string.
+
 Caller owns the memory
 
 ### Signature
@@ -81,7 +82,8 @@ pub fn toBytes(sig: CompactSignature) [Secp256k1.scalar.encoded_length * 2]u8
 ```
 
 ### ToHex
-Converts the struct signature into a hex string.\
+Converts the struct signature into a hex string.
+
 Caller owns the memory
 
 ### Signature

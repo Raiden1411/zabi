@@ -23,5 +23,7 @@ test "Clients Root" {
     _ = @import("l1_public_client.test.zig");
     _ = @import("l2_public_client.test.zig");
     _ = @import("l1_wallet_client.test.zig");
-    _ = @import("l2_wallet_client.test.zig");
+
+    // Test only available to OP_MAINNET
+    // _ = @import("l2_wallet_client.test.zig");
 }

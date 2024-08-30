@@ -22,15 +22,3 @@ pub const IpcClient = @import("IPC.zig");
 /// but you should have all the tool available in the library if you want to target
 /// the PRO methods.
 pub const BlockExplorer = @import("BlockExplorer.zig");
-
-test "Clients Root" {
-    _ = @import("block_explorer.test.zig");
-    _ = @import("public_client.test.zig");
-    _ = @import("ipc.test.zig");
-    _ = @import("websocket.test.zig");
-    _ = @import("contract.test.zig");
-    _ = @import("wallet.test.zig");
-    _ = @import("url.test.zig");
-    _ = @import("ens/root.zig");
-    _ = @import("optimism/root.zig");
-}

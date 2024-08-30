@@ -1,5 +1,5 @@
 /// Custom cli args parser.
-pub const args = @import("tests/args.zig");
+pub const args = @import("utils/args.zig");
 /// Custom abi types into zig types.
 pub const abi = @import("abi/root.zig");
 /// All clients that currently zabi supports and uses.
@@ -19,7 +19,7 @@ pub const ens = @import("clients/ens/root.zig");
 /// like `Contract`, `Host` and `EVMEnviroment` among other things.
 pub const evm = @import("evm/root.zig");
 /// Generate random data based on a provided type.
-pub const generator = @import("tests/generator.zig");
+pub const generator = @import("utils/generator.zig");
 /// Implementation of BIP32 for Hierarchical Deterministic Wallets.
 pub const hdwallet = @import("crypto/hdwallet.zig");
 /// Custom human readable parser. Supports tuples and structs.
@@ -50,34 +50,23 @@ pub const url = @import("clients/url.zig");
 pub const utils = @import("utils/utils.zig");
 
 /// Custom wrapper for interacting with the Anvil testchain
-pub const Anvil = @import("tests/Anvil.zig");
+pub const Anvil = @import("clients/Anvil.zig");
 /// Custom wrapper for interacting with the Hardhat testchain
-pub const Hardhat = @import("tests/Hardhat.zig");
+pub const Hardhat = @import("clients/Hardhat.zig");
 /// Custom IPC RPC server that server random data.
-pub const IpcRpcServer = @import("tests/clients/ipc_server.zig");
+pub const IpcRpcServer = @import("server/ipc_server.zig");
 /// Custom Http RPC server that server random data.
-pub const RpcServer = @import("tests/clients/server.zig");
+pub const RpcServer = @import("server/server.zig");
 /// Custom Ws RPC server that server random data.
-pub const RpcWsServerHandler = @import("tests/clients/ws_server.zig").WsHandler;
+pub const RpcWsServerHandler = @import("server/ws_server.zig").WsHandler;
 /// Custom ECDSA signer that enforces signing of
 /// messages with Low S since ecdsa signatures are
 /// malleable and ethereum and other chains require
 /// messages to be signed with low S.
 pub const Signer = @import("crypto/Signer.zig");
 /// Used by the ws server to provide the needed context.
-pub const WsServerContext = @import("tests/clients/ws_server.zig").WsContext;
+pub const WsServerContext = @import("server/ws_server.zig").WsContext;
 
 test {
-    _ = @import("abi/root.zig");
-    _ = @import("clients/root.zig");
-    _ = @import("crypto/hdwallet.test.zig");
-    _ = @import("crypto/mnemonic.test.zig");
-    _ = @import("c-kzg-4844");
-    _ = @import("decoding/root.zig");
-    _ = @import("encoding/root.zig");
-    _ = @import("evm/root.zig");
-    _ = @import("human-readable/root.zig");
-    _ = @import("meta/root.zig");
-    _ = @import("tests/generator.test.zig");
-    _ = @import("utils/utils.test.zig");
+    _ = @import("tests/root.zig");
 }

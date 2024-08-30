@@ -68,11 +68,11 @@ export const sidebar = {
 					items: [
 						{
 							text: "Anvil",
-							link: "/api/tests/Anvil",
+							link: "/api/clients/Anvil",
 						},
 						{
 							text: "Hardhat",
-							link: "/api/tests/Hardhat",
+							link: "/api/clients/Hardhat",
 						},
 					],
 				},
@@ -306,11 +306,11 @@ export const sidebar = {
 					items: [
 						{
 							text: "Value Generator",
-							link: "/api/tests/generator",
+							link: "/api/utils/generator",
 						},
 						{
 							text: "Cli Parser",
-							link: "/api/tests/args",
+							link: "/api/utils/args",
 						},
 					],
 				},

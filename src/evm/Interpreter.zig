@@ -1,24 +1,24 @@
 const actions = @import("actions.zig");
-const contract = @import("contract.zig");
+const contract_type = @import("contract.zig");
 const gas = @import("gas_tracker.zig");
-const host = @import("host.zig");
+const host_type = @import("host.zig");
 const mem = @import("memory.zig");
 const opcode = @import("opcodes.zig");
-const spec = @import("specification.zig");
+const specid = @import("specification.zig");
 const std = @import("std");
 const testing = std.testing;
 
 const Allocator = std.mem.Allocator;
 const CallAction = actions.CallAction;
-const Contract = contract.Contract;
+const Contract = contract_type.Contract;
 const CreateAction = actions.CreateAction;
 const GasTracker = gas.GasTracker;
 const InstructionTable = opcode.InstructionTable;
-const Host = host.Host;
+const Host = host_type.Host;
 const Memory = mem.Memory;
-const PlainHost = host.PlainHost;
+const PlainHost = host_type.PlainHost;
 const ReturnAction = actions.ReturnAction;
-const SpecId = spec.SpecId;
+const SpecId = specid.SpecId;
 const Stack = @import("../utils/stack.zig").Stack;
 
 const Interpreter = @This();
@@ -185,190 +185,4 @@ pub fn resize(self: *Interpreter, new_size: u64) !void {
 
     try self.gas_tracker.updateTracker(cost);
     return self.memory.resize(count * 32);
-}
-
-test "Init" {
-    const contract_instance = try Contract.init(
-        testing.allocator,
-        &.{},
-        .{ .raw = &.{} },
-        null,
-        0,
-        [_]u8{1} ** 20,
-        [_]u8{0} ** 20,
-    );
-    defer contract_instance.deinit(testing.allocator);
-
-    var plain: PlainHost = undefined;
-    defer plain.deinit();
-
-    plain.init(testing.allocator);
-
-    var interpreter: Interpreter = undefined;
-    defer interpreter.deinit();
-
-    try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
-}
-
-test "RunInstruction" {
-    const contract_instance = try Contract.init(
-        testing.allocator,
-        &.{},
-        .{ .raw = @constCast(&[_]u8{ 0x60, 0x01, 0x60, 0x02, 0x01 }) },
-        null,
-        0,
-        [_]u8{1} ** 20,
-        [_]u8{0} ** 20,
-    );
-    defer contract_instance.deinit(testing.allocator);
-
-    var plain: PlainHost = undefined;
-    defer plain.deinit();
-
-    plain.init(testing.allocator);
-
-    var interpreter: Interpreter = undefined;
-    defer interpreter.deinit();
-
-    try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
-
-    const result = try interpreter.run();
-    defer result.deinit(testing.allocator);
-
-    try testing.expect(result == .return_action);
-    try testing.expectEqual(.stopped, result.return_action.result);
-    try testing.expectEqual(9, result.return_action.gas.used_amount);
-    try testing.expectEqual(3, try interpreter.stack.tryPopUnsafe());
-}
-
-test "RunInstruction Create" {
-    // Example taken from evm.codes
-    const contract_instance = try Contract.init(
-        testing.allocator,
-        &.{},
-        .{ .raw = @constCast(&[_]u8{ 0x6c, 0x63, 0xFF, 0xFF, 0xFF, 0xFF, 0x60, 0x00, 0x52, 0x60, 0x04, 0x60, 0x1C, 0xF3, 0x60, 0x00, 0x52, 0x60, 0x0d, 0x60, 0x13, 0x60, 0x00, 0xF0 }) },
-        null,
-        0,
-        [_]u8{1} ** 20,
-        [_]u8{0} ** 20,
-    );
-    defer contract_instance.deinit(testing.allocator);
-
-    var plain: PlainHost = undefined;
-    defer plain.deinit();
-
-    plain.init(testing.allocator);
-
-    var interpreter: Interpreter = undefined;
-    defer interpreter.deinit();
-
-    try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
-
-    const result = try interpreter.run();
-    defer result.deinit(testing.allocator);
-
-    try testing.expect(result == .create_action);
-    try testing.expect(result.create_action.scheme == .create);
-    try testing.expect(interpreter.status == .call_or_create);
-    try testing.expectEqual(29531751, interpreter.gas_tracker.used_amount);
-
-    const int: u104 = @byteSwap(@as(u104, @bitCast([_]u8{ 0x63, 0xFF, 0xFF, 0xFF, 0xFF, 0x60, 0x00, 0x52, 0x60, 0x04, 0x60, 0x1C, 0xF3 })));
-    const buffer: [13]u8 = @bitCast(int);
-
-    try testing.expectEqualSlices(u8, &buffer, result.create_action.init_code);
-}
-
-test "RunInstruction Create2" {
-    // Example taken from evm.codes
-    const contract_instance = try Contract.init(
-        testing.allocator,
-        &.{},
-        .{ .raw = @constCast(&[_]u8{ 0x6c, 0x63, 0xFF, 0xFF, 0xFF, 0xFF, 0x60, 0x00, 0x52, 0x60, 0x04, 0x60, 0x1C, 0xF3, 0x60, 0x00, 0x52, 0x60, 0x02, 0x60, 0x0d, 0x60, 0x13, 0x60, 0x00, 0xF5 }) },
-        null,
-        0,
-        [_]u8{1} ** 20,
-        [_]u8{0} ** 20,
-    );
-    defer contract_instance.deinit(testing.allocator);
-
-    var plain: PlainHost = undefined;
-    defer plain.deinit();
-
-    plain.init(testing.allocator);
-
-    var interpreter: Interpreter = undefined;
-    defer interpreter.deinit();
-
-    try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
-
-    const result = try interpreter.run();
-    defer result.deinit(testing.allocator);
-
-    try testing.expect(result == .create_action);
-    try testing.expect(result.create_action.scheme == .create2);
-    try testing.expect(interpreter.status == .call_or_create);
-    try testing.expectEqual(29531751, interpreter.gas_tracker.used_amount);
-
-    const int: u104 = @byteSwap(@as(u104, @bitCast([_]u8{ 0x63, 0xFF, 0xFF, 0xFF, 0xFF, 0x60, 0x00, 0x52, 0x60, 0x04, 0x60, 0x1C, 0xF3 })));
-    const buffer: [13]u8 = @bitCast(int);
-
-    try testing.expectEqualSlices(u8, &buffer, result.create_action.init_code);
-}
-
-test "Running With Jump" {
-    {
-        var code = [_]u8{ 0x60, 0x04, 0x56, 0xfd, 0x5b, 0x60, 0x01 };
-        const contract_instance = try Contract.init(
-            testing.allocator,
-            &.{},
-            .{ .raw = &code },
-            null,
-            0,
-            [_]u8{1} ** 20,
-            [_]u8{0} ** 20,
-        );
-        defer contract_instance.deinit(testing.allocator);
-
-        var plain: PlainHost = undefined;
-        defer plain.deinit();
-
-        plain.init(testing.allocator);
-
-        var interpreter: Interpreter = undefined;
-        defer interpreter.deinit();
-
-        try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
-
-        const result = try interpreter.run();
-        defer result.deinit(testing.allocator);
-
-        try testing.expect(result == .return_action);
-        try testing.expectEqual(.stopped, result.return_action.result);
-        try testing.expectEqual(15, result.return_action.gas.used_amount);
-    }
-    {
-        var code = [_]u8{ 0x60, 0x03, 0x56, 0xfd, 0x5b, 0x60, 0x01 };
-        const contract_instance = try Contract.init(
-            testing.allocator,
-            &.{},
-            .{ .raw = &code },
-            null,
-            0,
-            [_]u8{1} ** 20,
-            [_]u8{0} ** 20,
-        );
-        defer contract_instance.deinit(testing.allocator);
-
-        var plain: PlainHost = undefined;
-        defer plain.deinit();
-
-        plain.init(testing.allocator);
-
-        var interpreter: Interpreter = undefined;
-        defer interpreter.deinit();
-
-        try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
-
-        try testing.expectError(error.InvalidJump, interpreter.run());
-    }
 }

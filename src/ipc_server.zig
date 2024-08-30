@@ -1,8 +1,8 @@
-const args_parse = @import("tests/args.zig");
+const args_parse = @import("utils/args.zig");
 const std = @import("std");
 
 const InitOpts = IpcServer.InitOpts;
-const IpcServer = @import("tests/clients/ipc_server.zig");
+const IpcServer = @import("server/ipc_server.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

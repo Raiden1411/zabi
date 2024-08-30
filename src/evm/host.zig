@@ -127,7 +127,7 @@ pub const PlainHost = struct {
     /// The transient storage of this host.
     transient_storage: Storage,
     /// The logs of this host.
-    log: ArrayList(Log),
+    log_storage: ArrayList(Log),
 
     /// Creates instance of this `PlainHost`.
     pub fn init(self: *Self, allocator: Allocator) void {
@@ -139,16 +139,16 @@ pub const PlainHost = struct {
             .env = EVMEnviroment.default(),
             .storage = storage,
             .transient_storage = transient_storage,
-            .log = logs,
+            .log_storage = logs,
         };
     }
 
     pub fn deinit(self: *Self) void {
-        while (self.log.popOrNull()) |log_event| {
-            self.log.allocator.free(log_event.topics);
+        while (self.log_storage.popOrNull()) |log_event| {
+            self.log_storage.allocator.free(log_event.topics);
         }
 
-        self.log.deinit();
+        self.log_storage.deinit();
         self.storage.deinit();
         self.transient_storage.deinit();
     }
@@ -202,8 +202,8 @@ pub const PlainHost = struct {
     fn log(ctx: *anyopaque, log_event: Log) !void {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
-        try self.log.ensureUnusedCapacity(1);
-        self.log.appendAssumeCapacity(log_event);
+        try self.log_storage.ensureUnusedCapacity(1);
+        self.log_storage.appendAssumeCapacity(log_event);
     }
 
     fn selfDestruct(_: *anyopaque, _: Address, _: Address) !SelfDestructResult {

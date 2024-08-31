@@ -36,6 +36,21 @@ Wallet instance with rpc ipc client.
 Wallet(.ipc)
 ```
 
+## AssertionErrors
+
+Set of errors that can be returned on the `assertTransaction` method.
+
+```zig
+error{
+    InvalidChainId,
+    TransactionTipToHigh,
+    EmptyBlobs,
+    TooManyBlobs,
+    BlobVersionNotSupported,
+    CreateBlobTransaction,
+}
+```
+
 ## TransactionEnvelopePool
 
 ### Properties
@@ -55,7 +70,8 @@ TransactionEnvelopeQueue.Node
 
 ### FindTransactionEnvelope
 Finds a transaction envelope from the pool based on the
-transaction type. This is thread safe.
+transaction type and it's nonce in case there are transactions with the same type. This is thread safe.
+
 Returns null if no transaction was found
 
 ### Signature
@@ -143,8 +159,9 @@ pub fn Wallet(comptime client_type: WalletClients) type
 ```
 
 ## Init
-Init wallet instance. Must call `deinit` to clean up.
-The init opts will depend on the `client_type`.
+Sets the wallet initial state.
+
+The init opts will depend on the [client_type](/api/clients/wallet#walletclients).
 
 ### Signature
 
@@ -159,7 +176,7 @@ Will return errors where the values are not expected
 ### Signature
 
 ```zig
-pub fn assertTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !void
+pub fn assertTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) AssertionErrors!void
 ```
 
 ## FindTransactionEnvelopeFromPool
@@ -173,8 +190,8 @@ pub fn findTransactionEnvelopeFromPool(self: *Wallet(client_type), search: Trans
 
 ## GetWalletAddress
 Get the wallet address.
+
 Uses the wallet public key to generate the address.
-This will allocate and the returned address is already checksumed
 
 ### Signature
 
@@ -184,9 +201,8 @@ pub fn getWalletAddress(self: *Wallet(client_type)) Address
 
 ## PoolTransactionEnvelope
 Converts unprepared transaction envelopes and stores them in a pool.
-If you want to store transaction for the future it's best to manange
-the wallet nonce manually since otherwise they might get stored with
-the same nonce if the wallet was unable to update it.
+
+This appends to the last node of the list.
 
 ### Signature
 

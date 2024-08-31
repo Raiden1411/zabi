@@ -96,7 +96,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
                 return error.CreatingContractToKnowAddress;
 
             const value = copy.value orelse 0;
-            switch (constructor.abiConstructor.stateMutability) {
+            switch (constructor.stateMutability) {
                 .nonpayable => if (value != 0)
                     return error.ValueInNonPayableConstructor,
                 .payable => {},

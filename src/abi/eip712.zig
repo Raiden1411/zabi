@@ -6,9 +6,11 @@ const testing = std.testing;
 // Types
 const AbiParameter = abi_parameter.AbiParameter;
 const Allocator = std.mem.Allocator;
+const ParamErrors = param.ParamErrors;
 const ParamType = param.ParamType;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
+/// EIP712 typed data domain. Spec is defined [here](https://eips.ethereum.org/EIPS/eip-712)
 pub const TypedDataDomain = struct {
     chainId: ?u64 = null,
     name: ?[]const u8 = null,
@@ -17,10 +19,17 @@ pub const TypedDataDomain = struct {
     salt: ?[]const u8 = null,
 };
 
+/// EIP712 message property type. Spec is defined [here](https://eips.ethereum.org/EIPS/eip-712)
 pub const MessageProperty = struct {
     name: []const u8,
     type: []const u8,
 };
+
+/// Set of possible errors when encoding struct into human-readable format.
+pub const EncodeTypeErrors = Allocator.Error || error{InvalidPrimaryType};
+
+/// Set of possible errors when encoding the struct values.
+pub const EIP712Errors = EncodeTypeErrors || ParamErrors || error{ UnexpectTypeFound, NoSpaceLeft, InvalidLength };
 
 /// Performs hashing of EIP712 according to the expecification
 /// https://eips.ethereum.org/EIPS/eip-712
@@ -40,7 +49,53 @@ pub const MessageProperty = struct {
 /// zig types. I.E string -> []const u8 or int256 -> i256 and so on.
 /// In the future work will be done where the compiler will offer more clearer types
 /// base on a meta programming type function.
-pub fn hashTypedData(allocator: Allocator, comptime types: anytype, comptime primary_type: []const u8, domain: ?TypedDataDomain, message: anytype) ![Keccak256.digest_length]u8 {
+///
+/// **Example**
+/// ```zig
+/// const domain: TypedDataDomain = .{
+///     .name = "Ether Mail",
+///     .version = "1",
+///     .chainId = 1,
+///     .verifyingContract = "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC",
+/// };
+///
+/// const types = .{
+///     .EIP712Domain = &.{
+///         .{ .type = "string", .name = "name" },
+///         .{ .name = "version", .type = "string" },
+///         .{ .name = "chainId", .type = "uint256" },
+///         .{ .name = "verifyingContract", .type = "address" },
+///     },
+///     .Person = &.{
+///         .{ .name = "name", .type = "string" },
+///         .{ .name = "wallet", .type = "address" },
+///     },
+///     .Mail = &.{
+///         .{ .name = "from", .type = "Person" },
+///         .{ .name = "to", .type = "Person" },
+///         .{ .name = "contents", .type = "string" },
+///     },
+/// };
+///
+/// const hash = try hashTypedData(testing.allocator, types, "Mail", domain, .{
+///     .from = .{
+///         .name = "Cow",
+///         .wallet = "0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826",
+///     },
+///     .to = .{
+///         .name = "Bob",
+///         .wallet = "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB",
+///     },
+///     .contents = "Hello, Bob!",
+/// });
+/// ```
+pub fn hashTypedData(
+    allocator: Allocator,
+    comptime types: anytype,
+    comptime primary_type: []const u8,
+    domain: ?TypedDataDomain,
+    message: anytype,
+) EIP712Errors![Keccak256.digest_length]u8 {
     var list = std.ArrayList(u8).init(allocator);
     errdefer list.deinit();
 
@@ -73,17 +128,52 @@ pub fn hashTypedData(allocator: Allocator, comptime types: anytype, comptime pri
 ///
 /// `types` parameter is expected to be a struct where the struct
 /// keys are used to grab the solidity type information so that the
-/// encoding and hashing can happen based on it. See the specification
-/// for more details.
+/// encoding and hashing can happen based on it.\
+/// See the specification for more details.
 ///
-/// `primary_type` is the expected main type that you want to hash this message.
+/// `primary_type` is the expected main type that you want to hash this message.\
 /// Compilation will fail if the provided string doesn't exist on the `types` parameter
 ///
 /// `data` is expected to be a struct where the solidity types are transalated to the native
 /// zig types. I.E string -> []const u8 or int256 -> i256 and so on.
+///
 /// In the future work will be done where the compiler will offer more clearer types
 /// base on a meta programming type function.
-pub fn hashStruct(allocator: Allocator, comptime types: anytype, comptime primary_type: []const u8, data: anytype) ![Keccak256.digest_length]u8 {
+///
+/// **Example**
+/// ```zig
+/// const domain: TypedDataDomain = .{
+///     .name = "Ether Mail",
+///     .version = "1",
+///     .chainId = 1,
+///     .verifyingContract = "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC",
+/// };
+/// const types = .{
+///     .EIP712Domain = &.{
+///         .{ .type = "string", .name = "name" },
+///         .{ .name = "version", .type = "string" },
+///         .{ .name = "chainId", .type = "uint256" },
+///         .{ .name = "verifyingContract", .type = "address" },
+///     },
+///     .Person = &.{
+///         .{ .name = "name", .type = "string" },
+///         .{ .name = "wallet", .type = "address" },
+///     },
+///     .Mail = &.{
+///         .{ .name = "from", .type = "Person" },
+///         .{ .name = "to", .type = "Person" },
+///         .{ .name = "contents", .type = "string" },
+///     },
+/// };
+///
+/// const hash = try hashStruct(testing.allocator, types, "EIP712Domain", domain);
+/// ```
+pub fn hashStruct(
+    allocator: Allocator,
+    comptime types: anytype,
+    comptime primary_type: []const u8,
+    data: anytype,
+) EIP712Errors![Keccak256.digest_length]u8 {
     var list = std.ArrayList(u8).init(allocator);
     errdefer list.deinit();
 
@@ -115,7 +205,13 @@ pub fn hashStruct(allocator: Allocator, comptime types: anytype, comptime primar
 ///
 /// Slices, arrays, strings and bytes will all be encoded as "bytes32" instead of their
 /// usual encoded values.
-pub fn encodeStruct(allocator: Allocator, comptime types: anytype, comptime primary_type: []const u8, data: anytype, writer: anytype) !void {
+pub fn encodeStruct(
+    allocator: Allocator,
+    comptime types: anytype,
+    comptime primary_type: []const u8,
+    data: anytype,
+    writer: anytype,
+) EIP712Errors!void {
     const info = @typeInfo(@TypeOf(types));
     const data_info = @typeInfo(@TypeOf(data));
 
@@ -139,7 +235,13 @@ pub fn encodeStruct(allocator: Allocator, comptime types: anytype, comptime prim
     }
 }
 /// Encodes a singular struct field.
-pub fn encodeStructField(allocator: Allocator, comptime types: anytype, comptime primary_type: []const u8, value: anytype, writer: anytype) !void {
+pub fn encodeStructField(
+    allocator: Allocator,
+    comptime types: anytype,
+    comptime primary_type: []const u8,
+    value: anytype,
+    writer: anytype,
+) EIP712Errors!void {
     const info = @typeInfo(@TypeOf(value));
     if (@hasField(@TypeOf(types), primary_type)) {
         var list = std.ArrayList(u8).init(allocator);
@@ -353,7 +455,7 @@ pub fn encodeStructField(allocator: Allocator, comptime types: anytype, comptime
     }
 }
 /// Hash the main types and it's nested children
-pub fn hashType(allocator: Allocator, comptime types_fields: anytype, comptime primary_type: []const u8) ![Keccak256.digest_length]u8 {
+pub fn hashType(allocator: Allocator, comptime types_fields: anytype, comptime primary_type: []const u8) EncodeTypeErrors![Keccak256.digest_length]u8 {
     var list = std.ArrayList(u8).init(allocator);
     errdefer list.deinit();
 
@@ -370,7 +472,12 @@ pub fn hashType(allocator: Allocator, comptime types_fields: anytype, comptime p
 /// Encodes the main type from a struct into a "human-readable" format.
 ///
 /// *Ex: struct { Mail: []const struct {type: "address", name: "foo"}} into "Mail(address foo)"*
-pub fn encodeType(allocator: Allocator, comptime types_fields: anytype, comptime primary_type: []const u8, writer: anytype) !void {
+pub fn encodeType(
+    allocator: Allocator,
+    comptime types_fields: anytype,
+    comptime primary_type: []const u8,
+    writer: anytype,
+) !void {
     const info = @typeInfo(@TypeOf(types_fields));
 
     var result = std.StringArrayHashMap(void).init(allocator);
@@ -381,7 +488,7 @@ pub fn encodeType(allocator: Allocator, comptime types_fields: anytype, comptime
     try writer.writeAll(primary_type);
     try writer.writeByte('(');
     if (!result.swapRemove(primary_type))
-        return error.InvalidPrimType;
+        return error.InvalidPrimaryType;
 
     inline for (info.@"struct".fields) |field| {
         if (std.mem.eql(u8, field.name, primary_type)) {

@@ -45,6 +45,16 @@ pub const WalletWsClient = Wallet(.websocket);
 /// Wallet instance with rpc ipc client.
 pub const WalletIpcClient = Wallet(.ipc);
 
+/// Set of errors that can be returned on the `assertTransaction` method.
+pub const AssertionErrors = error{
+    InvalidChainId,
+    TransactionTipToHigh,
+    EmptyBlobs,
+    TooManyBlobs,
+    BlobVersionNotSupported,
+    CreateBlobTransaction,
+};
+
 pub const TransactionEnvelopePool = struct {
     mutex: Mutex = .{},
     pooled_envelopes: TransactionEnvelopeQueue,
@@ -59,7 +69,8 @@ pub const TransactionEnvelopePool = struct {
     const TransactionEnvelopeQueue = std.DoublyLinkedList(TransactionEnvelope);
 
     /// Finds a transaction envelope from the pool based on the
-    /// transaction type. This is thread safe.
+    /// transaction type and it's nonce in case there are transactions with the same type. This is thread safe.
+    ///
     /// Returns null if no transaction was found
     pub fn findTransactionEnvelope(pool: *TransactionEnvelopePool, allocator: Allocator, search: SearchCriteria) ?TransactionEnvelope {
         pool.mutex.lock();
@@ -166,14 +177,15 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Pool to store all prepated transaction envelopes.
         /// This is thread safe.
         envelopes_pool: TransactionEnvelopePool,
-        /// Http client used to make request. Supports almost all rpc methods.
+        /// JSON-RPC client used to make request. Supports almost all `eth_` rpc methods.
         rpc_client: *ClientType,
         /// Signer that will sign transactions or ethereum messages.
         /// Its based on a custom implementation meshed with zig's source code.
         signer: Signer,
 
-        /// Init wallet instance. Must call `deinit` to clean up.
-        /// The init opts will depend on the `client_type`.
+        /// Sets the wallet initial state.
+        ///
+        /// The init opts will depend on the [client_type](/api/clients/wallet#walletclients).
         pub fn init(private_key: ?Hash, opts: InitOpts) !*Wallet(client_type) {
             const self = try opts.allocator.create(Wallet(client_type));
             errdefer opts.allocator.destroy(self);
@@ -201,7 +213,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         }
         /// Asserts that the transactions is ready to be sent.
         /// Will return errors where the values are not expected
-        pub fn assertTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !void {
+        pub fn assertTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) AssertionErrors!void {
             switch (tx) {
                 .london => |tx_eip1559| {
                     if (tx_eip1559.chainId != @intFromEnum(self.rpc_client.network_config.chain_id)) return error.InvalidChainId;
@@ -240,15 +252,14 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             return self.envelopes_pool.findTransactionEnvelope(self.allocator, search);
         }
         /// Get the wallet address.
+        ///
         /// Uses the wallet public key to generate the address.
-        /// This will allocate and the returned address is already checksumed
         pub fn getWalletAddress(self: *Wallet(client_type)) Address {
             return self.signer.address_bytes;
         }
         /// Converts unprepared transaction envelopes and stores them in a pool.
-        /// If you want to store transaction for the future it's best to manange
-        /// the wallet nonce manually since otherwise they might get stored with
-        /// the same nonce if the wallet was unable to update it.
+        ///
+        /// This appends to the last node of the list.
         pub fn poolTransactionEnvelope(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !void {
             const envelope = try self.allocator.create(TransactionEnvelopePool.Node);
             errdefer self.allocator.destroy(envelope);

@@ -6,10 +6,11 @@ const utils = @import("../utils/utils.zig");
 const Allocator = std.mem.Allocator;
 const encodeRlp = @import("../encoding/rlp.zig").encodeRlp;
 
-pub const RlpDecodeErrors = error{ UnexpectedValue, InvalidEnumTag } || Allocator.Error || std.fmt.ParseIntError;
+/// Set of errors while performing RLP decoding.
+pub const RlpDecodeErrors = error{ UnexpectedValue, InvalidEnumTag, LengthMissmatch } || Allocator.Error || std.fmt.ParseIntError;
 
 /// RLP decoding. Encoded string must follow the RLP specs.
-pub fn decodeRlp(allocator: Allocator, comptime T: type, encoded: []const u8) !T {
+pub fn decodeRlp(allocator: Allocator, comptime T: type, encoded: []const u8) RlpDecodeErrors!T {
     const decoded = try decodeItem(allocator, T, encoded, 0);
 
     return decoded.data;
@@ -19,7 +20,7 @@ fn DecodedResult(comptime T: type) type {
     return struct { consumed: u64, data: T };
 }
 
-fn decodeItem(allocator: Allocator, comptime T: type, encoded: []const u8, position: u64) !DecodedResult(T) {
+fn decodeItem(allocator: Allocator, comptime T: type, encoded: []const u8, position: u64) RlpDecodeErrors!DecodedResult(T) {
     const info = @typeInfo(T);
 
     std.debug.assert(encoded.len > 0); // Cannot decode 0 length;

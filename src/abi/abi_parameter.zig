@@ -6,6 +6,7 @@ const testing = std.testing;
 // Types
 const AbiDecoded = decoder.AbiDecoded;
 const Allocator = std.mem.Allocator;
+const DecoderErrors = decoder.DecoderErrors;
 const DecodeOptions = decoder.DecodeOptions;
 const EncodeErrors = encoder.EncodeErrors;
 const ParamType = @import("param_type.zig").ParamType;
@@ -53,7 +54,7 @@ pub const AbiParameter = struct {
     ///
     /// Consider using `decodeAbiParameters` if the parameter is
     /// comptime know and you want better typesafety from the compiler
-    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T) {
+    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecoderErrors!AbiDecoded(T) {
         return decoder.decodeAbiParameter(allocator, T, &.{self}, encoded, options);
     }
 

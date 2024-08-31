@@ -13,11 +13,13 @@ const AbiEventParameter = @import("abi_parameter.zig").AbiEventParameter;
 const AbiParameter = @import("abi_parameter.zig").AbiParameter;
 const Allocator = std.mem.Allocator;
 const DecodeOptions = decoder.DecodeOptions;
-const LogDecoderOptions = decoder_logs.LogDecoderOptions;
+const DecodeErrors = decoder.DecoderErrors;
 const EncodeErrors = encoder.EncodeErrors;
 const EncodeLogsErrors = encoder_logs.EncodeLogsErrors;
 const Extract = meta.utils.Extract;
 const Hash = types.Hash;
+const LogDecoderOptions = decoder_logs.LogDecoderOptions;
+const LogsDecoderErrors = decoder_logs.LogsDecoderErrors;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
@@ -133,7 +135,7 @@ pub const Function = struct {
     ///
     /// Consider using `decodeAbiFunction` if the struct is
     /// comptime know and you dont want to provided the return type.
-    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T) {
+    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T) {
         _ = self;
         return decoder.decodeAbiFunction(T, allocator, encoded, options);
     }
@@ -146,7 +148,7 @@ pub const Function = struct {
     ///
     /// Consider using `decodeAbiFunction` if the struct is
     /// comptime know and you dont want to provided the return type.
-    pub fn decodeOutputs(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T) {
+    pub fn decodeOutputs(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T) {
         _ = self;
         return decoder.decodeAbiFunctionOutputs(T, allocator, encoded, options);
     }
@@ -263,7 +265,7 @@ pub const Event = struct {
     /// Decode the encoded log topics based on the event signature and the provided type.
     ///
     /// Caller owns the memory.
-    pub fn decodeLogTopics(self: @This(), comptime T: type, encoded: []const ?Hash, options: LogDecoderOptions) !T {
+    pub fn decodeLogTopics(self: @This(), comptime T: type, encoded: []const ?Hash, options: LogDecoderOptions) LogsDecoderErrors!T {
         _ = self;
         return try decoder_logs.decodeLogs(T, encoded, options);
     }
@@ -362,7 +364,7 @@ pub const Error = struct {
     ///
     /// Consider using `decodeAbiError` if the struct is
     /// comptime know and you dont want to provided the return type.
-    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T) {
+    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T) {
         _ = self;
         return decoder.decodeAbiError(T, allocator, encoded, options);
     }
@@ -451,7 +453,7 @@ pub const Constructor = struct {
     ///
     /// Consider using `decodeAbiConstructor` if the struct is
     /// comptime know and you dont want to provided the return type.
-    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T) {
+    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T) {
         _ = self;
         return decoder.decodeAbiConstructor(T, allocator, encoded, options);
     }

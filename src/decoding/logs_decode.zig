@@ -14,6 +14,12 @@ const Hash = types.Hash;
 // Functions
 const encodeLogs = @import("../encoding/logs.zig").encodeLogTopics;
 
+/// Set of possible errors while performing logs decoding.
+pub const LogsDecoderErrors = Allocator.Error || error{ InvalidLength, UnexpectedTupleFieldType, ExpectedAllocator };
+
+/// Set of possible errors while performing logs decoding.
+pub const LogDecoderErrors = Allocator.Error || error{ExpectedAllocator};
+
 /// Set of options that can alter the decoder behaviour.
 pub const LogDecoderOptions = struct {
     /// Optional allocation in the case that you want to create a pointer
@@ -40,7 +46,7 @@ pub const LogDecoderOptions = struct {
 ///     .{},
 /// );
 /// ```
-pub fn decodeLogs(comptime T: type, encoded: []const ?Hash, options: LogDecoderOptions) !T {
+pub fn decodeLogs(comptime T: type, encoded: []const ?Hash, options: LogDecoderOptions) LogsDecoderErrors!T {
     const info = @typeInfo(T);
     comptime {
         std.debug.assert(info == .@"struct" and info.@"struct".is_tuple); // Must be a struct type and tuple struct type.
@@ -83,7 +89,7 @@ pub fn decodeLogs(comptime T: type, encoded: []const ?Hash, options: LogDecoderO
 /// ```zig
 /// const decoded = try decodeLog(u256, try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0"), .{});
 /// ```
-pub fn decodeLog(comptime T: type, encoded: Hash, options: LogDecoderOptions) !T {
+pub fn decodeLog(comptime T: type, encoded: Hash, options: LogDecoderOptions) LogDecoderErrors!T {
     const info = @typeInfo(T);
 
     switch (info) {

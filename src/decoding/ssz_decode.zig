@@ -10,8 +10,11 @@ const utils = @import("../utils/utils.zig");
 const Allocator = std.mem.Allocator;
 const encodeSSZ = @import("../encoding/ssz.zig").encodeSSZ;
 
+/// Set of possible errors while performing ssz decoding.
+pub const SSZDecodeErrors = Allocator.Error || error{ InvalidEnumType, IndexOutOfBounds };
+
 /// Performs ssz decoding according to the [specification](https://ethereum.org/developers/docs/data-structures-and-encoding/ssz).
-pub fn decodeSSZ(comptime T: type, serialized: []const u8) !T {
+pub fn decodeSSZ(comptime T: type, serialized: []const u8) SSZDecodeErrors!T {
     const info = @typeInfo(T);
 
     switch (info) {

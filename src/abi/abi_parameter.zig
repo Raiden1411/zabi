@@ -7,7 +7,11 @@ const testing = std.testing;
 const AbiDecoded = decoder.AbiDecoded;
 const Allocator = std.mem.Allocator;
 const DecodeOptions = decoder.DecodeOptions;
+const EncodeErrors = encoder.EncodeErrors;
 const ParamType = @import("param_type.zig").ParamType;
+
+/// Set of possible errors when running `allocPrepare`
+pub const PrepareErrors = Allocator.Error || error{NoSpaceLeft};
 
 /// Struct to represent solidity Abi Paramters
 pub const AbiParameter = struct {
@@ -33,7 +37,7 @@ pub const AbiParameter = struct {
     ///
     /// Consider using `encodeAbiParametersComptime` if the parameter is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encode(self: @This(), allocator: Allocator, values: anytype) ![]u8 {
+    pub fn encode(self: @This(), allocator: Allocator, values: anytype) EncodeErrors![]u8 {
         const encoded = try encoder.encodeAbiParameters(allocator, &.{self}, values);
         defer encoded.deinit();
 
@@ -54,7 +58,7 @@ pub const AbiParameter = struct {
     }
 
     /// Format the struct into a human readable string.
-    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) @TypeOf(writer).Error!void {
         if (self.components) |components| {
             try writer.print("(", .{});
             for (components, 0..) |component, i| {
@@ -70,7 +74,7 @@ pub const AbiParameter = struct {
 
     /// Format the struct into a human readable string.
     /// Intended to use for hashing purposes.
-    pub fn prepare(self: @This(), writer: anytype) !void {
+    pub fn prepare(self: @This(), writer: anytype) PrepareErrors!void {
         if (self.components) |components| {
             try writer.print("(", .{});
             for (components, 0..) |component, i| {
@@ -102,7 +106,7 @@ pub const AbiEventParameter = struct {
     }
 
     /// Format the struct into a human readable string.
-    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) @TypeOf(writer).Error!void {
         if (self.components) |components| {
             try writer.print("(", .{});
             for (components, 0..) |component, i| {
@@ -119,7 +123,7 @@ pub const AbiEventParameter = struct {
 
     /// Format the struct into a human readable string.
     /// Intended to use for hashing purposes.
-    pub fn prepare(self: @This(), writer: anytype) !void {
+    pub fn prepare(self: @This(), writer: anytype) PrepareErrors!void {
         if (self.components) |components| {
             try writer.print("(", .{});
             for (components, 0..) |component, i| {

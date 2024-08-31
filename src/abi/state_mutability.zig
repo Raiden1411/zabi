@@ -1,6 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
 
+/// Solidity abi stat mutability definition of functions and constructors.
 pub const StateMutability = enum {
     nonpayable,
     payable,

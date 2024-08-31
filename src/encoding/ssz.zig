@@ -13,7 +13,7 @@ const Allocator = std.mem.Allocator;
 /// Almost all zig types are supported.
 ///
 /// Caller owns the memory
-pub fn encodeSSZ(allocator: Allocator, value: anytype) ![]u8 {
+pub fn encodeSSZ(allocator: Allocator, value: anytype) Allocator.Error![]u8 {
     var list = std.ArrayList(u8).init(allocator);
     errdefer list.deinit();
 
@@ -22,7 +22,7 @@ pub fn encodeSSZ(allocator: Allocator, value: anytype) ![]u8 {
     return try list.toOwnedSlice();
 }
 
-fn encodeItem(value: anytype, list: *std.ArrayList(u8)) !void {
+fn encodeItem(value: anytype, list: *std.ArrayList(u8)) Allocator.Error!void {
     const info = @typeInfo(@TypeOf(value));
     var writer = list.writer();
 

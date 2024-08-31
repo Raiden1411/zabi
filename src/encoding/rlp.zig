@@ -5,12 +5,13 @@ const utils = @import("../utils/utils.zig");
 // Types
 const Allocator = std.mem.Allocator;
 
+/// Set of errors while performing rlp encoding.
 pub const RlpEncodeErrors = error{ NegativeNumber, Overflow } || Allocator.Error;
 
 /// RLP Encoding. Items is expected to be a tuple of values.
 /// Compilation will fail if you pass in any other type.
 /// Caller owns the memory so it must be freed.
-pub fn encodeRlp(alloc: Allocator, items: anytype) ![]u8 {
+pub fn encodeRlp(alloc: Allocator, items: anytype) RlpEncodeErrors![]u8 {
     const info = @typeInfo(@TypeOf(items));
 
     if (info != .@"struct") @compileError("Expected tuple type instead found " ++ @typeName(@TypeOf(items)));
@@ -26,7 +27,7 @@ pub fn encodeRlp(alloc: Allocator, items: anytype) ![]u8 {
     return list.toOwnedSlice();
 }
 /// Reflects on the items and encodes based on it's type.
-fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) !void {
+fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) RlpEncodeErrors!void {
     const info = @typeInfo(@TypeOf(payload));
 
     switch (info) {

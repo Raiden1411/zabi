@@ -3,17 +3,22 @@ const testing = std.testing;
 
 // Types
 const Allocator = std.mem.Allocator;
+const ParseError = std.json.ParseError;
+const ParseFromValueError = std.json.ParseFromValueError;
 const ParserOptions = std.json.ParseOptions;
 const Scanner = std.json.Scanner;
 const Token = std.json.Token;
 
+/// Set of errors when converting `[]const u8` into `ParamType`.
 pub const ParamErrors = error{ InvalidEnumTag, InvalidCharacter, LengthMismatch, Overflow } || Allocator.Error;
 
+/// Representation of the solidity fixed array type.
 pub const FixedArray = struct {
     child: *const ParamType,
     size: usize,
 };
 
+/// Type that represents solidity types in zig.
 pub const ParamType = union(enum) {
     address,
     string,
@@ -42,14 +47,13 @@ pub const ParamType = union(enum) {
             inline else => {},
         }
     }
-
     /// Overrides the `jsonParse` from `std.json`.
     ///
     /// We do this because a union is treated as expecting a object string in Zig.
     ///
     /// But since we are expecting a string that contains the type value
     /// we override this so we handle the parsing properly and still leverage the union type.
-    pub fn jsonParse(alloc: Allocator, source: *Scanner, opts: ParserOptions) !ParamType {
+    pub fn jsonParse(alloc: Allocator, source: *Scanner, opts: ParserOptions) ParseError(@TypeOf(source.*))!ParamType {
         const name_token: ?Token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
         const field_name = switch (name_token.?) {
             inline .string, .allocated_string => |slice| slice,
@@ -59,7 +63,7 @@ pub const ParamType = union(enum) {
         return typeToUnion(field_name, alloc);
     }
 
-    pub fn jsonParseFromValue(alloc: Allocator, source: std.json.Value, opts: ParserOptions) !ParamType {
+    pub fn jsonParseFromValue(alloc: Allocator, source: std.json.Value, opts: ParserOptions) ParseFromValueError!ParamType {
         _ = opts;
 
         const field_name = source.string;
@@ -76,7 +80,8 @@ pub const ParamType = union(enum) {
         try stream.write(slice_stream.getWritten());
     }
 
-    pub fn typeToJsonStringify(self: @This(), writer: anytype) !void {
+    /// Converts the tagname of `self` into a writer.
+    pub fn typeToJsonStringify(self: @This(), writer: anytype) @TypeOf(writer).Error!void {
         switch (self) {
             .string,
             .bytes,
@@ -99,8 +104,8 @@ pub const ParamType = union(enum) {
             inline else => try writer.print("", .{}),
         }
     }
-
-    pub fn typeToString(self: @This(), writer: anytype) !void {
+    /// Converts `self` into its tagname.
+    pub fn typeToString(self: @This(), writer: anytype) @TypeOf(writer).Error!void {
         switch (self) {
             .string,
             .bytes,
@@ -128,7 +133,7 @@ pub const ParamType = union(enum) {
     ///
     /// Consider using `freeArrayParamType` to destroy the pointers
     /// or call the destroy method on your allocator manually
-    pub fn typeToUnion(abitype: []const u8, alloc: Allocator) !ParamType {
+    pub fn typeToUnion(abitype: []const u8, alloc: Allocator) ParamErrors!ParamType {
         if (abitype.len == 0) return error.InvalidEnumTag;
 
         if (abitype[abitype.len - 1] == ']') {

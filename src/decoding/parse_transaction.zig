@@ -26,6 +26,7 @@ const LondonEnvelope = transaction.LondonEnvelope;
 const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
 const LondonTransactionEnvelopeSigned = transaction.LondonTransactionEnvelopeSigned;
+const RlpDecodeErrors = rlp.RlpDecodeErrors;
 const Signature = @import("../crypto/signature.zig").Signature;
 const Signer = @import("../crypto/Signer.zig");
 const StructToTupleType = meta.StructToTupleType;
@@ -45,9 +46,31 @@ pub fn ParsedTransaction(comptime T: type) type {
     };
 }
 
-/// Parses unsigned serialized transactions. Creates and arena to manage memory.
-/// Caller needs to call deinit to free memory.
-pub fn parseTransaction(allocator: Allocator, serialized: []const u8) !ParsedTransaction(TransactionEnvelope) {
+pub const ParseTransactionErrors = RlpDecodeErrors || error{ InvalidRecoveryId, InvalidTransactionType, NoSpaceLeft, InvalidLength };
+
+/// Parses unsigned serialized transactions. Creates and arena to manage memory.\
+/// This is for the cases where we need to decode access list or if the serialized transaction contains data.
+///
+/// **Example**
+/// ```zig
+/// const tx: LondonTransactionEnvelope = .{
+///     .chainId = 1,
+///     .nonce = 0,
+///     .maxPriorityFeePerGas = 0,
+///     .maxFeePerGas = 0,
+///     .gas = 0,
+///     .to = null,
+///     .value = 0,
+///     .data = null,
+///     .accessList = &.{},
+/// };
+/// const min = try serialize.serializeTransaction(testing.allocator, .{ .london = tx }, null);
+/// defer testing.allocator.free(min);
+///
+/// const parsed = try parseTransaction(testing.allocator, min);
+/// defer parsed.deinit();
+/// ```
+pub fn parseTransaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!ParsedTransaction(TransactionEnvelope) {
     var parsed: ParsedTransaction(TransactionEnvelope) = .{ .arena = try allocator.create(ArenaAllocator), .value = undefined };
     errdefer allocator.destroy(parsed.arena);
 
@@ -61,7 +84,28 @@ pub fn parseTransaction(allocator: Allocator, serialized: []const u8) !ParsedTra
 }
 
 /// Parses unsigned serialized transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseTransactionLeaky(allocator: Allocator, serialized: []const u8) !TransactionEnvelope {
+///
+/// This is usefull for cases where the transaction object is expected to not have any allocated memory and it faster to decode because of it.
+///
+/// **Example**
+/// ```zig
+/// const tx: LondonTransactionEnvelope = .{
+///     .chainId = 1,
+///     .nonce = 0,
+///     .maxPriorityFeePerGas = 0,
+///     .maxFeePerGas = 0,
+///     .gas = 0,
+///     .to = null,
+///     .value = 0,
+///     .data = null,
+///     .accessList = &.{},
+/// };
+/// const min = try serialize.serializeTransaction(testing.allocator, .{ .london = tx }, null);
+/// defer testing.allocator.free(min);
+///
+/// const parsed = try parseTransactionLeaky(testing.allocator, min);
+/// ```
+pub fn parseTransactionLeaky(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!TransactionEnvelope {
     const hexed = if (std.mem.startsWith(u8, serialized, "0x")) serialized[2..] else serialized;
 
     var bytes = hexed;
@@ -85,7 +129,7 @@ pub fn parseTransactionLeaky(allocator: Allocator, serialized: []const u8) !Tran
     return error.InvalidTransactionType;
 }
 /// Parses unsigned serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseEip4844Transaction(allocator: Allocator, serialized: []const u8) !CancunTransactionEnvelope {
+pub fn parseEip4844Transaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!CancunTransactionEnvelope {
     if (serialized[0] != 3)
         return error.InvalidTransactionType;
 
@@ -120,7 +164,7 @@ pub fn parseEip4844Transaction(allocator: Allocator, serialized: []const u8) !Ca
     };
 }
 /// Parses unsigned serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseEip1559Transaction(allocator: Allocator, serialized: []const u8) !LondonTransactionEnvelope {
+pub fn parseEip1559Transaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!LondonTransactionEnvelope {
     if (serialized[0] != 2)
         return error.InvalidTransactionType;
 
@@ -152,7 +196,7 @@ pub fn parseEip1559Transaction(allocator: Allocator, serialized: []const u8) !Lo
 }
 
 /// Parses unsigned serialized eip2930 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseEip2930Transaction(allocator: Allocator, serialized: []const u8) !BerlinTransactionEnvelope {
+pub fn parseEip2930Transaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!BerlinTransactionEnvelope {
     if (serialized[0] != 1)
         return error.InvalidTransactionType;
 
@@ -182,7 +226,7 @@ pub fn parseEip2930Transaction(allocator: Allocator, serialized: []const u8) !Be
 }
 
 /// Parses unsigned serialized legacy transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseLegacyTransaction(allocator: Allocator, serialized: []const u8) !LegacyTransactionEnvelope {
+pub fn parseLegacyTransaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!LegacyTransactionEnvelope {
     // zig fmt: off
     const nonce, 
     const gas_price, 
@@ -204,7 +248,7 @@ pub fn parseLegacyTransaction(allocator: Allocator, serialized: []const u8) !Leg
 
 /// Parses signed serialized transactions. Creates and arena to manage memory.
 /// Caller needs to call deinit to free memory.
-pub fn parseSignedTransaction(allocator: Allocator, serialized: []const u8) !ParsedTransaction(TransactionEnvelopeSigned) {
+pub fn parseSignedTransaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!ParsedTransaction(TransactionEnvelopeSigned) {
     var parsed: ParsedTransaction(TransactionEnvelopeSigned) = .{ .arena = try allocator.create(ArenaAllocator), .value = undefined };
     errdefer allocator.destroy(parsed.arena);
 
@@ -218,7 +262,7 @@ pub fn parseSignedTransaction(allocator: Allocator, serialized: []const u8) !Par
 }
 
 /// Parses signed serialized transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseSignedTransactionLeaky(allocator: Allocator, serialized: []const u8) !TransactionEnvelopeSigned {
+pub fn parseSignedTransactionLeaky(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!TransactionEnvelopeSigned {
     const hexed = if (std.mem.startsWith(u8, serialized, "0x")) serialized[2..] else serialized;
 
     var bytes = hexed;
@@ -242,7 +286,7 @@ pub fn parseSignedTransactionLeaky(allocator: Allocator, serialized: []const u8)
     return error.InvalidTransactionType;
 }
 /// Parses signed serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseSignedEip4844Transaction(allocator: Allocator, serialized: []const u8) !CancunTransactionEnvelopeSigned {
+pub fn parseSignedEip4844Transaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!CancunTransactionEnvelopeSigned {
     if (serialized[0] != 3)
         return error.InvalidTransactionType;
 
@@ -283,7 +327,7 @@ pub fn parseSignedEip4844Transaction(allocator: Allocator, serialized: []const u
     };
 }
 /// Parses signed serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseSignedEip1559Transaction(allocator: Allocator, serialized: []const u8) !LondonTransactionEnvelopeSigned {
+pub fn parseSignedEip1559Transaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!LondonTransactionEnvelopeSigned {
     if (serialized[0] != 2)
         return error.InvalidTransactionType;
 
@@ -321,7 +365,7 @@ pub fn parseSignedEip1559Transaction(allocator: Allocator, serialized: []const u
 }
 
 /// Parses signed serialized eip2930 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseSignedEip2930Transaction(allocator: Allocator, serialized: []const u8) !BerlinTransactionEnvelopeSigned {
+pub fn parseSignedEip2930Transaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!BerlinTransactionEnvelopeSigned {
     if (serialized[0] != 1)
         return error.InvalidTransactionType;
 
@@ -357,7 +401,7 @@ pub fn parseSignedEip2930Transaction(allocator: Allocator, serialized: []const u
 }
 
 /// Parses signed serialized legacy transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseSignedLegacyTransaction(allocator: Allocator, serialized: []const u8) !LegacyTransactionEnvelopeSigned {
+pub fn parseSignedLegacyTransaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!LegacyTransactionEnvelopeSigned {
     // zig fmt: off
     const nonce, 
     const gas_price, 
@@ -421,7 +465,7 @@ pub fn parseSignedLegacyTransaction(allocator: Allocator, serialized: []const u8
 }
 
 /// Parses serialized transaction accessLists. Recommend to use an arena or similar otherwise its expected to leak memory.
-pub fn parseAccessList(allocator: Allocator, access_list: []const StructToTupleType(AccessList)) ![]const AccessList {
+pub fn parseAccessList(allocator: Allocator, access_list: []const StructToTupleType(AccessList)) Allocator.Error![]const AccessList {
     var list = std.ArrayList(AccessList).init(allocator);
     errdefer list.deinit();
 

@@ -1,5 +1,7 @@
 ## Abitype
 
+Set of possible abi values according to the abi spec.
+
 ### Properties
 
 ```zig
@@ -11,6 +13,14 @@ enum {
   fallback
   receive
 }
+```
+
+## PrepareErrors
+
+Set of possible errors when running `allocPrepare`
+
+```zig
+Allocator.Error || error{NoSpaceLeft}
 ```
 
 ## Function
@@ -62,7 +72,7 @@ comptime know and you want better typesafety from the compiler
 ### Signature
 
 ```zig
-pub fn encode(self: @This(), allocator: Allocator, values: anytype) ![]u8
+pub fn encode(self: @This(), allocator: Allocator, values: anytype) EncodeErrors![]u8
 ```
 
 ### EncodeOutputs
@@ -79,7 +89,7 @@ comptime know and you want better typesafety from the compiler
 ### Signature
 
 ```zig
-pub fn encodeOutputs(self: @This(), allocator: Allocator, values: anytype) ![]u8
+pub fn encodeOutputs(self: @This(), allocator: Allocator, values: anytype) EncodeErrors![]u8
 ```
 
 ### Decode
@@ -96,7 +106,7 @@ comptime know and you dont want to provided the return type.
 ### Signature
 
 ```zig
-pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T)
+pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T)
 ```
 
 ### DecodeOutputs
@@ -113,7 +123,7 @@ comptime know and you dont want to provided the return type.
 ### Signature
 
 ```zig
-pub fn decodeOutputs(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T)
+pub fn decodeOutputs(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T)
 ```
 
 ### AllocPrepare
@@ -125,7 +135,7 @@ Caller owns the memory.
 ### Signature
 
 ```zig
-pub fn allocPrepare(self: @This(), allocator: Allocator) ![]u8
+pub fn allocPrepare(self: @This(), allocator: Allocator) PrepareErrors![]u8
 ```
 
 ### Prepare
@@ -135,7 +145,7 @@ Intended to use for hashing purposes.
 ### Signature
 
 ```zig
-pub fn prepare(self: @This(), writer: anytype) !void
+pub fn prepare(self: @This(), writer: anytype) PrepareErrors!void
 ```
 
 ## Event
@@ -172,7 +182,7 @@ comptime know and you want better typesafety from the compiler
 ### Signature
 
 ```zig
-pub fn encode(self: @This(), allocator: Allocator) !Hash
+pub fn encode(self: @This(), allocator: Allocator) EncodeErrors!Hash
 ```
 
 ### EncodeLogTopics
@@ -185,7 +195,7 @@ Caller owns the memory.
 ### Signature
 
 ```zig
-pub fn encodeLogTopics(self: @This(), allocator: Allocator, values: anytype) ![]const ?Hash
+pub fn encodeLogTopics(self: @This(), allocator: Allocator, values: anytype) EncodeLogsErrors![]const ?Hash
 ```
 
 ### DecodeLogTopics
@@ -196,7 +206,7 @@ Caller owns the memory.
 ### Signature
 
 ```zig
-pub fn decodeLogTopics(self: @This(), comptime T: type, encoded: []const ?Hash, options: LogDecoderOptions) !T
+pub fn decodeLogTopics(self: @This(), comptime T: type, encoded: []const ?Hash, options: LogDecoderOptions) LogsDecoderErrors!T
 ```
 
 ### AllocPrepare
@@ -208,7 +218,7 @@ Caller owns the memory.
 ### Signature
 
 ```zig
-pub fn allocPrepare(self: @This(), allocator: Allocator) ![]u8
+pub fn allocPrepare(self: @This(), allocator: Allocator) PrepareErrors![]u8
 ```
 
 ### Prepare
@@ -218,7 +228,7 @@ Intended to use for hashing purposes.
 ### Signature
 
 ```zig
-pub fn prepare(self: @This(), writer: anytype) !void
+pub fn prepare(self: @This(), writer: anytype) PrepareErrors!void
 ```
 
 ## Error
@@ -240,7 +250,7 @@ struct {
 ### Signature
 
 ```zig
-pub fn deinit(self: @This(), allocator: std.mem.Allocator) void
+pub fn deinit(self: @This(), allocator: Allocator) void
 ```
 
 ### Encode
@@ -256,7 +266,7 @@ comptime know and you want better typesafety from the compiler
 ### Signature
 
 ```zig
-pub fn encode(self: @This(), allocator: Allocator, values: anytype) ![]u8
+pub fn encode(self: @This(), allocator: Allocator, values: anytype) EncodeErrors![]u8
 ```
 
 ### Decode
@@ -273,7 +283,7 @@ comptime know and you dont want to provided the return type.
 ### Signature
 
 ```zig
-pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T)
+pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T)
 ```
 
 ### AllocPrepare
@@ -285,7 +295,7 @@ Caller owns the memory.
 ### Signature
 
 ```zig
-pub fn allocPrepare(self: @This(), allocator: Allocator) ![]u8
+pub fn allocPrepare(self: @This(), allocator: Allocator) PrepareErrors![]u8
 ```
 
 ### Prepare
@@ -295,7 +305,7 @@ Intended to use for hashing purposes.
 ### Signature
 
 ```zig
-pub fn prepare(self: @This(), writer: anytype) !void
+pub fn prepare(self: @This(), writer: anytype) PrepareErrors!void
 ```
 
 ## Constructor
@@ -321,7 +331,7 @@ struct {
 ### Signature
 
 ```zig
-pub fn deinit(self: @This(), allocator: std.mem.Allocator) void
+pub fn deinit(self: @This(), allocator: Allocator) void
 ```
 
 ### Encode
@@ -337,7 +347,7 @@ comptime know and you want better typesafety from the compiler
 ### Signature
 
 ```zig
-pub fn encode(self: @This(), allocator: Allocator, values: anytype) !AbiEncoded
+pub fn encode(self: @This(), allocator: Allocator, values: anytype) EncodeErrors!AbiEncoded
 ```
 
 ### Decode
@@ -354,7 +364,7 @@ comptime know and you dont want to provided the return type.
 ### Signature
 
 ```zig
-pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T)
+pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T)
 ```
 
 ## Fallback

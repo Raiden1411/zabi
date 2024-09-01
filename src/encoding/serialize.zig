@@ -31,6 +31,7 @@ const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
 const LondonEnvelope = transaction.LondonEnvelope;
 const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
+const RlpEncodeErrors = rlp.RlpEncodeErrors;
 const Sidecar = kzg.KZG4844.Sidecar;
 const Sidecars = kzg.KZG4844.Sidecars;
 const Signature = @import("../crypto/signature.zig").Signature;
@@ -39,13 +40,33 @@ const StructToTupleType = meta.StructToTupleType;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const Tuple = std.meta.Tuple;
 
+/// Set of possible errors when serializing a transaction.
+pub const SerializeErrors = RlpEncodeErrors || error{InvalidRecoveryId};
+
 /// Main function to serialize transactions.
-/// Support london, berlin and legacy transaction envelopes.
-/// For cancun transactions with blobs use the `serializeCancunTransactionWithBlob` function. This
-/// will panic if you call this with the cancun transaction envelope.
 ///
-/// Caller ownes the memory
-pub fn serializeTransaction(allocator: Allocator, tx: TransactionEnvelope, sig: ?Signature) ![]u8 {
+/// Supports cancun, london, berlin and legacy transaction envelopes.\
+/// This uses the underlaying rlp encoding to serialize the transaction and takes an optional `Signature` in case
+/// you want to serialize with the transaction signed.
+///
+/// For cancun transactions with blobs use the `serializeCancunTransactionWithBlobs` or `serializeCancunTransactionWithSidecars` functions.\
+///
+/// **Example**
+/// ```zig
+/// const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+/// const base_legacy = try serializeTransaction(testing.allocator, .{
+///     .legacy = .{
+///         .nonce = 69,
+///         .gasPrice = try utils.parseGwei(2),
+///         .gas = 0,
+///         .to = to,
+///         .value = try utils.parseEth(1),
+///         .data = null,
+///     },
+/// }, null);
+/// defer testing.allocator.free(base_legacy);
+/// ```
+pub fn serializeTransaction(allocator: Allocator, tx: TransactionEnvelope, sig: ?Signature) SerializeErrors![]u8 {
     return switch (tx) {
         .berlin => |val| try serializeTransactionEIP2930(allocator, val, sig),
         .cancun => |val| try serializeCancunTransaction(allocator, val, sig),
@@ -57,8 +78,8 @@ pub fn serializeTransaction(allocator: Allocator, tx: TransactionEnvelope, sig: 
 ///
 /// Please use `serializeCancunTransactionWithSidecars` or
 /// `serializeCancunTransactionWithBlobs` if you want to
-/// serialize them as a wrapper
-pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature) ![]u8 {
+/// serialize them as a wrapper.
+pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8 {
     const prep_access = try prepareAccessList(allocator, tx.accessList);
     defer allocator.free(prep_access);
 
@@ -86,7 +107,7 @@ pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnv
         defer allocator.free(encoded_sig);
 
         var serialized = try allocator.alloc(u8, encoded_sig.len + 1);
-        // Add the transaction type;
+        // Add the transaction type
         serialized[0] = 3;
         @memcpy(serialized[1..], encoded_sig);
 
@@ -111,7 +132,7 @@ pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnv
     defer allocator.free(encoded);
 
     var serialized = try allocator.alloc(u8, encoded.len + 1);
-    // Add the transaction type;
+    // Add the transaction type
     serialized[0] = 3;
     @memcpy(serialized[1..], encoded);
 
@@ -155,7 +176,7 @@ pub fn serializeCancunTransactionWithBlobs(allocator: Allocator, tx: CancunTrans
         defer allocator.free(encoded_sig);
 
         var serialized = try allocator.alloc(u8, encoded_sig.len + 1);
-        // Add the transaction type;
+        // Add the transaction type
         serialized[0] = 3;
         @memcpy(serialized[1..], encoded_sig);
 
@@ -267,7 +288,7 @@ pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTr
 }
 /// Function to serialize eip1559 transactions.
 /// Caller ownes the memory
-pub fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEnvelope, sig: ?Signature) ![]u8 {
+pub fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8 {
     const prep_access = try prepareAccessList(allocator, tx.accessList);
     defer allocator.free(prep_access);
 
@@ -322,7 +343,7 @@ pub fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEn
 }
 /// Function to serialize eip2930 transactions.
 /// Caller ownes the memory
-pub fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEnvelope, sig: ?Signature) ![]u8 {
+pub fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8 {
     const prep_access = try prepareAccessList(allocator, tx.accessList);
     defer allocator.free(prep_access);
 
@@ -375,7 +396,7 @@ pub fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEn
 }
 /// Function to serialize legacy transactions.
 /// Caller ownes the memory
-pub fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnvelope, sig: ?Signature) ![]u8 {
+pub fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8 {
     if (sig) |signature| {
         const v: usize = chainId: {
             if (tx.chainId > 0) break :chainId @intCast((tx.chainId * 2) + (35 + @as(u8, @intCast(signature.v))));
@@ -447,7 +468,7 @@ pub fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnv
     return encoded;
 }
 /// Serializes the access list into a slice of tuples of hex values.
-pub fn prepareAccessList(allocator: Allocator, access_list: []const AccessList) ![]const StructToTupleType(AccessList) {
+pub fn prepareAccessList(allocator: Allocator, access_list: []const AccessList) Allocator.Error![]const StructToTupleType(AccessList) {
     var tuple_list = std.ArrayList(StructToTupleType(AccessList)).init(allocator);
     errdefer tuple_list.deinit();
 

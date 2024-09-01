@@ -57,7 +57,7 @@ Converts the tagname of `self` into a writer.
 ### Signature
 
 ```zig
-pub fn typeToJsonStringify(self: @This(), writer: anytype) @TypeOf(writer.*).Error!void
+pub fn typeToJsonStringify(self: @This(), writer: anytype) @TypeOf(writer).Error!void
 ```
 
 ### TypeToString
@@ -66,7 +66,7 @@ Converts `self` into its tagname.
 ### Signature
 
 ```zig
-pub fn typeToString(self: @This(), writer: anytype) @TypeOf(writer.*).Error!void
+pub fn typeToString(self: @This(), writer: anytype) @TypeOf(writer).Error!void
 ```
 
 ### TypeToUnion

@@ -69,7 +69,17 @@ test "Zero eip 1559" {
 }
 
 test "Minimal eip 1559" {
-    const tx: LondonTransactionEnvelope = .{ .chainId = 1, .nonce = 0, .maxPriorityFeePerGas = 0, .maxFeePerGas = 0, .gas = 0, .to = null, .value = 0, .data = null, .accessList = &.{} };
+    const tx: LondonTransactionEnvelope = .{
+        .chainId = 1,
+        .nonce = 0,
+        .maxPriorityFeePerGas = 0,
+        .maxFeePerGas = 0,
+        .gas = 0,
+        .to = null,
+        .value = 0,
+        .data = null,
+        .accessList = &.{},
+    };
     const min = try serialize.serializeTransaction(testing.allocator, .{ .london = tx }, null);
     defer testing.allocator.free(min);
 

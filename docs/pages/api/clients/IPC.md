@@ -1,3 +1,21 @@
+## ReadLoopErrors
+
+```zig
+SetSockOptError || error{ FailedToJsonParseResponse, Closed, InvalidTypeMessage, UnexpectedError }
+```
+
+## SendRpcRequestErrors
+
+```zig
+Allocator.Error || EthereumZigErrors || std.posix.WriteError || ParseFromValueError || error{ReachedMaxRetryLimit}
+```
+
+## BasicRequestErrors
+
+```zig
+SendRpcRequestErrors || error{NoSpaceLeft}
+```
+
 ## IPCErrors
 
 ```zig
@@ -55,7 +73,7 @@ This will also start the read loop in a seperate thread.
 ### Signature
 
 ```zig
-pub fn init(opts: InitOptions) !*IPC
+pub fn init(opts: InitOptions) (Allocator.Error || std.Thread.SpawnError || error{ InvalidNetworkConfig, InvalidIPCPath, FailedToConnect })!*IPC
 ```
 
 ## Deinit
@@ -77,7 +95,7 @@ Fails when match retries are reached or a invalid ipc path is provided
 ### Signature
 
 ```zig
-pub fn connect(self: *IPC, path: []const u8) !Stream
+pub fn connect(self: *IPC, path: []const u8) error{ InvalidIPCPath, FailedToConnect }!Stream
 ```
 
 ## BlobBaseFee
@@ -88,7 +106,7 @@ RPC Method: [eth_blobBaseFee](https://ethereum.org/en/developers/docs/apis/json-
 ### Signature
 
 ```zig
-pub fn blobBaseFee(self: *IPC) !RPCResponse(Gwei)
+pub fn blobBaseFee(self: *IPC) BasicRequestErrors!RPCResponse(Gwei)
 ```
 
 ## CreateAccessList
@@ -99,7 +117,7 @@ RPC Method: [eth_createAccessList](https://ethereum.org/en/developers/docs/apis/
 ### Signature
 
 ```zig
-pub fn createAccessList(self: *IPC, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(AccessListResult)
+pub fn createAccessList(self: *IPC, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(AccessListResult)
 ```
 
 ## EstimateBlobMaxFeePerGas
@@ -134,7 +152,7 @@ RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-
 ### Signature
 
 ```zig
-pub fn estimateGas(self: *IPC, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Gwei)
+pub fn estimateGas(self: *IPC, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(Gwei)
 ```
 
 ## EstimateMaxFeePerGasManual
@@ -153,7 +171,7 @@ Only use this if the node you are currently using supports `eth_maxPriorityFeePe
 ### Signature
 
 ```zig
-pub fn estimateMaxFeePerGas(self: *IPC) !RPCResponse(Gwei)
+pub fn estimateMaxFeePerGas(self: *IPC) BasicRequestErrors!RPCResponse(Gwei)
 ```
 
 ## FeeHistory
@@ -164,7 +182,7 @@ RPC Method: [eth_feeHistory](https://ethereum.org/en/developers/docs/apis/json-r
 ### Signature
 
 ```zig
-pub fn feeHistory(self: *IPC, blockCount: u64, newest_block: BlockNumberRequest, reward_percentil: ?[]const f64) !RPCResponse(FeeHistory)
+pub fn feeHistory(self: *IPC, blockCount: u64, newest_block: BlockNumberRequest, reward_percentil: ?[]const f64) BasicRequestErrors!RPCResponse(FeeHistory)
 ```
 
 ## GetAccounts
@@ -175,7 +193,7 @@ RPC Method: [eth_accounts](https://ethereum.org/en/developers/docs/apis/json-rpc
 ### Signature
 
 ```zig
-pub fn getAccounts(self: *IPC) !RPCResponse([]const Address)
+pub fn getAccounts(self: *IPC) BasicRequestErrors!RPCResponse([]const Address)
 ```
 
 ## GetAddressBalance
@@ -186,7 +204,7 @@ RPC Method: [eth_getBalance](https://ethereum.org/en/developers/docs/apis/json-r
 ### Signature
 
 ```zig
-pub fn getAddressBalance(self: *IPC, opts: BalanceRequest) !RPCResponse(Wei)
+pub fn getAddressBalance(self: *IPC, opts: BalanceRequest) BasicRequestErrors!RPCResponse(Wei)
 ```
 
 ## GetAddressTransactionCount
@@ -197,7 +215,7 @@ RPC Method: [eth_getTransactionCount](https://ethereum.org/en/developers/docs/ap
 ### Signature
 
 ```zig
-pub fn getAddressTransactionCount(self: *IPC, opts: BalanceRequest) !RPCResponse(u64)
+pub fn getAddressTransactionCount(self: *IPC, opts: BalanceRequest) BasicRequestErrors!RPCResponse(u64)
 ```
 
 ## GetBlockByHash
@@ -208,24 +226,21 @@ RPC Method: [eth_getBlockByHash](https://ethereum.org/en/developers/docs/apis/js
 ### Signature
 
 ```zig
-pub fn getBlockByHash(self: *IPC, opts: BlockHashRequest) !RPCResponse(Block)
+pub fn getBlockByHash(self: *IPC, opts: BlockHashRequest) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(Block)
 ```
 
 ## GetBlockByHashType
 Returns information about a block by hash.
 
-Ask for a expected type since the way that our json parser works
-on unions it will try to parse it until it can complete it for a
-union member. This can be slow so if you know exactly what is the
-expected type you can pass it and it will return the json parsed
-response.
+Use this if the provided block type doesnt fit the expected object that it's returned from the endpoint
+and you know exactly the shape that the data will be in.
 
 RPC Method: [eth_getBlockByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblockbyhash)
 
 ### Signature
 
 ```zig
-pub fn getBlockByHashType(self: *IPC, comptime T: type, opts: BlockHashRequest) !RPCResponse(T)
+pub fn getBlockByHashType(self: *IPC, comptime T: type, opts: BlockHashRequest) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(T)
 ```
 
 ## GetBlockByNumber
@@ -236,7 +251,7 @@ RPC Method: [eth_getBlockByNumber](https://ethereum.org/en/developers/docs/apis/
 ### Signature
 
 ```zig
-pub fn getBlockByNumber(self: *IPC, opts: BlockRequest) !RPCResponse(Block)
+pub fn getBlockByNumber(self: *IPC, opts: BlockRequest) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(Block)
 ```
 
 ## GetBlockByNumberType
@@ -253,7 +268,7 @@ RPC Method: [eth_getBlockByNumber](https://ethereum.org/en/developers/docs/apis/
 ### Signature
 
 ```zig
-pub fn getBlockByNumberType(self: *IPC, comptime T: type, opts: BlockRequest) !RPCResponse(T)
+pub fn getBlockByNumberType(self: *IPC, comptime T: type, opts: BlockRequest) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(T)
 ```
 
 ## GetBlockNumber
@@ -264,7 +279,7 @@ RPC Method: [eth_blockNumber](https://ethereum.org/en/developers/docs/apis/json-
 ### Signature
 
 ```zig
-pub fn getBlockNumber(self: *IPC) !RPCResponse(u64)
+pub fn getBlockNumber(self: *IPC) BasicRequestErrors!RPCResponse(u64)
 ```
 
 ## GetBlockTransactionCountByHash
@@ -275,7 +290,7 @@ RPC Method: [eth_getBlockTransactionCountByHash](https://ethereum.org/en/develop
 ### Signature
 
 ```zig
-pub fn getBlockTransactionCountByHash(self: *IPC, block_hash: Hash) !RPCResponse(usize)
+pub fn getBlockTransactionCountByHash(self: *IPC, block_hash: Hash) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetBlockTransactionCountByNumber
@@ -286,7 +301,7 @@ RPC Method: [eth_getBlockTransactionCountByNumber](https://ethereum.org/en/devel
 ### Signature
 
 ```zig
-pub fn getBlockTransactionCountByNumber(self: *IPC, opts: BlockNumberRequest) !RPCResponse(usize)
+pub fn getBlockTransactionCountByNumber(self: *IPC, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetChainId
@@ -297,7 +312,7 @@ RPC Method: [eth_chainId](https://ethereum.org/en/developers/docs/apis/json-rpc#
 ### Signature
 
 ```zig
-pub fn getChainId(self: *IPC) !RPCResponse(usize)
+pub fn getChainId(self: *IPC) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetClientVersion
@@ -308,7 +323,7 @@ RPC Method: [web3_clientVersion](https://ethereum.org/en/developers/docs/apis/js
 ### Signature
 
 ```zig
-pub fn getClientVersion(self: *IPC) !RPCResponse([]const u8)
+pub fn getClientVersion(self: *IPC) BasicRequestErrors!RPCResponse([]const u8)
 ```
 
 ## GetContractCode
@@ -319,7 +334,7 @@ RPC Method: [eth_getCode](https://ethereum.org/en/developers/docs/apis/json-rpc#
 ### Signature
 
 ```zig
-pub fn getContractCode(self: *IPC, opts: BalanceRequest) !RPCResponse(Hex)
+pub fn getContractCode(self: *IPC, opts: BalanceRequest) BasicRequestErrors!RPCResponse(Hex)
 ```
 
 ## GetCurrentRpcEvent
@@ -355,7 +370,11 @@ https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterlogs
 ### Signature
 
 ```zig
-pub fn getFilterOrLogChanges(self: *IPC, filter_id: u128, method: EthereumRpcMethods) !RPCResponse(Logs)
+pub fn getFilterOrLogChanges(
+    self: *IPC,
+    filter_id: u128,
+    method: EthereumRpcMethods,
+) (BasicRequestErrors || error{ InvalidFilterId, InvalidRpcMethod })!RPCResponse(Logs)
 ```
 
 ## GetGasPrice
@@ -367,7 +386,7 @@ RPC Method: [eth_gasPrice](https://ethereum.org/en/developers/docs/apis/json-rpc
 ### Signature
 
 ```zig
-pub fn getGasPrice(self: *IPC) !RPCResponse(Gwei)
+pub fn getGasPrice(self: *IPC) BasicRequestErrors!RPCResponse(Gwei)
 ```
 
 ## GetLogs
@@ -378,7 +397,7 @@ RPC Method: [eth_getLogs](https://ethereum.org/en/developers/docs/apis/json-rpc#
 ### Signature
 
 ```zig
-pub fn getLogs(self: *IPC, opts: LogRequest, tag: ?BalanceBlockTag) !RPCResponse(Logs)
+pub fn getLogs(self: *IPC, opts: LogRequest, tag: ?BalanceBlockTag) (BasicRequestErrors || error{InvalidLogRequestParams})!RPCResponse(Logs)
 ```
 
 ## GetLogsSubEvent
@@ -387,7 +406,7 @@ Parses the `Value` in the sub-channel as a log event
 ### Signature
 
 ```zig
-pub fn getLogsSubEvent(self: *IPC) !RPCResponse(EthereumSubscribeResponse(Log))
+pub fn getLogsSubEvent(self: *IPC) ParseFromValueError!RPCResponse(EthereumSubscribeResponse(Log))
 ```
 
 ## GetNewHeadsBlockSubEvent
@@ -396,7 +415,7 @@ Parses the `Value` in the sub-channel as a new heads block event
 ### Signature
 
 ```zig
-pub fn getNewHeadsBlockSubEvent(self: *IPC) !RPCResponse(EthereumSubscribeResponse(Block))
+pub fn getNewHeadsBlockSubEvent(self: *IPC) ParseFromValueError!RPCResponse(EthereumSubscribeResponse(Block))
 ```
 
 ## GetNetworkListenStatus
@@ -407,7 +426,7 @@ RPC Method: [net_listening](https://docs.infura.io/api/networks/ethereum/json-rp
 ### Signature
 
 ```zig
-pub fn getNetworkListenStatus(self: *IPC) !RPCResponse(bool)
+pub fn getNetworkListenStatus(self: *IPC) BasicRequestErrors!RPCResponse(bool)
 ```
 
 ## GetNetworkPeerCount
@@ -418,7 +437,7 @@ RPC Method: [net_peerCount](https://docs.infura.io/api/networks/ethereum/json-rp
 ### Signature
 
 ```zig
-pub fn getNetworkPeerCount(self: *IPC) !RPCResponse(usize)
+pub fn getNetworkPeerCount(self: *IPC) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetNetworkVersionId
@@ -429,7 +448,7 @@ RPC Method: [net_version](https://docs.infura.io/api/networks/ethereum/json-rpc-
 ### Signature
 
 ```zig
-pub fn getNetworkVersionId(self: *IPC) !RPCResponse(usize)
+pub fn getNetworkVersionId(self: *IPC) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetPendingTransactionsSubEvent
@@ -438,7 +457,7 @@ Parses the `Value` in the sub-channel as a pending transaction hash event
 ### Signature
 
 ```zig
-pub fn getPendingTransactionsSubEvent(self: *IPC) !RPCResponse(EthereumSubscribeResponse(Hash))
+pub fn getPendingTransactionsSubEvent(self: *IPC) BasicRequestErrors!RPCResponse(EthereumSubscribeResponse(Hash))
 ```
 
 ## GetProof
@@ -449,7 +468,7 @@ RPC Method: [eth_getProof](https://docs.infura.io/api/networks/ethereum/json-rpc
 ### Signature
 
 ```zig
-pub fn getProof(self: *IPC, opts: ProofRequest, tag: ?ProofBlockTag) !RPCResponse(ProofResult)
+pub fn getProof(self: *IPC, opts: ProofRequest, tag: ?ProofBlockTag) (BasicRequestErrors || error{ExpectBlockNumberOrTag})!RPCResponse(ProofResult)
 ```
 
 ## GetProtocolVersion
@@ -460,7 +479,7 @@ RPC Method: [eth_protocolVersion](https://ethereum.org/en/developers/docs/apis/j
 ### Signature
 
 ```zig
-pub fn getProtocolVersion(self: *IPC) !RPCResponse(u64)
+pub fn getProtocolVersion(self: *IPC) BasicRequestErrors!RPCResponse(u64)
 ```
 
 ## GetRawTransactionByHash
@@ -471,7 +490,7 @@ RPC Method: [eth_getRawTransactionByHash](https://docs.chainstack.com/reference/
 ### Signature
 
 ```zig
-pub fn getRawTransactionByHash(self: *IPC, tx_hash: Hash) !RPCResponse(Hex)
+pub fn getRawTransactionByHash(self: *IPC, tx_hash: Hash) BasicRequestErrors!RPCResponse(Hex)
 ```
 
 ## GetSha3Hash
@@ -482,7 +501,7 @@ RPC Method: [web_sha3](https://ethereum.org/en/developers/docs/apis/json-rpc#web
 ### Signature
 
 ```zig
-pub fn getSha3Hash(self: *IPC, message: []const u8) !RPCResponse(Hash)
+pub fn getSha3Hash(self: *IPC, message: []const u8) BasicRequestErrors!RPCResponse(Hash)
 ```
 
 ## GetStorage
@@ -493,7 +512,7 @@ RPC Method: [eth_getStorageAt](https://ethereum.org/en/developers/docs/apis/json
 ### Signature
 
 ```zig
-pub fn getStorage(self: *IPC, address: Address, storage_key: Hash, opts: BlockNumberRequest) !RPCResponse(Hash)
+pub fn getStorage(self: *IPC, address: Address, storage_key: Hash, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(Hash)
 ```
 
 ## GetSyncStatus
@@ -505,7 +524,7 @@ RPC Method: [eth_syncing](https://ethereum.org/en/developers/docs/apis/json-rpc#
 ### Signature
 
 ```zig
-pub fn getSyncStatus(self: *IPC) !?RPCResponse(SyncProgress)
+pub fn getSyncStatus(self: *IPC) ?RPCResponse(SyncProgress)
 ```
 
 ## GetTransactionByBlockHashAndIndex
@@ -516,48 +535,60 @@ RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/deve
 ### Signature
 
 ```zig
-pub fn getTransactionByBlockHashAndIndex(self: *IPC, block_hash: Hash, index: usize) !RPCResponse(Transaction)
+pub fn getTransactionByBlockHashAndIndex(self: *IPC, block_hash: Hash, index: usize) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
 ```
 
 ## GetTransactionByBlockHashAndIndexType
 Returns information about a transaction by block hash and transaction index position.
 
-Ask for a expected type since the way that our json parser works
-on unions it will try to parse it until it can complete it for a
-union member. This can be slow so if you know exactly what is the
-expected type you can pass it and it will return the json parsed
-response.
+Use this if the provided transaction type doesnt fit the expected object that it's returned from the endpoint
+and you know exactly the shape that the data will be in.
 
 RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblockhashandindex)
 
 ### Signature
 
 ```zig
-pub fn getTransactionByBlockHashAndIndexType(self: *IPC, comptime T: type, block_hash: Hash, index: usize) !RPCResponse(T)
+pub fn getTransactionByBlockHashAndIndexType(
+    self: *IPC,
+    comptime T: type,
+    block_hash: Hash,
+    index: usize,
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(T)
 ```
 
 ## GetTransactionByBlockNumberAndIndex
-### Signature
-
-```zig
-pub fn getTransactionByBlockNumberAndIndex(self: *IPC, opts: BlockNumberRequest, index: usize) !RPCResponse(Transaction)
-```
-
-## GetTransactionByBlockNumberAndIndexType
 Returns information about a transaction by block number and transaction index position.
-
-Ask for a expected type since the way that our json parser works
-on unions it will try to parse it until it can complete it for a
-union member. This can be slow so if you know exactly what is the
-expected type you can pass it and it will return the json parsed
-response.
 
 RPC Method: [eth_getTransactionByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblocknumberandindex)
 
 ### Signature
 
 ```zig
-pub fn getTransactionByBlockNumberAndIndexType(self: *IPC, comptime T: type, opts: BlockNumberRequest, index: usize) !RPCResponse(T)
+pub fn getTransactionByBlockNumberAndIndex(
+    self: *IPC,
+    opts: BlockNumberRequest,
+    index: usize,
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
+```
+
+## GetTransactionByBlockNumberAndIndexType
+Returns information about a transaction by block number and transaction index position.
+
+Use this if the provided transaction type doesnt fit the expected object that it's returned from the endpoint
+and you know exactly the shape that the data will be in.
+
+RPC Method: [eth_getTransactionByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblocknumberandindex)
+
+### Signature
+
+```zig
+pub fn getTransactionByBlockNumberAndIndexType(
+    self: *IPC,
+    comptime T: type,
+    opts: BlockNumberRequest,
+    index: usize,
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(T)
 ```
 
 ## GetTransactionByHash
@@ -568,24 +599,21 @@ RPC Method: [eth_getTransactionByHash](https://ethereum.org/en/developers/docs/a
 ### Signature
 
 ```zig
-pub fn getTransactionByHash(self: *IPC, transaction_hash: Hash) !RPCResponse(Transaction)
+pub fn getTransactionByHash(self: *IPC, transaction_hash: Hash) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
 ```
 
 ## GetTransactionByHashType
 Returns the information about a transaction requested by transaction hash.
 
-Ask for a expected type since the way that our json parser works
-on unions it will try to parse it until it can complete it for a
-union member. This can be slow so if you know exactly what is the
-expected type you can pass it and it will return the json parsed
-response.
+Use this if the provided transaction type doesnt fit the expected object that it's returned from the endpoint
+and you know exactly the shape that the data will be in.
 
 RPC Method: [eth_getTransactionByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyhash)
 
 ### Signature
 
 ```zig
-pub fn getTransactionByHashType(self: *IPC, comptime T: type, transaction_hash: Hash) !RPCResponse(T)
+pub fn getTransactionByHashType(self: *IPC, comptime T: type, transaction_hash: Hash) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(T)
 ```
 
 ## GetTransactionReceipt
@@ -596,7 +624,21 @@ RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/
 ### Signature
 
 ```zig
-pub fn getTransactionReceipt(self: *IPC, transaction_hash: Hash) !RPCResponse(TransactionReceipt)
+pub fn getTransactionReceipt(self: *IPC, transaction_hash: Hash) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt)
+```
+
+## GetTransactionReceiptType
+Returns the receipt of a transaction by transaction hash.
+
+Use this if the provided receipt type doesnt fit the expected object that it's returned from the endpoint
+and you know exactly the shape that the data will be in.
+
+RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
+
+### Signature
+
+```zig
+pub fn getTransactionReceiptType(self: *IPC, comptime T: type, transaction_hash: Hash) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt)
 ```
 
 ## GetTxPoolContent
@@ -612,7 +654,7 @@ RPC Method: [txpool_content](https://geth.ethereum.org/docs/interacting-with-get
 ### Signature
 
 ```zig
-pub fn getTxPoolContent(self: *IPC) !RPCResponse(TxPoolContent)
+pub fn getTxPoolContent(self: *IPC) BasicRequestErrors!RPCResponse(TxPoolContent)
 ```
 
 ## GetTxPoolContentFrom
@@ -624,7 +666,7 @@ RPC Method: [txpool_contentFrom](https://geth.ethereum.org/docs/interacting-with
 ### Signature
 
 ```zig
-pub fn getTxPoolContentFrom(self: *IPC, from: Address) !RPCResponse([]const PoolTransactionByNonce)
+pub fn getTxPoolContentFrom(self: *IPC, from: Address) BasicRequestErrors!RPCResponse([]const PoolTransactionByNonce)
 ```
 
 ## GetTxPoolInspectStatus
@@ -637,7 +679,7 @@ RPC Method: [txpool_inspect](https://geth.ethereum.org/docs/interacting-with-get
 ### Signature
 
 ```zig
-pub fn getTxPoolInspectStatus(self: *IPC) !RPCResponse(TxPoolInspect)
+pub fn getTxPoolInspectStatus(self: *IPC) BasicRequestErrors!RPCResponse(TxPoolInspect)
 ```
 
 ## GetTxPoolStatus
@@ -649,7 +691,7 @@ RPC Method: [txpool_status](https://geth.ethereum.org/docs/interacting-with-geth
 ### Signature
 
 ```zig
-pub fn getTxPoolStatus(self: *IPC) !RPCResponse(TxPoolStatus)
+pub fn getTxPoolStatus(self: *IPC) BasicRequestErrors!RPCResponse(TxPoolStatus)
 ```
 
 ## GetUncleByBlockHashAndIndex
@@ -660,24 +702,21 @@ RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers
 ### Signature
 
 ```zig
-pub fn getUncleByBlockHashAndIndex(self: *IPC, block_hash: Hash, index: usize) !RPCResponse(Block)
+pub fn getUncleByBlockHashAndIndex(self: *IPC, block_hash: Hash, index: usize) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(Block)
 ```
 
 ## GetUncleByBlockHashAndIndexType
 Returns information about a uncle of a block by hash and uncle index position.
 
-Ask for a expected type since the way that our json parser works
-on unions it will try to parse it until it can complete it for a
-union member. This can be slow so if you know exactly what is the
-expected type you can pass it and it will return the json parsed
-response.
+Use this if the provided block type doesnt fit the expected object that it's returned from the endpoint
+and you know exactly the shape that the data will be in.
 
 RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblockhashandindex)
 
 ### Signature
 
 ```zig
-pub fn getUncleByBlockHashAndIndexType(self: *IPC, comptime T: type, block_hash: Hash, index: usize) !RPCResponse(T)
+pub fn getUncleByBlockHashAndIndexType(self: *IPC, comptime T: type, block_hash: Hash, index: usize) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(T)
 ```
 
 ## GetUncleByBlockNumberAndIndex
@@ -688,24 +727,26 @@ RPC Method: [eth_getUncleByBlockNumberAndIndex](https://ethereum.org/en/develope
 ### Signature
 
 ```zig
-pub fn getUncleByBlockNumberAndIndex(self: *IPC, opts: BlockNumberRequest, index: usize) !RPCResponse(Block)
+pub fn getUncleByBlockNumberAndIndex(self: *IPC, opts: BlockNumberRequest, index: usize) (BasicRequestErrors || error{InvalidBlockNumberOrIndex})!RPCResponse(Block)
 ```
 
 ## GetUncleByBlockNumberAndIndexType
 Returns information about a uncle of a block by number and uncle index position.
 
-Ask for a expected type since the way that our json parser works
-on unions it will try to parse it until it can complete it for a
-union member. This can be slow so if you know exactly what is the
-expected type you can pass it and it will return the json parsed
-response.
+Use this if the provided block type doesnt fit the expected object that it's returned from the endpoint
+and you know exactly the shape that the data will be in.
 
 RPC Method: [eth_getUncleByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblocknumberandindex)
 
 ### Signature
 
 ```zig
-pub fn getUncleByBlockNumberAndIndexType(self: *IPC, comptime T: type, opts: BlockNumberRequest, index: usize) !RPCResponse(T)
+pub fn getUncleByBlockNumberAndIndexType(
+    self: *IPC,
+    comptime T: type,
+    opts: BlockNumberRequest,
+    index: usize,
+) (BasicRequestErrors || error{InvalidBlockNumberOrIndex})!RPCResponse(T)
 ```
 
 ## GetUncleCountByBlockHash
@@ -716,7 +757,7 @@ RPC Method: [`eth_getUncleCountByBlockHash`](https://ethereum.org/en/developers/
 ### Signature
 
 ```zig
-pub fn getUncleCountByBlockHash(self: *IPC, block_hash: Hash) !RPCResponse(usize)
+pub fn getUncleCountByBlockHash(self: *IPC, block_hash: Hash) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetUncleCountByBlockNumber
@@ -727,7 +768,7 @@ RPC Method: [`eth_getUncleCountByBlockNumber`](https://ethereum.org/en/developer
 ### Signature
 
 ```zig
-pub fn getUncleCountByBlockNumber(self: *IPC, opts: BlockNumberRequest) !RPCResponse(usize)
+pub fn getUncleCountByBlockNumber(self: *IPC, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## Multicall3
@@ -786,7 +827,7 @@ RPC Method: [`eth_newBlockFilter`](https://ethereum.org/en/developers/docs/apis/
 ### Signature
 
 ```zig
-pub fn newBlockFilter(self: *IPC) !RPCResponse(u128)
+pub fn newBlockFilter(self: *IPC) BasicRequestErrors!RPCResponse(u128)
 ```
 
 ## NewLogFilter
@@ -798,7 +839,7 @@ RPC Method: [`eth_newFilter`](https://ethereum.org/en/developers/docs/apis/json-
 ### Signature
 
 ```zig
-pub fn newLogFilter(self: *IPC, opts: LogRequest, tag: ?BalanceBlockTag) !RPCResponse(u128)
+pub fn newLogFilter(self: *IPC, opts: LogRequest, tag: ?BalanceBlockTag) BasicRequestErrors!RPCResponse(u128)
 ```
 
 ## NewPendingTransactionFilter
@@ -810,7 +851,7 @@ RPC Method: [`eth_newPendingTransactionFilter`](https://ethereum.org/en/develope
 ### Signature
 
 ```zig
-pub fn newPendingTransactionFilter(self: *IPC) !RPCResponse(u128)
+pub fn newPendingTransactionFilter(self: *IPC) BasicRequestErrors!RPCResponse(u128)
 ```
 
 ## ReadLoop
@@ -820,7 +861,7 @@ If a message is too long it will double the buffer size to read the message.
 ### Signature
 
 ```zig
-pub fn readLoop(self: *IPC) !void
+pub fn readLoop(self: *IPC) ReadLoopErrors!void
 ```
 
 ## ReadLoopOwnedThread
@@ -829,7 +870,7 @@ Function prepared to start the read loop in a seperate thread.
 ### Signature
 
 ```zig
-pub fn readLoopOwnedThread(self: *IPC) !void
+pub fn readLoopOwnedThread(self: *IPC) void
 ```
 
 ## ParseSubscriptionEvent
@@ -839,7 +880,7 @@ Usefull for events that currently zabi doesn't have custom support.
 ### Signature
 
 ```zig
-pub fn parseSubscriptionEvent(self: *IPC, comptime T: type) !RPCResponse(EthereumSubscribeResponse(T))
+pub fn parseSubscriptionEvent(self: *IPC, comptime T: type) ParseFromValueError!RPCResponse(EthereumSubscribeResponse(T))
 ```
 
 ## SendEthCall
@@ -855,7 +896,7 @@ RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#e
 ### Signature
 
 ```zig
-pub fn sendEthCall(self: *IPC, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Hex)
+pub fn sendEthCall(self: *IPC, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(Hex)
 ```
 
 ## SendRawTransaction
@@ -867,7 +908,7 @@ RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/a
 ### Signature
 
 ```zig
-pub fn sendRawTransaction(self: *IPC, serialized_tx: Hex) !RPCResponse(Hash)
+pub fn sendRawTransaction(self: *IPC, serialized_tx: Hex) BasicRequestErrors!RPCResponse(Hash)
 ```
 
 ## SendRpcRequest
@@ -877,7 +918,7 @@ This blocks until it gets the response back from the server.
 ### Signature
 
 ```zig
-pub fn sendRpcRequest(self: *IPC, comptime T: type, message: []u8) !RPCResponse(T)
+pub fn sendRpcRequest(self: *IPC, comptime T: type, message: []u8) SendRpcRequestErrors!RPCResponse(T)
 ```
 
 ## UninstallFilter
@@ -889,7 +930,7 @@ RPC Method: [`eth_uninstallFilter`](https://ethereum.org/en/developers/docs/apis
 ### Signature
 
 ```zig
-pub fn uninstallFilter(self: *IPC, id: usize) !RPCResponse(bool)
+pub fn uninstallFilter(self: *IPC, id: usize) BasicRequestErrors!RPCResponse(bool)
 ```
 
 ## Unsubscribe
@@ -901,7 +942,7 @@ RPC Method: [`eth_unsubscribe`](https://docs.alchemy.com/reference/eth-unsubscri
 ### Signature
 
 ```zig
-pub fn unsubscribe(self: *IPC, sub_id: u128) !RPCResponse(bool)
+pub fn unsubscribe(self: *IPC, sub_id: u128) BasicRequestErrors!RPCResponse(bool)
 ```
 
 ## WatchNewBlocks
@@ -912,7 +953,7 @@ RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/eth-subscribe)
 ### Signature
 
 ```zig
-pub fn watchNewBlocks(self: *IPC) !RPCResponse(u128)
+pub fn watchNewBlocks(self: *IPC) BasicRequestErrors!RPCResponse(u128)
 ```
 
 ## WatchLogs
@@ -923,7 +964,7 @@ RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/logs)
 ### Signature
 
 ```zig
-pub fn watchLogs(self: *IPC, opts: WatchLogsRequest) !RPCResponse(u128)
+pub fn watchLogs(self: *IPC, opts: WatchLogsRequest) BasicRequestErrors!RPCResponse(u128)
 ```
 
 ## WatchTransactions
@@ -934,7 +975,7 @@ RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/newpendingtrans
 ### Signature
 
 ```zig
-pub fn watchTransactions(self: *IPC) !RPCResponse(u128)
+pub fn watchTransactions(self: *IPC) BasicRequestErrors!RPCResponse(u128)
 ```
 
 ## WatchWebsocketEvent
@@ -948,7 +989,7 @@ Returns the subscription Id.
 ### Signature
 
 ```zig
-pub fn watchWebsocketEvent(self: *IPC, method: []const u8) !RPCResponse(u128)
+pub fn watchWebsocketEvent(self: *IPC, method: []const u8) BasicRequestErrors!RPCResponse(u128)
 ```
 
 ## WaitForTransactionReceipt
@@ -964,7 +1005,13 @@ RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/doc
 ### Signature
 
 ```zig
-pub fn waitForTransactionReceipt(self: *IPC, tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt)
+pub fn waitForTransactionReceipt(self: *IPC, tx_hash: Hash, confirmations: u8) (BasicRequestErrors || ParseFromValueError || error{
+    TransactionNotFound,
+    TransactionReceiptNotFound,
+    FailedToGetReceipt,
+    FailedToUnsubscribe,
+    InvalidBlockNumber,
+})!RPCResponse(TransactionReceipt)
 ```
 
 ## WaitForTransactionReceiptType
@@ -975,18 +1022,21 @@ If 0 confirmations are given the transaction receipt can be null in case
 the transaction has not been mined yet. It's recommened to have atleast one confirmation
 because some nodes might be slower to sync.
 
-Ask for a expected type since the way that our json parser works
-on unions it will try to parse it until it can complete it for a
-union member. This can be slow so if you know exactly what is the
-expected type you can pass it and it will return the json parsed
-response.
+Use this if the provided block type doesnt fit the expected object that it's returned from the endpoint
+and you know exactly the shape that the data will be in.
 
 RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
 
 ### Signature
 
 ```zig
-pub fn waitForTransactionReceiptType(self: *IPC, comptime T: type, tx_hash: Hash, confirmations: u8) !RPCResponse(T)
+pub fn waitForTransactionReceiptType(self: *IPC, comptime T: type, tx_hash: Hash, confirmations: u8) (BasicRequestErrors || ParseFromValueError || error{
+    TransactionReceiptNotFound,
+    TransactionNotFound,
+    FailedToGetReceipt,
+    FailedToUnsubscribe,
+    InvalidBlockNumber,
+})!RPCResponse(T)
 ```
 
 ## WriteSocketMessage

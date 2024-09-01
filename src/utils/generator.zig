@@ -44,7 +44,7 @@ pub const GenerateOptions = struct {
 /// arena for all allocations. Similarly to how std.json works.
 ///
 /// This works on most zig types with a few expections of course.
-pub fn generateRandomData(comptime T: type, allocator: Allocator, seed: u64, opts: GenerateOptions) !Generated(T) {
+pub fn generateRandomData(comptime T: type, allocator: Allocator, seed: u64, opts: GenerateOptions) Allocator.Error!Generated(T) {
     var generated: Generated(T) = .{ .arena = try allocator.create(ArenaAllocator), .generated = undefined };
     errdefer allocator.destroy(generated.arena);
 

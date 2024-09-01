@@ -48,7 +48,7 @@ This works on most zig types with a few expections of course.
 ### Signature
 
 ```zig
-pub fn generateRandomData(comptime T: type, allocator: Allocator, seed: u64, opts: GenerateOptions) !Generated(T)
+pub fn generateRandomData(comptime T: type, allocator: Allocator, seed: u64, opts: GenerateOptions) Allocator.Error!Generated(T)
 ```
 
 ## GenerateRandomDataLeaky

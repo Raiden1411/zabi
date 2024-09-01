@@ -32,7 +32,7 @@ pub fn AbiParsed(comptime T: type) type {
 /// The return value will depend on the abi type selected.
 /// The function will return an error if the provided type doesn't match the
 /// tokens from the provided signature
-pub fn parseHumanReadable(comptime T: type, alloc: Allocator, source: [:0]const u8) !AbiParsed(T) {
+pub fn parseHumanReadable(comptime T: type, alloc: Allocator, source: [:0]const u8) Parser.ParseErrors!AbiParsed(T) {
     std.debug.assert(source.len > 0);
 
     var abi_parsed = AbiParsed(T){ .arena = try alloc.create(ArenaAllocator), .value = undefined };
@@ -44,6 +44,7 @@ pub fn parseHumanReadable(comptime T: type, alloc: Allocator, source: [:0]const 
     const allocator = abi_parsed.arena.allocator();
 
     var lex = Lexer.init(source);
+
     var list = Parser.TokenList{};
     defer list.deinit(allocator);
 
@@ -54,14 +55,22 @@ pub fn parseHumanReadable(comptime T: type, alloc: Allocator, source: [:0]const 
         if (tok.syntax == .EndOfFileToken) break;
     }
 
-    var parser: Parser = .{ .alloc = allocator, .tokens = list.items(.token_type), .tokens_start = list.items(.start), .tokens_end = list.items(.end), .token_index = 0, .source = source, .structs = .{} };
+    var parser: Parser = .{
+        .alloc = allocator,
+        .tokens = list.items(.token_type),
+        .tokens_start = list.items(.start),
+        .tokens_end = list.items(.end),
+        .token_index = 0,
+        .source = source,
+        .structs = .{},
+    };
 
     abi_parsed.value = try innerParse(T, &parser);
 
     return abi_parsed;
 }
 
-fn innerParse(comptime T: type, parser: *Parser) !T {
+fn innerParse(comptime T: type, parser: *Parser) Parser.ParseErrors!T {
     return switch (T) {
         abi.Abi => parser.parseAbiProto(),
         abi.AbiItem => parser.parseAbiItemProto(),
@@ -73,6 +82,6 @@ fn innerParse(comptime T: type, parser: *Parser) !T {
         abi.Receive => parser.parseReceiveFnProto(),
         []const param.AbiParameter => parser.parseFuncParamsDecl(),
         []const param.AbiEventParameter => parser.parseEventParamsDecl(),
-        inline else => @compileError("Provided type is not supported for human readable parsing"),
+        inline else => @compileError("Provided type '" ++ @typeName(T) ++ "' is not supported for human readable parsing"),
     };
 }

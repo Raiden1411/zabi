@@ -14,6 +14,9 @@ pub fn Stack(comptime T: type) type {
     return struct {
         const Self = @This();
 
+        /// Set of possible errors while performing stack operations.
+        pub const Error = Allocator.Error || error{ StackOverflow, StackUnderflow };
+
         /// Inner arraylist used to manage the stack
         inner: ArrayList(T),
         /// Max size that the stack grow to
@@ -48,7 +51,7 @@ pub fn Stack(comptime T: type) type {
         }
         /// Duplicates an item from the stack. Appends it to the top.
         /// This is not thread safe.
-        pub fn dupUnsafe(self: *Self, position: usize) !void {
+        pub fn dupUnsafe(self: *Self, position: usize) Self.Error!void {
             if (self.inner.items.len < position)
                 return error.StackUnderflow;
 
@@ -57,7 +60,7 @@ pub fn Stack(comptime T: type) type {
         }
         /// Appends an item to the stack.
         /// This is not thread safe.
-        pub fn pushUnsafe(self: *Self, item: T) !void {
+        pub fn pushUnsafe(self: *Self, item: T) (Allocator.Error || error{StackOverflow})!void {
             if (self.inner.items.len > self.availableSize())
                 return error.StackOverflow;
 
@@ -113,7 +116,7 @@ pub fn Stack(comptime T: type) type {
         }
         /// Swaps the top value of the stack with the different position.
         /// This is not thread safe.
-        pub fn swapToTopUnsafe(self: *Self, position_swap: usize) !void {
+        pub fn swapToTopUnsafe(self: *Self, position_swap: usize) error{StackUnderflow}!void {
             if (self.inner.items.len < position_swap)
                 return error.StackUnderflow;
 
@@ -125,7 +128,7 @@ pub fn Stack(comptime T: type) type {
         }
         /// Swap an item from the stack depending on the provided positions.
         /// This is not thread safe.
-        pub fn swapUnsafe(self: *Self, position: usize, swap: usize) !void {
+        pub fn swapUnsafe(self: *Self, position: usize, swap: usize) error{StackUnderflow}!void {
             std.debug.assert(swap > 0); // Overlapping swap;
 
             const second_position = position + swap;
@@ -140,12 +143,12 @@ pub fn Stack(comptime T: type) type {
         }
         /// Pops item from the stack. Returns `StackUnderflow` if it cannot.
         /// This is not thread safe,
-        pub fn tryPopUnsafe(self: *Self) !T {
+        pub fn tryPopUnsafe(self: *Self) error{StackUnderflow}!T {
             return self.popUnsafe() orelse error.StackUnderflow;
         }
         /// Pops item from the stack. Returns `StackUnderflow` if it cannot.
         /// This is thread safe,
-        pub fn tryPop(self: *Self, item: T) !T {
+        pub fn tryPop(self: *Self, item: T) error{StackUnderflow}!T {
             self.mutex.lock();
             defer self.mutex.unlock();
 

@@ -57,7 +57,7 @@ pub inline fn isDynamicType(comptime T: type) bool {
     }
 }
 /// Converts ethereum address to checksum
-pub fn toChecksum(allocator: Allocator, address: []const u8) ![]u8 {
+pub fn toChecksum(allocator: Allocator, address: []const u8) (Allocator.Error || error{ Overflow, InvalidCharacter })![]u8 {
     var buf: [40]u8 = undefined;
     const lower = std.ascii.lowerString(&buf, if (std.mem.startsWith(u8, address, "0x")) address[2..] else address);
 
@@ -114,7 +114,7 @@ pub fn isAddress(addr: []const u8) bool {
     return std.mem.eql(u8, addr, checksum[0..]);
 }
 /// Convert address to its representing bytes
-pub fn addressToBytes(address: []const u8) !Address {
+pub fn addressToBytes(address: []const u8) error{ InvalidAddress, NoSpaceLeft, InvalidLength, InvalidCharacter }!Address {
     const addr = if (std.mem.startsWith(u8, address, "0x")) address[2..] else address;
 
     if (addr.len != 40)
@@ -126,7 +126,7 @@ pub fn addressToBytes(address: []const u8) !Address {
     return addr_bytes;
 }
 /// Convert a hash to its representing bytes
-pub fn hashToBytes(hash: []const u8) !Hash {
+pub fn hashToBytes(hash: []const u8) error{ InvalidHash, NoSpaceLeft, InvalidLength, InvalidCharacter }!Hash {
     const hash_value = if (std.mem.startsWith(u8, hash, "0x")) hash[2..] else hash;
 
     if (hash_value.len != 64)
@@ -170,7 +170,7 @@ pub fn isHashString(hash: []const u8) bool {
 }
 /// Convert value into u256 representing ether value
 /// Ex: 1 * 10 ** 18 = 1 ETH
-pub fn parseEth(value: usize) !u256 {
+pub fn parseEth(value: usize) error{Overflow}!u256 {
     const size = value * std.math.pow(u256, 10, 18);
 
     if (size > std.math.maxInt(u256))
@@ -180,7 +180,7 @@ pub fn parseEth(value: usize) !u256 {
 }
 /// Convert value into u64 representing ether value
 /// Ex: 1 * 10 ** 9 = 1 GWEI
-pub fn parseGwei(value: usize) !u64 {
+pub fn parseGwei(value: usize) error{Overflow}!u64 {
     const size = value * std.math.pow(u64, 10, 9);
 
     if (size > std.math.maxInt(u64))
@@ -212,7 +212,7 @@ pub inline fn computeSize(int: u256) u8 {
 }
 /// Similar to `parseInt` but handles the hex bytes and not the
 /// hex represented string.
-pub fn bytesToInt(comptime T: type, slice: []u8) !T {
+pub fn bytesToInt(comptime T: type, slice: []u8) error{Overflow}!T {
     const info = @typeInfo(T);
     const IntType = std.meta.Int(info.int.signedness, @max(8, info.int.bits));
     var x: IntType = 0;

@@ -1,12 +1,17 @@
+const errors = std.crypto.errors;
 const std = @import("std");
 const types = @import("../types/ethereum.zig");
 
 // Types
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
+const EncodingError = errors.EncodingError;
 const Hash = types.Hash;
 const HmacSha256 = std.crypto.auth.hmac.sha2.HmacSha256;
+const IdentityElementError = errors.IdentityElementError;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
+const NonCanonicalError = errors.NonCanonicalError;
+const NotSquareError = errors.NotSquareError;
 const Secp256k1 = std.crypto.ecc.Secp256k1;
 const Signature = @import("signature.zig").Signature;
 
@@ -14,6 +19,12 @@ const Signer = @This();
 
 const CompressedPublicKey = [33]u8;
 const UncompressedPublicKey = [65]u8;
+
+/// Set of possible errors when trying to recover a public key from a `message_hash`.
+pub const RecoverPubKeyErrors = NotSquareError || EncodingError || IdentityElementError || NonCanonicalError || error{InvalidMessageHash};
+
+/// Set of possible errors when signing a message.
+pub const SigningErrors = IdentityElementError || NonCanonicalError;
 
 /// The private key of this signer.
 private_key: Hash,
@@ -26,7 +37,7 @@ address_bytes: Address,
 ///
 /// Returns the public key in an uncompressed sec1 format so that
 /// it can be used later to recover the address.
-pub fn recoverPubkey(signature: Signature, message_hash: Hash) !UncompressedPublicKey {
+pub fn recoverPubkey(signature: Signature, message_hash: Hash) RecoverPubKeyErrors!UncompressedPublicKey {
     const z = reduceToScalar(Secp256k1.Fe.encoded_length, message_hash);
 
     if (z.isZero())
@@ -52,7 +63,7 @@ pub fn recoverPubkey(signature: Signature, message_hash: Hash) !UncompressedPubl
 }
 /// Recovers the address from a message using the
 /// recovered public key from the message.
-pub fn recoverAddress(signature: Signature, message_hash: Hash) !Address {
+pub fn recoverAddress(signature: Signature, message_hash: Hash) RecoverPubKeyErrors!Address {
     const pub_key = try recoverPubkey(signature, message_hash);
 
     var hash: Hash = undefined;
@@ -60,10 +71,12 @@ pub fn recoverAddress(signature: Signature, message_hash: Hash) !Address {
 
     return hash[12..].*;
 }
-/// Inits the signer. Generates a compressed public key from the provided
-/// `private_key`. If a null value is provided a random key will
+/// Creates the signer state.
+///
+/// Generates a compressed public key from the provided `private_key`.\
+/// If a null value is provided a random key will
 /// be generated. This is to mimic the behaviour from zig's `KeyPair` types.
-pub fn init(private_key: ?Hash) !Signer {
+pub fn init(private_key: ?Hash) IdentityElementError!Signer {
     const key = private_key orelse Secp256k1.scalar.random(.big);
 
     const public_scalar = try Secp256k1.mul(Secp256k1.basePoint, key, .big);
@@ -82,11 +95,12 @@ pub fn init(private_key: ?Hash) !Signer {
     };
 }
 /// Signs an ethereum or EVM like chains message.
+///
 /// Since ecdsa signatures are malliable EVM chains only accept
-/// signature with low s values. We enforce this behaviour as well
-/// as using RFC 6979 for generating deterministic scalars for recoverying
-/// public keys from messages.
-pub fn sign(self: Signer, hash: Hash) !Signature {
+/// signature with low s values.\
+/// We enforce this behaviour as well as using RFC 6979
+/// for generating deterministic scalars for recoverying public keys from messages.
+pub fn sign(self: Signer, hash: Hash) SigningErrors!Signature {
     const z = reduceToScalar(Secp256k1.Fe.encoded_length, hash);
 
     // Generates a deterministic nonce based on RFC 6979

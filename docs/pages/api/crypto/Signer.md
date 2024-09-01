@@ -1,3 +1,19 @@
+## RecoverPubKeyErrors
+
+Set of possible errors when trying to recover a public key from a `message_hash`.
+
+```zig
+NotSquareError || EncodingError || IdentityElementError || NonCanonicalError || error{InvalidMessageHash}
+```
+
+## SigningErrors
+
+Set of possible errors when signing a message.
+
+```zig
+IdentityElementError || NonCanonicalError
+```
+
 ## RecoverPubkey
 Recovers the public key from a message
 
@@ -7,7 +23,7 @@ it can be used later to recover the address.
 ### Signature
 
 ```zig
-pub fn recoverPubkey(signature: Signature, message_hash: Hash) !UncompressedPublicKey
+pub fn recoverPubkey(signature: Signature, message_hash: Hash) RecoverPubKeyErrors!UncompressedPublicKey
 ```
 
 ## RecoverAddress
@@ -17,31 +33,34 @@ recovered public key from the message.
 ### Signature
 
 ```zig
-pub fn recoverAddress(signature: Signature, message_hash: Hash) !Address
+pub fn recoverAddress(signature: Signature, message_hash: Hash) RecoverPubKeyErrors!Address
 ```
 
 ## Init
-Inits the signer. Generates a compressed public key from the provided
-`private_key`. If a null value is provided a random key will
+Creates the signer state.
+
+Generates a compressed public key from the provided `private_key`.\
+If a null value is provided a random key will
 be generated. This is to mimic the behaviour from zig's `KeyPair` types.
 
 ### Signature
 
 ```zig
-pub fn init(private_key: ?Hash) !Signer
+pub fn init(private_key: ?Hash) IdentityElementError!Signer
 ```
 
 ## Sign
 Signs an ethereum or EVM like chains message.
+
 Since ecdsa signatures are malliable EVM chains only accept
-signature with low s values. We enforce this behaviour as well
-as using RFC 6979 for generating deterministic scalars for recoverying
-public keys from messages.
+signature with low s values.\
+We enforce this behaviour as well as using RFC 6979
+for generating deterministic scalars for recoverying public keys from messages.
 
 ### Signature
 
 ```zig
-pub fn sign(self: Signer, hash: Hash) !Signature
+pub fn sign(self: Signer, hash: Hash) SigningErrors!Signature
 ```
 
 ## VerifyMessage

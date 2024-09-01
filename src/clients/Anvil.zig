@@ -19,6 +19,8 @@ const ParseOptions = std.json.ParseOptions;
 const SpecId = specification.SpecId;
 const Value = std.json.Value;
 
+pub const FetchErrors = Allocator.Error || error{InvalidRequest} || Client.RequestError || Client.Request.WaitError || Client.Request.FinishError;
+
 /// Values needed for the `anvil_reset` request.
 pub const Forking = struct {
     jsonRpcUrl: []const u8,
@@ -163,7 +165,7 @@ pub const AnvilStartOptions = struct {
 
     /// Converts `self` into a list of slices that will be used by the `anvil process.`
     /// If `self` is set with default value only the `anvil` command will be set in the list.
-    pub fn parseToArgumentsSlice(self: AnvilStartOptions, allocator: Allocator) ![]const []const u8 {
+    pub fn parseToArgumentsSlice(self: AnvilStartOptions, allocator: Allocator) Allocator.Error![]const []const u8 {
         var list = try std.ArrayList([]const u8).initCapacity(allocator, 1);
         errdefer list.deinit();
 
@@ -173,13 +175,13 @@ pub const AnvilStartOptions = struct {
             const info = @typeInfo(field.type);
 
             switch (info) {
-                .Bool => {
+                .bool => {
                     if (@field(self, field.name)) {
                         const argument = "--" ++ field.name;
                         try list.append(argument);
                     }
                 },
-                .Optional => {
+                .optional => {
                     if (@field(self, field.name)) |value| {
                         const value_info = @typeInfo(@TypeOf(value));
 
@@ -198,9 +200,9 @@ pub const AnvilStartOptions = struct {
                         // Adds the arguments associated value.
                         {
                             switch (value_info) {
-                                .Int => try buf_writer.writer().print("{d}", .{value}),
-                                .Pointer => try buf_writer.writer().print("{s}", .{value}),
-                                .Enum => try buf_writer.writer().print("{s}", .{@tagName(value)}),
+                                .int => try buf_writer.writer().print("{d}", .{value}),
+                                .pointer => try buf_writer.writer().print("{s}", .{value}),
+                                .@"enum" => try buf_writer.writer().print("{s}", .{@tagName(value)}),
                                 else => @compileError("Unsupported type '" ++ @typeName(@TypeOf(value)) ++ "'"),
                             }
 
@@ -250,7 +252,7 @@ pub fn initClient(self: *Anvil, options: InitOptions) void {
 /// `AnvilStartOptions`. This will need to allocate memory since it will create the list.
 ///
 /// If `options` are set to their default value it will only start with `anvil` and no arguments.
-pub fn initProcess(allocator: Allocator, options: AnvilStartOptions) !Child {
+pub fn initProcess(allocator: Allocator, options: AnvilStartOptions) (Allocator.Error || Child.SpawnError)!Child {
     const args_slice = try options.parseToArgumentsSlice(allocator);
     defer allocator.free(args_slice);
 
@@ -394,7 +396,7 @@ pub fn stopImpersonatingAccount(self: *Anvil, address: Address) !void {
     return self.sendRpcRequest(req_body);
 }
 /// Internal only. Discards the body from the response.
-fn sendRpcRequest(self: *Anvil, req_body: []u8) !void {
+fn sendRpcRequest(self: *Anvil, req_body: []u8) FetchErrors!void {
     const req = try self.http_client.fetch(.{
         .headers = .{ .content_type = .{ .override = "application/json" } },
         .payload = req_body,

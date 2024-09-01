@@ -1068,7 +1068,7 @@ test "SyncStatus" {
     });
     defer client.deinit();
 
-    const status = try client.getSyncStatus();
+    const status = client.getSyncStatus();
     defer if (status) |s| s.deinit();
 }
 

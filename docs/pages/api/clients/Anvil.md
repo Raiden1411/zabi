@@ -1,3 +1,9 @@
+## FetchErrors
+
+```zig
+Allocator.Error || error{InvalidRequest} || Client.RequestError || Client.Request.WaitError || Client.Request.FinishError
+```
+
 ## Forking
 
 Values needed for the `anvil_reset` request.
@@ -139,7 +145,7 @@ If `self` is set with default value only the `anvil` command will be set in the 
 ### Signature
 
 ```zig
-pub fn parseToArgumentsSlice(self: AnvilStartOptions, allocator: Allocator) ![]const []const u8
+pub fn parseToArgumentsSlice(self: AnvilStartOptions, allocator: Allocator) Allocator.Error![]const []const u8
 ```
 
 ## InitOptions
@@ -176,7 +182,7 @@ If `options` are set to their default value it will only start with `anvil` and 
 ### Signature
 
 ```zig
-pub fn initProcess(allocator: Allocator, options: AnvilStartOptions) !Child
+pub fn initProcess(allocator: Allocator, options: AnvilStartOptions) (Allocator.Error || Child.SpawnError)!Child
 ```
 
 ## Deinit

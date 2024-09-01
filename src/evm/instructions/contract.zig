@@ -4,6 +4,7 @@ const std = @import("std");
 const testing = std.testing;
 const utils = @import("../../utils/utils.zig");
 
+const Allocator = std.mem.Allocator;
 const CallAction = actions.CallAction;
 const CreateScheme = actions.CreateScheme;
 const Interpreter = @import("../Interpreter.zig");
@@ -13,7 +14,7 @@ const Stack = @import("../../utils/stack.zig").Stack;
 
 /// Performs call instruction for the interpreter.
 /// CALL -> 0xF1
-pub fn callInstruction(self: *Interpreter) !void {
+pub fn callInstruction(self: *Interpreter) (error{FailedToLoadAccount} || Interpreter.InstructionErrors)!void {
     const gas_limit = try self.stack.tryPopUnsafe();
     const to = try self.stack.tryPopUnsafe();
 
@@ -51,7 +52,7 @@ pub fn callInstruction(self: *Interpreter) !void {
 }
 /// Performs callcode instruction for the interpreter.
 /// CALLCODE -> 0xF2
-pub fn callCodeInstruction(self: *Interpreter) !void {
+pub fn callCodeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const gas_limit = try self.stack.tryPopUnsafe();
     const to = try self.stack.tryPopUnsafe();
 
@@ -88,7 +89,7 @@ pub fn callCodeInstruction(self: *Interpreter) !void {
 }
 /// Performs create instruction for the interpreter.
 /// CREATE -> 0xF0 and CREATE2 -> 0xF5
-pub fn createInstruction(self: *Interpreter, is_create_2: bool) !void {
+pub fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ InstructionNotEnabled, Overflow } || Memory.Error || Interpreter.InstructionErrors)!void {
     std.debug.assert(!self.is_static); // Requires non static call.
 
     if (is_create_2) {
@@ -161,7 +162,7 @@ pub fn createInstruction(self: *Interpreter, is_create_2: bool) !void {
 }
 /// Performs delegatecall instruction for the interpreter.
 /// DELEGATECALL -> 0xF4
-pub fn delegateCallInstruction(self: *Interpreter) !void {
+pub fn delegateCallInstruction(self: *Interpreter) (error{InstructionNotEnabled} || Interpreter.InstructionErrors)!void {
     if (!self.spec.enabled(.HOMESTEAD))
         return error.InstructionNotEnabled;
 
@@ -196,7 +197,7 @@ pub fn delegateCallInstruction(self: *Interpreter) !void {
 }
 /// Performs staticcall instruction for the interpreter.
 /// STATICCALL -> 0xFA
-pub fn staticCallInstruction(self: *Interpreter) !void {
+pub fn staticCallInstruction(self: *Interpreter) (error{InstructionNotEnabled} || Interpreter.InstructionErrors)!void {
     if (!self.spec.enabled(.BYZANTIUM))
         return error.InstructionNotEnabled;
 
@@ -252,7 +253,7 @@ pub inline fn calculateCall(self: *Interpreter, values_transfered: bool, is_cold
 }
 /// Gets the memory slice and the ranges used to grab it.
 /// This also resizes the interpreter's memory.
-pub fn getMemoryInputsAndRanges(self: *Interpreter) !struct { []u8, struct { u64, u64 } } {
+pub fn getMemoryInputsAndRanges(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!struct { []u8, struct { u64, u64 } } {
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPopUnsafe();
     const third = try self.stack.tryPopUnsafe();
@@ -271,7 +272,7 @@ pub fn getMemoryInputsAndRanges(self: *Interpreter) !struct { []u8, struct { u64
     return .{ buffer, result };
 }
 /// Resizes the memory as gets the offset ranges.
-pub fn resizeMemoryAndGetRange(self: *Interpreter, offset: u256, len: u256) !struct { u64, u64 } {
+pub fn resizeMemoryAndGetRange(self: *Interpreter, offset: u256, len: u256) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!struct { u64, u64 } {
     const length = std.math.cast(u64, len) orelse std.math.maxInt(u64);
     const offset_len = std.math.cast(u64, offset) orelse return error.Overflow;
 

@@ -5,7 +5,7 @@ Runs the jumpi instruction opcode for the interpreter.
 ### Signature
 
 ```zig
-pub fn conditionalJumpInstruction(self: *Interpreter) !void
+pub fn conditionalJumpInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InvalidJump})!void
 ```
 
 ## ProgramCounterInstruction
@@ -15,7 +15,7 @@ Runs the pc instruction opcode for the interpreter.
 ### Signature
 
 ```zig
-pub fn programCounterInstruction(self: *Interpreter) !void
+pub fn programCounterInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## JumpInstruction
@@ -25,7 +25,7 @@ Runs the jump instruction opcode for the interpreter.
 ### Signature
 
 ```zig
-pub fn jumpInstruction(self: *Interpreter) !void
+pub fn jumpInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InvalidJump})!void
 ```
 
 ## JumpDestInstruction
@@ -35,7 +35,7 @@ Runs the jumpdest instruction opcode for the interpreter.
 ### Signature
 
 ```zig
-pub fn jumpDestInstruction(self: *Interpreter) !void
+pub fn jumpDestInstruction(self: *Interpreter) GasTracker.Error!void
 ```
 
 ## InvalidInstruction
@@ -65,7 +65,7 @@ Runs the return instruction opcode for the interpreter.
 ### Signature
 
 ```zig
-pub fn returnInstruction(self: *Interpreter) !void
+pub fn returnInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void
 ```
 
 ## RevertInstruction
@@ -75,7 +75,7 @@ Runs the rever instruction opcode for the interpreter.
 ### Signature
 
 ```zig
-pub fn revertInstruction(self: *Interpreter) !void
+pub fn revertInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{ Overflow, InstructionNotEnabled })!void
 ```
 
 ## UnknownInstruction
@@ -84,6 +84,6 @@ Instructions that gets ran if there is no associated opcode.
 ### Signature
 
 ```zig
-pub fn unknownInstruction(self: *Interpreter) !void
+pub fn unknownInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 

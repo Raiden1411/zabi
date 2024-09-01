@@ -11,19 +11,19 @@ const Stack = @import("../../utils/stack.zig").Stack;
 
 /// Runs the address instructions opcodes for the interpreter.
 /// 0x30 -> ADDRESS
-pub fn addressInstruction(self: *Interpreter) !void {
+pub fn addressInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(@as(u160, @bitCast(self.contract.target_address)));
 }
 /// Runs the caller instructions opcodes for the interpreter.
 /// 0x33 -> CALLER
-pub fn callerInstruction(self: *Interpreter) !void {
+pub fn callerInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(@as(u160, @bitCast(self.contract.caller)));
 }
 /// Runs the calldatacopy instructions opcodes for the interpreter.
 /// 0x35 -> CALLDATACOPY
-pub fn callDataCopyInstruction(self: *Interpreter) !void {
+pub fn callDataCopyInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
     const offset = try self.stack.tryPopUnsafe();
     const data = try self.stack.tryPopUnsafe();
     const length = try self.stack.tryPopUnsafe();
@@ -38,11 +38,11 @@ pub fn callDataCopyInstruction(self: *Interpreter) !void {
 
     try self.resize(offset_usize + len);
 
-    try self.memory.writeData(offset_usize, data_offset, len, self.contract.input);
+    self.memory.writeData(offset_usize, data_offset, len, self.contract.input);
 }
 /// Runs the calldataload instructions opcodes for the interpreter.
 /// 0x37 -> CALLDATALOAD
-pub fn callDataLoadInstruction(self: *Interpreter) !void {
+pub fn callDataLoadInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{Overflow})!void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
@@ -61,21 +61,21 @@ pub fn callDataLoadInstruction(self: *Interpreter) !void {
 }
 /// Runs the calldatasize instructions opcodes for the interpreter.
 /// 0x36 -> CALLDATASIZE
-pub fn callDataSizeInstruction(self: *Interpreter) !void {
+pub fn callDataSizeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
 
     try self.stack.pushUnsafe(self.contract.input.len);
 }
 /// Runs the calldatasize instructions opcodes for the interpreter.
 /// 0x34 -> CALLVALUE
-pub fn callValueInstruction(self: *Interpreter) !void {
+pub fn callValueInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
 
     try self.stack.pushUnsafe(self.contract.value);
 }
 /// Runs the codecopy instructions opcodes for the interpreter.
 /// 0x39 -> CODECOPY
-pub fn codeCopyInstruction(self: *Interpreter) !void {
+pub fn codeCopyInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
     const offset = try self.stack.tryPopUnsafe();
     const code = try self.stack.tryPopUnsafe();
     const length = try self.stack.tryPopUnsafe();
@@ -90,24 +90,24 @@ pub fn codeCopyInstruction(self: *Interpreter) !void {
 
     try self.resize(offset_usize + len);
 
-    try self.memory.writeData(offset_usize, code_offset, len, self.contract.bytecode.getCodeBytes());
+    self.memory.writeData(offset_usize, code_offset, len, self.contract.bytecode.getCodeBytes());
 }
 /// Runs the codesize instructions opcodes for the interpreter.
 /// 0x38 -> CODESIZE
-pub fn codeSizeInstruction(self: *Interpreter) !void {
+pub fn codeSizeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(self.contract.bytecode.getCodeBytes().len);
 }
 /// Runs the gas instructions opcodes for the interpreter.
 /// 0x3A -> GAS
-pub fn gasInstruction(self: *Interpreter) !void {
+pub fn gasInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
 
     try self.stack.pushUnsafe(self.gas_tracker.availableGas());
 }
 /// Runs the keccak instructions opcodes for the interpreter.
 /// 0x20 -> KECCAK
-pub fn keccakInstruction(self: *Interpreter) !void {
+pub fn keccakInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
     const offset = try self.stack.tryPopUnsafe();
     const length = try self.stack.tryPopUnsafe();
 
@@ -134,7 +134,7 @@ pub fn keccakInstruction(self: *Interpreter) !void {
 }
 /// Runs the returndatasize instructions opcodes for the interpreter.
 /// 0x3D -> RETURNDATACOPY
-pub fn returnDataSizeInstruction(self: *Interpreter) !void {
+pub fn returnDataSizeInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
     if (!self.spec.enabled(.BYZANTIUM))
         return error.InstructionNotEnabled;
 
@@ -143,7 +143,7 @@ pub fn returnDataSizeInstruction(self: *Interpreter) !void {
 }
 /// Runs the returndatasize instructions opcodes for the interpreter.
 /// 0x3E -> RETURNDATASIZE
-pub fn returnDataCopyInstruction(self: *Interpreter) !void {
+pub fn returnDataCopyInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
     const offset = try self.stack.tryPopUnsafe();
     const data = try self.stack.tryPopUnsafe();
     const length = try self.stack.tryPopUnsafe();
@@ -165,7 +165,7 @@ pub fn returnDataCopyInstruction(self: *Interpreter) !void {
         const memory_offset = std.math.cast(usize, offset) orelse return error.Overflow;
 
         try self.resize(memory_offset + len);
-        try self.memory.write(memory_offset, self.return_data[return_offset..return_end]);
+        self.memory.write(memory_offset, self.return_data[return_offset..return_end]);
     }
 }
 
@@ -498,7 +498,7 @@ test "Keccak256" {
 
     {
         try interpreter.memory.resize(32);
-        try interpreter.memory.writeInt(0, 0xFFFFFFFF00000000000000000000000000000000000000000000000000000000);
+        interpreter.memory.writeInt(0, 0xFFFFFFFF00000000000000000000000000000000000000000000000000000000);
 
         try interpreter.stack.pushUnsafe(4);
         try interpreter.stack.pushUnsafe(0);

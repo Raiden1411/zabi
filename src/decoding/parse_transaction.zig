@@ -33,11 +33,13 @@ const StructToTupleType = meta.StructToTupleType;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const TransactionEnvelopeSigned = transaction.TransactionEnvelopeSigned;
 
+/// Return type of `parseTransaction`.
 pub fn ParsedTransaction(comptime T: type) type {
     return struct {
         arena: *ArenaAllocator,
         value: T,
 
+        /// Cleans memory and destroys `ArenaAllocator` pointer.
         pub fn deinit(self: @This()) void {
             const allocator = self.arena.child_allocator;
             self.arena.deinit();

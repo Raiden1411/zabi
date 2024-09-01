@@ -23,6 +23,27 @@ const Stack = @import("../utils/stack.zig").Stack;
 
 const Interpreter = @This();
 
+/// Set of common errors when running indivual instructions.
+pub const InstructionErrors = Allocator.Error || error{ StackUnderflow, StackOverflow } || GasTracker.Error;
+
+/// Set of all possible errors of interpreter instructions.
+pub const AllInstructionErrors = InstructionErrors || Memory.Error || error{
+    Overflow,
+    UnexpectedError,
+    InvalidJump,
+    InstructionNotEnabled,
+};
+
+/// Set of possible errors when running the interpreter.
+pub const InterpreterRunErrors = AllInstructionErrors || error{
+    OpcodeNotFound,
+    InvalidInstructionOpcode,
+    InterpreterReverted,
+    InvalidOffset,
+    CallWithValueNotAllowedInStaticCall,
+    CreateCodeSizeLimit,
+};
+
 /// The set of next interpreter actions.
 pub const InterpreterActions = union(enum) {
     /// Call action.
@@ -100,8 +121,39 @@ status: InterpreterStatus,
 return_data: []u8,
 
 /// Sets the interpreter to it's expected initial state.
+///
 /// Copy's the contract's bytecode independent of it's state.
-pub fn init(self: *Interpreter, allocator: Allocator, contract_instance: Contract, evm_host: Host, opts: InterpreterInitOptions) !void {
+///
+/// **Example**
+/// ```zig
+/// const contract_instance = try Contract.init(
+///     testing.allocator,
+///     &.{},
+///     .{ .raw = @constCast(&[_]u8{ 0x60, 0x01, 0x60, 0x02, 0x01 }) },
+///     null,
+///     0,
+///     [_]u8{1} ** 20,
+///     [_]u8{0} ** 20,
+/// );
+/// defer contract_instance.deinit(testing.allocator);
+///
+/// var plain: PlainHost = undefined;
+/// defer plain.deinit();
+///
+/// plain.init(testing.allocator);
+///
+/// var interpreter: Interpreter = undefined;
+/// defer interpreter.deinit();
+///
+/// try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
+/// ```
+pub fn init(
+    self: *Interpreter,
+    allocator: Allocator,
+    contract_instance: Contract,
+    evm_host: Host,
+    opts: InterpreterInitOptions,
+) Allocator.Error!void {
     const bytecode = try allocator.dupe(u8, contract_instance.bytecode.getCodeBytes());
     errdefer allocator.free(bytecode);
 
@@ -135,7 +187,7 @@ pub fn advanceProgramCounter(self: *Interpreter) void {
 }
 /// Runs a single instruction based on the `program_counter`
 /// position and the associated bytecode. Doesn't move the counter.
-pub fn runInstruction(self: *Interpreter) !void {
+pub fn runInstruction(self: *Interpreter) AllInstructionErrors!void {
     const opcode_bit = self.code[self.program_counter];
 
     const operation = opcode.instruction_table.getInstruction(opcode_bit);
@@ -143,12 +195,40 @@ pub fn runInstruction(self: *Interpreter) !void {
     if (self.stack.stackHeight() > operation.max_stack)
         return error.StackOverflow;
 
-    try operation.execution(self);
+    return @errorCast(operation.execution(self));
 }
 /// Runs the associated contract bytecode.
-/// Depending on the interperter final `status` this can return errors.
+///
+/// Depending on the interperter final `status` this can return errors.\
 /// The bytecode that will get run will be padded with `STOP` instructions
 /// at the end to make sure that we don't have index out of bounds panics.
+///
+/// **Example**
+/// ```zig
+/// const contract_instance = try Contract.init(
+///     testing.allocator,
+///     &.{},
+///     .{ .raw = @constCast(&[_]u8{ 0x60, 0x01, 0x60, 0x02, 0x01 }) },
+///     null,
+///     0,
+///     [_]u8{1} ** 20,
+///     [_]u8{0} ** 20,
+/// );
+/// defer contract_instance.deinit(testing.allocator);
+///
+/// var plain: PlainHost = undefined;
+/// defer plain.deinit();
+///
+/// plain.init(testing.allocator);
+///
+/// var interpreter: Interpreter = undefined;
+/// defer interpreter.deinit();
+///
+/// try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
+///
+/// const result = try interpreter.run();
+/// defer result.deinit(testing.allocator);
+/// ```
 pub fn run(self: *Interpreter) !InterpreterActions {
     while (self.status == .running) : (self.advanceProgramCounter()) {
         try self.runInstruction();
@@ -177,7 +257,7 @@ pub fn run(self: *Interpreter) !InterpreterActions {
 }
 /// Resizes the inner memory size. Adds gas expansion cost to
 /// the gas tracker.
-pub fn resize(self: *Interpreter, new_size: u64) !void {
+pub fn resize(self: *Interpreter, new_size: u64) (Allocator.Error || GasTracker.Error || Memory.Error)!void {
     const count = mem.availableWords(new_size);
     const mem_cost = gas.calculateMemoryCost(count);
     const current_cost = gas.calculateMemoryCost(mem.availableWords(self.memory.getCurrentMemorySize()));

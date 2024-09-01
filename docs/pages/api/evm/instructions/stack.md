@@ -5,7 +5,7 @@ Runs the swap instructions opcodes for the interpreter.
 ### Signature
 
 ```zig
-pub fn dupInstruction(self: *Interpreter, position: u8) !void
+pub fn dupInstruction(self: *Interpreter, position: u8) Interpreter.InstructionErrors!void
 ```
 
 ## PopInstruction
@@ -15,7 +15,7 @@ Runs the pop opcode for the interpreter.
 ### Signature
 
 ```zig
-pub fn popInstruction(self: *Interpreter) !void
+pub fn popInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## PushInstruction
@@ -25,7 +25,7 @@ Runs the push instructions opcodes for the interpreter.
 ### Signature
 
 ```zig
-pub fn pushInstruction(self: *Interpreter, size: u8) !void
+pub fn pushInstruction(self: *Interpreter, size: u8) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void
 ```
 
 ## PushZeroInstruction
@@ -35,7 +35,7 @@ Runs the push0 opcode for the interpreter.
 ### Signature
 
 ```zig
-pub fn pushZeroInstruction(self: *Interpreter) !void
+pub fn pushZeroInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void
 ```
 
 ## SwapInstruction
@@ -45,6 +45,6 @@ Runs the swap instructions opcodes for the interpreter.
 ### Signature
 
 ```zig
-pub fn swapInstruction(self: *Interpreter, position: u8) !void
+pub fn swapInstruction(self: *Interpreter, position: u8) Interpreter.InstructionErrors!void
 ```
 

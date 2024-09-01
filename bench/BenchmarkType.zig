@@ -25,7 +25,8 @@ pub const BenchmarkResult = struct {
 };
 
 fn invoke(comptime func: anytype, args: anytype) void {
-    const ReturnType = @typeInfo(@TypeOf(func)).@"fn".return_type.?;
+    const ReturnType = @typeInfo(@TypeOf(func)).@"fn".return_type orelse return;
+
     switch (@typeInfo(ReturnType)) {
         .error_union => {
             const item = @call(.never_inline, func, args) catch {

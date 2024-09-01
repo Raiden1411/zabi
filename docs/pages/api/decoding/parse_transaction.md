@@ -1,4 +1,6 @@
 ## ParsedTransaction
+Return type of `parseTransaction`.
+
 ### Signature
 
 ```zig
@@ -6,6 +8,8 @@ pub fn ParsedTransaction(comptime T: type) type
 ```
 
 ## Deinit
+Cleans memory and destroys `ArenaAllocator` pointer.
+
 ### Signature
 
 ```zig

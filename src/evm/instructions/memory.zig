@@ -7,9 +7,11 @@ const Interpreter = @import("../Interpreter.zig");
 const Memory = @import("../memory.zig").Memory;
 const Stack = @import("../../utils/stack.zig").Stack;
 
+pub const MemoryInstructionErrors = Interpreter.InstructionErrors || Memory.Error || error{Overflow};
+
 /// Runs the mcopy opcode for the interpreter.
 /// 0x5E -> MCOPY
-pub fn mcopyInstruction(self: *Interpreter) !void {
+pub fn mcopyInstruction(self: *Interpreter) (MemoryInstructionErrors || error{InstructionNotEnabled})!void {
     if (!self.spec.enabled(.CANCUN))
         return error.InstructionNotEnabled;
 
@@ -35,7 +37,7 @@ pub fn mcopyInstruction(self: *Interpreter) !void {
 }
 /// Runs the mload opcode for the interpreter.
 /// 0x51 -> MLOAD
-pub fn mloadInstruction(self: *Interpreter) !void {
+pub fn mloadInstruction(self: *Interpreter) MemoryInstructionErrors!void {
     const offset = try self.stack.tryPopUnsafe();
 
     const as_usize = std.math.cast(usize, offset) orelse return error.Overflow;
@@ -48,13 +50,13 @@ pub fn mloadInstruction(self: *Interpreter) !void {
 }
 /// Runs the msize opcode for the interpreter.
 /// 0x59 -> MSIZE
-pub fn msizeInstruction(self: *Interpreter) !void {
+pub fn msizeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(self.memory.getCurrentMemorySize());
 }
 /// Runs the mstore opcode for the interpreter.
 /// 0x52 -> MSTORE
-pub fn mstoreInstruction(self: *Interpreter) !void {
+pub fn mstoreInstruction(self: *Interpreter) MemoryInstructionErrors!void {
     const offset = try self.stack.tryPopUnsafe();
     const value = try self.stack.tryPopUnsafe();
 
@@ -64,11 +66,11 @@ pub fn mstoreInstruction(self: *Interpreter) !void {
     const new_size = utils.saturatedAddition(u64, as_usize, 32);
     try self.resize(new_size);
 
-    try self.memory.writeInt(as_usize, value);
+    self.memory.writeInt(as_usize, value);
 }
 /// Runs the mstore8 opcode for the interpreter.
 /// 0x53 -> MSTORE8
-pub fn mstore8Instruction(self: *Interpreter) !void {
+pub fn mstore8Instruction(self: *Interpreter) MemoryInstructionErrors!void {
     const offset = try self.stack.tryPopUnsafe();
     const value = try self.stack.tryPopUnsafe();
 
@@ -81,7 +83,7 @@ pub fn mstore8Instruction(self: *Interpreter) !void {
     var buffer: [32]u8 = undefined;
     std.mem.writeInt(u256, &buffer, value, .little);
 
-    try self.memory.writeByte(as_usize, buffer[0]);
+    self.memory.writeByte(as_usize, buffer[0]);
 }
 
 test "Mstore" {

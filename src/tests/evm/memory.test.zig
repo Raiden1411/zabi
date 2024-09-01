@@ -22,7 +22,7 @@ test "Memory" {
     defer mem.deinit();
 
     {
-        try mem.writeInt(0, 69);
+        mem.writeInt(0, 69);
         try testing.expectEqual(69, mem.getMemoryByte(31));
     }
     {
@@ -30,12 +30,12 @@ test "Memory" {
         try testing.expectEqual(69, int);
     }
     {
-        try mem.writeWord(0, [_]u8{1} ** 32);
+        mem.writeWord(0, [_]u8{1} ** 32);
         const int = mem.wordToInt(0);
         try testing.expectEqual(@as(u256, @bitCast([_]u8{1} ** 32)), int);
     }
     {
-        try mem.writeByte(0, 69);
+        mem.writeByte(0, 69);
         const int = mem.getMemoryByte(0);
         try testing.expectEqual(69, int);
     }

@@ -10,7 +10,7 @@ const Stack = @import("../../utils/stack.zig").Stack;
 
 /// Performs the basefee instruction for the interpreter.
 /// 0x48 -> BASEFEE
-pub fn baseFeeInstruction(self: *Interpreter) !void {
+pub fn baseFeeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const env = self.host.getEnviroment();
     const fee = env.block.base_fee;
 
@@ -19,7 +19,7 @@ pub fn baseFeeInstruction(self: *Interpreter) !void {
 }
 /// Performs the blobbasefee instruction for the interpreter.
 /// 0x4A -> BLOBBASEFEE
-pub fn blobBaseFeeInstruction(self: *Interpreter) !void {
+pub fn blobBaseFeeInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
     if (!self.spec.enabled(.CANCUN))
         return error.InstructionNotEnabled;
 
@@ -34,7 +34,7 @@ pub fn blobBaseFeeInstruction(self: *Interpreter) !void {
 }
 /// Performs the blobhash instruction for the interpreter.
 /// 0x49 -> BLOBHASH
-pub fn blobHashInstruction(self: *Interpreter) !void {
+pub fn blobHashInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
     if (!self.spec.enabled(.CANCUN))
         return error.InstructionNotEnabled;
 
@@ -52,7 +52,7 @@ pub fn blobHashInstruction(self: *Interpreter) !void {
 }
 /// Performs the number instruction for the interpreter.
 /// 0x43 -> NUMBER
-pub fn blockNumberInstruction(self: *Interpreter) !void {
+pub fn blockNumberInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const number = self.host.getEnviroment().block.number;
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
@@ -60,7 +60,7 @@ pub fn blockNumberInstruction(self: *Interpreter) !void {
 }
 /// Performs the chainid instruction for the interpreter.
 /// 0x46 -> CHAINID
-pub fn chainIdInstruction(self: *Interpreter) !void {
+pub fn chainIdInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
     if (!self.spec.enabled(.ISTANBUL))
         return error.InstructionNotEnabled;
 
@@ -71,7 +71,7 @@ pub fn chainIdInstruction(self: *Interpreter) !void {
 }
 /// Performs the coinbase instruction for the interpreter.
 /// 0x41 -> COINBASE
-pub fn coinbaseInstruction(self: *Interpreter) !void {
+pub fn coinbaseInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const coinbase = self.host.getEnviroment().block.coinbase;
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
@@ -79,7 +79,7 @@ pub fn coinbaseInstruction(self: *Interpreter) !void {
 }
 /// Performs the prevrandao/difficulty instruction for the interpreter.
 /// 0x44 -> PREVRANDAO/DIFFICULTY
-pub fn difficultyInstruction(self: *Interpreter) !void {
+pub fn difficultyInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const env = self.host.getEnviroment();
     const difficulty = if (self.spec.enabled(.MERGE)) env.block.prevrandao orelse 0 else env.block.difficulty;
 
@@ -88,7 +88,7 @@ pub fn difficultyInstruction(self: *Interpreter) !void {
 }
 /// Performs the gaslimit instruction for the interpreter.
 /// 0x45 -> GASLIMIT
-pub fn gasLimitInstruction(self: *Interpreter) !void {
+pub fn gasLimitInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const gas_price = self.host.getEnviroment().block.gas_limit;
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
@@ -96,7 +96,7 @@ pub fn gasLimitInstruction(self: *Interpreter) !void {
 }
 /// Performs the gasprice instruction for the interpreter.
 /// 0x3A -> GASPRICE
-pub fn gasPriceInstruction(self: *Interpreter) !void {
+pub fn gasPriceInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const gas_price = self.host.getEnviroment().effectiveGasPrice();
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
@@ -104,7 +104,7 @@ pub fn gasPriceInstruction(self: *Interpreter) !void {
 }
 /// Performs the origin instruction for the interpreter.
 /// 0x32 -> ORIGIN
-pub fn originInstruction(self: *Interpreter) !void {
+pub fn originInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const origin = self.host.getEnviroment().tx.caller;
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
@@ -112,7 +112,7 @@ pub fn originInstruction(self: *Interpreter) !void {
 }
 /// Performs the timestamp instruction for the interpreter.
 /// 0x42 -> TIMESTAMP
-pub fn timestampInstruction(self: *Interpreter) !void {
+pub fn timestampInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const timestamp = self.host.getEnviroment().block.timestamp;
 
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);

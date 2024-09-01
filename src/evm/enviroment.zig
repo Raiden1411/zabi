@@ -10,6 +10,21 @@ const AccessList = transaction.AccessList;
 const Hash = types.Hash;
 const SpecId = specification.SpecId;
 
+/// Set of validation errors from a `EVMEnviroment`.
+pub const ValidationErrors = error{
+    PriorityFeeGreaterThanMaxFee,
+    GasPriceLessThanBaseFee,
+    GasLimitHigherThanBlock,
+    TooManyBlobs,
+    BlobCreateTransaction,
+    BlobVersionNotSupported,
+    BlobVersionedHashesNotSupported,
+    BlobGasPriceHigherThanMax,
+    EmptyBlobs,
+    InvalidChainId,
+    AccessListNotSupported,
+};
+
 /// The EVM inner enviroment.
 pub const EVMEnviroment = struct {
     /// Configuration of the EVM.
@@ -54,7 +69,7 @@ pub const EVMEnviroment = struct {
         } else return null;
     }
     /// Validates the inner block enviroment based on the provided `SpecId`
-    pub fn validateBlockEnviroment(self: EVMEnviroment, spec: SpecId) !void {
+    pub fn validateBlockEnviroment(self: EVMEnviroment, spec: SpecId) error{ PrevRandaoNotSet, ExcessBlobGasNotSet }!void {
         if (spec.enabled(.MERGE) and self.block.prevrandao == null)
             return error.PrevRandaoNotSet;
 
@@ -66,7 +81,7 @@ pub const EVMEnviroment = struct {
     /// and checks if the blob_hashes are correctly set.
     ///
     /// For before `CANCUN` checks if `blob_hashes` and `max_fee_per_blob_gas` are null / empty.
-    pub fn validateTransaction(self: EVMEnviroment, spec: SpecId) !void {
+    pub fn validateTransaction(self: EVMEnviroment, spec: SpecId) ValidationErrors!void {
         if (spec.enabled(.LONDON)) {
             if (self.tx.gas_priority_fee) |fee| {
                 if (fee > self.tx.gas_price)

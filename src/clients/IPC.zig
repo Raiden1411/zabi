@@ -84,34 +84,17 @@ const IPC = @This();
 
 const ipclog = std.log.scoped(.ipc);
 
+/// Set of possible errors when starting the client.
+pub const InitErrors = Allocator.Error || std.Thread.SpawnError || error{ InvalidNetworkConfig, InvalidIPCPath, FailedToConnect };
+
+/// Set of possible errors when reading from the socket.
 pub const ReadLoopErrors = SetSockOptError || error{ FailedToJsonParseResponse, Closed, InvalidTypeMessage, UnexpectedError };
 
+/// Set of possible errors when send a rpc request.
 pub const SendRpcRequestErrors = Allocator.Error || EthereumZigErrors || std.posix.WriteError || ParseFromValueError || error{ReachedMaxRetryLimit};
 
+/// Set of generic errors when sending a rpc request.
 pub const BasicRequestErrors = SendRpcRequestErrors || error{NoSpaceLeft};
-
-pub const IPCErrors = error{
-    FailedToConnect,
-    UnsupportedSchema,
-    InvalidChainId,
-    FailedToGetReceipt,
-    FailedToUnsubscribe,
-    InvalidFilterId,
-    InvalidEventFound,
-    InvalidBlockRequest,
-    InvalidLogRequest,
-    TransactionNotFound,
-    TransactionReceiptNotFound,
-    InvalidHash,
-    UnableToFetchFeeInfoFromBlock,
-    InvalidAddress,
-    InvalidBlockHash,
-    InvalidBlockHashOrIndex,
-    InvalidBlockNumberOrIndex,
-    InvalidBlockNumber,
-    ReachedMaxRetryLimit,
-    InvalidNetworkConfig,
-} || Allocator.Error || std.fmt.ParseIntError || std.Uri.ParseError || EthereumZigErrors;
 
 /// Set of intial options for the IPC Client.
 pub const InitOptions = struct {
@@ -149,8 +132,20 @@ rpc_channel: Stack(JsonParsed(Value)),
 sub_channel: Channel(JsonParsed(Value)),
 
 /// Starts the IPC client and create the connection.
+///
 /// This will also start the read loop in a seperate thread.
-pub fn init(opts: InitOptions) (Allocator.Error || std.Thread.SpawnError || error{ InvalidNetworkConfig, InvalidIPCPath, FailedToConnect })!*IPC {
+///
+/// **Example**
+/// ```zig
+///  var client = try IPC.init(.{
+///     .allocator = testing.allocator,
+///     .network_config = .{
+///         .endpoint = .{ .path = "/tmp/anvil.ipc" },
+///     },
+///  });
+///  defer client.deinit();
+/// ```
+pub fn init(opts: InitOptions) InitErrors!*IPC {
     const self = try opts.allocator.create(IPC);
     errdefer opts.allocator.destroy(self);
 
@@ -210,7 +205,7 @@ pub fn deinit(self: *IPC) void {
     const allocator = self.allocator;
     allocator.destroy(self);
 }
-/// Connects to the socket. Will try to reconnect in case of failures.
+/// Connects to the socket. Will try to reconnect in case of failures.\
 /// Fails when match retries are reached or a invalid ipc path is provided
 pub fn connect(self: *IPC, path: []const u8) error{ InvalidIPCPath, FailedToConnect }!Stream {
     if (!std.mem.endsWith(u8, path, ".ipc"))
@@ -267,7 +262,11 @@ pub fn estimateBlobMaxFeePerGas(self: *IPC) !Gwei {
 /// Estimate maxPriorityFeePerGas and maxFeePerGas. Will make more than one network request.
 /// Uses the `baseFeePerGas` included in the block to calculate the gas fees.
 /// Will return an error in case the `baseFeePerGas` is null.
-pub fn estimateFeesPerGas(self: *IPC, call_object: EthCall, base_fee_per_gas: ?Gwei) !EstimateFeeReturn {
+pub fn estimateFeesPerGas(
+    self: *IPC,
+    call_object: EthCall,
+    base_fee_per_gas: ?Gwei,
+) (BasicRequestErrors || error{ InvalidBlockNumber, UnableToFetchFeeInfoFromBlock })!EstimateFeeReturn {
     const current_fee: ?Gwei = block: {
         if (base_fee_per_gas) |fee| break :block fee;
 
@@ -321,7 +320,10 @@ pub fn estimateGas(self: *IPC, call_object: EthCall, opts: BlockNumberRequest) B
 }
 /// Estimates maxPriorityFeePerGas manually. If the node you are currently using
 /// supports `eth_maxPriorityFeePerGas` consider using `estimateMaxFeePerGas`.
-pub fn estimateMaxFeePerGasManual(self: *IPC, base_fee_per_gas: ?Gwei) !Gwei {
+pub fn estimateMaxFeePerGasManual(
+    self: *IPC,
+    base_fee_per_gas: ?Gwei,
+) (BasicRequestErrors || error{ InvalidBlockNumber, UnableToFetchFeeInfoFromBlock })!Gwei {
     const current_fee: ?Gwei = block: {
         if (base_fee_per_gas) |fee| break :block fee;
 
@@ -346,7 +348,12 @@ pub fn estimateMaxFeePerGas(self: *IPC) BasicRequestErrors!RPCResponse(Gwei) {
 /// Returns historical gas information, allowing you to track trends over time.
 ///
 /// RPC Method: [eth_feeHistory](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_feehistory)
-pub fn feeHistory(self: *IPC, blockCount: u64, newest_block: BlockNumberRequest, reward_percentil: ?[]const f64) BasicRequestErrors!RPCResponse(FeeHistory) {
+pub fn feeHistory(
+    self: *IPC,
+    blockCount: u64,
+    newest_block: BlockNumberRequest,
+    reward_percentil: ?[]const f64,
+) BasicRequestErrors!RPCResponse(FeeHistory) {
     const tag: BalanceBlockTag = newest_block.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
@@ -402,7 +409,11 @@ pub fn getBlockByHash(self: *IPC, opts: BlockHashRequest) (BasicRequestErrors ||
 /// and you know exactly the shape that the data will be in.
 ///
 /// RPC Method: [eth_getBlockByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblockbyhash)
-pub fn getBlockByHashType(self: *IPC, comptime T: type, opts: BlockHashRequest) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(T) {
+pub fn getBlockByHashType(
+    self: *IPC,
+    comptime T: type,
+    opts: BlockHashRequest,
+) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(T) {
     const include = opts.include_transaction_objects orelse false;
 
     const request: EthereumRequest(struct { Hash, bool }) = .{
@@ -441,7 +452,11 @@ pub fn getBlockByNumber(self: *IPC, opts: BlockRequest) (BasicRequestErrors || e
 /// response.
 ///
 /// RPC Method: [eth_getBlockByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblockbynumber)
-pub fn getBlockByNumberType(self: *IPC, comptime T: type, opts: BlockRequest) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(T) {
+pub fn getBlockByNumberType(
+    self: *IPC,
+    comptime T: type,
+    opts: BlockRequest,
+) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(T) {
     const tag: BlockTag = opts.tag orelse .latest;
     const include = opts.include_transaction_objects orelse false;
 
@@ -569,7 +584,11 @@ pub fn getGasPrice(self: *IPC) BasicRequestErrors!RPCResponse(Gwei) {
 /// Returns an array of all logs matching a given filter object.
 ///
 /// RPC Method: [eth_getLogs](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getlogs)
-pub fn getLogs(self: *IPC, opts: LogRequest, tag: ?BalanceBlockTag) (BasicRequestErrors || error{InvalidLogRequestParams})!RPCResponse(Logs) {
+pub fn getLogs(
+    self: *IPC,
+    opts: LogRequest,
+    tag: ?BalanceBlockTag,
+) (BasicRequestErrors || error{InvalidLogRequestParams})!RPCResponse(Logs) {
     var request_buffer: [4 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
@@ -640,7 +659,11 @@ pub fn getPendingTransactionsSubEvent(self: *IPC) BasicRequestErrors!RPCResponse
 /// Returns the account and storage values, including the Merkle proof, of the specified account
 ///
 /// RPC Method: [eth_getProof](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/eth_getproof)
-pub fn getProof(self: *IPC, opts: ProofRequest, tag: ?ProofBlockTag) (BasicRequestErrors || error{ExpectBlockNumberOrTag})!RPCResponse(ProofResult) {
+pub fn getProof(
+    self: *IPC,
+    opts: ProofRequest,
+    tag: ?ProofBlockTag,
+) (BasicRequestErrors || error{ExpectBlockNumberOrTag})!RPCResponse(ProofResult) {
     var request_buffer: [2 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
@@ -745,7 +768,11 @@ pub fn getSyncStatus(self: *IPC) ?RPCResponse(SyncProgress) {
 /// Returns information about a transaction by block hash and transaction index position.
 ///
 /// RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblockhashandindex)
-pub fn getTransactionByBlockHashAndIndex(self: *IPC, block_hash: Hash, index: usize) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction) {
+pub fn getTransactionByBlockHashAndIndex(
+    self: *IPC,
+    block_hash: Hash,
+    index: usize,
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction) {
     return self.getTransactionByBlockHashAndIndexType(Transaction, block_hash, index);
 }
 /// Returns information about a transaction by block hash and transaction index position.
@@ -848,7 +875,11 @@ pub fn getTransactionByHash(self: *IPC, transaction_hash: Hash) (BasicRequestErr
 /// and you know exactly the shape that the data will be in.
 ///
 /// RPC Method: [eth_getTransactionByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyhash)
-pub fn getTransactionByHashType(self: *IPC, comptime T: type, transaction_hash: Hash) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(T) {
+pub fn getTransactionByHashType(
+    self: *IPC,
+    comptime T: type,
+    transaction_hash: Hash,
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(T) {
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{transaction_hash},
         .method = .eth_getTransactionByHash,
@@ -873,7 +904,10 @@ pub fn getTransactionByHashType(self: *IPC, comptime T: type, transaction_hash: 
 /// Returns the receipt of a transaction by transaction hash.
 ///
 /// RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
-pub fn getTransactionReceipt(self: *IPC, transaction_hash: Hash) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt) {
+pub fn getTransactionReceipt(
+    self: *IPC,
+    transaction_hash: Hash,
+) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt) {
     return self.getTransactionReceiptType(TransactionReceipt, transaction_hash);
 }
 /// Returns the receipt of a transaction by transaction hash.
@@ -882,7 +916,11 @@ pub fn getTransactionReceipt(self: *IPC, transaction_hash: Hash) (BasicRequestEr
 /// and you know exactly the shape that the data will be in.
 ///
 /// RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
-pub fn getTransactionReceiptType(self: *IPC, comptime T: type, transaction_hash: Hash) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt) {
+pub fn getTransactionReceiptType(
+    self: *IPC,
+    comptime T: type,
+    transaction_hash: Hash,
+) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt) {
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{transaction_hash},
         .method = .eth_getTransactionReceipt,
@@ -959,7 +997,12 @@ pub fn getUncleByBlockHashAndIndex(self: *IPC, block_hash: Hash, index: usize) (
 /// and you know exactly the shape that the data will be in.
 ///
 /// RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblockhashandindex)
-pub fn getUncleByBlockHashAndIndexType(self: *IPC, comptime T: type, block_hash: Hash, index: usize) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(T) {
+pub fn getUncleByBlockHashAndIndexType(
+    self: *IPC,
+    comptime T: type,
+    block_hash: Hash,
+    index: usize,
+) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(T) {
     const request: EthereumRequest(struct { Hash, usize }) = .{
         .params = .{ block_hash, index },
         .method = .eth_getUncleByBlockHashAndIndex,
@@ -984,7 +1027,11 @@ pub fn getUncleByBlockHashAndIndexType(self: *IPC, comptime T: type, block_hash:
 /// Returns information about a uncle of a block by number and uncle index position.
 ///
 /// RPC Method: [eth_getUncleByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblocknumberandindex)
-pub fn getUncleByBlockNumberAndIndex(self: *IPC, opts: BlockNumberRequest, index: usize) (BasicRequestErrors || error{InvalidBlockNumberOrIndex})!RPCResponse(Block) {
+pub fn getUncleByBlockNumberAndIndex(
+    self: *IPC,
+    opts: BlockNumberRequest,
+    index: usize,
+) (BasicRequestErrors || error{InvalidBlockNumberOrIndex})!RPCResponse(Block) {
     return self.getUncleByBlockNumberAndIndexType(Block, opts, index);
 }
 /// Returns information about a uncle of a block by number and uncle index position.
@@ -1242,7 +1289,12 @@ pub fn sendRpcRequest(self: *IPC, comptime T: type, message: []u8) SendRpcReques
         const message_value = self.getCurrentRpcEvent();
         errdefer message_value.deinit();
 
-        const parsed = try std.json.parseFromValueLeaky(EthereumResponse(T), message_value.arena.allocator(), message_value.value, .{ .allocate = .alloc_always });
+        const parsed = try std.json.parseFromValueLeaky(
+            EthereumResponse(T),
+            message_value.arena.allocator(),
+            message_value.value,
+            .{ .allocate = .alloc_always },
+        );
 
         switch (parsed) {
             .success => |success| return RPCResponse(T).fromJson(message_value.arena, success.result),

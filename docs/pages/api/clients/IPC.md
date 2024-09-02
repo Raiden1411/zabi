@@ -1,4 +1,14 @@
+## InitErrors
+
+Set of possible errors when starting the client.
+
+```zig
+Allocator.Error || std.Thread.SpawnError || error{ InvalidNetworkConfig, InvalidIPCPath, FailedToConnect }
+```
+
 ## ReadLoopErrors
+
+Set of possible errors when reading from the socket.
 
 ```zig
 SetSockOptError || error{ FailedToJsonParseResponse, Closed, InvalidTypeMessage, UnexpectedError }
@@ -6,41 +16,18 @@ SetSockOptError || error{ FailedToJsonParseResponse, Closed, InvalidTypeMessage,
 
 ## SendRpcRequestErrors
 
+Set of possible errors when send a rpc request.
+
 ```zig
 Allocator.Error || EthereumZigErrors || std.posix.WriteError || ParseFromValueError || error{ReachedMaxRetryLimit}
 ```
 
 ## BasicRequestErrors
 
+Set of generic errors when sending a rpc request.
+
 ```zig
 SendRpcRequestErrors || error{NoSpaceLeft}
-```
-
-## IPCErrors
-
-```zig
-error{
-    FailedToConnect,
-    UnsupportedSchema,
-    InvalidChainId,
-    FailedToGetReceipt,
-    FailedToUnsubscribe,
-    InvalidFilterId,
-    InvalidEventFound,
-    InvalidBlockRequest,
-    InvalidLogRequest,
-    TransactionNotFound,
-    TransactionReceiptNotFound,
-    InvalidHash,
-    UnableToFetchFeeInfoFromBlock,
-    InvalidAddress,
-    InvalidBlockHash,
-    InvalidBlockHashOrIndex,
-    InvalidBlockNumberOrIndex,
-    InvalidBlockNumber,
-    ReachedMaxRetryLimit,
-    InvalidNetworkConfig,
-} || Allocator.Error || std.fmt.ParseIntError || std.Uri.ParseError || EthereumZigErrors
 ```
 
 ## InitOptions
@@ -68,12 +55,24 @@ struct {
 
 ## Init
 Starts the IPC client and create the connection.
+
 This will also start the read loop in a seperate thread.
+
+**Example**
+```zig
+ var client = try IPC.init(.{
+    .allocator = testing.allocator,
+    .network_config = .{
+        .endpoint = .{ .path = "/tmp/anvil.ipc" },
+    },
+ });
+ defer client.deinit();
+```
 
 ### Signature
 
 ```zig
-pub fn init(opts: InitOptions) (Allocator.Error || std.Thread.SpawnError || error{ InvalidNetworkConfig, InvalidIPCPath, FailedToConnect })!*IPC
+pub fn init(opts: InitOptions) InitErrors!*IPC
 ```
 
 ## Deinit
@@ -89,7 +88,7 @@ pub fn deinit(self: *IPC) void
 ```
 
 ## Connect
-Connects to the socket. Will try to reconnect in case of failures.
+Connects to the socket. Will try to reconnect in case of failures.\
 Fails when match retries are reached or a invalid ipc path is provided
 
 ### Signature
@@ -138,7 +137,11 @@ Will return an error in case the `baseFeePerGas` is null.
 ### Signature
 
 ```zig
-pub fn estimateFeesPerGas(self: *IPC, call_object: EthCall, base_fee_per_gas: ?Gwei) !EstimateFeeReturn
+pub fn estimateFeesPerGas(
+    self: *IPC,
+    call_object: EthCall,
+    base_fee_per_gas: ?Gwei,
+) (BasicRequestErrors || error{ InvalidBlockNumber, UnableToFetchFeeInfoFromBlock })!EstimateFeeReturn
 ```
 
 ## EstimateGas
@@ -162,7 +165,10 @@ supports `eth_maxPriorityFeePerGas` consider using `estimateMaxFeePerGas`.
 ### Signature
 
 ```zig
-pub fn estimateMaxFeePerGasManual(self: *IPC, base_fee_per_gas: ?Gwei) !Gwei
+pub fn estimateMaxFeePerGasManual(
+    self: *IPC,
+    base_fee_per_gas: ?Gwei,
+) (BasicRequestErrors || error{ InvalidBlockNumber, UnableToFetchFeeInfoFromBlock })!Gwei
 ```
 
 ## EstimateMaxFeePerGas
@@ -182,7 +188,12 @@ RPC Method: [eth_feeHistory](https://ethereum.org/en/developers/docs/apis/json-r
 ### Signature
 
 ```zig
-pub fn feeHistory(self: *IPC, blockCount: u64, newest_block: BlockNumberRequest, reward_percentil: ?[]const f64) BasicRequestErrors!RPCResponse(FeeHistory)
+pub fn feeHistory(
+    self: *IPC,
+    blockCount: u64,
+    newest_block: BlockNumberRequest,
+    reward_percentil: ?[]const f64,
+) BasicRequestErrors!RPCResponse(FeeHistory)
 ```
 
 ## GetAccounts
@@ -240,7 +251,11 @@ RPC Method: [eth_getBlockByHash](https://ethereum.org/en/developers/docs/apis/js
 ### Signature
 
 ```zig
-pub fn getBlockByHashType(self: *IPC, comptime T: type, opts: BlockHashRequest) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(T)
+pub fn getBlockByHashType(
+    self: *IPC,
+    comptime T: type,
+    opts: BlockHashRequest,
+) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(T)
 ```
 
 ## GetBlockByNumber
@@ -268,7 +283,11 @@ RPC Method: [eth_getBlockByNumber](https://ethereum.org/en/developers/docs/apis/
 ### Signature
 
 ```zig
-pub fn getBlockByNumberType(self: *IPC, comptime T: type, opts: BlockRequest) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(T)
+pub fn getBlockByNumberType(
+    self: *IPC,
+    comptime T: type,
+    opts: BlockRequest,
+) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(T)
 ```
 
 ## GetBlockNumber
@@ -397,7 +416,11 @@ RPC Method: [eth_getLogs](https://ethereum.org/en/developers/docs/apis/json-rpc#
 ### Signature
 
 ```zig
-pub fn getLogs(self: *IPC, opts: LogRequest, tag: ?BalanceBlockTag) (BasicRequestErrors || error{InvalidLogRequestParams})!RPCResponse(Logs)
+pub fn getLogs(
+    self: *IPC,
+    opts: LogRequest,
+    tag: ?BalanceBlockTag,
+) (BasicRequestErrors || error{InvalidLogRequestParams})!RPCResponse(Logs)
 ```
 
 ## GetLogsSubEvent
@@ -468,7 +491,11 @@ RPC Method: [eth_getProof](https://docs.infura.io/api/networks/ethereum/json-rpc
 ### Signature
 
 ```zig
-pub fn getProof(self: *IPC, opts: ProofRequest, tag: ?ProofBlockTag) (BasicRequestErrors || error{ExpectBlockNumberOrTag})!RPCResponse(ProofResult)
+pub fn getProof(
+    self: *IPC,
+    opts: ProofRequest,
+    tag: ?ProofBlockTag,
+) (BasicRequestErrors || error{ExpectBlockNumberOrTag})!RPCResponse(ProofResult)
 ```
 
 ## GetProtocolVersion
@@ -535,7 +562,11 @@ RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/deve
 ### Signature
 
 ```zig
-pub fn getTransactionByBlockHashAndIndex(self: *IPC, block_hash: Hash, index: usize) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
+pub fn getTransactionByBlockHashAndIndex(
+    self: *IPC,
+    block_hash: Hash,
+    index: usize,
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
 ```
 
 ## GetTransactionByBlockHashAndIndexType
@@ -613,7 +644,11 @@ RPC Method: [eth_getTransactionByHash](https://ethereum.org/en/developers/docs/a
 ### Signature
 
 ```zig
-pub fn getTransactionByHashType(self: *IPC, comptime T: type, transaction_hash: Hash) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(T)
+pub fn getTransactionByHashType(
+    self: *IPC,
+    comptime T: type,
+    transaction_hash: Hash,
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(T)
 ```
 
 ## GetTransactionReceipt
@@ -624,7 +659,10 @@ RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/
 ### Signature
 
 ```zig
-pub fn getTransactionReceipt(self: *IPC, transaction_hash: Hash) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt)
+pub fn getTransactionReceipt(
+    self: *IPC,
+    transaction_hash: Hash,
+) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt)
 ```
 
 ## GetTransactionReceiptType
@@ -638,7 +676,11 @@ RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/
 ### Signature
 
 ```zig
-pub fn getTransactionReceiptType(self: *IPC, comptime T: type, transaction_hash: Hash) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt)
+pub fn getTransactionReceiptType(
+    self: *IPC,
+    comptime T: type,
+    transaction_hash: Hash,
+) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt)
 ```
 
 ## GetTxPoolContent
@@ -716,7 +758,12 @@ RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers
 ### Signature
 
 ```zig
-pub fn getUncleByBlockHashAndIndexType(self: *IPC, comptime T: type, block_hash: Hash, index: usize) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(T)
+pub fn getUncleByBlockHashAndIndexType(
+    self: *IPC,
+    comptime T: type,
+    block_hash: Hash,
+    index: usize,
+) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(T)
 ```
 
 ## GetUncleByBlockNumberAndIndex
@@ -727,7 +774,11 @@ RPC Method: [eth_getUncleByBlockNumberAndIndex](https://ethereum.org/en/develope
 ### Signature
 
 ```zig
-pub fn getUncleByBlockNumberAndIndex(self: *IPC, opts: BlockNumberRequest, index: usize) (BasicRequestErrors || error{InvalidBlockNumberOrIndex})!RPCResponse(Block)
+pub fn getUncleByBlockNumberAndIndex(
+    self: *IPC,
+    opts: BlockNumberRequest,
+    index: usize,
+) (BasicRequestErrors || error{InvalidBlockNumberOrIndex})!RPCResponse(Block)
 ```
 
 ## GetUncleByBlockNumberAndIndexType

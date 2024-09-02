@@ -36,21 +36,6 @@ Wallet instance with rpc ipc client.
 Wallet(.ipc)
 ```
 
-## AssertionErrors
-
-Set of errors that can be returned on the `assertTransaction` method.
-
-```zig
-error{
-    InvalidChainId,
-    TransactionTipToHigh,
-    EmptyBlobs,
-    TooManyBlobs,
-    BlobVersionNotSupported,
-    CreateBlobTransaction,
-}
-```
-
 ## TransactionEnvelopePool
 
 ### Properties
@@ -158,6 +143,53 @@ The same goes for the signer.
 pub fn Wallet(comptime client_type: WalletClients) type
 ```
 
+## InitErrors
+
+Set of possible errors when starting the wallet.
+
+```zig
+ClientType.InitErrors || error{IdentityElement}
+```
+
+## Error
+
+Set of common errors produced by wallet actions.
+
+```zig
+ClientType.BasicRequestErrors
+```
+
+## PrepareError
+
+Set of errors when preparing a transaction
+
+```zig
+Error || error{ InvalidBlockNumber, UnableToFetchFeeInfoFromBlock, MaxFeePerGasUnderflow, UnsupportedTransactionType }
+```
+
+## AssertionErrors
+
+Set of errors that can be returned on the `assertTransaction` method.
+
+```zig
+error{
+            InvalidChainId,
+            TransactionTipToHigh,
+            EmptyBlobs,
+            TooManyBlobs,
+            BlobVersionNotSupported,
+            CreateBlobTransaction,
+        }
+```
+
+## SendSignedTransactionErrors
+
+Set of possible errors when sending signed transactions
+
+```zig
+Error || Signer.SigningErrors || SerializeErrors
+```
+
 ## Init
 Sets the wallet initial state.
 
@@ -166,7 +198,7 @@ The init opts will depend on the [client_type](/api/clients/wallet#walletclients
 ### Signature
 
 ```zig
-pub fn init(private_key: ?Hash, opts: InitOpts) !*Wallet(client_type)
+pub fn init(private_key: ?Hash, opts: InitOpts) (error{IdentityElement} || ClientType.InitErrors)!*Wallet(client_type)
 ```
 
 ## AssertTransaction
@@ -207,7 +239,7 @@ This appends to the last node of the list.
 ### Signature
 
 ```zig
-pub fn poolTransactionEnvelope(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !void
+pub fn poolTransactionEnvelope(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) PrepareError!void
 ```
 
 ## PrepareTransaction
@@ -218,7 +250,10 @@ Everything that gets set before will not be touched.
 ### Signature
 
 ```zig
-pub fn prepareTransaction(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !TransactionEnvelope
+pub fn prepareTransaction(
+            self: *Wallet(client_type),
+            unprepared_envelope: UnpreparedTransactionEnvelope,
+        ) PrepareError!TransactionEnvelope
 ```
 
 ## SearchPoolAndSendTransaction
@@ -229,7 +264,10 @@ The search is linear and starts from the first node of the pool.
 ### Signature
 
 ```zig
-pub fn searchPoolAndSendTransaction(self: *Wallet(client_type), search_opts: TransactionEnvelopePool.SearchCriteria) !RPCResponse(Hash)
+pub fn searchPoolAndSendTransaction(
+            self: *Wallet(client_type),
+            search_opts: TransactionEnvelopePool.SearchCriteria,
+        ) (Error || Signer.SigningErrors || AssertionErrors || error{TransactionNotFoundInPool})!RPCResponse(Hash)
 ```
 
 ## SendBlobTransaction
@@ -268,7 +306,7 @@ Returns the transaction hash.
 ### Signature
 
 ```zig
-pub fn sendSignedTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) !RPCResponse(Hash)
+pub fn sendSignedTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) SendSignedTransactionErrors!RPCResponse(Hash)
 ```
 
 ## SendTransaction
@@ -279,7 +317,10 @@ Will return an error if the envelope is incorrect
 ### Signature
 
 ```zig
-pub fn sendTransaction(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) !RPCResponse(Hash)
+pub fn sendTransaction(
+            self: *Wallet(client_type),
+            unprepared_envelope: UnpreparedTransactionEnvelope,
+        ) (SendSignedTransactionErrors || AssertionErrors || PrepareError)!RPCResponse(Hash)
 ```
 
 ## SignEthereumMessage
@@ -290,7 +331,7 @@ The Signatures recoverId doesn't include the chain_id
 ### Signature
 
 ```zig
-pub fn signEthereumMessage(self: *Wallet(client_type), message: []const u8) !Signature
+pub fn signEthereumMessage(self: *Wallet(client_type), message: []const u8) (Signer.SigningErrors || Allocator.Error)!Signature
 ```
 
 ## SignTypedData
@@ -324,7 +365,7 @@ pub fn signTypedData(
             comptime primary_type: []const u8,
             domain: ?TypedDataDomain,
             message: anytype,
-        ) !Signature
+        ) (Signer.SigningErrors || EIP712Errors)!Signature
 ```
 
 ## VerifyMessage
@@ -368,7 +409,7 @@ pub fn verifyTypedData(
             comptime primary_type: []const u8,
             domain: ?TypedDataDomain,
             message: anytype,
-        ) !bool
+        ) (EIP712Errors || Signer.RecoverPubKeyErrors)!bool
 ```
 
 ## WaitForTransactionReceipt
@@ -382,6 +423,12 @@ until the transaction gets mined. Otherwise it will use the rpc_client `pooling_
 ### Signature
 
 ```zig
-pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt)
+pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: Hash, confirmations: u8) (Error || error{
+            FailedToGetReceipt,
+            TransactionReceiptNotFound,
+            TransactionNotFound,
+            InvalidBlockNumber,
+            FailedToUnsubscribe,
+        })!RPCResponse(TransactionReceipt)
 ```
 

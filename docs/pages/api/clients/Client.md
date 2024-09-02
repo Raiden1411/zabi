@@ -10,6 +10,14 @@ Allocator.Error || Client.RequestError || Client.Request.WaitError || Client.Req
 }
 ```
 
+## InitErrors
+
+Set of possible errors while starting the client.
+
+```zig
+Allocator.Error || error{ FailedToConnect, UnsupportedSchema, InvalidEndpointConfig }
+```
+
 ## ParseEventErrors
 
 Set of possible errors when parsing a rpc response.
@@ -79,7 +87,7 @@ defer client.deinit();
 ### Signature
 
 ```zig
-pub fn init(opts: InitOptions) (Allocator.Error || error{ FailedToConnect, UnsupportedSchema, InvalidEndpointConfig })!*PubClient
+pub fn init(opts: InitOptions) InitErrors!*PubClient
 ```
 
 ## Deinit
@@ -832,7 +840,7 @@ pub fn multicall3(
     comptime targets: []const MulticallTargets,
     function_arguments: MulticallArguments(targets),
     allow_failure: bool,
-) !AbiDecoded([]const Result)
+) Multicall(.http).Error!AbiDecoded([]const Result)
 ```
 
 ## NewBlockFilter

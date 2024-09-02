@@ -77,6 +77,9 @@ pub const FetchErrors = Allocator.Error || Client.RequestError || Client.Request
     StreamTooLong,
 };
 
+/// Set of possible errors while starting the client.
+pub const InitErrors = Allocator.Error || error{ FailedToConnect, UnsupportedSchema, InvalidEndpointConfig };
+
 /// Set of possible errors when parsing a rpc response.
 pub const ParseEventErrors = EthereumZigErrors || error{ UnexpectedErrorFound, UnexpectedRpcErrorCode, UnexpectedTooManyRequestError };
 
@@ -137,7 +140,7 @@ const PubClient = @This();
 /// })
 /// defer client.deinit();
 /// ```
-pub fn init(opts: InitOptions) (Allocator.Error || error{ FailedToConnect, UnsupportedSchema, InvalidEndpointConfig })!*PubClient {
+pub fn init(opts: InitOptions) InitErrors!*PubClient {
     const self = try opts.allocator.create(PubClient);
     errdefer opts.allocator.destroy(self);
 
@@ -1124,7 +1127,7 @@ pub fn multicall3(
     comptime targets: []const MulticallTargets,
     function_arguments: MulticallArguments(targets),
     allow_failure: bool,
-) !AbiDecoded([]const Result) {
+) Multicall(.http).Error!AbiDecoded([]const Result) {
     var multicall_caller = try Multicall(.http).init(self);
 
     return multicall_caller.multicall3(targets, function_arguments, allow_failure);

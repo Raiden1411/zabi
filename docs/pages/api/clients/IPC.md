@@ -126,7 +126,7 @@ Uses `blobBaseFee` and `gasPrice` to calculate this estimation
 ### Signature
 
 ```zig
-pub fn estimateBlobMaxFeePerGas(self: *IPC) !Gwei
+pub fn estimateBlobMaxFeePerGas(self: *IPC) BasicRequestErrors!Gwei
 ```
 
 ## EstimateFeesPerGas
@@ -866,7 +866,7 @@ pub fn multicall3(
     comptime targets: []const MulticallTargets,
     function_arguments: MulticallArguments(targets),
     allow_failure: bool,
-) !AbiDecoded([]const Result)
+) Multicall(.ipc).Error!AbiDecoded([]const Result)
 ```
 
 ## NewBlockFilter

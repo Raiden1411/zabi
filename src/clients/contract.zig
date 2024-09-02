@@ -1,6 +1,7 @@
 const abitype = @import("../abi/abi.zig");
 const block = @import("../types/block.zig");
 const decoder = @import("../decoding/decoder.zig");
+const encoder = @import("../encoding/encoder.zig");
 const logs = @import("../types/log.zig");
 const meta = @import("../meta/abi.zig");
 const std = @import("std");
@@ -19,7 +20,9 @@ const Allocator = std.mem.Allocator;
 const BlockNumberRequest = block.BlockNumberRequest;
 const ClientType = @import("wallet.zig").WalletClients;
 const Constructor = abitype.Constructor;
+const DecoderErrors = decoder.DecoderErrors;
 const EthCall = transaction.EthCall;
+const EncodeErrors = encoder.EncodeErrors;
 const Function = abitype.Function;
 const Gwei = types.Gwei;
 const Hex = types.Hex;
@@ -62,10 +65,19 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             wallet_opts: InitOpts,
         };
 
+        const WalletClient = Wallet(client_type);
+
+        /// Set of possible errors when sending a transaction to the network.
+        pub const SendErrors = EncodeErrors || WalletClient.SendSignedTransactionErrors || WalletClient.AssertionErrors || WalletClient.PrepareError;
+
+        /// Set of possible errors when sending a transaction to the network.
+        pub const ReadErrors = EncodeErrors || WalletClient.Error || DecoderErrors;
+
         /// The wallet instance that manages this contract instance
-        wallet: *Wallet(client_type),
-        /// Deinits the wallet instance.
-        pub fn init(opts: ContractInitOpts) !*ContractComptime(client_type) {
+        wallet: *WalletClient,
+
+        /// Initiates the wallet.
+        pub fn init(opts: ContractInitOpts) WalletClient.InitErrors!*ContractComptime(client_type) {
             const self = try opts.wallet_opts.allocator.create(ContractComptime(client_type));
             errdefer opts.wallet_opts.allocator.destroy(self);
 
@@ -83,7 +95,11 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         }
         /// Creates a contract on the network.
         /// If the constructor abi contains inputs it will encode `constructor_args` accordingly.
-        pub fn deployContract(self: *ContractComptime(client_type), comptime constructor: Constructor, opts: ConstructorOpts(constructor)) !RPCResponse(Hash) {
+        pub fn deployContract(
+            self: *ContractComptime(client_type),
+            comptime constructor: Constructor,
+            opts: ConstructorOpts(constructor),
+        ) (SendErrors || error{ CreatingContractToKnowAddress, ValueInNonPayableConstructor })!RPCResponse(Hash) {
             var copy = opts.overrides;
 
             const encoded = try constructor.encode(self.wallet.allocator, opts.args);
@@ -104,7 +120,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
 
             copy.data = concated;
 
-            return try self.wallet.sendTransaction(copy);
+            return self.wallet.sendTransaction(copy);
         }
         /// Generates and returns an estimate of how much gas is necessary to allow the transaction to complete.
         /// The transaction will not be added to the blockchain.
@@ -112,7 +128,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         /// for a variety of reasons including EVM mechanics and node performance.
         ///
         /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
-        pub fn estimateGas(self: *ContractComptime(client_type), call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Gwei) {
+        pub fn estimateGas(self: *ContractComptime(client_type), call_object: EthCall, opts: BlockNumberRequest) WalletClient.Error!RPCResponse(Gwei) {
             return self.wallet.rpc_client.estimateGas(call_object, opts);
         }
         /// Uses eth_call to query an contract information.
@@ -124,7 +140,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             self: *ContractComptime(client_type),
             comptime func: Function,
             opts: FunctionOpts(func, EthCall),
-        ) !AbiDecoded(AbiParametersToPrimative(func.outputs)) {
+        ) (ReadErrors || error{ InvalidFunctionMutability, InvalidRequestTarget })!AbiDecoded(AbiParametersToPrimative(func.outputs)) {
             var copy = opts.overrides;
 
             switch (func.stateMutability) {
@@ -156,7 +172,11 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         /// I recommend watching this talk to better grasp this: https://www.youtube.com/watch?v=bEUtGLnCCYM (I promise it's not a rick roll)
         ///
         /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
-        pub fn simulateWriteCall(self: *ContractComptime(client_type), comptime func: Function, opts: FunctionOpts(func, UnpreparedTransactionEnvelope)) !RPCResponse(Hex) {
+        pub fn simulateWriteCall(
+            self: *ContractComptime(client_type),
+            comptime func: Function,
+            opts: FunctionOpts(func, UnpreparedTransactionEnvelope),
+        ) (ReadErrors || error{ InvalidRequestTarget, UnsupportedTransactionType })!RPCResponse(Hex) {
             var copy = opts.overrides;
 
             const encoded = try func.encode(self.wallet.allocator, opts.args);
@@ -200,7 +220,13 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         /// because some nodes might be slower to sync.
         ///
         /// RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
-        pub fn waitForTransactionReceipt(self: *ContractComptime(client_type), tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt) {
+        pub fn waitForTransactionReceipt(self: *ContractComptime(client_type), tx_hash: Hash, confirmations: u8) (WalletClient.Error || error{
+            FailedToGetReceipt,
+            TransactionReceiptNotFound,
+            TransactionNotFound,
+            InvalidBlockNumber,
+            FailedToUnsubscribe,
+        })!RPCResponse(TransactionReceipt) {
             return self.wallet.waitForTransactionReceipt(tx_hash, confirmations);
         }
         /// Encodes the function arguments based on the function abi item.
@@ -208,7 +234,11 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         /// It will send the transaction to the network and return the transaction hash.
         ///
         /// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
-        pub fn writeContractFunction(self: *ContractComptime(client_type), comptime func: Function, opts: FunctionOpts(func, UnpreparedTransactionEnvelope)) !RPCResponse(Hash) {
+        pub fn writeContractFunction(
+            self: *ContractComptime(client_type),
+            comptime func: Function,
+            opts: FunctionOpts(func, UnpreparedTransactionEnvelope),
+        ) (SendErrors || error{ InvalidFunctionMutability, InvalidRequestTarget, ValueInNonPayableFunction })!RPCResponse(Hash) {
             var copy = opts.overrides;
 
             switch (func.stateMutability) {
@@ -254,12 +284,22 @@ pub fn Contract(comptime client_type: ClientType) type {
             wallet_opts: InitOpts,
         };
 
+        const WalletClient = Wallet(client_type);
+
+        /// Set of possible errors when sending a transaction to the network.
+        pub const SendErrors = EncodeErrors || WalletClient.SendSignedTransactionErrors ||
+            WalletClient.AssertionErrors || WalletClient.PrepareError || error{ AbiItemNotFound, NotSupported };
+
+        /// Set of possible errors when sending a transaction to the network.
+        pub const ReadErrors = EncodeErrors || WalletClient.Error || DecoderErrors || error{ AbiItemNotFound, NotSupported };
+
         /// The wallet instance that manages this contract instance
-        wallet: *Wallet(client_type),
+        wallet: *WalletClient,
         /// The abi that will be used to read or write from
         abi: Abi,
 
-        pub fn init(opts: ContractInitOpts) !*Contract(client_type) {
+        /// Starts the wallet instance and sets the abi.
+        pub fn init(opts: ContractInitOpts) WalletClient.InitErrors!*Contract(client_type) {
             const self = try opts.wallet_opts.allocator.create(Contract(client_type));
             errdefer opts.wallet_opts.allocator.destroy(self);
 
@@ -278,7 +318,12 @@ pub fn Contract(comptime client_type: ClientType) type {
         }
         /// Creates a contract on the network.
         /// If the constructor abi contains inputs it will encode `constructor_args` accordingly.
-        pub fn deployContract(self: *Contract(client_type), constructor_args: anytype, bytecode: Hex, overrides: UnpreparedTransactionEnvelope) !RPCResponse(Hash) {
+        pub fn deployContract(
+            self: *Contract(client_type),
+            constructor_args: anytype,
+            bytecode: Hex,
+            overrides: UnpreparedTransactionEnvelope,
+        ) (SendErrors || error{ CreatingContractToKnowAddress, ValueInNonPayableConstructor })!RPCResponse(Hash) {
             var copy = overrides;
             const constructor = try getAbiItem(self.abi, .constructor, null);
 
@@ -308,7 +353,11 @@ pub fn Contract(comptime client_type: ClientType) type {
         /// for a variety of reasons including EVM mechanics and node performance.
         ///
         /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
-        pub fn estimateGas(self: *Contract(client_type), call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Gwei) {
+        pub fn estimateGas(
+            self: *Contract(client_type),
+            call_object: EthCall,
+            opts: BlockNumberRequest,
+        ) WalletClient.Error!RPCResponse(Gwei) {
             return self.wallet.rpc_client.estimateGas(call_object, opts);
         }
         /// Uses eth_call to query an contract information.
@@ -316,7 +365,13 @@ pub fn Contract(comptime client_type: ClientType) type {
         /// It won't commit a transaction to the network.
         ///
         /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
-        pub fn readContractFunction(self: *Contract(client_type), comptime T: type, function_name: []const u8, function_args: anytype, overrides: EthCall) !AbiDecoded(T) {
+        pub fn readContractFunction(
+            self: *Contract(client_type),
+            comptime T: type,
+            function_name: []const u8,
+            function_args: anytype,
+            overrides: EthCall,
+        ) (ReadErrors || error{ InvalidFunctionMutability, InvalidRequestTarget })!AbiDecoded(T) {
             const function_item = try getAbiItem(self.abi, .function, function_name);
             var copy = overrides;
 
@@ -349,7 +404,12 @@ pub fn Contract(comptime client_type: ClientType) type {
         /// I recommend watching this talk to better grasp this: https://www.youtube.com/watch?v=bEUtGLnCCYM (I promise it's not a rick roll)
         ///
         /// RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_call)
-        pub fn simulateWriteCall(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: UnpreparedTransactionEnvelope) !RPCResponse(Hex) {
+        pub fn simulateWriteCall(
+            self: *Contract(client_type),
+            function_name: []const u8,
+            function_args: anytype,
+            overrides: UnpreparedTransactionEnvelope,
+        ) (ReadErrors || error{ InvalidRequestTarget, UnsupportedTransactionType })!RPCResponse(Hex) {
             const function_item = try getAbiItem(self.abi, .function, function_name);
             var copy = overrides;
 
@@ -394,7 +454,13 @@ pub fn Contract(comptime client_type: ClientType) type {
         /// because some nodes might be slower to sync.
         ///
         /// RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
-        pub fn waitForTransactionReceipt(self: *Contract(client_type), tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt) {
+        pub fn waitForTransactionReceipt(self: *ContractComptime(client_type), tx_hash: Hash, confirmations: u8) (WalletClient.Error || error{
+            FailedToGetReceipt,
+            TransactionReceiptNotFound,
+            TransactionNotFound,
+            InvalidBlockNumber,
+            FailedToUnsubscribe,
+        })!RPCResponse(TransactionReceipt) {
             return self.wallet.waitForTransactionReceipt(tx_hash, confirmations);
         }
         /// Encodes the function arguments based on the function abi item.
@@ -402,7 +468,12 @@ pub fn Contract(comptime client_type: ClientType) type {
         /// It will send the transaction to the network and return the transaction hash.
         ///
         /// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
-        pub fn writeContractFunction(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: UnpreparedTransactionEnvelope) !RPCResponse(Hash) {
+        pub fn writeContractFunction(
+            self: *Contract(client_type),
+            function_name: []const u8,
+            function_args: anytype,
+            overrides: UnpreparedTransactionEnvelope,
+        ) (SendErrors || error{ InvalidFunctionMutability, InvalidRequestTarget, ValueInNonPayableFunction })!RPCResponse(Hash) {
             const function_item = try getAbiItem(self.abi, .function, function_name);
             var copy = overrides;
 
@@ -433,7 +504,7 @@ pub fn Contract(comptime client_type: ClientType) type {
 }
 
 /// Grabs the first match in the `Contract` abi
-fn getAbiItem(abi: Abi, abi_type: Abitype, name: ?[]const u8) !AbiItem {
+fn getAbiItem(abi: Abi, abi_type: Abitype, name: ?[]const u8) error{ NotSupported, AbiItemNotFound }!AbiItem {
     switch (abi_type) {
         .constructor => {
             for (abi) |abi_item| {

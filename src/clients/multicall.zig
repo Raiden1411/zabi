@@ -107,9 +107,6 @@ pub const aggregate3_abi: Function = .{
     },
 };
 
-/// The multicall3 contract address. Equal across all chains.
-pub const multicall_contract = utils.addressToBytes("0xcA11bde05977b3631167028862bE2a173976CA11") catch unreachable;
-
 /// Wrapper around a rpc_client that exposes the multicall3 functions.
 pub fn Multicall(comptime client: Clients) type {
     return struct {
@@ -120,6 +117,9 @@ pub fn Multicall(comptime client: Clients) type {
         };
 
         const Self = @This();
+
+        /// Set of possible errors when running the multicall client.
+        pub const Error = Client.BasicRequestErrors || encoder.EncodeErrors || decoder.DecoderErrors;
 
         /// The underlaying rpc client used by this.
         rpc_client: *Client,
@@ -140,7 +140,7 @@ pub fn Multicall(comptime client: Clients) type {
             comptime targets: []const MulticallTargets,
             function_arguments: MulticallArguments(targets),
             allow_failure: bool,
-        ) !AbiDecoded([]const Result) {
+        ) Self.Error!AbiDecoded([]const Result) {
             comptime std.debug.assert(targets.len == function_arguments.len);
 
             var abi_list = std.ArrayList(Call3).init(self.rpc_client.allocator);
@@ -169,7 +169,7 @@ pub fn Multicall(comptime client: Clients) type {
             defer self.rpc_client.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{
-                .to = multicall_contract,
+                .to = self.rpc_client.network_config.multicall_contract,
                 .data = encoded,
             } }, .{});
             defer data.deinit();

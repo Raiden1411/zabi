@@ -250,7 +250,7 @@ pub fn createAccessList(self: *IPC, call_object: EthCall, opts: BlockNumberReque
 }
 /// Estimate the gas used for blobs
 /// Uses `blobBaseFee` and `gasPrice` to calculate this estimation
-pub fn estimateBlobMaxFeePerGas(self: *IPC) !Gwei {
+pub fn estimateBlobMaxFeePerGas(self: *IPC) BasicRequestErrors!Gwei {
     const base = try self.blobBaseFee();
     defer base.deinit();
 
@@ -1130,7 +1130,7 @@ pub fn multicall3(
     comptime targets: []const MulticallTargets,
     function_arguments: MulticallArguments(targets),
     allow_failure: bool,
-) !AbiDecoded([]const Result) {
+) Multicall(.ipc).Error!AbiDecoded([]const Result) {
     var multicall_caller = try Multicall(.ipc).init(self);
 
     return multicall_caller.multicall3(targets, function_arguments, allow_failure);

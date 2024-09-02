@@ -37,7 +37,7 @@ Set of possible errors when sending a rpc request.
 EthereumZigErrors || SocketWriteErrors || ParseFromValueError || error{ReachedMaxRetryLimit}
 ```
 
-## BasicRpcRequestErrors
+## BasicRequestErrors
 
 Set of generic errors when sending rpc request.
 
@@ -126,7 +126,7 @@ RPC Method: [eth_blobBaseFee](https://ethereum.org/en/developers/docs/apis/json-
 ### Signature
 
 ```zig
-pub fn blobBaseFee(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse(Gwei)
+pub fn blobBaseFee(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(Gwei)
 ```
 
 ## CreateAccessList
@@ -137,7 +137,7 @@ RPC Method: [eth_createAccessList](https://ethereum.org/en/developers/docs/apis/
 ### Signature
 
 ```zig
-pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) BasicRpcRequestErrors!RPCResponse(AccessListResult)
+pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(AccessListResult)
 ```
 
 ## EstimateBlobMaxFeePerGas
@@ -147,7 +147,7 @@ Uses `blobBaseFee` and `gasPrice` to calculate this estimation
 ### Signature
 
 ```zig
-pub fn estimateBlobMaxFeePerGas(self: *WebSocketHandler) !Gwei
+pub fn estimateBlobMaxFeePerGas(self: *WebSocketHandler) BasicRequestErrors!Gwei
 ```
 
 ## EstimateFeesPerGas
@@ -162,7 +162,7 @@ pub fn estimateFeesPerGas(
     self: *WebSocketHandler,
     call_object: EthCall,
     base_fee_per_gas: ?Gwei,
-) (BasicRpcRequestErrors || error{ InvalidBlockNumber, UnableToFetchFeeInfoFromBlock })!EstimateFeeReturn
+) (BasicRequestErrors || error{ InvalidBlockNumber, UnableToFetchFeeInfoFromBlock })!EstimateFeeReturn
 ```
 
 ## EstimateGas
@@ -176,7 +176,7 @@ RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-
 ### Signature
 
 ```zig
-pub fn estimateGas(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) BasicRpcRequestErrors!RPCResponse(Gwei)
+pub fn estimateGas(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(Gwei)
 ```
 
 ## EstimateMaxFeePerGasManual
@@ -189,7 +189,7 @@ supports `eth_maxPriorityFeePerGas` consider using `estimateMaxFeePerGas`.
 pub fn estimateMaxFeePerGasManual(
     self: *WebSocketHandler,
     base_fee_per_gas: ?Gwei,
-) (BasicRpcRequestErrors || error{ InvalidBlockNumber, UnableToFetchFeeInfoFromBlock })!Gwei
+) (BasicRequestErrors || error{ InvalidBlockNumber, UnableToFetchFeeInfoFromBlock })!Gwei
 ```
 
 ## EstimateMaxFeePerGas
@@ -198,7 +198,7 @@ Only use this if the node you are currently using supports `eth_maxPriorityFeePe
 ### Signature
 
 ```zig
-pub fn estimateMaxFeePerGas(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse(Gwei)
+pub fn estimateMaxFeePerGas(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(Gwei)
 ```
 
 ## FeeHistory
@@ -214,7 +214,7 @@ pub fn feeHistory(
     blockCount: u64,
     newest_block: BlockNumberRequest,
     reward_percentil: ?[]const f64,
-) BasicRpcRequestErrors!RPCResponse(FeeHistory)
+) BasicRequestErrors!RPCResponse(FeeHistory)
 ```
 
 ## GetAccounts
@@ -225,7 +225,7 @@ RPC Method: [eth_accounts](https://ethereum.org/en/developers/docs/apis/json-rpc
 ### Signature
 
 ```zig
-pub fn getAccounts(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse([]const Address)
+pub fn getAccounts(self: *WebSocketHandler) BasicRequestErrors!RPCResponse([]const Address)
 ```
 
 ## GetAddressBalance
@@ -236,7 +236,7 @@ RPC Method: [eth_getBalance](https://ethereum.org/en/developers/docs/apis/json-r
 ### Signature
 
 ```zig
-pub fn getAddressBalance(self: *WebSocketHandler, opts: BalanceRequest) BasicRpcRequestErrors!RPCResponse(Wei)
+pub fn getAddressBalance(self: *WebSocketHandler, opts: BalanceRequest) BasicRequestErrors!RPCResponse(Wei)
 ```
 
 ## GetAddressTransactionCount
@@ -247,7 +247,7 @@ RPC Method: [eth_getTransactionCount](https://ethereum.org/en/developers/docs/ap
 ### Signature
 
 ```zig
-pub fn getAddressTransactionCount(self: *WebSocketHandler, opts: BalanceRequest) BasicRpcRequestErrors!RPCResponse(u64)
+pub fn getAddressTransactionCount(self: *WebSocketHandler, opts: BalanceRequest) BasicRequestErrors!RPCResponse(u64)
 ```
 
 ## GetBlockByHash
@@ -261,7 +261,7 @@ RPC Method: [eth_getBlockByHash](https://ethereum.org/en/developers/docs/apis/js
 pub fn getBlockByHash(
     self: *WebSocketHandler,
     opts: BlockHashRequest,
-) (BasicRpcRequestErrors || error{InvalidBlockHash})!RPCResponse(Block)
+) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(Block)
 ```
 
 ## GetBlockByHashType
@@ -279,7 +279,7 @@ pub fn getBlockByHashType(
     self: *WebSocketHandler,
     comptime T: type,
     opts: BlockHashRequest,
-) (BasicRpcRequestErrors || error{InvalidBlockHash})!RPCResponse(T)
+) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(T)
 ```
 
 ## GetBlockByNumber
@@ -290,7 +290,7 @@ RPC Method: [eth_getBlockByNumber](https://ethereum.org/en/developers/docs/apis/
 ### Signature
 
 ```zig
-pub fn getBlockByNumber(self: *WebSocketHandler, opts: BlockRequest) (BasicRpcRequestErrors || error{InvalidBlockNumber})!RPCResponse(Block)
+pub fn getBlockByNumber(self: *WebSocketHandler, opts: BlockRequest) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(Block)
 ```
 
 ## GetBlockByNumberType
@@ -308,7 +308,7 @@ pub fn getBlockByNumberType(
     self: *WebSocketHandler,
     comptime T: type,
     opts: BlockRequest,
-) (BasicRpcRequestErrors || error{InvalidBlockNumber})!RPCResponse(T)
+) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(T)
 ```
 
 ## GetBlockNumber
@@ -319,7 +319,7 @@ RPC Method: [eth_blockNumber](https://ethereum.org/en/developers/docs/apis/json-
 ### Signature
 
 ```zig
-pub fn getBlockNumber(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse(u64)
+pub fn getBlockNumber(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(u64)
 ```
 
 ## GetBlockTransactionCountByHash
@@ -330,7 +330,7 @@ RPC Method: [eth_getBlockTransactionCountByHash](https://ethereum.org/en/develop
 ### Signature
 
 ```zig
-pub fn getBlockTransactionCountByHash(self: *WebSocketHandler, block_hash: Hash) BasicRpcRequestErrors!RPCResponse(usize)
+pub fn getBlockTransactionCountByHash(self: *WebSocketHandler, block_hash: Hash) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetBlockTransactionCountByNumber
@@ -341,7 +341,7 @@ RPC Method: [eth_getBlockTransactionCountByNumber](https://ethereum.org/en/devel
 ### Signature
 
 ```zig
-pub fn getBlockTransactionCountByNumber(self: *WebSocketHandler, opts: BlockNumberRequest) BasicRpcRequestErrors!RPCResponse(usize)
+pub fn getBlockTransactionCountByNumber(self: *WebSocketHandler, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetChainId
@@ -352,7 +352,7 @@ RPC Method: [eth_chainId](https://ethereum.org/en/developers/docs/apis/json-rpc#
 ### Signature
 
 ```zig
-pub fn getChainId(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse(usize)
+pub fn getChainId(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetClientVersion
@@ -363,7 +363,7 @@ RPC Method: [web3_clientVersion](https://ethereum.org/en/developers/docs/apis/js
 ### Signature
 
 ```zig
-pub fn getClientVersion(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse([]const u8)
+pub fn getClientVersion(self: *WebSocketHandler) BasicRequestErrors!RPCResponse([]const u8)
 ```
 
 ## GetContractCode
@@ -374,7 +374,7 @@ RPC Method: [eth_getCode](https://ethereum.org/en/developers/docs/apis/json-rpc#
 ### Signature
 
 ```zig
-pub fn getContractCode(self: *WebSocketHandler, opts: BalanceRequest) BasicRpcRequestErrors!RPCResponse(Hex)
+pub fn getContractCode(self: *WebSocketHandler, opts: BalanceRequest) BasicRequestErrors!RPCResponse(Hex)
 ```
 
 ## GetCurrentRpcEvent
@@ -415,7 +415,7 @@ pub fn getFilterOrLogChanges(
     self: *WebSocketHandler,
     filter_id: u128,
     method: EthereumRpcMethods,
-) (BasicRpcRequestErrors || error{ InvalidFilterId, InvalidRpcMethod })!RPCResponse(Logs)
+) (BasicRequestErrors || error{ InvalidFilterId, InvalidRpcMethod })!RPCResponse(Logs)
 ```
 
 ## GetGasPrice
@@ -427,7 +427,7 @@ RPC Method: [eth_gasPrice](https://ethereum.org/en/developers/docs/apis/json-rpc
 ### Signature
 
 ```zig
-pub fn getGasPrice(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse(Gwei)
+pub fn getGasPrice(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(Gwei)
 ```
 
 ## GetLogs
@@ -442,7 +442,7 @@ pub fn getLogs(
     self: *WebSocketHandler,
     opts: LogRequest,
     tag: ?BalanceBlockTag,
-) (BasicRpcRequestErrors || error{InvalidLogRequestParams})!RPCResponse(Logs)
+) (BasicRequestErrors || error{InvalidLogRequestParams})!RPCResponse(Logs)
 ```
 
 ## GetLogsSubEvent
@@ -471,7 +471,7 @@ RPC Method: [net_listening](https://docs.infura.io/api/networks/ethereum/json-rp
 ### Signature
 
 ```zig
-pub fn getNetworkListenStatus(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse(bool)
+pub fn getNetworkListenStatus(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(bool)
 ```
 
 ## GetNetworkPeerCount
@@ -482,7 +482,7 @@ RPC Method: [net_peerCount](https://docs.infura.io/api/networks/ethereum/json-rp
 ### Signature
 
 ```zig
-pub fn getNetworkPeerCount(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse(usize)
+pub fn getNetworkPeerCount(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetNetworkVersionId
@@ -493,7 +493,7 @@ RPC Method: [net_version](https://docs.infura.io/api/networks/ethereum/json-rpc-
 ### Signature
 
 ```zig
-pub fn getNetworkVersionId(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse(usize)
+pub fn getNetworkVersionId(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetPendingTransactionsSubEvent
@@ -517,7 +517,7 @@ pub fn getProof(
     self: *WebSocketHandler,
     opts: ProofRequest,
     tag: ?ProofBlockTag,
-) (BasicRpcRequestErrors || error{ExpectBlockNumberOrTag})!RPCResponse(ProofResult)
+) (BasicRequestErrors || error{ExpectBlockNumberOrTag})!RPCResponse(ProofResult)
 ```
 
 ## GetProtocolVersion
@@ -528,7 +528,7 @@ RPC Method: [eth_protocolVersion](https://ethereum.org/en/developers/docs/apis/j
 ### Signature
 
 ```zig
-pub fn getProtocolVersion(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse(u64)
+pub fn getProtocolVersion(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(u64)
 ```
 
 ## GetRawTransactionByHash
@@ -539,7 +539,7 @@ RPC Method: [eth_getRawTransactionByHash](https://docs.chainstack.com/reference/
 ### Signature
 
 ```zig
-pub fn getRawTransactionByHash(self: *WebSocketHandler, tx_hash: Hash) BasicRpcRequestErrors!RPCResponse(Hex)
+pub fn getRawTransactionByHash(self: *WebSocketHandler, tx_hash: Hash) BasicRequestErrors!RPCResponse(Hex)
 ```
 
 ## GetSha3Hash
@@ -553,7 +553,7 @@ RPC Method: [web_sha3](https://ethereum.org/en/developers/docs/apis/json-rpc#web
 pub fn getSha3Hash(
     self: *WebSocketHandler,
     message: []const u8,
-) (BasicRpcRequestErrors || error{ InvalidCharacter, InvalidLength })!RPCResponse(Hash)
+) (BasicRequestErrors || error{ InvalidCharacter, InvalidLength })!RPCResponse(Hash)
 ```
 
 ## GetStorage
@@ -569,7 +569,7 @@ pub fn getStorage(
     address: Address,
     storage_key: Hash,
     opts: BlockNumberRequest,
-) BasicRpcRequestErrors!RPCResponse(Hash)
+) BasicRequestErrors!RPCResponse(Hash)
 ```
 
 ## GetSyncStatus
@@ -596,7 +596,7 @@ pub fn getTransactionByBlockHashAndIndex(
     self: *WebSocketHandler,
     block_hash: Hash,
     index: usize,
-) (BasicRpcRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
 ```
 
 ## GetTransactionByBlockHashAndIndexType
@@ -615,7 +615,7 @@ pub fn getTransactionByBlockHashAndIndexType(
     comptime T: type,
     block_hash: Hash,
     index: usize,
-) (BasicRpcRequestErrors || error{TransactionNotFound})!RPCResponse(T)
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(T)
 ```
 
 ## GetTransactionByBlockNumberAndIndex
@@ -626,7 +626,7 @@ pub fn getTransactionByBlockNumberAndIndex(
     self: *WebSocketHandler,
     opts: BlockNumberRequest,
     index: usize,
-) (BasicRpcRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
 ```
 
 ## GetTransactionByBlockNumberAndIndexType
@@ -645,7 +645,7 @@ pub fn getTransactionByBlockNumberAndIndexType(
     comptime T: type,
     opts: BlockNumberRequest,
     index: usize,
-) (BasicRpcRequestErrors || error{TransactionNotFound})!RPCResponse(T)
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(T)
 ```
 
 ## GetTransactionByHash
@@ -659,7 +659,7 @@ RPC Method: [eth_getTransactionByHash](https://ethereum.org/en/developers/docs/a
 pub fn getTransactionByHash(
     self: *WebSocketHandler,
     transaction_hash: Hash,
-) (BasicRpcRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
 ```
 
 ## GetTransactionByHashType
@@ -677,7 +677,7 @@ pub fn getTransactionByHashType(
     self: *WebSocketHandler,
     comptime T: type,
     transaction_hash: Hash,
-) (BasicRpcRequestErrors || error{TransactionNotFound})!RPCResponse(T)
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(T)
 ```
 
 ## GetTransactionReceipt
@@ -691,7 +691,7 @@ RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/
 pub fn getTransactionReceipt(
     self: *WebSocketHandler,
     transaction_hash: Hash,
-) (BasicRpcRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt)
+) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt)
 ```
 
 ## GetTransactionReceiptType
@@ -709,7 +709,7 @@ pub fn getTransactionReceiptType(
     self: *WebSocketHandler,
     comptime T: type,
     transaction_hash: Hash,
-) (BasicRpcRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(T)
+) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(T)
 ```
 
 ## GetTxPoolContent
@@ -725,7 +725,7 @@ RPC Method: [txpool_content](https://geth.ethereum.org/docs/interacting-with-get
 ### Signature
 
 ```zig
-pub fn getTxPoolContent(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse(TxPoolContent)
+pub fn getTxPoolContent(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(TxPoolContent)
 ```
 
 ## GetTxPoolContentFrom
@@ -737,7 +737,7 @@ RPC Method: [txpool_contentFrom](https://geth.ethereum.org/docs/interacting-with
 ### Signature
 
 ```zig
-pub fn getTxPoolContentFrom(self: *WebSocketHandler, from: Address) BasicRpcRequestErrors!RPCResponse([]const PoolTransactionByNonce)
+pub fn getTxPoolContentFrom(self: *WebSocketHandler, from: Address) BasicRequestErrors!RPCResponse([]const PoolTransactionByNonce)
 ```
 
 ## GetTxPoolInspectStatus
@@ -750,7 +750,7 @@ RPC Method: [txpool_inspect](https://geth.ethereum.org/docs/interacting-with-get
 ### Signature
 
 ```zig
-pub fn getTxPoolInspectStatus(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse(TxPoolInspect)
+pub fn getTxPoolInspectStatus(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(TxPoolInspect)
 ```
 
 ## GetTxPoolStatus
@@ -762,7 +762,7 @@ RPC Method: [txpool_status](https://geth.ethereum.org/docs/interacting-with-geth
 ### Signature
 
 ```zig
-pub fn getTxPoolStatus(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse(TxPoolStatus)
+pub fn getTxPoolStatus(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(TxPoolStatus)
 ```
 
 ## GetUncleByBlockHashAndIndex
@@ -777,7 +777,7 @@ pub fn getUncleByBlockHashAndIndex(
     self: *WebSocketHandler,
     block_hash: Hash,
     index: usize,
-) (BasicRpcRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(Block)
+) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(Block)
 ```
 
 ## GetUncleByBlockHashAndIndexType
@@ -796,7 +796,7 @@ pub fn getUncleByBlockHashAndIndexType(
     comptime T: type,
     block_hash: Hash,
     index: usize,
-) (BasicRpcRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(T)
+) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(T)
 ```
 
 ## GetUncleByBlockNumberAndIndex
@@ -811,7 +811,7 @@ pub fn getUncleByBlockNumberAndIndex(
     self: *WebSocketHandler,
     opts: BlockNumberRequest,
     index: usize,
-) (BasicRpcRequestErrors || error{InvalidBlockNumberOrIndex})!RPCResponse(Block)
+) (BasicRequestErrors || error{InvalidBlockNumberOrIndex})!RPCResponse(Block)
 ```
 
 ## GetUncleByBlockNumberAndIndexType
@@ -830,7 +830,7 @@ pub fn getUncleByBlockNumberAndIndexType(
     comptime T: type,
     opts: BlockNumberRequest,
     index: usize,
-) (BasicRpcRequestErrors || error{InvalidBlockNumberOrIndex})!RPCResponse(T)
+) (BasicRequestErrors || error{InvalidBlockNumberOrIndex})!RPCResponse(T)
 ```
 
 ## GetUncleCountByBlockHash
@@ -841,7 +841,7 @@ RPC Method: [`eth_getUncleCountByBlockHash`](https://ethereum.org/en/developers/
 ### Signature
 
 ```zig
-pub fn getUncleCountByBlockHash(self: *WebSocketHandler, block_hash: Hash) BasicRpcRequestErrors!RPCResponse(usize)
+pub fn getUncleCountByBlockHash(self: *WebSocketHandler, block_hash: Hash) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetUncleCountByBlockNumber
@@ -852,7 +852,7 @@ RPC Method: [`eth_getUncleCountByBlockNumber`](https://ethereum.org/en/developer
 ### Signature
 
 ```zig
-pub fn getUncleCountByBlockNumber(self: *WebSocketHandler, opts: BlockNumberRequest) BasicRpcRequestErrors!RPCResponse(usize)
+pub fn getUncleCountByBlockNumber(self: *WebSocketHandler, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## Multicall3
@@ -899,7 +899,7 @@ pub fn multicall3(
     comptime targets: []const MulticallTargets,
     function_arguments: MulticallArguments(targets),
     allow_failure: bool,
-) !AbiDecoded([]const Result)
+) Multicall(.websocket).Error!AbiDecoded([]const Result)
 ```
 
 ## NewBlockFilter
@@ -935,7 +935,7 @@ RPC Method: [`eth_newPendingTransactionFilter`](https://ethereum.org/en/develope
 ### Signature
 
 ```zig
-pub fn newPendingTransactionFilter(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse(u128)
+pub fn newPendingTransactionFilter(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(u128)
 ```
 
 ## ParseSubscriptionEvent
@@ -971,7 +971,7 @@ RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#e
 ### Signature
 
 ```zig
-pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) BasicRpcRequestErrors!RPCResponse(Hex)
+pub fn sendEthCall(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(Hex)
 ```
 
 ## SendRawTransaction
@@ -983,7 +983,7 @@ RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/a
 ### Signature
 
 ```zig
-pub fn sendRawTransaction(self: *WebSocketHandler, serialized_tx: Hex) BasicRpcRequestErrors!RPCResponse(Hash)
+pub fn sendRawTransaction(self: *WebSocketHandler, serialized_tx: Hex) BasicRequestErrors!RPCResponse(Hash)
 ```
 
 ## SendRpcRequest
@@ -1005,7 +1005,7 @@ RPC Method: [`eth_uninstallFilter`](https://ethereum.org/en/developers/docs/apis
 ### Signature
 
 ```zig
-pub fn uninstallFilter(self: *WebSocketHandler, id: usize) BasicRpcRequestErrors!RPCResponse(bool)
+pub fn uninstallFilter(self: *WebSocketHandler, id: usize) BasicRequestErrors!RPCResponse(bool)
 ```
 
 ## Unsubscribe
@@ -1017,7 +1017,7 @@ RPC Method: [`eth_unsubscribe`](https://docs.alchemy.com/reference/eth-unsubscri
 ### Signature
 
 ```zig
-pub fn unsubscribe(self: *WebSocketHandler, sub_id: u128) BasicRpcRequestErrors!RPCResponse(bool)
+pub fn unsubscribe(self: *WebSocketHandler, sub_id: u128) BasicRequestErrors!RPCResponse(bool)
 ```
 
 ## WatchNewBlocks
@@ -1028,7 +1028,7 @@ RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/eth-subscribe)
 ### Signature
 
 ```zig
-pub fn watchNewBlocks(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse(u128)
+pub fn watchNewBlocks(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(u128)
 ```
 
 ## WatchLogs
@@ -1039,7 +1039,7 @@ RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/logs)
 ### Signature
 
 ```zig
-pub fn watchLogs(self: *WebSocketHandler, opts: WatchLogsRequest) BasicRpcRequestErrors!RPCResponse(u128)
+pub fn watchLogs(self: *WebSocketHandler, opts: WatchLogsRequest) BasicRequestErrors!RPCResponse(u128)
 ```
 
 ## WatchTransactions
@@ -1050,7 +1050,7 @@ RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/newpendingtrans
 ### Signature
 
 ```zig
-pub fn watchTransactions(self: *WebSocketHandler) BasicRpcRequestErrors!RPCResponse(u128)
+pub fn watchTransactions(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(u128)
 ```
 
 ## WatchWebsocketEvent
@@ -1064,7 +1064,7 @@ Returns the subscription Id.
 ### Signature
 
 ```zig
-pub fn watchWebsocketEvent(self: *WebSocketHandler, method: []const u8) BasicRpcRequestErrors!RPCResponse(u128)
+pub fn watchWebsocketEvent(self: *WebSocketHandler, method: []const u8) BasicRequestErrors!RPCResponse(u128)
 ```
 
 ## WaitForTransactionReceipt
@@ -1080,7 +1080,7 @@ RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/doc
 ### Signature
 
 ```zig
-pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hash, confirmations: u8) (BasicRpcRequestErrors || ParseFromValueError || error{
+pub fn waitForTransactionReceipt(self: *WebSocketHandler, tx_hash: Hash, confirmations: u8) (BasicRequestErrors || ParseFromValueError || error{
     InvalidBlockNumber,
     TransactionReceiptNotFound,
     TransactionNotFound,
@@ -1105,7 +1105,7 @@ RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/doc
 ### Signature
 
 ```zig
-pub fn waitForTransactionReceiptType(self: *WebSocketHandler, comptime T: type, tx_hash: Hash, confirmations: u8) (BasicRpcRequestErrors || ParseFromValueError || error{
+pub fn waitForTransactionReceiptType(self: *WebSocketHandler, comptime T: type, tx_hash: Hash, confirmations: u8) (BasicRequestErrors || ParseFromValueError || error{
     InvalidBlockNumber,
     TransactionReceiptNotFound,
     TransactionNotFound,

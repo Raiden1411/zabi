@@ -1,3 +1,28 @@
+## FetchErrors
+
+Set of errors while fetching from a json rpc http endpoint.
+
+```zig
+Allocator.Error || HttpClient.RequestError || HttpClient.Request.WaitError ||
+    HttpClient.Request.FinishError || HttpClient.Request.ReadError || Uri.ParseError || error{StreamTooLong}
+```
+
+## SendRequestErrors
+
+Set of errors when sending a request.
+
+```zig
+FetchErrors || error{ UnexpectedServerResponse, UnexpectedErrorFound, ReachedMaxRetryLimit, InvalidRequest }
+```
+
+## BasicRequestErrors
+
+Set of generic errors when sending a request.
+
+```zig
+SendRequestErrors || error{NoSpaceLeft}
+```
+
 ## Modules
 
 The block explorer modules.
@@ -117,7 +142,7 @@ Uses the `QueryWriter` to build the searchUrlParams.
 ### Signature
 
 ```zig
-pub fn buildQuery(self: @This(), value: anytype, writer: anytype) !void
+pub fn buildQuery(self: @This(), value: anytype, writer: anytype) @TypeOf(writer).Error!void
 ```
 
 ### BuildDefaultQuery
@@ -127,14 +152,21 @@ Uses the `QueryWriter` to build the searchUrlParams.
 ### Signature
 
 ```zig
-pub fn buildDefaultQuery(self: @This(), writer: anytype) !void
+pub fn buildDefaultQuery(self: @This(), writer: anytype) @TypeOf(writer).Error!void
 ```
 
 ## Init
-Creates the initial client state.
+Creates the initial client state.\
 This client only supports the free api endpoints via the api. We will not support PRO methods.
+
 But `zabi` has all the tools you will need to create the methods to target those endpoints.
 This only supports etherscan like block explorers.
+
+**Example**
+```zig
+var explorer = Explorer.init(.{.allocator = std.heap.page_allocator, .apikey = "YOUR_API_KEY"});
+defer explorer.deinit();
+```
 
 ### Signature
 
@@ -157,7 +189,7 @@ Queries the api endpoint to find the `address` contract ABI.
 ### Signature
 
 ```zig
-pub fn getAbi(self: *Explorer, address: Address) !ExplorerResponse(Abi)
+pub fn getAbi(self: *Explorer, address: Address) (BasicRequestErrors || ParseError(Scanner))!ExplorerResponse(Abi)
 ```
 
 ## GetAddressBalance
@@ -166,7 +198,7 @@ Queries the api endpoint to find the `address` balance at the specified `tag`
 ### Signature
 
 ```zig
-pub fn getAddressBalance(self: *Explorer, request: AddressBalanceRequest) !ExplorerResponse(u256)
+pub fn getAddressBalance(self: *Explorer, request: AddressBalanceRequest) BasicRequestErrors!ExplorerResponse(u256)
 ```
 
 ## GetBlockCountDown
@@ -175,7 +207,7 @@ Queries the api endpoint to find the block reward at the specified `block_number
 ### Signature
 
 ```zig
-pub fn getBlockCountDown(self: *Explorer, block_number: u64) !ExplorerResponse(BlockCountDown)
+pub fn getBlockCountDown(self: *Explorer, block_number: u64) BasicRequestErrors!ExplorerResponse(BlockCountDown)
 ```
 
 ## GetBlockNumberByTimestamp
@@ -184,7 +216,7 @@ Queries the api endpoint to find the block reward at the specified `block_number
 ### Signature
 
 ```zig
-pub fn getBlockNumberByTimestamp(self: *Explorer, request: BlocktimeRequest) !ExplorerResponse(u64)
+pub fn getBlockNumberByTimestamp(self: *Explorer, request: BlocktimeRequest) BasicRequestErrors!ExplorerResponse(u64)
 ```
 
 ## GetBlockReward
@@ -193,7 +225,7 @@ Queries the api endpoint to find the block reward at the specified `block_number
 ### Signature
 
 ```zig
-pub fn getBlockReward(self: *Explorer, block_number: u64) !ExplorerResponse(BlockRewards)
+pub fn getBlockReward(self: *Explorer, block_number: u64) BasicRequestErrors!ExplorerResponse(BlockRewards)
 ```
 
 ## GetContractCreation
@@ -202,7 +234,7 @@ Queries the api endpoint to find the creation tx address from the target contrac
 ### Signature
 
 ```zig
-pub fn getContractCreation(self: *Explorer, addresses: []const Address) !ExplorerResponse([]const ContractCreationResult)
+pub fn getContractCreation(self: *Explorer, addresses: []const Address) BasicRequestErrors!ExplorerResponse([]const ContractCreationResult)
 ```
 
 ## GetEstimationOfConfirmation
@@ -211,7 +243,7 @@ Queries the api endpoint to find the `address` balance at the specified `tag`
 ### Signature
 
 ```zig
-pub fn getEstimationOfConfirmation(self: *Explorer, gas_price: u64) !ExplorerResponse(u64)
+pub fn getEstimationOfConfirmation(self: *Explorer, gas_price: u64) BasicRequestErrors!ExplorerResponse(u64)
 ```
 
 ## GetErc20TokenBalance
@@ -220,7 +252,7 @@ Queries the api endpoint to find the `address` erc20 token balance.
 ### Signature
 
 ```zig
-pub fn getErc20TokenBalance(self: *Explorer, request: TokenBalanceRequest) !ExplorerResponse(u256)
+pub fn getErc20TokenBalance(self: *Explorer, request: TokenBalanceRequest) BasicRequestErrors!ExplorerResponse(u256)
 ```
 
 ## GetErc20TokenSupply
@@ -229,7 +261,7 @@ Queries the api endpoint to find the `address` erc20 token supply.
 ### Signature
 
 ```zig
-pub fn getErc20TokenSupply(self: *Explorer, address: Address) !ExplorerResponse(u256)
+pub fn getErc20TokenSupply(self: *Explorer, address: Address) BasicRequestErrors!ExplorerResponse(u256)
 ```
 
 ## GetErc20TokenTransferEvents
@@ -242,7 +274,11 @@ or increasing the `max_append_size`
 ### Signature
 
 ```zig
-pub fn getErc20TokenTransferEvents(self: *Explorer, request: TokenEventRequest, options: QueryOptions) !ExplorerResponse([]const TokenExplorerTransaction)
+pub fn getErc20TokenTransferEvents(
+    self: *Explorer,
+    request: TokenEventRequest,
+    options: QueryOptions,
+) BasicRequestErrors!ExplorerResponse([]const TokenExplorerTransaction)
 ```
 
 ## GetErc721TokenTransferEvents
@@ -255,7 +291,11 @@ or increasing the `max_append_size`
 ### Signature
 
 ```zig
-pub fn getErc721TokenTransferEvents(self: *Explorer, request: TokenEventRequest, options: QueryOptions) !ExplorerResponse([]const TokenExplorerTransaction)
+pub fn getErc721TokenTransferEvents(
+    self: *Explorer,
+    request: TokenEventRequest,
+    options: QueryOptions,
+) BasicRequestErrors!ExplorerResponse([]const TokenExplorerTransaction)
 ```
 
 ## GetErc1155TokenTransferEvents
@@ -268,7 +308,11 @@ or increasing the `max_append_size`
 ### Signature
 
 ```zig
-pub fn getErc1155TokenTransferEvents(self: *Explorer, request: Erc1155TokenEventRequest, options: QueryOptions) !ExplorerResponse([]const TokenExplorerTransaction)
+pub fn getErc1155TokenTransferEvents(
+    self: *Explorer,
+    request: Erc1155TokenEventRequest,
+    options: QueryOptions,
+) BasicRequestErrors!ExplorerResponse([]const TokenExplorerTransaction)
 ```
 
 ## GetEtherPrice
@@ -277,7 +321,7 @@ Queries the api endpoint to find the `address` erc20 token balance.
 ### Signature
 
 ```zig
-pub fn getEtherPrice(self: *Explorer) !ExplorerResponse(EtherPriceResponse)
+pub fn getEtherPrice(self: *Explorer) BasicRequestErrors!ExplorerResponse(EtherPriceResponse)
 ```
 
 ## GetInternalTransactionList
@@ -290,7 +334,11 @@ or increasing the `max_append_size`.
 ### Signature
 
 ```zig
-pub fn getInternalTransactionList(self: *Explorer, request: TransactionListRequest, options: QueryOptions) !ExplorerResponse([]const InternalExplorerTransaction)
+pub fn getInternalTransactionList(
+    self: *Explorer,
+    request: TransactionListRequest,
+    options: QueryOptions,
+) BasicRequestErrors!ExplorerResponse([]const InternalExplorerTransaction)
 ```
 
 ## GetInternalTransactionListByHash
@@ -303,7 +351,7 @@ or increasing the `max_append_size`.
 ### Signature
 
 ```zig
-pub fn getInternalTransactionListByHash(self: *Explorer, tx_hash: Hash) !ExplorerResponse([]const InternalExplorerTransaction)
+pub fn getInternalTransactionListByHash(self: *Explorer, tx_hash: Hash) BasicRequestErrors!ExplorerResponse([]const InternalExplorerTransaction)
 ```
 
 ## GetInternalTransactionListByRange
@@ -316,7 +364,11 @@ or increasing the `max_append_size`
 ### Signature
 
 ```zig
-pub fn getInternalTransactionListByRange(self: *Explorer, request: RangeRequest, options: QueryOptions) !ExplorerResponse([]const InternalExplorerTransaction)
+pub fn getInternalTransactionListByRange(
+    self: *Explorer,
+    request: RangeRequest,
+    options: QueryOptions,
+) BasicRequestErrors!ExplorerResponse([]const InternalExplorerTransaction)
 ```
 
 ## GetLogs
@@ -325,7 +377,7 @@ Queries the api endpoint to find the logs at the target `address` based on the p
 ### Signature
 
 ```zig
-pub fn getLogs(self: *Explorer, request: LogRequest, options: QueryOptions) !ExplorerResponse([]const ExplorerLog)
+pub fn getLogs(self: *Explorer, request: LogRequest, options: QueryOptions) BasicRequestErrors!ExplorerResponse([]const ExplorerLog)
 ```
 
 ## GetMultiAddressBalance
@@ -334,7 +386,7 @@ Queries the api endpoint to find the `address` balances at the specified `tag`
 ### Signature
 
 ```zig
-pub fn getMultiAddressBalance(self: *Explorer, request: MultiAddressBalanceRequest) !ExplorerResponse([]const MultiAddressBalance)
+pub fn getMultiAddressBalance(self: *Explorer, request: MultiAddressBalanceRequest) BasicRequestErrors!ExplorerResponse([]const MultiAddressBalance)
 ```
 
 ## GetSourceCode
@@ -345,7 +397,7 @@ This will cause the json parse to fail.
 ### Signature
 
 ```zig
-pub fn getSourceCode(self: *Explorer, address: Address) !ExplorerResponse([]const GetSourceResult)
+pub fn getSourceCode(self: *Explorer, address: Address) BasicRequestErrors!ExplorerResponse([]const GetSourceResult)
 ```
 
 ## GetTotalEtherSupply
@@ -354,7 +406,7 @@ Queries the api endpoint to find the `address` erc20 token balance.
 ### Signature
 
 ```zig
-pub fn getTotalEtherSupply(self: *Explorer) !ExplorerResponse(u256)
+pub fn getTotalEtherSupply(self: *Explorer) BasicRequestErrors!ExplorerResponse(u256)
 ```
 
 ## GetTransactionList
@@ -367,7 +419,7 @@ or increasing the `max_append_size`
 ### Signature
 
 ```zig
-pub fn getTransactionList(self: *Explorer, request: TransactionListRequest, options: QueryOptions) !ExplorerResponse([]const ExplorerTransaction)
+pub fn getTransactionList(self: *Explorer, request: TransactionListRequest, options: QueryOptions) BasicRequestErrors!ExplorerResponse([]const ExplorerTransaction)
 ```
 
 ## GetTransactionReceiptStatus
@@ -376,7 +428,7 @@ Queries the api endpoint to find the transaction receipt status based on the pro
 ### Signature
 
 ```zig
-pub fn getTransactionReceiptStatus(self: *Explorer, hash: Hash) !ExplorerResponse(ReceiptStatus)
+pub fn getTransactionReceiptStatus(self: *Explorer, hash: Hash) BasicRequestErrors!ExplorerResponse(ReceiptStatus)
 ```
 
 ## GetTransactionStatus
@@ -385,7 +437,7 @@ Queries the api endpoint to find the transaction status based on the provided `h
 ### Signature
 
 ```zig
-pub fn getTransactionStatus(self: *Explorer, hash: Hash) !ExplorerResponse(TransactionStatus)
+pub fn getTransactionStatus(self: *Explorer, hash: Hash) BasicRequestErrors!ExplorerResponse(TransactionStatus)
 ```
 
 ## SendRequest
@@ -400,6 +452,6 @@ and possible set `QueryOptions`. The current max buffer size is 4096.
 ### Signature
 
 ```zig
-pub fn sendRequest(self: *Explorer, comptime T: type, uri: Uri) !ExplorerResponse(T)
+pub fn sendRequest(self: *Explorer, comptime T: type, uri: Uri) SendRequestErrors!ExplorerResponse(T)
 ```
 

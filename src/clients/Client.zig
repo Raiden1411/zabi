@@ -788,7 +788,7 @@ pub fn getSyncStatus(self: *PubClient) ?RPCResponse(SyncProgress) {
 /// Returns information about a transaction by block hash and transaction index position.
 ///
 /// RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblockhashandindex)
-pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: usize) BasicRequestErrors!RPCResponse(Transaction) {
+pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: usize) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction) {
     return self.getTransactionByBlockHashAndIndexType(Transaction, block_hash, index);
 }
 /// Returns information about a transaction by block hash and transaction index position.
@@ -960,7 +960,7 @@ pub fn getTxPoolContent(self: *PubClient) BasicRequestErrors!RPCResponse(TxPoolC
 ///
 /// RPC Method: [txpool_contentFrom](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
 pub fn getTxPoolContentFrom(self: *PubClient, from: Address) BasicRequestErrors!RPCResponse([]const PoolTransactionByNonce) {
-    const request: EthereumRequest(struct { Hash }) = .{
+    const request: EthereumRequest(struct { Address }) = .{
         .params = .{from},
         .method = .txpool_contentFrom,
         .id = @intFromEnum(self.network_config.chain_id),

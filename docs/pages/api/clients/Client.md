@@ -555,7 +555,7 @@ RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/deve
 ### Signature
 
 ```zig
-pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: usize) BasicRequestErrors!RPCResponse(Transaction)
+pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: usize) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
 ```
 
 ## GetTransactionByBlockHashAndIndexType

@@ -29,13 +29,29 @@ struct {
 }
 ```
 
+## ReadError
+
+Set of possible errors when reading from the socket.
+
+```zig
+Stream.ReadError || Allocator.Error || error{Closed}
+```
+
 ### Init
 Sets the initial reader state in order to perform any necessary actions.
+
+**Example**
+```zig
+const stream = std.net.connectUnixSocket("tmp/tmp.socket");
+
+const ipc_reader = try IpcReader.init(stream, null);
+defer ipc_reader.deinit();
+```
 
 ### Signature
 
 ```zig
-pub fn init(allocator: Allocator, stream: Stream, growth_rate: ?usize) !@This()
+pub fn init(allocator: Allocator, stream: Stream, growth_rate: ?usize) Allocator.Error!Self
 ```
 
 ### Deinit
@@ -44,7 +60,7 @@ Frees the buffer and closes the stream.
 ### Signature
 
 ```zig
-pub fn deinit(self: @This()) void
+pub fn deinit(self: Self) void
 ```
 
 ### Read
@@ -53,7 +69,7 @@ Reads the bytes directly from the socket. Will allocate more memory as needed.
 ### Signature
 
 ```zig
-pub fn read(self: *@This()) !void
+pub fn read(self: *Self) Self.ReadError!void
 ```
 
 ### Grow
@@ -63,7 +79,7 @@ method if available.
 ### Signature
 
 ```zig
-pub fn grow(self: *@This(), size: usize) !void
+pub fn grow(self: *@This(), size: usize) Allocator.Error!void
 ```
 
 ### JsonMessage
@@ -84,7 +100,7 @@ Will grow the buffer as needed.
 ### Signature
 
 ```zig
-pub fn readMessage(self: *@This()) ![]u8
+pub fn readMessage(self: *Self) Self.ReadError![]u8
 ```
 
 ### PrepareForRead
@@ -93,7 +109,7 @@ Prepares the reader for the next message.
 ### Signature
 
 ```zig
-pub fn prepareForRead(self: *@This()) void
+pub fn prepareForRead(self: *Self) void
 ```
 
 ### WriteMessage
@@ -102,6 +118,14 @@ Writes a message to the socket stream.
 ### Signature
 
 ```zig
-pub fn writeMessage(self: *@This(), message: []u8) !void
+pub fn writeMessage(self: *Self, message: []u8) Stream.WriteError!void
+```
+
+## ReadError
+
+Set of possible errors when reading from the socket.
+
+```zig
+Stream.ReadError || Allocator.Error || error{Closed}
 ```
 

@@ -1171,3 +1171,7 @@ test "Multicall" {
     try testing.expect(res.result.len != 0);
     try testing.expectEqual(res.result[0].success, true);
 }
+
+test "All Ref Decls" {
+    std.testing.refAllDecls(PubClient);
+}

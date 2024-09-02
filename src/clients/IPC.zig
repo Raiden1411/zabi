@@ -958,7 +958,7 @@ pub fn getTxPoolContent(self: *IPC) BasicRequestErrors!RPCResponse(TxPoolContent
 ///
 /// RPC Method: [txpool_contentFrom](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
 pub fn getTxPoolContentFrom(self: *IPC, from: Address) BasicRequestErrors!RPCResponse([]const PoolTransactionByNonce) {
-    const request: EthereumRequest(struct { Hash }) = .{
+    const request: EthereumRequest(struct { Address }) = .{
         .params = .{from},
         .method = .txpool_contentFrom,
         .id = @intFromEnum(self.network_config.chain_id),

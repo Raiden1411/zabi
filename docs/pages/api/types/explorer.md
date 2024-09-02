@@ -420,7 +420,7 @@ struct {
 ```zig
 struct {
   /// If the transaction reverted.
-  isError: u1
+  isError: ?u1
   /// The error message in case it reverted.
   errDescription: ?[]const u8
 }

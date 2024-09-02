@@ -1027,3 +1027,7 @@ test "Multicall" {
     try testing.expect(res.result.len != 0);
     try testing.expectEqual(res.result[0].success, true);
 }
+
+test "All Ref Decls" {
+    _ = std.testing.refAllDecls(IPC);
+}

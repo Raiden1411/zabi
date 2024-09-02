@@ -1174,4 +1174,6 @@ test "Multicall" {
 
 test "All Ref Decls" {
     std.testing.refAllDecls(PubClient);
+    std.testing.refAllDecls(@import("../../clients/Anvil.zig"));
+    std.testing.refAllDecls(@import("../../clients/Hardhat.zig"));
 }

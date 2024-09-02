@@ -28,3 +28,9 @@ test "InitiateWithdrawal" {
     });
     defer inital.deinit();
 }
+
+test "Ref All Decls" {
+    std.testing.refAllDecls(L1WalletClient(.http));
+    std.testing.refAllDecls(L1WalletClient(.ipc));
+    std.testing.refAllDecls(L1WalletClient(.websocket));
+}

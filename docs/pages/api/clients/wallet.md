@@ -267,7 +267,7 @@ The search is linear and starts from the first node of the pool.
 pub fn searchPoolAndSendTransaction(
             self: *Wallet(client_type),
             search_opts: TransactionEnvelopePool.SearchCriteria,
-        ) (Error || Signer.SigningErrors || AssertionErrors || error{TransactionNotFoundInPool})!RPCResponse(Hash)
+        ) (SendSignedTransactionErrors || AssertionErrors || error{TransactionNotFoundInPool})!RPCResponse(Hash)
 ```
 
 ## SendBlobTransaction

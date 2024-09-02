@@ -340,6 +340,7 @@ pub const DocsGenerator = struct {
             .struct_init_dot_comma,
             .address_of,
             .builtin_call_two,
+            .switch_comma,
             => {
                 try self.extractNameFromVariable(out_file, first_token);
                 try out_file.writeAll("```zig\n");

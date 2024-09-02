@@ -519,7 +519,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         pub fn searchPoolAndSendTransaction(
             self: *Wallet(client_type),
             search_opts: TransactionEnvelopePool.SearchCriteria,
-        ) (Error || Signer.SigningErrors || AssertionErrors || error{TransactionNotFoundInPool})!RPCResponse(Hash) {
+        ) (SendSignedTransactionErrors || AssertionErrors || error{TransactionNotFoundInPool})!RPCResponse(Hash) {
             const prepared = self.envelopes_pool.findTransactionEnvelope(self.allocator, search_opts) orelse return error.TransactionNotFoundInPool;
 
             try self.assertTransaction(prepared);

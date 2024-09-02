@@ -118,3 +118,9 @@ test "EstimateTotalFees" {
 
     try testing.expect(fee != 0);
 }
+
+test "Ref All Decls" {
+    std.testing.refAllDecls(L2Client(.http));
+    std.testing.refAllDecls(L2Client(.ipc));
+    std.testing.refAllDecls(L2Client(.websocket));
+}

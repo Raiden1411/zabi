@@ -6,7 +6,7 @@ Make sure that the string is normalized beforehand.
 ### Signature
 
 ```zig
-pub fn convertToHash(label: []const u8) !Hash
+pub fn convertToHash(label: []const u8) error{ InvalidLength, InvalidCharacter, NoSpaceLeft }!Hash
 ```
 
 ## IsLabelHash
@@ -25,7 +25,7 @@ Make sure that the string is normalized beforehand.
 ### Signature
 
 ```zig
-pub fn hashName(name: []const u8) !Hash
+pub fn hashName(name: []const u8) error{ InvalidLength, InvalidCharacter, NoSpaceLeft }!Hash
 ```
 
 ## ConvertEnsToBytes

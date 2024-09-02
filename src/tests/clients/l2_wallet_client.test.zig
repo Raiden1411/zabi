@@ -159,3 +159,9 @@ test "FinalizeWithdrawal" {
     });
     defer final.deinit();
 }
+
+test "Ref All Decls" {
+    std.testing.refAllDecls(L2WalletClient(.http));
+    std.testing.refAllDecls(L2WalletClient(.ipc));
+    std.testing.refAllDecls(L2WalletClient(.websocket));
+}

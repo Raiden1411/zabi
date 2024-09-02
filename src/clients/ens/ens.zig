@@ -2,6 +2,7 @@ const abi_ens = @import("abi_ens.zig");
 const block = @import("../../types/block.zig");
 const clients = @import("../../root.zig");
 const decoder = @import("../../decoding/decoder.zig");
+const encoder = @import("../../encoding/encoder.zig");
 const ens_utils = @import("ens_utils.zig");
 const std = @import("std");
 const testing = std.testing;
@@ -13,6 +14,8 @@ const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const BlockNumberRequest = block.BlockNumberRequest;
 const Clients = clients.clients.wallet.WalletClients;
+const DecoderErrors = decoder.DecoderErrors;
+const EncodeErrors = encoder.EncodeErrors;
 const Hex = types.Hex;
 const InitOptsHttp = PubClient.InitOptions;
 const InitOptsWs = WebSocketClient.InitOptions;
@@ -43,6 +46,16 @@ pub fn ENSClient(comptime client_type: Clients) type {
             .ipc => InitOptsIpc,
         };
 
+        /// Set of possible errors when performing ens client actions.
+        pub const EnsErrors = EncodeErrors || ClientType.BasicRequestErrors || DecoderErrors || error{
+            ExpectedEnsContracts,
+            NoSpaceLeft,
+            InvalidCharacter,
+            InvalidLength,
+            InvalidAddress,
+            FailedToDecodeResponse,
+        };
+
         /// This is the same allocator as the rpc_client.
         /// Its a field mostly for convinience
         allocator: Allocator,
@@ -51,7 +64,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
 
         /// Starts the RPC connection
         /// If the contracts are null it defaults to mainnet contracts.
-        pub fn init(opts: InitOpts) !*ENS {
+        pub fn init(opts: InitOpts) (ClientType.InitErrors || error{InvalidChain})!*ENS {
             const self = try opts.allocator.create(ENS);
             errdefer opts.allocator.destroy(self);
 
@@ -79,7 +92,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
         /// Calls the resolver address and decodes with address resolver.
         ///
         /// The names are not normalized so make sure that the names are normalized before hand.
-        pub fn getEnsAddress(self: *ENS, name: []const u8, opts: BlockNumberRequest) !AbiDecoded(Address) {
+        pub fn getEnsAddress(self: *ENS, name: []const u8, opts: BlockNumberRequest) EnsErrors!AbiDecoded(Address) {
             const contracts = self.rpc_client.network_config.ens_contracts orelse return error.ExpectedEnsContracts;
 
             const hash = try ens_utils.hashName(name);
@@ -121,7 +134,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
         /// Calls the reverse resolver and decodes with the same.
         ///
         /// This will fail if its not a valid checksumed address.
-        pub fn getEnsName(self: *ENS, address: []const u8, opts: BlockNumberRequest) !RPCResponse([]const u8) {
+        pub fn getEnsName(self: *ENS, address: []const u8, opts: BlockNumberRequest) EnsErrors!RPCResponse([]const u8) {
             const contracts = self.rpc_client.network_config.ens_contracts orelse return error.ExpectedEnsContracts;
 
             if (!utils.isAddress(address))
@@ -151,7 +164,12 @@ pub fn ENSClient(comptime client_type: Clients) type {
             if (value.response.len == 0)
                 return error.EvmFailedToExecute;
 
-            const decoded = try decoder.decodeAbiParameter(struct { []u8, [20]u8, [20]u8, [20]u8 }, self.allocator, value.response, .{ .allocate_when = .alloc_always });
+            const decoded = try decoder.decodeAbiParameter(
+                struct { []u8, [20]u8, [20]u8, [20]u8 },
+                self.allocator,
+                value.response,
+                .{ .allocate_when = .alloc_always },
+            );
             errdefer decoded.deinit();
 
             if (!std.mem.eql(u8, &address_bytes, &decoded.result[1]))
@@ -165,7 +183,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
         /// Calls the find resolver and decodes with the same one.
         ///
         /// The names are not normalized so make sure that the names are normalized before hand.
-        pub fn getEnsResolver(self: *ENS, name: []const u8, opts: BlockNumberRequest) !Address {
+        pub fn getEnsResolver(self: *ENS, name: []const u8, opts: BlockNumberRequest) EnsErrors!Address {
             const contracts = self.rpc_client.network_config.ens_contracts orelse return error.ExpectedEnsContracts;
 
             var buffer: [1024]u8 = undefined;
@@ -180,7 +198,12 @@ pub fn ENSClient(comptime client_type: Clients) type {
             } }, opts);
             defer value.deinit();
 
-            const decoded = try decoder.decodeAbiParameterLeaky(struct { Address, [32]u8 }, self.allocator, value.response, .{ .allow_junk_data = true });
+            const decoded = try decoder.decodeAbiParameterLeaky(
+                struct { Address, [32]u8 },
+                self.allocator,
+                value.response,
+                .{ .allow_junk_data = true },
+            );
 
             return decoded[0];
         }
@@ -190,7 +213,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
         /// Calls the resolver and decodes with the text resolver.
         ///
         /// The names are not normalized so make sure that the names are normalized before hand.
-        pub fn getEnsText(self: *ENS, name: []const u8, key: []const u8, opts: BlockNumberRequest) !AbiDecoded([]const u8) {
+        pub fn getEnsText(self: *ENS, name: []const u8, key: []const u8, opts: BlockNumberRequest) EnsErrors!AbiDecoded([]const u8) {
             const contracts = self.rpc_client.network_config.ens_contracts orelse return error.ExpectedEnsContracts;
 
             var buffer: [1024]u8 = undefined;
@@ -215,7 +238,12 @@ pub fn ENSClient(comptime client_type: Clients) type {
             const decoded = try decoder.decodeAbiParameter(struct { []u8, Address }, self.allocator, value.response, .{});
             defer decoded.deinit();
 
-            const decoded_text = try decoder.decodeAbiParameter([]const u8, self.allocator, decoded.result[0], .{ .allocate_when = .alloc_always });
+            const decoded_text = try decoder.decodeAbiParameter(
+                []const u8,
+                self.allocator,
+                decoded.result[0],
+                .{ .allocate_when = .alloc_always },
+            );
             errdefer decoded_text.deinit();
 
             if (decoded_text.result.len == 0)

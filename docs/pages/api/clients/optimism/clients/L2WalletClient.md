@@ -9,6 +9,47 @@ This implementation is not as robust as the `Wallet` implementation.
 pub fn L2WalletClient(client_type: Clients) type
 ```
 
+## DepositErrors
+
+Set of possible errors when sending deposit transactions.
+
+```zig
+EncodeErrors || SerializeErrors || Signer.SigningErrors || error{
+            InvalidMintValue,
+            ExpectedOpStackContracts,
+            InvalidAddress,
+            InvalidLength,
+            InvalidCharacter,
+            CreatingContractToKnowAddress,
+            UnableToFetchFeeInfoFromBlock,
+            InvalidBlockNumber,
+        }
+```
+
+## ProveErrors
+
+Set of possible errors when sending prove transactions.
+
+```zig
+EncodeErrors || SerializeErrors || Signer.SigningErrors || error{
+            ExpectedOpStackContracts,
+            UnableToFetchFeeInfoFromBlock,
+            InvalidBlockNumber,
+        }
+```
+
+## FinalizeErrors
+
+Set of possible errors when sending finalize transactions.
+
+```zig
+EncodeErrors || SerializeErrors || Signer.SigningErrors || error{
+            ExpectedOpStackContracts,
+            UnableToFetchFeeInfoFromBlock,
+            InvalidBlockNumber,
+        }
+```
+
 ## Init
 Starts the wallet client. Init options depend on the client type.
 This has all the expected L1 actions. If you are looking for L2 actions
@@ -20,7 +61,7 @@ Caller must deinit after use.
 ### Signature
 
 ```zig
-pub fn init(priv_key: ?Hash, opts: InitOpts) !*WalletL2
+pub fn init(priv_key: ?Hash, opts: PubClient.ClientType.InitOptions) (PubClient.ClientType.InitErrors || error{IdentityElement})!*WalletL2
 ```
 
 ## Deinit
@@ -39,7 +80,7 @@ a transaction to the network.
 ### Signature
 
 ```zig
-pub fn depositTransaction(self: *WalletL2, deposit_envelope: DepositEnvelope) !RPCResponse(Hash)
+pub fn depositTransaction(self: *WalletL2, deposit_envelope: DepositEnvelope) DepositErrors!RPCResponse(Hash)
 ```
 
 ## EstimateDepositTransaction
@@ -49,7 +90,7 @@ Uses the portalAddress. The data is expected to be hex abi encoded data.
 ### Signature
 
 ```zig
-pub fn estimateDepositTransaction(self: *WalletL2, data: Hex) !RPCResponse(Gwei)
+pub fn estimateDepositTransaction(self: *WalletL2, data: Hex) (PubClient.ClientType.BasicRequestErrors || error{ExpectedOpStackContracts})!RPCResponse(Gwei)
 ```
 
 ## EstimateFinalizeWithdrawal
@@ -58,7 +99,7 @@ Estimates the gas cost for calling `finalizeWithdrawal`
 ### Signature
 
 ```zig
-pub fn estimateFinalizeWithdrawal(self: *WalletL2, data: Hex) !RPCResponse(Gwei)
+pub fn estimateFinalizeWithdrawal(self: *WalletL2, data: Hex) (PubClient.ClientType.BasicRequestErrors || error{ExpectedOpStackContracts})!RPCResponse(Gwei)
 ```
 
 ## EstimateProveWithdrawal
@@ -67,7 +108,7 @@ Estimates the gas cost for calling `proveWithdrawal`
 ### Signature
 
 ```zig
-pub fn estimateProveWithdrawal(self: *WalletL2, data: Hex) !RPCResponse(Gwei)
+pub fn estimateProveWithdrawal(self: *WalletL2, data: Hex) (PubClient.ClientType.BasicRequestErrors || error{ExpectedOpStackContracts})!RPCResponse(Gwei)
 ```
 
 ## FinalizeWithdrawal
@@ -77,7 +118,7 @@ a transaction to the network.
 ### Signature
 
 ```zig
-pub fn finalizeWithdrawal(self: *WalletL2, withdrawal: WithdrawalNoHash) !RPCResponse(Hash)
+pub fn finalizeWithdrawal(self: *WalletL2, withdrawal: WithdrawalNoHash) FinalizeErrors!RPCResponse(Hash)
 ```
 
 ## PrepareWithdrawalProofTransaction
@@ -86,7 +127,11 @@ Prepares a proof withdrawal transaction.
 ### Signature
 
 ```zig
-pub fn prepareWithdrawalProofTransaction(self: *WalletL2, withdrawal: Withdrawal, l2_output: L2Output) !WithdrawalEnvelope
+pub fn prepareWithdrawalProofTransaction(
+            self: *WalletL2,
+            withdrawal: Withdrawal,
+            l2_output: L2Output,
+        ) (PubClient.ClientType.BasicRequestErrors || error{ InvalidBlockNumber, ExpectedOpStackContracts })!WithdrawalEnvelope
 ```
 
 ## ProveWithdrawal
@@ -96,7 +141,13 @@ a transaction to the network.
 ### Signature
 
 ```zig
-pub fn proveWithdrawal(self: *WalletL2, withdrawal: WithdrawalNoHash, l2_output_index: u256, outputRootProof: RootProof, withdrawal_proof: []const Hex) !RPCResponse(Hash)
+pub fn proveWithdrawal(
+            self: *WalletL2,
+            withdrawal: WithdrawalNoHash,
+            l2_output_index: u256,
+            outputRootProof: RootProof,
+            withdrawal_proof: []const Hex,
+        ) ProveErrors!RPCResponse(Hash)
 ```
 
 ## PrepareDepositTransaction
@@ -106,7 +157,10 @@ and a `to` address was given. It will also fail if the mint and value do not mat
 ### Signature
 
 ```zig
-pub fn prepareDepositTransaction(self: *WalletL2, deposit_envelope: DepositEnvelope) !DepositData
+pub fn prepareDepositTransaction(
+            self: *WalletL2,
+            deposit_envelope: DepositEnvelope,
+        ) (PubClient.ClientType.BasicRequestErrors || error{ CreatingContractToKnowAddress, InvalidMintValue })!DepositData
 ```
 
 ## SendTransaction
@@ -116,6 +170,9 @@ sending the transaction.
 ### Signature
 
 ```zig
-pub fn sendTransaction(self: *WalletL2, envelope: LondonTransactionEnvelope) !RPCResponse(Hash)
+pub fn sendTransaction(
+            self: *WalletL2,
+            envelope: LondonTransactionEnvelope,
+        ) (Signer.SigningErrors || PubClient.ClientType.BasicRequestErrors || SerializeErrors)!RPCResponse(Hash)
 ```
 

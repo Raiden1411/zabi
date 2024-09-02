@@ -2,6 +2,7 @@ const abi_items = @import("../abi_optimism.zig");
 const clients = @import("../../root.zig");
 const decoder = @import("../../../decoding/decoder.zig");
 const decoder_logs = @import("../../../decoding/logs_decode.zig");
+const encoder = @import("../../../encoding/encoder.zig");
 const serialize = @import("../../../encoding/serialize.zig");
 const std = @import("std");
 const testing = std.testing;
@@ -15,6 +16,8 @@ const withdrawal_types = @import("../types/withdrawl.zig");
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Clients = @import("../../wallet.zig").WalletClients;
+const EncodeErrors = encoder.EncodeErrors;
+const DecodeErrors = decoder.DecoderErrors;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const InitOptsHttp = clients.PubClient.InitOptions;
@@ -22,10 +25,12 @@ const InitOptsIpc = clients.IpcClient.InitOptions;
 const InitOptsWs = clients.WebSocket.InitOptions;
 const IpcClient = clients.IpcClient;
 const LondonTransactionEnvelope = transactions.LondonTransactionEnvelope;
+const LogsDecodeErrors = decoder_logs.LogsDecoderErrors;
 const L2Output = op_types.L2Output;
 const Message = withdrawal_types.Message;
 const ProvenWithdrawal = withdrawal_types.ProvenWithdrawal;
 const PubClient = clients.PubClient;
+const SerializeErrors = serialize.SerializeErrors;
 const WebSocketClient = clients.WebSocket;
 const Wei = types.Wei;
 const Withdrawal = withdrawal_types.Withdrawal;
@@ -37,18 +42,25 @@ pub fn L2Client(comptime client_type: Clients) type {
         const L2 = @This();
 
         /// The underlaying rpc client type (ws or http)
-        const ClientType = switch (client_type) {
+        pub const ClientType = switch (client_type) {
             .http => PubClient,
             .websocket => WebSocketClient,
             .ipc => IpcClient,
         };
 
-        /// The inital settings depending on the client type.
-        const InitOpts = switch (client_type) {
-            .http => InitOptsHttp,
-            .websocket => InitOptsWs,
-            .ipc => InitOptsIpc,
-        };
+        /// Set of possible errors when checking withdrawal messages.
+        const WithdrawalMessageErrors = error{
+            TransactionReceiptNotFound,
+            ExpectedOpStackContracts,
+            ExpectedTopicData,
+            InvalidTransactionHash,
+            InvalidHash,
+            InvalidLength,
+            InvalidCharacter,
+        } || ClientType.BasicRequestErrors || DecodeErrors || LogsDecodeErrors;
+
+        /// Set of possible errors when performing op_stack client actions.
+        pub const L2Errors = EncodeErrors || ClientType.BasicRequestErrors || SerializeErrors || error{ ExpectedOpStackContracts, Overflow };
 
         /// This is the same allocator as the rpc_client.
         /// Its a field mostly for convinience
@@ -58,7 +70,7 @@ pub fn L2Client(comptime client_type: Clients) type {
 
         /// Starts the RPC connection
         /// If the contracts are null it defaults to OP contracts.
-        pub fn init(opts: InitOpts) !*L2 {
+        pub fn init(opts: ClientType.InitOptions) (ClientType.InitErrors || error{InvalidChain})!*L2 {
             const self = try opts.allocator.create(L2);
             errdefer opts.allocator.destroy(self);
 
@@ -82,7 +94,7 @@ pub fn L2Client(comptime client_type: Clients) type {
             child_allocator.destroy(self);
         }
         /// Returns the L1 gas used to execute L2 transactions
-        pub fn estimateL1Gas(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
+        pub fn estimateL1Gas(self: *L2, london_envelope: LondonTransactionEnvelope) L2Errors!Wei {
             const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
 
             const serialized = try serialize.serializeTransaction(self.allocator, .{ .london = london_envelope }, null);
@@ -100,7 +112,7 @@ pub fn L2Client(comptime client_type: Clients) type {
             return utils.bytesToInt(u256, data.response);
         }
         /// Returns the L1 fee used to execute L2 transactions
-        pub fn estimateL1GasFee(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
+        pub fn estimateL1GasFee(self: *L2, london_envelope: LondonTransactionEnvelope) L2Errors!Wei {
             const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
 
             const serialized = try serialize.serializeTransaction(self.allocator, .{ .london = london_envelope }, null);
@@ -118,7 +130,7 @@ pub fn L2Client(comptime client_type: Clients) type {
             return utils.bytesToInt(u256, data.response);
         }
         /// Estimates the L1 + L2 fees to execute a transaction on L2
-        pub fn estimateTotalFees(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
+        pub fn estimateTotalFees(self: *L2, london_envelope: LondonTransactionEnvelope) L2Errors!Wei {
             const l1_gas_fee = try self.estimateL1GasFee(london_envelope);
             const l2_gas = try self.rpc_client.estimateGas(.{ .london = .{
                 .to = london_envelope.to,
@@ -135,7 +147,7 @@ pub fn L2Client(comptime client_type: Clients) type {
             return l1_gas_fee + l2_gas.response * gas_price.response;
         }
         /// Estimates the L1 + L2 gas to execute a transaction on L2
-        pub fn estimateTotalGas(self: *L2, london_envelope: LondonTransactionEnvelope) !Wei {
+        pub fn estimateTotalGas(self: *L2, london_envelope: LondonTransactionEnvelope) L2Errors!Wei {
             const l1_gas_fee = try self.estimateL1GasFee(london_envelope);
             const l2_gas = try self.rpc_client.estimateGas(.{ .london = .{
                 .to = london_envelope.to,
@@ -164,7 +176,7 @@ pub fn L2Client(comptime client_type: Clients) type {
             return utils.bytesToInt(u256, data.response);
         }
         /// Gets the decoded withdrawl event logs from a given transaction receipt hash.
-        pub fn getWithdrawMessages(self: *L2, tx_hash: Hash) !Message {
+        pub fn getWithdrawMessages(self: *L2, tx_hash: Hash) WithdrawalMessageErrors!Message {
             const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
 
             const receipt_message = try self.rpc_client.getTransactionReceipt(tx_hash);

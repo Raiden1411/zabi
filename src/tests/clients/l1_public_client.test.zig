@@ -171,3 +171,9 @@ test "Get Games" {
 
     try testing.expectEqual(games.len, 5);
 }
+
+test "Ref All Decls" {
+    std.testing.refAllDecls(L1Client(.http));
+    std.testing.refAllDecls(L1Client(.ipc));
+    std.testing.refAllDecls(L1Client(.websocket));
+}

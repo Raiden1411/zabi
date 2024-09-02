@@ -339,13 +339,18 @@ pub const DocsGenerator = struct {
             .tagged_union_two_trailing,
             .struct_init_dot_comma,
             .address_of,
+            .builtin_call_two,
+            .switch_comma,
             => {
                 try self.extractNameFromVariable(out_file, first_token);
                 try out_file.writeAll("```zig\n");
                 try out_file.writeAll(self.ast.getNodeSource(variable.ast.init_node));
                 return out_file.writeAll("\n```\n\n");
             },
-            .number_literal, .sub => return,
+            .number_literal,
+            .sub,
+            .string_literal,
+            => return,
             else => std.debug.panic("Unexpected token found: {s}\n", .{@tagName(self.nodes[variable.ast.init_node])}),
         }
     }

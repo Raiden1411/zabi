@@ -15,6 +15,17 @@ const Allocator = std.mem.Allocator;
 const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
+/// Set of errors while performing logs abi encoding.
+pub const EncodeLogsErrors = Allocator.Error || error{
+    SignedNumber,
+    UnsignedNumber,
+    InvalidParamType,
+    InvalidAddressType,
+    InvalidFixedBytesType,
+    CannotEncodeSliceOfDynamicTypes,
+    ExpectedComponents,
+};
+
 /// Encode event log topics were the abi event is comptime know.
 ///
 /// `values` is expected to be a tuple of the values to encode.

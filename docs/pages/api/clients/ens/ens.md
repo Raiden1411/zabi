@@ -9,6 +9,21 @@ Currently ENSAvatar is not supported but will be in future versions.
 pub fn ENSClient(comptime client_type: Clients) type
 ```
 
+## EnsErrors
+
+Set of possible errors when performing ens client actions.
+
+```zig
+EncodeErrors || ClientType.BasicRequestErrors || DecoderErrors || error{
+            ExpectedEnsContracts,
+            NoSpaceLeft,
+            InvalidCharacter,
+            InvalidLength,
+            InvalidAddress,
+            FailedToDecodeResponse,
+        }
+```
+
 ## Init
 Starts the RPC connection
 If the contracts are null it defaults to mainnet contracts.
@@ -16,7 +31,7 @@ If the contracts are null it defaults to mainnet contracts.
 ### Signature
 
 ```zig
-pub fn init(opts: InitOpts) !*ENS
+pub fn init(opts: InitOpts) (ClientType.InitErrors || error{InvalidChain})!*ENS
 ```
 
 ## Deinit
@@ -39,7 +54,7 @@ The names are not normalized so make sure that the names are normalized before h
 ### Signature
 
 ```zig
-pub fn getEnsAddress(self: *ENS, name: []const u8, opts: BlockNumberRequest) !AbiDecoded(Address)
+pub fn getEnsAddress(self: *ENS, name: []const u8, opts: BlockNumberRequest) EnsErrors!AbiDecoded(Address)
 ```
 
 ## GetEnsName
@@ -53,7 +68,7 @@ This will fail if its not a valid checksumed address.
 ### Signature
 
 ```zig
-pub fn getEnsName(self: *ENS, address: []const u8, opts: BlockNumberRequest) !RPCResponse([]const u8)
+pub fn getEnsName(self: *ENS, address: []const u8, opts: BlockNumberRequest) EnsErrors!RPCResponse([]const u8)
 ```
 
 ## GetEnsResolver
@@ -67,7 +82,7 @@ The names are not normalized so make sure that the names are normalized before h
 ### Signature
 
 ```zig
-pub fn getEnsResolver(self: *ENS, name: []const u8, opts: BlockNumberRequest) !Address
+pub fn getEnsResolver(self: *ENS, name: []const u8, opts: BlockNumberRequest) EnsErrors!Address
 ```
 
 ## GetEnsText
@@ -81,6 +96,6 @@ The names are not normalized so make sure that the names are normalized before h
 ### Signature
 
 ```zig
-pub fn getEnsText(self: *ENS, name: []const u8, key: []const u8, opts: BlockNumberRequest) !AbiDecoded([]const u8)
+pub fn getEnsText(self: *ENS, name: []const u8, key: []const u8, opts: BlockNumberRequest) EnsErrors!AbiDecoded([]const u8)
 ```
 

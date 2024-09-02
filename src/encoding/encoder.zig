@@ -19,8 +19,19 @@ const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Function = @import("../abi/abi.zig").Function;
 const ParamType = @import("../abi/param_type.zig").ParamType;
 
-pub const EncodeErrors = std.mem.Allocator.Error || error{ InvalidIntType, Overflow, BufferExceedsMaxSize, InvalidBits, InvalidLength, NoSpaceLeft, InvalidCharacter, InvalidParamType };
+/// Set of errors while perfoming abi encoding.
+pub const EncodeErrors = Allocator.Error || error{
+    InvalidIntType,
+    Overflow,
+    BufferExceedsMaxSize,
+    InvalidBits,
+    InvalidLength,
+    NoSpaceLeft,
+    InvalidCharacter,
+    InvalidParamType,
+};
 
+/// Return type while pre encoding individual types.
 pub const PreEncodedParam = struct {
     dynamic: bool,
     encoded: []u8,
@@ -30,6 +41,7 @@ pub const PreEncodedParam = struct {
     }
 };
 
+/// Return type of the abi encoding
 pub const AbiEncoded = struct {
     arena: *ArenaAllocator,
     data: []u8,
@@ -187,7 +199,7 @@ pub fn encodeAbiParametersLeaky(alloc: Allocator, params: []const AbiParameter, 
 /// Solidity types are infered from zig ones since it closely follows them.
 ///
 /// Caller owns the memory and it must free them.
-pub fn encodePacked(allocator: Allocator, values: anytype) ![]u8 {
+pub fn encodePacked(allocator: Allocator, values: anytype) Allocator.Error![]u8 {
     const fields = @typeInfo(@TypeOf(values));
 
     if (fields != .@"struct" or !fields.@"struct".is_tuple)

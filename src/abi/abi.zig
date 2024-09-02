@@ -13,9 +13,13 @@ const AbiEventParameter = @import("abi_parameter.zig").AbiEventParameter;
 const AbiParameter = @import("abi_parameter.zig").AbiParameter;
 const Allocator = std.mem.Allocator;
 const DecodeOptions = decoder.DecodeOptions;
-const LogDecoderOptions = decoder_logs.LogDecoderOptions;
+const DecodeErrors = decoder.DecoderErrors;
+const EncodeErrors = encoder.EncodeErrors;
+const EncodeLogsErrors = encoder_logs.EncodeLogsErrors;
 const Extract = meta.utils.Extract;
 const Hash = types.Hash;
+const LogDecoderOptions = decoder_logs.LogDecoderOptions;
+const LogsDecoderErrors = decoder_logs.LogsDecoderErrors;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
@@ -23,7 +27,18 @@ const ParseOptions = std.json.ParseOptions;
 const StateMutability = @import("state_mutability.zig").StateMutability;
 const Value = std.json.Value;
 
-pub const Abitype = enum { function, @"error", event, constructor, fallback, receive };
+/// Set of possible abi values according to the abi spec.
+pub const Abitype = enum {
+    function,
+    @"error",
+    event,
+    constructor,
+    fallback,
+    receive,
+};
+
+/// Set of possible errors when running `allocPrepare`
+pub const PrepareErrors = Allocator.Error || error{NoSpaceLeft};
 
 /// Solidity Abi function representation.
 /// Reference: ["function"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
@@ -66,7 +81,7 @@ pub const Function = struct {
     ///
     /// Consider using `EncodeAbiFunctionComptime` if the struct is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encode(self: @This(), allocator: Allocator, values: anytype) ![]u8 {
+    pub fn encode(self: @This(), allocator: Allocator, values: anytype) EncodeErrors![]u8 {
         const prep_signature = try self.allocPrepare(allocator);
         defer allocator.free(prep_signature);
 
@@ -93,7 +108,7 @@ pub const Function = struct {
     ///
     /// Consider using `EncodeAbiFunctionComptime` if the struct is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encodeOutputs(self: @This(), allocator: Allocator, values: anytype) ![]u8 {
+    pub fn encodeOutputs(self: @This(), allocator: Allocator, values: anytype) EncodeErrors![]u8 {
         const prep_signature = try self.allocPrepare(allocator);
         defer allocator.free(prep_signature);
 
@@ -120,7 +135,7 @@ pub const Function = struct {
     ///
     /// Consider using `decodeAbiFunction` if the struct is
     /// comptime know and you dont want to provided the return type.
-    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T) {
+    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T) {
         _ = self;
         return decoder.decodeAbiFunction(T, allocator, encoded, options);
     }
@@ -133,12 +148,12 @@ pub const Function = struct {
     ///
     /// Consider using `decodeAbiFunction` if the struct is
     /// comptime know and you dont want to provided the return type.
-    pub fn decodeOutputs(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T) {
+    pub fn decodeOutputs(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T) {
         _ = self;
         return decoder.decodeAbiFunctionOutputs(T, allocator, encoded, options);
     }
     /// Format the struct into a human readable string.
-    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) @TypeOf(writer).Error!void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
 
@@ -165,7 +180,7 @@ pub const Function = struct {
     /// Intended to use for hashing purposes.
     ///
     /// Caller owns the memory.
-    pub fn allocPrepare(self: @This(), allocator: Allocator) ![]u8 {
+    pub fn allocPrepare(self: @This(), allocator: Allocator) PrepareErrors![]u8 {
         var c_writter = std.io.countingWriter(std.io.null_writer);
         try self.prepare(c_writter.writer());
 
@@ -182,7 +197,7 @@ pub const Function = struct {
 
     /// Format the struct into a human readable string.
     /// Intended to use for hashing purposes.
-    pub fn prepare(self: @This(), writer: anytype) !void {
+    pub fn prepare(self: @This(), writer: anytype) PrepareErrors!void {
         try writer.print("{s}", .{self.name});
 
         try writer.print("(", .{});
@@ -210,7 +225,7 @@ pub const Event = struct {
     }
 
     /// Format the struct into a human readable string.
-    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) @TypeOf(writer).Error!void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
 
@@ -228,7 +243,7 @@ pub const Event = struct {
     ///
     /// Consider using `EncodeAbiEventComptime` if the struct is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encode(self: @This(), allocator: Allocator) !Hash {
+    pub fn encode(self: @This(), allocator: Allocator) EncodeErrors!Hash {
         const prep_signature = try self.allocPrepare(allocator);
         defer allocator.free(prep_signature);
 
@@ -243,14 +258,14 @@ pub const Event = struct {
     /// what is the correct method to use to encode the values
     ///
     /// Caller owns the memory.
-    pub fn encodeLogTopics(self: @This(), allocator: Allocator, values: anytype) ![]const ?Hash {
+    pub fn encodeLogTopics(self: @This(), allocator: Allocator, values: anytype) EncodeLogsErrors![]const ?Hash {
         return try encoder_logs.encodeLogTopics(allocator, self, values);
     }
 
     /// Decode the encoded log topics based on the event signature and the provided type.
     ///
     /// Caller owns the memory.
-    pub fn decodeLogTopics(self: @This(), comptime T: type, encoded: []const ?Hash, options: LogDecoderOptions) !T {
+    pub fn decodeLogTopics(self: @This(), comptime T: type, encoded: []const ?Hash, options: LogDecoderOptions) LogsDecoderErrors!T {
         _ = self;
         return try decoder_logs.decodeLogs(T, encoded, options);
     }
@@ -259,7 +274,7 @@ pub const Event = struct {
     /// Intended to use for hashing purposes.
     ///
     /// Caller owns the memory.
-    pub fn allocPrepare(self: @This(), allocator: Allocator) ![]u8 {
+    pub fn allocPrepare(self: @This(), allocator: Allocator) PrepareErrors![]u8 {
         var c_writter = std.io.countingWriter(std.io.null_writer);
         try self.prepare(c_writter.writer());
 
@@ -276,7 +291,7 @@ pub const Event = struct {
 
     /// Format the struct into a human readable string.
     /// Intended to use for hashing purposes.
-    pub fn prepare(self: @This(), writer: anytype) !void {
+    pub fn prepare(self: @This(), writer: anytype) PrepareErrors!void {
         try writer.print("{s}", .{self.name});
 
         try writer.print("(", .{});
@@ -295,7 +310,7 @@ pub const Error = struct {
     name: []const u8,
     inputs: []const AbiParameter,
 
-    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+    pub fn deinit(self: @This(), allocator: Allocator) void {
         for (self.inputs) |input| {
             input.deinit(allocator);
         }
@@ -303,7 +318,7 @@ pub const Error = struct {
     }
 
     /// Format the struct into a human readable string.
-    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) @TypeOf(writer).Error!void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
 
@@ -323,7 +338,7 @@ pub const Error = struct {
     ///
     /// Consider using `EncodeAbiErrorComptime` if the struct is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encode(self: @This(), allocator: Allocator, values: anytype) ![]u8 {
+    pub fn encode(self: @This(), allocator: Allocator, values: anytype) EncodeErrors![]u8 {
         const prep_signature = try self.allocPrepare(allocator);
         defer allocator.free(prep_signature);
 
@@ -349,7 +364,7 @@ pub const Error = struct {
     ///
     /// Consider using `decodeAbiError` if the struct is
     /// comptime know and you dont want to provided the return type.
-    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T) {
+    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T) {
         _ = self;
         return decoder.decodeAbiError(T, allocator, encoded, options);
     }
@@ -357,7 +372,7 @@ pub const Error = struct {
     /// Intended to use for hashing purposes.
     ///
     /// Caller owns the memory.
-    pub fn allocPrepare(self: @This(), allocator: Allocator) ![]u8 {
+    pub fn allocPrepare(self: @This(), allocator: Allocator) PrepareErrors![]u8 {
         var c_writter = std.io.countingWriter(std.io.null_writer);
         try self.prepare(c_writter.writer());
 
@@ -373,7 +388,7 @@ pub const Error = struct {
     }
     /// Format the struct into a human readable string.
     /// Intended to use for hashing purposes.
-    pub fn prepare(self: @This(), writer: anytype) !void {
+    pub fn prepare(self: @This(), writer: anytype) PrepareErrors!void {
         try writer.print("{s}", .{self.name});
 
         try writer.print("(", .{});
@@ -396,7 +411,7 @@ pub const Constructor = struct {
     payable: ?bool = null,
     stateMutability: Extract(StateMutability, "payable,nonpayable"),
 
-    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+    pub fn deinit(self: @This(), allocator: Allocator) void {
         for (self.inputs) |input| {
             input.deinit(allocator);
         }
@@ -404,7 +419,7 @@ pub const Constructor = struct {
     }
 
     /// Format the struct into a human readable string.
-    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) @TypeOf(writer).Error!void {
         try writer.print("{s}", .{@tagName(self.type)});
 
         try writer.print("(", .{});
@@ -425,7 +440,7 @@ pub const Constructor = struct {
     ///
     /// Consider using `EncodeAbiConstructorComptime` if the struct is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encode(self: @This(), allocator: Allocator, values: anytype) !AbiEncoded {
+    pub fn encode(self: @This(), allocator: Allocator, values: anytype) EncodeErrors!AbiEncoded {
         return encoder.encodeAbiParameters(allocator, self.inputs, values);
     }
 
@@ -438,7 +453,7 @@ pub const Constructor = struct {
     ///
     /// Consider using `decodeAbiConstructor` if the struct is
     /// comptime know and you dont want to provided the return type.
-    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) !AbiDecoded(T) {
+    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T) {
         _ = self;
         return decoder.decodeAbiConstructor(T, allocator, encoded, options);
     }
@@ -455,7 +470,7 @@ pub const Fallback = struct {
     stateMutability: Extract(StateMutability, "payable,nonpayable"),
 
     /// Format the struct into a human readable string.
-    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) @TypeOf(writer).Error!void {
         _ = opts;
         _ = layout;
 
@@ -473,7 +488,7 @@ pub const Receive = struct {
     stateMutability: Extract(StateMutability, "payable"),
 
     /// Format the struct into a human readable string.
-    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) @TypeOf(writer).Error!void {
         _ = opts;
         _ = layout;
 
@@ -525,7 +540,7 @@ pub const AbiItem = union(enum) {
         }
     }
 
-    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) !void {
+    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) @TypeOf(writer).Error!void {
         switch (self) {
             inline else => |value| try value.format(layout, opts, writer),
         }

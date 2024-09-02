@@ -15,6 +15,14 @@ struct {
 }
 ```
 
+## Error
+
+Set of errors that can be returned while updating the tracker.
+
+```zig
+error{ OutOfGas, GasOverflow }
+```
+
 ### Init
 Sets the tracker's initial state.
 
@@ -39,7 +47,15 @@ Updates the gas tracker based on the opcode cost.
 ### Signature
 
 ```zig
-pub inline fn updateTracker(self: *GasTracker, cost: u64) error{ OutOfGas, GasOverflow }!void
+pub inline fn updateTracker(self: *GasTracker, cost: u64) GasTracker.Error!void
+```
+
+## Error
+
+Set of errors that can be returned while updating the tracker.
+
+```zig
+error{ OutOfGas, GasOverflow }
 ```
 
 ## CalculateCallCost
@@ -96,7 +112,7 @@ Calculates the gas used for the `EXP` opcode.
 ### Signature
 
 ```zig
-pub inline fn calculateExponentCost(exp: u256, spec: SpecId) !u64
+pub inline fn calculateExponentCost(exp: u256, spec: SpecId) error{Overflow}!u64
 ```
 
 ## CalculateExtCodeCopyCost

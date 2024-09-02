@@ -22,7 +22,7 @@ Converts ethereum address to checksum
 ### Signature
 
 ```zig
-pub fn toChecksum(allocator: Allocator, address: []const u8) ![]u8
+pub fn toChecksum(allocator: Allocator, address: []const u8) (Allocator.Error || error{ Overflow, InvalidCharacter })![]u8
 ```
 
 ## IsAddress
@@ -40,7 +40,7 @@ Convert address to its representing bytes
 ### Signature
 
 ```zig
-pub fn addressToBytes(address: []const u8) !Address
+pub fn addressToBytes(address: []const u8) error{ InvalidAddress, NoSpaceLeft, InvalidLength, InvalidCharacter }!Address
 ```
 
 ## HashToBytes
@@ -49,7 +49,7 @@ Convert a hash to its representing bytes
 ### Signature
 
 ```zig
-pub fn hashToBytes(hash: []const u8) !Hash
+pub fn hashToBytes(hash: []const u8) error{ InvalidHash, NoSpaceLeft, InvalidLength, InvalidCharacter }!Hash
 ```
 
 ## IsHexString
@@ -86,7 +86,7 @@ Ex: 1 * 10 ** 18 = 1 ETH
 ### Signature
 
 ```zig
-pub fn parseEth(value: usize) !u256
+pub fn parseEth(value: usize) error{Overflow}!u256
 ```
 
 ## ParseGwei
@@ -96,7 +96,7 @@ Ex: 1 * 10 ** 9 = 1 GWEI
 ### Signature
 
 ```zig
-pub fn parseGwei(value: usize) !u64
+pub fn parseGwei(value: usize) error{Overflow}!u64
 ```
 
 ## FormatInt
@@ -124,7 +124,7 @@ hex represented string.
 ### Signature
 
 ```zig
-pub fn bytesToInt(comptime T: type, slice: []u8) !T
+pub fn bytesToInt(comptime T: type, slice: []u8) error{Overflow}!T
 ```
 
 ## CalcultateBlobGasPrice

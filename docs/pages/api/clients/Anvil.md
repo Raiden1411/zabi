@@ -1,3 +1,12 @@
+## FetchErrors
+
+Set of errors while fetching from a json rpc http endpoint.
+
+```zig
+Allocator.Error || Client.RequestError || Client.Request.WaitError ||
+    Client.Request.FinishError || Client.Request.ReadError || std.Uri.ParseError || error{ StreamTooLong, InvalidRequest }
+```
+
 ## Forking
 
 Values needed for the `anvil_reset` request.
@@ -43,6 +52,7 @@ enum {
   anvil_setBalance
   anvil_setCode
   anvil_setChainId
+  anvil_setCoinbase
   anvil_setNonce
   anvil_setNextBlockBaseFeePerGas
   anvil_setMinGasPrice
@@ -52,6 +62,7 @@ enum {
   anvil_impersonateAccount
   anvil_stopImpersonatingAccount
   anvil_setRpcUrl
+  anvil_setLoggingEnabled
 }
 ```
 
@@ -139,7 +150,7 @@ If `self` is set with default value only the `anvil` command will be set in the 
 ### Signature
 
 ```zig
-pub fn parseToArgumentsSlice(self: AnvilStartOptions, allocator: Allocator) ![]const []const u8
+pub fn parseToArgumentsSlice(self: AnvilStartOptions, allocator: Allocator) (Allocator.Error || error{NoSpaceLeft})![]const []const u8
 ```
 
 ## InitOptions
@@ -176,7 +187,7 @@ If `options` are set to their default value it will only start with `anvil` and 
 ### Signature
 
 ```zig
-pub fn initProcess(allocator: Allocator, options: AnvilStartOptions) !Child
+pub fn initProcess(allocator: Allocator, options: AnvilStartOptions) (Allocator.Error || error{NoSpaceLeft} || Child.SpawnError)!Child
 ```
 
 ## Deinit
@@ -194,7 +205,7 @@ Sets the balance of a anvil account
 ### Signature
 
 ```zig
-pub fn setBalance(self: *Anvil, address: Address, balance: u256) !void
+pub fn setBalance(self: *Anvil, address: Address, balance: u256) FetchErrors!void
 ```
 
 ## SetCode
@@ -203,7 +214,7 @@ Changes the contract code of a address.
 ### Signature
 
 ```zig
-pub fn setCode(self: *Anvil, address: Address, code: Hex) !void
+pub fn setCode(self: *Anvil, address: Address, code: Hex) FetchErrors!void
 ```
 
 ## SetRpcUrl
@@ -212,7 +223,7 @@ Changes the rpc of the anvil connection
 ### Signature
 
 ```zig
-pub fn setRpcUrl(self: *Anvil, rpc_url: []const u8) !void
+pub fn setRpcUrl(self: *Anvil, rpc_url: []const u8) FetchErrors!void
 ```
 
 ## SetCoinbase
@@ -221,7 +232,7 @@ Changes the coinbase address
 ### Signature
 
 ```zig
-pub fn setCoinbase(self: *Anvil, address: Address) !void
+pub fn setCoinbase(self: *Anvil, address: Address) FetchErrors!void
 ```
 
 ## SetLoggingEnable
@@ -230,7 +241,7 @@ Enable anvil verbose logging for anvil.
 ### Signature
 
 ```zig
-pub fn setLoggingEnable(self: *Anvil) !void
+pub fn setLoggingEnable(self: *Anvil) FetchErrors!void
 ```
 
 ## SetMinGasPrice
@@ -239,7 +250,7 @@ Changes the min gasprice from the anvil fork
 ### Signature
 
 ```zig
-pub fn setMinGasPrice(self: *Anvil, new_price: u64) !void
+pub fn setMinGasPrice(self: *Anvil, new_price: u64) FetchErrors!void
 ```
 
 ## SetNextBlockBaseFeePerGas
@@ -248,7 +259,7 @@ Changes the block base fee from the anvil fork
 ### Signature
 
 ```zig
-pub fn setNextBlockBaseFeePerGas(self: *Anvil, new_price: u64) !void
+pub fn setNextBlockBaseFeePerGas(self: *Anvil, new_price: u64) FetchErrors!void
 ```
 
 ## SetChainId
@@ -257,7 +268,7 @@ Changes the networks chainId
 ### Signature
 
 ```zig
-pub fn setChainId(self: *Anvil, new_id: u64) !void
+pub fn setChainId(self: *Anvil, new_id: u64) FetchErrors!void
 ```
 
 ## SetNonce
@@ -266,7 +277,7 @@ Changes the nonce of a account
 ### Signature
 
 ```zig
-pub fn setNonce(self: *Anvil, address: Address, new_nonce: u64) !void
+pub fn setNonce(self: *Anvil, address: Address, new_nonce: u64) FetchErrors!void
 ```
 
 ## DropTransaction
@@ -275,7 +286,7 @@ Drops a pending transaction from the mempool
 ### Signature
 
 ```zig
-pub fn dropTransaction(self: *Anvil, tx_hash: Hash) !void
+pub fn dropTransaction(self: *Anvil, tx_hash: Hash) FetchErrors!void
 ```
 
 ## Mine
@@ -284,7 +295,7 @@ Mine a pending transaction
 ### Signature
 
 ```zig
-pub fn mine(self: *Anvil, amount: u64, time_in_seconds: ?u64) !void
+pub fn mine(self: *Anvil, amount: u64, time_in_seconds: ?u64) FetchErrors!void
 ```
 
 ## Reset
@@ -293,7 +304,7 @@ Reset the fork
 ### Signature
 
 ```zig
-pub fn reset(self: *Anvil, reset_config: Reset) !void
+pub fn reset(self: *Anvil, reset_config: Reset) FetchErrors!void
 ```
 
 ## ImpersonateAccount
@@ -302,7 +313,7 @@ Impersonate a EOA or contract. Call `stopImpersonatingAccount` after.
 ### Signature
 
 ```zig
-pub fn impersonateAccount(self: *Anvil, address: Address) !void
+pub fn impersonateAccount(self: *Anvil, address: Address) FetchErrors!void
 ```
 
 ## StopImpersonatingAccount
@@ -311,6 +322,6 @@ Stops impersonating a EOA or contract.
 ### Signature
 
 ```zig
-pub fn stopImpersonatingAccount(self: *Anvil, address: Address) !void
+pub fn stopImpersonatingAccount(self: *Anvil, address: Address) FetchErrors!void
 ```
 

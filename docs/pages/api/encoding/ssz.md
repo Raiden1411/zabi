@@ -7,6 +7,6 @@ Caller owns the memory
 ### Signature
 
 ```zig
-pub fn encodeSSZ(allocator: Allocator, value: anytype) ![]u8
+pub fn encodeSSZ(allocator: Allocator, value: anytype) Allocator.Error![]u8
 ```
 

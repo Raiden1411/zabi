@@ -1068,7 +1068,7 @@ test "SyncStatus" {
     });
     defer client.deinit();
 
-    const status = try client.getSyncStatus();
+    const status = client.getSyncStatus();
     defer if (status) |s| s.deinit();
 }
 
@@ -1170,4 +1170,10 @@ test "Multicall" {
 
     try testing.expect(res.result.len != 0);
     try testing.expectEqual(res.result[0].success, true);
+}
+
+test "All Ref Decls" {
+    std.testing.refAllDecls(PubClient);
+    std.testing.refAllDecls(@import("../../clients/Anvil.zig"));
+    std.testing.refAllDecls(@import("../../clients/Hardhat.zig"));
 }

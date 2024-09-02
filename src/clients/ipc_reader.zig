@@ -10,6 +10,12 @@ const Stream = std.net.Stream;
 /// Will only allocate more memory if required.
 /// Calling `deinit` will close the socket and clear the buffer.
 pub const IpcReader = struct {
+    /// Set of possible errors when reading from the socket.
+    pub const ReadError = Stream.ReadError || Allocator.Error || error{Closed};
+
+    /// Reference to self.
+    const Self = @This();
+
     /// The underlaying allocator used to manage the buffer.
     allocator: Allocator,
     /// Buffer that contains all messages. Grows based on `growth_rate`.
@@ -28,7 +34,15 @@ pub const IpcReader = struct {
     closed: bool,
 
     /// Sets the initial reader state in order to perform any necessary actions.
-    pub fn init(allocator: Allocator, stream: Stream, growth_rate: ?usize) !@This() {
+    ///
+    /// **Example**
+    /// ```zig
+    /// const stream = std.net.connectUnixSocket("tmp/tmp.socket");
+    ///
+    /// const ipc_reader = try IpcReader.init(stream, null);
+    /// defer ipc_reader.deinit();
+    /// ```
+    pub fn init(allocator: Allocator, stream: Stream, growth_rate: ?usize) Allocator.Error!Self {
         return .{
             .allocator = allocator,
             .buffer = try allocator.alloc(u8, growth_rate orelse std.math.maxInt(u16)),
@@ -37,7 +51,7 @@ pub const IpcReader = struct {
         };
     }
     /// Frees the buffer and closes the stream.
-    pub fn deinit(self: @This()) void {
+    pub fn deinit(self: Self) void {
         self.allocator.free(self.buffer);
 
         if (@atomicLoad(bool, &self.closed, .acquire))
@@ -46,7 +60,7 @@ pub const IpcReader = struct {
         self.stream.close();
     }
     /// Reads the bytes directly from the socket. Will allocate more memory as needed.
-    pub fn read(self: *@This()) !void {
+    pub fn read(self: *Self) Self.ReadError!void {
         var result: [std.math.maxInt(u16)]u8 = undefined;
         const size = try self.stream.read(result[0..]);
 
@@ -62,7 +76,7 @@ pub const IpcReader = struct {
     }
     /// Grows the reader buffer based on the growth rate. Will use the `allocator` resize
     /// method if available.
-    pub fn grow(self: *@This(), size: usize) !void {
+    pub fn grow(self: *@This(), size: usize) Allocator.Error!void {
         if (self.allocator.resize(self.buffer, self.buffer.len + self.growth_rate + size))
             return;
 
@@ -97,7 +111,7 @@ pub const IpcReader = struct {
     /// Reads one message from the socket stream.
     /// Will only make the socket read request if the buffer is at max capacity.
     /// Will grow the buffer as needed.
-    pub fn readMessage(self: *@This()) ![]u8 {
+    pub fn readMessage(self: *Self) Self.ReadError![]u8 {
         self.prepareForRead();
 
         while (true) {
@@ -117,11 +131,11 @@ pub const IpcReader = struct {
         }
     }
     /// Prepares the reader for the next message.
-    pub fn prepareForRead(self: *@This()) void {
+    pub fn prepareForRead(self: *Self) void {
         self.message_start = self.message_end;
     }
     /// Writes a message to the socket stream.
-    pub fn writeMessage(self: *@This(), message: []u8) !void {
+    pub fn writeMessage(self: *Self, message: []u8) Stream.WriteError!void {
         try self.stream.writeAll(message);
     }
 };

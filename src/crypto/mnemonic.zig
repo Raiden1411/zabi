@@ -1,13 +1,15 @@
 //! Experimental and unaudited code. Use with caution.
 //! Reference: https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki
-
+const errors = std.crypto.errors;
 const std = @import("std");
 const testing = std.testing;
 const utils = @import("../utils/utils.zig");
 
 const Allocator = std.mem.Allocator;
 const HmacSha512 = std.crypto.auth.hmac.sha2.HmacSha512;
+const OutputTooLongError = errors.OutputTooLongError;
 const Sha256 = std.crypto.hash.sha2.Sha256;
+const WeakParametersError = errors.WeakParametersError;
 
 // TODO: Support more languages
 /// Wordlist of valid english mnemonic words.
@@ -28,15 +30,30 @@ pub fn EntropyArray(comptime word_count: comptime_int) type {
 /// can be used later for HDWallets.
 ///
 /// Uses `pbkdf2` for the hashing with `HmacSha512` for the
-/// pseudo random function to use
-pub fn mnemonicToSeed(password: []const u8) ![64]u8 {
+/// pseudo random function to use.
+pub fn mnemonicToSeed(password: []const u8) (WeakParametersError || OutputTooLongError)![64]u8 {
     var buffer: [64]u8 = undefined;
     try std.crypto.pwhash.pbkdf2(buffer[0..], password, "mnemonic", 2048, HmacSha512);
 
     return buffer;
 }
 /// Converts the mnemonic phrase into it's entropy representation.
-pub fn toEntropy(comptime word_count: comptime_int, password: []const u8, wordlist: ?Wordlist) !EntropyArray(word_count) {
+///
+/// **Example**
+/// ```zig
+/// const seed = "test test test test test test test test test test test junk";
+/// const entropy = try toEntropy(12, seed, null);
+///
+/// const bar = try fromEntropy(testing.allocator, 12, entropy, null);
+/// defer testing.allocator.free(bar);
+///
+/// try testing.expectEqualStrings(seed, bar);
+/// ```
+pub fn toEntropy(
+    comptime word_count: comptime_int,
+    password: []const u8,
+    wordlist: ?Wordlist,
+) error{ InvalidMnemonicWord, InvalidMnemonicChecksum }!EntropyArray(word_count) {
     const words = wordlist orelse english;
 
     var iter = std.mem.tokenizeAny(u8, password, " ");
@@ -70,8 +87,24 @@ pub fn toEntropy(comptime word_count: comptime_int, password: []const u8, wordli
 
     return entropy[0 .. entropy_bytes / 8].*;
 }
-
-pub fn fromEntropy(allocator: Allocator, comptime word_count: comptime_int, entropy_bytes: EntropyArray(word_count), word_list: ?Wordlist) ![]const u8 {
+/// Converts the mnemonic entropy into it's seed.
+///
+/// **Example**
+/// ```zig
+/// const seed = "test test test test test test test test test test test junk";
+/// const entropy = try toEntropy(12, seed, null);
+///
+/// const bar = try fromEntropy(testing.allocator, 12, entropy, null);
+/// defer testing.allocator.free(bar);
+///
+/// try testing.expectEqualStrings(seed, bar);
+/// ```
+pub fn fromEntropy(
+    allocator: Allocator,
+    comptime word_count: comptime_int,
+    entropy_bytes: EntropyArray(word_count),
+    word_list: ?Wordlist,
+) (Allocator.Error || error{Overflow})![]const u8 {
     const list = word_list orelse english;
 
     var mnemonic = std.ArrayList(u8).init(allocator);
@@ -121,7 +154,7 @@ pub fn fromEntropy(allocator: Allocator, comptime word_count: comptime_int, entr
             try writer.writeByte(' ');
     }
 
-    return try mnemonic.toOwnedSlice();
+    return mnemonic.toOwnedSlice();
 }
 
 // TODO: Normalize words from list.

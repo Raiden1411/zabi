@@ -21,6 +21,14 @@ struct {
 }
 ```
 
+## Error
+
+Set of errors when resizing errors.
+
+```zig
+error{MaxMemoryReached}
+```
+
 ### InitEmpty
 Create the interpreter's memory. This will not error.
 No initial capacity is set. It's essentially empty memory.
@@ -37,7 +45,7 @@ Creates the memory with default 4096 capacity.
 ### Signature
 
 ```zig
-pub fn initWithDefaultCapacity(allocator: Allocator, limit: ?u64) !Memory
+pub fn initWithDefaultCapacity(allocator: Allocator, limit: ?u64) Allocator.Error!Memory
 ```
 
 ### InitWithCapacity
@@ -46,7 +54,7 @@ Creates the memory with `capacity`.
 ### Signature
 
 ```zig
-pub fn initWithCapacity(allocator: Allocator, capacity: usize, limit: ?u64) !Memory
+pub fn initWithCapacity(allocator: Allocator, capacity: usize, limit: ?u64) Allocator.Error!Memory
 ```
 
 ### FreeContext
@@ -111,7 +119,7 @@ Prepares the memory for a new context.
 ### Signature
 
 ```zig
-pub fn newContext(self: *Memory) !void
+pub fn newContext(self: *Memory) Allocator.Error!void
 ```
 
 ### Resize
@@ -122,7 +130,7 @@ If the new len is lower than the current buffer size data will be lost.
 ### Signature
 
 ```zig
-pub fn resize(self: *Memory, new_len: usize) !void
+pub fn resize(self: *Memory, new_len: usize) (Allocator.Error || Memory.Error)!void
 ```
 
 ### WordToInt
@@ -142,7 +150,7 @@ This can overwrite to existing memory.
 ### Signature
 
 ```zig
-pub fn writeByte(self: Memory, offset: usize, byte: u8) !void
+pub fn writeByte(self: Memory, offset: usize, byte: u8) void
 ```
 
 ### WriteWord
@@ -152,7 +160,7 @@ This can overwrite existing memory.
 ### Signature
 
 ```zig
-pub fn writeWord(self: Memory, offset: usize, word: [32]u8) !void
+pub fn writeWord(self: Memory, offset: usize, word: [32]u8) void
 ```
 
 ### WriteInt
@@ -162,7 +170,7 @@ This can overwrite to existing memory.
 ### Signature
 
 ```zig
-pub fn writeInt(self: Memory, offset: usize, data: u256) !void
+pub fn writeInt(self: Memory, offset: usize, data: u256) void
 ```
 
 ### Write
@@ -172,7 +180,7 @@ This can overwrite to existing memory.
 ### Signature
 
 ```zig
-pub fn write(self: Memory, offset: usize, data: []const u8) !void
+pub fn write(self: Memory, offset: usize, data: []const u8) void
 ```
 
 ### WriteData
@@ -182,7 +190,7 @@ This can overwrite existing memory.
 ### Signature
 
 ```zig
-pub fn writeData(self: Memory, offset: usize, data_offset: usize, len: usize, data: []u8) !void
+pub fn writeData(self: Memory, offset: usize, data_offset: usize, len: usize, data: []u8) void
 ```
 
 ### Deinit
@@ -192,6 +200,14 @@ Frees the underlaying memory buffers.
 
 ```zig
 pub fn deinit(self: Memory) void
+```
+
+## Error
+
+Set of errors when resizing errors.
+
+```zig
+error{MaxMemoryReached}
 ```
 
 ## AvailableWords

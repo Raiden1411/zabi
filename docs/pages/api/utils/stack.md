@@ -11,6 +11,14 @@ will not clear all memory. You must clear them one by one.
 pub fn Stack(comptime T: type) type
 ```
 
+## Error
+
+Set of possible errors while performing stack operations.
+
+```zig
+Allocator.Error || error{ StackOverflow, StackUnderflow }
+```
+
 ## Init
 Starts the stack but doesn't set an initial capacity.
 This is best to use when you would like a dymanic size stack.
@@ -47,7 +55,7 @@ This is not thread safe.
 ### Signature
 
 ```zig
-pub fn dupUnsafe(self: *Self, position: usize) !void
+pub fn dupUnsafe(self: *Self, position: usize) Self.Error!void
 ```
 
 ## PushUnsafe
@@ -57,7 +65,7 @@ This is not thread safe.
 ### Signature
 
 ```zig
-pub fn pushUnsafe(self: *Self, item: T) !void
+pub fn pushUnsafe(self: *Self, item: T) (Allocator.Error || error{StackOverflow})!void
 ```
 
 ## PopUnsafe
@@ -109,7 +117,7 @@ This is not thread safe.
 ### Signature
 
 ```zig
-pub fn swapToTopUnsafe(self: *Self, position_swap: usize) !void
+pub fn swapToTopUnsafe(self: *Self, position_swap: usize) error{StackUnderflow}!void
 ```
 
 ## SwapUnsafe
@@ -119,7 +127,7 @@ This is not thread safe.
 ### Signature
 
 ```zig
-pub fn swapUnsafe(self: *Self, position: usize, swap: usize) !void
+pub fn swapUnsafe(self: *Self, position: usize, swap: usize) error{StackUnderflow}!void
 ```
 
 ## TryPopUnsafe
@@ -129,7 +137,7 @@ This is not thread safe,
 ### Signature
 
 ```zig
-pub fn tryPopUnsafe(self: *Self) !T
+pub fn tryPopUnsafe(self: *Self) error{StackUnderflow}!T
 ```
 
 ## TryPop
@@ -139,7 +147,7 @@ This is thread safe,
 ### Signature
 
 ```zig
-pub fn tryPop(self: *Self, item: T) !T
+pub fn tryPop(self: *Self, item: T) error{StackUnderflow}!T
 ```
 
 ## TryPush

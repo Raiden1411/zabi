@@ -182,7 +182,7 @@ pub fn decodeAbiConstructor(comptime T: type, allocator: Allocator, encoded: []u
 /// ```
 ///
 /// If the type provided doesn't make allocations consider using `decodeAbiParameterLeaky`.
-pub fn decodeAbiParameter(comptime T: type, allocator: Allocator, encoded: []u8, options: DecodeOptions) !AbiDecoded(T) {
+pub fn decodeAbiParameter(comptime T: type, allocator: Allocator, encoded: []u8, options: DecodeOptions) DecoderErrors!AbiDecoded(T) {
     const arena = try allocator.create(ArenaAllocator);
     errdefer allocator.destroy(arena);
 

@@ -1,15 +1,40 @@
+## SerializeErrors
+
+Set of possible errors when serializing a transaction.
+
+```zig
+RlpEncodeErrors || error{InvalidRecoveryId}
+```
+
 ## SerializeTransaction
 Main function to serialize transactions.
-Support london, berlin and legacy transaction envelopes.
-For cancun transactions with blobs use the `serializeCancunTransactionWithBlob` function. This
-will panic if you call this with the cancun transaction envelope.
 
-Caller ownes the memory
+Supports cancun, london, berlin and legacy transaction envelopes.\
+This uses the underlaying rlp encoding to serialize the transaction and takes an optional `Signature` in case
+you want to serialize with the transaction signed.
+
+For cancun transactions with blobs use the `serializeCancunTransactionWithBlobs` or `serializeCancunTransactionWithSidecars` functions.\
+
+**Example**
+```zig
+const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+const base_legacy = try serializeTransaction(testing.allocator, .{
+    .legacy = .{
+        .nonce = 69,
+        .gasPrice = try utils.parseGwei(2),
+        .gas = 0,
+        .to = to,
+        .value = try utils.parseEth(1),
+        .data = null,
+    },
+}, null);
+defer testing.allocator.free(base_legacy);
+```
 
 ### Signature
 
 ```zig
-pub fn serializeTransaction(allocator: Allocator, tx: TransactionEnvelope, sig: ?Signature) ![]u8
+pub fn serializeTransaction(allocator: Allocator, tx: TransactionEnvelope, sig: ?Signature) SerializeErrors![]u8
 ```
 
 ## SerializeCancunTransaction
@@ -17,12 +42,12 @@ Serializes a cancun type transactions without blobs.
 
 Please use `serializeCancunTransactionWithSidecars` or
 `serializeCancunTransactionWithBlobs` if you want to
-serialize them as a wrapper
+serialize them as a wrapper.
 
 ### Signature
 
 ```zig
-pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature) ![]u8
+pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8
 ```
 
 ## SerializeCancunTransactionWithBlobs
@@ -50,7 +75,7 @@ Caller ownes the memory
 ### Signature
 
 ```zig
-pub fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEnvelope, sig: ?Signature) ![]u8
+pub fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8
 ```
 
 ## SerializeTransactionEIP2930
@@ -60,7 +85,7 @@ Caller ownes the memory
 ### Signature
 
 ```zig
-pub fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEnvelope, sig: ?Signature) ![]u8
+pub fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8
 ```
 
 ## SerializeTransactionLegacy
@@ -70,7 +95,7 @@ Caller ownes the memory
 ### Signature
 
 ```zig
-pub fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnvelope, sig: ?Signature) ![]u8
+pub fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8
 ```
 
 ## PrepareAccessList
@@ -79,6 +104,6 @@ Serializes the access list into a slice of tuples of hex values.
 ### Signature
 
 ```zig
-pub fn prepareAccessList(allocator: Allocator, access_list: []const AccessList) ![]const StructToTupleType(AccessList)
+pub fn prepareAccessList(allocator: Allocator, access_list: []const AccessList) Allocator.Error![]const StructToTupleType(AccessList)
 ```
 

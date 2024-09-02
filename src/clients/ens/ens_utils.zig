@@ -9,7 +9,7 @@ const Keccak256 = std.crypto.hash.sha3.Keccak256;
 /// Converts ens name to it's representing hash.
 /// Its it's a labelhash it will return the hash bytes.
 /// Make sure that the string is normalized beforehand.
-pub fn convertToHash(label: []const u8) !Hash {
+pub fn convertToHash(label: []const u8) error{ InvalidLength, InvalidCharacter, NoSpaceLeft }!Hash {
     var hashed: Hash = undefined;
 
     if (label.len == 0) {
@@ -43,7 +43,7 @@ pub fn isLabelHash(label: []const u8) bool {
 }
 /// Hashes the ENS name to it's ens label hash.
 /// Make sure that the string is normalized beforehand.
-pub fn hashName(name: []const u8) !Hash {
+pub fn hashName(name: []const u8) error{ InvalidLength, InvalidCharacter, NoSpaceLeft }!Hash {
     var hashed_result: Hash = [_]u8{0} ** 32;
 
     if (name.len == 0)

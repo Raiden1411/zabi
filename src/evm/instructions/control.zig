@@ -4,13 +4,14 @@ const testing = std.testing;
 const utils = @import("../../utils/utils.zig");
 
 const Contract = @import("../contract.zig").Contract;
+const GasTracker = gas.GasTracker;
 const Interpreter = @import("../Interpreter.zig");
 const Memory = @import("../memory.zig").Memory;
 const Stack = @import("../../utils/stack.zig").Stack;
 
 /// Runs the jumpi instruction opcode for the interpreter.
 /// 0x57 -> JUMPI
-pub fn conditionalJumpInstruction(self: *Interpreter) !void {
+pub fn conditionalJumpInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InvalidJump})!void {
     try self.gas_tracker.updateTracker(gas.MID_STEP);
 
     const target = try self.stack.tryPopUnsafe();
@@ -33,13 +34,13 @@ pub fn conditionalJumpInstruction(self: *Interpreter) !void {
 }
 /// Runs the pc instruction opcode for the interpreter.
 /// 0x58 -> PC
-pub fn programCounterInstruction(self: *Interpreter) !void {
+pub fn programCounterInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(gas.QUICK_STEP);
     try self.stack.pushUnsafe(self.program_counter);
 }
 /// Runs the jump instruction opcode for the interpreter.
 /// 0x56 -> JUMP
-pub fn jumpInstruction(self: *Interpreter) !void {
+pub fn jumpInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InvalidJump})!void {
     try self.gas_tracker.updateTracker(gas.MID_STEP);
     const target = try self.stack.tryPopUnsafe();
 
@@ -57,7 +58,7 @@ pub fn jumpInstruction(self: *Interpreter) !void {
 }
 /// Runs the jumpdest instruction opcode for the interpreter.
 /// 0x5B -> JUMPDEST
-pub fn jumpDestInstruction(self: *Interpreter) !void {
+pub fn jumpDestInstruction(self: *Interpreter) GasTracker.Error!void {
     try self.gas_tracker.updateTracker(gas.JUMPDEST);
 }
 /// Runs the invalid instruction opcode for the interpreter.
@@ -72,24 +73,24 @@ pub fn stopInstruction(self: *Interpreter) !void {
 }
 /// Runs the return instruction opcode for the interpreter.
 /// 0xF3 -> RETURN
-pub fn returnInstruction(self: *Interpreter) !void {
+pub fn returnInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
     return returnAction(self, .returned);
 }
 /// Runs the rever instruction opcode for the interpreter.
 /// 0xFD -> REVERT
-pub fn revertInstruction(self: *Interpreter) !void {
+pub fn revertInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{ Overflow, InstructionNotEnabled })!void {
     if (!self.spec.enabled(.BYZANTIUM))
         return error.InstructionNotEnabled;
 
     return returnAction(self, .reverted);
 }
 /// Instructions that gets ran if there is no associated opcode.
-pub fn unknownInstruction(self: *Interpreter) !void {
+pub fn unknownInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     self.status = .opcode_not_found;
 }
 
 // Internal action for return type instructions.
-fn returnAction(self: *Interpreter, status: Interpreter.InterpreterStatus) !void {
+fn returnAction(self: *Interpreter, status: Interpreter.InterpreterStatus) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
     const offset = try self.stack.tryPopUnsafe();
     const length = try self.stack.tryPopUnsafe();
 

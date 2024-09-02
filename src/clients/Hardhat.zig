@@ -5,6 +5,7 @@ const utils = @import("../utils/utils.zig");
 
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
+const Client = std.http.Client;
 const FetchResult = std.http.Client.FetchResult;
 const Hardhat = @This();
 const Hash = types.Hash;
@@ -14,11 +15,31 @@ const ParseFromValueError = std.json.ParseFromValueError;
 const ParseOptions = std.json.ParseOptions;
 const Value = std.json.Value;
 
+/// Set of errors while fetching from a json rpc http endpoint.
+pub const FetchErrors = Allocator.Error || Client.RequestError || Client.Request.WaitError ||
+    Client.Request.FinishError || Client.Request.ReadError || std.Uri.ParseError || error{ StreamTooLong, InvalidRequest };
+
+/// Values needed for the `hardhat_reset` request.
+pub const Forking = struct {
+    jsonRpcUrl: []const u8,
+    blockNumber: ?u64 = null,
+
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta_json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta_json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta_json.jsonStringify(@This(), self, writer_stream);
+    }
+};
+
+/// Struct representation of a `hardhat_reset` request.
 pub const Reset = struct {
-    forking: struct {
-        jsonRpcUrl: []const u8,
-        blockNumber: u64,
-    },
+    forking: Forking,
 
     pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
         return meta_json.jsonParse(@This(), allocator, source, options);
@@ -58,6 +79,7 @@ pub const HardhatMethods = enum {
     hardhat_setBalance,
     hardhat_setCode,
     hardhat_setChainId,
+    hardhat_setCoinbase,
     hardhat_setNonce,
     hardhat_setNextBlockBaseFeePerGas,
     hardhat_setMinGasPrice,
@@ -67,6 +89,7 @@ pub const HardhatMethods = enum {
     hardhat_impersonateAccount,
     hardhat_stopImpersonatingAccount,
     hardhat_setRpcUrl,
+    hardhat_setLoggingEnabled,
 };
 
 pub const StartUpOptions = struct {
@@ -83,7 +106,7 @@ localhost: std.Uri,
 /// The socket connection to hardhat. Use `initClient` to populate this.
 http_client: std.http.Client,
 
-pub fn initClient(self: *Hardhat, opts: StartUpOptions) !void {
+pub fn initClient(self: *Hardhat, opts: StartUpOptions) FetchErrors!void {
     self.* = .{
         .allocator = opts.allocator,
         .localhost = try std.Uri.parse(opts.localhost),
@@ -95,7 +118,7 @@ pub fn deinit(self: *Hardhat) void {
     self.http_client.deinit();
 }
 /// Sets the balance of a hardhat account
-pub fn setBalance(self: *Hardhat, address: Address, balance: u256) !void {
+pub fn setBalance(self: *Hardhat, address: Address, balance: u256) FetchErrors!void {
     const request: HardhatRequest(struct { Address, u256 }) = .{ .params = .{ address, balance }, .method = .hardhat_setBalance };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -104,8 +127,8 @@ pub fn setBalance(self: *Hardhat, address: Address, balance: u256) !void {
     return self.sendRpcRequest(req_body);
 }
 /// Changes the contract code of a address.
-pub fn setCode(self: *Hardhat, address: Address, code: Hex) !void {
-    const request: HardhatRequest(struct { Address, Hex }) = .{ .params = .{ address, code }, .method = .set_Code };
+pub fn setCode(self: *Hardhat, address: Address, code: Hex) FetchErrors!void {
+    const request: HardhatRequest(struct { Address, Hex }) = .{ .params = .{ address, code }, .method = .hardhat_setCode };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -113,7 +136,7 @@ pub fn setCode(self: *Hardhat, address: Address, code: Hex) !void {
     return self.sendRpcRequest(req_body);
 }
 /// Changes the rpc of the hardhat connection
-pub fn setRpcUrl(self: *Hardhat, rpc_url: []const u8) !void {
+pub fn setRpcUrl(self: *Hardhat, rpc_url: []const u8) FetchErrors!void {
     const request: HardhatRequest(struct { []const u8 }) = .{ .params = .{rpc_url}, .method = .hardhat_setRpcUrl };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -122,8 +145,8 @@ pub fn setRpcUrl(self: *Hardhat, rpc_url: []const u8) !void {
     return self.sendRpcRequest(req_body);
 }
 /// Changes the coinbase address
-pub fn setCoinbase(self: *Hardhat, address: Address) !void {
-    const request: HardhatRequest(struct { Address }) = .{ .params = .{address}, .method = .set_Coinbase };
+pub fn setCoinbase(self: *Hardhat, address: Address) FetchErrors!void {
+    const request: HardhatRequest(struct { Address }) = .{ .params = .{address}, .method = .hardhat_setCoinbase };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -131,8 +154,8 @@ pub fn setCoinbase(self: *Hardhat, address: Address) !void {
     return self.sendRpcRequest(req_body);
 }
 /// Enable hardhat verbose logging for hardhat.
-pub fn setLoggingEnable(self: *Hardhat) !void {
-    const request: HardhatRequest(struct {}) = .{ .params = .{}, .method = .set_LoggingEnabled };
+pub fn setLoggingEnable(self: *Hardhat) FetchErrors!void {
+    const request: HardhatRequest(std.meta.Tuple(&[_]type{})) = .{ .params = .{}, .method = .hardhat_setLoggingEnabled };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -140,7 +163,7 @@ pub fn setLoggingEnable(self: *Hardhat) !void {
     return self.sendRpcRequest(req_body);
 }
 /// Changes the min gasprice from the hardhat fork
-pub fn setMinGasPrice(self: *Hardhat, new_price: u64) !void {
+pub fn setMinGasPrice(self: *Hardhat, new_price: u64) FetchErrors!void {
     const request: HardhatRequest(struct { u64 }) = .{ .params = .{new_price}, .method = .hardhat_setMinGasPrice };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -149,7 +172,7 @@ pub fn setMinGasPrice(self: *Hardhat, new_price: u64) !void {
     return self.sendRpcRequest(req_body);
 }
 /// Changes the next blocks base fee.
-pub fn setNextBlockBaseFeePerGas(self: *Hardhat, new_price: u64) !void {
+pub fn setNextBlockBaseFeePerGas(self: *Hardhat, new_price: u64) FetchErrors!void {
     const request: HardhatRequest(struct { u64 }) = .{ .params = .{new_price}, .method = .hardhat_setNextBlockBaseFeePerGas };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -158,7 +181,7 @@ pub fn setNextBlockBaseFeePerGas(self: *Hardhat, new_price: u64) !void {
     return self.sendRpcRequest(req_body);
 }
 /// Changes the networks chainId
-pub fn setChainId(self: *Hardhat, new_id: u64) !void {
+pub fn setChainId(self: *Hardhat, new_id: u64) FetchErrors!void {
     const request: HardhatRequest(struct { u64 }) = .{ .params = .{new_id}, .method = .hardhat_setChainId };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -167,7 +190,7 @@ pub fn setChainId(self: *Hardhat, new_id: u64) !void {
     return self.sendRpcRequest(req_body);
 }
 /// Changes the nonce of a account
-pub fn setNonce(self: *Hardhat, address: []const u8, new_nonce: u64) !void {
+pub fn setNonce(self: *Hardhat, address: Address, new_nonce: u64) FetchErrors!void {
     const request: HardhatRequest(struct { Address, u64 }) = .{ .params = .{ address, new_nonce }, .method = .hardhat_setNonce };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -176,7 +199,7 @@ pub fn setNonce(self: *Hardhat, address: []const u8, new_nonce: u64) !void {
     return self.sendRpcRequest(req_body);
 }
 /// Drops a pending transaction from the mempool
-pub fn dropTransaction(self: *Hardhat, tx_hash: Hash) !void {
+pub fn dropTransaction(self: *Hardhat, tx_hash: Hash) FetchErrors!void {
     const request: HardhatRequest(struct { Hash }) = .{ .params = .{tx_hash}, .method = .hardhat_dropTransaction };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -185,7 +208,7 @@ pub fn dropTransaction(self: *Hardhat, tx_hash: Hash) !void {
     return self.sendRpcRequest(req_body);
 }
 /// Mine a pending transaction
-pub fn mine(self: *Hardhat, amount: u64, time_in_seconds: ?u64) !void {
+pub fn mine(self: *Hardhat, amount: u64, time_in_seconds: ?u64) FetchErrors!void {
     const request: HardhatRequest(struct { u64, ?u64 }) = .{ .params = .{ amount, time_in_seconds }, .method = .hardhat_mine };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -194,7 +217,7 @@ pub fn mine(self: *Hardhat, amount: u64, time_in_seconds: ?u64) !void {
     return self.sendRpcRequest(req_body);
 }
 /// Reset the fork
-pub fn reset(self: *Hardhat, reset_config: ?Reset) !void {
+pub fn reset(self: *Hardhat, reset_config: ?Reset) FetchErrors!void {
     const request: HardhatRequest(struct { ?Reset }) = .{ .params = .{reset_config}, .method = .hardhat_reset };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -203,7 +226,7 @@ pub fn reset(self: *Hardhat, reset_config: ?Reset) !void {
     return self.sendRpcRequest(req_body);
 }
 /// Impersonate a EOA or contract. Call `stopImpersonatingAccount` after.
-pub fn impersonateAccount(self: *Hardhat, address: Address) !void {
+pub fn impersonateAccount(self: *Hardhat, address: Address) FetchErrors!void {
     const request: HardhatRequest(struct { Address }) = .{ .params = .{address}, .method = .hardhat_impersonateAccount };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -212,7 +235,7 @@ pub fn impersonateAccount(self: *Hardhat, address: Address) !void {
     return self.sendRpcRequest(req_body);
 }
 /// Stops impersonating a EOA or contract.
-pub fn stopImpersonatingAccount(self: *Hardhat, address: Address) !void {
+pub fn stopImpersonatingAccount(self: *Hardhat, address: Address) FetchErrors!void {
     const request: HardhatRequest(struct { Address }) = .{ .params = .{address}, .method = .hardhat_impersonateAccount };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -222,7 +245,7 @@ pub fn stopImpersonatingAccount(self: *Hardhat, address: Address) !void {
 }
 
 // Internal
-fn sendRpcRequest(self: *Hardhat, req_body: []u8) !void {
+fn sendRpcRequest(self: *Hardhat, req_body: []u8) FetchErrors!void {
     var body = std.ArrayList(u8).init(self.allocator);
     defer body.deinit();
 

@@ -1,7 +1,8 @@
 const std = @import("std");
 const testing = std.testing;
 
-const QueryParameters = @import("../../clients/BlockExplorer.zig").QueryParameters;
+const Explorer = @import("../../clients/BlockExplorer.zig");
+const QueryParameters = Explorer.QueryParameters;
 
 test "QueryParameters" {
     const value: QueryParameters = .{ .module = .account, .action = .balance, .options = .{ .page = 1 }, .apikey = "FOO" };
@@ -22,4 +23,8 @@ test "QueryParameters" {
 
         try testing.expectEqualStrings("?module=account&action=balance&page=1&apikey=FOO", buf_writter.getWritten());
     }
+}
+
+test "All Ref Decls" {
+    std.testing.refAllDecls(Explorer);
 }

@@ -5,7 +5,7 @@ ADD -> 0x01
 ### Signature
 
 ```zig
-pub fn addInstruction(self: *Interpreter) !void
+pub fn addInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## DivInstruction
@@ -15,7 +15,7 @@ DIV -> 0x04
 ### Signature
 
 ```zig
-pub fn divInstruction(self: *Interpreter) !void
+pub fn divInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## ExponentInstruction
@@ -25,7 +25,7 @@ EXP -> 0x0A
 ### Signature
 
 ```zig
-pub fn exponentInstruction(self: *Interpreter) !void
+pub fn exponentInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{Overflow})!void
 ```
 
 ## ModAdditionInstruction
@@ -35,7 +35,7 @@ ADDMOD -> 0x08
 ### Signature
 
 ```zig
-pub fn modAdditionInstruction(self: *Interpreter) !void
+pub fn modAdditionInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## ModInstruction
@@ -45,7 +45,7 @@ MOD -> 0x06
 ### Signature
 
 ```zig
-pub fn modInstruction(self: *Interpreter) !void
+pub fn modInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## ModMultiplicationInstruction
@@ -55,7 +55,7 @@ MULMOD -> 0x09
 ### Signature
 
 ```zig
-pub fn modMultiplicationInstruction(self: *Interpreter) !void
+pub fn modMultiplicationInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## MulInstruction
@@ -65,7 +65,7 @@ MUL -> 0x02
 ### Signature
 
 ```zig
-pub fn mulInstruction(self: *Interpreter) !void
+pub fn mulInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## SignedDivInstruction
@@ -75,7 +75,7 @@ SDIV -> 0x05
 ### Signature
 
 ```zig
-pub fn signedDivInstruction(self: *Interpreter) !void
+pub fn signedDivInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## SignExtendInstruction
@@ -85,7 +85,7 @@ SIGNEXTEND -> 0x0B
 ### Signature
 
 ```zig
-pub fn signExtendInstruction(self: *Interpreter) !void
+pub fn signExtendInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## SignedModInstruction
@@ -95,7 +95,7 @@ SMOD -> 0x07
 ### Signature
 
 ```zig
-pub fn signedModInstruction(self: *Interpreter) !void
+pub fn signedModInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## SubInstruction
@@ -105,6 +105,6 @@ SUB -> 0x03
 ### Signature
 
 ```zig
-pub fn subInstruction(self: *Interpreter) !void
+pub fn subInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 

@@ -113,14 +113,6 @@ Multicall3 aggregate3 abi representation.
 }
 ```
 
-## multicall_contract
-
-The multicall3 contract address. Equal across all chains.
-
-```zig
-utils.addressToBytes("0xcA11bde05977b3631167028862bE2a173976CA11") catch unreachable
-```
-
 ## Multicall
 Wrapper around a rpc_client that exposes the multicall3 functions.
 
@@ -128,6 +120,14 @@ Wrapper around a rpc_client that exposes the multicall3 functions.
 
 ```zig
 pub fn Multicall(comptime client: Clients) type
+```
+
+## Error
+
+Set of possible errors when running the multicall client.
+
+```zig
+Client.BasicRequestErrors || encoder.EncodeErrors || decoder.DecoderErrors
 ```
 
 ## Init
@@ -154,6 +154,6 @@ pub fn multicall3(
             comptime targets: []const MulticallTargets,
             function_arguments: MulticallArguments(targets),
             allow_failure: bool,
-        ) !AbiDecoded([]const Result)
+        ) Self.Error!AbiDecoded([]const Result)
 ```
 

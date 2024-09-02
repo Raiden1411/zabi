@@ -63,7 +63,12 @@ pub fn Extract(comptime T: type, comptime needle: []const u8) type {
         }
     }
 
-    return @Type(.{ .@"enum" = .{ .tag_type = info.tag_type, .fields = &enumFields, .decls = &.{}, .is_exhaustive = true } });
+    return @Type(.{ .@"enum" = .{
+        .tag_type = info.tag_type,
+        .fields = &enumFields,
+        .decls = &.{},
+        .is_exhaustive = true,
+    } });
 }
 /// Merge structs into a single one
 pub fn MergeStructs(comptime T: type, comptime K: type) type {
@@ -111,11 +116,22 @@ pub fn MergeTupleStructs(comptime T: type, comptime K: type) type {
     }
 
     for (info_k.@"struct".fields) |field| {
-        fields[counter] = .{ .name = std.fmt.comptimePrint("{d}", .{counter}), .type = field.type, .default_value = field.default_value, .alignment = field.alignment, .is_comptime = field.is_comptime };
+        fields[counter] = .{
+            .name = std.fmt.comptimePrint("{d}", .{counter}),
+            .type = field.type,
+            .default_value = field.default_value,
+            .alignment = field.alignment,
+            .is_comptime = field.is_comptime,
+        };
         counter += 1;
     }
 
-    return @Type(.{ .@"struct" = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+    return @Type(.{ .@"struct" = .{
+        .layout = .auto,
+        .fields = &fields,
+        .decls = &.{},
+        .is_tuple = true,
+    } });
 }
 /// Convert a struct into a tuple type.
 pub fn StructToTupleType(comptime T: type) type {
@@ -198,7 +214,12 @@ pub fn StructToTupleType(comptime T: type) type {
         }
     }
 
-    return @Type(.{ .@"struct" = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+    return @Type(.{ .@"struct" = .{
+        .layout = .auto,
+        .fields = &fields,
+        .decls = &.{},
+        .is_tuple = true,
+    } });
 }
 /// Omits the selected keys from struct types.
 pub fn Omit(comptime T: type, comptime keys: []const []const u8) type {
@@ -226,5 +247,10 @@ pub fn Omit(comptime T: type, comptime keys: []const []const u8) type {
         counter += 1;
     }
 
-    return @Type(.{ .@"struct" = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
+    return @Type(.{ .@"struct" = .{
+        .layout = .auto,
+        .fields = &fields,
+        .decls = &.{},
+        .is_tuple = false,
+    } });
 }

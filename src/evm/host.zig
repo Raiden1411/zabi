@@ -210,7 +210,7 @@ pub const PlainHost = struct {
         @panic("selfDestruct is not implemented on this host");
     }
 
-    fn sload(ctx: *anyopaque, _: Address, index: u256) !struct { u256, bool } {
+    fn sload(ctx: *anyopaque, _: Address, index: u256) Allocator.Error!struct { u256, bool } {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
         const entry = self.storage.get(index);
@@ -226,7 +226,7 @@ pub const PlainHost = struct {
         return result;
     }
 
-    fn sstore(ctx: *anyopaque, _: Address, index: u256, value: u256) !SStoreResult {
+    fn sstore(ctx: *anyopaque, _: Address, index: u256, value: u256) Allocator.Error!SStoreResult {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
         const entry = self.storage.get(index);
@@ -260,7 +260,7 @@ pub const PlainHost = struct {
         return self.transient_storage.get(index);
     }
 
-    fn tstore(ctx: *anyopaque, _: Address, index: u256, value: u256) !void {
+    fn tstore(ctx: *anyopaque, _: Address, index: u256, value: u256) Allocator.Error!void {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
         return self.transient_storage.put(index, value);

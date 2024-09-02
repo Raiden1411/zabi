@@ -1,10 +1,23 @@
 ## EncodeErrors
 
+Set of errors while perfoming abi encoding.
+
 ```zig
-std.mem.Allocator.Error || error{ InvalidIntType, Overflow, BufferExceedsMaxSize, InvalidBits, InvalidLength, NoSpaceLeft, InvalidCharacter, InvalidParamType }
+Allocator.Error || error{
+    InvalidIntType,
+    Overflow,
+    BufferExceedsMaxSize,
+    InvalidBits,
+    InvalidLength,
+    NoSpaceLeft,
+    InvalidCharacter,
+    InvalidParamType,
+}
 ```
 
 ## PreEncodedParam
+
+Return type while pre encoding individual types.
 
 ### Properties
 
@@ -23,6 +36,8 @@ pub fn deinit(self: @This(), alloc: std.mem.Allocator) void
 ```
 
 ## AbiEncoded
+
+Return type of the abi encoding
 
 ### Properties
 
@@ -149,6 +164,6 @@ Caller owns the memory and it must free them.
 ### Signature
 
 ```zig
-pub fn encodePacked(allocator: Allocator, values: anytype) ![]u8
+pub fn encodePacked(allocator: Allocator, values: anytype) Allocator.Error![]u8
 ```
 

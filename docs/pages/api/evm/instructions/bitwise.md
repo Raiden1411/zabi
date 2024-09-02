@@ -5,7 +5,7 @@ AND -> 0x15
 ### Signature
 
 ```zig
-pub fn andInstruction(self: *Interpreter) !void
+pub fn andInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## ByteInstruction
@@ -15,7 +15,7 @@ AND -> 0x1A
 ### Signature
 
 ```zig
-pub fn byteInstruction(self: *Interpreter) !void
+pub fn byteInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## EqualInstruction
@@ -25,7 +25,7 @@ EQ -> 0x14
 ### Signature
 
 ```zig
-pub fn equalInstruction(self: *Interpreter) !void
+pub fn equalInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## GreaterThanInstruction
@@ -35,7 +35,7 @@ GT -> 0x11
 ### Signature
 
 ```zig
-pub fn greaterThanInstruction(self: *Interpreter) !void
+pub fn greaterThanInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## IsZeroInstruction
@@ -45,7 +45,7 @@ ISZERO -> 0x15
 ### Signature
 
 ```zig
-pub fn isZeroInstruction(self: *Interpreter) !void
+pub fn isZeroInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## LowerThanInstruction
@@ -55,7 +55,7 @@ LT -> 0x10
 ### Signature
 
 ```zig
-pub fn lowerThanInstruction(self: *Interpreter) !void
+pub fn lowerThanInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## NotInstruction
@@ -65,7 +65,7 @@ NOT -> 0x19
 ### Signature
 
 ```zig
-pub fn notInstruction(self: *Interpreter) !void
+pub fn notInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## OrInstruction
@@ -75,7 +75,7 @@ OR -> 0x17
 ### Signature
 
 ```zig
-pub fn orInstruction(self: *Interpreter) !void
+pub fn orInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## ShiftLeftInstruction
@@ -85,7 +85,7 @@ SHL -> 0x1B
 ### Signature
 
 ```zig
-pub fn shiftLeftInstruction(self: *Interpreter) !void
+pub fn shiftLeftInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## ShiftRightInstruction
@@ -95,7 +95,7 @@ SHR -> 0x1C
 ### Signature
 
 ```zig
-pub fn shiftRightInstruction(self: *Interpreter) !void
+pub fn shiftRightInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## SignedGreaterThanInstruction
@@ -105,7 +105,7 @@ SGT -> 0x12
 ### Signature
 
 ```zig
-pub fn signedGreaterThanInstruction(self: *Interpreter) !void
+pub fn signedGreaterThanInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## SignedLowerThanInstruction
@@ -115,7 +115,7 @@ SLT -> 0x12
 ### Signature
 
 ```zig
-pub fn signedLowerThanInstruction(self: *Interpreter) !void
+pub fn signedLowerThanInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## SignedShiftRightInstruction
@@ -125,7 +125,7 @@ SAR -> 0x1D
 ### Signature
 
 ```zig
-pub fn signedShiftRightInstruction(self: *Interpreter) !void
+pub fn signedShiftRightInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## XorInstruction
@@ -135,6 +135,6 @@ XOR -> 0x18
 ### Signature
 
 ```zig
-pub fn xorInstruction(self: *Interpreter) !void
+pub fn xorInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 

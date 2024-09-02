@@ -5,7 +5,7 @@ Performs the basefee instruction for the interpreter.
 ### Signature
 
 ```zig
-pub fn baseFeeInstruction(self: *Interpreter) !void
+pub fn baseFeeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## BlobBaseFeeInstruction
@@ -15,7 +15,7 @@ Performs the blobbasefee instruction for the interpreter.
 ### Signature
 
 ```zig
-pub fn blobBaseFeeInstruction(self: *Interpreter) !void
+pub fn blobBaseFeeInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void
 ```
 
 ## BlobHashInstruction
@@ -25,7 +25,7 @@ Performs the blobhash instruction for the interpreter.
 ### Signature
 
 ```zig
-pub fn blobHashInstruction(self: *Interpreter) !void
+pub fn blobHashInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void
 ```
 
 ## BlockNumberInstruction
@@ -35,7 +35,7 @@ Performs the number instruction for the interpreter.
 ### Signature
 
 ```zig
-pub fn blockNumberInstruction(self: *Interpreter) !void
+pub fn blockNumberInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## ChainIdInstruction
@@ -45,7 +45,7 @@ Performs the chainid instruction for the interpreter.
 ### Signature
 
 ```zig
-pub fn chainIdInstruction(self: *Interpreter) !void
+pub fn chainIdInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void
 ```
 
 ## CoinbaseInstruction
@@ -55,7 +55,7 @@ Performs the coinbase instruction for the interpreter.
 ### Signature
 
 ```zig
-pub fn coinbaseInstruction(self: *Interpreter) !void
+pub fn coinbaseInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## DifficultyInstruction
@@ -65,7 +65,7 @@ Performs the prevrandao/difficulty instruction for the interpreter.
 ### Signature
 
 ```zig
-pub fn difficultyInstruction(self: *Interpreter) !void
+pub fn difficultyInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## GasLimitInstruction
@@ -75,7 +75,7 @@ Performs the gaslimit instruction for the interpreter.
 ### Signature
 
 ```zig
-pub fn gasLimitInstruction(self: *Interpreter) !void
+pub fn gasLimitInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## GasPriceInstruction
@@ -85,7 +85,7 @@ Performs the gasprice instruction for the interpreter.
 ### Signature
 
 ```zig
-pub fn gasPriceInstruction(self: *Interpreter) !void
+pub fn gasPriceInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## OriginInstruction
@@ -95,7 +95,7 @@ Performs the origin instruction for the interpreter.
 ### Signature
 
 ```zig
-pub fn originInstruction(self: *Interpreter) !void
+pub fn originInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 
 ## TimestampInstruction
@@ -105,6 +105,6 @@ Performs the timestamp instruction for the interpreter.
 ### Signature
 
 ```zig
-pub fn timestampInstruction(self: *Interpreter) !void
+pub fn timestampInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 ```
 

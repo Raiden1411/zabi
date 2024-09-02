@@ -1,3 +1,19 @@
+## EncodeLogsErrors
+
+Set of errors while performing logs abi encoding.
+
+```zig
+Allocator.Error || error{
+    SignedNumber,
+    UnsignedNumber,
+    InvalidParamType,
+    InvalidAddressType,
+    InvalidFixedBytesType,
+    CannotEncodeSliceOfDynamicTypes,
+    ExpectedComponents,
+}
+```
+
 ## EncodeLogTopicsComptime
 Encode event log topics were the abi event is comptime know.
 

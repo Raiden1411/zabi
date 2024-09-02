@@ -207,7 +207,7 @@ If the type provided doesn't make allocations consider using `decodeAbiParameter
 ### Signature
 
 ```zig
-pub fn decodeAbiParameter(comptime T: type, allocator: Allocator, encoded: []u8, options: DecodeOptions) !AbiDecoded(T)
+pub fn decodeAbiParameter(comptime T: type, allocator: Allocator, encoded: []u8, options: DecodeOptions) DecoderErrors!AbiDecoded(T)
 ```
 
 ## DecodeAbiParameterLeaky

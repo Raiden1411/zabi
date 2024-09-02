@@ -1,14 +1,23 @@
 //! Experimental and unaudited code. Use with caution.
 //! Reference: https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki
+const errors = std.crypto.errors;
 const std = @import("std");
 const testing = std.testing;
 
+const EncodingError = errors.EncodingError;
 const HmacSha512 = std.crypto.auth.hmac.sha2.HmacSha512;
+const IdentityElementError = errors.IdentityElementError;
+const NonCanonicalError = errors.NonCanonicalError;
+const NotSquareError = errors.NotSquareError;
 const Secp256k1 = std.crypto.ecc.Secp256k1;
 
 const BIP32_SECRET_KEY = "Bitcoin seed";
 
 const HARDNED_BIT = std.math.maxInt(i32) + 1;
+
+pub const DerivePathErrors = std.fmt.ParseIntError || DeriveChildErrors || error{InvalidPath};
+
+pub const DeriveChildErrors = EncodingError || NonCanonicalError || NotSquareError || IdentityElementError;
 
 // TODO: Support extended keys.
 /// Implementation of BIP32 HDWallets
@@ -24,7 +33,7 @@ pub const HDWalletNode = struct {
     const Node = @This();
 
     /// Derive a node from a mnemonic seed. Use `pbkdf2` to generate the seed.
-    pub fn fromSeed(seed: [64]u8) !Node {
+    pub fn fromSeed(seed: [64]u8) IdentityElementError!Node {
         var hashed: [HmacSha512.mac_length]u8 = undefined;
         HmacSha512.create(&hashed, seed[0..], BIP32_SECRET_KEY);
 
@@ -37,16 +46,30 @@ pub const HDWalletNode = struct {
             .chain_code = hashed[32..64].*,
         };
     }
-    /// Derive a node from a mnemonic seed and path. Use `pbkdf2` to generate the seed.
+    /// Derive a node from a mnemonic seed and path. Use `pbkdf2` to generate the seed.\
     /// The path must follow the specification. Example: m/44'/60'/0'/0/0 (Most common for ethereum)
-    pub fn fromSeedAndPath(seed: [64]u8, path: []const u8) !Node {
+    ///
+    /// **Example**
+    /// ```zig
+    /// const seed = "test test test test test test test test test test test junk";
+    /// var hashed: [64]u8 = undefined;
+    /// try std.crypto.pwhash.pbkdf2(&hashed, seed, "mnemonic", 2048, HmacSha512);
+    ///
+    /// const node = try HDWalletNode.fromSeedAndPath(hashed, "m/44'/60'/0'/0/0");
+    ///
+    /// const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&node.priv_key)});
+    /// defer testing.allocator.free(hex);
+    ///
+    /// try testing.expectEqualStrings("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", hex);
+    /// ```
+    pub fn fromSeedAndPath(seed: [64]u8, path: []const u8) DerivePathErrors!Node {
         const main_node = try fromSeed(seed);
 
         return main_node.derivePath(path);
     }
-    /// Derives a child node from a path.
+    /// Derives a child node from a path.\
     /// The path must follow the specification. Example: m/44'/60'/0'/0/0 (Most common for ethereum)
-    pub fn derivePath(self: Node, path: []const u8) !Node {
+    pub fn derivePath(self: Node, path: []const u8) DerivePathErrors!Node {
         if (path[0] != 'm')
             return error.InvalidPath;
 
@@ -68,9 +91,9 @@ pub const HDWalletNode = struct {
 
         return node;
     }
-    /// Derive a child node based on the index
+    /// Derive a child node based on the index.\
     /// If the index is higher than std.math.maxInt(u32) this will error.
-    pub fn deriveChild(self: Node, index: u32) !Node {
+    pub fn deriveChild(self: Node, index: u32) DeriveChildErrors!Node {
         return if (index & HARDNED_BIT != 0) self.deriveHarnedChild(index) else self.deriveNonHarnedChild(index);
     }
     /// Castrates a HDWalletNode. This essentially returns the node without the private key.
@@ -80,7 +103,7 @@ pub const HDWalletNode = struct {
             .chain_code = self.chain_code,
         };
     }
-    /// Derive a child node if the index is hardned
+    /// Derive a child node if the index is hardned.
     fn deriveHarnedChild(self: Node, index: u32) !Node {
         var data: [37]u8 = undefined;
         var hashed: [64]u8 = undefined;
@@ -132,7 +155,7 @@ pub const HDWalletNode = struct {
     }
 };
 
-/// The EunuchNode doesn't have the private field but it
+/// The `EunuchNode` doesn't have the private field but it
 /// can still be used to derive public keys and chain codes.
 pub const EunuchNode = struct {
     /// The compressed sec1 public key.
@@ -142,18 +165,20 @@ pub const EunuchNode = struct {
 
     const Node = @This();
 
-    /// Derive a child node based on the index
+    /// Derive a child node based on the index.\
     /// If the index is higher than std.math.maxInt(u32) this will error.
-    /// EunuchWalletNodes cannot derive hardned nodes.
-    pub fn deriveChild(self: Node, index: u32) !Node {
+    ///
+    /// `EunuchNodes` cannot derive hardned nodes.
+    pub fn deriveChild(self: Node, index: u32) (DeriveChildErrors || error{InvalidIndex})!Node {
         if (index > comptime std.math.maxInt(i32))
             return error.InvalidIndex;
 
         return self.deriveNonHarnedChild(index);
     }
     /// Derives a child node from a path. This cannot derive hardned nodes.
+    ///
     /// The path must follow the specification. Example: m/44/60/0/0/0 (Most common for ethereum)
-    pub fn derivePath(self: Node, path: []const u8) !Node {
+    pub fn derivePath(self: Node, path: []const u8) (DerivePathErrors || error{InvalidIndex})!Node {
         if (path[0] != 'm')
             return error.InvalidPath;
 

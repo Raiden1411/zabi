@@ -8,6 +8,46 @@ Currently only supports OP and not other chains of the superchain.
 pub fn L1Client(comptime client_type: Clients) type
 ```
 
+## ClientType
+
+The underlaying rpc client type (ws or http)
+
+```zig
+switch (client_type) {
+            .http => PubClient,
+            .websocket => WebSocketClient,
+            .ipc => IpcClient,
+        }
+```
+
+## InitOpts
+
+The inital settings depending on the client type.
+
+```zig
+switch (client_type) {
+            .http => InitOptsHttp,
+            .websocket => InitOptsWs,
+            .ipc => InitOptsIpc,
+        }
+```
+
+## L1Errors
+
+Set of possible errors when performing ens client actions.
+
+```zig
+EncodeErrors || ClientType.BasicRequestErrors || DecodeErrors || error{ExpectOpStackContracts}
+```
+
+## InitErrors
+
+Set of possible errors when starting the client.
+
+```zig
+ClientType.InitErrors || error{InvalidChain}
+```
+
 ## Init
 Starts the RPC connection
 If the contracts are null it defaults to OP contracts.
@@ -15,7 +55,7 @@ If the contracts are null it defaults to OP contracts.
 ### Signature
 
 ```zig
-pub fn init(opts: InitOpts) !*L1
+pub fn init(opts: InitOpts) InitErrors!*L1
 ```
 
 ## Deinit
@@ -40,7 +80,12 @@ Returns an error if no game was found.
 ### Signature
 
 ```zig
-pub fn getGame(self: *L1, limit: usize, block_number: u256, strategy: enum { random, latest, oldest }) !GameResult
+pub fn getGame(
+            self: *L1,
+            limit: usize,
+            block_number: u256,
+            strategy: enum { random, latest, oldest },
+        ) !GameResult
 ```
 
 ## GetGames
@@ -54,7 +99,11 @@ If null then it will return all games.
 ### Signature
 
 ```zig
-pub fn getGames(self: *L1, limit: usize, block_number: ?u256) ![]const GameResult
+pub fn getGames(
+            self: *L1,
+            limit: usize,
+            block_number: ?u256,
+        ) (L1Errors || error{ FaultProofsNotEnabled, Overflow, InvalidVersion })![]const GameResult
 ```
 
 ## GetFinalizedWithdrawals
@@ -63,7 +112,7 @@ Returns if a withdrawal has finalized or not.
 ### Signature
 
 ```zig
-pub fn getFinalizedWithdrawals(self: *L1, withdrawal_hash: Hash) !bool
+pub fn getFinalizedWithdrawals(self: *L1, withdrawal_hash: Hash) (EncodeErrors || ClientType.BasicRequestErrors || error{ExpectOpStackContracts})!bool
 ```
 
 ## GetLatestProposedL2BlockNumber
@@ -72,7 +121,7 @@ Gets the latest proposed L2 block number from the Oracle.
 ### Signature
 
 ```zig
-pub fn getLatestProposedL2BlockNumber(self: *L1) !u64
+pub fn getLatestProposedL2BlockNumber(self: *L1) (ClientType.BasicRequestErrors || error{ ExpectOpStackContracts, Overflow })!u64
 ```
 
 ## GetL2HashesForDepositTransaction
@@ -92,7 +141,12 @@ Calls to the L2OutputOracle contract on L1 to get the output for a given L2 bloc
 ### Signature
 
 ```zig
-pub fn getL2Output(self: *L1, l2_block_number: u256) !L2Output
+pub fn getL2Output(self: *L1, l2_block_number: u256) (L1Errors || error{
+            Overflow,
+            InvalidVersion,
+            GameNotFound,
+            FaultProofsNotEnabled,
+        })!L2Output
 ```
 
 ## GetL2OutputIndex
@@ -101,7 +155,7 @@ Calls to the L2OutputOracle on L1 to get the output index.
 ### Signature
 
 ```zig
-pub fn getL2OutputIndex(self: *L1, l2_block_number: u256) !u256
+pub fn getL2OutputIndex(self: *L1, l2_block_number: u256) (L1Errors || error{Overflow})!u256
 ```
 
 ## GetPortalVersion
@@ -112,7 +166,7 @@ If the major is at least 3 it means that fault proofs are enabled.
 ### Signature
 
 ```zig
-pub fn getPortalVersion(self: *L1) !SemanticVersion
+pub fn getPortalVersion(self: *L1) (L1Errors || error{ InvalidVersion, Overflow })!SemanticVersion
 ```
 
 ## GetProvenWithdrawals
@@ -124,7 +178,7 @@ this will error with invalid withdrawal hash.
 ### Signature
 
 ```zig
-pub fn getProvenWithdrawals(self: *L1, withdrawal_hash: Hash) !ProvenWithdrawal
+pub fn getProvenWithdrawals(self: *L1, withdrawal_hash: Hash) (L1Errors || error{InvalidWithdrawalHash})!ProvenWithdrawal
 ```
 
 ## GetSecondsToNextL2Output
@@ -135,7 +189,7 @@ Calls the l2OutputOracle to get this information.
 ### Signature
 
 ```zig
-pub fn getSecondsToNextL2Output(self: *L1, latest_l2_block: u64) !u128
+pub fn getSecondsToNextL2Output(self: *L1, latest_l2_block: u64) (L1Errors || error{ InvalidBlockNumber, Overflow })!u128
 ```
 
 ## GetSecondsToFinalize
@@ -146,7 +200,7 @@ Calls the l2OutputOracle to get this information.
 ### Signature
 
 ```zig
-pub fn getSecondsToFinalize(self: *L1, withdrawal_hash: Hash) !u64
+pub fn getSecondsToFinalize(self: *L1, withdrawal_hash: Hash) (L1Errors || error{ Overflow, InvalidWithdrawalHash })!u64
 ```
 
 ## GetSecondsToFinalizeGame
@@ -157,7 +211,7 @@ Uses the portal to find this information. Will error if the time is 0.
 ### Signature
 
 ```zig
-pub fn getSecondsToFinalizeGame(self: *L1, withdrawal_hash: Hash) !u64
+pub fn getSecondsToFinalizeGame(self: *L1, withdrawal_hash: Hash) (L1Errors || error{ Overflow, InvalidWithdrawalHash, WithdrawalNotProved })!u64
 ```
 
 ## GetSecondsUntilNextGame
@@ -166,7 +220,11 @@ Gets the timings until the next dispute game is submitted based on the provided 
 ### Signature
 
 ```zig
-pub fn getSecondsUntilNextGame(self: *L1, interval_buffer: f64, l2BlockNumber: u64) !NextGameTimings
+pub fn getSecondsUntilNextGame(
+            self: *L1,
+            interval_buffer: f64,
+            l2BlockNumber: u64,
+        ) (L1Errors || error{ Overflow, FaultProofsNotEnabled, InvalidVersion, DivisionByZero })!NextGameTimings
 ```
 
 ## GetTransactionDepositEvents
@@ -180,7 +238,11 @@ the original piece of memory that contains the data.
 ### Signature
 
 ```zig
-pub fn getTransactionDepositEvents(self: *L1, tx_hash: Hash) ![]const TransactionDeposited
+pub fn getTransactionDepositEvents(self: *L1, tx_hash: Hash) (L1Errors || LogsDecodeErrors || error{
+            ExpectedTopicData,
+            UnexpectedNullIndex,
+            TransactionReceiptNotFound,
+        })![]const TransactionDeposited
 ```
 
 ## GetWithdrawMessages
@@ -189,7 +251,11 @@ Gets the decoded withdrawl event logs from a given transaction receipt hash.
 ### Signature
 
 ```zig
-pub fn getWithdrawMessages(self: *L1, tx_hash: Hash) !Message
+pub fn getWithdrawMessages(self: *L1, tx_hash: Hash) (L1Errors || LogsDecodeErrors || error{
+            InvalidTransactionHash,
+            TransactionReceiptNotFound,
+            ExpectedTopicData,
+        })!Message
 ```
 
 ## WaitForNextGame
@@ -199,7 +265,14 @@ This will keep pooling until it can get the `GameResult` or it exceeds the max r
 ### Signature
 
 ```zig
-pub fn waitForNextGame(self: *L1, limit: usize, interval_buffer: f64, l2BlockNumber: u64) !GameResult
+pub fn waitForNextGame(self: *L1, limit: usize, interval_buffer: f64, l2BlockNumber: u64) (L1Errors || error{
+            Overflow,
+            FaultProofsNotEnabled,
+            InvalidVersion,
+            DivisionByZero,
+            ExceedRetriesAmount,
+            GameNotFound,
+        })!GameResult
 ```
 
 ## WaitForNextL2Output
@@ -209,7 +282,15 @@ This will keep pooling until it can get the L2Output or it exceeds the max retri
 ### Signature
 
 ```zig
-pub fn waitForNextL2Output(self: *L1, latest_l2_block: u64) !L2Output
+pub fn waitForNextL2Output(self: *L1, latest_l2_block: u64) (L1Errors || error{
+            Overflow,
+            FaultProofsNotEnabled,
+            InvalidVersion,
+            DivisionByZero,
+            ExceedRetriesAmount,
+            InvalidBlockNumber,
+            GameNotFound,
+        })!L2Output
 ```
 
 ## WaitToFinalize
@@ -218,6 +299,11 @@ Waits until the withdrawal has finalized.
 ### Signature
 
 ```zig
-pub fn waitToFinalize(self: *L1, withdrawal_hash: Hash) !void
+pub fn waitToFinalize(self: *L1, withdrawal_hash: Hash) (L1Errors || error{
+            Overflow,
+            InvalidWithdrawalHash,
+            WithdrawalNotProved,
+            InvalidVersion,
+        })!void
 ```
 

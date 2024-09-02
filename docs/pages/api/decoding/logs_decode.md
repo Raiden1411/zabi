@@ -1,3 +1,19 @@
+## LogsDecoderErrors
+
+Set of possible errors while performing logs decoding.
+
+```zig
+Allocator.Error || error{ InvalidLength, UnexpectedTupleFieldType, ExpectedAllocator }
+```
+
+## LogDecoderErrors
+
+Set of possible errors while performing logs decoding.
+
+```zig
+Allocator.Error || error{ExpectedAllocator}
+```
+
 ## LogDecoderOptions
 
 Set of options that can alter the decoder behaviour.
@@ -36,7 +52,7 @@ const encodeds = try decodeLogs(
 ### Signature
 
 ```zig
-pub fn decodeLogs(comptime T: type, encoded: []const ?Hash, options: LogDecoderOptions) !T
+pub fn decodeLogs(comptime T: type, encoded: []const ?Hash, options: LogDecoderOptions) LogsDecoderErrors!T
 ```
 
 ## DecodeLog
@@ -57,6 +73,6 @@ const decoded = try decodeLog(u256, try utils.hashToBytes("0x406dade31f7ae4b5dbc
 ### Signature
 
 ```zig
-pub fn decodeLog(comptime T: type, encoded: Hash, options: LogDecoderOptions) !T
+pub fn decodeLog(comptime T: type, encoded: Hash, options: LogDecoderOptions) LogDecoderErrors!T
 ```
 

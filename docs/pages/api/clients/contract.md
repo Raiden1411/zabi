@@ -7,13 +7,29 @@ Wrapper on a wallet and comptime know Abi
 pub fn ContractComptime(comptime client_type: ClientType) type
 ```
 
+## SendErrors
+
+Set of possible errors when sending a transaction to the network.
+
+```zig
+EncodeErrors || WalletClient.SendSignedTransactionErrors || WalletClient.AssertionErrors || WalletClient.PrepareError
+```
+
+## ReadErrors
+
+Set of possible errors when sending a transaction to the network.
+
+```zig
+EncodeErrors || WalletClient.Error || DecoderErrors
+```
+
 ## Init
-Deinits the wallet instance.
+Initiates the wallet.
 
 ### Signature
 
 ```zig
-pub fn init(opts: ContractInitOpts) !*ContractComptime(client_type)
+pub fn init(opts: ContractInitOpts) WalletClient.InitErrors!*ContractComptime(client_type)
 ```
 
 ## Deinit
@@ -32,7 +48,11 @@ If the constructor abi contains inputs it will encode `constructor_args` accordi
 ### Signature
 
 ```zig
-pub fn deployContract(self: *ContractComptime(client_type), comptime constructor: Constructor, opts: ConstructorOpts(constructor)) !RPCResponse(Hash)
+pub fn deployContract(
+            self: *ContractComptime(client_type),
+            comptime constructor: Constructor,
+            opts: ConstructorOpts(constructor),
+        ) (SendErrors || error{ CreatingContractToKnowAddress, ValueInNonPayableConstructor })!RPCResponse(Hash)
 ```
 
 ## EstimateGas
@@ -46,7 +66,7 @@ RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-
 ### Signature
 
 ```zig
-pub fn estimateGas(self: *ContractComptime(client_type), call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Gwei)
+pub fn estimateGas(self: *ContractComptime(client_type), call_object: EthCall, opts: BlockNumberRequest) WalletClient.Error!RPCResponse(Gwei)
 ```
 
 ## ReadContractFunction
@@ -63,7 +83,7 @@ pub fn readContractFunction(
             self: *ContractComptime(client_type),
             comptime func: Function,
             opts: FunctionOpts(func, EthCall),
-        ) !AbiDecoded(AbiParametersToPrimative(func.outputs))
+        ) (ReadErrors || error{ InvalidFunctionMutability, InvalidRequestTarget })!AbiDecoded(AbiParametersToPrimative(func.outputs))
 ```
 
 ## SimulateWriteCall
@@ -76,7 +96,11 @@ RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#e
 ### Signature
 
 ```zig
-pub fn simulateWriteCall(self: *ContractComptime(client_type), comptime func: Function, opts: FunctionOpts(func, UnpreparedTransactionEnvelope)) !RPCResponse(Hex)
+pub fn simulateWriteCall(
+            self: *ContractComptime(client_type),
+            comptime func: Function,
+            opts: FunctionOpts(func, UnpreparedTransactionEnvelope),
+        ) (ReadErrors || error{ InvalidRequestTarget, UnsupportedTransactionType })!RPCResponse(Hex)
 ```
 
 ## WaitForTransactionReceipt
@@ -92,7 +116,13 @@ RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/doc
 ### Signature
 
 ```zig
-pub fn waitForTransactionReceipt(self: *ContractComptime(client_type), tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt)
+pub fn waitForTransactionReceipt(self: *ContractComptime(client_type), tx_hash: Hash, confirmations: u8) (WalletClient.Error || error{
+            FailedToGetReceipt,
+            TransactionReceiptNotFound,
+            TransactionNotFound,
+            InvalidBlockNumber,
+            FailedToUnsubscribe,
+        })!RPCResponse(TransactionReceipt)
 ```
 
 ## WriteContractFunction
@@ -105,7 +135,11 @@ RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/a
 ### Signature
 
 ```zig
-pub fn writeContractFunction(self: *ContractComptime(client_type), comptime func: Function, opts: FunctionOpts(func, UnpreparedTransactionEnvelope)) !RPCResponse(Hash)
+pub fn writeContractFunction(
+            self: *ContractComptime(client_type),
+            comptime func: Function,
+            opts: FunctionOpts(func, UnpreparedTransactionEnvelope),
+        ) (SendErrors || error{ InvalidFunctionMutability, InvalidRequestTarget, ValueInNonPayableFunction })!RPCResponse(Hash)
 ```
 
 ## Contract
@@ -117,11 +151,30 @@ Wrapper on a wallet and Abi
 pub fn Contract(comptime client_type: ClientType) type
 ```
 
+## SendErrors
+
+Set of possible errors when sending a transaction to the network.
+
+```zig
+EncodeErrors || WalletClient.SendSignedTransactionErrors ||
+            WalletClient.AssertionErrors || WalletClient.PrepareError || error{ AbiItemNotFound, NotSupported }
+```
+
+## ReadErrors
+
+Set of possible errors when sending a transaction to the network.
+
+```zig
+EncodeErrors || WalletClient.Error || DecoderErrors || error{ AbiItemNotFound, NotSupported }
+```
+
 ## Init
+Starts the wallet instance and sets the abi.
+
 ### Signature
 
 ```zig
-pub fn init(opts: ContractInitOpts) !*Contract(client_type)
+pub fn init(opts: ContractInitOpts) WalletClient.InitErrors!*Contract(client_type)
 ```
 
 ## Deinit
@@ -140,7 +193,12 @@ If the constructor abi contains inputs it will encode `constructor_args` accordi
 ### Signature
 
 ```zig
-pub fn deployContract(self: *Contract(client_type), constructor_args: anytype, bytecode: Hex, overrides: UnpreparedTransactionEnvelope) !RPCResponse(Hash)
+pub fn deployContract(
+            self: *Contract(client_type),
+            constructor_args: anytype,
+            bytecode: Hex,
+            overrides: UnpreparedTransactionEnvelope,
+        ) (SendErrors || error{ CreatingContractToKnowAddress, ValueInNonPayableConstructor })!RPCResponse(Hash)
 ```
 
 ## EstimateGas
@@ -154,7 +212,11 @@ RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-
 ### Signature
 
 ```zig
-pub fn estimateGas(self: *Contract(client_type), call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(Gwei)
+pub fn estimateGas(
+            self: *Contract(client_type),
+            call_object: EthCall,
+            opts: BlockNumberRequest,
+        ) WalletClient.Error!RPCResponse(Gwei)
 ```
 
 ## ReadContractFunction
@@ -167,7 +229,13 @@ RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#e
 ### Signature
 
 ```zig
-pub fn readContractFunction(self: *Contract(client_type), comptime T: type, function_name: []const u8, function_args: anytype, overrides: EthCall) !AbiDecoded(T)
+pub fn readContractFunction(
+            self: *Contract(client_type),
+            comptime T: type,
+            function_name: []const u8,
+            function_args: anytype,
+            overrides: EthCall,
+        ) (ReadErrors || error{ InvalidFunctionMutability, InvalidRequestTarget })!AbiDecoded(T)
 ```
 
 ## SimulateWriteCall
@@ -180,7 +248,12 @@ RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#e
 ### Signature
 
 ```zig
-pub fn simulateWriteCall(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: UnpreparedTransactionEnvelope) !RPCResponse(Hex)
+pub fn simulateWriteCall(
+            self: *Contract(client_type),
+            function_name: []const u8,
+            function_args: anytype,
+            overrides: UnpreparedTransactionEnvelope,
+        ) (ReadErrors || error{ InvalidRequestTarget, UnsupportedTransactionType })!RPCResponse(Hex)
 ```
 
 ## WaitForTransactionReceipt
@@ -196,7 +269,13 @@ RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/doc
 ### Signature
 
 ```zig
-pub fn waitForTransactionReceipt(self: *Contract(client_type), tx_hash: Hash, confirmations: u8) !RPCResponse(TransactionReceipt)
+pub fn waitForTransactionReceipt(self: *ContractComptime(client_type), tx_hash: Hash, confirmations: u8) (WalletClient.Error || error{
+            FailedToGetReceipt,
+            TransactionReceiptNotFound,
+            TransactionNotFound,
+            InvalidBlockNumber,
+            FailedToUnsubscribe,
+        })!RPCResponse(TransactionReceipt)
 ```
 
 ## WriteContractFunction
@@ -209,6 +288,11 @@ RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/a
 ### Signature
 
 ```zig
-pub fn writeContractFunction(self: *Contract(client_type), function_name: []const u8, function_args: anytype, overrides: UnpreparedTransactionEnvelope) !RPCResponse(Hash)
+pub fn writeContractFunction(
+            self: *Contract(client_type),
+            function_name: []const u8,
+            function_args: anytype,
+            overrides: UnpreparedTransactionEnvelope,
+        ) (SendErrors || error{ InvalidFunctionMutability, InvalidRequestTarget, ValueInNonPayableFunction })!RPCResponse(Hash)
 ```
 

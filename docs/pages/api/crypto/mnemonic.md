@@ -21,28 +21,61 @@ Converts a mnemonic passphrase into a hashed seed that
 can be used later for HDWallets.
 
 Uses `pbkdf2` for the hashing with `HmacSha512` for the
-pseudo random function to use
+pseudo random function to use.
 
 ### Signature
 
 ```zig
-pub fn mnemonicToSeed(password: []const u8) ![64]u8
+pub fn mnemonicToSeed(password: []const u8) (WeakParametersError || OutputTooLongError)![64]u8
 ```
 
 ## ToEntropy
 Converts the mnemonic phrase into it's entropy representation.
 
+**Example**
+```zig
+const seed = "test test test test test test test test test test test junk";
+const entropy = try toEntropy(12, seed, null);
+
+const bar = try fromEntropy(testing.allocator, 12, entropy, null);
+defer testing.allocator.free(bar);
+
+try testing.expectEqualStrings(seed, bar);
+```
+
 ### Signature
 
 ```zig
-pub fn toEntropy(comptime word_count: comptime_int, password: []const u8, wordlist: ?Wordlist) !EntropyArray(word_count)
+pub fn toEntropy(
+    comptime word_count: comptime_int,
+    password: []const u8,
+    wordlist: ?Wordlist,
+) error{ InvalidMnemonicWord, InvalidMnemonicChecksum }!EntropyArray(word_count)
 ```
 
 ## FromEntropy
+Converts the mnemonic entropy into it's seed.
+
+**Example**
+```zig
+const seed = "test test test test test test test test test test test junk";
+const entropy = try toEntropy(12, seed, null);
+
+const bar = try fromEntropy(testing.allocator, 12, entropy, null);
+defer testing.allocator.free(bar);
+
+try testing.expectEqualStrings(seed, bar);
+```
+
 ### Signature
 
 ```zig
-pub fn fromEntropy(allocator: Allocator, comptime word_count: comptime_int, entropy_bytes: EntropyArray(word_count), word_list: ?Wordlist) ![]const u8
+pub fn fromEntropy(
+    allocator: Allocator,
+    comptime word_count: comptime_int,
+    entropy_bytes: EntropyArray(word_count),
+    word_list: ?Wordlist,
+) (Allocator.Error || error{Overflow})![]const u8
 ```
 
 ## Wordlist

@@ -8,7 +8,7 @@ const JumpTable = bytecode.JumpTable;
 
 /// Analyzes the raw bytecode into a `analyzed` state. If the provided
 /// code is already analyzed then it will just return it.
-pub fn analyzeBytecode(allocator: Allocator, code: Bytecode) !Bytecode {
+pub fn analyzeBytecode(allocator: Allocator, code: Bytecode) Allocator.Error!Bytecode {
     switch (code) {
         .analyzed => return code,
         .raw => |raw| return .{ .analyzed = try bytecode.AnalyzedBytecode.init(allocator, raw) },
@@ -16,7 +16,7 @@ pub fn analyzeBytecode(allocator: Allocator, code: Bytecode) !Bytecode {
 }
 /// Creates the jump table based on the provided bytecode. Assumes that
 /// this was already padded in advance.
-pub fn createJumpTable(allocator: Allocator, prepared_code: []u8) !JumpTable {
+pub fn createJumpTable(allocator: Allocator, prepared_code: []u8) Allocator.Error!JumpTable {
     const table = try JumpTable.init(allocator, false, prepared_code.len);
     errdefer table.deinit(allocator);
 

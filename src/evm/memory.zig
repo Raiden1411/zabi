@@ -7,6 +7,9 @@ const Word = [32]u8;
 
 /// A extendable memory used by the evm interpreter.
 pub const Memory = struct {
+    /// Set of errors when resizing errors.
+    pub const Error = error{MaxMemoryReached};
+
     /// The inner allocator used to grow the memory
     allocator: Allocator,
     /// The underlaying memory buffer.
@@ -33,11 +36,11 @@ pub const Memory = struct {
         };
     }
     /// Creates the memory with default 4096 capacity.
-    pub fn initWithDefaultCapacity(allocator: Allocator, limit: ?u64) !Memory {
+    pub fn initWithDefaultCapacity(allocator: Allocator, limit: ?u64) Allocator.Error!Memory {
         return Memory.initWithCapacity(allocator, 4096, limit);
     }
     /// Creates the memory with `capacity`.
-    pub fn initWithCapacity(allocator: Allocator, capacity: usize, limit: ?u64) !Memory {
+    pub fn initWithCapacity(allocator: Allocator, capacity: usize, limit: ?u64) Allocator.Error!Memory {
         const buffer = try allocator.alloc(u8, capacity);
         const checkpoints = try ArrayList(usize).initCapacity(allocator, 32);
 
@@ -95,7 +98,7 @@ pub const Memory = struct {
         @memcpy(slice[destination .. destination + length], slice[source .. source + length]);
     }
     /// Prepares the memory for a new context.
-    pub fn newContext(self: *Memory) !void {
+    pub fn newContext(self: *Memory) Allocator.Error!void {
         const new_checkpoint = self.buffer.len;
         try self.checkpoints.append(new_checkpoint);
         self.last_checkpoint = new_checkpoint;
@@ -103,7 +106,7 @@ pub const Memory = struct {
     /// Resizes the underlaying memory buffer.
     /// Uses the allocator's `resize` method in case it's possible.
     /// If the new len is lower than the current buffer size data will be lost.
-    pub fn resize(self: *Memory, new_len: usize) !void {
+    pub fn resize(self: *Memory, new_len: usize) (Allocator.Error || Memory.Error)!void {
         const new_capacity = self.last_checkpoint + new_len;
         if (new_capacity > self.memory_limit)
             return error.MaxMemoryReached;
@@ -138,19 +141,19 @@ pub const Memory = struct {
     }
     /// Writes a single byte into this memory buffer.
     /// This can overwrite to existing memory.
-    pub fn writeByte(self: Memory, offset: usize, byte: u8) !void {
+    pub fn writeByte(self: Memory, offset: usize, byte: u8) void {
         var byte_buffer: [1]u8 = [_]u8{byte};
 
         return self.write(offset, byte_buffer[0..]);
     }
     /// Writes a memory `Word` into the memory buffer.
     /// This can overwrite existing memory.
-    pub fn writeWord(self: Memory, offset: usize, word: [32]u8) !void {
+    pub fn writeWord(self: Memory, offset: usize, word: [32]u8) void {
         return self.write(offset, word[0..]);
     }
     /// Writes a `u256` number into the memory buffer.
     /// This can overwrite to existing memory.
-    pub fn writeInt(self: Memory, offset: usize, data: u256) !void {
+    pub fn writeInt(self: Memory, offset: usize, data: u256) void {
         var buffer: [32]u8 = undefined;
 
         std.mem.writeInt(u256, &buffer, data, .big);
@@ -159,7 +162,7 @@ pub const Memory = struct {
     }
     /// Writes a slice to the memory buffer based on a offset.
     /// This can overwrite to existing memory.
-    pub fn write(self: Memory, offset: usize, data: []const u8) !void {
+    pub fn write(self: Memory, offset: usize, data: []const u8) void {
         const slice = self.getSlice();
         std.debug.assert(slice.len >= offset + data.len);
 
@@ -167,7 +170,7 @@ pub const Memory = struct {
     }
     /// Writes a slice to a given offset in memory + the provided data's offset.
     /// This can overwrite existing memory.
-    pub fn writeData(self: Memory, offset: usize, data_offset: usize, len: usize, data: []u8) !void {
+    pub fn writeData(self: Memory, offset: usize, data_offset: usize, len: usize, data: []u8) void {
         if (data_offset >= data.len) {
             const slice = self.getSlice();
             @memset(slice[offset .. offset + len], 0);

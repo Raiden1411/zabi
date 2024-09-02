@@ -57,6 +57,9 @@ pub const CALL_STIPEND: u64 = 2300;
 
 /// Gas tracker used to track gas usage by the EVM.
 pub const GasTracker = struct {
+    /// Set of errors that can be returned while updating the tracker.
+    pub const Error = error{ OutOfGas, GasOverflow };
+
     /// The gas size limit that the interpreter can run.
     gas_limit: u64,
     /// The amount of gas that has already been used.
@@ -77,7 +80,7 @@ pub const GasTracker = struct {
         return self.gas_limit - self.used_amount;
     }
     /// Updates the gas tracker based on the opcode cost.
-    pub inline fn updateTracker(self: *GasTracker, cost: u64) error{ OutOfGas, GasOverflow }!void {
+    pub inline fn updateTracker(self: *GasTracker, cost: u64) GasTracker.Error!void {
         const total, const overflow = @addWithOverflow(self.used_amount, cost);
 
         if (@bitCast(overflow))
@@ -146,7 +149,7 @@ pub inline fn calculateCreate2Cost(length: u64) ?u64 {
     } else return null;
 }
 /// Calculates the gas used for the `EXP` opcode.
-pub inline fn calculateExponentCost(exp: u256, spec: SpecId) !u64 {
+pub inline fn calculateExponentCost(exp: u256, spec: SpecId) error{Overflow}!u64 {
     const size = utils.computeSize(exp);
     const gas: u8 = if (spec.enabled(.SPURIOUS_DRAGON)) @intCast(50) else @intCast(10);
 

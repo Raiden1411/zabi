@@ -1,10 +1,14 @@
 ## ParamErrors
 
+Set of errors when converting `[]const u8` into `ParamType`.
+
 ```zig
 error{ InvalidEnumTag, InvalidCharacter, LengthMismatch, Overflow } || Allocator.Error
 ```
 
 ## FixedArray
+
+Representation of the solidity fixed array type.
 
 ### Properties
 
@@ -16,6 +20,8 @@ struct {
 ```
 
 ## ParamType
+
+Type that represents solidity types in zig.
 
 ### Properties
 
@@ -46,17 +52,21 @@ pub fn freeArrayParamType(self: @This(), alloc: Allocator) void
 ```
 
 ### TypeToJsonStringify
+Converts the tagname of `self` into a writer.
+
 ### Signature
 
 ```zig
-pub fn typeToJsonStringify(self: @This(), writer: anytype) !void
+pub fn typeToJsonStringify(self: @This(), writer: anytype) @TypeOf(writer).Error!void
 ```
 
 ### TypeToString
+Converts `self` into its tagname.
+
 ### Signature
 
 ```zig
-pub fn typeToString(self: @This(), writer: anytype) !void
+pub fn typeToString(self: @This(), writer: anytype) @TypeOf(writer).Error!void
 ```
 
 ### TypeToUnion
@@ -69,6 +79,6 @@ or call the destroy method on your allocator manually
 ### Signature
 
 ```zig
-pub fn typeToUnion(abitype: []const u8, alloc: Allocator) !ParamType
+pub fn typeToUnion(abitype: []const u8, alloc: Allocator) ParamErrors!ParamType
 ```
 

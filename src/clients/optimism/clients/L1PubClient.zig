@@ -1,5 +1,6 @@
 const abi_items = @import("../abi_optimism.zig");
 const clients = @import("../../root.zig");
+const encoder = @import("../../../encoding/encoder.zig");
 const decoder = @import("../../../decoding/decoder.zig");
 const decoder_logs = @import("../../../decoding/logs_decode.zig");
 const log = @import("../../../types/log.zig");
@@ -16,6 +17,8 @@ const withdrawal_types = @import("../types/withdrawl.zig");
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const Clients = @import("../../wallet.zig").WalletClients;
+const DecodeErrors = decoder.DecoderErrors;
+const EncodeErrors = encoder.EncodeErrors;
 const Game = withdrawal_types.Game;
 const GameResult = withdrawal_types.GameResult;
 const Hash = types.Hash;
@@ -24,6 +27,7 @@ const InitOptsIpc = clients.IpcClient.InitOptions;
 const InitOptsWs = clients.WebSocket.InitOptions;
 const IpcClient = clients.IpcClient;
 const Logs = log.Logs;
+const LogsDecodeErrors = decoder_logs.LogsDecoderErrors;
 const L2Output = op_types.L2Output;
 const Message = withdrawal_types.Message;
 const NextGameTimings = withdrawal_types.NextGameTimings;
@@ -42,18 +46,24 @@ pub fn L1Client(comptime client_type: Clients) type {
         const L1 = @This();
 
         /// The underlaying rpc client type (ws or http)
-        const ClientType = switch (client_type) {
+        pub const ClientType = switch (client_type) {
             .http => PubClient,
             .websocket => WebSocketClient,
             .ipc => IpcClient,
         };
 
         /// The inital settings depending on the client type.
-        const InitOpts = switch (client_type) {
+        pub const InitOpts = switch (client_type) {
             .http => InitOptsHttp,
             .websocket => InitOptsWs,
             .ipc => InitOptsIpc,
         };
+
+        /// Set of possible errors when performing ens client actions.
+        pub const L1Errors = EncodeErrors || ClientType.BasicRequestErrors || DecodeErrors || error{ExpectOpStackContracts};
+
+        /// Set of possible errors when starting the client.
+        pub const InitErrors = ClientType.InitErrors || error{InvalidChain};
 
         /// This is the same allocator as the rpc_client.
         /// Its a field mostly for convinience
@@ -63,7 +73,7 @@ pub fn L1Client(comptime client_type: Clients) type {
 
         /// Starts the RPC connection
         /// If the contracts are null it defaults to OP contracts.
-        pub fn init(opts: InitOpts) !*L1 {
+        pub fn init(opts: InitOpts) InitErrors!*L1 {
             const self = try opts.allocator.create(L1);
             errdefer opts.allocator.destroy(self);
 
@@ -94,7 +104,12 @@ pub fn L1Client(comptime client_type: Clients) type {
         /// `block_number` to filter only games that occurred after this block.
         ///
         /// `strategy` is weather to provide the latest game or one at random with the scope of the games that where found given the filters.
-        pub fn getGame(self: *L1, limit: usize, block_number: u256, strategy: enum { random, latest, oldest }) !GameResult {
+        pub fn getGame(
+            self: *L1,
+            limit: usize,
+            block_number: u256,
+            strategy: enum { random, latest, oldest },
+        ) !GameResult {
             const games = try self.getGames(limit, block_number);
             defer self.allocator.free(games);
 
@@ -119,7 +134,11 @@ pub fn L1Client(comptime client_type: Clients) type {
         ///
         /// `block_number` to filter only games that occurred after this block.
         /// If null then it will return all games.
-        pub fn getGames(self: *L1, limit: usize, block_number: ?u256) ![]const GameResult {
+        pub fn getGames(
+            self: *L1,
+            limit: usize,
+            block_number: ?u256,
+        ) (L1Errors || error{ FaultProofsNotEnabled, Overflow, InvalidVersion })![]const GameResult {
             const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
 
             const version = try self.getPortalVersion();
@@ -183,7 +202,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             return list.toOwnedSlice();
         }
         /// Returns if a withdrawal has finalized or not.
-        pub fn getFinalizedWithdrawals(self: *L1, withdrawal_hash: Hash) !bool {
+        pub fn getFinalizedWithdrawals(self: *L1, withdrawal_hash: Hash) (EncodeErrors || ClientType.BasicRequestErrors || error{ExpectOpStackContracts})!bool {
             const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
 
             const encoded = try abi_items.get_finalized_withdrawal.encode(self.allocator, .{withdrawal_hash});
@@ -198,7 +217,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             return data.response[data.response.len - 1] != 0;
         }
         /// Gets the latest proposed L2 block number from the Oracle.
-        pub fn getLatestProposedL2BlockNumber(self: *L1) !u64 {
+        pub fn getLatestProposedL2BlockNumber(self: *L1) (ClientType.BasicRequestErrors || error{ ExpectOpStackContracts, Overflow })!u64 {
             const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
 
             // Selector for `latestBlockNumber`
@@ -238,7 +257,12 @@ pub fn L1Client(comptime client_type: Clients) type {
             return try list.toOwnedSlice();
         }
         /// Calls to the L2OutputOracle contract on L1 to get the output for a given L2 block
-        pub fn getL2Output(self: *L1, l2_block_number: u256) !L2Output {
+        pub fn getL2Output(self: *L1, l2_block_number: u256) (L1Errors || error{
+            Overflow,
+            InvalidVersion,
+            GameNotFound,
+            FaultProofsNotEnabled,
+        })!L2Output {
             const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
 
             const version = try self.getPortalVersion();
@@ -278,7 +302,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             };
         }
         /// Calls to the L2OutputOracle on L1 to get the output index.
-        pub fn getL2OutputIndex(self: *L1, l2_block_number: u256) !u256 {
+        pub fn getL2OutputIndex(self: *L1, l2_block_number: u256) (L1Errors || error{Overflow})!u256 {
             const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
 
             const encoded = try abi_items.get_l2_index_func.encode(self.allocator, .{l2_block_number});
@@ -295,7 +319,7 @@ pub fn L1Client(comptime client_type: Clients) type {
         /// Retrieves the current version of the Portal contract.
         ///
         /// If the major is at least 3 it means that fault proofs are enabled.
-        pub fn getPortalVersion(self: *L1) !SemanticVersion {
+        pub fn getPortalVersion(self: *L1) (L1Errors || error{ InvalidVersion, Overflow })!SemanticVersion {
             const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
 
             const selector_version: []u8 = @constCast(&[_]u8{ 0x54, 0xfd, 0x4d, 0x50 });
@@ -313,7 +337,7 @@ pub fn L1Client(comptime client_type: Clients) type {
         ///
         /// Will call the portal contract to get the information. If the timestamp is 0
         /// this will error with invalid withdrawal hash.
-        pub fn getProvenWithdrawals(self: *L1, withdrawal_hash: Hash) !ProvenWithdrawal {
+        pub fn getProvenWithdrawals(self: *L1, withdrawal_hash: Hash) (L1Errors || error{InvalidWithdrawalHash})!ProvenWithdrawal {
             const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
 
             const encoded = try abi_items.get_proven_withdrawal.encode(self.allocator, .{withdrawal_hash});
@@ -335,7 +359,7 @@ pub fn L1Client(comptime client_type: Clients) type {
         /// Gets the amount of time to wait in ms until the next output is posted.
         ///
         /// Calls the l2OutputOracle to get this information.
-        pub fn getSecondsToNextL2Output(self: *L1, latest_l2_block: u64) !u128 {
+        pub fn getSecondsToNextL2Output(self: *L1, latest_l2_block: u64) (L1Errors || error{ InvalidBlockNumber, Overflow })!u128 {
             const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
             const latest = try self.getLatestProposedL2BlockNumber();
 
@@ -370,7 +394,7 @@ pub fn L1Client(comptime client_type: Clients) type {
         /// Gets the amount of time to wait until a withdrawal is finalized.
         ///
         /// Calls the l2OutputOracle to get this information.
-        pub fn getSecondsToFinalize(self: *L1, withdrawal_hash: Hash) !u64 {
+        pub fn getSecondsToFinalize(self: *L1, withdrawal_hash: Hash) (L1Errors || error{ Overflow, InvalidWithdrawalHash })!u64 {
             const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
             const proven = try self.getProvenWithdrawals(withdrawal_hash);
 
@@ -390,7 +414,7 @@ pub fn L1Client(comptime client_type: Clients) type {
         /// Gets the amount of time to wait until a dispute game has finalized
         ///
         /// Uses the portal to find this information. Will error if the time is 0.
-        pub fn getSecondsToFinalizeGame(self: *L1, withdrawal_hash: Hash) !u64 {
+        pub fn getSecondsToFinalizeGame(self: *L1, withdrawal_hash: Hash) (L1Errors || error{ Overflow, InvalidWithdrawalHash, WithdrawalNotProved })!u64 {
             const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
             const proven = try self.getProvenWithdrawals(withdrawal_hash);
 
@@ -412,7 +436,11 @@ pub fn L1Client(comptime client_type: Clients) type {
             return if (time_since < 0) @intCast(0) else @intCast(time - time_since);
         }
         /// Gets the timings until the next dispute game is submitted based on the provided `l2BlockNumber`
-        pub fn getSecondsUntilNextGame(self: *L1, interval_buffer: f64, l2BlockNumber: u64) !NextGameTimings {
+        pub fn getSecondsUntilNextGame(
+            self: *L1,
+            interval_buffer: f64,
+            l2BlockNumber: u64,
+        ) (L1Errors || error{ Overflow, FaultProofsNotEnabled, InvalidVersion, DivisionByZero })!NextGameTimings {
             const games = try self.getGames(10, null);
             defer self.allocator.free(games);
 
@@ -468,7 +496,11 @@ pub fn L1Client(comptime client_type: Clients) type {
         /// returned slice and free the `opaqueData` field. Memory will be duped
         /// on that field because we destroy the Arena from the RPC request that owns
         /// the original piece of memory that contains the data.
-        pub fn getTransactionDepositEvents(self: *L1, tx_hash: Hash) ![]const TransactionDeposited {
+        pub fn getTransactionDepositEvents(self: *L1, tx_hash: Hash) (L1Errors || LogsDecodeErrors || error{
+            ExpectedTopicData,
+            UnexpectedNullIndex,
+            TransactionReceiptNotFound,
+        })![]const TransactionDeposited {
             const receipt = try self.rpc_client.getTransactionReceipt(tx_hash);
             defer receipt.deinit();
 
@@ -509,13 +541,17 @@ pub fn L1Client(comptime client_type: Clients) type {
             return list.toOwnedSlice();
         }
         /// Gets the decoded withdrawl event logs from a given transaction receipt hash.
-        pub fn getWithdrawMessages(self: *L1, tx_hash: Hash) !Message {
+        pub fn getWithdrawMessages(self: *L1, tx_hash: Hash) (L1Errors || LogsDecodeErrors || error{
+            InvalidTransactionHash,
+            TransactionReceiptNotFound,
+            ExpectedTopicData,
+        })!Message {
             const receipt_response = try self.rpc_client.getTransactionReceipt(tx_hash);
             defer receipt_response.deinit();
 
             const receipt = receipt_response.response;
 
-            if (receipt != .l2_receipt)
+            if (receipt != .op_receipt)
                 return error.InvalidTransactionHash;
 
             var list = std.ArrayList(Withdrawal).init(self.allocator);
@@ -524,13 +560,13 @@ pub fn L1Client(comptime client_type: Clients) type {
             // The hash for the event selector `MessagePassed`
             const hash: Hash = comptime try utils.hashToBytes("0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054");
 
-            for (receipt.l2_receipt.logs) |logs| {
+            for (receipt.op_receipt.logs) |logs| {
                 const hash_topic: Hash = logs.topics[0] orelse return error.ExpectedTopicData;
 
                 if (std.mem.eql(u8, &hash, &hash_topic)) {
                     const decoded = try decoder.decodeAbiParameterLeaky(struct { u256, u256, []u8, [32]u8 }, self.allocator, logs.data, .{});
 
-                    const decoded_logs = try decoder_logs.decodeLogs(struct { Hash, u256, Address, Address }, logs.topics);
+                    const decoded_logs = try decoder_logs.decodeLogs(struct { Hash, u256, Address, Address }, logs.topics, .{});
 
                     try list.append(.{
                         .nonce = decoded_logs[1],
@@ -547,15 +583,22 @@ pub fn L1Client(comptime client_type: Clients) type {
             const messages = try list.toOwnedSlice();
 
             return .{
-                .blockNumber = receipt.l2_receipt.blockNumber.?,
+                .blockNumber = receipt.op_receipt.blockNumber.?,
                 .messages = messages,
             };
         }
         /// Waits until the next dispute game to be submitted based on the provided `l2BlockNumber`
         /// This will keep pooling until it can get the `GameResult` or it exceeds the max retries.
-        pub fn waitForNextGame(self: *L1, limit: usize, interval_buffer: f64, l2BlockNumber: u64) !GameResult {
+        pub fn waitForNextGame(self: *L1, limit: usize, interval_buffer: f64, l2BlockNumber: u64) (L1Errors || error{
+            Overflow,
+            FaultProofsNotEnabled,
+            InvalidVersion,
+            DivisionByZero,
+            ExceedRetriesAmount,
+            GameNotFound,
+        })!GameResult {
             const timings = try self.getSecondsUntilNextGame(interval_buffer, l2BlockNumber);
-            std.time.sleep(timings.seconds * std.time.ns_per_s);
+            std.time.sleep(@intCast(timings.seconds * std.time.ns_per_s));
 
             var retries: usize = 0;
             const game: GameResult = while (true) : (retries += 1) {
@@ -577,9 +620,17 @@ pub fn L1Client(comptime client_type: Clients) type {
         }
         /// Waits until the next L2 output is posted.
         /// This will keep pooling until it can get the L2Output or it exceeds the max retries.
-        pub fn waitForNextL2Output(self: *L1, latest_l2_block: u64) !L2Output {
+        pub fn waitForNextL2Output(self: *L1, latest_l2_block: u64) (L1Errors || error{
+            Overflow,
+            FaultProofsNotEnabled,
+            InvalidVersion,
+            DivisionByZero,
+            ExceedRetriesAmount,
+            InvalidBlockNumber,
+            GameNotFound,
+        })!L2Output {
             const time = try self.getSecondsToNextL2Output(latest_l2_block);
-            std.time.sleep(time * 1000);
+            std.time.sleep(@intCast(time * 1000));
 
             var retries: usize = 0;
             const l2_output = while (true) : (retries += 1) {
@@ -600,10 +651,15 @@ pub fn L1Client(comptime client_type: Clients) type {
             return l2_output;
         }
         /// Waits until the withdrawal has finalized.
-        pub fn waitToFinalize(self: *L1, withdrawal_hash: Hash) !void {
+        pub fn waitToFinalize(self: *L1, withdrawal_hash: Hash) (L1Errors || error{
+            Overflow,
+            InvalidWithdrawalHash,
+            WithdrawalNotProved,
+            InvalidVersion,
+        })!void {
             const version = try self.getPortalVersion();
 
-            if (version < 3) {
+            if (version.major < 3) {
                 const time = try self.getSecondsToFinalize(withdrawal_hash);
                 std.time.sleep(time * 1000);
                 return;

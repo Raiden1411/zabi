@@ -1,5 +1,7 @@
 ## RlpEncodeErrors
 
+Set of errors while performing rlp encoding.
+
 ```zig
 error{ NegativeNumber, Overflow } || Allocator.Error
 ```
@@ -12,6 +14,6 @@ Caller owns the memory so it must be freed.
 ### Signature
 
 ```zig
-pub fn encodeRlp(alloc: Allocator, items: anytype) ![]u8
+pub fn encodeRlp(alloc: Allocator, items: anytype) RlpEncodeErrors![]u8
 ```
 

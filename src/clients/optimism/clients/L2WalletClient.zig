@@ -1,5 +1,6 @@
 const abi_items = @import("../abi_optimism.zig");
 const clients = @import("../../root.zig");
+const encoder = @import("../../../encoding/encoder.zig");
 const serialize = @import("../../../encoding/serialize.zig");
 const std = @import("std");
 const testing = std.testing;
@@ -14,6 +15,7 @@ const withdrawal_types = @import("../types/withdrawl.zig");
 const Clients = clients.wallet.WalletClients;
 const DepositEnvelope = op_transactions.DepositTransactionEnvelope;
 const DepositData = op_transactions.DepositData;
+const EncodeErrors = encoder.EncodeErrors;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
@@ -27,6 +29,7 @@ const L2Output = op_types.L2Output;
 const PreparedWithdrawal = withdrawal_types.PreparedWithdrawal;
 const RPCResponse = types.RPCResponse;
 const RootProof = withdrawal_types.WithdrawalRootProof;
+const SerializeErrors = serialize.SerializeErrors;
 const Signer = @import("../../../crypto/Signer.zig");
 const Withdrawal = withdrawal_types.Withdrawal;
 const WithdrawalEnvelope = withdrawal_types.WithdrawalEnvelope;
@@ -42,17 +45,38 @@ pub fn L2WalletClient(client_type: Clients) type {
         const WalletL2 = @This();
 
         /// The underlaying rpc client type (ws or http)
-        const ClientType = L2Client(client_type);
-        /// The inital settings depending on the client type.
-        const InitOpts = switch (client_type) {
-            .http => InitOptsHttp,
-            .websocket => InitOptsWs,
-            .ipc => InitOptsIpc,
-        };
+        const PubClient = L2Client(client_type);
+
         /// The underlaying public op client. This contains the rpc_client
-        op_client: *ClientType,
+        op_client: *PubClient,
         /// The signer used to sign transactions
         signer: Signer,
+
+        /// Set of possible errors when sending deposit transactions.
+        pub const DepositErrors = EncodeErrors || SerializeErrors || Signer.SigningErrors || error{
+            InvalidMintValue,
+            ExpectedOpStackContracts,
+            InvalidAddress,
+            InvalidLength,
+            InvalidCharacter,
+            CreatingContractToKnowAddress,
+            UnableToFetchFeeInfoFromBlock,
+            InvalidBlockNumber,
+        };
+
+        /// Set of possible errors when sending prove transactions.
+        pub const ProveErrors = EncodeErrors || SerializeErrors || Signer.SigningErrors || error{
+            ExpectedOpStackContracts,
+            UnableToFetchFeeInfoFromBlock,
+            InvalidBlockNumber,
+        };
+
+        /// Set of possible errors when sending finalize transactions.
+        pub const FinalizeErrors = EncodeErrors || SerializeErrors || Signer.SigningErrors || error{
+            ExpectedOpStackContracts,
+            UnableToFetchFeeInfoFromBlock,
+            InvalidBlockNumber,
+        };
 
         /// Starts the wallet client. Init options depend on the client type.
         /// This has all the expected L1 actions. If you are looking for L2 actions
@@ -60,14 +84,14 @@ pub fn L2WalletClient(client_type: Clients) type {
         ///
         /// If the contracts are null it defaults to OP contracts.
         /// Caller must deinit after use.
-        pub fn init(priv_key: ?Hash, opts: InitOpts) !*WalletL2 {
+        pub fn init(priv_key: ?Hash, opts: PubClient.ClientType.InitOptions) (PubClient.ClientType.InitErrors || error{IdentityElement})!*WalletL2 {
             const self = try opts.allocator.create(WalletL2);
             errdefer opts.allocator.destroy(self);
 
             const op_signer = try Signer.init(priv_key);
 
             self.* = .{
-                .op_client = try ClientType.init(opts),
+                .op_client = try PubClient.init(opts),
                 .signer = op_signer,
             };
 
@@ -83,7 +107,7 @@ pub fn L2WalletClient(client_type: Clients) type {
         }
         /// Invokes the contract method to `depositTransaction`. This will send
         /// a transaction to the network.
-        pub fn depositTransaction(self: *WalletL2, deposit_envelope: DepositEnvelope) !RPCResponse(Hash) {
+        pub fn depositTransaction(self: *WalletL2, deposit_envelope: DepositEnvelope) DepositErrors!RPCResponse(Hash) {
             const contracts = self.op_client.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
 
             const address = self.signer.address_bytes;
@@ -135,7 +159,7 @@ pub fn L2WalletClient(client_type: Clients) type {
         }
         /// Estimate the gas cost for the deposit transaction.
         /// Uses the portalAddress. The data is expected to be hex abi encoded data.
-        pub fn estimateDepositTransaction(self: *WalletL2, data: Hex) !RPCResponse(Gwei) {
+        pub fn estimateDepositTransaction(self: *WalletL2, data: Hex) (PubClient.ClientType.BasicRequestErrors || error{ExpectedOpStackContracts})!RPCResponse(Gwei) {
             const contracts = self.op_client.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
 
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
@@ -144,7 +168,7 @@ pub fn L2WalletClient(client_type: Clients) type {
             } }, .{});
         }
         /// Estimates the gas cost for calling `finalizeWithdrawal`
-        pub fn estimateFinalizeWithdrawal(self: *WalletL2, data: Hex) !RPCResponse(Gwei) {
+        pub fn estimateFinalizeWithdrawal(self: *WalletL2, data: Hex) (PubClient.ClientType.BasicRequestErrors || error{ExpectedOpStackContracts})!RPCResponse(Gwei) {
             const contracts = self.op_client.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
 
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
@@ -153,7 +177,7 @@ pub fn L2WalletClient(client_type: Clients) type {
             } }, .{});
         }
         /// Estimates the gas cost for calling `proveWithdrawal`
-        pub fn estimateProveWithdrawal(self: *WalletL2, data: Hex) !RPCResponse(Gwei) {
+        pub fn estimateProveWithdrawal(self: *WalletL2, data: Hex) (PubClient.ClientType.BasicRequestErrors || error{ExpectedOpStackContracts})!RPCResponse(Gwei) {
             const contracts = self.op_client.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
 
             return self.op_client.rpc_client.estimateGas(.{ .london = .{
@@ -163,7 +187,7 @@ pub fn L2WalletClient(client_type: Clients) type {
         }
         /// Invokes the contract method to `finalizeWithdrawalTransaction`. This will send
         /// a transaction to the network.
-        pub fn finalizeWithdrawal(self: *WalletL2, withdrawal: WithdrawalNoHash) !RPCResponse(Hash) {
+        pub fn finalizeWithdrawal(self: *WalletL2, withdrawal: WithdrawalNoHash) FinalizeErrors!RPCResponse(Hash) {
             const contracts = self.op_client.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
 
             const address = self.signer.address_bytes;
@@ -202,7 +226,11 @@ pub fn L2WalletClient(client_type: Clients) type {
             return self.sendTransaction(tx);
         }
         /// Prepares a proof withdrawal transaction.
-        pub fn prepareWithdrawalProofTransaction(self: *WalletL2, withdrawal: Withdrawal, l2_output: L2Output) !WithdrawalEnvelope {
+        pub fn prepareWithdrawalProofTransaction(
+            self: *WalletL2,
+            withdrawal: Withdrawal,
+            l2_output: L2Output,
+        ) (PubClient.ClientType.BasicRequestErrors || error{ InvalidBlockNumber, ExpectedOpStackContracts })!WithdrawalEnvelope {
             const contracts = self.op_client.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
 
             const storage_slot = op_utils.getWithdrawalHashStorageSlot(withdrawal.withdrawalHash);
@@ -246,7 +274,13 @@ pub fn L2WalletClient(client_type: Clients) type {
         }
         /// Invokes the contract method to `proveWithdrawalTransaction`. This will send
         /// a transaction to the network.
-        pub fn proveWithdrawal(self: *WalletL2, withdrawal: WithdrawalNoHash, l2_output_index: u256, outputRootProof: RootProof, withdrawal_proof: []const Hex) !RPCResponse(Hash) {
+        pub fn proveWithdrawal(
+            self: *WalletL2,
+            withdrawal: WithdrawalNoHash,
+            l2_output_index: u256,
+            outputRootProof: RootProof,
+            withdrawal_proof: []const Hex,
+        ) ProveErrors!RPCResponse(Hash) {
             const contracts = self.op_client.rpc_client.network_config.op_stack_contracts orelse return error.ExpectedOpStackContracts;
 
             const address = self.signer.address_bytes;
@@ -288,7 +322,10 @@ pub fn L2WalletClient(client_type: Clients) type {
         }
         /// Prepares the deposit transaction. Will error if its a creation transaction
         /// and a `to` address was given. It will also fail if the mint and value do not match.
-        pub fn prepareDepositTransaction(self: *WalletL2, deposit_envelope: DepositEnvelope) !DepositData {
+        pub fn prepareDepositTransaction(
+            self: *WalletL2,
+            deposit_envelope: DepositEnvelope,
+        ) (PubClient.ClientType.BasicRequestErrors || error{ CreatingContractToKnowAddress, InvalidMintValue })!DepositData {
             const mint = deposit_envelope.mint orelse 0;
             const value = deposit_envelope.value orelse 0;
             const data = deposit_envelope.data orelse @constCast("");
@@ -322,7 +359,10 @@ pub fn L2WalletClient(client_type: Clients) type {
         }
         /// Sends a transaction envelope to the network. This serializes, hashes and signed before
         /// sending the transaction.
-        pub fn sendTransaction(self: *WalletL2, envelope: LondonTransactionEnvelope) !RPCResponse(Hash) {
+        pub fn sendTransaction(
+            self: *WalletL2,
+            envelope: LondonTransactionEnvelope,
+        ) (Signer.SigningErrors || PubClient.ClientType.BasicRequestErrors || SerializeErrors)!RPCResponse(Hash) {
             const serialized = try serialize.serializeTransaction(self.op_client.allocator, .{ .london = envelope }, null);
             defer self.op_client.allocator.free(serialized);
 

@@ -7,13 +7,22 @@ error{ NegativeNumber, Overflow } || Allocator.Error
 ```
 
 ## EncodeRlp
-RLP Encoding. Items is expected to be a tuple of values.
-Compilation will fail if you pass in any other type.
-Caller owns the memory so it must be freed.
+RLP Encoding according to the [spec](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
+
+Reflects on the items and encodes based on it's type.\
+Supports almost all of zig's type.
+
+Doesn't support `opaque`, `fn`, `anyframe`, `error_union`, `void`, `null` types.
+
+**Example**
+```zig
+const encoded = try encodeRlp(allocator, 69420);
+defer allocator.free(encoded);
+```
 
 ### Signature
 
 ```zig
-pub fn encodeRlp(alloc: Allocator, items: anytype) RlpEncodeErrors![]u8
+pub fn encodeRlp(allocator: Allocator, payload: anytype) RlpEncodeErrors![]u8
 ```
 

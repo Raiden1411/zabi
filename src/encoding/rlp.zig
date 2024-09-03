@@ -8,27 +8,25 @@ const Allocator = std.mem.Allocator;
 /// Set of errors while performing rlp encoding.
 pub const RlpEncodeErrors = error{ NegativeNumber, Overflow } || Allocator.Error;
 
-/// RLP Encoding. Items is expected to be a tuple of values.
-/// Compilation will fail if you pass in any other type.
-/// Caller owns the memory so it must be freed.
-pub fn encodeRlp(alloc: Allocator, items: anytype) RlpEncodeErrors![]u8 {
-    const info = @typeInfo(@TypeOf(items));
+/// RLP Encoding according to the [spec](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
+///
+/// Reflects on the items and encodes based on it's type.\
+/// Supports almost all of zig's type.
+///
+/// Doesn't support `opaque`, `fn`, `anyframe`, `error_union`, `void`, `null` types.
+///
+/// **Example**
+/// ```zig
+/// const encoded = try encodeRlp(allocator, 69420);
+/// defer allocator.free(encoded);
+/// ```
+pub fn encodeRlp(allocator: Allocator, payload: anytype) RlpEncodeErrors![]u8 {
+    var list = std.ArrayList(u8).init(allocator);
+    errdefer list.deinit();
 
-    if (info != .@"struct") @compileError("Expected tuple type instead found " ++ @typeName(@TypeOf(items)));
-    if (!info.@"struct".is_tuple) @compileError("Expected tuple type instead found " ++ @typeName(@TypeOf(items)));
-
-    var list = std.ArrayList(u8).init(alloc);
-    var writer = list.writer();
-
-    inline for (items) |payload| {
-        try encodeItem(alloc, payload, &writer);
-    }
-
-    return list.toOwnedSlice();
-}
-/// Reflects on the items and encodes based on it's type.
-fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) RlpEncodeErrors!void {
     const info = @typeInfo(@TypeOf(payload));
+
+    var writer = list.writer();
 
     switch (info) {
         .bool => if (payload) try writer.writeByte(0x01) else try writer.writeByte(0x80),
@@ -47,7 +45,7 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) RlpEncodeErro
 
             if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intCast(payload)) else {
                 const IntType = std.math.IntFittingRange(payload, payload);
-                return try encodeItem(alloc, @as(IntType, @intCast(payload)), writer);
+                return encodeRlp(allocator, @as(IntType, @intCast(payload)));
             }
         },
         .float => |float_info| {
@@ -80,10 +78,10 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) RlpEncodeErro
         },
         .null => try writer.writeByte(0x80),
         .optional => {
-            if (payload) |item| try encodeItem(alloc, item, writer) else try writer.writeByte(0x80);
+            if (payload) |item| return encodeRlp(allocator, item) else try writer.writeByte(0x80);
         },
-        .@"enum", .enum_literal => try encodeItem(alloc, @tagName(payload), writer),
-        .error_set => try encodeItem(alloc, @errorName(payload), writer),
+        .@"enum", .enum_literal => return encodeRlp(allocator, @tagName(payload)),
+        .error_set => return encodeRlp(allocator, @errorName(payload)),
         .array => |arr_info| {
             if (arr_info.child == u8) {
                 if (payload.len == 0) try writer.writeByte(0x80) else if (payload.len < 56) {
@@ -101,16 +99,20 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) RlpEncodeErro
                 }
             } else {
                 if (payload.len == 0) try writer.writeByte(0xc0) else {
-                    var arr = std.ArrayList(u8).init(alloc);
+                    var arr = std.ArrayList(u8).init(allocator);
                     errdefer arr.deinit();
+
                     const arr_writer = arr.writer();
 
                     for (payload) |item| {
-                        try encodeItem(alloc, item, &arr_writer);
+                        const slice = try encodeRlp(allocator, item);
+                        defer allocator.free(slice);
+
+                        try arr_writer.writeAll(slice);
                     }
 
                     const bytes = try arr.toOwnedSlice();
-                    defer alloc.free(bytes);
+                    defer allocator.free(bytes);
 
                     if (bytes.len > std.math.maxInt(u64))
                         return error.Overflow;
@@ -131,7 +133,7 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) RlpEncodeErro
         .pointer => |ptr_info| {
             switch (ptr_info.size) {
                 .One => {
-                    try encodeItem(alloc, payload.*, writer);
+                    return encodeRlp(allocator, payload.*);
                 },
                 .Slice, .Many => {
                     if (ptr_info.child == u8) {
@@ -150,16 +152,19 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) RlpEncodeErro
                         }
                     } else {
                         if (payload.len == 0) try writer.writeByte(0xc0) else {
-                            var slice = std.ArrayList(u8).init(alloc);
+                            var slice = std.ArrayList(u8).init(allocator);
                             errdefer slice.deinit();
                             const slice_writer = slice.writer();
 
                             for (payload) |item| {
-                                try encodeItem(alloc, item, &slice_writer);
+                                const encoded = try encodeRlp(allocator, item);
+                                defer allocator.free(encoded);
+
+                                try slice_writer.writeAll(encoded);
                             }
 
                             const bytes = try slice.toOwnedSlice();
-                            defer alloc.free(bytes);
+                            defer allocator.free(bytes);
 
                             if (bytes.len > std.math.maxInt(u64))
                                 return error.Overflow;
@@ -183,16 +188,19 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) RlpEncodeErro
         .@"struct" => |struct_info| {
             if (struct_info.is_tuple) {
                 if (payload.len == 0) try writer.writeByte(0xc0) else {
-                    var tuple = std.ArrayList(u8).init(alloc);
+                    var tuple = std.ArrayList(u8).init(allocator);
                     errdefer tuple.deinit();
                     const tuple_writer = tuple.writer();
 
                     inline for (payload) |item| {
-                        try encodeItem(alloc, item, &tuple_writer);
+                        const slice = try encodeRlp(allocator, item);
+                        defer allocator.free(slice);
+
+                        try tuple_writer.writeAll(slice);
                     }
 
                     const bytes = try tuple.toOwnedSlice();
-                    defer alloc.free(bytes);
+                    defer allocator.free(bytes);
 
                     if (bytes.len > std.math.maxInt(u64))
                         return error.Overflow;
@@ -210,7 +218,10 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) RlpEncodeErro
                 }
             } else {
                 inline for (struct_info.fields) |field| {
-                    try encodeItem(alloc, @field(payload, field.name), writer);
+                    const slice = try encodeRlp(allocator, @field(payload, field.name));
+                    defer allocator.free(slice);
+
+                    try writer.writeAll(slice);
                 }
             }
         },
@@ -219,24 +230,40 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) RlpEncodeErro
                 inline for (union_info.fields) |u_field| {
                     if (payload == @field(TagType, u_field.name)) {
                         if (u_field.type == void) {
-                            try encodeItem(alloc, u_field.name, writer);
-                        } else try encodeItem(alloc, @field(payload, u_field.name), writer);
+                            const slice = try encodeRlp(allocator, u_field.name);
+                            defer allocator.free(slice);
+
+                            try writer.writeAll(slice);
+                        } else {
+                            const slice = try encodeRlp(allocator, @field(payload, u_field.name));
+                            defer allocator.free(slice);
+
+                            try writer.writeAll(slice);
+                        }
                     }
                 }
-            } else try encodeItem(alloc, @tagName(payload), writer);
+            } else {
+                const slice = try encodeRlp(allocator, @tagName(payload));
+                defer allocator.free(slice);
+
+                try writer.writeAll(slice);
+            }
         },
         .vector => |vec_info| {
             if (vec_info.len == 0) try writer.writeByte(0xc0) else {
-                var slice = std.ArrayList(u8).init(alloc);
+                var slice = std.ArrayList(u8).init(allocator);
                 errdefer slice.deinit();
                 const slice_writer = slice.writer();
 
                 for (0..vec_info.len) |i| {
-                    try encodeItem(alloc, payload[i], &slice_writer);
+                    const encoded = try encodeRlp(allocator, payload[i]);
+                    defer allocator.free(encoded);
+
+                    try slice_writer.writeAll(encoded);
                 }
 
                 const bytes = try slice.toOwnedSlice();
-                defer alloc.free(bytes);
+                defer allocator.free(bytes);
 
                 if (bytes.len > std.math.maxInt(u64))
                     return error.Overflow;
@@ -256,4 +283,6 @@ fn encodeItem(alloc: Allocator, payload: anytype, writer: anytype) RlpEncodeErro
 
         else => @compileError("Unable to parse type " ++ @typeName(@TypeOf(payload))),
     }
+
+    return list.toOwnedSlice();
 }

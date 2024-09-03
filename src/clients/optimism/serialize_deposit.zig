@@ -25,7 +25,7 @@ pub fn serializeDepositTransaction(allocator: Allocator, tx: DepositTransaction)
         tx.data,
     };
 
-    const encoded_sig = try rlp.encodeRlp(allocator, .{envelope});
+    const encoded_sig = try rlp.encodeRlp(allocator, envelope);
     defer allocator.free(encoded_sig);
 
     var serialized = try allocator.alloc(u8, encoded_sig.len + 1);

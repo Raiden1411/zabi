@@ -103,7 +103,7 @@ pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnv
             signature.s,
         };
 
-        const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_signed});
+        const encoded_sig = try rlp.encodeRlp(allocator, envelope_signed);
         defer allocator.free(encoded_sig);
 
         var serialized = try allocator.alloc(u8, encoded_sig.len + 1);
@@ -128,7 +128,7 @@ pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnv
         blob_hashes,
     };
 
-    const encoded = try rlp.encodeRlp(allocator, .{envelope});
+    const encoded = try rlp.encodeRlp(allocator, envelope);
     defer allocator.free(encoded);
 
     var serialized = try allocator.alloc(u8, encoded.len + 1);
@@ -172,7 +172,7 @@ pub fn serializeCancunTransactionWithBlobs(allocator: Allocator, tx: CancunTrans
             proofs,
         };
 
-        const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_signed});
+        const encoded_sig = try rlp.encodeRlp(allocator, envelope_signed);
         defer allocator.free(encoded_sig);
 
         var serialized = try allocator.alloc(u8, encoded_sig.len + 1);
@@ -200,7 +200,7 @@ pub fn serializeCancunTransactionWithBlobs(allocator: Allocator, tx: CancunTrans
         proofs,
     };
 
-    const encoded = try rlp.encodeRlp(allocator, .{envelope});
+    const encoded = try rlp.encodeRlp(allocator, envelope);
     defer allocator.free(encoded);
 
     var serialized = try allocator.alloc(u8, encoded.len + 1);
@@ -248,7 +248,7 @@ pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTr
             list_sidecar.items(.proof),
         };
 
-        const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_signed});
+        const encoded_sig = try rlp.encodeRlp(allocator, envelope_signed);
         defer allocator.free(encoded_sig);
 
         var serialized = try allocator.alloc(u8, encoded_sig.len + 1);
@@ -276,7 +276,7 @@ pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTr
         list_sidecar.items(.proof),
     };
 
-    const encoded = try rlp.encodeRlp(allocator, .{envelope});
+    const encoded = try rlp.encodeRlp(allocator, envelope);
     defer allocator.free(encoded);
 
     var serialized = try allocator.alloc(u8, encoded.len + 1);
@@ -308,7 +308,7 @@ pub fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEn
             signature.s,
         };
 
-        const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_sig});
+        const encoded_sig = try rlp.encodeRlp(allocator, envelope_sig);
         defer allocator.free(encoded_sig);
 
         var serialized = try allocator.alloc(u8, encoded_sig.len + 1);
@@ -331,7 +331,7 @@ pub fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEn
         prep_access,
     };
 
-    const encoded = try rlp.encodeRlp(allocator, .{envelope});
+    const encoded = try rlp.encodeRlp(allocator, envelope);
     defer allocator.free(encoded);
 
     var serialized = try allocator.alloc(u8, encoded.len + 1);
@@ -362,7 +362,7 @@ pub fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEn
             signature.s,
         };
 
-        const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_sig});
+        const encoded_sig = try rlp.encodeRlp(allocator, envelope_sig);
         defer allocator.free(encoded_sig);
 
         var serialized = try allocator.alloc(u8, encoded_sig.len + 1);
@@ -384,7 +384,7 @@ pub fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEn
         prep_access,
     };
 
-    const encoded = try rlp.encodeRlp(allocator, .{envelope});
+    const encoded = try rlp.encodeRlp(allocator, envelope);
     defer allocator.free(encoded);
 
     var serialized = try allocator.alloc(u8, encoded.len + 1);
@@ -429,7 +429,7 @@ pub fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnv
             signature.s,
         };
 
-        const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_sig});
+        const encoded_sig = try rlp.encodeRlp(allocator, envelope_sig);
 
         return encoded_sig;
     }
@@ -448,7 +448,7 @@ pub fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnv
             null,
         };
 
-        const encoded_sig = try rlp.encodeRlp(allocator, .{envelope_sig});
+        const encoded_sig = try rlp.encodeRlp(allocator, envelope_sig);
 
         return encoded_sig;
     }
@@ -463,7 +463,7 @@ pub fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnv
         tx.data,
     };
 
-    const encoded = try rlp.encodeRlp(allocator, .{envelope});
+    const encoded = try rlp.encodeRlp(allocator, envelope);
 
     return encoded;
 }

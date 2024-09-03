@@ -185,7 +185,7 @@ pub const DocsGenerator = struct {
         out_file: GeneratorWriter,
         init_node: NodeIndex,
         duplicate: *std.StringHashMap(void),
-    ) !void {
+    ) Allocator.Error!void {
         const container = self.ast.fullContainerDecl(@constCast(&.{ init_node, init_node }), init_node) orelse
             std.debug.panic("Unexpected token found: {s}\n", .{@tagName(self.nodes[init_node])});
 
@@ -220,7 +220,7 @@ pub const DocsGenerator = struct {
         }
     }
     /// Writes a container field from a `struct`, `union` or `enum` with their `doc_comment` tokens.
-    pub fn extractFromContainerField(self: *DocsGenerator, out_file: GeneratorWriter, member: NodeIndex) !void {
+    pub fn extractFromContainerField(self: *DocsGenerator, out_file: GeneratorWriter, member: NodeIndex) Allocator.Error!void {
         const field = self.ast.containerFieldInit(member);
         const first_token = field.firstToken();
 
@@ -242,7 +242,12 @@ pub const DocsGenerator = struct {
         try out_file.writeAll("\n");
     }
     /// Extracts the source and builds the mardown file when we have a `fn_decl` node.
-    pub fn extractFromFnProto(self: *DocsGenerator, index: NodeIndex, out_file: GeneratorWriter, duplicate: *std.StringHashMap(void)) !void {
+    pub fn extractFromFnProto(
+        self: *DocsGenerator,
+        index: NodeIndex,
+        out_file: GeneratorWriter,
+        duplicate: *std.StringHashMap(void),
+    ) Allocator.Error!void {
         var buffer = [_]u32{@intCast(index)};
         const fn_proto = self.ast.fullFnProto(&buffer, @intCast(index)) orelse return;
 
@@ -355,7 +360,7 @@ pub const DocsGenerator = struct {
         }
     }
     /// Extracts the name from the token and writes it as H2 markdown file.
-    pub fn extractNameFromVariable(self: *DocsGenerator, out_file: GeneratorWriter, first_token: TokenIndex) !void {
+    pub fn extractNameFromVariable(self: *DocsGenerator, out_file: GeneratorWriter, first_token: TokenIndex) Allocator.Error!void {
         try out_file.writeAll("## ");
         // Format -> .keyword_pub, .keyword_const, .identifier
         // So we move ahead by 2 tokens
@@ -446,7 +451,7 @@ const Runner = struct {
         try out_file.writeAll(slice);
     }
     /// Generates the documentation based on a `RootFolders` member.
-    pub fn generateDocumentationFromFolder(self: Runner, search_root_folder: RootFolders) !void {
+    pub fn generateDocumentationFromFolder(self: Runner, search_root_folder: RootFolders) RunnerErrors!void {
         var dir = try std.fs.cwd().openDir(@tagName(search_root_folder), .{ .iterate = true });
         defer dir.close();
 

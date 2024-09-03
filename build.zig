@@ -162,7 +162,7 @@ fn buildAndRunConverage(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
 /// Builds and runs a runner to generate documentation based on the `doc_comments` tokens in the codebase.
 fn docsGenerate(b: *std.Build, target: std.Build.ResolvedTarget) void {
     const docs = b.addExecutable(.{
-        .name = "docs_generate",
+        .name = "docs",
         .root_source_file = b.path("docs_generate.zig"),
         .target = target,
         .optimize = .ReleaseFast,
@@ -172,6 +172,6 @@ fn docsGenerate(b: *std.Build, target: std.Build.ResolvedTarget) void {
     var docs_run = b.addRunArtifact(docs);
     docs_run.has_side_effects = true;
 
-    const docs_step = b.step("docs_generate", "Generate documentation based on the source code.");
+    const docs_step = b.step("docs", "Generate documentation based on the source code.");
     docs_step.dependOn(&docs_run.step);
 }

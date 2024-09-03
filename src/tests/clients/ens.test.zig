@@ -64,3 +64,9 @@ test "ENS Resolver" {
 
     try testing.expectEqualSlices(u8, &try utils.addressToBytes("0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBaBa41"), &value);
 }
+
+test "Ref All Decls" {
+    std.testing.refAllDecls(ENSClient(.http));
+    std.testing.refAllDecls(ENSClient(.ipc));
+    std.testing.refAllDecls(ENSClient(.websocket));
+}

@@ -100,7 +100,7 @@ Documentation is crucial to helping developers of all experience levels use zabi
 pnpm dev 
 ```
 
-Zabi use mostly auto-generated documentation from its source code. If you make a change to the code make sure that to run `zig build docs_generate` in order to update any changes.
+Zabi use mostly auto-generated documentation from its source code. If you make a change to the code make sure that to run `zig build docs` in order to update any changes.
 If you create a new file and want to add it to the website make to update `docs/sidebar.ts` to include it.
 
 <div align="right">

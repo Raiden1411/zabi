@@ -8,27 +8,18 @@ const Allocator = std.mem.Allocator;
 /// Set of errors while performing rlp encoding.
 pub const RlpEncodeErrors = error{ NegativeNumber, Overflow } || Allocator.Error;
 
-// pub fn encodeRlp(allocator: Allocator, items: anytype) RlpEncodeErrors![]u8 {
-//     const info = @typeInfo(@TypeOf(items));
-//
-//     if (info != .@"struct") @compileError("Expected tuple type instead found " ++ @typeName(@TypeOf(items)));
-//     if (!info.@"struct".is_tuple) @compileError("Expected tuple type instead found " ++ @typeName(@TypeOf(items)));
-//
-//     var list = std.ArrayList(u8).init(allocator);
-//     var writer = list.writer();
-//
-//     inline for (items) |payload| {
-//         try encodeItem(allocator, payload, &writer);
-//     }
-//
-//     return list.toOwnedSlice();
-// }
-
-/// RLP Encoding. Items is expected to be a tuple of values.
-/// Compilation will fail if you pass in any other type.
-/// Caller owns the memory so it must be freed.
+/// RLP Encoding according to the [spec](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
 ///
-/// Reflects on the items and encodes based on it's type.
+/// Reflects on the items and encodes based on it's type.\
+/// Supports almost all of zig's type.
+///
+/// Doesn't support `opaque`, `fn`, `anyframe`, `error_union`, `void`, `null` types.
+///
+/// **Example**
+/// ```zig
+/// const encoded = try encodeRlp(allocator, 69420);
+/// defer allocator.free(encoded);
+/// ```
 pub fn encodeRlp(allocator: Allocator, payload: anytype) RlpEncodeErrors![]u8 {
     var list = std.ArrayList(u8).init(allocator);
     errdefer list.deinit();

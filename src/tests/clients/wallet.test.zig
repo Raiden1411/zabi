@@ -23,6 +23,7 @@ test "Address match" {
         .envelopes_pool = undefined,
         .rpc_client = undefined,
         .signer = try Signer.init(buffer),
+        .nonce_manager = null,
     };
 
     try testing.expectEqualStrings(&wallet.getWalletAddress(), &try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"));
@@ -37,6 +38,7 @@ test "verifyMessage" {
         .envelopes_pool = undefined,
         .rpc_client = undefined,
         .signer = try Signer.init(buffer),
+        .nonce_manager = null,
     };
 
     var hash_buffer: [Keccak256.digest_length]u8 = undefined;
@@ -56,6 +58,7 @@ test "signMessage" {
         .envelopes_pool = undefined,
         .rpc_client = undefined,
         .signer = try Signer.init(buffer),
+        .nonce_manager = null,
     };
 
     const sig = try wallet.signEthereumMessage("hello world");
@@ -74,6 +77,7 @@ test "signTypedData" {
         .envelopes_pool = undefined,
         .rpc_client = undefined,
         .signer = try Signer.init(buffer),
+        .nonce_manager = null,
     };
 
     const sig = try wallet.signTypedData(.{ .EIP712Domain = &.{} }, "EIP712Domain", .{}, .{});
@@ -92,6 +96,7 @@ test "verifyTypedData" {
         .envelopes_pool = undefined,
         .rpc_client = undefined,
         .signer = try Signer.init(buffer),
+        .nonce_manager = null,
     };
 
     const domain: eip712.TypedDataDomain = .{
@@ -140,7 +145,33 @@ test "sendTransaction" {
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
-        });
+        }, true);
+        defer wallet.deinit();
+
+        const tx: UnpreparedTransactionEnvelope = .{
+            .type = .london,
+            .value = try utils.parseEth(1),
+            .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+        };
+
+        const tx_hash = try wallet.sendTransaction(tx);
+        defer tx_hash.deinit();
+
+        const receipt = try wallet.waitForTransactionReceipt(tx_hash.response, 0);
+        defer receipt.deinit();
+    }
+    {
+        const uri = try std.Uri.parse("http://localhost:6969/");
+
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+        var wallet = try Wallet(.http).init(buffer, .{
+            .allocator = testing.allocator,
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
+        }, false);
         defer wallet.deinit();
 
         const tx: UnpreparedTransactionEnvelope = .{
@@ -166,7 +197,7 @@ test "sendTransaction" {
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
-        });
+        }, false);
         defer wallet.deinit();
 
         const tx: UnpreparedTransactionEnvelope = .{
@@ -190,7 +221,7 @@ test "sendTransaction" {
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
-        });
+        }, false);
         defer wallet.deinit();
 
         const tx: UnpreparedTransactionEnvelope = .{
@@ -207,6 +238,45 @@ test "sendTransaction" {
     }
 }
 
+test "Get First element With Nonce Manager" {
+    const uri = try std.Uri.parse("http://localhost:6969/");
+
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    var wallet = try Wallet(.http).init(buffer, .{
+        .allocator = testing.allocator,
+        .network_config = .{
+            .endpoint = .{ .uri = uri },
+        },
+    }, true);
+    defer wallet.deinit();
+
+    {
+        const first = wallet.envelopes_pool.getFirstElementFromPool(wallet.allocator);
+        const last = wallet.envelopes_pool.getLastElementFromPool(wallet.allocator);
+        try testing.expect(first == null);
+        try testing.expect(last == null);
+    }
+
+    var i: usize = 0;
+    while (i < 3) : (i += 1) {
+        _ = try wallet.nonce_manager.?.updateNonce(wallet.rpc_client);
+        const nonce = try wallet.nonce_manager.?.getNonce(wallet.rpc_client);
+
+        try wallet.poolTransactionEnvelope(.{ .type = .london, .nonce = nonce });
+    }
+
+    {
+        const first = wallet.envelopes_pool.getFirstElementFromPool(wallet.allocator);
+        const last = wallet.envelopes_pool.getLastElementFromPool(wallet.allocator);
+        try testing.expect(first != null);
+        try testing.expect(last != null);
+
+        try testing.expectEqual(last.?.london.nonce, 7);
+    }
+}
+
 test "Pool transactions" {
     {
         const uri = try std.Uri.parse("http://localhost:6969/");
@@ -219,7 +289,7 @@ test "Pool transactions" {
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
-        });
+        }, false);
         defer wallet.deinit();
 
         try wallet.poolTransactionEnvelope(.{ .type = .london, .nonce = 0 });
@@ -241,7 +311,7 @@ test "Pool transactions" {
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
-        });
+        }, false);
         defer wallet.deinit();
 
         try wallet.poolTransactionEnvelope(.{ .type = .london, .nonce = 0 });
@@ -261,7 +331,7 @@ test "Pool transactions" {
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
-        });
+        }, false);
         defer wallet.deinit();
 
         try wallet.poolTransactionEnvelope(.{ .type = .london, .nonce = 0 });
@@ -285,7 +355,7 @@ test "Get First element" {
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
-    });
+    }, false);
     defer wallet.deinit();
 
     {
@@ -321,7 +391,7 @@ test "assertTransaction" {
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
-    });
+    }, false);
     defer wallet.deinit();
 
     {
@@ -386,7 +456,7 @@ test "assertTransactionLegacy" {
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
-    });
+    }, false);
     defer wallet.deinit();
 
     tx = .{ .berlin = .{

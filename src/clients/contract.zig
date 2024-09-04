@@ -63,6 +63,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         const ContractInitOpts = struct {
             private_key: ?Hash,
             wallet_opts: InitOpts,
+            nonce_manager: bool,
         };
 
         const WalletClient = Wallet(client_type);
@@ -82,7 +83,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             errdefer opts.wallet_opts.allocator.destroy(self);
 
             self.* = .{
-                .wallet = try Wallet(client_type).init(opts.private_key, opts.wallet_opts),
+                .wallet = try Wallet(client_type).init(opts.private_key, opts.wallet_opts, opts.nonce_manager),
             };
 
             return self;
@@ -282,6 +283,7 @@ pub fn Contract(comptime client_type: ClientType) type {
             abi: Abi,
             private_key: ?Hash,
             wallet_opts: InitOpts,
+            nonce_manager: bool,
         };
 
         const WalletClient = Wallet(client_type);
@@ -305,7 +307,7 @@ pub fn Contract(comptime client_type: ClientType) type {
 
             self.* = .{
                 .abi = opts.abi,
-                .wallet = try Wallet(client_type).init(opts.private_key, opts.wallet_opts),
+                .wallet = try Wallet(client_type).init(opts.private_key, opts.wallet_opts, opts.nonce_manager),
             };
 
             return self;

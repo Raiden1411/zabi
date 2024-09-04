@@ -248,8 +248,8 @@ struct {
   maxFeePerBlobGas: Gwei
   blobVersionedHashes: ?[]const Hash = null
   v: u2
-  r: Hash
-  s: Hash
+  r: u256
+  s: u256
 }
 ```
 
@@ -271,8 +271,8 @@ struct {
   data: ?Hex = null
   accessList: []const AccessList
   v: u2
-  r: Hash
-  s: Hash
+  r: u256
+  s: u256
 }
 ```
 
@@ -293,8 +293,8 @@ struct {
   data: ?Hex = null
   accessList: []const AccessList
   v: u2
-  r: Hash
-  s: Hash
+  r: u256
+  s: u256
 }
 ```
 
@@ -314,8 +314,8 @@ struct {
   value: Wei
   data: ?Hex = null
   v: usize
-  r: ?Hash
-  s: ?Hash
+  r: ?u256
+  s: ?u256
 }
 ```
 

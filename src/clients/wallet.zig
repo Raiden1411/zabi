@@ -150,7 +150,7 @@ pub const TransactionEnvelopePool = struct {
 /// The same goes for the signer.
 pub fn Wallet(comptime client_type: WalletClients) type {
     return struct {
-        /// The wallet underlaying rpc client type (ws or http)
+        /// The wallet underlaying rpc client type (ws, http or ipc)
         const ClientType = switch (client_type) {
             .http => PubClient,
             .websocket => WebSocketClient,
@@ -199,7 +199,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             const Self = @This();
 
             /// Sets the initial state of the `NonceManager`.
-            pub fn init(address: Address) NonceManager {
+            pub fn initManager(address: Address) NonceManager {
                 return .{
                     .address = address,
                     .managed = 0,
@@ -285,7 +285,24 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
         /// Sets the wallet initial state.
         ///
-        /// The init opts will depend on the [client_type](/api/clients/wallet#walletclients).
+        /// The init opts will depend on the [client_type](/api/clients/wallet#walletclients).\
+        /// Also add the hability to use a nonce manager or to use the network directly.
+        ///
+        /// **Example**
+        /// ```zig
+        /// const uri = try std.Uri.parse("http://localhost:6969/");
+        ///
+        /// var buffer: Hash = undefined;
+        /// _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+        ///
+        /// var wallet = try Wallet(.http).init(buffer, .{
+        ///     .allocator = testing.allocator,
+        ///     .network_config = .{
+        ///         .endpoint = .{ .uri = uri },
+        ///     },
+        /// }, true);
+        /// defer wallet.deinit();
+        /// ```
         pub fn init(private_key: ?Hash, opts: InitOpts, nonce_manager: bool) (error{IdentityElement} || ClientType.InitErrors)!*Wallet(client_type) {
             const self = try opts.allocator.create(Wallet(client_type));
             errdefer opts.allocator.destroy(self);
@@ -297,7 +314,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 .rpc_client = undefined,
                 .signer = signer,
                 .envelopes_pool = .{ .pooled_envelopes = .{} },
-                .nonce_manager = if (nonce_manager) NonceManager.init(signer.address_bytes) else null,
+                .nonce_manager = if (nonce_manager) NonceManager.initManager(signer.address_bytes) else null,
             };
 
             self.rpc_client = try ClientType.init(opts);
@@ -371,8 +388,9 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             envelope.data = try self.prepareTransaction(unprepared_envelope);
             self.envelopes_pool.addEnvelopeToPool(envelope);
         }
-        /// Prepares a transaction based on it's type so that it can be sent through the network.
-        /// Only the null struct properties will get changed.
+        /// Prepares a transaction based on it's type so that it can be sent through the network.\
+        ///
+        /// Only the null struct properties will get changed.\
         /// Everything that gets set before will not be touched.
         pub fn prepareTransaction(
             self: *Wallet(client_type),
@@ -626,7 +644,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             }
         }
         /// Search the internal `TransactionEnvelopePool` to find the specified transaction based on the `type` and nonce.
-        /// If there are duplicate transaction that meet the search criteria it will send the first it can find.
+        ///
+        /// If there are duplicate transaction that meet the search criteria it will send the first it can find.\
         /// The search is linear and starts from the first node of the pool.
         pub fn searchPoolAndSendTransaction(
             self: *Wallet(client_type),
@@ -638,7 +657,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             return self.sendSignedTransaction(prepared);
         }
-        /// Sends blob transaction to the network
+        /// Sends blob transaction to the network.
         /// Trusted setup must be loaded otherwise this will fail.
         pub fn sendBlobTransaction(
             self: *Wallet(client_type),
@@ -668,7 +687,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             return self.rpc_client.sendRawTransaction(serialized_signed);
         }
-        /// Sends blob transaction to the network
+        /// Sends blob transaction to the network.
         /// This uses and already prepared sidecar.
         pub fn sendSidecarTransaction(
             self: *Wallet(client_type),
@@ -695,6 +714,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             return self.rpc_client.sendRawTransaction(serialized_signed);
         }
         /// Signs, serializes and send the transaction via `eth_sendRawTransaction`.
+        ///
         /// Returns the transaction hash.
         pub fn sendSignedTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) SendSignedTransactionErrors!RPCResponse(Hash) {
             const serialized = try serialize.serializeTransaction(self.allocator, tx, null);
@@ -710,7 +730,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             return self.rpc_client.sendRawTransaction(serialized_signed);
         }
         /// Prepares, asserts, signs and sends the transaction via `eth_sendRawTransaction`.
-        /// If any envelope is in the envelope pool it will use that instead in a LIFO order
+        ///
+        /// If any envelope is in the envelope pool it will use that instead in a LIFO order.\
         /// Will return an error if the envelope is incorrect
         pub fn sendTransaction(
             self: *Wallet(client_type),
@@ -724,7 +745,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         }
         /// Signs an ethereum message with the specified prefix.
         ///
-        /// The Signatures recoverId doesn't include the chain_id
+        /// The Signatures recoverId doesn't include the chain_id.
         pub fn signEthereumMessage(self: *Wallet(client_type), message: []const u8) (Signer.SigningErrors || Allocator.Error)!Signature {
             const start = "\x19Ethereum Signed Message:\n";
             const concated_message = try std.fmt.allocPrint(self.allocator, "{s}{d}{s}", .{ start, message.len, message });
@@ -809,6 +830,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// It fails if the retry counter is excedded.
         ///
         /// The behaviour of this method varies based on the client type.
+        ///
         /// If it's called with the websocket client or the ipc client it will create a subscription for new block and wait
         /// until the transaction gets mined. Otherwise it will use the rpc_client `pooling_interval` property.
         pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: Hash, confirmations: u8) (Error || error{

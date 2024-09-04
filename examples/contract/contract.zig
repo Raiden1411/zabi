@@ -42,6 +42,7 @@ pub fn main() !void {
                 .endpoint = .{ .uri = uri },
             },
         },
+        .nonce_manager = false,
     });
     defer contract.deinit();
 

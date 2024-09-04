@@ -5,8 +5,8 @@ const Secp256k1 = std.crypto.ecc.Secp256k1;
 
 /// Zig representation of an ethereum signature.
 pub const Signature = struct {
-    r: [Secp256k1.scalar.encoded_length]u8,
-    s: [Secp256k1.scalar.encoded_length]u8,
+    r: u256,
+    s: u256,
     v: u2,
 
     /// Converts a `CompactSignature` into a `Signature`.
@@ -22,8 +22,9 @@ pub const Signature = struct {
     /// Converts the struct signature into bytes.
     pub fn toBytes(sig: Signature) [65]u8 {
         var signed: [65]u8 = undefined;
-        @memcpy(signed[0..32], sig.r[0..]);
-        @memcpy(signed[32..64], sig.s[0..]);
+
+        std.mem.writeInt(u256, signed[0..32], sig.r, .big);
+        std.mem.writeInt(u256, signed[32..64], sig.s, .big);
         signed[64] = sig.v;
 
         return signed;
@@ -49,35 +50,41 @@ pub const Signature = struct {
 
             if (signed[64] == 27) break :rec_id 0 else break :rec_id 1;
         };
-        return .{ .r = signed[0..32].*, .s = signed[32..64].*, .v = @intCast(v) };
+        return .{
+            .r = std.mem.readInt(u256, signed[0..32], .big),
+            .s = std.mem.readInt(u256, signed[32..64], .big),
+            .v = @intCast(v),
+        };
     }
 };
 
 /// Zig representation of a compact ethereum signature.
 pub const CompactSignature = struct {
-    r: [Secp256k1.scalar.encoded_length]u8,
-    yParityWithS: [Secp256k1.scalar.encoded_length]u8,
+    r: u256,
+    yParityWithS: u256,
 
     /// Converts from a `Signature` into `CompactSignature`.
     pub fn toCompact(sig: Signature) CompactSignature {
         var compact: CompactSignature = undefined;
 
         compact.r = sig.r;
-        var bytes: [Secp256k1.scalar.encoded_length]u8 = sig.s;
+
+        var bytes: [Secp256k1.scalar.encoded_length]u8 = undefined;
+        std.mem.writeInt(u256, &bytes, sig.s, .big);
 
         if (sig.v == 1) {
             bytes[0] |= 0x80;
         }
 
-        compact.yParityWithS = bytes;
+        compact.yParityWithS = std.mem.readInt(u256, &bytes, .big);
 
         return compact;
     }
     /// Converts the struct signature into bytes.
     pub fn toBytes(sig: CompactSignature) [Secp256k1.scalar.encoded_length * 2]u8 {
         var signed: [64]u8 = undefined;
-        @memcpy(signed[0..32], sig.r[0..]);
-        @memcpy(signed[32..64], sig.yParityWithS[0..]);
+        std.mem.writeInt(u256, signed[0..32], sig.r, .big);
+        std.mem.writeInt(u256, signed[32..64], sig.yParityWithS, .big);
 
         return signed;
     }
@@ -98,8 +105,8 @@ pub const CompactSignature = struct {
         _ = try std.fmt.hexToBytes(signed[0..], signature);
 
         return .{
-            .r = signed[0..32],
-            .yParityWithS = signed[32..64],
+            .r = std.mem.readInt(u256, signed[0..32], .big),
+            .yParityWithS = std.mem.readInt(u256, signed[32..64], .big),
         };
     }
 };

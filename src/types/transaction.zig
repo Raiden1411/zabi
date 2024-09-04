@@ -206,8 +206,8 @@ pub const CancunTransactionEnvelopeSigned = struct {
     maxFeePerBlobGas: Gwei,
     blobVersionedHashes: ?[]const Hash = null,
     v: u2,
-    r: Hash,
-    s: Hash,
+    r: u256,
+    s: u256,
 
     pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
@@ -233,8 +233,8 @@ pub const LondonTransactionEnvelopeSigned = struct {
     data: ?Hex = null,
     accessList: []const AccessList,
     v: u2,
-    r: Hash,
-    s: Hash,
+    r: u256,
+    s: u256,
 
     pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
@@ -259,8 +259,8 @@ pub const BerlinTransactionEnvelopeSigned = struct {
     data: ?Hex = null,
     accessList: []const AccessList,
     v: u2,
-    r: Hash,
-    s: Hash,
+    r: u256,
+    s: u256,
 
     pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
@@ -284,8 +284,8 @@ pub const LegacyTransactionEnvelopeSigned = struct {
     value: Wei,
     data: ?Hex = null,
     v: usize,
-    r: ?Hash,
-    s: ?Hash,
+    r: ?u256,
+    s: ?u256,
 
     pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);

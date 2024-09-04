@@ -6,8 +6,8 @@ Zig representation of an ethereum signature.
 
 ```zig
 struct {
-  r: [Secp256k1.scalar.encoded_length]u8
-  s: [Secp256k1.scalar.encoded_length]u8
+  r: u256
+  s: u256
   v: u2
 }
 ```
@@ -58,8 +58,8 @@ Zig representation of a compact ethereum signature.
 
 ```zig
 struct {
-  r: [Secp256k1.scalar.encoded_length]u8
-  yParityWithS: [Secp256k1.scalar.encoded_length]u8
+  r: u256
+  yParityWithS: u256
 }
 ```
 

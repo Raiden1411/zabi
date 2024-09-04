@@ -33,6 +33,7 @@ test "DeployContract" {
                     .endpoint = .{ .uri = uri },
                 },
             },
+            .nonce_manager = true,
         });
         defer contract.deinit();
 
@@ -65,6 +66,7 @@ test "DeployContract" {
                     .endpoint = .{ .uri = uri },
                 },
             },
+            .nonce_manager = false,
         });
         defer contract.deinit();
 
@@ -96,6 +98,7 @@ test "DeployContract" {
                     .endpoint = .{ .path = "/tmp/anvil.ipc" },
                 },
             },
+            .nonce_manager = false,
         });
         defer contract.deinit();
 
@@ -136,6 +139,7 @@ test "WriteContract" {
                     .endpoint = .{ .uri = uri },
                 },
             },
+            .nonce_manager = false,
         });
         defer contract.deinit();
 
@@ -177,6 +181,8 @@ test "WriteContract" {
                     .endpoint = .{ .uri = uri },
                 },
             },
+
+            .nonce_manager = false,
         });
         defer contract.deinit();
 
@@ -214,6 +220,7 @@ test "WriteContract" {
                     .endpoint = .{ .path = "/tmp/anvil.ipc" },
                 },
             },
+            .nonce_manager = false,
         });
         defer contract.deinit();
 
@@ -237,6 +244,7 @@ test "WriteContract" {
                     .endpoint = .{ .uri = uri },
                 },
             },
+            .nonce_manager = true,
         });
         defer contract.deinit();
 
@@ -290,6 +298,7 @@ test "SimulateWriteCall" {
                     .endpoint = .{ .uri = uri },
                 },
             },
+            .nonce_manager = false,
         });
         defer contract.deinit();
 
@@ -328,6 +337,7 @@ test "SimulateWriteCall" {
                     .endpoint = .{ .uri = uri },
                 },
             },
+            .nonce_manager = false,
         });
         defer contract.deinit();
 
@@ -363,6 +373,7 @@ test "SimulateWriteCall" {
                     .endpoint = .{ .uri = uri },
                 },
             },
+            .nonce_manager = false,
         });
         defer contract.deinit();
 
@@ -400,6 +411,7 @@ test "SimulateWriteCall" {
                     .endpoint = .{ .path = "/tmp/anvil.ipc" },
                 },
             },
+            .nonce_manager = false,
         });
         defer contract.deinit();
 
@@ -420,6 +432,7 @@ test "SimulateWriteCall" {
                     .endpoint = .{ .uri = uri },
                 },
             },
+            .nonce_manager = false,
         });
         defer contract.deinit();
 
@@ -455,6 +468,7 @@ test "SimulateWriteCall" {
                     .endpoint = .{ .uri = uri },
                 },
             },
+            .nonce_manager = true,
         });
         defer contract.deinit();
 

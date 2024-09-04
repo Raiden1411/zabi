@@ -150,7 +150,7 @@ pub const TransactionEnvelopePool = struct {
 /// The same goes for the signer.
 pub fn Wallet(comptime client_type: WalletClients) type {
     return struct {
-        /// The wallet underlaying rpc client type (ws or http)
+        /// The wallet underlaying rpc client type (ws, http or ipc)
         const ClientType = switch (client_type) {
             .http => PubClient,
             .websocket => WebSocketClient,
@@ -186,21 +186,124 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Set of possible errors when sending signed transactions
         pub const SendSignedTransactionErrors = Error || Signer.SigningErrors || SerializeErrors;
 
+        /// Nonce manager that use's the rpc client as the source of truth
+        /// for checking internally that the cached and managed values can be used.
+        pub const NonceManager = struct {
+            /// The address that will get it's nonce managed.
+            address: Address,
+            /// The current nonce in use.
+            managed: u64,
+            /// The cached nonce.
+            cache: u64,
+
+            const Self = @This();
+
+            /// Sets the initial state of the `NonceManager`.
+            pub fn initManager(address: Address) NonceManager {
+                return .{
+                    .address = address,
+                    .managed = 0,
+                    .cache = 0,
+                };
+            }
+            /// Gets the nonce from either the cache or from the network.
+            ///
+            /// Resets the `manager` nonce value and the `cache` if the nonce value from the network
+            /// is higher than one from the `cache`.
+            pub fn getNonce(self: *Self, rpc_client: *ClientType) ClientType.BasicRequestErrors!u64 {
+                const nonce: u64 = nonce: {
+                    const nonce = try rpc_client.getAddressTransactionCount(.{
+                        .address = self.address,
+                        .tag = .pending,
+                    });
+                    defer nonce.deinit();
+
+                    const cached_nonce = self.cache;
+                    defer self.resetNonce();
+
+                    if (cached_nonce > 0 and nonce.response <= cached_nonce)
+                        break :nonce cached_nonce + 1;
+
+                    self.cache = 0;
+                    break :nonce nonce.response;
+                };
+
+                const nonce_from_manager = self.managed;
+
+                return nonce + nonce_from_manager;
+            }
+            /// Increments the `manager` by one.
+            pub fn incrementNonce(self: *Self) void {
+                self.managed += 1;
+            }
+            /// Gets the nonce from either the cache or from the network and updates internally.
+            ///
+            /// Resets the `manager` nonce value and the `cache` if the nonce value from the network
+            /// is higher than one from the `cache`.
+            pub fn updateNonce(self: *Self, rpc_client: *ClientType) ClientType.BasicRequestErrors!u64 {
+                self.incrementNonce();
+                const nonce: u64 = nonce: {
+                    const nonce = try rpc_client.getAddressTransactionCount(.{
+                        .address = self.address,
+                        .tag = .pending,
+                    });
+                    defer nonce.deinit();
+
+                    const cached_nonce = self.cache;
+                    defer self.resetNonce();
+
+                    if (cached_nonce > 0 and nonce.response <= cached_nonce)
+                        break :nonce cached_nonce + 1;
+
+                    self.cache = 0;
+                    break :nonce nonce.response;
+                };
+
+                self.cache = nonce;
+
+                return nonce;
+            }
+            /// Resets the `manager` to 0.
+            pub fn resetNonce(self: *Self) void {
+                self.managed = 0;
+            }
+        };
+
         /// Allocator used by the wallet implementation
         allocator: Allocator,
-        /// Pool to store all prepated transaction envelopes.
+        /// Pool to store all prepated transaction envelopes.\
         /// This is thread safe.
         envelopes_pool: TransactionEnvelopePool,
+        /// Internall nonce manager.\
+        /// Set it null to just use the network to update nonce values.
+        nonce_manager: ?NonceManager,
         /// JSON-RPC client used to make request. Supports almost all `eth_` rpc methods.
         rpc_client: *ClientType,
-        /// Signer that will sign transactions or ethereum messages.
+        /// Signer that will sign transactions or ethereum messages.\
         /// Its based on a custom implementation meshed with zig's source code.
         signer: Signer,
 
         /// Sets the wallet initial state.
         ///
-        /// The init opts will depend on the [client_type](/api/clients/wallet#walletclients).
-        pub fn init(private_key: ?Hash, opts: InitOpts) (error{IdentityElement} || ClientType.InitErrors)!*Wallet(client_type) {
+        /// The init opts will depend on the [client_type](/api/clients/wallet#walletclients).\
+        /// Also add the hability to use a nonce manager or to use the network directly.
+        ///
+        /// **Example**
+        /// ```zig
+        /// const uri = try std.Uri.parse("http://localhost:6969/");
+        ///
+        /// var buffer: Hash = undefined;
+        /// _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+        ///
+        /// var wallet = try Wallet(.http).init(buffer, .{
+        ///     .allocator = testing.allocator,
+        ///     .network_config = .{
+        ///         .endpoint = .{ .uri = uri },
+        ///     },
+        /// }, true);
+        /// defer wallet.deinit();
+        /// ```
+        pub fn init(private_key: ?Hash, opts: InitOpts, nonce_manager: bool) (error{IdentityElement} || ClientType.InitErrors)!*Wallet(client_type) {
             const self = try opts.allocator.create(Wallet(client_type));
             errdefer opts.allocator.destroy(self);
 
@@ -211,6 +314,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 .rpc_client = undefined,
                 .signer = signer,
                 .envelopes_pool = .{ .pooled_envelopes = .{} },
+                .nonce_manager = if (nonce_manager) NonceManager.initManager(signer.address_bytes) else null,
             };
 
             self.rpc_client = try ClientType.init(opts);
@@ -221,6 +325,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         pub fn deinit(self: *Wallet(client_type)) void {
             self.envelopes_pool.deinit(self.allocator);
             self.rpc_client.deinit();
+            self.nonce_manager = null;
 
             const allocator = self.allocator;
             allocator.destroy(self);
@@ -283,8 +388,9 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             envelope.data = try self.prepareTransaction(unprepared_envelope);
             self.envelopes_pool.addEnvelopeToPool(envelope);
         }
-        /// Prepares a transaction based on it's type so that it can be sent through the network.
-        /// Only the null struct properties will get changed.
+        /// Prepares a transaction based on it's type so that it can be sent through the network.\
+        ///
+        /// Only the null struct properties will get changed.\
         /// Everything that gets set before will not be touched.
         pub fn prepareTransaction(
             self: *Wallet(client_type),
@@ -317,10 +423,16 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const blob_version = unprepared_envelope.blobVersionedHashes orelse &.{};
 
                     const nonce: u64 = unprepared_envelope.nonce orelse blk: {
-                        const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
-                        defer nonce.deinit();
+                        if (self.nonce_manager) |*manager| {
+                            const nonce = try manager.updateNonce(self.rpc_client);
 
-                        break :blk nonce.response;
+                            break :blk nonce;
+                        } else {
+                            const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
+                            defer nonce.deinit();
+
+                            break :blk nonce.response;
+                        }
                     };
 
                     if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
@@ -376,10 +488,16 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
 
                     const nonce: u64 = unprepared_envelope.nonce orelse blk: {
-                        const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
-                        defer nonce.deinit();
+                        if (self.nonce_manager) |*manager| {
+                            const nonce = try manager.updateNonce(self.rpc_client);
 
-                        break :blk nonce.response;
+                            break :blk nonce;
+                        } else {
+                            const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
+                            defer nonce.deinit();
+
+                            break :blk nonce.response;
+                        }
                     };
 
                     if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
@@ -432,10 +550,16 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
 
                     const nonce: u64 = unprepared_envelope.nonce orelse blk: {
-                        const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
-                        defer nonce.deinit();
+                        if (self.nonce_manager) |*manager| {
+                            const nonce = try manager.updateNonce(self.rpc_client);
 
-                        break :blk nonce.response;
+                            break :blk nonce;
+                        } else {
+                            const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
+                            defer nonce.deinit();
+
+                            break :blk nonce.response;
+                        }
                     };
 
                     if (unprepared_envelope.gasPrice == null) {
@@ -481,10 +605,16 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     const chain_id = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
 
                     const nonce: u64 = unprepared_envelope.nonce orelse blk: {
-                        const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
-                        defer nonce.deinit();
+                        if (self.nonce_manager) |*manager| {
+                            const nonce = try manager.updateNonce(self.rpc_client);
 
-                        break :blk nonce.response;
+                            break :blk nonce;
+                        } else {
+                            const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
+                            defer nonce.deinit();
+
+                            break :blk nonce.response;
+                        }
                     };
 
                     if (unprepared_envelope.gasPrice == null) {
@@ -514,7 +644,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             }
         }
         /// Search the internal `TransactionEnvelopePool` to find the specified transaction based on the `type` and nonce.
-        /// If there are duplicate transaction that meet the search criteria it will send the first it can find.
+        ///
+        /// If there are duplicate transaction that meet the search criteria it will send the first it can find.\
         /// The search is linear and starts from the first node of the pool.
         pub fn searchPoolAndSendTransaction(
             self: *Wallet(client_type),
@@ -526,7 +657,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             return self.sendSignedTransaction(prepared);
         }
-        /// Sends blob transaction to the network
+        /// Sends blob transaction to the network.
         /// Trusted setup must be loaded otherwise this will fail.
         pub fn sendBlobTransaction(
             self: *Wallet(client_type),
@@ -556,7 +687,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             return self.rpc_client.sendRawTransaction(serialized_signed);
         }
-        /// Sends blob transaction to the network
+        /// Sends blob transaction to the network.
         /// This uses and already prepared sidecar.
         pub fn sendSidecarTransaction(
             self: *Wallet(client_type),
@@ -583,6 +714,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             return self.rpc_client.sendRawTransaction(serialized_signed);
         }
         /// Signs, serializes and send the transaction via `eth_sendRawTransaction`.
+        ///
         /// Returns the transaction hash.
         pub fn sendSignedTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) SendSignedTransactionErrors!RPCResponse(Hash) {
             const serialized = try serialize.serializeTransaction(self.allocator, tx, null);
@@ -598,7 +730,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             return self.rpc_client.sendRawTransaction(serialized_signed);
         }
         /// Prepares, asserts, signs and sends the transaction via `eth_sendRawTransaction`.
-        /// If any envelope is in the envelope pool it will use that instead in a LIFO order
+        ///
+        /// If any envelope is in the envelope pool it will use that instead in a LIFO order.\
         /// Will return an error if the envelope is incorrect
         pub fn sendTransaction(
             self: *Wallet(client_type),
@@ -612,7 +745,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         }
         /// Signs an ethereum message with the specified prefix.
         ///
-        /// The Signatures recoverId doesn't include the chain_id
+        /// The Signatures recoverId doesn't include the chain_id.
         pub fn signEthereumMessage(self: *Wallet(client_type), message: []const u8) (Signer.SigningErrors || Allocator.Error)!Signature {
             const start = "\x19Ethereum Signed Message:\n";
             const concated_message = try std.fmt.allocPrint(self.allocator, "{s}{d}{s}", .{ start, message.len, message });
@@ -697,6 +830,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// It fails if the retry counter is excedded.
         ///
         /// The behaviour of this method varies based on the client type.
+        ///
         /// If it's called with the websocket client or the ipc client it will create a subscription for new block and wait
         /// until the transaction gets mined. Otherwise it will use the rpc_client `pooling_interval` property.
         pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: Hash, confirmations: u8) (Error || error{

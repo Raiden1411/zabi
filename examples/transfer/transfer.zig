@@ -28,7 +28,7 @@ pub fn main() !void {
             .chain_id = .sepolia,
             .base_fee_multiplier = 3.2,
         },
-    });
+    }, true);
     defer wallet.deinit();
 
     const hash = try wallet.sendTransaction(.{ .type = .london, .to = try utils.addressToBytes("0x0000000000000000000000000000000000000000"), .value = 42069 });

@@ -190,15 +190,101 @@ Set of possible errors when sending signed transactions
 Error || Signer.SigningErrors || SerializeErrors
 ```
 
-## Init
-Sets the wallet initial state.
+## NonceManager
 
-The init opts will depend on the [client_type](/api/clients/wallet#walletclients).
+Nonce manager that use's the rpc client as the source of truth
+for checking internally that the cached and managed values can be used.
+
+### Properties
+
+```zig
+struct {
+  /// The address that will get it's nonce managed.
+  address: Address
+  /// The current nonce in use.
+  managed: u64
+  /// The cached nonce.
+  cache: u64
+}
+```
+
+### InitManager
+Sets the initial state of the `NonceManager`.
 
 ### Signature
 
 ```zig
-pub fn init(private_key: ?Hash, opts: InitOpts) (error{IdentityElement} || ClientType.InitErrors)!*Wallet(client_type)
+pub fn initManager(address: Address) NonceManager
+```
+
+### GetNonce
+Gets the nonce from either the cache or from the network.
+
+Resets the `manager` nonce value and the `cache` if the nonce value from the network
+is higher than one from the `cache`.
+
+### Signature
+
+```zig
+pub fn getNonce(self: *Self, rpc_client: *ClientType) ClientType.BasicRequestErrors!u64
+```
+
+### IncrementNonce
+Increments the `manager` by one.
+
+### Signature
+
+```zig
+pub fn incrementNonce(self: *Self) void
+```
+
+### UpdateNonce
+Gets the nonce from either the cache or from the network and updates internally.
+
+Resets the `manager` nonce value and the `cache` if the nonce value from the network
+is higher than one from the `cache`.
+
+### Signature
+
+```zig
+pub fn updateNonce(self: *Self, rpc_client: *ClientType) ClientType.BasicRequestErrors!u64
+```
+
+### ResetNonce
+Resets the `manager` to 0.
+
+### Signature
+
+```zig
+pub fn resetNonce(self: *Self) void
+```
+
+## Init
+Sets the wallet initial state.
+
+The init opts will depend on the [client_type](/api/clients/wallet#walletclients).\
+Also add the hability to use a nonce manager or to use the network directly.
+
+**Example**
+```zig
+const uri = try std.Uri.parse("http://localhost:6969/");
+
+var buffer: Hash = undefined;
+_ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+var wallet = try Wallet(.http).init(buffer, .{
+    .allocator = testing.allocator,
+    .network_config = .{
+        .endpoint = .{ .uri = uri },
+    },
+}, true);
+defer wallet.deinit();
+```
+
+### Signature
+
+```zig
+pub fn init(private_key: ?Hash, opts: InitOpts, nonce_manager: bool) (error{IdentityElement} || ClientType.InitErrors)!*Wallet(client_type)
 ```
 
 ## AssertTransaction
@@ -243,8 +329,9 @@ pub fn poolTransactionEnvelope(self: *Wallet(client_type), unprepared_envelope: 
 ```
 
 ## PrepareTransaction
-Prepares a transaction based on it's type so that it can be sent through the network.
-Only the null struct properties will get changed.
+Prepares a transaction based on it's type so that it can be sent through the network.\
+
+Only the null struct properties will get changed.\
 Everything that gets set before will not be touched.
 
 ### Signature
@@ -258,7 +345,8 @@ pub fn prepareTransaction(
 
 ## SearchPoolAndSendTransaction
 Search the internal `TransactionEnvelopePool` to find the specified transaction based on the `type` and nonce.
-If there are duplicate transaction that meet the search criteria it will send the first it can find.
+
+If there are duplicate transaction that meet the search criteria it will send the first it can find.\
 The search is linear and starts from the first node of the pool.
 
 ### Signature
@@ -271,7 +359,7 @@ pub fn searchPoolAndSendTransaction(
 ```
 
 ## SendBlobTransaction
-Sends blob transaction to the network
+Sends blob transaction to the network.
 Trusted setup must be loaded otherwise this will fail.
 
 ### Signature
@@ -286,7 +374,7 @@ pub fn sendBlobTransaction(
 ```
 
 ## SendSidecarTransaction
-Sends blob transaction to the network
+Sends blob transaction to the network.
 This uses and already prepared sidecar.
 
 ### Signature
@@ -301,6 +389,7 @@ pub fn sendSidecarTransaction(
 
 ## SendSignedTransaction
 Signs, serializes and send the transaction via `eth_sendRawTransaction`.
+
 Returns the transaction hash.
 
 ### Signature
@@ -311,7 +400,8 @@ pub fn sendSignedTransaction(self: *Wallet(client_type), tx: TransactionEnvelope
 
 ## SendTransaction
 Prepares, asserts, signs and sends the transaction via `eth_sendRawTransaction`.
-If any envelope is in the envelope pool it will use that instead in a LIFO order
+
+If any envelope is in the envelope pool it will use that instead in a LIFO order.\
 Will return an error if the envelope is incorrect
 
 ### Signature
@@ -326,7 +416,7 @@ pub fn sendTransaction(
 ## SignEthereumMessage
 Signs an ethereum message with the specified prefix.
 
-The Signatures recoverId doesn't include the chain_id
+The Signatures recoverId doesn't include the chain_id.
 
 ### Signature
 
@@ -417,6 +507,7 @@ Waits until the transaction gets mined and we can grab the receipt.
 It fails if the retry counter is excedded.
 
 The behaviour of this method varies based on the client type.
+
 If it's called with the websocket client or the ipc client it will create a subscription for new block and wait
 until the transaction gets mined. Otherwise it will use the rpc_client `pooling_interval` property.
 

@@ -43,8 +43,8 @@ pub fn recoverPubkey(signature: Signature, message_hash: Hash) RecoverPubKeyErro
     if (z.isZero())
         return error.InvalidMessageHash;
 
-    const s = try Secp256k1.scalar.Scalar.fromBytes(signature.s, .big);
-    const r = try Secp256k1.scalar.Scalar.fromBytes(signature.r, .big);
+    const s = try Secp256k1.scalar.Scalar.fromBytes(@bitCast(signature.s), .little);
+    const r = try Secp256k1.scalar.Scalar.fromBytes(@bitCast(signature.r), .little);
 
     const r_inv = r.invert();
     const v1 = z.mul(r_inv).neg().toBytes(.little);
@@ -151,8 +151,8 @@ pub fn sign(self: Signer, hash: Hash) SigningErrors!Signature {
     const s = try Secp256k1.scalar.Scalar.fromBytes(s_buffer, .little);
 
     return .{
-        .r = r.toBytes(.big),
-        .s = s.toBytes(.big),
+        .r = @bitCast(r.toBytes(.little)),
+        .s = @bitCast(s.toBytes(.little)),
         .v = y_int,
     };
 }
@@ -163,8 +163,8 @@ pub fn verifyMessage(self: Signer, message_hash: Hash, signature: Signature) boo
     if (z.isZero())
         return false;
 
-    const s = Secp256k1.scalar.Scalar.fromBytes(signature.s, .big) catch return false;
-    const r = Secp256k1.scalar.Scalar.fromBytes(signature.r, .big) catch return false;
+    const s = Secp256k1.scalar.Scalar.fromBytes(@bitCast(signature.s), .little) catch return false;
+    const r = Secp256k1.scalar.Scalar.fromBytes(@bitCast(signature.r), .little) catch return false;
     const public_scalar = Secp256k1.fromSec1(self.public_key[0..]) catch return false;
 
     if (public_scalar.equivalent(Secp256k1.identityElement))

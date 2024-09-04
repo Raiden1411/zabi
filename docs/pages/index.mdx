@@ -43,7 +43,7 @@ pub fn main() !void {
     var wallet = try Wallet.init(parsed.priv_key, .{
         .allocator = gpa.allocator(),
         .network_config = .{ .endpoint = .{ .uri = uri } },
-    });
+    }, false);
     defer wallet.deinit();
 
     const message = try wallet.signEthereumMessage("Hello World");

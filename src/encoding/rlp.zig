@@ -132,9 +132,7 @@ pub fn encodeRlp(allocator: Allocator, payload: anytype) RlpEncodeErrors![]u8 {
         },
         .pointer => |ptr_info| {
             switch (ptr_info.size) {
-                .One => {
-                    return encodeRlp(allocator, payload.*);
-                },
+                .One => return encodeRlp(allocator, payload.*),
                 .Slice, .Many => {
                     if (ptr_info.child == u8) {
                         if (payload.len == 0) try writer.writeByte(0x80) else if (payload.len < 56) {

@@ -35,6 +35,7 @@ const excludes = std.StaticStringMap(void).initComptime(.{
     .{ "ipc_server.zig", {} },
     .{ "pipe.zig", {} },
     .{ "root.zig", {} },
+    .{ "root_wasm.zig", {} },
     .{ "rpc_server.zig", {} },
     .{ "state_mutability.zig", {} },
     .{ "server.zig", {} },
@@ -46,6 +47,7 @@ const excludes = std.StaticStringMap(void).initComptime(.{
     .{ "tests_blobs", {} },
     .{ "tests", {} },
     .{ "wordlists", {} },
+    .{ "wasm", {} },
     .{ "zig-out", {} },
 
     // Function declarations. Only used on `container_decl` tokens and alike.

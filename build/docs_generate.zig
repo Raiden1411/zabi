@@ -293,7 +293,6 @@ pub const DocsGenerator = struct {
         try out_file.writeAll("### Signature\n\n");
         try out_file.writeAll("```zig\n");
         try self.formatFnProto(fn_proto.ast.proto_node, out_file);
-        // try out_file.writeAll(self.ast.getNodeSource(fn_proto.ast.proto_node));
         try out_file.writeAll("\n```\n\n");
     }
     /// Extracts the source and builds the mardown file when we have a `simple_var_decl` node.

@@ -1,6 +1,7 @@
 const ckzg4844 = @import("c-kzg-4844");
 const constants = @import("../utils/constants.zig");
 const eip712 = @import("../abi/eip712.zig");
+const encoder = @import("../encoding/encoder.zig");
 const serialize = @import("../encoding/serialize.zig");
 const std = @import("std");
 const testing = std.testing;
@@ -164,6 +165,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             .ipc => InitOptsIpc,
         };
 
+        const WalletSelf = Wallet(client_type);
+
         /// Set of possible errors when starting the wallet.
         pub const InitErrors = ClientType.InitErrors || error{IdentityElement};
 
@@ -303,8 +306,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// }, true);
         /// defer wallet.deinit();
         /// ```
-        pub fn init(private_key: ?Hash, opts: InitOpts, nonce_manager: bool) (error{IdentityElement} || ClientType.InitErrors)!*Wallet(client_type) {
-            const self = try opts.allocator.create(Wallet(client_type));
+        pub fn init(private_key: ?Hash, opts: InitOpts, nonce_manager: bool) (error{IdentityElement} || ClientType.InitErrors)!*WalletSelf {
+            const self = try opts.allocator.create(WalletSelf);
             errdefer opts.allocator.destroy(self);
 
             const signer = try Signer.init(private_key);
@@ -322,7 +325,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             return self;
         }
         /// Clears memory and destroys any created pointers
-        pub fn deinit(self: *Wallet(client_type)) void {
+        pub fn deinit(self: *WalletSelf) void {
             self.envelopes_pool.deinit(self.allocator);
             self.rpc_client.deinit();
             self.nonce_manager = null;
@@ -332,7 +335,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         }
         /// Asserts that the transactions is ready to be sent.
         /// Will return errors where the values are not expected
-        pub fn assertTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) AssertionErrors!void {
+        pub fn assertTransaction(self: *WalletSelf, tx: TransactionEnvelope) AssertionErrors!void {
             switch (tx) {
                 .london => |tx_eip1559| {
                     if (tx_eip1559.chainId != @intFromEnum(self.rpc_client.network_config.chain_id)) return error.InvalidChainId;
@@ -366,20 +369,66 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 },
             }
         }
+        /// Converts to a message that the contracts executing `AUTH` opcodes can understand.\
+        /// For more details on the implementation see [here](https://eips.ethereum.org/EIPS/eip-3074#specification).
+        ///
+        /// You can pass null to `nonce` if you want to target a specific nonce.\
+        /// Otherwise if with either use the `nonce_manager` if it can or fetch from the network.\
+        /// Memory must be freed after calling this method.
+        ///
+        /// This is still experimental since the EIP has not being deployed into any mainnet.
+        pub fn authMessageEip3074(
+            self: *WalletSelf,
+            invoker_address: Address,
+            nonce: ?u64,
+            commitment: Hash,
+        ) ClientType.BasicRequestErrors![]u8 {
+            const nonce_from: u256 = nonce: {
+                if (nonce) |nonce_unwrapped|
+                    break :nonce @intCast(nonce_unwrapped);
+
+                if (self.nonce_manager) |*manager| {
+                    break :nonce @intCast(try manager.getNonce(self.rpc_client));
+                }
+
+                const rpc_nonce = try self.rpc_client.getAddressTransactionCount(.{
+                    .tag = .pending,
+                    .address = self.signer.address_bytes,
+                });
+                defer rpc_nonce.deinit();
+
+                break :nonce @intCast(rpc_nonce.response);
+            };
+
+            const address_int: u160 = @bitCast(invoker_address);
+
+            const values: struct { u8, u256, u256, u256, Hash } = .{
+                // MAGIC_NUMBER -> https://eips.ethereum.org/EIPS/eip-3074#specification
+                0x04,
+                @intCast(@intFromEnum(self.rpc_client.network_config.chain_id)),
+                nonce_from,
+                @intCast(address_int),
+                commitment,
+            };
+
+            const message = try encoder.encodePacked(self.allocator, values);
+
+            return message;
+        }
         /// Find a specific prepared envelope from the pool based on the given search criteria.
-        pub fn findTransactionEnvelopeFromPool(self: *Wallet(client_type), search: TransactionEnvelopePool.SearchCriteria) ?TransactionEnvelope {
+        pub fn findTransactionEnvelopeFromPool(self: *WalletSelf, search: TransactionEnvelopePool.SearchCriteria) ?TransactionEnvelope {
             return self.envelopes_pool.findTransactionEnvelope(self.allocator, search);
         }
         /// Get the wallet address.
         ///
         /// Uses the wallet public key to generate the address.
-        pub fn getWalletAddress(self: *Wallet(client_type)) Address {
+        pub fn getWalletAddress(self: *WalletSelf) Address {
             return self.signer.address_bytes;
         }
         /// Converts unprepared transaction envelopes and stores them in a pool.
         ///
         /// This appends to the last node of the list.
-        pub fn poolTransactionEnvelope(self: *Wallet(client_type), unprepared_envelope: UnpreparedTransactionEnvelope) PrepareError!void {
+        pub fn poolTransactionEnvelope(self: *WalletSelf, unprepared_envelope: UnpreparedTransactionEnvelope) PrepareError!void {
             const envelope = try self.allocator.create(TransactionEnvelopePool.Node);
             errdefer self.allocator.destroy(envelope);
 
@@ -393,7 +442,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Only the null struct properties will get changed.\
         /// Everything that gets set before will not be touched.
         pub fn prepareTransaction(
-            self: *Wallet(client_type),
+            self: *WalletSelf,
             unprepared_envelope: UnpreparedTransactionEnvelope,
         ) PrepareError!TransactionEnvelope {
             const address = self.getWalletAddress();
@@ -643,12 +692,28 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 _ => return error.UnsupportedTransactionType,
             }
         }
+        /// Recovers the address associated with the signature based on the message.\
+        /// To reconstruct the message use `authMessageEip3074`
+        ///
+        /// You can pass null to `nonce` if you want to target a specific nonce.\
+        /// Otherwise if with either use the `nonce_manager` if it can or fetch from the network.
+        ///
+        /// Reconstructs the message from them and returns the address bytes.
+        pub fn recoverAuthMessageAddress(
+            auth_message: []u8,
+            sig: Signature,
+        ) Signer.RecoverPubKeyErrors!Address {
+            var hash: Hash = undefined;
+            Keccak256.hash(auth_message, &hash, .{});
+
+            return Signer.recoverAddress(sig, hash);
+        }
         /// Search the internal `TransactionEnvelopePool` to find the specified transaction based on the `type` and nonce.
         ///
         /// If there are duplicate transaction that meet the search criteria it will send the first it can find.\
         /// The search is linear and starts from the first node of the pool.
         pub fn searchPoolAndSendTransaction(
-            self: *Wallet(client_type),
+            self: *WalletSelf,
             search_opts: TransactionEnvelopePool.SearchCriteria,
         ) (SendSignedTransactionErrors || AssertionErrors || error{TransactionNotFoundInPool})!RPCResponse(Hash) {
             const prepared = self.envelopes_pool.findTransactionEnvelope(self.allocator, search_opts) orelse return error.TransactionNotFoundInPool;
@@ -660,7 +725,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Sends blob transaction to the network.
         /// Trusted setup must be loaded otherwise this will fail.
         pub fn sendBlobTransaction(
-            self: *Wallet(client_type),
+            self: *WalletSelf,
             blobs: []const Blob,
             unprepared_envelope: UnpreparedTransactionEnvelope,
             trusted_setup: *KZG4844,
@@ -690,7 +755,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Sends blob transaction to the network.
         /// This uses and already prepared sidecar.
         pub fn sendSidecarTransaction(
-            self: *Wallet(client_type),
+            self: *WalletSelf,
             sidecars: []const Sidecar,
             unprepared_envelope: UnpreparedTransactionEnvelope,
         ) !RPCResponse(Hash) {
@@ -716,7 +781,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Signs, serializes and send the transaction via `eth_sendRawTransaction`.
         ///
         /// Returns the transaction hash.
-        pub fn sendSignedTransaction(self: *Wallet(client_type), tx: TransactionEnvelope) SendSignedTransactionErrors!RPCResponse(Hash) {
+        pub fn sendSignedTransaction(self: *WalletSelf, tx: TransactionEnvelope) SendSignedTransactionErrors!RPCResponse(Hash) {
             const serialized = try serialize.serializeTransaction(self.allocator, tx, null);
             defer self.allocator.free(serialized);
 
@@ -734,7 +799,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// If any envelope is in the envelope pool it will use that instead in a LIFO order.\
         /// Will return an error if the envelope is incorrect
         pub fn sendTransaction(
-            self: *Wallet(client_type),
+            self: *WalletSelf,
             unprepared_envelope: UnpreparedTransactionEnvelope,
         ) (SendSignedTransactionErrors || AssertionErrors || PrepareError)!RPCResponse(Hash) {
             const prepared = self.envelopes_pool.getLastElementFromPool(self.allocator) orelse try self.prepareTransaction(unprepared_envelope);
@@ -743,10 +808,31 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             return self.sendSignedTransaction(prepared);
         }
+        /// Signs and prepares an eip3074 authorization message.
+        /// For more details on the implementation see [here](https://eips.ethereum.org/EIPS/eip-3074#specification).
+        ///
+        /// You can pass null to `nonce` if you want to target a specific nonce.\
+        /// Otherwise if with either use the `nonce_manager` if it can or fetch from the network.
+        ///
+        /// This is still experimental since the EIP has not being deployed into any mainnet.
+        pub fn signAuthMessageEip3074(
+            self: *WalletSelf,
+            invoker_address: Address,
+            nonce: ?u64,
+            commitment: Hash,
+        ) (ClientType.BasicRequestErrors || Signer.SigningErrors)!Signature {
+            const message = try self.authMessageEip3074(invoker_address, nonce, commitment);
+            defer self.allocator.free(message);
+
+            var hash_buffer: Hash = undefined;
+            Keccak256.hash(message, &hash_buffer, .{});
+
+            return self.signer.sign(hash_buffer);
+        }
         /// Signs an ethereum message with the specified prefix.
         ///
         /// The Signatures recoverId doesn't include the chain_id.
-        pub fn signEthereumMessage(self: *Wallet(client_type), message: []const u8) (Signer.SigningErrors || Allocator.Error)!Signature {
+        pub fn signEthereumMessage(self: *WalletSelf, message: []const u8) (Signer.SigningErrors || Allocator.Error)!Signature {
             const start = "\x19Ethereum Signed Message:\n";
             const concated_message = try std.fmt.allocPrint(self.allocator, "{s}{d}{s}", .{ start, message.len, message });
             defer self.allocator.free(concated_message);
@@ -777,7 +863,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         ///
         /// Returns the signature type.
         pub fn signTypedData(
-            self: *Wallet(client_type),
+            self: *WalletSelf,
             comptime eip_types: anytype,
             comptime primary_type: []const u8,
             domain: ?TypedDataDomain,
@@ -785,8 +871,25 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         ) (Signer.SigningErrors || EIP712Errors)!Signature {
             return self.signer.sign(try eip712.hashTypedData(self.allocator, eip_types, primary_type, domain, message));
         }
+        /// Verifies if the auth message was signed by the provided address.\
+        /// To reconstruct the message use `authMessageEip3074`.
+        ///
+        /// You can pass null to `expected_address` if you want to use this wallet instance
+        /// associated address.
+        pub fn verifyAuthMessage(
+            self: *WalletSelf,
+            expected_address: ?Address,
+            auth_message: []u8,
+            sig: Signature,
+        ) (ClientType.BasicRequestErrors || Signer.RecoverPubKeyErrors)!bool {
+            const expected_addr: u160 = @bitCast(expected_address orelse self.signer.address_bytes);
+
+            const recovered_address: u160 = @bitCast(try recoverAuthMessageAddress(auth_message, sig));
+
+            return expected_addr == recovered_address;
+        }
         /// Verifies if a given signature was signed by the current wallet.
-        pub fn verifyMessage(self: *Wallet(client_type), sig: Signature, message: []const u8) bool {
+        pub fn verifyMessage(self: *WalletSelf, sig: Signature, message: []const u8) bool {
             var hash_buffer: [Keccak256.digest_length]u8 = undefined;
             Keccak256.hash(message, &hash_buffer, .{});
             return self.signer.verifyMessage(hash_buffer, sig);
@@ -812,7 +915,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         ///
         /// Returns the signature type.
         pub fn verifyTypedData(
-            self: *Wallet(client_type),
+            self: *WalletSelf,
             sig: Signature,
             comptime eip712_types: anytype,
             comptime primary_type: []const u8,
@@ -833,7 +936,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         ///
         /// If it's called with the websocket client or the ipc client it will create a subscription for new block and wait
         /// until the transaction gets mined. Otherwise it will use the rpc_client `pooling_interval` property.
-        pub fn waitForTransactionReceipt(self: *Wallet(client_type), tx_hash: Hash, confirmations: u8) (Error || error{
+        pub fn waitForTransactionReceipt(self: *WalletSelf, tx_hash: Hash, confirmations: u8) (Error || error{
             FailedToGetReceipt,
             TransactionReceiptNotFound,
             TransactionNotFound,

@@ -49,10 +49,10 @@ If the constructor abi contains inputs it will encode `constructor_args` accordi
 
 ```zig
 pub fn deployContract(
-            self: *ContractComptime(client_type),
-            comptime constructor: Constructor,
-            opts: ConstructorOpts(constructor),
-        ) (SendErrors || error{ CreatingContractToKnowAddress, ValueInNonPayableConstructor })!RPCResponse(Hash)
+    self: *ContractComptime(client_type),
+    comptime constructor: Constructor,
+    opts: ConstructorOpts(constructor),
+) (SendErrors || error{ CreatingContractToKnowAddress, ValueInNonPayableConstructor })!RPCResponse(Hash)
 ```
 
 ## EstimateGas
@@ -80,10 +80,10 @@ RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#e
 
 ```zig
 pub fn readContractFunction(
-            self: *ContractComptime(client_type),
-            comptime func: Function,
-            opts: FunctionOpts(func, EthCall),
-        ) (ReadErrors || error{ InvalidFunctionMutability, InvalidRequestTarget })!AbiDecoded(AbiParametersToPrimative(func.outputs))
+    self: *ContractComptime(client_type),
+    comptime func: Function,
+    opts: FunctionOpts(func, EthCall),
+) (ReadErrors || error{ InvalidFunctionMutability, InvalidRequestTarget })!AbiDecoded(AbiParametersToPrimative(func.outputs))
 ```
 
 ## SimulateWriteCall
@@ -97,10 +97,10 @@ RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#e
 
 ```zig
 pub fn simulateWriteCall(
-            self: *ContractComptime(client_type),
-            comptime func: Function,
-            opts: FunctionOpts(func, UnpreparedTransactionEnvelope),
-        ) (ReadErrors || error{ InvalidRequestTarget, UnsupportedTransactionType })!RPCResponse(Hex)
+    self: *ContractComptime(client_type),
+    comptime func: Function,
+    opts: FunctionOpts(func, UnpreparedTransactionEnvelope),
+) (ReadErrors || error{ InvalidRequestTarget, UnsupportedTransactionType })!RPCResponse(Hex)
 ```
 
 ## WaitForTransactionReceipt
@@ -117,12 +117,12 @@ RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/doc
 
 ```zig
 pub fn waitForTransactionReceipt(self: *ContractComptime(client_type), tx_hash: Hash, confirmations: u8) (WalletClient.Error || error{
-            FailedToGetReceipt,
-            TransactionReceiptNotFound,
-            TransactionNotFound,
-            InvalidBlockNumber,
-            FailedToUnsubscribe,
-        })!RPCResponse(TransactionReceipt)
+    FailedToGetReceipt,
+    TransactionReceiptNotFound,
+    TransactionNotFound,
+    InvalidBlockNumber,
+    FailedToUnsubscribe,
+})!RPCResponse(TransactionReceipt)
 ```
 
 ## WriteContractFunction
@@ -136,10 +136,10 @@ RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/a
 
 ```zig
 pub fn writeContractFunction(
-            self: *ContractComptime(client_type),
-            comptime func: Function,
-            opts: FunctionOpts(func, UnpreparedTransactionEnvelope),
-        ) (SendErrors || error{ InvalidFunctionMutability, InvalidRequestTarget, ValueInNonPayableFunction })!RPCResponse(Hash)
+    self: *ContractComptime(client_type),
+    comptime func: Function,
+    opts: FunctionOpts(func, UnpreparedTransactionEnvelope),
+) (SendErrors || error{ InvalidFunctionMutability, InvalidRequestTarget, ValueInNonPayableFunction })!RPCResponse(Hash)
 ```
 
 ## Contract
@@ -194,11 +194,11 @@ If the constructor abi contains inputs it will encode `constructor_args` accordi
 
 ```zig
 pub fn deployContract(
-            self: *Contract(client_type),
-            constructor_args: anytype,
-            bytecode: Hex,
-            overrides: UnpreparedTransactionEnvelope,
-        ) (SendErrors || error{ CreatingContractToKnowAddress, ValueInNonPayableConstructor })!RPCResponse(Hash)
+    self: *Contract(client_type),
+    constructor_args: anytype,
+    bytecode: Hex,
+    overrides: UnpreparedTransactionEnvelope,
+) (SendErrors || error{ CreatingContractToKnowAddress, ValueInNonPayableConstructor })!RPCResponse(Hash)
 ```
 
 ## EstimateGas
@@ -213,10 +213,10 @@ RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-
 
 ```zig
 pub fn estimateGas(
-            self: *Contract(client_type),
-            call_object: EthCall,
-            opts: BlockNumberRequest,
-        ) WalletClient.Error!RPCResponse(Gwei)
+    self: *Contract(client_type),
+    call_object: EthCall,
+    opts: BlockNumberRequest,
+) WalletClient.Error!RPCResponse(Gwei)
 ```
 
 ## ReadContractFunction
@@ -230,12 +230,12 @@ RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#e
 
 ```zig
 pub fn readContractFunction(
-            self: *Contract(client_type),
-            comptime T: type,
-            function_name: []const u8,
-            function_args: anytype,
-            overrides: EthCall,
-        ) (ReadErrors || error{ InvalidFunctionMutability, InvalidRequestTarget })!AbiDecoded(T)
+    self: *Contract(client_type),
+    comptime T: type,
+    function_name: []const u8,
+    function_args: anytype,
+    overrides: EthCall,
+) (ReadErrors || error{ InvalidFunctionMutability, InvalidRequestTarget })!AbiDecoded(T)
 ```
 
 ## SimulateWriteCall
@@ -249,11 +249,11 @@ RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#e
 
 ```zig
 pub fn simulateWriteCall(
-            self: *Contract(client_type),
-            function_name: []const u8,
-            function_args: anytype,
-            overrides: UnpreparedTransactionEnvelope,
-        ) (ReadErrors || error{ InvalidRequestTarget, UnsupportedTransactionType })!RPCResponse(Hex)
+    self: *Contract(client_type),
+    function_name: []const u8,
+    function_args: anytype,
+    overrides: UnpreparedTransactionEnvelope,
+) (ReadErrors || error{ InvalidRequestTarget, UnsupportedTransactionType })!RPCResponse(Hex)
 ```
 
 ## WaitForTransactionReceipt
@@ -270,12 +270,12 @@ RPC Method: [`eth_getTransactionReceipt`](https://ethereum.org/en/developers/doc
 
 ```zig
 pub fn waitForTransactionReceipt(self: *ContractComptime(client_type), tx_hash: Hash, confirmations: u8) (WalletClient.Error || error{
-            FailedToGetReceipt,
-            TransactionReceiptNotFound,
-            TransactionNotFound,
-            InvalidBlockNumber,
-            FailedToUnsubscribe,
-        })!RPCResponse(TransactionReceipt)
+    FailedToGetReceipt,
+    TransactionReceiptNotFound,
+    TransactionNotFound,
+    InvalidBlockNumber,
+    FailedToUnsubscribe,
+})!RPCResponse(TransactionReceipt)
 ```
 
 ## WriteContractFunction
@@ -289,10 +289,10 @@ RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/a
 
 ```zig
 pub fn writeContractFunction(
-            self: *Contract(client_type),
-            function_name: []const u8,
-            function_args: anytype,
-            overrides: UnpreparedTransactionEnvelope,
-        ) (SendErrors || error{ InvalidFunctionMutability, InvalidRequestTarget, ValueInNonPayableFunction })!RPCResponse(Hash)
+    self: *Contract(client_type),
+    function_name: []const u8,
+    function_args: anytype,
+    overrides: UnpreparedTransactionEnvelope,
+) (SendErrors || error{ InvalidFunctionMutability, InvalidRequestTarget, ValueInNonPayableFunction })!RPCResponse(Hash)
 ```
 

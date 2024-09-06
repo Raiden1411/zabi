@@ -292,7 +292,8 @@ pub const DocsGenerator = struct {
         // Writes the signature
         try out_file.writeAll("### Signature\n\n");
         try out_file.writeAll("```zig\n");
-        try out_file.writeAll(self.ast.getNodeSource(fn_proto.ast.proto_node));
+        try self.formatFnProto(fn_proto.ast.proto_node, out_file);
+        // try out_file.writeAll(self.ast.getNodeSource(fn_proto.ast.proto_node));
         try out_file.writeAll("\n```\n\n");
     }
     /// Extracts the source and builds the mardown file when we have a `simple_var_decl` node.
@@ -374,6 +375,30 @@ pub const DocsGenerator = struct {
         defer self.allocator.free(comments);
 
         try out_file.writeAll(comments);
+    }
+    /// Format function with 4 space indent for arguments if necessary.
+    pub fn formatFnProto(self: *DocsGenerator, index: NodeIndex, writer: GeneratorWriter) !void {
+        const source = self.ast.getNodeSource(index);
+        var iter = std.mem.tokenizeAny(u8, source, "\n");
+
+        const first = iter.next() orelse unreachable; // Expected at least one.
+        try writer.writeAll(first);
+
+        while (iter.next()) |slice| {
+            const trimmed = std.mem.trimLeft(u8, slice, " ");
+
+            switch (trimmed[0]) {
+                ')', '}' => {
+                    try writer.writeAll("\n");
+                    try writer.writeAll(trimmed);
+                },
+                else => {
+                    try writer.writeAll("\n");
+                    try writer.writeAll("    ");
+                    try writer.writeAll(trimmed);
+                },
+            }
+        }
     }
 };
 

@@ -81,11 +81,11 @@ Returns an error if no game was found.
 
 ```zig
 pub fn getGame(
-            self: *L1,
-            limit: usize,
-            block_number: u256,
-            strategy: enum { random, latest, oldest },
-        ) !GameResult
+    self: *L1,
+    limit: usize,
+    block_number: u256,
+    strategy: enum { random, latest, oldest },
+) !GameResult
 ```
 
 ## GetGames
@@ -100,10 +100,10 @@ If null then it will return all games.
 
 ```zig
 pub fn getGames(
-            self: *L1,
-            limit: usize,
-            block_number: ?u256,
-        ) (L1Errors || error{ FaultProofsNotEnabled, Overflow, InvalidVersion })![]const GameResult
+    self: *L1,
+    limit: usize,
+    block_number: ?u256,
+) (L1Errors || error{ FaultProofsNotEnabled, Overflow, InvalidVersion })![]const GameResult
 ```
 
 ## GetFinalizedWithdrawals
@@ -142,11 +142,11 @@ Calls to the L2OutputOracle contract on L1 to get the output for a given L2 bloc
 
 ```zig
 pub fn getL2Output(self: *L1, l2_block_number: u256) (L1Errors || error{
-            Overflow,
-            InvalidVersion,
-            GameNotFound,
-            FaultProofsNotEnabled,
-        })!L2Output
+    Overflow,
+    InvalidVersion,
+    GameNotFound,
+    FaultProofsNotEnabled,
+})!L2Output
 ```
 
 ## GetL2OutputIndex
@@ -221,10 +221,10 @@ Gets the timings until the next dispute game is submitted based on the provided 
 
 ```zig
 pub fn getSecondsUntilNextGame(
-            self: *L1,
-            interval_buffer: f64,
-            l2BlockNumber: u64,
-        ) (L1Errors || error{ Overflow, FaultProofsNotEnabled, InvalidVersion, DivisionByZero })!NextGameTimings
+    self: *L1,
+    interval_buffer: f64,
+    l2BlockNumber: u64,
+) (L1Errors || error{ Overflow, FaultProofsNotEnabled, InvalidVersion, DivisionByZero })!NextGameTimings
 ```
 
 ## GetTransactionDepositEvents
@@ -239,10 +239,10 @@ the original piece of memory that contains the data.
 
 ```zig
 pub fn getTransactionDepositEvents(self: *L1, tx_hash: Hash) (L1Errors || LogsDecodeErrors || error{
-            ExpectedTopicData,
-            UnexpectedNullIndex,
-            TransactionReceiptNotFound,
-        })![]const TransactionDeposited
+    ExpectedTopicData,
+    UnexpectedNullIndex,
+    TransactionReceiptNotFound,
+})![]const TransactionDeposited
 ```
 
 ## GetWithdrawMessages
@@ -252,10 +252,10 @@ Gets the decoded withdrawl event logs from a given transaction receipt hash.
 
 ```zig
 pub fn getWithdrawMessages(self: *L1, tx_hash: Hash) (L1Errors || LogsDecodeErrors || error{
-            InvalidTransactionHash,
-            TransactionReceiptNotFound,
-            ExpectedTopicData,
-        })!Message
+    InvalidTransactionHash,
+    TransactionReceiptNotFound,
+    ExpectedTopicData,
+})!Message
 ```
 
 ## WaitForNextGame
@@ -266,13 +266,13 @@ This will keep pooling until it can get the `GameResult` or it exceeds the max r
 
 ```zig
 pub fn waitForNextGame(self: *L1, limit: usize, interval_buffer: f64, l2BlockNumber: u64) (L1Errors || error{
-            Overflow,
-            FaultProofsNotEnabled,
-            InvalidVersion,
-            DivisionByZero,
-            ExceedRetriesAmount,
-            GameNotFound,
-        })!GameResult
+    Overflow,
+    FaultProofsNotEnabled,
+    InvalidVersion,
+    DivisionByZero,
+    ExceedRetriesAmount,
+    GameNotFound,
+})!GameResult
 ```
 
 ## WaitForNextL2Output
@@ -283,14 +283,14 @@ This will keep pooling until it can get the L2Output or it exceeds the max retri
 
 ```zig
 pub fn waitForNextL2Output(self: *L1, latest_l2_block: u64) (L1Errors || error{
-            Overflow,
-            FaultProofsNotEnabled,
-            InvalidVersion,
-            DivisionByZero,
-            ExceedRetriesAmount,
-            InvalidBlockNumber,
-            GameNotFound,
-        })!L2Output
+    Overflow,
+    FaultProofsNotEnabled,
+    InvalidVersion,
+    DivisionByZero,
+    ExceedRetriesAmount,
+    InvalidBlockNumber,
+    GameNotFound,
+})!L2Output
 ```
 
 ## WaitToFinalize
@@ -300,10 +300,10 @@ Waits until the withdrawal has finalized.
 
 ```zig
 pub fn waitToFinalize(self: *L1, withdrawal_hash: Hash) (L1Errors || error{
-            Overflow,
-            InvalidWithdrawalHash,
-            WithdrawalNotProved,
-            InvalidVersion,
-        })!void
+    Overflow,
+    InvalidWithdrawalHash,
+    WithdrawalNotProved,
+    InvalidVersion,
+})!void
 ```
 

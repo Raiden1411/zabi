@@ -311,11 +311,11 @@ This is still experimental since the EIP has not being deployed into any mainnet
 
 ```zig
 pub fn authMessageEip3074(
-            self: *WalletSelf,
-            invoker_address: Address,
-            nonce: ?u64,
-            commitment: Hash,
-        ) ClientType.BasicRequestErrors![]u8
+    self: *WalletSelf,
+    invoker_address: Address,
+    nonce: ?u64,
+    commitment: Hash,
+) ClientType.BasicRequestErrors![]u8
 ```
 
 ## FindTransactionEnvelopeFromPool
@@ -359,9 +359,9 @@ Everything that gets set before will not be touched.
 
 ```zig
 pub fn prepareTransaction(
-            self: *WalletSelf,
-            unprepared_envelope: UnpreparedTransactionEnvelope,
-        ) PrepareError!TransactionEnvelope
+    self: *WalletSelf,
+    unprepared_envelope: UnpreparedTransactionEnvelope,
+) PrepareError!TransactionEnvelope
 ```
 
 ## RecoverAuthMessageAddress
@@ -377,9 +377,9 @@ Reconstructs the message from them and returns the address bytes.
 
 ```zig
 pub fn recoverAuthMessageAddress(
-            auth_message: []u8,
-            sig: Signature,
-        ) Signer.RecoverPubKeyErrors!Address
+    auth_message: []u8,
+    sig: Signature,
+) Signer.RecoverPubKeyErrors!Address
 ```
 
 ## SearchPoolAndSendTransaction
@@ -392,9 +392,9 @@ The search is linear and starts from the first node of the pool.
 
 ```zig
 pub fn searchPoolAndSendTransaction(
-            self: *WalletSelf,
-            search_opts: TransactionEnvelopePool.SearchCriteria,
-        ) (SendSignedTransactionErrors || AssertionErrors || error{TransactionNotFoundInPool})!RPCResponse(Hash)
+    self: *WalletSelf,
+    search_opts: TransactionEnvelopePool.SearchCriteria,
+) (SendSignedTransactionErrors || AssertionErrors || error{TransactionNotFoundInPool})!RPCResponse(Hash)
 ```
 
 ## SendBlobTransaction
@@ -405,11 +405,11 @@ Trusted setup must be loaded otherwise this will fail.
 
 ```zig
 pub fn sendBlobTransaction(
-            self: *WalletSelf,
-            blobs: []const Blob,
-            unprepared_envelope: UnpreparedTransactionEnvelope,
-            trusted_setup: *KZG4844,
-        ) !RPCResponse(Hash)
+    self: *WalletSelf,
+    blobs: []const Blob,
+    unprepared_envelope: UnpreparedTransactionEnvelope,
+    trusted_setup: *KZG4844,
+) !RPCResponse(Hash)
 ```
 
 ## SendSidecarTransaction
@@ -420,10 +420,10 @@ This uses and already prepared sidecar.
 
 ```zig
 pub fn sendSidecarTransaction(
-            self: *WalletSelf,
-            sidecars: []const Sidecar,
-            unprepared_envelope: UnpreparedTransactionEnvelope,
-        ) !RPCResponse(Hash)
+    self: *WalletSelf,
+    sidecars: []const Sidecar,
+    unprepared_envelope: UnpreparedTransactionEnvelope,
+) !RPCResponse(Hash)
 ```
 
 ## SendSignedTransaction
@@ -447,9 +447,9 @@ Will return an error if the envelope is incorrect
 
 ```zig
 pub fn sendTransaction(
-            self: *WalletSelf,
-            unprepared_envelope: UnpreparedTransactionEnvelope,
-        ) (SendSignedTransactionErrors || AssertionErrors || PrepareError)!RPCResponse(Hash)
+    self: *WalletSelf,
+    unprepared_envelope: UnpreparedTransactionEnvelope,
+) (SendSignedTransactionErrors || AssertionErrors || PrepareError)!RPCResponse(Hash)
 ```
 
 ## SignAuthMessageEip3074
@@ -465,11 +465,11 @@ This is still experimental since the EIP has not being deployed into any mainnet
 
 ```zig
 pub fn signAuthMessageEip3074(
-            self: *WalletSelf,
-            invoker_address: Address,
-            nonce: ?u64,
-            commitment: Hash,
-        ) (ClientType.BasicRequestErrors || Signer.SigningErrors)!Signature
+    self: *WalletSelf,
+    invoker_address: Address,
+    nonce: ?u64,
+    commitment: Hash,
+) (ClientType.BasicRequestErrors || Signer.SigningErrors)!Signature
 ```
 
 ## SignEthereumMessage
@@ -509,12 +509,12 @@ Returns the signature type.
 
 ```zig
 pub fn signTypedData(
-            self: *WalletSelf,
-            comptime eip_types: anytype,
-            comptime primary_type: []const u8,
-            domain: ?TypedDataDomain,
-            message: anytype,
-        ) (Signer.SigningErrors || EIP712Errors)!Signature
+    self: *WalletSelf,
+    comptime eip_types: anytype,
+    comptime primary_type: []const u8,
+    domain: ?TypedDataDomain,
+    message: anytype,
+) (Signer.SigningErrors || EIP712Errors)!Signature
 ```
 
 ## VerifyAuthMessage
@@ -528,11 +528,11 @@ associated address.
 
 ```zig
 pub fn verifyAuthMessage(
-            self: *WalletSelf,
-            expected_address: ?Address,
-            auth_message: []u8,
-            sig: Signature,
-        ) (ClientType.BasicRequestErrors || Signer.RecoverPubKeyErrors)!bool
+    self: *WalletSelf,
+    expected_address: ?Address,
+    auth_message: []u8,
+    sig: Signature,
+) (ClientType.BasicRequestErrors || Signer.RecoverPubKeyErrors)!bool
 ```
 
 ## VerifyMessage
@@ -570,13 +570,13 @@ Returns the signature type.
 
 ```zig
 pub fn verifyTypedData(
-            self: *WalletSelf,
-            sig: Signature,
-            comptime eip712_types: anytype,
-            comptime primary_type: []const u8,
-            domain: ?TypedDataDomain,
-            message: anytype,
-        ) (EIP712Errors || Signer.RecoverPubKeyErrors)!bool
+    self: *WalletSelf,
+    sig: Signature,
+    comptime eip712_types: anytype,
+    comptime primary_type: []const u8,
+    domain: ?TypedDataDomain,
+    message: anytype,
+) (EIP712Errors || Signer.RecoverPubKeyErrors)!bool
 ```
 
 ## WaitForTransactionReceipt
@@ -592,11 +592,11 @@ until the transaction gets mined. Otherwise it will use the rpc_client `pooling_
 
 ```zig
 pub fn waitForTransactionReceipt(self: *WalletSelf, tx_hash: Hash, confirmations: u8) (Error || error{
-            FailedToGetReceipt,
-            TransactionReceiptNotFound,
-            TransactionNotFound,
-            InvalidBlockNumber,
-            FailedToUnsubscribe,
-        })!RPCResponse(TransactionReceipt)
+    FailedToGetReceipt,
+    TransactionReceiptNotFound,
+    TransactionNotFound,
+    InvalidBlockNumber,
+    FailedToUnsubscribe,
+})!RPCResponse(TransactionReceipt)
 ```
 

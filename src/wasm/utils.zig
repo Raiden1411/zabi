@@ -2,6 +2,8 @@ const std = @import("std");
 const utils = @import("../utils/utils.zig");
 const wasm = @import("wasm.zig");
 
+const String = wasm.String;
+
 /// Convert a value to ethereum's `Gwei` value.
 pub export fn parseGwei(value: usize) u64 {
     return utils.parseGwei(value) catch @panic("Overflow");
@@ -9,20 +11,18 @@ pub export fn parseGwei(value: usize) u64 {
 /// Converts and address to its underlaying bytes.
 ///
 /// Assumes that `out_buffer` is the correct size of 20 bytes.
-pub export fn addressToBytes(expect_address: [*]const u8, len: usize, out_buffer: [*]u8) bool {
-    const addr = utils.addressToBytes(expect_address[0..len]) catch return false;
-    @memcpy(out_buffer[0..20], addr[0..]);
+pub export fn addressToBytes(expect_address: [*]const u8, len: usize) String {
+    const addr = utils.addressToBytes(expect_address[0..len]) catch |err| wasm.panic(@errorName(err), null, null);
 
-    return true;
+    return String.init(&addr);
 }
 /// Converts an hash to its underlaying bytes.
 ///
 /// Assumes that `out_buffer` is the correct size of 32 bytes.
-pub export fn hashToBytes(expected_address: [*]const u8, len: usize, out_buffer: [*]u8) bool {
-    const hash = utils.hashToBytes(expected_address[0..len]) catch return false;
-    @memcpy(out_buffer[0..32], hash[0..]);
+pub export fn hashToBytes(expected_address: [*]const u8, len: usize) String {
+    const hash = utils.hashToBytes(expected_address[0..len]) catch |err| wasm.panic(@errorName(err), null, null);
 
-    return true;
+    return String.init(&hash);
 }
 /// Checks that the given slice is an `ethereum` address.
 ///
@@ -43,10 +43,10 @@ pub export fn isHashString(expected_hash: [*]const u8, len: usize) bool {
     return utils.isHashString(expected_hash[0..len]);
 }
 /// Checksum an `ethereum` address.
-pub export fn toChecksumAddress(expected_address: [*]const u8, len: usize) [*]u8 {
-    const checksum = utils.toChecksum(wasm.allocator, expected_address[0..len]) catch return &[_]u8{};
+pub export fn toChecksumAddress(expected_address: [*]const u8, len: usize) String {
+    const checksum = utils.toChecksum(wasm.allocator, expected_address[0..len]) catch |err| wasm.panic(@errorName(err), null, null);
 
-    return checksum.ptr;
+    return String.init(checksum);
 }
 /// Convert an `Uint8Array` bytes into a `isize`.
 ///

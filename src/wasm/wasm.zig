@@ -13,22 +13,11 @@ comptime {
 pub const shared_mem = options.wasm_shared;
 
 /// The allocator to use in wasm environments.
-///
-/// The return values of this should NOT be sent to the host environment
-/// unless toHostOwned is called on them. In this case, the caller is expected
-/// to call free. If a pointer is NOT host-owned, then the wasm module is
-/// expected to call the normal alloc.free/destroy functions.
 pub const allocator = if (builtin.is_test)
     std.testing.allocator
 else
     std.heap.wasm_allocator;
 
-/// For host-owned allocations:
-/// We need to keep track of our own pointer lengths because Zig
-/// allocators usually don't do this and we need to be able to send
-/// a direct pointer back to the host system. A more appropriate thing
-/// to do would be to probably make a custom allocator that keeps track
-/// of size.
 var allocs: std.AutoHashMapUnmanaged([*]u8, usize) = .{};
 
 /// Allocate len bytes and return a pointer to the memory in the host.
@@ -59,3 +48,28 @@ pub export fn free(ptr: ?[*]u8) void {
         }
     }
 }
+/// Send message over to JS land and traps in wasm.
+pub fn panic(message: []const u8, stack_trace: ?*std.builtin.StackTrace, addr: ?usize) noreturn {
+    _ = stack_trace;
+    _ = addr;
+
+    std.log.err("Paniced: {s}", .{message});
+    @trap();
+}
+/// Handly type function to return slices with ptr and len.
+pub fn Slice(comptime T: type) type {
+    return packed struct(u64) {
+        ptr: u32,
+        len: u32,
+
+        pub fn init(slice: []const T) Slice(T) {
+            return .{
+                .ptr = @intFromPtr(slice.ptr),
+                .len = slice.len,
+            };
+        }
+    };
+}
+/// JS String representation in wasm.
+/// On JS side you will need to unwrap the values.
+pub const String = Slice(u8);

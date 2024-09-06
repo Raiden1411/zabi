@@ -6,7 +6,6 @@ const builtin = @import("builtin");
 comptime {
     _ = @import("wasm/wasm.zig");
     _ = @import("wasm/utils.zig");
-    _ = @import("wasm/rlp.zig");
 }
 
 /// So that we can log from zig to js.

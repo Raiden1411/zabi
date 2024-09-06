@@ -292,7 +292,7 @@ pub const DocsGenerator = struct {
         // Writes the signature
         try out_file.writeAll("### Signature\n\n");
         try out_file.writeAll("```zig\n");
-        try self.formatFnProto(fn_proto.ast.proto_node, out_file);
+        try self.formatFnProtoSignature(fn_proto.ast.proto_node, out_file);
         try out_file.writeAll("\n```\n\n");
     }
     /// Extracts the source and builds the mardown file when we have a `simple_var_decl` node.
@@ -376,7 +376,7 @@ pub const DocsGenerator = struct {
         try out_file.writeAll(comments);
     }
     /// Format function with 4 space indent for arguments if necessary.
-    pub fn formatFnProto(self: *DocsGenerator, index: NodeIndex, writer: GeneratorWriter) !void {
+    pub fn formatFnProtoSignature(self: *DocsGenerator, index: NodeIndex, writer: GeneratorWriter) !void {
         const source = self.ast.getNodeSource(index);
         var iter = std.mem.tokenizeAny(u8, source, "\n");
 

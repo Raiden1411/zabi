@@ -14,6 +14,139 @@ const TransactionEnvelope = transactions.TransactionEnvelope;
 const UnpreparedTransactionEnvelope = transactions.UnpreparedTransactionEnvelope;
 const Wallet = wallet_client.Wallet;
 
+test "AuthMessage" {
+    {
+        const uri = try std.Uri.parse("http://localhost:6969/");
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+        var wallet = try Wallet(.http).init(buffer, .{
+            .allocator = testing.allocator,
+            .network_config = .{ .endpoint = .{ .uri = uri } },
+        }, false);
+
+        defer wallet.deinit();
+
+        var hash: [32]u8 = undefined;
+        std.crypto.hash.sha3.Keccak256.hash("Hello World!", &hash, .{});
+
+        const message = try wallet.authMessageEip3074([_]u8{0} ** 20, null, hash);
+        defer testing.allocator.free(message);
+
+        const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(message)});
+        defer testing.allocator.free(hex);
+
+        try testing.expectEqualStrings(hex, "040000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003ea2f1d0abf3fc66cf29eebb70cbd4e7fe762ef8a09bcc06c8edf641230afec0");
+    }
+    {
+        const uri = try std.Uri.parse("http://localhost:6969/");
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+        var wallet = try Wallet(.http).init(buffer, .{
+            .allocator = testing.allocator,
+            .network_config = .{ .endpoint = .{ .uri = uri } },
+        }, true);
+
+        defer wallet.deinit();
+
+        var hash: [32]u8 = undefined;
+        std.crypto.hash.sha3.Keccak256.hash("Hello World!", &hash, .{});
+
+        const message = try wallet.authMessageEip3074([_]u8{0} ** 20, null, hash);
+        defer testing.allocator.free(message);
+
+        const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(message)});
+        defer testing.allocator.free(hex);
+
+        try testing.expectEqualStrings(hex, "040000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003ea2f1d0abf3fc66cf29eebb70cbd4e7fe762ef8a09bcc06c8edf641230afec0");
+    }
+    {
+        var buffer: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+        var wallet: Wallet(.http) = .{
+            .allocator = testing.allocator,
+            .envelopes_pool = undefined,
+            .rpc_client = @constCast(&.{
+                .allocator = testing.allocator,
+                .network_config = .{ .endpoint = .{ .path = "" }, .chain_id = .ethereum },
+                .client = undefined,
+                .connection = undefined,
+            }),
+            .signer = try Signer.init(buffer),
+            .nonce_manager = null,
+        };
+
+        var hash: [32]u8 = undefined;
+        std.crypto.hash.sha3.Keccak256.hash("Hello World!", &hash, .{});
+
+        const message = try wallet.authMessageEip3074([_]u8{0} ** 20, 69, hash);
+        defer testing.allocator.free(message);
+
+        const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(message)});
+        defer testing.allocator.free(hex);
+
+        try testing.expectEqualStrings(hex, "040000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000004500000000000000000000000000000000000000000000000000000000000000003ea2f1d0abf3fc66cf29eebb70cbd4e7fe762ef8a09bcc06c8edf641230afec0");
+    }
+}
+
+test "Sign Auth Message" {
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    var wallet: Wallet(.http) = .{
+        .allocator = testing.allocator,
+        .envelopes_pool = undefined,
+        .rpc_client = @constCast(&.{
+            .allocator = testing.allocator,
+            .network_config = .{ .endpoint = .{ .path = "" }, .chain_id = .ethereum },
+            .client = undefined,
+            .connection = undefined,
+        }),
+        .signer = try Signer.init(buffer),
+        .nonce_manager = null,
+    };
+
+    var hash: [32]u8 = undefined;
+    std.crypto.hash.sha3.Keccak256.hash("Hello World!", &hash, .{});
+
+    const sig = try wallet.signAuthMessageEip3074([_]u8{0} ** 20, 69, hash);
+
+    const hex = try sig.toHex(testing.allocator);
+    defer testing.allocator.free(hex);
+
+    try testing.expectEqualStrings(hex, "4df21b55dc4cbbb5efac05c2d7a1416f6a65e75a3e1bac0f6e759205cc92e9cd64bdc2fd8a326b5e14648208f13c224561ae3144d404fbb897f4b67c881f24ae00");
+}
+
+test "Verify Auth Message" {
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    var wallet: Wallet(.http) = .{
+        .allocator = testing.allocator,
+        .envelopes_pool = undefined,
+        .rpc_client = @constCast(&.{
+            .allocator = testing.allocator,
+            .network_config = .{ .endpoint = .{ .path = "" }, .chain_id = .ethereum },
+            .client = undefined,
+            .connection = undefined,
+        }),
+        .signer = try Signer.init(buffer),
+        .nonce_manager = null,
+    };
+
+    var hash: [32]u8 = undefined;
+    std.crypto.hash.sha3.Keccak256.hash("Hello World!", &hash, .{});
+
+    const message = try wallet.authMessageEip3074([_]u8{0} ** 20, 69, hash);
+    defer testing.allocator.free(message);
+
+    const sig = try wallet.signAuthMessageEip3074([_]u8{0} ** 20, 69, hash);
+
+    try testing.expect(try wallet.verifyAuthMessage(null, message, sig));
+}
+
 test "Address match" {
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");

@@ -150,10 +150,10 @@ To learn more about the multicall contract please go [here](https://github.com/m
 
 ```zig
 pub fn multicall3(
-            self: *Self,
-            comptime targets: []const MulticallTargets,
-            function_arguments: MulticallArguments(targets),
-            allow_failure: bool,
-        ) Self.Error!AbiDecoded([]const Result)
+    self: *Self,
+    comptime targets: []const MulticallTargets,
+    function_arguments: MulticallArguments(targets),
+    allow_failure: bool,
+) Self.Error!AbiDecoded([]const Result)
 ```
 

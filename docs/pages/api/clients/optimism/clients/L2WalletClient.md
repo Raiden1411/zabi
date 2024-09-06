@@ -128,10 +128,10 @@ Prepares a proof withdrawal transaction.
 
 ```zig
 pub fn prepareWithdrawalProofTransaction(
-            self: *WalletL2,
-            withdrawal: Withdrawal,
-            l2_output: L2Output,
-        ) (PubClient.ClientType.BasicRequestErrors || error{ InvalidBlockNumber, ExpectedOpStackContracts })!WithdrawalEnvelope
+    self: *WalletL2,
+    withdrawal: Withdrawal,
+    l2_output: L2Output,
+) (PubClient.ClientType.BasicRequestErrors || error{ InvalidBlockNumber, ExpectedOpStackContracts })!WithdrawalEnvelope
 ```
 
 ## ProveWithdrawal
@@ -142,12 +142,12 @@ a transaction to the network.
 
 ```zig
 pub fn proveWithdrawal(
-            self: *WalletL2,
-            withdrawal: WithdrawalNoHash,
-            l2_output_index: u256,
-            outputRootProof: RootProof,
-            withdrawal_proof: []const Hex,
-        ) ProveErrors!RPCResponse(Hash)
+    self: *WalletL2,
+    withdrawal: WithdrawalNoHash,
+    l2_output_index: u256,
+    outputRootProof: RootProof,
+    withdrawal_proof: []const Hex,
+) ProveErrors!RPCResponse(Hash)
 ```
 
 ## PrepareDepositTransaction
@@ -158,9 +158,9 @@ and a `to` address was given. It will also fail if the mint and value do not mat
 
 ```zig
 pub fn prepareDepositTransaction(
-            self: *WalletL2,
-            deposit_envelope: DepositEnvelope,
-        ) (PubClient.ClientType.BasicRequestErrors || error{ CreatingContractToKnowAddress, InvalidMintValue })!DepositData
+    self: *WalletL2,
+    deposit_envelope: DepositEnvelope,
+) (PubClient.ClientType.BasicRequestErrors || error{ CreatingContractToKnowAddress, InvalidMintValue })!DepositData
 ```
 
 ## SendTransaction
@@ -171,8 +171,8 @@ sending the transaction.
 
 ```zig
 pub fn sendTransaction(
-            self: *WalletL2,
-            envelope: LondonTransactionEnvelope,
-        ) (Signer.SigningErrors || PubClient.ClientType.BasicRequestErrors || SerializeErrors)!RPCResponse(Hash)
+    self: *WalletL2,
+    envelope: LondonTransactionEnvelope,
+) (Signer.SigningErrors || PubClient.ClientType.BasicRequestErrors || SerializeErrors)!RPCResponse(Hash)
 ```
 

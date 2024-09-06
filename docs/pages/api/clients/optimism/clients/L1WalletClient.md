@@ -67,9 +67,9 @@ Prepares the interaction with the contract method to `initiateWithdrawal`.
 
 ```zig
 pub fn prepareInitiateWithdrawal(
-            self: *L1Wallet,
-            request: WithdrawalRequest,
-        ) PubClient.ClientType.BasicRequestErrors!PreparedWithdrawal
+    self: *L1Wallet,
+    request: WithdrawalRequest,
+) PubClient.ClientType.BasicRequestErrors!PreparedWithdrawal
 ```
 
 ## SendTransaction
@@ -80,8 +80,8 @@ sending the transaction.
 
 ```zig
 pub fn sendTransaction(
-            self: *L1Wallet,
-            envelope: LondonTransactionEnvelope,
-        ) (Signer.SigningErrors || PubClient.ClientType.BasicRequestErrors || SerializeErrors)!RPCResponse(Hash)
+    self: *L1Wallet,
+    envelope: LondonTransactionEnvelope,
+) (Signer.SigningErrors || PubClient.ClientType.BasicRequestErrors || SerializeErrors)!RPCResponse(Hash)
 ```
 

@@ -24,7 +24,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
-        .test_runner = b.path("test_runner.zig"),
+        .test_runner = b.path("build/test_runner.zig"),
     });
 
     addDependencies(b, &lib_unit_tests.root_module, target, optimize);
@@ -130,7 +130,7 @@ fn buildAndRunConverage(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
-        .test_runner = b.path("test_runner.zig"),
+        .test_runner = b.path("build/test_runner.zig"),
     });
 
     addDependencies(b, &lib_unit_tests.root_module, target, optimize);
@@ -166,7 +166,7 @@ fn buildAndRunConverage(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
 fn buildDocs(b: *std.Build, target: std.Build.ResolvedTarget) void {
     const docs = b.addExecutable(.{
         .name = "docs",
-        .root_source_file = b.path("docs_generate.zig"),
+        .root_source_file = b.path("build/docs_generate.zig"),
         .target = target,
         .optimize = .ReleaseFast,
         .link_libc = true,

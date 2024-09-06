@@ -26,7 +26,7 @@ export default defineConfig({
 		<>
 			<meta
 				name="keywords"
-				content="ethereum, abi, zig, evm, eip-712, web3, optimism"
+				content="ethereum, abi, zig, evm, eip-712, web3, optimism, zig-package"
 			/>
 			<meta property="og:url" content="https://zabi.sh/" />
 			<meta property="twitter:image" content="https://zabi.sh/zabi.svg" />
@@ -42,9 +42,9 @@ export default defineConfig({
 		dark: "/zabi.svg",
 	},
 	topNav: [
-		{ text: "Init", link: "/" },
+		{ text: "Starting", link: "/" },
 		{
-			text: "v0.12.4",
+			text: "v0.13.1",
 			items: [
 				{
 					text: "Releases",

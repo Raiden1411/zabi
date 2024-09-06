@@ -259,15 +259,15 @@ test "Optionals" {
     try testing.expectEqualSlices(u8, encoded, &[_]u8{0x80});
 }
 
-// test "Errors" {
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{-69}));
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{-69.420}));
-//
-//     const negative: i8 = -69;
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{negative}));
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{@as(f16, @floatFromInt(negative))}));
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{[_]i8{negative}}));
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{.{negative}}));
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{@Vector(1, i8){negative}}));
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{&[_]i8{negative}}));
-// }
+test "Errors" {
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{-69}));
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{-69.420}));
+
+    const negative: i8 = -69;
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{negative}));
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{@as(f16, @floatFromInt(negative))}));
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{[_]i8{negative}}));
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{.{negative}}));
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{@Vector(1, i8){negative}}));
+    try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{&[_]i8{negative}}));
+}

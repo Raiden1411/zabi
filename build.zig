@@ -47,7 +47,10 @@ pub fn build(b: *std.Build) void {
 
     // Build and generate docs for zabi. Uses the `doc_comments` spread across the codebase.
     // Always build in `ReleaseFast`.
-    docsGenerate(b, target);
+    buildDocs(b, target);
+
+    // Build the wasm file. Always build in `ReleaseSmall` on `wasm32-freestanding.
+    buildWasm(b);
 }
 /// Adds zabi project dependencies.
 fn addDependencies(b: *std.Build, mod: *std.Build.Module, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
@@ -160,7 +163,7 @@ fn buildAndRunConverage(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
     test_step.dependOn(&install_coverage.step);
 }
 /// Builds and runs a runner to generate documentation based on the `doc_comments` tokens in the codebase.
-fn docsGenerate(b: *std.Build, target: std.Build.ResolvedTarget) void {
+fn buildDocs(b: *std.Build, target: std.Build.ResolvedTarget) void {
     const docs = b.addExecutable(.{
         .name = "docs",
         .root_source_file = b.path("docs_generate.zig"),
@@ -174,4 +177,46 @@ fn docsGenerate(b: *std.Build, target: std.Build.ResolvedTarget) void {
 
     const docs_step = b.step("docs", "Generate documentation based on the source code.");
     docs_step.dependOn(&docs_run.step);
+}
+/// Builds for wasm32-freestanding target.
+fn buildWasm(b: *std.Build) void {
+    const wasm_crosstarget: std.Target.Query = .{
+        .cpu_arch = .wasm32,
+        .os_tag = .freestanding,
+        .cpu_model = .{ .explicit = &std.Target.wasm.cpu.mvp },
+        .cpu_features_add = std.Target.wasm.featureSet(&.{
+            // We use this to explicitly request shared memory.
+            .atomics,
+
+            // Not explicitly used but compiler could use them if they want.
+            .bulk_memory,
+            .reference_types,
+            .sign_ext,
+        }),
+    };
+
+    const wasm = b.addExecutable(.{
+        .name = "zabi_wasm",
+        .root_source_file = b.path("src/root_wasm.zig"),
+        .target = b.resolveTargetQuery(wasm_crosstarget),
+        .optimize = .ReleaseSmall,
+        .link_libc = true,
+    });
+
+    // Browser target
+    wasm.entry = .disabled;
+    wasm.rdynamic = true;
+
+    // Memory defaults.
+    wasm.initial_memory = 65536 * 32;
+    wasm.max_memory = 65536 * 65336;
+
+    wasm.root_module.stack_protector = true;
+
+    addDependencies(b, &wasm.root_module, b.resolveTargetQuery(wasm_crosstarget), .ReleaseSmall);
+
+    const wasm_install = b.addInstallArtifact(wasm, .{});
+    const wasm_step = b.step("wasm", "Build wasm library");
+
+    wasm_step.dependOn(&wasm_install.step);
 }

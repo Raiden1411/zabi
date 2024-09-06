@@ -17,10 +17,10 @@ pub fn decodeRlp(allocator: Allocator, comptime T: type, encoded: []const u8) Rl
 }
 
 fn DecodedResult(comptime T: type) type {
-    return struct { consumed: u64, data: T };
+    return struct { consumed: usize, data: T };
 }
 
-fn decodeItem(allocator: Allocator, comptime T: type, encoded: []const u8, position: u64) RlpDecodeErrors!DecodedResult(T) {
+fn decodeItem(allocator: Allocator, comptime T: type, encoded: []const u8, position: usize) RlpDecodeErrors!DecodedResult(T) {
     const info = @typeInfo(T);
 
     std.debug.assert(encoded.len > 0); // Cannot decode 0 length;

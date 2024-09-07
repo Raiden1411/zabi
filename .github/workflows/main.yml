@@ -33,16 +33,6 @@ jobs:
         env:
           ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
 
-      - name: Run Anvil OP Sepolia
-        run: anvil --fork-url $ANVIL_FORK_URL_OP_SEPOLIA --port 6970 &
-        env:
-          ANVIL_FORK_URL_OP_SEPOLIA: ${{ secrets.ANVIL_FORK_URL_OP_SEPOLIA }}
-
-      - name: Run Anvil Sepolia
-        run: anvil --fork-url $ANVIL_FORK_URL_SEPOLIA --port 6971 &
-        env:
-          ANVIL_FORK_URL_SEPOLIA: ${{ secrets.ANVIL_FORK_URL_SEPOLIA }}
-
       - name: Get Zig version
         id: zig_version
         run: echo "zig_version=$(zig version)" >> $GITHUB_OUTPUT
@@ -57,3 +47,7 @@ jobs:
 
       - name: Run Tests
         run: zig build test -freference-trace
+        env:
+          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
+          ANVIL_FORK_URL_SEPOLIA: ${{ secrets.ANVIL_FORK_URL_SEPOLIA }}
+          ANVIL_FORK_URL_OP_SEPOLIA: ${{ secrets.ANVIL_FORK_URL_OP_SEPOLIA }}

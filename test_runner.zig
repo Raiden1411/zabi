@@ -1,6 +1,8 @@
 const builtin = @import("builtin");
 const std = @import("std");
 
+const Anvil = @import("src/clients/Anvil.zig");
+
 const TestFn = std.builtin.TestFn;
 
 /// Struct that will contain the test results.
@@ -32,7 +34,13 @@ const Modules = enum {
 };
 
 pub fn main() !void {
-    checkCommand(std.heap.page_allocator, "anvil");
+    startAnvilInstances(std.heap.page_allocator) catch @panic(
+        \\
+        \\Failed to connect to anvil!
+        \\
+        \\Please ensure that is running on port 6969.
+    );
+
     const test_funcs: []const TestFn = builtin.test_functions;
 
     // Return if we don't have any tests.
@@ -98,6 +106,7 @@ pub fn main() !void {
         }
 
         if (std.testing.allocator_instance.deinit() == .leak) {
+            results.leaked += 1;
             printer.print("leaked!\n", .{});
         }
     }
@@ -125,24 +134,14 @@ const TestsPrinter = struct {
     }
 };
 
-/// Checks if a command is installed on the system.
-fn checkCommand(allocator: std.mem.Allocator, comptime command: []const u8) void {
-    const env = std.process.getEnvVarOwned(allocator, "PATH") catch unreachable;
-    defer allocator.free(env);
+fn startAnvilInstances(allocator: std.mem.Allocator) !void {
+    const mainnet = try std.process.getEnvVarOwned(allocator, "ANVIL_FORK_URL");
+    defer allocator.free(mainnet);
 
-    var iter = std.mem.tokenizeAny(u8, env, ":");
+    var anvil: Anvil = undefined;
+    defer anvil.deinit();
 
-    while (iter.next()) |path| {
-        var dir = std.fs.openDirAbsolute(path, .{ .iterate = true }) catch continue;
+    anvil.initClient(.{ .allocator = allocator });
 
-        var walker = dir.walk(allocator) catch continue;
-        defer walker.deinit();
-
-        while (walker.next() catch continue) |sub_path| {
-            if (std.mem.eql(u8, sub_path.basename, command))
-                return;
-        }
-    }
-
-    @panic("Failed to find " ++ command ++ " executable");
+    try anvil.reset(.{ .forking = .{ .jsonRpcUrl = mainnet, .blockNumber = 19062632 } });
 }

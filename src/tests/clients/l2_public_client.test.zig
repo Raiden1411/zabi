@@ -4,9 +4,20 @@ const test_clients = @import("../constants.zig");
 const testing = std.testing;
 const utils = @import("../../utils/utils.zig");
 
+const Anvil = @import("../../clients/Anvil.zig");
 const L2Client = client.L2Client;
 
 test "GetWithdrawMessages" {
+    const op_sepolia = try std.process.getEnvVarOwned(testing.allocator, "ANVIL_FORK_URL_OP_SEPOLIA");
+    defer testing.allocator.free(op_sepolia);
+
+    var anvil: Anvil = undefined;
+    defer anvil.deinit();
+
+    anvil.initClient(.{ .allocator = testing.allocator });
+
+    try anvil.reset(.{ .forking = .{ .jsonRpcUrl = op_sepolia } });
+
     var op = try L2Client(.http).init(.{
         .allocator = testing.allocator,
         .network_config = test_clients.anvil_op_sepolia,

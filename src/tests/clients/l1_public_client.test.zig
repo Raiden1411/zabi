@@ -4,6 +4,7 @@ const testing = std.testing;
 const utils = @import("../../utils/utils.zig");
 const test_clients = @import("../constants.zig");
 
+const Anvil = @import("../../clients/Anvil.zig");
 const L1Client = client.L1Client;
 
 test "GetL2HashFromL1DepositInfo" {
@@ -133,6 +134,16 @@ test "Errors" {
 }
 
 test "getSecondsUntilNextGame" {
+    const sepolia = try std.process.getEnvVarOwned(testing.allocator, "ANVIL_FORK_URL_SEPOLIA");
+    defer testing.allocator.free(sepolia);
+
+    var anvil: Anvil = undefined;
+    defer anvil.deinit();
+
+    anvil.initClient(.{ .allocator = testing.allocator });
+
+    try anvil.reset(.{ .forking = .{ .jsonRpcUrl = sepolia } });
+
     var op = try L1Client(.http).init(.{
         .allocator = testing.allocator,
         .network_config = test_clients.anvil_sepolia,

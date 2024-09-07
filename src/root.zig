@@ -15,6 +15,9 @@ pub const encoding = @import("encoding/root.zig");
 /// Currently minimal support for interacting with ens resolvers
 /// More functionality will be added in the future.
 pub const ens = @import("clients/ens/root.zig");
+/// Similar to tools like "dotenv". Used internally by our tests
+/// to load the necessary anvil variables from `.env` file.
+pub const env_load = @import("utils/env_load.zig");
 /// Evm implementation. For now it contains the interpreter and other needed instances
 /// like `Contract`, `Host` and `EVMEnviroment` among other things.
 pub const evm = @import("evm/root.zig");

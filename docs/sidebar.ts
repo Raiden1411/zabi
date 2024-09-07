@@ -336,6 +336,10 @@ export const sidebar = {
 							text: "Cli Parser",
 							link: "/api/utils/args",
 						},
+						{
+							text: "Dot ENV",
+							link: "/api/utils/env_load",
+						},
 					],
 				},
 			],

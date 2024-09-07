@@ -1,3 +1,4 @@
+const env_parser = @import("src/utils/env_load.zig");
 const std = @import("std");
 const builtin = @import("builtin");
 
@@ -24,7 +25,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
-        .test_runner = b.path("build/test_runner.zig"),
+        .test_runner = b.path("test_runner.zig"),
     });
 
     addDependencies(b, &lib_unit_tests.root_module, target, optimize);
@@ -32,6 +33,7 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
+    loadVariables(b, run_lib_unit_tests);
 
     // Build and run the http server if `zig build server` was ran
     buildHttpServer(b, target, optimize);
@@ -130,7 +132,7 @@ fn buildAndRunConverage(b: *std.Build, target: std.Build.ResolvedTarget, optimiz
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
-        .test_runner = b.path("build/test_runner.zig"),
+        .test_runner = b.path("test_runner.zig"),
     });
 
     addDependencies(b, &lib_unit_tests.root_module, target, optimize);
@@ -219,4 +221,24 @@ fn buildWasm(b: *std.Build) void {
     const wasm_step = b.step("wasm", "Build wasm library");
 
     wasm_step.dependOn(&wasm_install.step);
+}
+/// Loads enviroment variables from a `.env` file in case they aren't already present.
+fn loadVariables(b: *std.Build, exe: *std.Build.Step.Run) void {
+    const mainnet = exe.getEnvMap().get("ANVIL_FORK_URL");
+
+    // We assume all other variables will be loaded.
+    if (mainnet != null)
+        return;
+
+    var file = std.fs.cwd().openFile(".env", .{}) catch return;
+    defer file.close();
+
+    const source = file.readToEndAllocOptions(b.allocator, std.math.maxInt(u32), null, @alignOf(u8), 0) catch |err|
+        std.debug.panic("Failed to read from .env file! Error: {s}", .{@errorName(err)});
+    defer b.allocator.free(source);
+
+    const env = exe.getEnvMap();
+
+    env_parser.parseToEnviromentVariables(b.allocator, source, env) catch |err|
+        std.debug.panic("Failed to load from .env file! Error: {s}", .{@errorName(err)});
 }

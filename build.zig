@@ -20,6 +20,9 @@ pub fn build(b: *std.Build) void {
 
     addDependencies(b, mod, target, optimize);
 
+    const load_variables = b.option(bool, "load_variables", "Load enviroment variables from a \"env\" file.") orelse false;
+    const env_file_path = b.option([]const u8, "env_file_path", "Specify the location of a env variables file") orelse ".env";
+
     const lib_unit_tests = b.addTest(.{
         .name = "zabi-tests",
         .root_source_file = b.path("src/root.zig"),
@@ -33,7 +36,10 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
-    loadVariables(b, run_lib_unit_tests);
+
+    if (load_variables) {
+        loadVariables(b, env_file_path, run_lib_unit_tests);
+    }
 
     // Build and run the http server if `zig build server` was ran
     buildHttpServer(b, target, optimize);
@@ -223,22 +229,17 @@ fn buildWasm(b: *std.Build) void {
     wasm_step.dependOn(&wasm_install.step);
 }
 /// Loads enviroment variables from a `.env` file in case they aren't already present.
-fn loadVariables(b: *std.Build, exe: *std.Build.Step.Run) void {
-    const mainnet = exe.getEnvMap().get("ANVIL_FORK_URL");
-
-    // We assume all other variables will be loaded.
-    if (mainnet != null)
-        return;
-
-    var file = std.fs.cwd().openFile(".env", .{}) catch return;
+fn loadVariables(b: *std.Build, env_path: []const u8, exe: *std.Build.Step.Run) void {
+    var file = std.fs.cwd().openFile(env_path, .{}) catch |err|
+        std.debug.panic("Failed to read from {s} file! Error: {s}", .{ env_path, @errorName(err) });
     defer file.close();
 
     const source = file.readToEndAllocOptions(b.allocator, std.math.maxInt(u32), null, @alignOf(u8), 0) catch |err|
-        std.debug.panic("Failed to read from .env file! Error: {s}", .{@errorName(err)});
+        std.debug.panic("Failed to read from {s} file! Error: {s}", .{ env_path, @errorName(err) });
     defer b.allocator.free(source);
 
     const env = exe.getEnvMap();
 
     env_parser.parseToEnviromentVariables(b.allocator, source, env) catch |err|
-        std.debug.panic("Failed to load from .env file! Error: {s}", .{@errorName(err)});
+        std.debug.panic("Failed to load from {s} file! Error: {s}", .{ env_path, @errorName(err) });
 }

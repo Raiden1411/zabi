@@ -68,6 +68,10 @@ pub fn main() !void {
 
 Explore the [docs](https://zabi.sh) to find out more on how you can use or integrate Zabi in your project!
 
+### Installing Zig
+
+You can install the latest version of zig [here](https://ziglang.org/download/) or you can also use a version manager like [zvm](https://www.zvm.app/guides/install-zvm/) to manage your zig version.
+
 ### Features
 
 - Json RPC with support for http/s, ws/s and ipc connections.

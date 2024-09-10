@@ -41,15 +41,6 @@ pub fn build(b: *std.Build) void {
         loadVariables(b, env_file_path, run_lib_unit_tests);
     }
 
-    // Build and run the http server if `zig build server` was ran
-    buildHttpServer(b, target, optimize);
-
-    // Build and run the ipc server if `zig build ipcserver` was ran
-    buildIpcServer(b, target, optimize);
-
-    // Build and run the ws server if `zig build wsserver` was ran
-    buildWsServer(b, target, optimize);
-
     // Build and run coverage test runner if `zig build coverage` was ran
     buildAndRunConverage(b, target, optimize);
 
@@ -76,60 +67,6 @@ fn addDependencies(b: *std.Build, mod: *std.Build.Module, target: std.Build.Reso
     mod.addImport("ws", ws.module("websocket"));
     mod.linkLibrary(c_kzg_4844_dep.artifact("c-kzg-4844"));
     mod.linkLibrary(blst_dep.artifact("blst"));
-}
-/// Builds and runs the IPC Server
-fn buildIpcServer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
-    const ipc = b.addExecutable(.{
-        .name = "ipc_server",
-        .root_source_file = b.path("src/ipc_server.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    addDependencies(b, &ipc.root_module, target, optimize);
-
-    var ipc_run = b.addRunArtifact(ipc);
-    ipc_run.has_side_effects = true;
-
-    if (b.args) |args| ipc_run.addArgs(args);
-
-    const ipc_step = b.step("ipcserver", "Run the ipc server");
-    ipc_step.dependOn(&ipc_run.step);
-}
-/// Builds and runs the Ws Server
-fn buildWsServer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
-    const ws = b.addExecutable(.{
-        .name = "ws_server",
-        .root_source_file = b.path("src/ws_server.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    addDependencies(b, &ws.root_module, target, optimize);
-
-    var ws_run = b.addRunArtifact(ws);
-    ws_run.has_side_effects = true;
-
-    if (b.args) |args| ws_run.addArgs(args);
-
-    const ws_step = b.step("wsserver", "Run the ws server");
-    ws_step.dependOn(&ws_run.step);
-}
-/// Builds and runs the Http Server
-fn buildHttpServer(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
-    const http = b.addExecutable(.{
-        .name = "http_server",
-        .root_source_file = b.path("src/rpc_server.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    addDependencies(b, &http.root_module, target, optimize);
-
-    var http_run = b.addRunArtifact(http);
-    http_run.has_side_effects = true;
-
-    if (b.args) |args| http_run.addArgs(args);
-
-    const http_step = b.step("server", "Run the http server");
-    http_step.dependOn(&http_run.step);
 }
 /// Build the coverage test executable and run it
 fn buildAndRunConverage(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {

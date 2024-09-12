@@ -49,6 +49,7 @@ const excludes = std.StaticStringMap(void).initComptime(.{
     .{ "wordlists", {} },
     .{ "wasm", {} },
     .{ "zig-out", {} },
+    .{ "ast", {} },
 
     // Function declarations. Only used on `container_decl` tokens and alike.
     .{ "format", {} },
@@ -378,7 +379,7 @@ pub const DocsGenerator = struct {
     /// Format function with 4 space indent for arguments if necessary.
     pub fn formatFnProtoSignature(self: *DocsGenerator, index: NodeIndex, writer: GeneratorWriter) !void {
         const source = self.ast.getNodeSource(index);
-        var iter = std.mem.tokenizeAny(u8, source, "\n");
+        var iter = std.mem.tokenizeScalar(u8, source, '\n');
 
         const first = iter.next() orelse unreachable; // Expected at least one.
         try writer.writeAll(first);

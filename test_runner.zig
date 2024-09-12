@@ -23,6 +23,7 @@ const PADDING = " " ** 35;
 /// Enum of the possible test modules.
 const Modules = enum {
     abi,
+    ast,
     clients,
     crypto,
     encoding,
@@ -102,6 +103,7 @@ pub fn main() !void {
                 if (@errorReturnTrace()) |trace| {
                     std.debug.dumpStackTrace(trace.*);
                 }
+                break;
             },
         }
 

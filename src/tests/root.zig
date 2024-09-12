@@ -1,5 +1,6 @@
 test {
     _ = @import("abi/root.zig");
+    _ = @import("ast/tokenizer.test.zig");
     _ = @import("clients/root.zig");
     _ = @import("crypto/root.zig");
     _ = @import("decoding/root.zig");

@@ -1,17 +1,19 @@
 const std = @import("std");
-const testing = std.testing;
 
+/// Solidity token structure.
 pub const Token = struct {
     /// Solidity token tag.
     tag: Tag,
     /// Location in the source code.
     location: Location,
 
+    /// Location of the token in the source code.
     pub const Location = struct {
         start: usize,
         end: usize,
     };
 
+    /// All possible solidity token tags.
     pub const Tag = enum {
         identifier,
         number_literal,
@@ -172,11 +174,12 @@ pub const Token = struct {
         reserved_var,
     };
 
+    /// All possibled keyword/reserved words in solidity.
     pub const keyword = std.StaticStringMap(Tag).initComptime(.{
         .{ "abstract", .keyword_abstract },
         .{ "anonymous", .keyword_anonymous },
-        .{ " as", .keyword_as },
-        .{ " assembly", .keyword_assembly },
+        .{ "as", .keyword_as },
+        .{ "assembly", .keyword_assembly },
         .{ "break", .keyword_break },
         .{ "catch", .keyword_catch },
         .{ "constant", .keyword_constant },
@@ -274,6 +277,10 @@ pub const Token = struct {
     });
 };
 
+/// Produces solidity tokens from the provided sentinel buffer.
+///
+/// This should never error even in case of incorrect tokens.
+/// Instead it produces invalid tag tokens.
 pub const Tokenizer = struct {
     /// Source to parse.
     buffer: [:0]const u8,
@@ -327,6 +334,7 @@ pub const Tokenizer = struct {
         string_literal,
     };
 
+    /// Advances the tokenizer and produces a token.
     pub fn next(self: *Tokenizer) Token {
         var result: Token = .{
             .tag = undefined,

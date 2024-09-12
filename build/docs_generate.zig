@@ -49,6 +49,7 @@ const excludes = std.StaticStringMap(void).initComptime(.{
     .{ "wordlists", {} },
     .{ "wasm", {} },
     .{ "zig-out", {} },
+    .{ "ast", {} },
 
     // Function declarations. Only used on `container_decl` tokens and alike.
     .{ "format", {} },

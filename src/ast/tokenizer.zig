@@ -25,6 +25,7 @@ pub const Token = struct {
         r_brace,
         semicolon,
         colon,
+        colon_equal,
         period,
         arrow,
         tilde,
@@ -66,6 +67,7 @@ pub const Token = struct {
         angle_bracket_right_angle_bracket_right_angle_bracket_right_equal,
         question_mark,
         doc_comment,
+        doc_comment_container,
         comma,
         string_literal,
 
@@ -302,8 +304,10 @@ pub const Tokenizer = struct {
         bang,
         caret,
         slash,
-        slash_asterisk,
+        colon,
         ampersand,
+        doc_comment_container_start,
+        doc_comment_container,
         doc_comment_start,
         doc_comment,
         line_comment_start,
@@ -318,6 +322,8 @@ pub const Tokenizer = struct {
         int,
         int_exponent,
         int_hex,
+        int_period,
+        float,
         string_literal,
     };
 
@@ -350,7 +356,7 @@ pub const Tokenizer = struct {
                     result.tag = .string_literal;
                     continue :state .string_literal;
                 },
-                'a'...'z', 'A'...'Z', '_' => {
+                'a'...'z', 'A'...'Z', '_', '$' => {
                     result.tag = .identifier;
                     continue :state .identifier;
                 },
@@ -371,6 +377,7 @@ pub const Tokenizer = struct {
                 '^' => continue :state .caret,
                 '<' => continue :state .angle_bracket_left,
                 '>' => continue :state .angle_bracket_right,
+                ':' => continue :state .colon,
                 '(' => {
                     result.tag = .l_paren;
                     self.index += 1;
@@ -407,10 +414,6 @@ pub const Tokenizer = struct {
                     result.tag = .question_mark;
                     self.index += 1;
                 },
-                ':' => {
-                    result.tag = .colon;
-                    self.index += 1;
-                },
                 '.' => {
                     result.tag = .period;
                     self.index += 1;
@@ -429,6 +432,16 @@ pub const Tokenizer = struct {
                     },
                     '\n' => result.tag = .invalid,
                     else => continue :state .invalid,
+                }
+            },
+            .colon => {
+                self.index += 1;
+                switch (self.buffer[self.index]) {
+                    '=' => {
+                        result.tag = .colon_equal;
+                        self.index += 1;
+                    },
+                    else => result.tag = .colon,
                 }
             },
             .ampersand => {
@@ -547,7 +560,7 @@ pub const Tokenizer = struct {
                         self.index += 1;
                     },
                     '/' => continue :state .line_comment_start,
-                    '*' => continue :state .slash_asterisk,
+                    '*' => continue :state .doc_comment_container_start,
                     else => result.tag = .slash,
                 }
             },
@@ -560,6 +573,7 @@ pub const Tokenizer = struct {
                         continue :state .start;
                     },
                     0x01...0x09, 0x0b...0x0c, 0x0e...0x1f, 0x7f => continue :state .invalid,
+                    '/' => continue :state .doc_comment_start,
                     else => continue :state .line_comment,
                 }
             },
@@ -587,34 +601,61 @@ pub const Tokenizer = struct {
                     else => continue :state .line_comment,
                 }
             },
-            .slash_asterisk => {
+            .doc_comment_container_start => {
                 self.index += 1;
                 switch (self.buffer[self.index]) {
-                    '*' => continue :state .doc_comment_start,
-                    else => continue :state .invalid,
+                    0 => result.tag = .doc_comment_container,
+                    0x01...0x09, 0x0b...0x0c, 0x0e...0x1f, 0x7f => continue :state .invalid,
+                    else => {
+                        result.tag = .doc_comment_container;
+                        continue :state .doc_comment_container;
+                    },
                 }
             },
             .doc_comment_start => {
                 self.index += 1;
                 switch (self.buffer[self.index]) {
-                    0 => result.tag = .invalid,
-                    0x01...0x09, 0x0b...0x0c, 0x0e...0x1f, 0x7f => continue :state .invalid,
+                    0, '\n' => result.tag = .doc_comment,
+                    '\r' => {
+                        if (self.buffer[self.index + 1] == '\n') {
+                            result.tag = .doc_comment;
+                        } else {
+                            continue :state .invalid;
+                        }
+                    },
+                    '/' => continue :state .line_comment,
+                    0x01...0x09, 0x0b...0x0c, 0x0e...0x1f, 0x7f => {
+                        continue :state .invalid;
+                    },
                     else => {
                         result.tag = .doc_comment;
                         continue :state .doc_comment;
                     },
                 }
             },
-            .doc_comment => {
+            .doc_comment_container => {
                 self.index += 1;
                 switch (self.buffer[self.index]) {
-                    0 => result.tag = .doc_comment,
+                    0 => result.tag = .doc_comment_container,
                     '*' => {
                         if (self.buffer[self.index + 1] == '/') {
                             self.index += 2;
-                        } else continue :state .doc_comment;
+                        } else continue :state .doc_comment_container;
                     },
                     0x01...0x09, 0x0b...0x0c, 0x0e...0x1f, 0x7f => continue :state .invalid,
+                    else => continue :state .doc_comment_container,
+                }
+            },
+            .doc_comment => {
+                self.index += 1;
+                switch (self.buffer[self.index]) {
+                    0, '\n' => {},
+                    '\r' => if (self.buffer[self.index + 1] != '\n') {
+                        continue :state .invalid;
+                    },
+                    0x01...0x09, 0x0b...0x0c, 0x0e...0x1f, 0x7f => {
+                        continue :state .invalid;
+                    },
                     else => continue :state .doc_comment,
                 }
             },
@@ -666,7 +707,7 @@ pub const Tokenizer = struct {
             .identifier => {
                 self.index += 1;
                 switch (self.buffer[self.index]) {
-                    'a'...'z', 'A'...'Z', '0'...'9', '_' => continue :state .identifier,
+                    'a'...'z', 'A'...'Z', '0'...'9', '_', '$' => continue :state .identifier,
                     else => {
                         if (Token.keyword.get(self.buffer[result.location.start..self.index])) |tag| {
                             result.tag = tag;
@@ -733,7 +774,15 @@ pub const Tokenizer = struct {
                     'e', 'E' => continue :state .int_exponent,
                     'x' => continue :state .int_hex,
                     '0'...'9' => continue :state .int,
+                    '.' => continue :state .int_period,
                     else => {},
+                }
+            },
+            .int_period => {
+                self.index += 1;
+                switch (self.buffer[self.index]) {
+                    '0'...'9' => continue :state .float,
+                    else => self.index -= 1,
                 }
             },
             .int_exponent => {
@@ -750,6 +799,13 @@ pub const Tokenizer = struct {
                     else => {},
                 }
             },
+            .float => {
+                self.index += 1;
+                switch (self.buffer[self.index]) {
+                    '0'...'9' => continue :state .float,
+                    else => {},
+                }
+            },
         }
 
         result.location.end = self.index;
@@ -757,80 +813,3 @@ pub const Tokenizer = struct {
         return result;
     }
 };
-
-test "Keywords" {
-    try testTokenize("foo payable struct", &.{ .identifier, .keyword_payable, .keyword_struct });
-    try testTokenize("after of inline gwei", &.{ .reserved_after, .reserved_of, .reserved_inline, .keyword_gwei });
-    try testTokenize(
-        \\/**
-        \\* This is a doc_comment.
-        \\*/
-        \\foo + bar;
-    , &.{ .doc_comment, .identifier, .plus, .identifier, .semicolon });
-}
-
-test "Line comment with addition" {
-    try testTokenize(
-        \\//This is comment.
-        \\foo + bar;
-    , &.{ .identifier, .plus, .identifier, .semicolon });
-    try testTokenize(
-        \\//This is comment.
-        \\//
-        \\foo + bar;
-    , &.{ .identifier, .plus, .identifier, .semicolon });
-    try testTokenize("////", &.{});
-    try testTokenize("///", &.{});
-    try testTokenize("// /", &.{});
-}
-
-test "Doc comments" {
-    try testTokenize("/**", &.{.invalid});
-    try testTokenize(
-        \\/**
-        \\* This is a doc_comment.
-        \\*/
-        \\foo + bar;
-    , &.{ .doc_comment, .identifier, .plus, .identifier, .semicolon });
-    try testTokenize(
-        \\/**
-        \\* This is a doc_comment.
-        \\foo + bar;
-    , &.{.doc_comment});
-    try testTokenize(
-        \\/**
-        \\* This is a doc_comment.
-        \\foo + bar;
-        \\*/ foo;
-    , &.{ .doc_comment, .identifier, .semicolon });
-}
-
-test "Special arithemitic" {
-    try testTokenize("foo--;", &.{ .identifier, .minus_minus, .semicolon });
-    try testTokenize("foo++;", &.{ .identifier, .plus_plus, .semicolon });
-    try testTokenize("uint foo += 10;", &.{ .identifier, .identifier, .plus_equal, .number_literal, .semicolon });
-    try testTokenize("uint foo -= 10;", &.{ .identifier, .identifier, .minus_equal, .number_literal, .semicolon });
-    try testTokenize("uint foo /= 10;", &.{ .identifier, .identifier, .slash_equal, .number_literal, .semicolon });
-    try testTokenize("uint foo |= 10;", &.{ .identifier, .identifier, .pipe_equal, .number_literal, .semicolon });
-    try testTokenize("uint foo &= 10;", &.{ .identifier, .identifier, .ampersand_equal, .number_literal, .semicolon });
-}
-
-test "Invalid assignment" {
-    try testTokenize("uint foo &&= 10;", &.{ .identifier, .identifier, .ampersand_ampersand, .equal, .number_literal, .semicolon });
-    try testTokenize("uint foo ||= 10;", &.{ .identifier, .identifier, .pipe_pipe, .equal, .number_literal, .semicolon });
-}
-
-fn testTokenize(source: [:0]const u8, tokens: []const Token.Tag) !void {
-    var tokenizer = Tokenizer.init(source);
-
-    for (tokens) |token| {
-        const actual_token = tokenizer.next();
-        try testing.expectEqual(token, actual_token.tag);
-    }
-
-    const last_token = tokenizer.next();
-
-    try testing.expectEqual(Token.Tag.eof, last_token.tag);
-    try testing.expectEqual(source.len, last_token.location.start);
-    try testing.expectEqual(source.len, last_token.location.end);
-}

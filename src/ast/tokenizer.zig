@@ -117,6 +117,7 @@ pub const Token = struct {
         keyword_return,
         keyword_returns,
         keyword_storage,
+        keyword_solidity,
         keyword_calldata,
         keyword_struct,
         keyword_throw,

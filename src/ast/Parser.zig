@@ -265,8 +265,156 @@ pub fn parseEnum(self: *Parser) ParserErrors!Node.Index {
         }),
     };
 }
+/// .identifier (.period)*
+pub fn parseIdentifierPath(self: *Parser) ParserErrors!Span {
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
+
+    while (true) {
+        const identifier = self.expectToken(.identifier);
+        try self.scratch.append(self.allocator, identifier);
+
+        switch (self.token_tags[self.token_index]) {
+            .period => self.token_index += 1,
+            else => self.failMsg(.{
+                .tag = .expected_token,
+                .token = self.token_tags[self.token_index],
+                .extra = .{ .expected_tag = .period },
+            }),
+        }
+    }
+
+    const identifiers = self.scratch.items[scratch..];
+
+    return switch (identifiers.len) {
+        0 => Span{ .zero_one = 0 },
+        1 => Span{ .zero_one = identifiers[0] },
+        else => Span{ .multi = try self.listToSpan(identifiers) },
+    };
+}
+pub fn parseMappingElement(self: *Parser) ParserErrors!Span {
+    const elementary = self.consumeElementaryType();
+
+    return if (elementary) |elem|
+        Span{ .zero_one = elem }
+    else
+        self.parseIdentifierPath();
+}
+/// Expectes a solidity primary type.
+pub fn expectElementaryType(self: *Parser) error{ParseError}!TokenIndex {
+    return if (self.consumeElementaryType()) |index| index else error.ParseError;
+}
+/// Consume a solidity primary type.
+pub fn consumeElementaryType(self: *Parser) ?TokenIndex {
+    return switch (self.token_tags[self.token_index]) {
+        .keyword_address,
+        .keyword_bool,
+        .keyword_string,
+        .keyword_bytes,
+        .keyword_bytes1,
+        .keyword_bytes2,
+        .keyword_bytes3,
+        .keyword_bytes4,
+        .keyword_bytes5,
+        .keyword_bytes6,
+        .keyword_bytes7,
+        .keyword_bytes8,
+        .keyword_bytes9,
+        .keyword_bytes10,
+        .keyword_bytes11,
+        .keyword_bytes12,
+        .keyword_bytes13,
+        .keyword_bytes14,
+        .keyword_bytes15,
+        .keyword_bytes16,
+        .keyword_bytes17,
+        .keyword_bytes18,
+        .keyword_bytes19,
+        .keyword_bytes20,
+        .keyword_bytes21,
+        .keyword_bytes22,
+        .keyword_bytes23,
+        .keyword_bytes24,
+        .keyword_bytes25,
+        .keyword_bytes26,
+        .keyword_bytes27,
+        .keyword_bytes28,
+        .keyword_bytes29,
+        .keyword_bytes30,
+        .keyword_bytes31,
+        .keyword_bytes32,
+        .keyword_uint,
+        .keyword_uint8,
+        .keyword_uint16,
+        .keyword_uint24,
+        .keyword_uint32,
+        .keyword_uint40,
+        .keyword_uint48,
+        .keyword_uint56,
+        .keyword_uint64,
+        .keyword_uint72,
+        .keyword_uint80,
+        .keyword_uint88,
+        .keyword_uint96,
+        .keyword_uint104,
+        .keyword_uint112,
+        .keyword_uint120,
+        .keyword_uint128,
+        .keyword_uint136,
+        .keyword_uint144,
+        .keyword_uint152,
+        .keyword_uint160,
+        .keyword_uint168,
+        .keyword_uint176,
+        .keyword_uint184,
+        .keyword_uint192,
+        .keyword_uint200,
+        .keyword_uint208,
+        .keyword_uint216,
+        .keyword_uint224,
+        .keyword_uint232,
+        .keyword_uint240,
+        .keyword_uint248,
+        .keyword_uint256,
+        .keyword_int,
+        .keyword_int8,
+        .keyword_int16,
+        .keyword_int24,
+        .keyword_int32,
+        .keyword_int40,
+        .keyword_int48,
+        .keyword_int56,
+        .keyword_int64,
+        .keyword_int72,
+        .keyword_int80,
+        .keyword_int88,
+        .keyword_int96,
+        .keyword_int104,
+        .keyword_int112,
+        .keyword_int120,
+        .keyword_int128,
+        .keyword_int136,
+        .keyword_int144,
+        .keyword_int152,
+        .keyword_int160,
+        .keyword_int168,
+        .keyword_int176,
+        .keyword_int184,
+        .keyword_int192,
+        .keyword_int200,
+        .keyword_int208,
+        .keyword_int216,
+        .keyword_int224,
+        .keyword_int232,
+        .keyword_int240,
+        .keyword_int248,
+        .keyword_int256,
+        => self.nextToken(),
+        else => null,
+    };
+}
 /// Consume visibility modifiers.
-pub fn parseVisibility(self: *Parser) TokenIndex {
+pub fn consumeVisibilityModifier(self: *Parser) ?TokenIndex {
     return switch (self.token_tags[self.token_index]) {
         .keyword_external,
         .keyword_internal,
@@ -274,28 +422,28 @@ pub fn parseVisibility(self: *Parser) TokenIndex {
         .keyword_public,
         => self.nextToken(),
 
-        else => null_node,
+        else => null,
     };
 }
 /// Consume state mutability modifiers.
-pub fn parseMutability(self: *Parser) TokenIndex {
+pub fn consumeStateMutability(self: *Parser) ?TokenIndex {
     return switch (self.token_tags[self.token_index]) {
         .keyword_payable,
         .keyword_view,
         .keyword_pure,
         => self.nextToken(),
 
-        else => null_node,
+        else => null,
     };
 }
 /// Consumes storage location modifiers.
-pub fn parseStorageLocation(self: *Parser) TokenIndex {
+pub fn consumeStorageLocation(self: *Parser) ?TokenIndex {
     return switch (self.token_tags[self.token_index]) {
         .keyword_memory,
         .keyword_storage,
         .keyword_calldata,
         => self.nextToken(),
-        else => null_node,
+        else => null,
     };
 }
 /// Consumes all doc_comment tokens.

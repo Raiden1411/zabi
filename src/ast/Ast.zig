@@ -6,15 +6,24 @@ const Token = tokenizer.Token;
 pub const Offset = u32;
 pub const TokenIndex = u32;
 
+/// Struct of arrays for the `Node` members.
 pub const NodeList = std.MultiArrayList(Node);
 
+/// Ast Node representation.
+///
+/// `data` may contain indexes to extra_data to help build the syntax tree.
 pub const Node = struct {
+    /// Node tag of the parsed element.
     tag: Tag,
+    /// Index into the main token of the node.
     main_token: TokenIndex,
+    /// Left and right indexes into more information about the node.
     data: Data,
 
+    /// Node index into the struct of arrays.
     pub const Index = u32;
 
+    // Assert that out tag is always size 1.
     comptime {
         std.debug.assert(@sizeOf(Tag) == 1);
     }
@@ -100,10 +109,29 @@ pub const Node = struct {
         contract_decl,
         interface_decl,
         library_decl,
+        /// `lhs` is undefined.
+        /// `rhs` is the index to `path`.
         import_directive_path,
+        /// `lhs` is the index into `path`
+        /// `rhs` is the index into `identifier`
+        import_directive_path_identifier,
+        /// `lhs` is the index into extra data
+        /// `rhs` is the `path`.
         import_directive_symbol,
+        /// `lhs` is the index into extra data
+        /// `rhs` is the `path`.
+        import_directive_symbol_one,
+        /// `lhs` is the  index into extra data.
+        /// `rhs` is the index into `path`
         import_directive_asterisk,
+        /// `lhs` is the start of the version range.
+        /// `rhs` is the end of the version range.
         pragma_directive,
+    };
+
+    pub const Range = struct {
+        start: Index,
+        end: Index,
     };
 
     pub const Data = struct {
@@ -143,8 +171,25 @@ pub const Node = struct {
         mutability: Index,
     };
 
+    /// Extra data structure for nodes where
+    /// the import directive starts with a asterisk
     pub const ImportAsterisk = struct {
         identifier: Index,
+        from: Index,
+    };
+
+    /// Extra data structure for nodes where
+    /// the import directive starts with an symbol.
+    pub const ImportSymbolOne = struct {
+        symbol: Index,
+        from: Index,
+    };
+
+    /// Extra data structure for nodes where
+    /// the import directive starts with multiple symbols.
+    pub const ImportSymbol = struct {
+        symbol_start: Index,
+        symbol_end: Index,
         from: Index,
     };
 };

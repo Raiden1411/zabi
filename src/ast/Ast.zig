@@ -8,6 +8,11 @@ pub const TokenIndex = u32;
 
 /// Struct of arrays for the `Node` members.
 pub const NodeList = std.MultiArrayList(Node);
+/// Struct of arrays for the `Token.Tag` members.
+pub const TokenList = std.MultiArrayList(struct {
+    tag: Token.Tag,
+    start: Offset,
+});
 
 /// Ast Node representation.
 ///
@@ -127,6 +132,15 @@ pub const Node = struct {
         /// `lhs` is the start of the version range.
         /// `rhs` is the end of the version range.
         pragma_directive,
+        /// `lhs` is the first child types.
+        /// `rhs` is the second child types.
+        ///
+        /// Can have nested `mapping_decl` on rhs.
+        mapping_decl,
+        /// `lhs` and `rhs` are undefined.
+        /// `main_token` is the type.
+        elementary_type,
+        param_decl,
     };
 
     pub const Range = struct {
@@ -206,10 +220,14 @@ pub const Error = struct {
     } = .{ .none = {} },
 
     pub const Tag = enum {
+        same_line_doc_comment,
         expected_token,
+        expected_semicolon,
         expected_pragma_version,
         expected_import_path_alias_asterisk,
         expected_comma_after,
         expected_r_brace,
+        expected_elementary_or_identifier_path,
+        expected_suffix,
     };
 };

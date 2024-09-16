@@ -42,6 +42,172 @@ extra_data: ArrayListUnmanaged(Node.Index),
 /// Scratch space to temporaly use.
 scratch: ArrayListUnmanaged(Node.Index),
 
+/// Deinits the parser allocated memory
+pub fn deinit(self: *Parser) void {
+    self.errors.deinit(self.allocator);
+    self.nodes.deinit(self.allocator);
+    self.extra_data.deinit(self.allocator);
+    self.scratch.deinit(self.allocator);
+}
+/// .l_paren, .param_decl, .r_paren
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.parameterList)
+pub fn parseParseDeclList(self: *Parser) ParserErrors!Span {
+    _ = try self.expectToken(.l_paren);
+
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
+
+    while (true) {
+        if (self.consumeToken(.r_paren)) |_| break;
+
+        const param = try self.parseVariableDeclaration();
+
+        if (param != 0)
+            try self.scratch.append(self.allocator, param);
+
+        switch (self.token_tags[self.token_index]) {
+            .comma => self.token_index += 1,
+            .r_paren => {
+                self.token_index += 1;
+                break;
+            },
+            .colon, .r_brace, .r_bracket => return self.failMsg(.{
+                .tag = .expected_token,
+                .token = self.token_index,
+                .extra = .{ .expected_tag = .r_paren },
+            }),
+            else => try self.warnMessage(.{
+                .tag = .expected_comma_after,
+                .token = self.token_index,
+            }),
+        }
+    }
+
+    const params = self.scratch.items[scratch..];
+
+    return switch (params.len) {
+        0 => Span{ .zero_one = 0 },
+        1 => Span{ .zero_one = params[0] },
+        else => Span{ .multi = try self.listToSpan(params) },
+    };
+}
+/// .type_expr? <- .storage_modifier? <- .identifier?
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.variableDeclaration)
+pub fn parseVariableDeclaration(self: *Parser) ParserErrors!Node.Index {
+    _ = try self.consumeDocComments();
+    _ = self.consumeToken(.doc_comment_container);
+
+    const param_idx = try self.reserveNode(.param_decl);
+
+    const type_expr = try self.parseTypeExpr();
+    const storage = self.consumeStorageLocation() orelse null_node;
+    const identifier = self.consumeToken(.identifier) orelse null_node;
+
+    return self.setNode(param_idx, .{
+        .tag = .param_decl,
+        .main_token = type_expr,
+        .data = .{
+            .lhs = storage,
+            .rhs = identifier,
+        },
+    });
+}
+/// / .elementary_type
+/// / .keyword_mapping
+/// / .identifier_path
+/// / .function_proto
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.typeName)
+pub fn parseTypeExpr(self: *Parser) ParserErrors!Node.Index {
+    return switch (self.token_tags[self.token_index]) {
+        .keyword_function => self.parseFunctionType(),
+        .keyword_mapping => self.parseMapping(false),
+        .identifier => self.parseIdentifierPath(self.nextToken()),
+        else => self.consumeElementaryType(),
+    };
+}
+/// .keyword_function <- (?param_decl list) <- ?visibility <- ?mutability <- ?returns <- ?(param_decl list)
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionTypeName)
+pub fn parseFunctionType(self: *Parser) ParserErrors!Node.Index {
+    const function = self.consumeToken(.keyword_function) orelse return null_node;
+
+    const fn_index = try self.reserveNode(.function_proto);
+
+    const param_list = try self.parseParseDeclList();
+    const visibility = self.consumeVisibilityModifier() orelse null_node;
+    const mutability = self.consumeStateMutability() orelse null_node;
+
+    const returns = self.consumeToken(.keyword_returns) orelse null_node;
+
+    if (returns != 0) {
+        const return_params = try self.parseParseDeclList();
+
+        return switch (param_list) {
+            .zero_one => |param| self.setNode(fn_index, .{
+                .tag = .function_proto_one,
+                .main_token = function,
+                .data = .{
+                    .lhs = try self.addExtraData(Node.FnProtoOne{
+                        .param = param,
+                        .visibility = visibility,
+                        .mutability = mutability,
+                    }),
+                    .rhs = switch (return_params) {
+                        .zero_one => |r_param| r_param,
+                        .multi => |r_params| try self.addExtraData(r_params),
+                    },
+                },
+            }),
+            .multi => |params| self.setNode(fn_index, .{
+                .tag = .function_proto,
+                .main_token = function,
+                .data = .{
+                    .lhs = try self.addExtraData(Node.FnProto{
+                        .mutability = mutability,
+                        .visibility = visibility,
+                        .params_start = params.start,
+                        .params_end = params.end,
+                    }),
+                    .rhs = switch (return_params) {
+                        .zero_one => |r_param| r_param,
+                        .multi => |r_params| try self.addExtraData(r_params),
+                    },
+                },
+            }),
+        };
+    }
+
+    return switch (param_list) {
+        .zero_one => |param| self.setNode(fn_index, .{
+            .tag = .function_proto_simple,
+            .main_token = function,
+            .data = .{
+                .lhs = try self.addExtraData(Node.FnProtoOne{
+                    .param = param,
+                    .visibility = visibility,
+                    .mutability = mutability,
+                }),
+                .rhs = returns,
+            },
+        }),
+        .multi => |params| self.setNode(fn_index, .{
+            .tag = .function_proto_multi,
+            .main_token = function,
+            .data = .{
+                .lhs = try self.addExtraData(Node.FnProto{
+                    .mutability = mutability,
+                    .visibility = visibility,
+                    .params_start = params.start,
+                    .params_end = params.end,
+                }),
+                .rhs = returns,
+            },
+        }),
+    };
+}
 /// Pragma Keyword <- Solidity keyword <- version range <- semicolon
 ///
 /// Pragma [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityLexer.PragmaToken)
@@ -56,7 +222,7 @@ pub fn parsePragmaDirective(self: *Parser) ParserErrors!Node.Index {
     _ = try self.expectToken(.semicolon);
 
     if (start == end)
-        try self.failMsg(.{
+        return self.failMsg(.{
             .tag = .expected_pragma_version,
             .token = pragma,
             .extra = .{ .expected_tag = .number_literal },
@@ -79,9 +245,9 @@ pub fn parsePragmaVersion(self: *Parser) ParserErrors!TokenIndex {
             .angle_bracket_left_equal,
             => {
                 self.token_index += 1;
-                _ = self.expectToken(.number_literal);
+                _ = try self.expectToken(.number_literal);
             },
-            .number_literal => break self.nextToken(),
+            .number_literal => break self.nextToken() + 1,
             else => break self.token_index,
         }
     };
@@ -89,11 +255,11 @@ pub fn parsePragmaVersion(self: *Parser) ParserErrors!TokenIndex {
     return end;
 }
 /// keyword_import
-///     | .asterisk <- keyword_as <- identifier <- identifier (from) <- string_literal (path)
-///     | .string_literal (path)
-///         | semicolon
-///         | keyword_as <- identifier <- semicolon
-///     | .l_brace <- (Symbols)* <- .r_brace <- .identifier (from) <- .string_literal (path)
+///     <- .asterisk <- keyword_as <- identifier <- identifier (from) <- string_literal (path)
+///      \ .string_literal (path)
+///         \ semicolon
+///         \ keyword_as <- identifier <- semicolon
+///     \ .l_brace <- (Symbols)* <- .r_brace <- .identifier (from) <- .string_literal (path)
 ///
 /// Import [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.importDirective)
 pub fn parseImportDirective(self: *Parser) ParserErrors!Node.Index {
@@ -103,7 +269,7 @@ pub fn parseImportDirective(self: *Parser) ParserErrors!Node.Index {
         .asterisk => return self.parseImportAsterisk(import),
         .l_brace => return self.parseImportSymbol(import),
         .string_literal => return self.parseImportPath(import),
-        else => try self.failMsg(.{
+        else => return self.failMsg(.{
             .tag = .expected_import_path_alias_asterisk,
             .token = self.token_index,
         }),
@@ -153,10 +319,10 @@ pub fn parseImportPath(self: *Parser, import: TokenIndex) ParserErrors!Node.Inde
                 .data = .{ .lhs = literal, .rhs = identifier },
             });
         },
-        else => try self.failMsg(.{
+        else => return self.failMsg(.{
             .tag = .expected_token,
             .token = self.token_index,
-            .extra = .{ .expected_token = .semicolon },
+            .extra = .{ .expected_tag = .semicolon },
         }),
     }
 }
@@ -215,7 +381,7 @@ pub fn parseIdentifierBlock(self: *Parser) ParserErrors!Span {
                 self.token_index += 1;
                 break;
             },
-            .colon, .r_bracket, .r_paren => try self.failMsg(.{
+            .colon, .r_bracket, .r_paren => return self.failMsg(.{
                 .tag = .expected_r_brace,
                 .token = self.token_index,
             }),
@@ -266,46 +432,104 @@ pub fn parseEnum(self: *Parser) ParserErrors!Node.Index {
     };
 }
 /// .identifier (.period)*
-pub fn parseIdentifierPath(self: *Parser) ParserErrors!Span {
-    const scratch = self.scratch.items.len;
-    defer self.scratch.shrinkRetainingCapacity(scratch);
-
-    while (true) {
-        const identifier = self.expectToken(.identifier);
-        try self.scratch.append(self.allocator, identifier);
-
-        switch (self.token_tags[self.token_index]) {
-            .period => self.token_index += 1,
-            else => self.failMsg(.{
-                .tag = .expected_token,
-                .token = self.token_tags[self.token_index],
-                .extra = .{ .expected_tag = .period },
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.identifierPath)
+pub fn parseIdentifierPath(self: *Parser, lhs: Node.Index) Allocator.Error!Node.Index {
+    switch (self.token_tags[self.token_index]) {
+        .period => switch (self.token_tags[self.token_index + 1]) {
+            .identifier => return self.addNode(.{
+                .tag = .field_access,
+                .main_token = self.nextToken(),
+                .data = .{
+                    .lhs = lhs,
+                    .rhs = self.nextToken(),
+                },
             }),
-        }
+            else => {
+                self.token_index += 1;
+                try self.warnMessage(.{
+                    .tag = .expected_suffix,
+                    .token = self.token_index,
+                });
+
+                return null_node;
+            },
+        },
+        else => return null_node,
+    }
+}
+/// .keyword_mapping <- .l_paren <- .mapping_elements <- .equal_bracket_right <- .mapping_elements <- .r_paren <- (if not nested).semicolon;
+pub fn parseMapping(self: *Parser, nested: bool) ParserErrors!Node.Index {
+    const mapping = try self.expectToken(.keyword_mapping);
+    _ = try self.expectToken(.l_paren);
+
+    const mapping_index = try self.reserveNode(.mapping_decl);
+
+    const child_one = try self.parseMappingTypes();
+
+    if (child_one == 0)
+        return self.failMsg(.{
+            .tag = .expected_elementary_or_identifier_path,
+            .token = self.token_index,
+        });
+
+    _ = try self.expectToken(.equal_bracket_right);
+
+    const child_two = switch (self.token_tags[self.token_index]) {
+        .keyword_mapping => try self.parseMapping(true),
+        else => try self.parseMappingTypes(),
+    };
+
+    if (child_two == 0)
+        return self.failMsg(.{
+            .tag = .expected_elementary_or_identifier_path,
+            .token = self.token_index,
+        });
+
+    _ = try self.expectToken(.r_paren);
+    _ = try self.expectToken(.identifier);
+
+    if (!nested) {
+        _ = try self.expectSemicolon();
     }
 
-    const identifiers = self.scratch.items[scratch..];
-
-    return switch (identifiers.len) {
-        0 => Span{ .zero_one = 0 },
-        1 => Span{ .zero_one = identifiers[0] },
-        else => Span{ .multi = try self.listToSpan(identifiers) },
-    };
+    return self.setNode(mapping_index, .{
+        .tag = .mapping_decl,
+        .main_token = mapping,
+        .data = .{
+            .lhs = child_one,
+            .rhs = child_two,
+        },
+    });
 }
-pub fn parseMappingElement(self: *Parser) ParserErrors!Span {
-    const elementary = self.consumeElementaryType();
+/// Mapping types
+///     <- .elementary_type
+///      / .identifier_path (.identifier, .period, .identifier ...)
+pub fn parseMappingTypes(self: *Parser) Allocator.Error!Node.Index {
+    const elementary_type = try self.consumeElementaryType();
 
-    return if (elementary) |elem|
-        Span{ .zero_one = elem }
-    else
-        self.parseIdentifierPath();
+    if (elementary_type == 0)
+        return self.consumeIdentifierPath();
+
+    return elementary_type;
 }
-/// Expectes a solidity primary type.
-pub fn expectElementaryType(self: *Parser) error{ParseError}!TokenIndex {
-    return if (self.consumeElementaryType()) |index| index else error.ParseError;
+/// .identifier, .period, .identifier ...
+pub fn consumeIdentifierPath(self: *Parser) Allocator.Error!Node.Index {
+    var identifier = self.consumeToken(.identifier) orelse return null_node;
+
+    while (true) {
+        const suffix = try self.parseIdentifierPath(identifier);
+
+        if (suffix != 0) {
+            identifier = suffix;
+            continue;
+        }
+
+        return identifier;
+    }
 }
 /// Consume a solidity primary type.
-pub fn consumeElementaryType(self: *Parser) ?TokenIndex {
+pub fn consumeElementaryType(self: *Parser) Allocator.Error!Node.Index {
     return switch (self.token_tags[self.token_index]) {
         .keyword_address,
         .keyword_bool,
@@ -409,11 +633,20 @@ pub fn consumeElementaryType(self: *Parser) ?TokenIndex {
         .keyword_int240,
         .keyword_int248,
         .keyword_int256,
-        => self.nextToken(),
-        else => null,
+        => self.addNode(.{
+            .tag = .elementary_type,
+            .main_token = self.nextToken(),
+            .data = .{
+                .rhs = undefined,
+                .lhs = undefined,
+            },
+        }),
+        else => null_node,
     };
 }
 /// Consume visibility modifiers.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.visibility)
 pub fn consumeVisibilityModifier(self: *Parser) ?TokenIndex {
     return switch (self.token_tags[self.token_index]) {
         .keyword_external,
@@ -426,6 +659,8 @@ pub fn consumeVisibilityModifier(self: *Parser) ?TokenIndex {
     };
 }
 /// Consume state mutability modifiers.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.stateMutability)
 pub fn consumeStateMutability(self: *Parser) ?TokenIndex {
     return switch (self.token_tags[self.token_index]) {
         .keyword_payable,
@@ -437,6 +672,8 @@ pub fn consumeStateMutability(self: *Parser) ?TokenIndex {
     };
 }
 /// Consumes storage location modifiers.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.dataLocation)
 pub fn consumeStorageLocation(self: *Parser) ?TokenIndex {
     return switch (self.token_tags[self.token_index]) {
         .keyword_memory,
@@ -447,7 +684,7 @@ pub fn consumeStorageLocation(self: *Parser) ?TokenIndex {
     };
 }
 /// Consumes all doc_comment tokens.
-pub fn consumeDocComments(self: *Parser) ?TokenIndex {
+pub fn consumeDocComments(self: *Parser) Allocator.Error!?TokenIndex {
     if (self.consumeToken(.doc_comment)) |token| {
         var first_token = token;
 
@@ -466,10 +703,11 @@ pub fn consumeDocComments(self: *Parser) ?TokenIndex {
 
 // Internal parser actions.
 
+/// Checks if the given tokens are on the same line.
 fn tokensOnSameLine(self: *Parser, token1: TokenIndex, token2: TokenIndex) bool {
     return std.mem.indexOfScalar(u8, self.source[self.token_starts[token1]..self.token_starts[token2]], '\n') == null;
 }
-
+/// Same as `consumeToken` but returns error instead.
 fn expectToken(self: *Parser, token: Token.Tag) ParserErrors!TokenIndex {
     if (self.token_tags[self.token_index] != token) {
         return self.failMsg(.{
@@ -480,23 +718,23 @@ fn expectToken(self: *Parser, token: Token.Tag) ParserErrors!TokenIndex {
     }
     return self.nextToken();
 }
-
+/// Returns error if current token is not semicolon.
 fn expectSemicolon(self: *Parser) ParserErrors!void {
     if (self.token_tags[self.token_index] != .semicolon) {
-        self.warnMessage(.{
+        try self.warnMessage(.{
             .tag = .expected_token,
             .token = self.token_index,
-            .extra = .{ .expected_token = .semicolon },
+            .extra = .{ .expected_tag = .semicolon },
         });
     }
     _ = self.nextToken();
     return;
 }
-
+/// Advances the parser index if the token matches else return null
 fn consumeToken(self: *Parser, token: Token.Tag) ?TokenIndex {
     return if (self.token_tags[self.token_index] == token) self.nextToken() else null;
 }
-
+/// Advances the parser index and returns old.
 fn nextToken(self: *Parser) TokenIndex {
     const index = self.token_index;
     self.token_index += 1;
@@ -520,25 +758,26 @@ fn addExtraData(self: *Parser, extra: anytype) Allocator.Error!Node.Index {
     return result;
 }
 
-fn listToSpan(self: *Parser, list: []const Node.Index) !Node.Range {
+fn listToSpan(self: *Parser, list: []const Node.Index) Allocator.Error!Node.Range {
     try self.extra_data.appendSlice(self.allocator, list);
 
-    return Node.SubRange{
+    return Node.Range{
         .start = @as(Node.Index, @intCast(self.extra_data.items.len - list.len)),
         .end = @as(Node.Index, @intCast(self.extra_data.items.len)),
     };
 }
 
 fn addNode(self: *Parser, child: Node) Allocator.Error!Node.Index {
-    const index = @as(Node.Index, self.nodes.len);
-    try self.nodes.append(child);
+    const index = @as(Node.Index, @intCast(self.nodes.len));
+    try self.nodes.append(self.allocator, child);
 
     return index;
 }
 
-fn setNode(self: *Parser, child: Node, index: usize) Node.Index!void {
-    try self.nodes.set(index, child);
-    return @as(Node.Index, index);
+fn setNode(self: *Parser, index: usize, child: Node) Node.Index {
+    self.nodes.set(index, child);
+
+    return @as(Node.Index, @intCast(index));
 }
 
 fn reserveNode(self: *Parser, tag: Ast.Node.Tag) !usize {
@@ -557,20 +796,23 @@ fn warnMessage(self: *Parser, message: Ast.Error) Allocator.Error!void {
         .expected_r_brace,
         .expected_comma_after,
         .expected_import_path_alias_asterisk,
+        .expected_elementary_or_identifier_path,
+        .same_line_doc_comment,
+        .expected_suffix,
         => if (message.token != 0 and !self.tokensOnSameLine(message.token - 1, message.token)) {
             var copy = message;
             copy.token_is_prev = true;
             copy.token -= 1;
             return self.errors.append(self.allocator, copy);
         },
-        else => {},
+        // else => {},
     }
     try self.errors.append(self.allocator, message);
 }
 
-fn failMsg(self: *Parser, message: Ast.Error) ParserErrors!void {
+fn failMsg(self: *Parser, message: Ast.Error) ParserErrors {
     @branchHint(.cold);
     try self.warnMessage(message);
 
-    return error.ParseError;
+    return error.ParsingError;
 }

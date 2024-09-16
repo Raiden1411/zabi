@@ -282,42 +282,44 @@ pub const Token = struct {
 
     /// All possibled keyword/reserved words in solidity.
     pub const keyword = std.StaticStringMap(Tag).initComptime(.{
-        .{ "abstract", .keyword_abstract },    .{ "anonymous", .keyword_anonymous },      .{ "as", .keyword_as },
-        .{ "assembly", .keyword_assembly },    .{ "break", .keyword_break },              .{ "catch", .keyword_catch },
-        .{ "constant", .keyword_constant },    .{ "constructor", .keyword_constructor },  .{ "continue", .keyword_continue },
-        .{ "contract", .keyword_contract },    .{ "do", .keyword_do },                    .{ "delete", .keyword_delete },
-        .{ "else", .keyword_else },            .{ "enum", .keyword_enum },                .{ "emit", .keyword_emit },
-        .{ "event", .keyword_event },          .{ "external", .keyword_external },        .{ "fallback", .keyword_fallback },
-        .{ "for", .keyword_for },              .{ "function", .keyword_function },        .{ "hex", .keyword_hex },
-        .{ "if", .keyword_if },                .{ "indexed", .keyword_indexed },          .{ "interface", .keyword_interface },
-        .{ "internal", .keyword_internal },    .{ "immutable", .keyword_immutable },      .{ "import", .keyword_import },
-        .{ "is", .keyword_is },                .{ "library", .keyword_library },          .{ "mapping", .keyword_mapping },
-        .{ "memory", .keyword_memory },        .{ "modifier", .keyword_modifier },        .{ "new", .keyword_new },
-        .{ "override", .keyword_override },    .{ "payable", .keyword_payable },          .{ "public", .keyword_public },
-        .{ "pragma", .keyword_pragma },        .{ "private", .keyword_private },          .{ "pure", .keyword_pure },
-        .{ "receive", .keyword_receive },      .{ "return", .keyword_return },            .{ "returns", .keyword_returns },
-        .{ "storage", .keyword_storage },      .{ "calldata", .keyword_calldata },        .{ "struct", .keyword_struct },
-        .{ "throw", .keyword_throw },          .{ "try", .keyword_try },                  .{ "type", .keyword_type },
-        .{ "unchecked", .keyword_unchecked },  .{ "unicode", .keyword_unicode },          .{ "using", .keyword_using },
-        .{ "view", .keyword_view },            .{ "virtual", .keyword_virtual },          .{ "while", .keyword_while },
+        .{ "abstract", .keyword_abstract },   .{ "anonymous", .keyword_anonymous },     .{ "as", .keyword_as },
+        .{ "assembly", .keyword_assembly },   .{ "break", .keyword_break },             .{ "catch", .keyword_catch },
+        .{ "constant", .keyword_constant },   .{ "constructor", .keyword_constructor }, .{ "continue", .keyword_continue },
+        .{ "contract", .keyword_contract },   .{ "do", .keyword_do },                   .{ "delete", .keyword_delete },
+        .{ "else", .keyword_else },           .{ "enum", .keyword_enum },               .{ "emit", .keyword_emit },
+        .{ "event", .keyword_event },         .{ "external", .keyword_external },       .{ "fallback", .keyword_fallback },
+        .{ "for", .keyword_for },             .{ "function", .keyword_function },       .{ "hex", .keyword_hex },
+        .{ "if", .keyword_if },               .{ "indexed", .keyword_indexed },         .{ "interface", .keyword_interface },
+        .{ "internal", .keyword_internal },   .{ "immutable", .keyword_immutable },     .{ "import", .keyword_import },
+        .{ "is", .keyword_is },               .{ "library", .keyword_library },         .{ "mapping", .keyword_mapping },
+        .{ "memory", .keyword_memory },       .{ "modifier", .keyword_modifier },       .{ "new", .keyword_new },
+        .{ "override", .keyword_override },   .{ "payable", .keyword_payable },         .{ "public", .keyword_public },
+        .{ "pragma", .keyword_pragma },       .{ "private", .keyword_private },         .{ "pure", .keyword_pure },
+        .{ "receive", .keyword_receive },     .{ "return", .keyword_return },           .{ "returns", .keyword_returns },
+        .{ "storage", .keyword_storage },     .{ "calldata", .keyword_calldata },       .{ "struct", .keyword_struct },
+        .{ "throw", .keyword_throw },         .{ "try", .keyword_try },                 .{ "type", .keyword_type },
+        .{ "unchecked", .keyword_unchecked }, .{ "unicode", .keyword_unicode },         .{ "using", .keyword_using },
+        .{ "view", .keyword_view },           .{ "virtual", .keyword_virtual },         .{ "while", .keyword_while },
+        .{ "solidity", .keyword_solidity },
 
         // Unit keywords.
-        .{ "wei", .keyword_wei },              .{ "gwei", .keyword_gwei },                .{ "ether", .keyword_ether },
-        .{ "seconds", .keyword_seconds },      .{ "minutes", .keyword_minutes },          .{ "hours", .keyword_hours },
-        .{ "days", .keyword_days },            .{ "weeks", .keyword_weeks },              .{ "years", .keyword_years },
+          .{ "wei", .keyword_wei },                 .{ "gwei", .keyword_gwei },
+        .{ "ether", .keyword_ether },         .{ "seconds", .keyword_seconds },         .{ "minutes", .keyword_minutes },
+        .{ "hours", .keyword_hours },         .{ "days", .keyword_days },               .{ "weeks", .keyword_weeks },
+        .{ "years", .keyword_years },
 
         // Reserved keywords.
-        .{ "after", .reserved_after },         .{ "alias", .reserved_alias },             .{ "apply", .reserved_apply },
-        .{ "auto", .reserved_auto },           .{ "byte", .reserved_byte },               .{ "case", .reserved_case },
-        .{ "copyof", .reserved_copyof },       .{ "default", .reserved_default },         .{ "define", .reserved_define },
-        .{ "final", .reserved_final },         .{ "implements", .reserved_implements },   .{ "in", .reserved_in },
-        .{ "inline", .reserved_inline },       .{ "let", .reserved_let },                 .{ "macro", .reserved_macro },
-        .{ "match", .reserved_match },         .{ "mutable", .reserved_mutable },         .{ "null", .reserved_null },
-        .{ "of", .reserved_of },               .{ "partial", .reserved_partial },         .{ "promise", .reserved_promise },
-        .{ "reference", .reserved_reference }, .{ "relocatable", .reserved_relocatable }, .{ "sealed", .reserved_sealed },
-        .{ "sizeof", .reserved_sizeof },       .{ "static", .reserved_static },           .{ "supports", .reserved_supports },
-        .{ "switch", .reserved_switch },       .{ "typedef", .reserved_typedef },         .{ "typeof", .reserved_typeof },
-        .{ "var", .reserved_var },
+                .{ "after", .reserved_after },            .{ "alias", .reserved_alias },
+        .{ "apply", .reserved_apply },        .{ "auto", .reserved_auto },              .{ "byte", .reserved_byte },
+        .{ "case", .reserved_case },          .{ "copyof", .reserved_copyof },          .{ "default", .reserved_default },
+        .{ "define", .reserved_define },      .{ "final", .reserved_final },            .{ "implements", .reserved_implements },
+        .{ "in", .reserved_in },              .{ "inline", .reserved_inline },          .{ "let", .reserved_let },
+        .{ "macro", .reserved_macro },        .{ "match", .reserved_match },            .{ "mutable", .reserved_mutable },
+        .{ "null", .reserved_null },          .{ "of", .reserved_of },                  .{ "partial", .reserved_partial },
+        .{ "promise", .reserved_promise },    .{ "reference", .reserved_reference },    .{ "relocatable", .reserved_relocatable },
+        .{ "sealed", .reserved_sealed },      .{ "sizeof", .reserved_sizeof },          .{ "static", .reserved_static },
+        .{ "supports", .reserved_supports },  .{ "switch", .reserved_switch },          .{ "typedef", .reserved_typedef },
+        .{ "typeof", .reserved_typeof },      .{ "var", .reserved_var },
     });
 
     /// Converts type string keywords into its enum representation.
@@ -794,7 +796,7 @@ pub const Tokenizer = struct {
                         if (Token.keyword.get(self.buffer[result.location.start..self.index])) |tag|
                             result.tag = tag;
 
-                        if (Token.keyword.get(self.buffer[result.location.start..self.index])) |tag|
+                        if (Token.typesKeywordMap.get(self.buffer[result.location.start..self.index])) |tag|
                             result.tag = tag;
                     },
                 }

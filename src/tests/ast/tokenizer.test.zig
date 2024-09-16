@@ -55,19 +55,19 @@ test "Doc comments" {
 test "Special arithemitic" {
     try testTokenize("foo--;", &.{ .identifier, .minus_minus, .semicolon });
     try testTokenize("foo++;", &.{ .identifier, .plus_plus, .semicolon });
-    try testTokenize("uint foo += 10;", &.{ .identifier, .identifier, .plus_equal, .number_literal, .semicolon });
-    try testTokenize("uint foo ^= 10;", &.{ .identifier, .identifier, .caret_equal, .number_literal, .semicolon });
-    try testTokenize("uint foo -= 10;", &.{ .identifier, .identifier, .minus_equal, .number_literal, .semicolon });
-    try testTokenize("uint foo /= 10;", &.{ .identifier, .identifier, .slash_equal, .number_literal, .semicolon });
-    try testTokenize("uint foo |= 10;", &.{ .identifier, .identifier, .pipe_equal, .number_literal, .semicolon });
-    try testTokenize("uint foo &= 10;", &.{ .identifier, .identifier, .ampersand_equal, .number_literal, .semicolon });
-    try testTokenize("uint foo %= 10;", &.{ .identifier, .identifier, .percent_equal, .number_literal, .semicolon });
+    try testTokenize("uint foo += 10;", &.{ .keyword_uint, .identifier, .plus_equal, .number_literal, .semicolon });
+    try testTokenize("uint foo ^= 10;", &.{ .keyword_uint, .identifier, .caret_equal, .number_literal, .semicolon });
+    try testTokenize("uint foo -= 10;", &.{ .keyword_uint, .identifier, .minus_equal, .number_literal, .semicolon });
+    try testTokenize("uint foo /= 10;", &.{ .keyword_uint, .identifier, .slash_equal, .number_literal, .semicolon });
+    try testTokenize("uint foo |= 10;", &.{ .keyword_uint, .identifier, .pipe_equal, .number_literal, .semicolon });
+    try testTokenize("uint foo &= 10;", &.{ .keyword_uint, .identifier, .ampersand_equal, .number_literal, .semicolon });
+    try testTokenize("uint foo %= 10;", &.{ .keyword_uint, .identifier, .percent_equal, .number_literal, .semicolon });
 }
 
 test "Invalid assignment" {
-    try testTokenize("uint foo &&= 10;", &.{ .identifier, .identifier, .ampersand_ampersand, .equal, .number_literal, .semicolon });
-    try testTokenize("uint foo ||= 10;", &.{ .identifier, .identifier, .pipe_pipe, .equal, .number_literal, .semicolon });
-    try testTokenize("uint foo **= 10;", &.{ .identifier, .identifier, .asterisk_asterisk, .equal, .number_literal, .semicolon });
+    try testTokenize("uint foo &&= 10;", &.{ .keyword_uint, .identifier, .ampersand_ampersand, .equal, .number_literal, .semicolon });
+    try testTokenize("uint foo ||= 10;", &.{ .keyword_uint, .identifier, .pipe_pipe, .equal, .number_literal, .semicolon });
+    try testTokenize("uint foo **= 10;", &.{ .keyword_uint, .identifier, .asterisk_asterisk, .equal, .number_literal, .semicolon });
 }
 
 test "Angle brackets" {
@@ -114,7 +114,7 @@ test "Signature" {
         .keyword_function,
         .identifier,
         .l_paren,
-        .identifier,
+        .keyword_address,
         .identifier,
         .r_paren,
         .keyword_public,

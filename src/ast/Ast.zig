@@ -34,6 +34,7 @@ pub const Node = struct {
     }
 
     pub const Tag = enum {
+        identifier,
         /// lhs is the index into extra data.
         /// rhs is the initialization expression, if any.
         /// `main_token` is the type.
@@ -92,25 +93,10 @@ pub const Node = struct {
         @"catch",
         @"break",
         @"return",
-        function_proto_simple,
-        function_proto_multi,
-        function_proto_one,
-        function_proto,
         function_decl,
-        container_decl,
-        container_field,
         block,
         block_semicolon,
-        event_proto_multi,
-        event_proto_simple,
-        event_proto_one,
-        event_proto,
-        event_decl,
-        error_proto_multi,
-        error_proto_simple,
-        error_proto_one,
-        error_proto,
-        error_decl,
+
         contract_decl,
         interface_decl,
         library_decl,
@@ -140,7 +126,29 @@ pub const Node = struct {
         /// `lhs` and `rhs` are undefined.
         /// `main_token` is the type.
         elementary_type,
-        param_decl,
+        /// `lhs` is the index to the storage modifier
+        /// `rhs` is the index to the identifier
+        variable_decl,
+
+        struct_decl,
+        struct_decl_one,
+        struct_field,
+
+        event_proto_multi,
+        event_proto_simple,
+        event_variable_decl,
+
+        error_proto_multi,
+        error_proto_simple,
+        error_variable_decl,
+
+        function_proto_simple,
+        function_proto_multi,
+        function_proto_one,
+        function_proto,
+
+        enum_decl_one,
+        enum_decl,
     };
 
     pub const Range = struct {
@@ -183,6 +191,17 @@ pub const Node = struct {
         visibility: Index,
         /// Populated if (payable|view|pure) is present
         mutability: Index,
+    };
+
+    pub const EventProtoOne = struct {
+        params: Index,
+        anonymous: Index,
+    };
+
+    pub const EventProto = struct {
+        params_start: Index,
+        params_end: Index,
+        anonymous: Index,
     };
 
     /// Extra data structure for nodes where
@@ -229,5 +248,11 @@ pub const Error = struct {
         expected_r_brace,
         expected_elementary_or_identifier_path,
         expected_suffix,
+        expected_variable_decl,
+        expected_struct_field,
+        expected_event_param,
+        expected_error_param,
+        expected_type_expr,
+        trailing_comma,
     };
 };

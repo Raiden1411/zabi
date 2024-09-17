@@ -49,25 +49,63 @@ pub fn deinit(self: *Parser) void {
     self.extra_data.deinit(self.allocator);
     self.scratch.deinit(self.allocator);
 }
-/// .l_paren, .param_decl, .r_paren
+/// .keyword_error, .identifier, .l_paren, (error_param?), .r_paren
 ///
-/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.parameterList)
-pub fn parseParseDeclList(self: *Parser) ParserErrors!Span {
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.errorDefinition)
+pub fn parseError(self: *Parser) ParserErrors!Node.Index {
+    const event = try self.expectToken(.keyword_error);
+    const error_index = try self.reserveNode(.error_proto_multi);
+    const identifier = try self.expectToken(.identifier);
+
+    const params = try self.parseErrorParamDecls();
+
+    return switch (params) {
+        .zero_one => |elem| return self.setNode(error_index, .{
+            .tag = .error_proto_simple,
+            .main_token = event,
+            .data = .{
+                .lhs = identifier,
+                .rhs = elem,
+            },
+        }),
+        .multi => |elems| return self.setNode(error_index, .{
+            .tag = .error_proto_multi,
+            .main_token = event,
+            .data = .{
+                .lhs = identifier,
+                .rhs = try self.addExtraData(Node.Range{
+                    .start = elems.start,
+                    .end = elems.end,
+                }),
+            },
+        }),
+    };
+}
+/// Parses all `error_variable_decl` nodes and returns the total amount of it.
+pub fn parseErrorParamDecls(self: *Parser) ParserErrors!Span {
     _ = try self.expectToken(.l_paren);
 
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
+    while (self.consumeToken(.doc_comment_container)) |_| {}
+
     while (true) {
+        _ = try self.consumeDocComments();
+
         if (self.consumeToken(.r_paren)) |_| break;
+        const field = try self.expectErrorParam();
 
-        const param = try self.parseVariableDeclaration();
-
-        if (param != 0)
-            try self.scratch.append(self.allocator, param);
+        if (field != 0)
+            try self.scratch.append(self.allocator, field);
 
         switch (self.token_tags[self.token_index]) {
-            .comma => self.token_index += 1,
+            .comma => {
+                if (self.token_tags[self.token_index + 1] == .r_paren)
+                    try self.warn(.trailing_comma);
+
+                self.token_index += 1;
+            },
             .r_paren => {
                 self.token_index += 1;
                 break;
@@ -77,10 +115,282 @@ pub fn parseParseDeclList(self: *Parser) ParserErrors!Span {
                 .token = self.token_index,
                 .extra = .{ .expected_tag = .r_paren },
             }),
-            else => try self.warnMessage(.{
-                .tag = .expected_comma_after,
+            else => try self.warn(.expected_comma_after),
+        }
+    }
+
+    const slice = self.scratch.items[scratch..];
+
+    return switch (slice.len) {
+        0 => Span{ .zero_one = 0 },
+        1 => Span{ .zero_one = slice[0] },
+        else => Span{ .multi = try self.listToSpan(slice) },
+    };
+}
+/// Expects to find a `error_variable_decl` orelse it will fail.
+pub fn expectErrorParam(self: *Parser) ParserErrors!Node.Index {
+    const field = try self.parseErrorParam();
+
+    if (field == 0)
+        return self.fail(.expected_error_param);
+
+    return field;
+}
+/// .TYPE, .identifier?
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.errorParameter)
+pub fn parseErrorParam(self: *Parser) ParserErrors!Node.Index {
+    const field_index = try self.reserveNode(.error_variable_decl);
+    const type_expr = try self.expectTypeExpr();
+    const identifier = self.consumeToken(.identifier) orelse null_node;
+
+    return self.setNode(field_index, .{
+        .tag = .error_variable_decl,
+        .main_token = type_expr,
+        .data = .{
+            .lhs = identifier,
+            .rhs = undefined,
+        },
+    });
+}
+/// .keyword_event, .identifier, .l_paren, (event_variable_decl_list)?, .r_paren, .keyword_anonymous
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.eventDefinition)
+pub fn parseEvent(self: *Parser) ParserErrors!Node.Index {
+    const event = try self.expectToken(.keyword_event);
+    const event_index = try self.reserveNode(.event_proto_multi);
+    const identifier = try self.expectToken(.identifier);
+
+    const params = try self.parseEventParamDecls();
+
+    const anonymous = self.consumeToken(.keyword_anonymous) orelse null_node;
+
+    return switch (params) {
+        .zero_one => |elem| return self.setNode(event_index, .{
+            .tag = .event_proto_simple,
+            .main_token = event,
+            .data = .{
+                .lhs = try self.addExtraData(Node.EventProtoOne{
+                    .params = elem,
+                    .anonymous = anonymous,
+                }),
+                .rhs = identifier,
+            },
+        }),
+        .multi => |elems| return self.setNode(event_index, .{
+            .tag = .event_proto_multi,
+            .main_token = event,
+            .data = .{
+                .lhs = identifier,
+                .rhs = try self.addExtraData(Node.EventProto{
+                    .params_start = elems.start,
+                    .params_end = elems.end,
+                    .anonymous = anonymous,
+                }),
+            },
+        }),
+    };
+}
+/// Parses all `event_variable_decl` nodes and returns the total amount of it.
+pub fn parseEventParamDecls(self: *Parser) ParserErrors!Span {
+    _ = try self.expectToken(.l_paren);
+
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
+
+    while (self.consumeToken(.doc_comment_container)) |_| {}
+
+    while (true) {
+        _ = try self.consumeDocComments();
+
+        if (self.consumeToken(.r_paren)) |_| break;
+        const field = try self.expectEventParam();
+
+        if (field != 0)
+            try self.scratch.append(self.allocator, field);
+
+        switch (self.token_tags[self.token_index]) {
+            .comma => {
+                if (self.token_tags[self.token_index + 1] == .r_paren)
+                    try self.warn(.trailing_comma);
+
+                self.token_index += 1;
+            },
+            .r_paren => {
+                self.token_index += 1;
+                break;
+            },
+            .colon, .r_brace, .r_bracket => return self.failMsg(.{
+                .tag = .expected_token,
                 .token = self.token_index,
+                .extra = .{ .expected_tag = .r_paren },
             }),
+            else => try self.warn(.expected_comma_after),
+        }
+    }
+
+    const slice = self.scratch.items[scratch..];
+
+    return switch (slice.len) {
+        0 => Span{ .zero_one = 0 },
+        1 => Span{ .zero_one = slice[0] },
+        else => Span{ .multi = try self.listToSpan(slice) },
+    };
+}
+/// Expects to find a `event_variable_decl` orelse it will fail.
+pub fn expectEventParam(self: *Parser) ParserErrors!Node.Index {
+    const field = try self.parseEventParam();
+
+    if (field == 0)
+        return self.fail(.expected_event_param);
+
+    return field;
+}
+/// .TYPE, .keyword_indexed?, .identifier?
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.eventParameter)
+pub fn parseEventParam(self: *Parser) ParserErrors!Node.Index {
+    const field_index = try self.reserveNode(.event_variable_decl);
+
+    const type_expr = try self.expectTypeExpr();
+    const indexed = self.consumeToken(.keyword_indexed) orelse null_node;
+    const identifier = self.consumeToken(.identifier) orelse null_node;
+
+    return self.setNode(field_index, .{
+        .tag = .event_variable_decl,
+        .main_token = type_expr,
+        .data = .{
+            .lhs = indexed,
+            .rhs = identifier,
+        },
+    });
+}
+/// .keyword_struct, .identifier, .l_brace, (struct_field_list), .r_brace
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.structDefinition)
+pub fn parseStruct(self: *Parser) ParserErrors!Node.Index {
+    const struct_token = try self.expectToken(.keyword_struct);
+    const struct_index = try self.reserveNode(.struct_decl);
+    const identifier = try self.expectToken(.identifier);
+
+    const fields = try self.parseStructFields();
+
+    return switch (fields) {
+        .zero_one => |elem| self.setNode(struct_index, .{
+            .tag = .struct_decl_one,
+            .main_token = struct_token,
+            .data = .{
+                .lhs = identifier,
+                .rhs = elem,
+            },
+        }),
+        .multi => |elems| self.setNode(struct_token, .{
+            .tag = .struct_decl,
+            .main_token = struct_token,
+            .data = .{
+                .lhs = identifier,
+                .rhs = try self.addExtraData(Node.Range{
+                    .start = elems.start,
+                    .end = elems.end,
+                }),
+            },
+        }),
+    };
+}
+/// Parses all `struct_field` nodes and returns the total amount of it.
+pub fn parseStructFields(self: *Parser) ParserErrors!Span {
+    _ = try self.expectToken(.l_brace);
+
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
+
+    while (self.consumeToken(.doc_comment_container)) |_| {}
+
+    while (true) {
+        _ = try self.consumeDocComments();
+
+        if (self.consumeToken(.r_brace)) |_| break;
+
+        const field = try self.expectStructField();
+
+        if (field != 0)
+            try self.scratch.append(self.allocator, field);
+    }
+
+    const slice = self.scratch.items[scratch..];
+
+    return switch (slice.len) {
+        0 => Span{ .zero_one = 0 },
+        1 => Span{ .zero_one = slice[0] },
+        else => Span{ .multi = try self.listToSpan(slice) },
+    };
+}
+/// Expects to find a `struct_field` orelse it will fail.
+pub fn expectStructField(self: *Parser) ParserErrors!Node.Index {
+    const field = try self.parseStructField();
+
+    if (field == 0)
+        return self.fail(.expected_struct_field);
+
+    return field;
+}
+/// .TYPE, .identifier, .semicolon
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.structMember)
+pub fn parseStructField(self: *Parser) ParserErrors!Node.Index {
+    const field_index = try self.reserveNode(.struct_field);
+    const type_expr = try self.expectTypeExpr();
+    const identifier = try self.expectToken(.identifier);
+    try self.expectSemicolon();
+
+    return self.setNode(field_index, .{
+        .tag = .struct_field,
+        .main_token = type_expr,
+        .data = .{
+            .lhs = undefined,
+            .rhs = identifier,
+        },
+    });
+}
+
+/// .l_paren, .param_decl, .r_paren
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.parameterList)
+pub fn parseParseDeclList(self: *Parser) ParserErrors!Span {
+    _ = try self.expectToken(.l_paren);
+
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
+
+    while (self.consumeToken(.doc_comment_container)) |_| {}
+
+    while (true) {
+        _ = try self.consumeDocComments();
+
+        if (self.consumeToken(.r_paren)) |_| break;
+
+        const param = try self.expectVariableDeclaration();
+
+        if (param != 0)
+            try self.scratch.append(self.allocator, param);
+
+        switch (self.token_tags[self.token_index]) {
+            .comma => {
+                if (self.token_tags[self.token_index + 1] == .r_paren)
+                    try self.warn(.trailing_comma);
+
+                self.token_index += 1;
+            },
+            .r_paren => {
+                self.token_index += 1;
+                break;
+            },
+            .colon, .r_brace, .r_bracket => return self.failMsg(.{
+                .tag = .expected_token,
+                .token = self.token_index,
+                .extra = .{ .expected_tag = .r_paren },
+            }),
+            else => try self.warn(.expected_comma_after),
         }
     }
 
@@ -92,27 +402,42 @@ pub fn parseParseDeclList(self: *Parser) ParserErrors!Span {
         else => Span{ .multi = try self.listToSpan(params) },
     };
 }
-/// .type_expr? <- .storage_modifier? <- .identifier?
+/// Fails if no variable declaration is found.
+pub fn expectVariableDeclaration(self: *Parser) ParserErrors!Node.Index {
+    const variable = try self.parseVariableDeclaration();
+
+    if (variable == 0)
+        return self.fail(.expected_variable_decl);
+
+    return variable;
+}
+/// .type_expr <- .storage_modifier? <- .identifier?
 ///
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.variableDeclaration)
 pub fn parseVariableDeclaration(self: *Parser) ParserErrors!Node.Index {
-    _ = try self.consumeDocComments();
-    _ = self.consumeToken(.doc_comment_container);
+    const param_idx = try self.reserveNode(.variable_decl);
 
-    const param_idx = try self.reserveNode(.param_decl);
-
-    const type_expr = try self.parseTypeExpr();
+    const type_expr = try self.expectTypeExpr();
     const storage = self.consumeStorageLocation() orelse null_node;
     const identifier = self.consumeToken(.identifier) orelse null_node;
 
     return self.setNode(param_idx, .{
-        .tag = .param_decl,
+        .tag = .variable_decl,
         .main_token = type_expr,
         .data = .{
             .lhs = storage,
             .rhs = identifier,
         },
     });
+}
+/// Parses a type expression or fails.
+pub fn expectTypeExpr(self: *Parser) ParserErrors!Node.Index {
+    const type_expr = try self.parseTypeExpr();
+
+    if (type_expr == 0)
+        return self.fail(.expected_type_expr);
+
+    return type_expr;
 }
 /// / .elementary_type
 /// / .keyword_mapping
@@ -124,7 +449,7 @@ pub fn parseTypeExpr(self: *Parser) ParserErrors!Node.Index {
     return switch (self.token_tags[self.token_index]) {
         .keyword_function => self.parseFunctionType(),
         .keyword_mapping => self.parseMapping(false),
-        .identifier => self.parseIdentifierPath(self.nextToken()),
+        .identifier => self.consumeIdentifierPath(),
         else => self.consumeElementaryType(),
     };
 }
@@ -269,10 +594,7 @@ pub fn parseImportDirective(self: *Parser) ParserErrors!Node.Index {
         .asterisk => return self.parseImportAsterisk(import),
         .l_brace => return self.parseImportSymbol(import),
         .string_literal => return self.parseImportPath(import),
-        else => return self.failMsg(.{
-            .tag = .expected_import_path_alias_asterisk,
-            .token = self.token_index,
-        }),
+        else => return self.fail(.expected_import_path_alias_asterisk),
     }
 }
 /// .asterisk <- keyword_as <- identifier <- identifier (from) <- string_literal (path)
@@ -385,10 +707,7 @@ pub fn parseIdentifierBlock(self: *Parser) ParserErrors!Span {
                 .tag = .expected_r_brace,
                 .token = self.token_index,
             }),
-            else => try self.warnMessage(.{
-                .tag = .expected_comma_after,
-                .token = self.token_index,
-            }),
+            else => try self.warn(.expected_comma_after),
         }
     }
 
@@ -412,7 +731,7 @@ pub fn parseEnum(self: *Parser) ParserErrors!Node.Index {
     return switch (members) {
         .zero_one => |identifier| return self.addNode(.{
             .main_token = main,
-            .tag = .container_decl,
+            .tag = .enum_decl_one,
             .data = .{
                 .lhs = name,
                 .rhs = identifier,
@@ -420,7 +739,7 @@ pub fn parseEnum(self: *Parser) ParserErrors!Node.Index {
         }),
         .multi => |identifiers| return self.addNode(.{
             .main_token = main,
-            .tag = .container_decl,
+            .tag = .enum_decl,
             .data = .{
                 .lhs = name,
                 .rhs = try self.addExtraData(Node.Range{
@@ -447,10 +766,7 @@ pub fn parseIdentifierPath(self: *Parser, lhs: Node.Index) Allocator.Error!Node.
             }),
             else => {
                 self.token_index += 1;
-                try self.warnMessage(.{
-                    .tag = .expected_suffix,
-                    .token = self.token_index,
-                });
+                try self.warn(.expected_suffix);
 
                 return null_node;
             },
@@ -459,6 +775,8 @@ pub fn parseIdentifierPath(self: *Parser, lhs: Node.Index) Allocator.Error!Node.
     }
 }
 /// .keyword_mapping <- .l_paren <- .mapping_elements <- .equal_bracket_right <- .mapping_elements <- .r_paren <- (if not nested).semicolon;
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.mappingType)
 pub fn parseMapping(self: *Parser, nested: bool) ParserErrors!Node.Index {
     const mapping = try self.expectToken(.keyword_mapping);
     _ = try self.expectToken(.l_paren);
@@ -468,10 +786,7 @@ pub fn parseMapping(self: *Parser, nested: bool) ParserErrors!Node.Index {
     const child_one = try self.parseMappingTypes();
 
     if (child_one == 0)
-        return self.failMsg(.{
-            .tag = .expected_elementary_or_identifier_path,
-            .token = self.token_index,
-        });
+        return self.fail(.expected_elementary_or_identifier_path);
 
     _ = try self.expectToken(.equal_bracket_right);
 
@@ -481,10 +796,7 @@ pub fn parseMapping(self: *Parser, nested: bool) ParserErrors!Node.Index {
     };
 
     if (child_two == 0)
-        return self.failMsg(.{
-            .tag = .expected_elementary_or_identifier_path,
-            .token = self.token_index,
-        });
+        return self.fail(.expected_elementary_or_identifier_path);
 
     _ = try self.expectToken(.r_paren);
     _ = try self.expectToken(.identifier);
@@ -505,6 +817,8 @@ pub fn parseMapping(self: *Parser, nested: bool) ParserErrors!Node.Index {
 /// Mapping types
 ///     <- .elementary_type
 ///      / .identifier_path (.identifier, .period, .identifier ...)
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.mappingKeyType)
 pub fn parseMappingTypes(self: *Parser) Allocator.Error!Node.Index {
     const elementary_type = try self.consumeElementaryType();
 
@@ -514,6 +828,8 @@ pub fn parseMappingTypes(self: *Parser) Allocator.Error!Node.Index {
     return elementary_type;
 }
 /// .identifier, .period, .identifier ...
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.identifierPath)
 pub fn consumeIdentifierPath(self: *Parser) Allocator.Error!Node.Index {
     var identifier = self.consumeToken(.identifier) orelse return null_node;
 
@@ -529,6 +845,8 @@ pub fn consumeIdentifierPath(self: *Parser) Allocator.Error!Node.Index {
     }
 }
 /// Consume a solidity primary type.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.elementaryTypeName)
 pub fn consumeElementaryType(self: *Parser) Allocator.Error!Node.Index {
     return switch (self.token_tags[self.token_index]) {
         .keyword_address,
@@ -721,10 +1039,9 @@ fn expectToken(self: *Parser, token: Token.Tag) ParserErrors!TokenIndex {
 /// Returns error if current token is not semicolon.
 fn expectSemicolon(self: *Parser) ParserErrors!void {
     if (self.token_tags[self.token_index] != .semicolon) {
-        try self.warnMessage(.{
-            .tag = .expected_token,
+        return self.failMsg(.{
+            .tag = .expected_semicolon,
             .token = self.token_index,
-            .extra = .{ .expected_tag = .semicolon },
         });
     }
     _ = self.nextToken();
@@ -786,28 +1103,44 @@ fn reserveNode(self: *Parser, tag: Ast.Node.Tag) !usize {
     return self.nodes.len - 1;
 }
 
+fn warn(self: *Parser, fail_tag: Ast.Error.Tag) Allocator.Error!void {
+    @branchHint(.cold);
+
+    try self.warnMessage(.{
+        .tag = fail_tag,
+        .token = self.token_index,
+    });
+}
+
 fn warnMessage(self: *Parser, message: Ast.Error) Allocator.Error!void {
     @branchHint(.cold);
 
     switch (message.tag) {
         .expected_semicolon,
         .expected_token,
-        .expected_pragma_version,
         .expected_r_brace,
         .expected_comma_after,
-        .expected_import_path_alias_asterisk,
-        .expected_elementary_or_identifier_path,
         .same_line_doc_comment,
         .expected_suffix,
+        .trailing_comma,
         => if (message.token != 0 and !self.tokensOnSameLine(message.token - 1, message.token)) {
             var copy = message;
             copy.token_is_prev = true;
             copy.token -= 1;
             return self.errors.append(self.allocator, copy);
         },
-        // else => {},
+        else => {},
     }
     try self.errors.append(self.allocator, message);
+}
+
+fn fail(self: *Parser, fail_tag: Ast.Error.Tag) ParserErrors {
+    @branchHint(.cold);
+
+    return self.failMsg(.{
+        .tag = fail_tag,
+        .token = self.token_index,
+    });
 }
 
 fn failMsg(self: *Parser, message: Ast.Error) ParserErrors {

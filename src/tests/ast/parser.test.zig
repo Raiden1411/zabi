@@ -87,7 +87,20 @@ test "Enum" {
 
         const enum_tag = try parser.parseEnum();
 
-        try testing.expectEqual(.container_decl, parser.nodes.items(.tag)[enum_tag]);
+        try testing.expectEqual(.enum_decl, parser.nodes.items(.tag)[enum_tag]);
+    }
+    {
+        var tokens: Ast.TokenList = .{};
+        defer tokens.deinit(testing.allocator);
+
+        var parser: Parser = undefined;
+        defer parser.deinit();
+
+        try buildParser("enum foo{bar}", &tokens, &parser);
+
+        const enum_tag = try parser.parseEnum();
+
+        try testing.expectEqual(.enum_decl_one, parser.nodes.items(.tag)[enum_tag]);
     }
     {
         var tokens: Ast.TokenList = .{};
@@ -272,6 +285,161 @@ test "Function Type" {
         const fn_proto = try parser.parseFunctionType();
 
         try testing.expectEqual(.function_proto, parser.nodes.items(.tag)[fn_proto]);
+    }
+}
+
+test "Struct" {
+    {
+        var tokens: Ast.TokenList = .{};
+        defer tokens.deinit(testing.allocator);
+
+        var parser: Parser = undefined;
+        defer parser.deinit();
+
+        try buildParser("struct Foo{uint foo;}", &tokens, &parser);
+
+        const struct_key = try parser.parseStruct();
+
+        const data = parser.nodes.items(.data)[struct_key];
+        try testing.expectEqual(.struct_decl_one, parser.nodes.items(.tag)[struct_key]);
+        try testing.expectEqual(.identifier, parser.token_tags[data.lhs]);
+        try testing.expectEqual(.struct_field, parser.nodes.items(.tag)[data.rhs]);
+    }
+    {
+        var tokens: Ast.TokenList = .{};
+        defer tokens.deinit(testing.allocator);
+
+        var parser: Parser = undefined;
+        defer parser.deinit();
+
+        try buildParser("struct Foo{uint foo;\n bar baz;}", &tokens, &parser);
+
+        const struct_key = try parser.parseStruct();
+
+        try testing.expectEqual(.struct_decl, parser.nodes.items(.tag)[struct_key]);
+    }
+    {
+        var tokens: Ast.TokenList = .{};
+        defer tokens.deinit(testing.allocator);
+
+        var parser: Parser = undefined;
+        defer parser.deinit();
+
+        try buildParser("struct Foo{;}", &tokens, &parser);
+
+        try testing.expectError(error.ParsingError, parser.parseStruct());
+    }
+}
+
+test "Event" {
+    {
+        var tokens: Ast.TokenList = .{};
+        defer tokens.deinit(testing.allocator);
+
+        var parser: Parser = undefined;
+        defer parser.deinit();
+
+        try buildParser("event Foo(uint foo)", &tokens, &parser);
+
+        const event = try parser.parseEvent();
+
+        const data = parser.nodes.items(.data)[event];
+        try testing.expectEqual(.event_proto_simple, parser.nodes.items(.tag)[event]);
+        try testing.expectEqual(.event_variable_decl, parser.nodes.items(.tag)[data.rhs]);
+    }
+    {
+        var tokens: Ast.TokenList = .{};
+        defer tokens.deinit(testing.allocator);
+
+        var parser: Parser = undefined;
+        defer parser.deinit();
+
+        try buildParser("event Foo(bar foo, address indexed bar)", &tokens, &parser);
+
+        const event = try parser.parseEvent();
+
+        const data = parser.nodes.items(.data)[event];
+        try testing.expectEqual(.event_proto_multi, parser.nodes.items(.tag)[event]);
+        try testing.expectEqual(.event_variable_decl, parser.nodes.items(.tag)[data.lhs]);
+    }
+    {
+        var tokens: Ast.TokenList = .{};
+        defer tokens.deinit(testing.allocator);
+
+        var parser: Parser = undefined;
+        defer parser.deinit();
+
+        try buildParser("event Foo(bar calldata foo, address indexed bar)", &tokens, &parser);
+
+        try testing.expectError(error.ParsingError, parser.parseEvent());
+    }
+    {
+        var tokens: Ast.TokenList = .{};
+        defer tokens.deinit(testing.allocator);
+
+        var parser: Parser = undefined;
+        defer parser.deinit();
+
+        try buildParser("event Foo(bar,, foo, address indexed bar)", &tokens, &parser);
+
+        try testing.expectError(error.ParsingError, parser.parseEvent());
+    }
+}
+
+test "Error" {
+    {
+        var tokens: Ast.TokenList = .{};
+        defer tokens.deinit(testing.allocator);
+
+        var parser: Parser = undefined;
+        defer parser.deinit();
+
+        try buildParser("error Foo(uint foo)", &tokens, &parser);
+
+        const event = try parser.parseError();
+
+        const data = parser.nodes.items(.data)[event];
+        try testing.expectEqual(.error_proto_simple, parser.nodes.items(.tag)[event]);
+        try testing.expectEqual(.error_variable_decl, parser.nodes.items(.tag)[data.rhs]);
+    }
+    {
+        var tokens: Ast.TokenList = .{};
+        defer tokens.deinit(testing.allocator);
+
+        var parser: Parser = undefined;
+        defer parser.deinit();
+
+        try buildParser("error Foo(uint foo, foo bar)", &tokens, &parser);
+
+        const event = try parser.parseError();
+
+        const data = parser.nodes.items(.data)[event];
+        try testing.expectEqual(.error_proto_multi, parser.nodes.items(.tag)[event]);
+        try testing.expectEqual(.error_variable_decl, parser.nodes.items(.tag)[data.lhs]);
+    }
+    {
+        var tokens: Ast.TokenList = .{};
+        defer tokens.deinit(testing.allocator);
+
+        var parser: Parser = undefined;
+        defer parser.deinit();
+
+        try buildParser("error Foo(uint foo,)", &tokens, &parser);
+
+        _ = try parser.parseError();
+        // Trailing comma but we keep parsing.
+        try testing.expectEqual(1, parser.errors.items.len);
+    }
+    {
+        var tokens: Ast.TokenList = .{};
+        defer tokens.deinit(testing.allocator);
+
+        var parser: Parser = undefined;
+        defer parser.deinit();
+
+        try buildParser("error Foo(address, bar, calldata)", &tokens, &parser);
+
+        try testing.expectError(error.ParsingError, parser.parseError());
     }
 }
 

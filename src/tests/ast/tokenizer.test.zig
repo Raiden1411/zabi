@@ -64,6 +64,12 @@ test "Special arithemitic" {
     try testTokenize("uint foo %= 10;", &.{ .keyword_uint, .identifier, .percent_equal, .number_literal, .semicolon });
 }
 
+test "Array Access" {
+    try testTokenize("foo[0]", &.{ .identifier, .l_bracket, .number_literal, .r_bracket });
+    try testTokenize("foo[fooo]", &.{ .identifier, .l_bracket, .identifier, .r_bracket });
+    try testTokenize("foo[fooo.bar()]", &.{ .identifier, .l_bracket, .identifier, .period, .identifier, .l_paren, .r_paren, .r_bracket });
+}
+
 test "Invalid assignment" {
     try testTokenize("uint foo &&= 10;", &.{ .keyword_uint, .identifier, .ampersand_ampersand, .equal, .number_literal, .semicolon });
     try testTokenize("uint foo ||= 10;", &.{ .keyword_uint, .identifier, .pipe_pipe, .equal, .number_literal, .semicolon });
@@ -103,9 +109,10 @@ test "Int Literals" {
     try testTokenize("10000000", &.{.number_literal});
     try testTokenize("1e6", &.{.number_literal});
     try testTokenize("1E6", &.{.number_literal});
+    try testTokenize("1_0000___0000", &.{.number_literal});
     try testTokenize("1.6.", &.{ .number_literal, .period });
     try testTokenize("1.6", &.{.number_literal});
-    try testTokenize("1.6.2", &.{.number_literal});
+    try testTokenize("1.6.2", &.{ .number_literal, .period, .number_literal });
     try testTokenize("0x12312313432424", &.{.number_literal});
 }
 

@@ -34,6 +34,7 @@ pub const Node = struct {
     }
 
     pub const Tag = enum {
+        root,
         identifier,
         /// lhs is the index into extra data.
         /// rhs is the initialization expression, if any.
@@ -49,10 +50,13 @@ pub const Node = struct {
         equal_equal,
         /// `lhs != rhs`.
         bang_equal,
+
         less_than,
         less_or_equal,
+
         greater_than,
         greater_or_equal,
+
         assign,
         assign_add,
         assign_sub,
@@ -65,6 +69,7 @@ pub const Node = struct {
         assign_bit_and,
         assign_bit_or,
         assign_bit_xor,
+
         add,
         sub,
         mul,
@@ -73,17 +78,42 @@ pub const Node = struct {
         shl,
         shr,
         sar,
+        exponent,
+
         bit_and,
         bit_or,
         bit_xor,
         bit_not,
+
         conditional_and,
         conditional_or,
         conditional_not,
+
         negation,
+
+        increment,
+        decrement,
+
+        delete,
+
+        type_decl,
+        new_decl,
+
         array_type,
         array_access,
+        array_init_one,
+        array_init,
+
+        tuple_init_one,
+        tuple_init,
+
+        payable_decl,
+
         string_literal,
+
+        number_literal,
+        number_literal_sub_denomination,
+
         call,
         call_one,
         @"while",
@@ -96,6 +126,8 @@ pub const Node = struct {
         function_decl,
         block,
         block_semicolon,
+
+        unreachable_node,
 
         contract_decl,
         interface_decl,
@@ -129,6 +161,9 @@ pub const Node = struct {
         /// `lhs` is the index to the storage modifier
         /// `rhs` is the index to the identifier
         variable_decl,
+        /// `lhs` is the index to the identifier
+        /// `rhs` is the index to the `elementary_type` node.
+        user_defined_type,
 
         struct_decl,
         struct_decl_one,
@@ -253,6 +288,10 @@ pub const Error = struct {
         expected_event_param,
         expected_error_param,
         expected_type_expr,
+        expected_prefix_expr,
         trailing_comma,
+        chained_comparison_operators,
+        expected_expr,
+        expected_statement,
     };
 };

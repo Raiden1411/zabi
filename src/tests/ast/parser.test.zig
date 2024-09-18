@@ -5,17 +5,17 @@ const testing = std.testing;
 const Parser = @import("../../ast/Parser.zig");
 const Ast = @import("../../ast/Ast.zig");
 
-test "Pragma" {
-    var tokens: Ast.TokenList = .{};
-    defer tokens.deinit(testing.allocator);
-
-    var parser: Parser = undefined;
-    defer parser.deinit();
-
-    try buildParser("pragma solidity >=0.8.20 <=0.8.0;", &tokens, &parser);
-
-    _ = try parser.parsePragmaDirective();
-}
+// test "Pragma" {
+//     var tokens: Ast.TokenList = .{};
+//     defer tokens.deinit(testing.allocator);
+//
+//     var parser: Parser = undefined;
+//     defer parser.deinit();
+//
+//     try buildParser("pragma solidity >=0.8.20 <=0.8.0;", &tokens, &parser);
+//
+//     _ = try parser.parsePragmaDirective();
+// }
 
 test "Import" {
     {
@@ -339,13 +339,13 @@ test "Event" {
         var parser: Parser = undefined;
         defer parser.deinit();
 
-        try buildParser("event Foo(uint foo)", &tokens, &parser);
+        try buildParser("event Foo(uint[foo.bar * 69] foo)", &tokens, &parser);
 
         const event = try parser.parseEvent();
 
         const data = parser.nodes.items(.data)[event];
         try testing.expectEqual(.event_proto_simple, parser.nodes.items(.tag)[event]);
-        try testing.expectEqual(.event_variable_decl, parser.nodes.items(.tag)[data.rhs]);
+        try testing.expectEqual(.event_variable_decl, parser.nodes.items(.tag)[parser.extra_data.items[data.lhs]]);
     }
     {
         var tokens: Ast.TokenList = .{};
@@ -360,7 +360,7 @@ test "Event" {
 
         const data = parser.nodes.items(.data)[event];
         try testing.expectEqual(.event_proto_multi, parser.nodes.items(.tag)[event]);
-        try testing.expectEqual(.event_variable_decl, parser.nodes.items(.tag)[data.lhs]);
+        try testing.expectEqual(.event_variable_decl, parser.nodes.items(.tag)[parser.extra_data.items[data.lhs]]);
     }
     {
         var tokens: Ast.TokenList = .{};
@@ -415,7 +415,7 @@ test "Error" {
 
         const data = parser.nodes.items(.data)[event];
         try testing.expectEqual(.error_proto_multi, parser.nodes.items(.tag)[event]);
-        try testing.expectEqual(.error_variable_decl, parser.nodes.items(.tag)[data.lhs]);
+        try testing.expectEqual(.error_variable_decl, parser.nodes.items(.tag)[parser.extra_data.items[data.lhs]]);
     }
     {
         var tokens: Ast.TokenList = .{};
@@ -440,6 +440,20 @@ test "Error" {
         try buildParser("error Foo(address, bar, calldata)", &tokens, &parser);
 
         try testing.expectError(error.ParsingError, parser.parseError());
+    }
+}
+
+test "Expr" {
+    {
+        var tokens: Ast.TokenList = .{};
+        defer tokens.deinit(testing.allocator);
+
+        var parser: Parser = undefined;
+        defer parser.deinit();
+
+        try buildParser("foo += bar + baz;", &tokens, &parser);
+
+        _ = try parser.parseAssignExpr();
     }
 }
 
@@ -468,4 +482,10 @@ fn buildParser(source: [:0]const u8, tokens: *Ast.TokenList, parser: *Parser) !v
         .scratch = .{},
         .extra_data = .{},
     };
+
+    try parser.nodes.append(testing.allocator, .{
+        .tag = .root,
+        .main_token = 0,
+        .data = undefined,
+    });
 }

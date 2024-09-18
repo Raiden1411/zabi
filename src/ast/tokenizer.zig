@@ -855,20 +855,20 @@ pub const Tokenizer = struct {
                     else => result.tag = .angle_bracket_right_angle_bracket_right_angle_bracket_right,
                 }
             },
-            .int => {
-                self.index += 1;
-                switch (self.buffer[self.index]) {
-                    'e', 'E' => continue :state .int_exponent,
-                    'x' => continue :state .int_hex,
-                    '0'...'9' => continue :state .int,
-                    '.' => continue :state .int_period,
-                    else => {},
-                }
+            .int => switch (self.buffer[self.index]) {
+                'e', 'E' => continue :state .int_exponent,
+                'x' => continue :state .int_hex,
+                '0'...'9', '_' => {
+                    self.index += 1;
+                    continue :state .int;
+                },
+                '.' => continue :state .int_period,
+                else => {},
             },
             .int_period => {
                 self.index += 1;
                 switch (self.buffer[self.index]) {
-                    '0'...'9' => continue :state .float,
+                    '0'...'9', '_' => continue :state .float,
                     else => self.index -= 1,
                 }
             },
@@ -882,14 +882,14 @@ pub const Tokenizer = struct {
             .int_hex => {
                 self.index += 1;
                 switch (self.buffer[self.index]) {
-                    'a'...'f', 'A'...'F', '0'...'9' => continue :state .int_hex,
+                    'a'...'f', 'A'...'F', '0'...'9', '_' => continue :state .int_hex,
                     else => {},
                 }
             },
             .float => {
                 self.index += 1;
                 switch (self.buffer[self.index]) {
-                    '0'...'9' => continue :state .float,
+                    '0'...'9', '_' => continue :state .float,
                     else => {},
                 }
             },

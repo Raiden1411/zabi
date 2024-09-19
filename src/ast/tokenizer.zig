@@ -679,7 +679,7 @@ pub const Tokenizer = struct {
                     },
                     '\r' => continue :state .expect_newline,
                     '\n' => {
-                        result.location.start = self.index + 1;
+                        result.location.start = self.index;
                         continue :state .start;
                     },
                     0x01...0x09, 0x0b...0x0c, 0x0e...0x1f, 0x7f => continue :state .invalid,
@@ -783,7 +783,8 @@ pub const Tokenizer = struct {
                         continue :state .invalid;
                     },
                     '\n' => {
-                        result.location.start = self.index + 1;
+                        self.index += 1;
+                        result.location.start = self.index;
                         continue :state .start;
                     },
                     else => continue :state .invalid,

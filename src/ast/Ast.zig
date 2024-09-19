@@ -116,18 +116,28 @@ pub const Node = struct {
 
         call,
         call_one,
+
         @"while",
+        do_while,
         @"for",
         @"if",
+        if_simple,
         @"try",
         @"catch",
         @"break",
         @"return",
+        @"continue",
+        emit,
         function_decl,
+
+        block_two,
+        block_two_semicolon,
         block,
         block_semicolon,
 
         unreachable_node,
+        specifiers,
+        override_specifier,
 
         contract_decl,
         interface_decl,
@@ -184,6 +194,9 @@ pub const Node = struct {
 
         enum_decl_one,
         enum_decl,
+
+        construct_decl_one,
+        construct_decl,
     };
 
     pub const Range = struct {
@@ -201,17 +214,32 @@ pub const Node = struct {
         else_expression: Index,
     };
 
-    pub const While = struct {
-        condition_expression: Index,
-        then_expression: Index,
-    };
-
     pub const For = struct {
-        condition_expression: Index,
-        then_expression: Index,
+        condition_one: Index,
+        condition_two: Index,
+        condition_three: Index,
     };
 
-    pub const FnProtoOne = struct {
+    pub const Try = struct {
+        returns: Index,
+        expression: Index,
+        block_statement: Index,
+    };
+
+    pub const ConstructorProto = struct {
+        params_start: Index,
+        params_end: Index,
+        /// Populated if (payable|view|pure|modifier-invocation) is present
+        mutability_modifier: Index,
+    };
+
+    pub const ConstructorProtoOne = struct {
+        param: Index,
+        /// Populated if (payable|view|pure|modifier-invocation) is present
+        mutability_modifier: Index,
+    };
+
+    pub const FnProtoTypeOne = struct {
         param: Index,
         /// Populated if (external|public|internal|private) is present.
         visibility: Index,
@@ -219,13 +247,29 @@ pub const Node = struct {
         mutability: Index,
     };
 
-    pub const FnProto = struct {
+    pub const FnProtoType = struct {
         params_start: Index,
         params_end: Index,
         /// Populated if (external|public|internal|private) is present.
         visibility: Index,
         /// Populated if (payable|view|pure) is present
         mutability: Index,
+    };
+
+    pub const FnProtoOne = struct {
+        param: Index,
+        /// Populated if (external|public|internal|private) is present.
+        visibility: Index,
+        specifiers: Index,
+        identifier: Index,
+    };
+
+    pub const FnProto = struct {
+        params_start: Index,
+        params_end: Index,
+        /// Populated if (external|public|internal|private) is present.
+        specifiers: Index,
+        identifier: Index,
     };
 
     pub const EventProtoOne = struct {
@@ -293,5 +337,8 @@ pub const Error = struct {
         chained_comparison_operators,
         expected_expr,
         expected_statement,
+        expected_function_call,
+        expected_block_or_assignment_statement,
+        expected_else_or_semicolon,
     };
 };

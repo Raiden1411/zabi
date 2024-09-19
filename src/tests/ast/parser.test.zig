@@ -451,9 +451,23 @@ test "Expr" {
         var parser: Parser = undefined;
         defer parser.deinit();
 
-        try buildParser("foo += bar + baz;", &tokens, &parser);
+        const slice =
+            \\       try new Foo(_owner) returns (Foo foo) {
+            \\          /// you can use variable foo here
+            \\          emit Log("Foo created");
+            \\      } catch Error(string memory reason) {
+            \\          // catch failing revert() and require()
+            \\          emit Log(reason);
+            \\      } catch (bytes memory reason) {
+            \\          // catch failing assert()
+            \\          emit LogBytes(reason);
+            \\      }
+        ;
+        try buildParser(slice, &tokens, &parser);
 
-        _ = try parser.parseAssignExpr();
+        _ = try parser.expectTryStatement();
+        std.debug.print("FOOOOOO: {any}\n", .{parser.nodes.items(.tag)});
+        std.debug.print("FOOOOOO: {any}\n", .{parser.errors.items});
     }
 }
 

@@ -139,6 +139,11 @@ pub const Node = struct {
         block_two_semicolon,
         block,
         block_semicolon,
+        unchecked_block,
+
+        using_directive,
+        using_directive_multi,
+        using_alias_operator,
 
         contract_block_two,
         contract_block_two_semicolon,
@@ -333,6 +338,19 @@ pub const Node = struct {
         symbol_end: Index,
         from: Index,
     };
+
+    pub const UsingDirective = struct {
+        aliases: Index,
+        for_alias: Index,
+        target_type: Index,
+    };
+
+    pub const UsingDirectiveMulti = struct {
+        aliases_start: Index,
+        aliases_end: Index,
+        for_alias: Index,
+        target_type: Index,
+    };
 };
 
 pub const Error = struct {
@@ -374,5 +392,7 @@ pub const Error = struct {
         expected_contract_element,
         expected_contract_block,
         unattached_doc_comment,
+        expected_source_unit_expr,
+        expected_operator,
     };
 };

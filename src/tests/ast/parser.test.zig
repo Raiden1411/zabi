@@ -463,7 +463,6 @@ test "Expr" {
 
         const slice =
             \\ uint constant foo = 69;
-            \\
             \\   struct Voter {
             \\       uint weight; // weight is accumulated by delegation
             \\       bool voted;  // if true, that person already voted
@@ -471,7 +470,7 @@ test "Expr" {
             \\       uint vote;   // index of the voted proposal
             \\   }
             \\
-            \\       contract Ballot {
+            \\       contract Ballot is {
             \\
             \\   struct Voter {
             \\       uint weight; // weight is accumulated by delegation

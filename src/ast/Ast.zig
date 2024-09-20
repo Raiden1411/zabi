@@ -100,12 +100,17 @@ pub const Node = struct {
         new_decl,
 
         array_type,
+        array_type_multi,
+
         array_access,
         array_init_one,
         array_init,
 
         tuple_init_one,
         tuple_init,
+
+        struct_init_one,
+        struct_init,
 
         payable_decl,
 
@@ -135,12 +140,22 @@ pub const Node = struct {
         block,
         block_semicolon,
 
+        contract_block_two,
+        contract_block_two_semicolon,
+        contract_block,
+        contract_block_semicolon,
+
         unreachable_node,
+
         specifiers,
         override_specifier,
 
+        abstract_decl,
+        abstract_decl_inheritance,
         contract_decl,
+        contract_decl_inheritance,
         interface_decl,
+        interface_decl_inheritance,
         library_decl,
         /// `lhs` is undefined.
         /// `rhs` is the index to `path`.
@@ -197,6 +212,13 @@ pub const Node = struct {
 
         construct_decl_one,
         construct_decl,
+
+        modifier_proto_one,
+        modifier_proto,
+        modifier_decl,
+        modifier_specifiers,
+
+        state_variable_decl,
     };
 
     pub const Range = struct {
@@ -229,14 +251,12 @@ pub const Node = struct {
     pub const ConstructorProto = struct {
         params_start: Index,
         params_end: Index,
-        /// Populated if (payable|view|pure|modifier-invocation) is present
-        mutability_modifier: Index,
+        specifiers: Index,
     };
 
     pub const ConstructorProtoOne = struct {
         param: Index,
-        /// Populated if (payable|view|pure|modifier-invocation) is present
-        mutability_modifier: Index,
+        specifiers: Index,
     };
 
     pub const FnProtoTypeOne = struct {
@@ -245,6 +265,17 @@ pub const Node = struct {
         visibility: Index,
         /// Populated if (payable|view|pure) is present
         mutability: Index,
+    };
+
+    pub const ContractInheritanceOne = struct {
+        identifier: Index,
+        inheritance: Index,
+    };
+
+    pub const ContractInheritance = struct {
+        identifier: Index,
+        inheritance_start: Index,
+        inheritance_end: Index,
     };
 
     pub const FnProtoType = struct {
@@ -258,8 +289,6 @@ pub const Node = struct {
 
     pub const FnProtoOne = struct {
         param: Index,
-        /// Populated if (external|public|internal|private) is present.
-        visibility: Index,
         specifiers: Index,
         identifier: Index,
     };
@@ -339,6 +368,11 @@ pub const Error = struct {
         expected_statement,
         expected_function_call,
         expected_block_or_assignment_statement,
+        expected_semicolon_or_lbrace,
         expected_else_or_semicolon,
+        already_seen_specifier,
+        expected_contract_element,
+        expected_contract_block,
+        unattached_doc_comment,
     };
 };

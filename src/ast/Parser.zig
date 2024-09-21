@@ -206,7 +206,7 @@ pub fn parseSourceUnit(self: *Parser) ParserErrors!Node.Index {
 
                     switch (inheritance) {
                         .zero_one => |elem| return self.addNode(.{
-                            .tag = .abstract_decl_inheritance,
+                            .tag = .abstract_decl_inheritance_one,
                             .main_token = abstract,
                             .data = .{
                                 .lhs = try self.addExtraData(
@@ -307,7 +307,7 @@ pub fn parseContractProto(self: *Parser) ParserErrors!Node.Index {
 
                     switch (inheritance) {
                         .zero_one => |elem| return self.addNode(.{
-                            .tag = if (tag == .contract_decl) .contract_decl_inheritance else .interface_decl_inheritance,
+                            .tag = if (tag == .contract_decl) .contract_decl_inheritance_one else .interface_decl_inheritance_one,
                             .main_token = token,
                             .data = .{
                                 .lhs = try self.addExtraData(

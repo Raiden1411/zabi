@@ -84,6 +84,409 @@ pub fn parse(allocator: Allocator, source: [:0]const u8) Parser.ParserErrors!Ast
     };
 }
 
+pub fn stateVariableDecl(self: Ast, node: Node.Index) ast.StateVariableDecl {
+    std.debug.assert(self.nodes.items(.tag)[node] == .state_variable_decl);
+
+    const nodes = self.nodes.items(.tag);
+    const data = self.nodes.items(.data)[node];
+    const state = self.nodes.items(.main_token)[node];
+    const token_tags = self.tokens.items(.tag);
+
+    var result: ast.StateVariableDecl = .{
+        .ast = .{
+            .type_token = data.lhs,
+            .expression_node = data.rhs,
+        },
+        .constant = null,
+        .public = null,
+        .immutable = null,
+        .private = null,
+        .internal = null,
+        .override = null,
+    };
+
+    std.debug.assert(token_tags.len > state);
+
+    switch (token_tags[state]) {
+        .keyword_public => result.public = state,
+        .keyword_private => result.private = state,
+        .keyword_internal => result.internal = state,
+        .keyword_constant => result.constant = state,
+        .keyword_immutable => result.immutable = state,
+        .keyword_override => result.override = state,
+        else => {
+            if (nodes.len > state and nodes[state] == .override_specifier) {
+                result.override = self.nodes.items(.main_token)[state];
+            }
+        },
+    }
+
+    return result;
+}
+
+pub fn userDefinedTypeDecl(self: Ast, node: Node.Index) ast.UserDefinedTypeDecl {
+    std.debug.assert(self.nodes.items(.tag)[node] == .user_defined_type);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    return .{
+        .ast = .{
+            .target_type = data.rhs,
+        },
+        .main = main,
+        .name = data.lhs,
+    };
+}
+
+pub fn constructorDecl(self: Ast, node: Node.Index) ast.ConstructorDecl {
+    std.debug.assert(self.nodes.items(.tag)[node] == .construct_decl_one);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    const proto = self.extraData(data.lhs, Node.ConstructorProto);
+    const extra = self.extraData(proto.specifiers, Node.Range);
+
+    const params = self.extra_data[proto.params_start..proto.params_end];
+    const specifiers = self.extra_data[extra.start..extra.end];
+
+    return .{
+        .main_token = main,
+        .ast = .{
+            .params = params,
+            .block = data.rhs,
+            .specifiers = specifiers,
+        },
+    };
+}
+
+pub fn constructorDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.ConstructorDecl {
+    std.debug.assert(self.nodes.items(.tag)[node] == .construct_decl_one);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    const proto = self.extraData(data.lhs, Node.ConstructorProtoOne);
+    node_buffer[0] = proto.param;
+
+    const extra = self.extraData(proto.specifiers, Node.Range);
+    const specifiers = self.extra_data[extra.start..extra.end];
+
+    return .{
+        .main_token = main,
+        .ast = .{
+            .params = if (proto.params == 0) node_buffer[0..0] else node_buffer[0..1],
+            .block = data.rhs,
+            .specifiers = specifiers,
+        },
+    };
+}
+
+pub fn eventProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.EventProto {
+    std.debug.assert(self.nodes.items(.tag)[node] == .event_proto_simple);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    const proto = self.extraData(data.rhs, Node.EventProtoOne);
+    node_buffer[0] = proto.params;
+
+    return .{
+        .ast = .{
+            .params = if (proto.params == 0) node_buffer[0..0] else node_buffer[0..1],
+        },
+        .main_token = main,
+        .name = data.lhs,
+        .anonymous = if (proto.anonymous != 0) proto.anonymous else null,
+    };
+}
+
+pub fn eventProtoMulti(self: Ast, node: Node.Index) ast.EventProto {
+    std.debug.assert(self.nodes.items(.tag)[node] == .error_proto_multi);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    const proto = self.extraData(data.rhs, Node.EventProto);
+    const params = self.extra_data[proto.params_start..proto.params_end];
+
+    return .{
+        .ast = .{
+            .params = params,
+        },
+        .main_token = main,
+        .name = data.lhs,
+        .anonymous = if (proto.anonymous != 0) proto.anonymous else null,
+    };
+}
+
+pub fn errorProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.ErrorProto {
+    std.debug.assert(self.nodes.items(.tag)[node] == .error_proto_simple);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+    node_buffer[0] = data.rhs;
+
+    return .{
+        .ast = .{
+            .params = if (data.rhs == 0) node_buffer[0..0] else node_buffer[0..1],
+        },
+        .main_token = main,
+        .name = data.lhs,
+    };
+}
+
+pub fn errorProtoMulti(self: Ast, node: Node.Index) ast.ErrorProto {
+    std.debug.assert(self.nodes.items(.tag)[node] == .error_proto_multi);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    const range = self.extraData(data.rhs, Node.Range);
+    const fields = self.extra_data[range.start..range.end];
+
+    return .{
+        .ast = .{
+            .params = fields,
+        },
+        .name = data.lhs,
+        .main_token = main,
+    };
+}
+
+pub fn enumDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.EnumDecl {
+    std.debug.assert(self.nodes.items(.tag)[node] == .enum_decl_one);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+    node_buffer[0] = data.rhs;
+
+    return .{
+        .fields = if (data.rhs == 0) node_buffer[0..0] else node_buffer[0..1],
+        .main_token = main,
+        .name = data.lhs,
+    };
+}
+
+pub fn enumDecl(self: Ast, node: Node.Index) ast.EnumDecl {
+    std.debug.assert(self.nodes.items(.tag)[node] == .enum_decl);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    const range = self.extraData(data.rhs, Node.Range);
+    const fields = self.extra_data[range.start..range.end];
+
+    return .{
+        .fields = fields,
+        .name = data.lhs,
+        .main_token = main,
+    };
+}
+
+pub fn structDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.StructDecl {
+    std.debug.assert(self.nodes.items(.tag)[node] == .struct_decl_one);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+    node_buffer[0] = data.rhs;
+
+    return .{
+        .ast = .{
+            .fields = if (data.rhs == 0) node_buffer[0..0] else node_buffer[0..1],
+        },
+        .main_token = main,
+        .name = data.lhs,
+    };
+}
+
+pub fn structDecl(self: Ast, node: Node.Index) ast.StructDecl {
+    std.debug.assert(self.nodes.items(.tag)[node] == .struct_decl);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+    const range = self.extraData(data.rhs, Node.Range);
+    const fields = self.extra_data[range.start..range.end];
+
+    return .{
+        .ast = .{
+            .fields = fields,
+        },
+        .name = data.lhs,
+        .main_token = main,
+    };
+}
+
+pub fn contractDecl(self: Ast, node: Node.Index) ast.ContractDecl {
+    const nodes = self.nodes.items(.tag);
+    std.debug.assert(nodes[node] == .contract_decl or
+        nodes[node] == .library_decl or
+        nodes[node] == .interface_decl or
+        nodes[node] == .abstract_decl);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    return .{
+        .ast = .{
+            .body = data.rhs,
+        },
+        .main_token = main,
+        .name = data.lhs,
+    };
+}
+
+pub fn contractDeclInheritanceOne(self: Ast, buffer: *[1]Node.Index, node: Node.Index) ast.ContractDecl {
+    const nodes = self.nodes.items(.tag);
+    std.debug.assert(nodes[node] == .contract_decl_inheritance_one or
+        nodes[node] == .interface_decl_inheritance_one or
+        nodes[node] == .abstract_decl_inheritance_one);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    const extra = self.extraData(data.lhs, Node.ContractInheritanceOne);
+    buffer[0] = extra.inheritance;
+
+    return .{
+        .ast = .{
+            .body = data.rhs,
+            .inheritance = if (extra.inheritance == 0) buffer[0..0] else buffer[0..1],
+        },
+        .main_token = main,
+        .name = extra.identifier,
+    };
+}
+
+pub fn contractDeclInheritance(self: Ast, node: Node.Index) ast.ContractDeclInheritance {
+    const nodes = self.nodes.items(.tag);
+    std.debug.assert(nodes[node] == .contract_decl_inheritance or
+        nodes[node] == .interface_decl_inheritance or
+        nodes[node] == .abstract_decl_inheritance);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    const extra = self.extraData(data.lhs, Node.ContractInheritance);
+    const slice = self.extra_data[extra.inheritance_start..extra.inheritance_end];
+
+    return .{
+        .ast = .{
+            .body = data.rhs,
+            .inheritance = slice,
+        },
+        .main_token = main,
+        .name = extra.identifier,
+    };
+}
+
+pub fn extraData(self: Ast, index: usize, comptime T: type) T {
+    var result: T = undefined;
+
+    inline for (std.meta.fields(T), 0..) |field, i| {
+        comptime std.debug.assert(field.type == Node.Index);
+        @field(result, field.name) = self.extra_data[index + i];
+    }
+
+    return result;
+}
+
+pub const ast = struct {
+    pub const StateVariableDecl = struct {
+        ast: Components,
+        constant: ?TokenIndex,
+        public: ?TokenIndex,
+        immutable: ?TokenIndex,
+        private: ?TokenIndex,
+        internal: ?TokenIndex,
+        override: ?TokenIndex,
+
+        pub const Components = struct {
+            type_token: Node.Index,
+            expression_node: Node.Index,
+        };
+    };
+
+    pub const UserDefinedTypeDecl = struct {
+        name: TokenIndex,
+        main_token: TokenIndex,
+        ast: Components,
+
+        pub const Components = struct {
+            target_type: Node.Index,
+        };
+    };
+
+    pub const EnumDecl = struct {
+        name: TokenIndex,
+        main_token: TokenIndex,
+        fields: []const TokenIndex,
+    };
+
+    pub const StructDecl = struct {
+        name: TokenIndex,
+        main_token: TokenIndex,
+        ast: Components,
+
+        pub const Components = struct {
+            fields: []const Node.Index,
+        };
+    };
+
+    pub const ConstructorDecl = struct {
+        main_token: TokenIndex,
+        ast: Components,
+
+        pub const Components = struct {
+            params: []const Node.Index,
+            specifiers: []const Node.Index,
+            body: Node.Index,
+        };
+    };
+
+    pub const ErrorProto = struct {
+        name: TokenIndex,
+        main_token: TokenIndex,
+        ast: Components,
+
+        pub const Components = struct {
+            params: []const Node.Index,
+        };
+    };
+
+    pub const EventProto = struct {
+        name: TokenIndex,
+        main_token: TokenIndex,
+        anonymous: ?TokenIndex,
+        ast: Components,
+
+        pub const Components = struct {
+            params: []const Node.Index,
+        };
+    };
+
+    pub const ContractDeclInheritance = struct {
+        name: TokenIndex,
+        main_token: TokenIndex,
+        ast: Components,
+
+        pub const Components = struct {
+            inheritance: []const Node.Index,
+            body: Node.Index,
+        };
+    };
+
+    pub const ContractDecl = struct {
+        name: TokenIndex,
+        main_token: TokenIndex,
+        ast: Components,
+
+        pub const Components = struct {
+            body: Node.Index,
+        };
+    };
+};
 /// Ast Node representation.
 ///
 /// `data` may contain indexes to extra_data to help build the syntax tree.
@@ -363,6 +766,7 @@ pub const Node = struct {
         /// lhs is the index into extra data.
         /// rhs is the `contract_block` node.
         abstract_decl_inheritance,
+        abstract_decl_inheritance_one,
         /// main token is the keyword.
         /// lhs is the identifier.
         /// rhs is the `contract_block` node.
@@ -371,6 +775,7 @@ pub const Node = struct {
         /// lhs is the index into extra data.
         /// rhs is the `contract_block` node.
         contract_decl_inheritance,
+        contract_decl_inheritance_one,
         /// main token is the keyword.
         /// lhs is the identifier.
         /// rhs is the `contract_block` node.
@@ -379,6 +784,7 @@ pub const Node = struct {
         /// lhs is the index into extra data.
         /// rhs is the `contract_block` node.
         interface_decl_inheritance,
+        interface_decl_inheritance_one,
         /// main token is the keyword.
         /// lhs is the identifier.
         /// rhs is the `contract_block` node.

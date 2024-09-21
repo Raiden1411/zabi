@@ -808,7 +808,7 @@ pub fn parseModifierSpecifiers(self: *Parser) ParserErrors!Node.Index {
                 state = .seen_virtual;
             },
             .keyword_override => {
-                if (state == .seen_virtual)
+                if (state == .seen_override)
                     return self.fail(.already_seen_specifier);
 
                 try self.scratch.append(self.allocator, try self.parseOverrideSpecifier());
@@ -1187,7 +1187,10 @@ pub fn expectTryStatement(self: *Parser) ParserErrors!Node.Index {
             .lhs = try self.addExtraData(Node.Try{
                 .returns = switch (returns) {
                     .zero_one => |elem| elem,
-                    .multi => |elems| try self.addExtraData(Node.Range{ .start = elems.start, .end = elems.end }),
+                    .multi => |elems| try self.addExtraData(Node.Range{
+                        .start = elems.start,
+                        .end = elems.end,
+                    }),
                 },
                 .expression = expr,
                 .block_statement = block,
@@ -1218,7 +1221,10 @@ pub fn expectCatchStatement(self: *Parser) ParserErrors!Node.Index {
         .data = .{
             .lhs = switch (body) {
                 .zero_one => |elem| elem,
-                .multi => |elems| try self.addExtraData(Node.Range{ .start = elems.start, .end = elems.end }),
+                .multi => |elems| try self.addExtraData(Node.Range{
+                    .start = elems.start,
+                    .end = elems.end,
+                }),
             },
             .rhs = block,
         },
@@ -1811,7 +1817,7 @@ pub fn parsePrimaryExpr(self: *Parser) ParserErrors!Node.Index {
             const type_expr = try self.expectTypeExpr();
 
             return self.addNode(.{
-                .tag = .type_decl,
+                .tag = .new_decl,
                 .main_token = new,
                 .data = .{
                     .lhs = type_expr,

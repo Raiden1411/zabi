@@ -455,12 +455,6 @@ test "Error" {
 
 test "Expr" {
     {
-        var tokens: Ast.TokenList = .{};
-        defer tokens.deinit(testing.allocator);
-
-        var parser: Parser = undefined;
-        defer parser.deinit();
-
         const slice =
             \\ uint constant foo = 69;
             \\   struct Voter {
@@ -602,10 +596,12 @@ test "Expr" {
             \\   }
             \\}
         ;
-        try buildParser(slice, &tokens, &parser);
-        _ = try parser.parseSource();
-        std.debug.print("FOOOOOO: {any}\n", .{parser.nodes.items(.tag)});
-        std.debug.print("FOOOOOO: {any}\n", .{parser.errors.items});
+
+        var ast = try Ast.parse(testing.allocator, slice);
+        defer ast.deinit(testing.allocator);
+
+        std.debug.print("FOOOOOO: {any}\n", .{ast.nodes.items(.tag)});
+        std.debug.print("FOOOOOO: {any}\n", .{ast.errors});
     }
 }
 

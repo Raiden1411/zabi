@@ -253,6 +253,7 @@ pub fn parseSourceUnit(self: *Parser) ParserErrors!Node.Index {
         .keyword_event => return self.parseEvent(),
         .keyword_type => return self.parseUserTypeDefinition(),
         .keyword_using => return self.parseUsingDirective(),
+        .keyword_function => return self.parseFunctionDecl(),
         else => return self.parseStateVariableDecl(),
     }
 }
@@ -313,7 +314,13 @@ pub fn parseContractProto(self: *Parser) ParserErrors!Node.Index {
                                 .lhs = try self.addExtraData(
                                     Node.ContractInheritanceOne{
                                         .identifier = identifier,
-                                        .inheritance = elem,
+                                        .inheritance = if (elem == 0) return self.failMsg(.{
+                                            .tag = .expected_token,
+                                            .token = self.token_index,
+                                            .extra = .{
+                                                .expected_tag = .identifier,
+                                            },
+                                        }) else elem,
                                     },
                                 ),
                                 .rhs = body,
@@ -875,7 +882,7 @@ pub fn parseOverrideSpecifier(self: *Parser) ParserErrors!Node.Index {
 pub fn parseModifierProto(self: *Parser) ParserErrors!Node.Index {
     const modifier = self.consumeToken(.keyword_modifier) orelse return null_node;
 
-    _ = try self.expectToken(.identifier);
+    const identifier = try self.expectToken(.identifier);
 
     const params = if (self.token_tags[self.token_index] != .l_paren) Span{ .zero_one = 0 } else try self.parseParseDeclList();
 
@@ -886,7 +893,10 @@ pub fn parseModifierProto(self: *Parser) ParserErrors!Node.Index {
             .tag = .modifier_proto_one,
             .main_token = modifier,
             .data = .{
-                .lhs = elem,
+                .lhs = try self.addExtraData(Node.ModifierProtoOne{
+                    .param = elem,
+                    .identifier = identifier,
+                }),
                 .rhs = specifiers,
             },
         }),
@@ -895,16 +905,50 @@ pub fn parseModifierProto(self: *Parser) ParserErrors!Node.Index {
             .tag = .modifier_proto,
             .main_token = modifier,
             .data = .{
-                .lhs = try self.addExtraData(Node.Range{
-                    .start = elems.start,
-                    .end = elems.end,
+                .lhs = try self.addExtraData(Node.ModifierProto{
+                    .params_start = elems.start,
+                    .params_end = elems.end,
+                    .identifier = identifier,
                 }),
                 .rhs = specifiers,
             },
         }),
     };
 }
-/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.usingDirective)
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionDefinition)
+pub fn parseFunctionDecl(self: *Parser) ParserErrors!Node.Index {
+    const proto = try self.parseFullFunctionProto();
+
+    switch (self.token_tags[self.token_index]) {
+        .semicolon => {
+            self.token_index += 1;
+            return proto;
+        },
+        .l_brace => {
+            const modifer_decl = try self.reserveNode(.function_decl);
+            errdefer self.unreserveNode(modifer_decl);
+
+            const block = try self.parseBlock();
+
+            std.debug.assert(block != 0);
+
+            return self.setNode(modifer_decl, .{
+                .tag = .function_decl,
+                .main_token = self.nodes.items(.main_token)[proto],
+                .data = .{
+                    .lhs = proto,
+                    .rhs = block,
+                },
+            });
+        },
+        else => {
+            try self.warn(.expected_semicolon_or_lbrace);
+
+            return proto;
+        },
+    }
+}
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionDefinition)
 pub fn parseFullFunctionProto(self: *Parser) ParserErrors!Node.Index {
     const function = switch (self.token_tags[self.token_index]) {
         .keyword_function,
@@ -947,7 +991,10 @@ pub fn parseFullFunctionProto(self: *Parser) ParserErrors!Node.Index {
                         .identifier = identifier,
                     }),
                     .rhs = switch (return_params) {
-                        .zero_one => |r_param| r_param,
+                        .zero_one => |r_param| try self.addExtraData(Node.Range{
+                            .start = r_param,
+                            .end = r_param,
+                        }),
                         .multi => |r_params| try self.addExtraData(r_params),
                     },
                 },
@@ -963,7 +1010,10 @@ pub fn parseFullFunctionProto(self: *Parser) ParserErrors!Node.Index {
                         .params_end = params.end,
                     }),
                     .rhs = switch (return_params) {
-                        .zero_one => |r_param| r_param,
+                        .zero_one => |r_param| try self.addExtraData(Node.Range{
+                            .start = r_param,
+                            .end = r_param,
+                        }),
                         .multi => |r_params| try self.addExtraData(r_params),
                     },
                 },
@@ -2438,29 +2488,12 @@ pub fn parseParseDeclList(self: *Parser) ParserErrors!Span {
 }
 /// Fails if no variable declaration is found.
 pub fn expectVariableParamDeclaration(self: *Parser) ParserErrors!Node.Index {
-    const variable = try self.parseParamVariableDeclaration();
+    const variable = try self.parseVariableDeclaration();
 
     if (variable == 0)
         return self.fail(.expected_variable_decl);
 
     return variable;
-}
-/// .type_expr <- .storage_modifier? <- .identifier?
-///
-/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.variableDeclaration)
-pub fn parseParamVariableDeclaration(self: *Parser) ParserErrors!Node.Index {
-    const type_expr = try self.expectTypeExpr();
-    const storage = self.consumeStorageLocation() orelse null_node;
-    const identifier = self.consumeToken(.identifier) orelse null_node;
-
-    return self.addNode(.{
-        .tag = .variable_decl,
-        .main_token = type_expr,
-        .data = .{
-            .lhs = storage,
-            .rhs = identifier,
-        },
-    });
 }
 /// .type_expr <- .storage_modifier? <- .identifier?
 ///
@@ -2512,47 +2545,18 @@ pub fn parseTypeExpr(self: *Parser) ParserErrors!Node.Index {
     if (self.token_tags[self.token_index] != .l_bracket)
         return type_expr;
 
-    const scratch = self.scratch.items.len;
-    defer self.scratch.shrinkRetainingCapacity(scratch);
+    const l_brace = self.token_index;
 
-    while (true) {
-        const l_brace = try self.expectToken(.l_bracket);
+    const expr = try self.parseExpr();
 
-        const expr = try self.parseExpr();
-
-        const r_brace = try self.expectToken(.r_bracket);
-
-        const array = try self.addNode(.{
-            .tag = .array_type,
-            .main_token = l_brace,
-            .data = .{
-                .lhs = expr,
-                .rhs = r_brace,
-            },
-        });
-
-        try self.scratch.append(self.allocator, array);
-
-        switch (self.token_tags[self.token_index]) {
-            .l_bracket => continue,
-            else => break,
-        }
-    }
-
-    const slice = self.scratch.items[scratch..];
-
-    return switch (slice.len) {
-        0 => self.fail(.expected_type_expr),
-        1 => slice[0],
-        else => self.addNode(.{
-            .tag = .array_type_multi,
-            .main_token = type_expr,
-            .data = .{
-                .lhs = try self.addExtraData(try self.listToSpan(slice)),
-                .rhs = undefined,
-            },
-        }),
-    };
+    return self.addNode(.{
+        .tag = .array_type,
+        .main_token = l_brace,
+        .data = .{
+            .lhs = type_expr,
+            .rhs = expr,
+        },
+    });
 }
 /// .keyword_function <- (?param_decl list) <- ?visibility <- ?mutability <- ?returns <- ?(param_decl list)
 ///
@@ -2574,7 +2578,7 @@ pub fn parseFunctionType(self: *Parser) ParserErrors!Node.Index {
 
         return switch (param_list) {
             .zero_one => |param| self.setNode(fn_index, .{
-                .tag = .function_proto_one,
+                .tag = .function_type_one,
                 .main_token = function,
                 .data = .{
                     .lhs = try self.addExtraData(Node.FnProtoTypeOne{
@@ -2583,13 +2587,16 @@ pub fn parseFunctionType(self: *Parser) ParserErrors!Node.Index {
                         .mutability = mutability,
                     }),
                     .rhs = switch (return_params) {
-                        .zero_one => |r_param| r_param,
+                        .zero_one => |r_param| try self.addExtraData(Node.Range{
+                            .start = r_param,
+                            .end = r_param,
+                        }),
                         .multi => |r_params| try self.addExtraData(r_params),
                     },
                 },
             }),
             .multi => |params| self.setNode(fn_index, .{
-                .tag = .function_proto,
+                .tag = .function_type,
                 .main_token = function,
                 .data = .{
                     .lhs = try self.addExtraData(Node.FnProtoType{
@@ -2599,7 +2606,10 @@ pub fn parseFunctionType(self: *Parser) ParserErrors!Node.Index {
                         .params_end = params.end,
                     }),
                     .rhs = switch (return_params) {
-                        .zero_one => |r_param| r_param,
+                        .zero_one => |r_param| try self.addExtraData(Node.Range{
+                            .start = r_param,
+                            .end = r_param,
+                        }),
                         .multi => |r_params| try self.addExtraData(r_params),
                     },
                 },
@@ -2609,7 +2619,7 @@ pub fn parseFunctionType(self: *Parser) ParserErrors!Node.Index {
 
     return switch (param_list) {
         .zero_one => |param| self.setNode(fn_index, .{
-            .tag = .function_proto_simple,
+            .tag = .function_type_simple,
             .main_token = function,
             .data = .{
                 .lhs = try self.addExtraData(Node.FnProtoTypeOne{
@@ -2621,7 +2631,7 @@ pub fn parseFunctionType(self: *Parser) ParserErrors!Node.Index {
             },
         }),
         .multi => |params| self.setNode(fn_index, .{
-            .tag = .function_proto_multi,
+            .tag = .function_type_multi,
             .main_token = function,
             .data = .{
                 .lhs = try self.addExtraData(Node.FnProtoType{
@@ -2730,7 +2740,7 @@ pub fn parseImportPath(self: *Parser, import: TokenIndex) ParserErrors!Node.Inde
         .semicolon => return self.addNode(.{
             .tag = .import_directive_path,
             .main_token = import,
-            .data = .{ .lhs = 0, .rhs = literal },
+            .data = .{ .lhs = literal, .rhs = 0 },
         }),
         .keyword_as => {
             _ = self.consumeToken(.keyword_as);
@@ -3431,6 +3441,7 @@ fn assignOperationNode(tag: Token.Tag) ?Node.Tag {
         .pipe_equal => .assign_bit_or,
         .caret_equal => .assign_bit_xor,
         .equal => .assign,
+        .colon_equal => .yul_assign,
         else => null,
     };
 }

@@ -35,12 +35,12 @@ const Modules = enum {
 };
 
 pub fn main() !void {
-    // startAnvilInstances(std.heap.page_allocator) catch @panic(
-    //     \\
-    //     \\Failed to connect to anvil!
-    //     \\
-    //     \\Please ensure that is running on port 6969.
-    // );
+    startAnvilInstances(std.heap.page_allocator) catch @panic(
+        \\
+        \\Failed to connect to anvil!
+        \\
+        \\Please ensure that is running on port 6969.
+    );
 
     const test_funcs: []const TestFn = builtin.test_functions;
 

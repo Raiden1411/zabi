@@ -909,6 +909,668 @@ pub fn extraData(self: Ast, index: usize, comptime T: type) T {
 
     return result;
 }
+/// Finds the first token tag based on the node index.
+pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
+    const node_tags = self.nodes.items(.tag);
+    const data = self.nodes.items(.data);
+    const main_token = self.nodes.items(.main_token);
+
+    var current_node = node;
+
+    while (true) {
+        switch (node_tags[current_node]) {
+            .root => return 0,
+
+            .using_directive,
+            .using_directive_multi,
+            .elementary_type,
+            .function_type_simple,
+            .function_type_multi,
+            .function_type,
+            .function_type_one,
+            .struct_decl,
+            .enum_decl,
+            .enum_decl_one,
+            .event_proto_multi,
+            .event_proto_simple,
+            .error_proto_simple,
+            .error_proto_multi,
+            .modifier_proto_one,
+            .modifier_proto,
+            .abstract_decl,
+            .abstract_decl_inheritance_one,
+            .abstract_decl_inheritance,
+            .contract_decl,
+            .contract_decl_inheritance,
+            .contract_decl_inheritance_one,
+            .interface_decl,
+            .interface_decl_inheritance,
+            .interface_decl_inheritance_one,
+            .library_decl,
+            .@"if",
+            .@"while",
+            .@"for",
+            .@"break",
+            .@"continue",
+            .@"return",
+            .@"try",
+            .@"catch",
+            .do_while,
+            .user_defined_type,
+            .mapping_decl,
+            .pragma_directive,
+            .import_directive_path,
+            .import_directive_asterisk,
+            .import_directive_symbol,
+            .import_directive_symbol_one,
+            .import_directive_path_identifier,
+            .identifier,
+            .number_literal,
+            .number_literal_sub_denomination,
+            .string_literal,
+            .delete,
+            .type_decl,
+            .new_decl,
+            .contract_block,
+            .contract_block_semicolon,
+            .contract_block_two,
+            .contract_block_two_semicolon,
+            .block,
+            .block_two,
+            .block_two_semicolon,
+            .unchecked_block,
+            .function_decl,
+            .modifier_decl,
+            .array_init_one,
+            .array_init,
+            .tuple_init_one,
+            .tuple_init,
+            .conditional_not,
+            .bit_not,
+            .negation,
+            .emit,
+            .override_specifier,
+            .unreachable_node,
+            .struct_decl_one,
+            .construct_decl,
+            .construct_decl_one,
+            .function_proto_one,
+            .function_proto_simple,
+            .function_proto_multi,
+            .function_proto,
+            .if_simple,
+            .block_semicolon,
+            .payable_decl,
+            .struct_init,
+            .struct_init_one,
+            => return main_token[current_node],
+
+            .error_variable_decl,
+            .event_variable_decl,
+            .struct_field,
+            .state_variable_decl,
+            .variable_decl,
+            => current_node = main_token[current_node],
+
+            .call,
+            .call_one,
+            .array_access,
+            .field_access,
+            .assign,
+            .assign_add,
+            .assign_sub,
+            .assign_mul,
+            .assign_div,
+            .assign_shl,
+            .assign_sar,
+            .assign_shr,
+            .assign_mod,
+            .assign_bit_or,
+            .assign_bit_and,
+            .assign_bit_xor,
+            .greater_or_equal,
+            .greater_than,
+            .less_than,
+            .less_or_equal,
+            .equal_equal,
+            .bang_equal,
+            .mul,
+            .div,
+            .add,
+            .sub,
+            .mod,
+            .shr,
+            .sar,
+            .shl,
+            .exponent,
+            .yul_assign,
+            .bit_and,
+            .bit_xor,
+            .bit_or,
+            .array_type,
+            .conditional_or,
+            .conditional_and,
+            .increment,
+            .decrement,
+            => current_node = data[current_node].lhs,
+            .modifier_specifiers,
+            .specifiers,
+            => {
+                const extra = self.extraData(main_token[current_node], Node.Range);
+
+                return @intCast(extra.start);
+            },
+            .using_alias_operator => return data[current_node].rhs,
+        }
+    }
+}
+/// Finds the last token tag based on the node index.
+pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
+    const node_tags = self.nodes.items(.tag);
+    const data = self.nodes.items(.data);
+    const main_token = self.nodes.items(.main_token);
+    const token_tags = self.tokens.items(.tag);
+
+    var current_node = node;
+    var end_offset: u32 = 0;
+
+    while (true) {
+        switch (node_tags[current_node]) {
+            .root => return @as(TokenIndex, @intCast(self.tokens.len - 1)),
+
+            .string_literal,
+            .number_literal,
+            .unreachable_node,
+            .increment,
+            .identifier,
+            .decrement,
+            .elementary_type,
+            .@"continue",
+            .@"break",
+            => return main_token[current_node] + end_offset,
+
+            .number_literal_sub_denomination,
+            => return data[current_node].lhs + end_offset,
+
+            .@"return" => if (data[current_node].lhs != 0) {
+                current_node = data[current_node].lhs;
+            } else return main_token[current_node] + end_offset,
+
+            .state_variable_decl,
+            => {
+                end_offset += 1;
+                if (data[current_node].rhs != 0) {
+                    current_node = data[current_node].rhs;
+                    // Main token is the state so the next are identifier and semicolon.
+                } else if (main_token[current_node] != 0) {
+                    end_offset += 1;
+                    return main_token[current_node] + end_offset;
+                } else current_node = data[current_node].lhs;
+            },
+
+            .variable_decl,
+            .error_variable_decl,
+            .event_variable_decl,
+            => {
+                if (data[current_node].rhs != 0) {
+                    return data[current_node].rhs + end_offset;
+                } else if (data[current_node].lhs != 0) {
+                    return data[current_node].lhs + end_offset;
+                } else current_node = main_token[current_node];
+            },
+
+            .bit_not,
+            .conditional_not,
+            .delete,
+            .negation,
+            .emit,
+            .assign,
+            .assign_add,
+            .assign_sub,
+            .assign_mul,
+            .assign_div,
+            .assign_shl,
+            .assign_sar,
+            .assign_shr,
+            .assign_mod,
+            .assign_bit_or,
+            .assign_bit_and,
+            .assign_bit_xor,
+            .greater_or_equal,
+            .greater_than,
+            .less_than,
+            .less_or_equal,
+            .equal_equal,
+            .bang_equal,
+            .mul,
+            .div,
+            .add,
+            .sub,
+            .mod,
+            .shr,
+            .sar,
+            .shl,
+            .exponent,
+            .yul_assign,
+            .bit_and,
+            .bit_xor,
+            .bit_or,
+            .array_type,
+            .conditional_or,
+            .conditional_and,
+            .contract_decl_inheritance_one,
+            .contract_decl_inheritance,
+            .contract_decl,
+            .abstract_decl_inheritance,
+            .abstract_decl_inheritance_one,
+            .abstract_decl,
+            .library_decl,
+            .interface_decl,
+            .interface_decl_inheritance,
+            .interface_decl_inheritance_one,
+            .construct_decl,
+            .construct_decl_one,
+            .user_defined_type,
+            .unchecked_block,
+            .@"while",
+            .do_while,
+            .if_simple,
+            .@"for",
+            .@"catch",
+            => current_node = data[current_node].rhs,
+
+            .mapping_decl,
+            .error_proto_simple,
+            => {
+                end_offset += 1;
+                current_node = data[current_node].rhs;
+            },
+
+            .payable_decl,
+            .type_decl,
+            .new_decl,
+            => current_node = data[current_node].lhs,
+
+            .import_directive_path,
+            => {
+                end_offset += 1;
+                return data[current_node].lhs + end_offset;
+            },
+
+            .import_directive_symbol,
+            .import_directive_symbol_one,
+            .import_directive_asterisk,
+            .import_directive_path_identifier,
+            => {
+                end_offset += 1;
+                return data[current_node].rhs + end_offset;
+            },
+
+            .struct_init_one,
+            => {
+                end_offset += 1;
+                current_node = data[current_node].lhs;
+            },
+
+            .struct_init,
+            => {
+                const elements = self.extraData(data[current_node].rhs, Node.Range);
+                std.debug.assert(elements.end - elements.start > 0);
+
+                end_offset += 1;
+                current_node = self.extra_data[elements.end - 1];
+            },
+
+            .using_directive_multi,
+            => {
+                end_offset += 1;
+                if (data[current_node].rhs != 0)
+                    return data[current_node].rhs + end_offset;
+
+                const elems = self.extraData(data[current_node].lhs, Node.UsingDirectiveMulti);
+
+                current_node = elems.target_type;
+            },
+
+            .using_directive,
+            => {
+                end_offset += 1;
+                if (data[current_node].rhs != 0)
+                    return data[current_node].rhs + end_offset;
+
+                const elems = self.extraData(data[current_node].lhs, Node.UsingDirective);
+
+                if (token_tags[elems.target_type] == .asterisk)
+                    return elems.target_type + end_offset;
+
+                current_node = elems.target_type;
+            },
+
+            .call_one,
+            .array_access,
+            => {
+                end_offset += 1;
+                if (data[current_node].rhs == 0) {
+                    return main_token[current_node] + end_offset;
+                }
+
+                current_node = data[current_node].rhs;
+            },
+
+            .function_decl,
+            .modifier_decl,
+            => {
+                if (data[current_node].rhs != 0) {
+                    current_node = data[current_node].rhs;
+                } else current_node = data[current_node].lhs;
+            },
+
+            .modifier_proto_one,
+            => {
+                end_offset += 1;
+
+                const proto = self.extraData(data[current_node].lhs, Node.ModifierProtoOne);
+                const specifiers_node = main_token[data[current_node].rhs];
+                const range = self.extraData(specifiers_node, Node.Range);
+                const slice = self.extra_data[range.start..range.end];
+
+                if (slice.len == 0) {
+                    if (proto.param == 0) {
+                        end_offset += 2;
+                        return main_token[proto.identifier] + end_offset;
+                    } else {
+                        current_node = self.extra_data[proto.param - 1];
+                    }
+                } else current_node = data[current_node].rhs;
+            },
+
+            .modifier_proto,
+            => {
+                end_offset += 1;
+
+                const proto = self.extraData(data[current_node].lhs, Node.ModifierProto);
+                const specifiers_node = main_token[data[current_node].rhs];
+                const range = self.extraData(specifiers_node, Node.Range);
+                const slice = self.extra_data[range.start..range.end];
+
+                if (slice.len == 0) {
+                    current_node = self.extra_data[proto.params_end - 1];
+                } else current_node = specifiers_node;
+            },
+
+            .enum_decl,
+            => {
+                end_offset += 1;
+                const extra = self.extraData(data[current_node].rhs, Node.Range);
+
+                return self.extra_data[extra.end - 1] + end_offset;
+            },
+
+            .struct_decl,
+            => {
+                end_offset += 1;
+                const extra = self.extraData(data[current_node].rhs, Node.Range);
+
+                current_node = self.extra_data[extra.end - 1];
+            },
+
+            .enum_decl_one,
+            => {
+                end_offset += 1;
+
+                return data[current_node].rhs + end_offset;
+            },
+
+            .struct_decl_one,
+            => {
+                end_offset += 1;
+
+                current_node = data[current_node].rhs;
+            },
+
+            .struct_field,
+            => {
+                end_offset += 1;
+                return data[current_node].rhs + end_offset;
+            },
+
+            .function_type_multi,
+            => {
+                const extra = self.extraData(data[current_node].lhs, Node.FnProtoType);
+
+                if (extra.mutability == 0 and extra.visibility == 0) {
+                    end_offset += 1;
+
+                    current_node = self.extra_data[extra.params_end - 1];
+                } else if (extra.mutability == 0) {
+                    return extra.visibility;
+                } else return extra.mutability;
+            },
+
+            .function_type_simple,
+            => {
+                const extra = self.extraData(data[current_node].lhs, Node.FnProtoTypeOne);
+
+                if (extra.mutability == 0 and extra.visibility == 0) {
+                    if (extra.param != 0) {
+                        const param_end = self.extra_data[extra.param];
+                        current_node = param_end;
+                    }
+
+                    return main_token[current_node] + 2;
+                } else if (extra.mutability == 0) {
+                    return extra.visibility;
+                } else return extra.mutability;
+            },
+
+            .block,
+            .contract_block,
+            => {
+                std.debug.assert(data[current_node].rhs - data[current_node].lhs > 0);
+                end_offset += 1;
+
+                current_node = self.extra_data[data[current_node].rhs - 1];
+            },
+
+            .block_semicolon,
+            .contract_block_semicolon,
+            => {
+                std.debug.assert(data[current_node].rhs - data[current_node].lhs > 0);
+                end_offset += 2;
+
+                current_node = self.extra_data[data[current_node].rhs - 1];
+            },
+
+            .block_two,
+            .contract_block_two,
+            => {
+                end_offset += 1;
+
+                if (data[current_node].rhs != 0) {
+                    current_node = data[current_node].rhs;
+                } else if (data[current_node].lhs != 0) {
+                    current_node = data[current_node].lhs;
+                } else {
+                    end_offset += 1;
+                    return main_token[current_node] + end_offset;
+                }
+            },
+
+            .block_two_semicolon,
+            .contract_block_two_semicolon,
+            => {
+                end_offset += 2;
+
+                if (data[current_node].rhs != 0) {
+                    current_node = data[current_node].rhs;
+                } else if (data[current_node].lhs != 0) {
+                    current_node = data[current_node].lhs;
+                } else unreachable;
+            },
+
+            .@"if" => {
+                const extra = self.extraData(data[current_node].rhs, Node.If);
+                std.debug.assert(extra.else_expression != 0);
+
+                current_node = extra.else_expression;
+            },
+
+            .@"try" => {
+                const extra = self.extraData(data[current_node].rhs, Node.Range);
+
+                std.debug.assert(extra.end > extra.start);
+
+                current_node = self.extra_data[extra.end - 1];
+            },
+
+            .event_proto_simple => {
+                end_offset += 1;
+
+                const extra = self.extraData(data[current_node].lhs, Node.EventProtoOne);
+
+                if (extra.anonymous != 0)
+                    return main_token[extra.anonymous] + end_offset;
+
+                current_node = extra.params;
+            },
+
+            .event_proto_multi => {
+                end_offset += 1;
+
+                const extra = self.extraData(data[current_node].rhs, Node.EventProto);
+
+                if (extra.anonymous != 0)
+                    return main_token[extra.anonymous] + end_offset;
+
+                std.debug.assert(extra.params_end - extra.params_start > 0);
+
+                current_node = self.extra_data[extra.params_end - 1];
+            },
+
+            .error_proto_multi => {
+                end_offset += 1;
+
+                const extra = self.extraData(data[current_node].rhs, Node.Range);
+
+                std.debug.assert(extra.end - extra.start > 0);
+
+                current_node = self.extra_data[extra.end - 1];
+            },
+
+            .function_proto_one,
+            .function_proto,
+            .function_type,
+            .function_type_one,
+            => {
+                end_offset += 1;
+                const returns = self.extraData(data[current_node].rhs, Node.Range);
+
+                current_node = returns.end;
+            },
+
+            .function_proto_multi,
+            => {
+                end_offset += 1;
+                const proto = self.extraData(data[current_node].lhs, Node.FnProto);
+                const specifiers_node = main_token[proto.specifiers];
+                const range = self.extraData(specifiers_node, Node.Range);
+                const slice = self.extra_data[range.start..range.end];
+
+                if (slice.len == 0) {
+                    current_node = self.extra_data[proto.params_end - 1];
+                } else current_node = proto.specifiers;
+            },
+
+            .function_proto_simple,
+            => {
+                end_offset += 1;
+                const proto = self.extraData(data[current_node].lhs, Node.FnProtoOne);
+                const specifiers_node = main_token[proto.specifiers];
+                const range = self.extraData(specifiers_node, Node.Range);
+                const slice = self.extra_data[range.start..range.end];
+
+                if (slice.len == 0) {
+                    if (proto.param == 0) {
+                        end_offset += 2;
+                        return main_token[proto.identifier] + end_offset;
+                    }
+                    current_node = self.extra_data[proto.param - 1];
+                } else current_node = proto.specifiers;
+            },
+
+            .field_access,
+            .array_init_one,
+            .tuple_init_one,
+            .tuple_init,
+            .array_init,
+            .pragma_directive,
+            => return data[current_node].rhs + end_offset,
+
+            .call => {
+                end_offset += 1;
+                const extra = self.extraData(data[current_node].rhs, Node.Range);
+
+                if (extra.end - extra.start == 0)
+                    return main_token[current_node] + end_offset;
+
+                current_node = self.extra_data[extra.end - 1];
+            },
+
+            .specifiers,
+            .modifier_specifiers,
+            => {
+                const extra = self.extraData(main_token[current_node], Node.Range);
+
+                if (self.extra_data[extra.end - 1] > self.nodes.len) {
+                    return self.extra_data[extra.end - 1];
+                }
+
+                if (self.nodes.items(.tag)[self.extra_data[extra.end - 1]] == .override_specifier) {
+                    current_node = self.extra_data[extra.end - 1];
+                } else {
+                    return self.extra_data[extra.end - 1];
+                }
+            },
+
+            .override_specifier,
+            => {
+                end_offset += 1;
+                const extra = self.extraData(data[current_node].lhs, Node.Range);
+
+                current_node = self.extra_data[extra.end - 1];
+            },
+
+            .using_alias_operator => return data[current_node].lhs,
+        }
+    }
+}
+
+pub fn tokenSlice(self: Ast, token_index: TokenIndex) []const u8 {
+    const token_tag = self.tokens.items(.tag)[token_index];
+    const token_start = self.tokens.items(.start)[token_index];
+
+    var lexer: tokenizer.Tokenizer = .{
+        .index = token_start,
+        .buffer = self.source,
+    };
+
+    const token = lexer.next();
+    std.debug.assert(token.tag == token_tag);
+
+    return self.source[token.location.start..token.location.end];
+}
+
+pub fn getNodeSource(self: Ast, node: Node.Index) []const u8 {
+    const token_start = self.tokens.items(.start);
+
+    const first = self.firstToken(node);
+    const last = self.lastToken(node);
+
+    const start = token_start[first];
+    const end = token_start[last] + self.tokenSlice(last).len;
+
+    return self.source[start..end];
+}
 
 /// Ast representation of some of the principal AST nodes.
 pub const ast = struct {

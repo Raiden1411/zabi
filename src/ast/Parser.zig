@@ -1616,7 +1616,6 @@ pub fn parseSuffixExpr(self: *Parser) ParserErrors!Node.Index {
 
             const struct_init = try self.parseCurlySuffixExpr();
 
-            // TODO: Change how this parses the call parameters.
             if (struct_init != 0) {
                 try self.scratch.append(self.allocator, struct_init);
             } else {
@@ -1674,6 +1673,7 @@ pub fn parseSuffixExpr(self: *Parser) ParserErrors!Node.Index {
 ///      / .dot identifier
 ///      / .minus_minus
 ///      / .plus_plus
+///      / .l_brace, struct elems, r_brace
 pub fn parseSuffix(self: *Parser, lhs: Node.Index) ParserErrors!Node.Index {
     switch (self.token_tags[self.token_index]) {
         .l_bracket => {
@@ -1722,6 +1722,7 @@ pub fn parseSuffix(self: *Parser, lhs: Node.Index) ParserErrors!Node.Index {
                 .rhs = undefined,
             },
         }),
+        .l_brace => return self.parseCurlySuffixExpr(),
         else => return null_node,
     }
 }
@@ -2234,7 +2235,7 @@ pub fn parseErrorParam(self: *Parser) ParserErrors!Node.Index {
         .main_token = type_expr,
         .data = .{
             .lhs = identifier,
-            .rhs = undefined,
+            .rhs = 0,
         },
     });
 }
@@ -2684,7 +2685,8 @@ pub fn parsePragmaVersion(self: *Parser) ParserErrors!TokenIndex {
                 self.token_index += 1;
                 _ = try self.expectToken(.number_literal);
             },
-            .number_literal => break self.nextToken() + 1,
+            .number_literal => self.token_index += 1,
+            .period => self.token_index += 1,
             else => break self.token_index,
         }
     };
@@ -2939,18 +2941,20 @@ pub fn parseMappingTypes(self: *Parser) Allocator.Error!Node.Index {
 pub fn consumeIdentifierPath(self: *Parser) Allocator.Error!Node.Index {
     var identifier = self.consumeToken(.identifier) orelse return null_node;
 
+    const node = try self.addNode(.{
+        .tag = .identifier,
+        .main_token = identifier,
+        .data = .{
+            .rhs = undefined,
+            .lhs = undefined,
+        },
+    });
+
     if (self.token_tags[self.token_index] != .period)
-        return self.addNode(.{
-            .tag = .identifier,
-            .main_token = identifier,
-            .data = .{
-                .rhs = undefined,
-                .lhs = undefined,
-            },
-        });
+        return node;
 
     while (true) {
-        const suffix = try self.parseIdentifierPath(identifier);
+        const suffix = try self.parseIdentifierPath(node);
 
         if (suffix != 0) {
             identifier = suffix;

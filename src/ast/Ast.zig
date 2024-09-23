@@ -2458,5 +2458,6 @@ pub const Error = struct {
         unattached_doc_comment,
         expected_source_unit_expr,
         expected_operator,
+        expected_return_type,
     };
 };

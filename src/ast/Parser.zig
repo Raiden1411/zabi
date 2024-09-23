@@ -991,7 +991,7 @@ pub fn parseFullFunctionProto(self: *Parser) ParserErrors!Node.Index {
                         .identifier = identifier,
                     }),
                     .rhs = switch (return_params) {
-                        .zero_one => |r_param| try self.addExtraData(Node.Range{
+                        .zero_one => |r_param| if (r_param == 0) return self.fail(.expected_return_type) else try self.addExtraData(Node.Range{
                             .start = r_param,
                             .end = r_param,
                         }),
@@ -1010,7 +1010,7 @@ pub fn parseFullFunctionProto(self: *Parser) ParserErrors!Node.Index {
                         .params_end = params.end,
                     }),
                     .rhs = switch (return_params) {
-                        .zero_one => |r_param| try self.addExtraData(Node.Range{
+                        .zero_one => |r_param| if (r_param == 0) return self.fail(.expected_return_type) else try self.addExtraData(Node.Range{
                             .start = r_param,
                             .end = r_param,
                         }),
@@ -2588,7 +2588,7 @@ pub fn parseFunctionType(self: *Parser) ParserErrors!Node.Index {
                         .mutability = mutability,
                     }),
                     .rhs = switch (return_params) {
-                        .zero_one => |r_param| try self.addExtraData(Node.Range{
+                        .zero_one => |r_param| if (r_param == 0) return self.fail(.expected_return_type) else try self.addExtraData(Node.Range{
                             .start = r_param,
                             .end = r_param,
                         }),
@@ -2607,7 +2607,7 @@ pub fn parseFunctionType(self: *Parser) ParserErrors!Node.Index {
                         .params_end = params.end,
                     }),
                     .rhs = switch (return_params) {
-                        .zero_one => |r_param| try self.addExtraData(Node.Range{
+                        .zero_one => |r_param| if (r_param == 0) return self.fail(.expected_return_type) else try self.addExtraData(Node.Range{
                             .start = r_param,
                             .end = r_param,
                         }),
@@ -3181,6 +3181,7 @@ fn nextToken(self: *Parser) TokenIndex {
 
 // Node actions.
 
+/// Adds the extra data struct type into the `extra_data` arraylist.
 fn addExtraData(self: *Parser, extra: anytype) Allocator.Error!Node.Index {
     const fields = std.meta.fields(@TypeOf(extra));
 
@@ -3194,7 +3195,7 @@ fn addExtraData(self: *Parser, extra: anytype) Allocator.Error!Node.Index {
 
     return result;
 }
-
+/// Converts a slice into a `Range`
 fn listToSpan(self: *Parser, list: []const Node.Index) Allocator.Error!Node.Range {
     try self.extra_data.appendSlice(self.allocator, list);
 
@@ -3203,7 +3204,7 @@ fn listToSpan(self: *Parser, list: []const Node.Index) Allocator.Error!Node.Rang
         .end = @as(Node.Index, @intCast(self.extra_data.items.len)),
     };
 }
-
+/// Tries to find the next statemetn based on the current token.
 fn findNextStatement(self: *Parser) void {
     var depth: u32 = 0;
 
@@ -3229,7 +3230,7 @@ fn findNextStatement(self: *Parser) void {
         }
     }
 }
-
+/// Tries to find the next source element based on the current token.
 fn findNextSource(self: *Parser) void {
     var depth: u32 = 0;
 
@@ -3291,6 +3292,7 @@ fn findNextSource(self: *Parser) void {
         }
     }
 }
+/// Tries to find the next contract element based on the current token.
 fn findNextContractElement(self: *Parser) void {
     var depth: u32 = 0;
 
@@ -3355,26 +3357,26 @@ fn findNextContractElement(self: *Parser) void {
         }
     }
 }
-
+/// Adds a node into the list.
 fn addNode(self: *Parser, child: Node) Allocator.Error!Node.Index {
     const index = @as(Node.Index, @intCast(self.nodes.len));
     try self.nodes.append(self.allocator, child);
 
     return index;
 }
-
+/// Sets a node based on the provided index.
 fn setNode(self: *Parser, index: usize, child: Node) Node.Index {
     self.nodes.set(index, child);
 
     return @as(Node.Index, @intCast(index));
 }
-
-fn reserveNode(self: *Parser, tag: Ast.Node.Tag) !usize {
+/// Reserves a node index on the arraylist.
+fn reserveNode(self: *Parser, tag: Ast.Node.Tag) Allocator.Error!usize {
     try self.nodes.resize(self.allocator, self.nodes.len + 1);
     self.nodes.items(.tag)[self.nodes.len - 1] = tag;
     return self.nodes.len - 1;
 }
-
+/// Unreserves the node and sets a empty node into it if the element is not in the end.
 fn unreserveNode(self: *Parser, index: usize) void {
     if (self.nodes.len == index) {
         self.nodes.resize(self.allocator, self.nodes.len - 1) catch unreachable;
@@ -3383,7 +3385,7 @@ fn unreserveNode(self: *Parser, index: usize) void {
         self.nodes.items(.main_token)[index] = self.token_index;
     }
 }
-
+/// Appends an error to the `errors` arraylist. Continue with parsing.
 fn warn(self: *Parser, fail_tag: Ast.Error.Tag) Allocator.Error!void {
     @branchHint(.cold);
 
@@ -3392,7 +3394,7 @@ fn warn(self: *Parser, fail_tag: Ast.Error.Tag) Allocator.Error!void {
         .token = self.token_index,
     });
 }
-
+/// Appends an error to the `errors` arraylist. Continue with parsing.
 fn warnMessage(self: *Parser, message: Ast.Error) Allocator.Error!void {
     @branchHint(.cold);
 
@@ -3404,6 +3406,26 @@ fn warnMessage(self: *Parser, message: Ast.Error) Allocator.Error!void {
         .same_line_doc_comment,
         .expected_suffix,
         .trailing_comma,
+        .expected_source_unit_expr,
+        .expected_return_type,
+        .expected_statement,
+        .expected_block_or_assignment_statement,
+        .expected_type_expr,
+        .expected_operator,
+        .expected_contract_block,
+        .expected_event_param,
+        .expected_error_param,
+        .expected_prefix_expr,
+        .expected_struct_field,
+        .expected_variable_decl,
+        .expected_pragma_version,
+        .expected_import_path_alias_asterisk,
+        .expected_contract_element,
+        .expected_else_or_semicolon,
+        .expected_semicolon_or_lbrace,
+        .expected_function_call,
+        .expected_elementary_or_identifier_path,
+        .expected_expr,
         => if (message.token != 0 and !self.tokensOnSameLine(message.token - 1, message.token)) {
             var copy = message;
             copy.token_is_prev = true;
@@ -3414,7 +3436,7 @@ fn warnMessage(self: *Parser, message: Ast.Error) Allocator.Error!void {
     }
     try self.errors.append(self.allocator, message);
 }
-
+/// Appends an error to the `errors` arraylist and returns the error.
 fn fail(self: *Parser, fail_tag: Ast.Error.Tag) ParserErrors {
     @branchHint(.cold);
 
@@ -3423,14 +3445,14 @@ fn fail(self: *Parser, fail_tag: Ast.Error.Tag) ParserErrors {
         .token = self.token_index,
     });
 }
-
+/// Appends an error to the `errors` arraylist and returns the error.
 fn failMsg(self: *Parser, message: Ast.Error) ParserErrors {
     @branchHint(.cold);
     try self.warnMessage(message);
 
     return error.ParsingError;
 }
-
+/// Converts assignment tokens into node tokens.
 fn assignOperationNode(tag: Token.Tag) ?Node.Tag {
     return switch (tag) {
         .asterisk_equal => .assign_mul,

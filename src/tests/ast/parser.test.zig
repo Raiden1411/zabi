@@ -269,7 +269,7 @@ test "Function Type" {
         var parser: Parser = undefined;
         defer parser.deinit();
 
-        try buildParser("function(address foobar) external payable returns()", &tokens, &parser);
+        try buildParser("function(address foobar) external payable returns(string)", &tokens, &parser);
         const fn_proto = try parser.parseFunctionType();
 
         try testing.expectEqual(.function_type_one, parser.nodes.items(.tag)[fn_proto]);

@@ -2,7 +2,7 @@ const env_parser = @import("src/utils/env_load.zig");
 const std = @import("std");
 const builtin = @import("builtin");
 
-const min_zig_string = "0.14.0-dev.1349+6a21875dd";
+const min_zig_string = "0.14.0-dev.1573+4d81e8ee9";
 
 pub fn build(b: *std.Build) void {
     comptime {

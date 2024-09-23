@@ -2,6 +2,8 @@
 pub const args = @import("utils/args.zig");
 /// Custom abi types into zig types.
 pub const abi = @import("abi/root.zig");
+/// Solidity tokenizer, parser and AST.
+pub const ast = @import("ast/root.zig");
 /// All clients that currently zabi supports and uses.
 /// All data gets serialized at runtime before a request is sent.
 /// The same applies for deserialization.

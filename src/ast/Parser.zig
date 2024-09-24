@@ -253,8 +253,13 @@ pub fn parseSourceUnit(self: *Parser) ParserErrors!Node.Index {
         .keyword_event => return self.parseEvent(),
         .keyword_type => return self.parseUserTypeDefinition(),
         .keyword_using => return self.parseUsingDirective(),
-        .keyword_function => return self.parseFunctionDecl(),
-        else => return self.parseStateVariableDecl(),
+        .keyword_function => switch (self.token_tags[self.token_index + 1]) {
+            .identifier => return self.parseFunctionDecl(),
+            .l_paren => return self.parseConstantVariableDecl(),
+            else => return null_node,
+        },
+
+        else => return self.parseConstantVariableDecl(),
     }
 }
 /// Parses a `contract_decl`, `interface_decl`, or `library_decl` according to the [grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.contractDefinition)
@@ -499,14 +504,10 @@ pub fn parseContractElementBody(self: *Parser) ParserErrors!Node.Index {
             }
         },
         .keyword_function => {
-            const backup = self.token_index;
-            const proto = self.parseFullFunctionProto() catch |err| switch (err) {
-                error.OutOfMemory => return err,
-                error.ParsingError => {
-                    // We reset the index since it probably moved.
-                    self.token_index = backup;
-                    return self.parseStateVariableDecl();
-                },
+            const proto = switch (self.token_tags[self.token_index + 1]) {
+                .identifier => try self.parseFullFunctionProto(),
+                .l_paren => return self.parseStateVariableDecl(),
+                else => return null_node,
             };
 
             switch (self.token_tags[self.token_index]) {
@@ -713,6 +714,29 @@ pub fn parseUsingAlias(self: *Parser) ParserErrors!Span {
         1 => Span{ .zero_one = slice[0] },
         else => Span{ .multi = try self.listToSpan(slice) },
     };
+}
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.constantVariableDeclaration)
+pub fn parseConstantVariableDecl(self: *Parser) ParserErrors!Node.Index {
+    const type_decl = try self.parseTypeExpr();
+
+    if (type_decl == 0)
+        return null_node;
+
+    _ = self.consumeToken(.keyword_constant) orelse return null_node;
+    const identifier = try self.expectToken(.identifier);
+
+    _ = try self.expectToken(.equal);
+    const expr = try self.expectExpr();
+    try self.expectSemicolon();
+
+    return self.addNode(.{
+        .tag = .constant_variable_decl,
+        .main_token = identifier,
+        .data = .{
+            .lhs = type_decl,
+            .rhs = expr,
+        },
+    });
 }
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.stateVariableDeclaration)
 pub fn parseStateVariableDecl(self: *Parser) ParserErrors!Node.Index {

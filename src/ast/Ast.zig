@@ -127,6 +127,21 @@ pub fn variableDecl(self: Ast, node: Node.Index) ast.VariableDecl {
 
     return result;
 }
+/// Ast representation of a `constant_variable_decl` node.
+pub fn constantVariableDecl(self: Ast, node: Node.Index) ast.ConstantVariableDecl {
+    std.debug.assert(self.nodes.items(.tag)[node] == .constant_variable_decl);
+
+    const data = self.nodes.items(.data)[node];
+    const identifier = self.nodes.items(.main_token)[node];
+
+    return .{
+        .ast = .{
+            .type_token = data.lhs,
+            .expression_node = data.rhs,
+        },
+        .name = identifier,
+    };
+}
 /// Ast representation of a `state_variable_decl` node.
 pub fn stateVariableDecl(self: Ast, node: Node.Index) ast.StateVariableDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .state_variable_decl);
@@ -1008,7 +1023,6 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
             .error_variable_decl,
             .event_variable_decl,
             .struct_field,
-            .state_variable_decl,
             .variable_decl,
             => current_node = main_token[current_node],
 
@@ -1052,13 +1066,15 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
             .conditional_and,
             .increment,
             .decrement,
+            .state_variable_decl,
+            .constant_variable_decl,
             => current_node = data[current_node].lhs,
             .modifier_specifiers,
             .specifiers,
             => {
                 const extra = self.extraData(main_token[current_node], Node.Range);
 
-                return @intCast(extra.start);
+                return self.extra_data[extra.start];
             },
             .using_alias_operator => return data[current_node].rhs,
         }
@@ -1181,6 +1197,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
             .mapping_decl,
             .error_proto_simple,
+            .constant_variable_decl,
             => {
                 end_offset += 1;
                 current_node = data[current_node].rhs;
@@ -1544,7 +1561,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
         }
     }
 }
-
+/// Grabs the source from the provided token index.
 pub fn tokenSlice(self: Ast, token_index: TokenIndex) []const u8 {
     const token_tag = self.tokens.items(.tag)[token_index];
     const token_start = self.tokens.items(.start)[token_index];
@@ -1554,12 +1571,15 @@ pub fn tokenSlice(self: Ast, token_index: TokenIndex) []const u8 {
         .buffer = self.source,
     };
 
+    if (token_tag.lexToken()) |token|
+        return token;
+
     const token = lexer.next();
     std.debug.assert(token.tag == token_tag);
 
     return self.source[token.location.start..token.location.end];
 }
-
+/// Gets the full node source based on the provided index.
 pub fn getNodeSource(self: Ast, node: Node.Index) []const u8 {
     const token_start = self.tokens.items(.start);
 
@@ -1668,6 +1688,16 @@ pub const ast = struct {
         private: ?TokenIndex,
         internal: ?TokenIndex,
         override: ?TokenIndex,
+
+        pub const Components = struct {
+            type_token: Node.Index,
+            expression_node: Node.Index,
+        };
+    };
+
+    pub const ConstantVariableDecl = struct {
+        ast: Components,
+        name: TokenIndex,
 
         pub const Components = struct {
             type_token: Node.Index,
@@ -2250,6 +2280,7 @@ pub const Node = struct {
         /// lhs is the type index
         /// rhs is the expression or null_node.
         state_variable_decl,
+        constant_variable_decl,
     };
 
     /// Range used for params and others

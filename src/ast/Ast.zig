@@ -384,12 +384,12 @@ pub fn constructorDecl(self: Ast, node: Node.Index) ast.ConstructorDecl {
         .main_token = main,
         .ast = .{
             .params = params,
-            .block = data.rhs,
+            .body = data.rhs,
             .specifiers = specifiers,
         },
     };
 }
-/// Ast representation of a `construct_decl`.
+/// Ast representation of a `construct_decl_one`.
 pub fn constructorDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.ConstructorDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .construct_decl_one);
 
@@ -405,8 +405,8 @@ pub fn constructorDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Ind
     return .{
         .main_token = main,
         .ast = .{
-            .params = if (proto.params == 0) node_buffer[0..0] else node_buffer[0..1],
-            .block = data.rhs,
+            .params = if (proto.param == 0) node_buffer[0..0] else node_buffer[0..1],
+            .body = data.rhs,
             .specifiers = specifiers,
         },
     };
@@ -808,7 +808,7 @@ pub fn functionTypeProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Nod
         .main_token = main,
     };
 }
-/// Ast representation of a `construct_decl`, `interface_decl`, `abstract_decl`
+/// Ast representation of a `contract_decl`, `interface_decl`, `abstract_decl`
 pub fn structDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.StructDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .struct_decl_one);
 
@@ -841,7 +841,7 @@ pub fn structDecl(self: Ast, node: Node.Index) ast.StructDecl {
         .main_token = main,
     };
 }
-/// Ast representation of a `construct_decl`, `interface_decl`, `abstract_decl` and `library_decl`.
+/// Ast representation of a `contract_decl`, `interface_decl`, `abstract_decl` and `library_decl`.
 pub fn contractDecl(self: Ast, node: Node.Index) ast.ContractDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .contract_decl or
@@ -860,7 +860,7 @@ pub fn contractDecl(self: Ast, node: Node.Index) ast.ContractDecl {
         .name = data.lhs,
     };
 }
-/// Ast representation of a `construct_decl_one`, `interface_decl_inheritance_one`, `abstract_decl_inheritance_one`
+/// Ast representation of a `contract_decl_one`, `interface_decl_inheritance_one`, `abstract_decl_inheritance_one`
 ///
 /// Asks for a owned buffer so that we can use as the slice of inheritance nodes.
 pub fn contractDeclInheritanceOne(self: Ast, buffer: *[1]Node.Index, node: Node.Index) ast.ContractDecl {
@@ -884,7 +884,7 @@ pub fn contractDeclInheritanceOne(self: Ast, buffer: *[1]Node.Index, node: Node.
         .name = extra.identifier,
     };
 }
-/// Ast representation of a `construct_decl_inheritance`, `interface_decl_inheritance`, `abstract_decl_inheritance`.
+/// Ast representation of a `contract_decl_inheritance`, `interface_decl_inheritance`, `abstract_decl_inheritance`.
 pub fn contractDeclInheritance(self: Ast, node: Node.Index) ast.ContractDeclInheritance {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .contract_decl_inheritance or
@@ -1402,7 +1402,6 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 } else if (data[current_node].lhs != 0) {
                     current_node = data[current_node].lhs;
                 } else {
-                    end_offset += 1;
                     return main_token[current_node] + end_offset;
                 }
             },
@@ -1532,7 +1531,10 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             => {
                 const extra = self.extraData(main_token[current_node], Node.Range);
 
-                if (self.extra_data[extra.end - 1] > self.nodes.len) {
+                if (extra.end == 0)
+                    return extra.end;
+
+                if (self.extra_data[extra.end - 1] >= self.nodes.len) {
                     return self.extra_data[extra.end - 1];
                 }
 

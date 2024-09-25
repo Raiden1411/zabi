@@ -1095,7 +1095,7 @@ pub fn parseConstructor(self: *Parser) ParserErrors!Node.Index {
             },
         }),
         .multi => |elems| self.addNode(.{
-            .tag = .construct_decl_one,
+            .tag = .construct_decl,
             .main_token = index,
             .data = .{
                 .lhs = try self.addExtraData(Node.ConstructorProto{

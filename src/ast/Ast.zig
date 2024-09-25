@@ -622,17 +622,14 @@ pub fn functionProto(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) a
     const specifiers = self.extra_data[range.start..range.end];
 
     const params = self.extra_data[proto.params_start..proto.params_end];
-    const returns = self.extra_data[extra.start..extra.end];
-    node_buffer[0] = proto.param;
+    node_buffer[0] = extra.start;
 
     return .{
         .ast = .{
             .params = params,
-            .returns = if (extra.start == extra.end) node_buffer[0..1] else returns,
+            .returns = if (extra.start == extra.end) node_buffer[0..1] else self.extra_data[extra.start..extra.end],
             .specifiers = specifiers,
         },
-        .visibility = if (proto.visibility != 0) proto.visibility else null,
-        .mutability = if (proto.mutability != 0) proto.mutability else null,
         .main_token = main,
         .name = proto.identifier,
     };
@@ -653,14 +650,13 @@ pub fn functionProtoOne(self: Ast, node_buffer: *[2]Node.Index, node: Node.Index
     const range = self.extraData(specifiers_node, Node.Range);
     const specifiers = self.extra_data[range.start..range.end];
 
-    const returns = self.extra_data[extra.start..extra.end];
     node_buffer[0] = proto.param;
     node_buffer[1] = extra.start;
 
     return .{
         .ast = .{
             .params = if (proto.param == 0) node_buffer[0..0] else node_buffer[0..1],
-            .returns = if (extra.start == extra.end) node_buffer[1..2] else returns,
+            .returns = if (extra.start == extra.end) node_buffer[1..2] else self.extra_data[extra.start..extra.end],
             .specifiers = specifiers,
         },
         .main_token = main,
@@ -732,13 +728,12 @@ pub fn functionTypeProto(self: Ast, node_buffer: *[1]Node.Index, node: Node.Inde
     const extra = self.extraData(data.rhs, Node.Range);
 
     const params = self.extra_data[proto.params_start..proto.params_end];
-    const returns = self.extra_data[extra.start..extra.end];
-    node_buffer[1] = extra.start;
+    node_buffer[0] = extra.start;
 
     return .{
         .ast = .{
             .params = params,
-            .returns = if (extra.start == extra.end) node_buffer[0..1] else returns,
+            .returns = if (extra.start == extra.end) node_buffer[0..1] else self.extra_data[extra.start..extra.end],
         },
         .visibility = if (proto.visibility != 0) proto.visibility else null,
         .mutability = if (proto.mutability != 0) proto.mutability else null,
@@ -757,14 +752,13 @@ pub fn functionTypeProtoOne(self: Ast, node_buffer: *[2]Node.Index, node: Node.I
     const proto = self.extraData(data.lhs, Node.FnProtoTypeOne);
     const extra = self.extraData(data.rhs, Node.Range);
 
-    const returns = self.extra_data[extra.start..extra.end];
     node_buffer[0] = proto.param;
     node_buffer[1] = extra.start;
 
     return .{
         .ast = .{
             .params = if (proto.param == 0) node_buffer[0..0] else node_buffer[0..1],
-            .returns = if (extra.start == extra.end) node_buffer[1..2] else returns,
+            .returns = if (extra.start == extra.end) node_buffer[0..1] else self.extra_data[extra.start..extra.end],
         },
         .visibility = if (proto.visibility != 0) proto.visibility else null,
         .mutability = if (proto.mutability != 0) proto.mutability else null,
@@ -1482,7 +1476,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 end_offset += 1;
                 const returns = self.extraData(data[current_node].rhs, Node.Range);
 
-                current_node = returns.end;
+                current_node = self.extra_data[returns.end - 1];
             },
 
             .function_proto_multi,

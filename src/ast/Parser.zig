@@ -1114,10 +1114,16 @@ pub fn parseInheritanceSpecifiers(self: *Parser) ParserErrors!Span {
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
     while (true) {
-        const specificer = try self.parseSuffixExpr();
+        const specificer = try self.consumeIdentifierPath();
 
-        if (specificer != 0)
+        if (specificer != 0) {
             try self.scratch.append(self.allocator, specificer);
+
+            const call = try self.parseCallExpression(specificer);
+
+            if (call != 0)
+                try self.scratch.append(self.allocator, call);
+        }
 
         switch (self.token_tags[self.token_index]) {
             .comma => self.token_index += 1,
@@ -1158,21 +1164,6 @@ pub fn parseBlock(self: *Parser) ParserErrors!Node.Index {
 
         if (self.token_tags[self.token_index] == .r_brace)
             break;
-
-        if (self.consumeToken(.keyword_unchecked)) |token| {
-            const block = try self.expectBlock();
-
-            const unchecked = try self.addNode(.{
-                .tag = .unchecked_block,
-                .main_token = token,
-                .data = .{
-                    .lhs = block,
-                    .rhs = undefined,
-                },
-            });
-
-            try self.scratch.append(self.allocator, unchecked);
-        }
 
         const statement = try self.expectStatementRecoverable();
 
@@ -1523,6 +1514,22 @@ pub fn expectStatement(self: *Parser) ParserErrors!Node.Index {
         .keyword_return => return self.expectReturnStatement(),
         .keyword_continue => return self.expectContinueStatement(),
         .keyword_break => return self.expectBreakStatement(),
+        .keyword_unchecked => {
+            const token = self.nextToken();
+
+            const block = try self.expectBlock();
+
+            const unchecked = try self.addNode(.{
+                .tag = .unchecked_block,
+                .main_token = token,
+                .data = .{
+                    .lhs = block,
+                    .rhs = undefined,
+                },
+            });
+
+            return unchecked;
+        },
         .keyword_assembly => unreachable, // Not implemented
         else => {},
     }
@@ -1630,66 +1637,75 @@ pub fn parseSuffixExpr(self: *Parser) ParserErrors!Node.Index {
             continue;
         }
 
-        const l_paren = self.consumeToken(.l_paren) orelse return res;
+        const call = try self.parseCallExpression(res);
 
-        const scratch = self.scratch.items.len;
-        defer self.scratch.shrinkRetainingCapacity(scratch);
+        if (call == 0)
+            return res;
 
-        while (true) {
-            if (self.consumeToken(.r_paren)) |_| break;
+        res = call;
+    }
+}
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.callArgumentList)
+pub fn parseCallExpression(self: *Parser, lhs: Node.Index) ParserErrors!Node.Index {
+    const l_paren = self.consumeToken(.l_paren) orelse return null_node;
 
-            const struct_init = try self.parseCurlySuffixExpr();
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
 
-            if (struct_init != 0) {
-                try self.scratch.append(self.allocator, struct_init);
-            } else {
-                const param = try self.expectExpr();
-                try self.scratch.append(self.allocator, param);
-            }
+    while (true) {
+        if (self.consumeToken(.r_paren)) |_| break;
 
-            switch (self.token_tags[self.token_index]) {
-                .comma => self.token_index += 1,
-                .r_paren => {
-                    self.token_index += 1;
-                    break;
-                },
-                .colon, .r_brace, .r_bracket => return self.failMsg(.{
-                    .tag = .expected_token,
-                    .token = self.token_index,
-                    .extra = .{ .expected_tag = .r_paren },
-                }),
-                else => try self.warn(.expected_comma_after),
-            }
+        const struct_init = try self.parseCurlySuffixExpr();
+
+        if (struct_init != 0) {
+            try self.scratch.append(self.allocator, struct_init);
+        } else {
+            const param = try self.expectExpr();
+            try self.scratch.append(self.allocator, param);
         }
 
-        const params = self.scratch.items[scratch..];
+        switch (self.token_tags[self.token_index]) {
+            .comma => self.token_index += 1,
+            .r_paren => {
+                self.token_index += 1;
+                break;
+            },
+            .colon, .r_brace, .r_bracket => return self.failMsg(.{
+                .tag = .expected_token,
+                .token = self.token_index,
+                .extra = .{ .expected_tag = .r_paren },
+            }),
+            else => try self.warn(.expected_comma_after),
+        }
+    }
 
-        res = switch (params.len) {
-            0 => try self.addNode(.{
-                .tag = .call_one,
-                .main_token = l_paren,
-                .data = .{
-                    .lhs = res,
-                    .rhs = 0,
-                },
-            }),
-            1 => try self.addNode(.{
-                .tag = .call_one,
-                .main_token = l_paren,
-                .data = .{
-                    .lhs = res,
-                    .rhs = params[0],
-                },
-            }),
-            else => try self.addNode(.{
-                .tag = .call,
-                .main_token = l_paren,
-                .data = .{
-                    .lhs = res,
-                    .rhs = try self.addExtraData(try self.listToSpan(params)),
-                },
-            }),
-        };
+    const params = self.scratch.items[scratch..];
+
+    switch (params.len) {
+        0 => return self.addNode(.{
+            .tag = .call_one,
+            .main_token = l_paren,
+            .data = .{
+                .lhs = lhs,
+                .rhs = 0,
+            },
+        }),
+        1 => return self.addNode(.{
+            .tag = .call_one,
+            .main_token = l_paren,
+            .data = .{
+                .lhs = lhs,
+                .rhs = params[0],
+            },
+        }),
+        else => return self.addNode(.{
+            .tag = .call,
+            .main_token = l_paren,
+            .data = .{
+                .lhs = lhs,
+                .rhs = try self.addExtraData(try self.listToSpan(params)),
+            },
+        }),
     }
 }
 /// Suffix
@@ -1750,6 +1766,7 @@ pub fn parseSuffix(self: *Parser, lhs: Node.Index) ParserErrors!Node.Index {
         else => return null_node,
     }
 }
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.callArgumentList)
 pub fn parseCurlySuffixExpr(self: *Parser) ParserErrors!Node.Index {
     const l_brace = self.consumeToken(.l_brace) orelse return null_node;
 
@@ -2705,6 +2722,7 @@ pub fn parsePragmaVersion(self: *Parser) ParserErrors!TokenIndex {
             .angle_bracket_right_equal,
             .angle_bracket_left,
             .angle_bracket_left_equal,
+            .caret,
             => {
                 self.token_index += 1;
                 _ = try self.expectToken(.number_literal);
@@ -2927,6 +2945,7 @@ pub fn parseMapping(self: *Parser) ParserErrors!Node.Index {
     if (child_one == 0)
         return self.fail(.expected_elementary_or_identifier_path);
 
+    _ = self.consumeToken(.identifier);
     _ = try self.expectToken(.equal_bracket_right);
 
     const child_two = try self.parseTypeExpr();

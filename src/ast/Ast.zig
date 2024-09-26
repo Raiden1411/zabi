@@ -758,7 +758,7 @@ pub fn functionTypeProtoOne(self: Ast, node_buffer: *[2]Node.Index, node: Node.I
     return .{
         .ast = .{
             .params = if (proto.param == 0) node_buffer[0..0] else node_buffer[0..1],
-            .returns = if (extra.start == extra.end) node_buffer[0..1] else self.extra_data[extra.start..extra.end],
+            .returns = if (extra.start == extra.end) node_buffer[1..2] else self.extra_data[extra.start..extra.end],
         },
         .visibility = if (proto.visibility != 0) proto.visibility else null,
         .mutability = if (proto.mutability != 0) proto.mutability else null,

@@ -10,7 +10,11 @@ test "Foo" {
     var writer = std.ArrayList(u8).init(testing.allocator);
     errdefer writer.deinit();
 
-    var stream: Translate.Apes = .{ .base_writer = writer.writer(), .indentation_level = 4 };
+    var stream: Translate.PuncAndIndenStream = .{
+        .base_writer = writer.writer(),
+        .indentation_level = 4,
+    };
+
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 

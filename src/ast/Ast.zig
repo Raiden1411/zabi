@@ -1587,6 +1587,93 @@ pub fn getNodeSource(self: Ast, node: Node.Index) []const u8 {
 
     return self.source[start..end];
 }
+/// Renders a parsing error into a more readable definition.
+pub fn renderError(self: Ast, parsing_error: Error, writer: anytype) @TypeOf(writer).Error!void {
+    const token_tags = self.tokens.items(.tag);
+
+    switch (parsing_error.tag) {
+        .same_line_doc_comment => return writer.writeAll("same line documentation comment"),
+        .unattached_doc_comment => return writer.writeAll("unattached documentation comment"),
+        .expected_else_or_semicolon => return writer.writeAll("expected ';' or 'else' after statement"),
+        .expected_comma_after => return writer.writeAll("expected comma after"),
+        .trailing_comma => return writer.writeAll("trailing comma found and they are not supported"),
+        .expected_semicolon_or_lbrace => return writer.writeAll("expected ';' or l_brace after definition"),
+        .expected_pragma_version => return writer.writeAll("expected a valid pragma version semantic"),
+        .expected_import_path_alias_asterisk => return writer.writeAll("expected valid import directive"),
+        .expected_function_call => return writer.writeAll("emit statement only supports function calls"),
+        .chained_comparison_operators => return writer.writeAll("comparison operators cannot be chained"),
+        .already_seen_specifier => return writer.writeAll("specifier cannot be repeated"),
+        .expected_expr => return writer.print("expected an expression but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_suffix => return writer.print("expected 'field_access' but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_type_expr => return writer.print("expected type expression but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_statement => return writer.print("expected statement but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_semicolon => return writer.print("expected ';' but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_elementary_or_identifier_path => return writer.print("expected 'elementary_type', 'identifier' or 'field_access' but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_r_brace => return writer.print("expected r_brace but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_event_param => return writer.print("expected 'event_variable_decl' but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_error_param => return writer.print("expected 'error_variable_decl' but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_struct_field => return writer.print("expected 'struct_field' but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_variable_decl => return writer.print("expected 'variable_decl' but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_prefix_expr => return writer.print("expected a prefix expression but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_return_type => return writer.print("expected a return type but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_contract_block => return writer.print("expected contract block  but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_contract_element => return writer.print("expected contract elemenent but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_block_or_assignment_statement => return writer.print("expected block or assignment but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_operator => return writer.print("expected a overridable operator but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_source_unit_expr => return writer.print(
+            "expected either a constant variable, function, struct, contract, library, interface declaration or a using and import directive, but found '{s}'",
+            .{token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol()},
+        ),
+        .expected_token,
+        => {
+            const tag = token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)];
+            const expected = parsing_error.extra.expected_tag.symbol();
+
+            switch (tag) {
+                .invalid => return writer.print("expected '{s}', found invalid bytes", .{
+                    expected,
+                }),
+                else => return writer.print("expected '{s}', found '{s}'", .{
+                    expected, tag.symbol(),
+                }),
+            }
+        },
+    }
+}
 
 /// Ast representation of some of the principal AST nodes.
 pub const ast = struct {
@@ -2317,11 +2404,14 @@ pub const Node = struct {
         specifiers: Index,
     };
 
+    /// Modifier definition extra data.
     pub const ModifierProtoOne = struct {
         param: Index,
         identifier: Index,
     };
 
+    /// Modifier definition extra data.
+    /// Mostly used if the modifier has multiple params.
     pub const ModifierProto = struct {
         params_start: Index,
         params_end: Index,

@@ -32,6 +32,51 @@ pub fn init(solidity_ast: SolidityAst, list: *PuncAndIndenStream) Translator {
     };
 }
 
+pub fn translateArrayType(self: Translator, node: Node.Index) TranslateErrors!void {
+    const nodes = self.ast.nodes.items(.tag);
+    const node_tag = nodes[node];
+    std.debug.assert(node_tag == .array_type);
+
+    const array = self.ast.arrayType(node);
+    const data = self.ast.nodes.items(.data);
+
+    var current: Node.Index = array.ast.expr;
+
+    while (true) {
+        try self.writer.reset();
+        switch (nodes[current]) {
+            .array_init_one => {
+                try self.writer.writer().writeByte('[');
+
+                if (data[current].lhs == 0) {
+                    try self.writer.writer().writeAll("]const");
+                    self.writer.setPunctuation(.space);
+                } else {
+                    try self.renderLiteralNode(data[current].lhs);
+                    try self.writer.writer().writeByte(']');
+                }
+                current = data[current].lhs;
+            },
+            .array_access => {
+                try self.writer.writer().writeByte('[');
+
+                if (data[current].rhs != 0) {
+                    try self.renderLiteralNode(data[current].rhs);
+                    try self.writer.writer().writeByte(']');
+                } else {
+                    try self.writer.writer().writeAll("]const");
+                    self.writer.setPunctuation(.space);
+                }
+
+                current = data[current].lhs;
+            },
+            else => break,
+        }
+    }
+
+    try self.writer.reset();
+    return self.translateSolidityType(array.ast.type_expr);
+}
 /// Translates a solidity type into the zig representation of the type.
 pub fn translateSolidityType(self: Translator, node: Node.Index) TranslateErrors!void {
     const node_tag = self.ast.nodes.items(.tag)[node];
@@ -45,6 +90,7 @@ pub fn translateSolidityType(self: Translator, node: Node.Index) TranslateErrors
         .function_type => return self.translateFunctionType(node),
         .identifier => return self.renderLiteralNode(node),
         .field_access => return self.translateSolidityType(self.ast.nodes.items(.data)[node].lhs),
+        .array_type => return self.translateArrayType(node),
         else => return error.InvalidNode,
     }
 }

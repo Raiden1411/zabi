@@ -127,6 +127,21 @@ pub fn variableDecl(self: Ast, node: Node.Index) ast.VariableDecl {
 
     return result;
 }
+/// Ast representation of a `constant_variable_decl` node.
+pub fn constantVariableDecl(self: Ast, node: Node.Index) ast.ConstantVariableDecl {
+    std.debug.assert(self.nodes.items(.tag)[node] == .constant_variable_decl);
+
+    const data = self.nodes.items(.data)[node];
+    const identifier = self.nodes.items(.main_token)[node];
+
+    return .{
+        .ast = .{
+            .type_token = data.lhs,
+            .expression_node = data.rhs,
+        },
+        .name = identifier,
+    };
+}
 /// Ast representation of a `state_variable_decl` node.
 pub fn stateVariableDecl(self: Ast, node: Node.Index) ast.StateVariableDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .state_variable_decl);
@@ -369,12 +384,12 @@ pub fn constructorDecl(self: Ast, node: Node.Index) ast.ConstructorDecl {
         .main_token = main,
         .ast = .{
             .params = params,
-            .block = data.rhs,
+            .body = data.rhs,
             .specifiers = specifiers,
         },
     };
 }
-/// Ast representation of a `construct_decl`.
+/// Ast representation of a `construct_decl_one`.
 pub fn constructorDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.ConstructorDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .construct_decl_one);
 
@@ -390,8 +405,8 @@ pub fn constructorDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Ind
     return .{
         .main_token = main,
         .ast = .{
-            .params = if (proto.params == 0) node_buffer[0..0] else node_buffer[0..1],
-            .block = data.rhs,
+            .params = if (proto.param == 0) node_buffer[0..0] else node_buffer[0..1],
+            .body = data.rhs,
             .specifiers = specifiers,
         },
     };
@@ -607,17 +622,14 @@ pub fn functionProto(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) a
     const specifiers = self.extra_data[range.start..range.end];
 
     const params = self.extra_data[proto.params_start..proto.params_end];
-    const returns = self.extra_data[extra.start..extra.end];
-    node_buffer[0] = proto.param;
+    node_buffer[0] = extra.start;
 
     return .{
         .ast = .{
             .params = params,
-            .returns = if (extra.start == extra.end) node_buffer[0..1] else returns,
+            .returns = if (extra.start == extra.end) node_buffer[0..1] else self.extra_data[extra.start..extra.end],
             .specifiers = specifiers,
         },
-        .visibility = if (proto.visibility != 0) proto.visibility else null,
-        .mutability = if (proto.mutability != 0) proto.mutability else null,
         .main_token = main,
         .name = proto.identifier,
     };
@@ -638,14 +650,13 @@ pub fn functionProtoOne(self: Ast, node_buffer: *[2]Node.Index, node: Node.Index
     const range = self.extraData(specifiers_node, Node.Range);
     const specifiers = self.extra_data[range.start..range.end];
 
-    const returns = self.extra_data[extra.start..extra.end];
     node_buffer[0] = proto.param;
     node_buffer[1] = extra.start;
 
     return .{
         .ast = .{
             .params = if (proto.param == 0) node_buffer[0..0] else node_buffer[0..1],
-            .returns = if (extra.start == extra.end) node_buffer[1..2] else returns,
+            .returns = if (extra.start == extra.end) node_buffer[1..2] else self.extra_data[extra.start..extra.end],
             .specifiers = specifiers,
         },
         .main_token = main,
@@ -717,13 +728,12 @@ pub fn functionTypeProto(self: Ast, node_buffer: *[1]Node.Index, node: Node.Inde
     const extra = self.extraData(data.rhs, Node.Range);
 
     const params = self.extra_data[proto.params_start..proto.params_end];
-    const returns = self.extra_data[extra.start..extra.end];
-    node_buffer[1] = extra.start;
+    node_buffer[0] = extra.start;
 
     return .{
         .ast = .{
             .params = params,
-            .returns = if (extra.start == extra.end) node_buffer[0..1] else returns,
+            .returns = if (extra.start == extra.end) node_buffer[0..1] else self.extra_data[extra.start..extra.end],
         },
         .visibility = if (proto.visibility != 0) proto.visibility else null,
         .mutability = if (proto.mutability != 0) proto.mutability else null,
@@ -742,14 +752,13 @@ pub fn functionTypeProtoOne(self: Ast, node_buffer: *[2]Node.Index, node: Node.I
     const proto = self.extraData(data.lhs, Node.FnProtoTypeOne);
     const extra = self.extraData(data.rhs, Node.Range);
 
-    const returns = self.extra_data[extra.start..extra.end];
     node_buffer[0] = proto.param;
     node_buffer[1] = extra.start;
 
     return .{
         .ast = .{
             .params = if (proto.param == 0) node_buffer[0..0] else node_buffer[0..1],
-            .returns = if (extra.start == extra.end) node_buffer[1..2] else returns,
+            .returns = if (extra.start == extra.end) node_buffer[1..2] else self.extra_data[extra.start..extra.end],
         },
         .visibility = if (proto.visibility != 0) proto.visibility else null,
         .mutability = if (proto.mutability != 0) proto.mutability else null,
@@ -799,7 +808,7 @@ pub fn functionTypeProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Nod
         .main_token = main,
     };
 }
-/// Ast representation of a `construct_decl`, `interface_decl`, `abstract_decl`
+/// Ast representation of a `contract_decl`, `interface_decl`, `abstract_decl`
 pub fn structDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.StructDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .struct_decl_one);
 
@@ -832,7 +841,7 @@ pub fn structDecl(self: Ast, node: Node.Index) ast.StructDecl {
         .main_token = main,
     };
 }
-/// Ast representation of a `construct_decl`, `interface_decl`, `abstract_decl` and `library_decl`.
+/// Ast representation of a `contract_decl`, `interface_decl`, `abstract_decl` and `library_decl`.
 pub fn contractDecl(self: Ast, node: Node.Index) ast.ContractDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .contract_decl or
@@ -851,7 +860,7 @@ pub fn contractDecl(self: Ast, node: Node.Index) ast.ContractDecl {
         .name = data.lhs,
     };
 }
-/// Ast representation of a `construct_decl_one`, `interface_decl_inheritance_one`, `abstract_decl_inheritance_one`
+/// Ast representation of a `contract_decl_one`, `interface_decl_inheritance_one`, `abstract_decl_inheritance_one`
 ///
 /// Asks for a owned buffer so that we can use as the slice of inheritance nodes.
 pub fn contractDeclInheritanceOne(self: Ast, buffer: *[1]Node.Index, node: Node.Index) ast.ContractDecl {
@@ -875,7 +884,7 @@ pub fn contractDeclInheritanceOne(self: Ast, buffer: *[1]Node.Index, node: Node.
         .name = extra.identifier,
     };
 }
-/// Ast representation of a `construct_decl_inheritance`, `interface_decl_inheritance`, `abstract_decl_inheritance`.
+/// Ast representation of a `contract_decl_inheritance`, `interface_decl_inheritance`, `abstract_decl_inheritance`.
 pub fn contractDeclInheritance(self: Ast, node: Node.Index) ast.ContractDeclInheritance {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .contract_decl_inheritance or
@@ -1008,7 +1017,6 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
             .error_variable_decl,
             .event_variable_decl,
             .struct_field,
-            .state_variable_decl,
             .variable_decl,
             => current_node = main_token[current_node],
 
@@ -1052,13 +1060,15 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
             .conditional_and,
             .increment,
             .decrement,
+            .state_variable_decl,
+            .constant_variable_decl,
             => current_node = data[current_node].lhs,
             .modifier_specifiers,
             .specifiers,
             => {
                 const extra = self.extraData(main_token[current_node], Node.Range);
 
-                return @intCast(extra.start);
+                return self.extra_data[extra.start];
             },
             .using_alias_operator => return data[current_node].rhs,
         }
@@ -1181,6 +1191,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
             .mapping_decl,
             .error_proto_simple,
+            .constant_variable_decl,
             => {
                 end_offset += 1;
                 current_node = data[current_node].rhs;
@@ -1391,7 +1402,6 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 } else if (data[current_node].lhs != 0) {
                     current_node = data[current_node].lhs;
                 } else {
-                    end_offset += 1;
                     return main_token[current_node] + end_offset;
                 }
             },
@@ -1465,7 +1475,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 end_offset += 1;
                 const returns = self.extraData(data[current_node].rhs, Node.Range);
 
-                current_node = returns.end;
+                current_node = self.extra_data[returns.end - 1];
             },
 
             .function_proto_multi,
@@ -1521,7 +1531,10 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             => {
                 const extra = self.extraData(main_token[current_node], Node.Range);
 
-                if (self.extra_data[extra.end - 1] > self.nodes.len) {
+                if (extra.end == 0)
+                    return extra.end;
+
+                if (self.extra_data[extra.end - 1] >= self.nodes.len) {
                     return self.extra_data[extra.end - 1];
                 }
 
@@ -1544,7 +1557,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
         }
     }
 }
-
+/// Grabs the source from the provided token index.
 pub fn tokenSlice(self: Ast, token_index: TokenIndex) []const u8 {
     const token_tag = self.tokens.items(.tag)[token_index];
     const token_start = self.tokens.items(.start)[token_index];
@@ -1554,12 +1567,15 @@ pub fn tokenSlice(self: Ast, token_index: TokenIndex) []const u8 {
         .buffer = self.source,
     };
 
+    if (token_tag.lexToken()) |token|
+        return token;
+
     const token = lexer.next();
     std.debug.assert(token.tag == token_tag);
 
     return self.source[token.location.start..token.location.end];
 }
-
+/// Gets the full node source based on the provided index.
 pub fn getNodeSource(self: Ast, node: Node.Index) []const u8 {
     const token_start = self.tokens.items(.start);
 
@@ -1570,6 +1586,93 @@ pub fn getNodeSource(self: Ast, node: Node.Index) []const u8 {
     const end = token_start[last] + self.tokenSlice(last).len;
 
     return self.source[start..end];
+}
+/// Renders a parsing error into a more readable definition.
+pub fn renderError(self: Ast, parsing_error: Error, writer: anytype) @TypeOf(writer).Error!void {
+    const token_tags = self.tokens.items(.tag);
+
+    switch (parsing_error.tag) {
+        .same_line_doc_comment => return writer.writeAll("same line documentation comment"),
+        .unattached_doc_comment => return writer.writeAll("unattached documentation comment"),
+        .expected_else_or_semicolon => return writer.writeAll("expected ';' or 'else' after statement"),
+        .expected_comma_after => return writer.writeAll("expected comma after"),
+        .trailing_comma => return writer.writeAll("trailing comma found and they are not supported"),
+        .expected_semicolon_or_lbrace => return writer.writeAll("expected ';' or l_brace after definition"),
+        .expected_pragma_version => return writer.writeAll("expected a valid pragma version semantic"),
+        .expected_import_path_alias_asterisk => return writer.writeAll("expected valid import directive"),
+        .expected_function_call => return writer.writeAll("emit statement only supports function calls"),
+        .chained_comparison_operators => return writer.writeAll("comparison operators cannot be chained"),
+        .already_seen_specifier => return writer.writeAll("specifier cannot be repeated"),
+        .expected_expr => return writer.print("expected an expression but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_suffix => return writer.print("expected 'field_access' but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_type_expr => return writer.print("expected type expression but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_statement => return writer.print("expected statement but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_semicolon => return writer.print("expected ';' but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_elementary_or_identifier_path => return writer.print("expected 'elementary_type', 'identifier' or 'field_access' but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_r_brace => return writer.print("expected r_brace but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_event_param => return writer.print("expected 'event_variable_decl' but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_error_param => return writer.print("expected 'error_variable_decl' but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_struct_field => return writer.print("expected 'struct_field' but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_variable_decl => return writer.print("expected 'variable_decl' but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_prefix_expr => return writer.print("expected a prefix expression but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_return_type => return writer.print("expected a return type but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_contract_block => return writer.print("expected contract block  but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_contract_element => return writer.print("expected contract elemenent but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_block_or_assignment_statement => return writer.print("expected block or assignment but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_operator => return writer.print("expected a overridable operator but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_source_unit_expr => return writer.print(
+            "expected either a constant variable, function, struct, contract, library, interface declaration or a using and import directive, but found '{s}'",
+            .{token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol()},
+        ),
+        .expected_token,
+        => {
+            const tag = token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)];
+            const expected = parsing_error.extra.expected_tag.symbol();
+
+            switch (tag) {
+                .invalid => return writer.print("expected '{s}', found invalid bytes", .{
+                    expected,
+                }),
+                else => return writer.print("expected '{s}', found '{s}'", .{
+                    expected, tag.symbol(),
+                }),
+            }
+        },
+    }
 }
 
 /// Ast representation of some of the principal AST nodes.
@@ -1668,6 +1771,16 @@ pub const ast = struct {
         private: ?TokenIndex,
         internal: ?TokenIndex,
         override: ?TokenIndex,
+
+        pub const Components = struct {
+            type_token: Node.Index,
+            expression_node: Node.Index,
+        };
+    };
+
+    pub const ConstantVariableDecl = struct {
+        ast: Components,
+        name: TokenIndex,
 
         pub const Components = struct {
             type_token: Node.Index,
@@ -2250,6 +2363,7 @@ pub const Node = struct {
         /// lhs is the type index
         /// rhs is the expression or null_node.
         state_variable_decl,
+        constant_variable_decl,
     };
 
     /// Range used for params and others
@@ -2290,11 +2404,14 @@ pub const Node = struct {
         specifiers: Index,
     };
 
+    /// Modifier definition extra data.
     pub const ModifierProtoOne = struct {
         param: Index,
         identifier: Index,
     };
 
+    /// Modifier definition extra data.
+    /// Mostly used if the modifier has multiple params.
     pub const ModifierProto = struct {
         params_start: Index,
         params_end: Index,

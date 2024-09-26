@@ -253,8 +253,13 @@ pub fn parseSourceUnit(self: *Parser) ParserErrors!Node.Index {
         .keyword_event => return self.parseEvent(),
         .keyword_type => return self.parseUserTypeDefinition(),
         .keyword_using => return self.parseUsingDirective(),
-        .keyword_function => return self.parseFunctionDecl(),
-        else => return self.parseStateVariableDecl(),
+        .keyword_function => switch (self.token_tags[self.token_index + 1]) {
+            .identifier => return self.parseFunctionDecl(),
+            .l_paren => return self.parseConstantVariableDecl(),
+            else => return null_node,
+        },
+
+        else => return self.parseConstantVariableDecl(),
     }
 }
 /// Parses a `contract_decl`, `interface_decl`, or `library_decl` according to the [grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.contractDefinition)
@@ -499,14 +504,10 @@ pub fn parseContractElementBody(self: *Parser) ParserErrors!Node.Index {
             }
         },
         .keyword_function => {
-            const backup = self.token_index;
-            const proto = self.parseFullFunctionProto() catch |err| switch (err) {
-                error.OutOfMemory => return err,
-                error.ParsingError => {
-                    // We reset the index since it probably moved.
-                    self.token_index = backup;
-                    return self.parseStateVariableDecl();
-                },
+            const proto = switch (self.token_tags[self.token_index + 1]) {
+                .identifier => try self.parseFullFunctionProto(),
+                .l_paren => return self.parseStateVariableDecl(),
+                else => return null_node,
             };
 
             switch (self.token_tags[self.token_index]) {
@@ -713,6 +714,29 @@ pub fn parseUsingAlias(self: *Parser) ParserErrors!Span {
         1 => Span{ .zero_one = slice[0] },
         else => Span{ .multi = try self.listToSpan(slice) },
     };
+}
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.constantVariableDeclaration)
+pub fn parseConstantVariableDecl(self: *Parser) ParserErrors!Node.Index {
+    const type_decl = try self.parseTypeExpr();
+
+    if (type_decl == 0)
+        return null_node;
+
+    _ = self.consumeToken(.keyword_constant) orelse return null_node;
+    const identifier = try self.expectToken(.identifier);
+
+    _ = try self.expectToken(.equal);
+    const expr = try self.expectExpr();
+    try self.expectSemicolon();
+
+    return self.addNode(.{
+        .tag = .constant_variable_decl,
+        .main_token = identifier,
+        .data = .{
+            .lhs = type_decl,
+            .rhs = expr,
+        },
+    });
 }
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.stateVariableDeclaration)
 pub fn parseStateVariableDecl(self: *Parser) ParserErrors!Node.Index {
@@ -1071,7 +1095,7 @@ pub fn parseConstructor(self: *Parser) ParserErrors!Node.Index {
             },
         }),
         .multi => |elems| self.addNode(.{
-            .tag = .construct_decl_one,
+            .tag = .construct_decl,
             .main_token = index,
             .data = .{
                 .lhs = try self.addExtraData(Node.ConstructorProto{
@@ -1090,10 +1114,16 @@ pub fn parseInheritanceSpecifiers(self: *Parser) ParserErrors!Span {
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
     while (true) {
-        const specificer = try self.parseSuffixExpr();
+        const specificer = try self.consumeIdentifierPath();
 
-        if (specificer != 0)
+        if (specificer != 0) {
             try self.scratch.append(self.allocator, specificer);
+
+            const call = try self.parseCallExpression(specificer);
+
+            if (call != 0)
+                try self.scratch.append(self.allocator, call);
+        }
 
         switch (self.token_tags[self.token_index]) {
             .comma => self.token_index += 1,
@@ -1134,21 +1164,6 @@ pub fn parseBlock(self: *Parser) ParserErrors!Node.Index {
 
         if (self.token_tags[self.token_index] == .r_brace)
             break;
-
-        if (self.consumeToken(.keyword_unchecked)) |token| {
-            const block = try self.expectBlock();
-
-            const unchecked = try self.addNode(.{
-                .tag = .unchecked_block,
-                .main_token = token,
-                .data = .{
-                    .lhs = block,
-                    .rhs = undefined,
-                },
-            });
-
-            try self.scratch.append(self.allocator, unchecked);
-        }
 
         const statement = try self.expectStatementRecoverable();
 
@@ -1499,6 +1514,22 @@ pub fn expectStatement(self: *Parser) ParserErrors!Node.Index {
         .keyword_return => return self.expectReturnStatement(),
         .keyword_continue => return self.expectContinueStatement(),
         .keyword_break => return self.expectBreakStatement(),
+        .keyword_unchecked => {
+            const token = self.nextToken();
+
+            const block = try self.expectBlock();
+
+            const unchecked = try self.addNode(.{
+                .tag = .unchecked_block,
+                .main_token = token,
+                .data = .{
+                    .lhs = block,
+                    .rhs = undefined,
+                },
+            });
+
+            return unchecked;
+        },
         .keyword_assembly => unreachable, // Not implemented
         else => {},
     }
@@ -1606,66 +1637,75 @@ pub fn parseSuffixExpr(self: *Parser) ParserErrors!Node.Index {
             continue;
         }
 
-        const l_paren = self.consumeToken(.l_paren) orelse return res;
+        const call = try self.parseCallExpression(res);
 
-        const scratch = self.scratch.items.len;
-        defer self.scratch.shrinkRetainingCapacity(scratch);
+        if (call == 0)
+            return res;
 
-        while (true) {
-            if (self.consumeToken(.r_paren)) |_| break;
+        res = call;
+    }
+}
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.callArgumentList)
+pub fn parseCallExpression(self: *Parser, lhs: Node.Index) ParserErrors!Node.Index {
+    const l_paren = self.consumeToken(.l_paren) orelse return null_node;
 
-            const struct_init = try self.parseCurlySuffixExpr();
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
 
-            if (struct_init != 0) {
-                try self.scratch.append(self.allocator, struct_init);
-            } else {
-                const param = try self.expectExpr();
-                try self.scratch.append(self.allocator, param);
-            }
+    while (true) {
+        if (self.consumeToken(.r_paren)) |_| break;
 
-            switch (self.token_tags[self.token_index]) {
-                .comma => self.token_index += 1,
-                .r_paren => {
-                    self.token_index += 1;
-                    break;
-                },
-                .colon, .r_brace, .r_bracket => return self.failMsg(.{
-                    .tag = .expected_token,
-                    .token = self.token_index,
-                    .extra = .{ .expected_tag = .r_paren },
-                }),
-                else => try self.warn(.expected_comma_after),
-            }
+        const struct_init = try self.parseCurlySuffixExpr();
+
+        if (struct_init != 0) {
+            try self.scratch.append(self.allocator, struct_init);
+        } else {
+            const param = try self.expectExpr();
+            try self.scratch.append(self.allocator, param);
         }
 
-        const params = self.scratch.items[scratch..];
+        switch (self.token_tags[self.token_index]) {
+            .comma => self.token_index += 1,
+            .r_paren => {
+                self.token_index += 1;
+                break;
+            },
+            .colon, .r_brace, .r_bracket => return self.failMsg(.{
+                .tag = .expected_token,
+                .token = self.token_index,
+                .extra = .{ .expected_tag = .r_paren },
+            }),
+            else => try self.warn(.expected_comma_after),
+        }
+    }
 
-        res = switch (params.len) {
-            0 => try self.addNode(.{
-                .tag = .call_one,
-                .main_token = l_paren,
-                .data = .{
-                    .lhs = res,
-                    .rhs = 0,
-                },
-            }),
-            1 => try self.addNode(.{
-                .tag = .call_one,
-                .main_token = l_paren,
-                .data = .{
-                    .lhs = res,
-                    .rhs = params[0],
-                },
-            }),
-            else => try self.addNode(.{
-                .tag = .call,
-                .main_token = l_paren,
-                .data = .{
-                    .lhs = res,
-                    .rhs = try self.addExtraData(try self.listToSpan(params)),
-                },
-            }),
-        };
+    const params = self.scratch.items[scratch..];
+
+    switch (params.len) {
+        0 => return self.addNode(.{
+            .tag = .call_one,
+            .main_token = l_paren,
+            .data = .{
+                .lhs = lhs,
+                .rhs = 0,
+            },
+        }),
+        1 => return self.addNode(.{
+            .tag = .call_one,
+            .main_token = l_paren,
+            .data = .{
+                .lhs = lhs,
+                .rhs = params[0],
+            },
+        }),
+        else => return self.addNode(.{
+            .tag = .call,
+            .main_token = l_paren,
+            .data = .{
+                .lhs = lhs,
+                .rhs = try self.addExtraData(try self.listToSpan(params)),
+            },
+        }),
     }
 }
 /// Suffix
@@ -1726,6 +1766,7 @@ pub fn parseSuffix(self: *Parser, lhs: Node.Index) ParserErrors!Node.Index {
         else => return null_node,
     }
 }
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.callArgumentList)
 pub fn parseCurlySuffixExpr(self: *Parser) ParserErrors!Node.Index {
     const l_brace = self.consumeToken(.l_brace) orelse return null_node;
 
@@ -2681,6 +2722,7 @@ pub fn parsePragmaVersion(self: *Parser) ParserErrors!TokenIndex {
             .angle_bracket_right_equal,
             .angle_bracket_left,
             .angle_bracket_left_equal,
+            .caret,
             => {
                 self.token_index += 1;
                 _ = try self.expectToken(.number_literal);
@@ -2903,6 +2945,7 @@ pub fn parseMapping(self: *Parser) ParserErrors!Node.Index {
     if (child_one == 0)
         return self.fail(.expected_elementary_or_identifier_path);
 
+    _ = self.consumeToken(.identifier);
     _ = try self.expectToken(.equal_bracket_right);
 
     const child_two = try self.parseTypeExpr();

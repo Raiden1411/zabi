@@ -45,6 +45,8 @@ fn decodeItem(allocator: Allocator, comptime T: type, encoded: []const u8, posit
 
             if (encoded[position] < 0x80) return .{ .consumed = 1, .data = @intCast(encoded[position]) };
             const len = encoded[position] - 0x80;
+
+            std.debug.assert(position + len < encoded.len); // Overflow on encoded string,
             const hex_number = encoded[position + 1 .. position + len + 1];
 
             const hexed = std.fmt.fmtSliceHexLower(hex_number);

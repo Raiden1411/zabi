@@ -12,13 +12,24 @@ pub const std_options: Options = .{
     .log_level = .info,
 };
 
+/// Wraps the stderr with our color stream.
+const ColorWriterStream = ColorWriter(@TypeOf(std.io.getStdErr().writer()));
+
 pub fn main() !void {
     var results: TestResults = .{};
-    const printer = TestsPrinter.init(std.io.getStdErr().writer());
+
+    var printer: ColorWriterStream = .{
+        .color = .auto,
+        .underlaying_writer = std.io.getStdErr().writer(),
+        .next_color = .reset,
+    };
 
     startAnvilInstances(std.heap.page_allocator) catch {
-        try printer.writeAll("error: ", .bright_red);
-        try printer.writeAll("Failed to connect to anvil! Please ensure that it is running on port 6969\n", .bold);
+        printer.setNextColor(.red);
+        try printer.writer().writeAll("error: ");
+
+        printer.setNextColor(.bold);
+        try printer.writer().writeAll("Failed to connect to anvil! Please ensure that it is running on port 6969\n");
 
         std.process.exit(1);
     };
@@ -53,7 +64,9 @@ pub fn main() !void {
         }
 
         const submodule = iter.next().?;
-        try printer.print(" |{s}|", .{submodule}, .yellow);
+
+        printer.setNextColor(.yellow);
+        try printer.writer().print(" |{s}|", .{submodule});
 
         const name = name_blk: {
             while (iter.next()) |value| {
@@ -65,19 +78,26 @@ pub fn main() !void {
             } else break :name_blk test_runner.name;
         };
 
-        try printer.print("{s}Running {s}...", .{ " " ** 2, name }, .dim);
+        printer.setNextColor(.dim);
+        try printer.writer().print("{s}Running {s}...", .{ " " ** 2, name });
 
         if (test_result) |_| {
             results.passed += 1;
-            try printer.writeAll("✓\n", .green);
+
+            printer.setNextColor(.green);
+            try printer.writer().writeAll("✓\n");
         } else |err| switch (err) {
             error.SkipZigTest => {
                 results.skipped += 1;
-                try printer.writeAll("skipped!\n", .white);
+
+                printer.setNextColor(.white);
+                try printer.writer().writeAll("skipped!\n");
             },
             else => {
                 results.failed += 1;
-                try printer.writeAll("✘\n", .red);
+
+                printer.setNextColor(.red);
+                try printer.writer().writeAll("✘\n");
                 if (@errorReturnTrace()) |trace| {
                     std.debug.dumpStackTrace(trace.*);
                 }
@@ -87,7 +107,9 @@ pub fn main() !void {
 
         if (std.testing.allocator_instance.deinit() == .leak) {
             results.leaked += 1;
-            try printer.writeAll("leaked!\n", .blue);
+
+            printer.setNextColor(.blue);
+            try printer.writer().writeAll("leaked!\n");
         }
     }
 
@@ -116,60 +138,84 @@ const Modules = enum {
     utils,
 };
 
-/// Custom printer that we use to write tests result and with specific tty colors.
-const TestsPrinter = struct {
-    /// stderr writer.
-    writer: FileWriter,
-    /// Colors config to use in the terminal
-    color: ZigColor,
+/// Custom writer that we use to write tests result and with specific tty colors.
+fn ColorWriter(comptime UnderlayingWriter: type) type {
+    return struct {
+        /// Set of possible errors from this writer.
+        const Error = UnderlayingWriter.Error || std.os.windows.SetConsoleTextAttributeError;
 
-    pub const BORDER = "=" ** 80;
-    pub const PADDING = " " ** 35;
+        const Writer = std.io.Writer(*Self, Error, write);
+        const Self = @This();
 
-    /// Sets the initial state.
-    fn init(writer: FileWriter) TestsPrinter {
-        return .{
-            .writer = writer,
-            .color = .auto,
-        };
-    }
+        pub const BORDER = "=" ** 80;
+        pub const PADDING = " " ** 35;
 
-    /// Sets the terminal color.
-    fn setColor(self: TestsPrinter, color: TerminalColors) !void {
-        try self.color.get_tty_conf().setColor(self.writer, color);
-    }
-    /// Writes the board in the test runner.
-    fn writeBoarder(self: TestsPrinter, module: Modules) !void {
-        try self.setColor(.green);
-        try self.writer.print("\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, @tagName(module), BORDER });
-    }
-    /// Same as FileWriter `writeAll` but with color config
-    fn writeAll(self: TestsPrinter, bytes: []const u8, color: TerminalColors) !void {
-        try self.setColor(color);
-        try self.writer.writeAll(bytes);
-        try self.setColor(.reset);
-    }
-    /// Same as FileWriter `print` but with color config
-    fn print(self: TestsPrinter, comptime format: []const u8, args: anytype, color: TerminalColors) !void {
-        try self.setColor(color);
-        try self.writer.print(format, args);
-        try self.setColor(.reset);
-    }
-    /// Prints all of the test results.
-    fn printResult(self: TestsPrinter, results: TestResults) !void {
-        try self.writer.writeAll("\n    ZABI Tests: ");
-        try self.print("{d} passed\n", .{results.passed}, .green);
+        /// The writer that we will use to write to.
+        underlaying_writer: UnderlayingWriter,
+        /// Zig color tty config.
+        color: ZigColor,
+        /// Next tty color to apply in the stream.
+        next_color: TerminalColors,
 
-        try self.writer.writeAll("    ZABI Tests: ");
-        try self.print("{d} failed\n", .{results.failed}, .red);
+        pub fn writer(self: *Self) Writer {
+            return .{ .context = self };
+        }
+        /// Write function that will write to the stream with the `next_color`.
+        pub fn write(self: *Self, bytes: []const u8) Error!usize {
+            if (bytes.len == 0)
+                return bytes.len;
 
-        try self.writer.writeAll("    ZABI Tests: ");
-        try self.print("{d} skipped\n", .{results.skipped}, .yellow);
+            try self.applyColor(self.next_color);
+            try self.writeNoColor(bytes);
+            try self.applyColor(.reset);
 
-        try self.writer.writeAll("    ZABI Tests: ");
-        try self.print("{d} leaked\n", .{results.leaked}, .blue);
-    }
-};
+            return bytes.len;
+        }
+        /// Writes the test boarder with the specified module.
+        pub fn writeBoarder(self: *Self, module: Modules) Error!void {
+            try self.applyColor(.green);
+            try self.underlaying_writer.print("\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, @tagName(module), BORDER });
+            try self.applyColor(.reset);
+        }
+        /// Sets the next color in the stream
+        pub fn setNextColor(self: *Self, next: TerminalColors) void {
+            self.next_color = next;
+        }
+        /// Writes the next color to the stream.
+        pub fn applyColor(self: *Self, color: TerminalColors) Error!void {
+            try self.color.renderOptions().ttyconf.setColor(self.underlaying_writer, color);
+        }
+        /// Writes to the stream without colors.
+        pub fn writeNoColor(self: *Self, bytes: []const u8) UnderlayingWriter.Error!void {
+            if (bytes.len == 0)
+                return;
+
+            try self.underlaying_writer.writeAll(bytes);
+        }
+        /// Prints all of the test results.
+        pub fn printResult(self: *Self, results: TestResults) Error!void {
+            try self.underlaying_writer.writeAll("\n    ZABI Tests: ");
+            try self.applyColor(.green);
+            try self.underlaying_writer.print("{d} passed\n", .{results.passed});
+            try self.applyColor(.reset);
+
+            try self.underlaying_writer.writeAll("    ZABI Tests: ");
+            try self.applyColor(.red);
+            try self.underlaying_writer.print("{d} failed\n", .{results.failed});
+            try self.applyColor(.reset);
+
+            try self.underlaying_writer.writeAll("    ZABI Tests: ");
+            try self.applyColor(.yellow);
+            try self.underlaying_writer.print("{d} skipped\n", .{results.skipped});
+            try self.applyColor(.reset);
+
+            try self.underlaying_writer.writeAll("    ZABI Tests: ");
+            try self.applyColor(.blue);
+            try self.underlaying_writer.print("{d} leaked\n", .{results.leaked});
+            try self.applyColor(.reset);
+        }
+    };
+}
 
 /// Connects to the anvil instance. Fails if it cant.
 fn startAnvilInstances(allocator: std.mem.Allocator) !void {

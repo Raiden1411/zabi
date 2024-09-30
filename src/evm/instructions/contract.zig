@@ -34,7 +34,7 @@ pub fn callInstruction(self: *Interpreter) (error{FailedToLoadAccount} || Interp
     try self.gas_tracker.updateTracker(calc_limit);
 
     if (value != 0)
-        calc_limit = utils.saturatedAddition(u64, calc_limit, gas.CALL_STIPEND);
+        calc_limit +|= gas.CALL_STIPEND;
 
     self.next_action = .{ .call_action = .{
         .value = .{ .transfer = value },
@@ -71,7 +71,7 @@ pub fn callCodeInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
     try self.gas_tracker.updateTracker(calc_limit);
 
     if (value != 0)
-        calc_limit = utils.saturatedAddition(u64, calc_limit, gas.CALL_STIPEND);
+        calc_limit +|= gas.CALL_STIPEND;
 
     self.next_action = .{ .call_action = .{
         .value = .{ .transfer = value },
@@ -109,7 +109,7 @@ pub fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ Instruct
         if (self.spec.enabled(.SHANGHAI)) {
             const max_code_size: usize = blk: {
                 if (self.host.getEnviroment().config.limit_contract_size) |limit_size| {
-                    break :blk utils.saturatedMultiplication(usize, limit_size, 2);
+                    break :blk limit_size *| 2;
                 }
 
                 break :blk 0x600 * 2;
@@ -126,7 +126,7 @@ pub fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ Instruct
 
         const code_offset_len = std.math.cast(usize, code_offset) orelse return error.Overflow;
 
-        try self.resize(utils.saturatedAddition(u64, len, code_offset_len));
+        try self.resize(len +| code_offset_len);
         @memcpy(buffer, self.memory.getSlice()[code_offset_len .. code_offset_len + len]);
     }
 
@@ -280,7 +280,7 @@ pub fn resizeMemoryAndGetRange(self: *Interpreter, offset: u256, len: u256) (Int
         if (len == 0)
             break :blk comptime std.math.maxInt(u64);
 
-        try self.resize(utils.saturatedAddition(u64, length, offset_len));
+        try self.resize(length +| offset_len);
 
         break :blk offset_len;
     };

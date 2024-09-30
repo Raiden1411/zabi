@@ -154,7 +154,7 @@ pub fn returnDataCopyInstruction(self: *Interpreter) (Interpreter.InstructionErr
     try self.gas_tracker.updateTracker(cost orelse return error.GasOverflow);
 
     const return_offset = std.math.cast(usize, data) orelse return error.Overflow;
-    const return_end = utils.saturatedAddition(usize, return_offset, len);
+    const return_end = return_offset +| len;
 
     if (return_end > self.return_data.len) {
         self.status = .invalid_offset;

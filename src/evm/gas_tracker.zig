@@ -210,9 +210,9 @@ pub inline fn calculateLogCost(size: u8, length: u64) ?u64 {
 }
 /// Calculates the memory expansion cost based on the provided `word_count`
 pub inline fn calculateMemoryCost(count: u64) u64 {
-    const cost = utils.saturatedMultiplication(u64, 3, count);
+    const cost = count +| 3;
 
-    return utils.saturatedAddition(u64, cost, @divFloor(utils.saturatedMultiplication(u64, count, count), 512));
+    return cost +| @divFloor(count *| count, 512);
 }
 /// Calculates the cost of a memory copy.
 pub inline fn calculateMemoryCopyLowCost(length: u64) ?u64 {

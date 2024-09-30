@@ -136,21 +136,3 @@ Calcutates the blob gas price
 pub fn calcultateBlobGasPrice(excess_gas: u64) u128
 ```
 
-## SaturatedAddition
-Saturated addition. If it overflows it will return the max `T`
-
-### Signature
-
-```zig
-pub fn saturatedAddition(comptime T: type, a: T, b: T) T
-```
-
-## SaturatedMultiplication
-Saturated multiplication. If it overflows it will return the max `T`
-
-### Signature
-
-```zig
-pub fn saturatedMultiplication(comptime T: type, a: T, b: T) T
-```
-

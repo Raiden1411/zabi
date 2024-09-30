@@ -69,7 +69,7 @@ pub fn extCodeCopyInstruction(self: *Interpreter) (HostInstructionErrors || Memo
         return;
 
     const code_offset_len = @min(code_offset_usize, code.getCodeBytes().len);
-    try self.resize(utils.saturatedAddition(u64, offset_usize, len));
+    try self.resize(offset_usize +| len);
 
     self.memory.writeData(offset_usize, code_offset_len, len, code.getCodeBytes());
 }
@@ -120,7 +120,7 @@ pub fn logInstruction(self: *Interpreter, size: u8) (HostInstructionErrors || Me
             break :blk &[_]u8{};
 
         const off = std.math.cast(u64, offset) orelse return error.Overflow;
-        try self.resize(utils.saturatedAddition(u64, off, len));
+        try self.resize(off +| len);
         break :blk self.memory.getSlice()[off .. off + len];
     };
 

@@ -100,7 +100,7 @@ fn returnAction(self: *Interpreter, status: Interpreter.InterpreterStatus) (Inte
     if (len != 0) {
         const return_buffer = try self.allocator.alloc(u8, len);
 
-        try self.resize(utils.saturatedAddition(u64, len, off));
+        try self.resize(len +| off);
         const slice = self.memory.getSlice();
         @memcpy(return_buffer, slice[off .. off + len]);
         self.return_data = return_buffer;

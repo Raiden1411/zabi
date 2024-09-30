@@ -58,11 +58,3 @@ pub export fn bytesToInt(slice: [*]u8, len: usize) isize {
 pub export fn calcultateBlobGasPrice(excess_gas: u64) u128 {
     return utils.calcultateBlobGasPrice(excess_gas);
 }
-/// Performs a saturated addition. Meaning that if the value overflows it will return the max `isize` value.
-pub export fn saturatedAddition(value: isize, add: isize) isize {
-    return utils.saturatedAddition(isize, value, add);
-}
-/// Performs a saturated multiplication. Meaning that if the value overflows it will return the max `isize` value.
-pub export fn saturatedMultiplication(value: isize, multiplier: isize) isize {
-    return utils.saturatedMultiplication(isize, value, multiplier);
-}

@@ -30,7 +30,7 @@ pub fn mcopyInstruction(self: *Interpreter) (MemoryInstructionErrors || error{In
     const source_usize = std.math.cast(usize, source) orelse return error.Overflow;
     const destination_usize = std.math.cast(usize, destination) orelse return error.Overflow;
 
-    const new_size = utils.saturatedAddition(u64, @max(destination_usize, source_usize), len);
+    const new_size = @max(destination_usize, source_usize) +| len;
     try self.resize(new_size);
 
     self.memory.memoryCopy(destination_usize, source_usize, len);
@@ -43,7 +43,7 @@ pub fn mloadInstruction(self: *Interpreter) MemoryInstructionErrors!void {
     const as_usize = std.math.cast(usize, offset) orelse return error.Overflow;
 
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
-    const new_size = utils.saturatedAddition(u64, as_usize, 32);
+    const new_size = as_usize +| 32;
     try self.resize(new_size);
 
     try self.stack.pushUnsafe(self.memory.wordToInt(as_usize));
@@ -63,7 +63,7 @@ pub fn mstoreInstruction(self: *Interpreter) MemoryInstructionErrors!void {
     const as_usize = std.math.cast(usize, offset) orelse return error.Overflow;
 
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
-    const new_size = utils.saturatedAddition(u64, as_usize, 32);
+    const new_size = as_usize +| 32;
     try self.resize(new_size);
 
     self.memory.writeInt(as_usize, value);
@@ -77,7 +77,7 @@ pub fn mstore8Instruction(self: *Interpreter) MemoryInstructionErrors!void {
     const as_usize = std.math.cast(usize, offset) orelse return error.Overflow;
 
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
-    const new_size = utils.saturatedAddition(u64, as_usize, 1);
+    const new_size = as_usize +| 1;
     try self.resize(new_size);
 
     var buffer: [32]u8 = undefined;

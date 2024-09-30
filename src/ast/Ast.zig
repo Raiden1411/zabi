@@ -49,15 +49,20 @@ pub fn parse(allocator: Allocator, source: [:0]const u8) Parser.ParserErrors!Ast
 
     var lexer = tokenizer.Tokenizer.init(source);
 
-    while (true) {
-        const token = lexer.next();
+    outer: while (true) {
+        const bytes_left = lexer.buffer.len - lexer.index;
+        const estimated = @max(64, bytes_left / 8);
+        try tokens.ensureUnusedCapacity(allocator, estimated);
 
-        try tokens.append(allocator, .{
-            .tag = token.tag,
-            .start = @intCast(token.location.start),
-        });
+        for (0..estimated) |_| {
+            const token = lexer.next();
+            tokens.appendAssumeCapacity(.{
+                .tag = token.tag,
+                .start = @intCast(token.location.start),
+            });
 
-        if (token.tag == .eof) break;
+            if (token.tag == .eof) break :outer;
+        }
     }
 
     var parser: Parser = .{

@@ -16,6 +16,7 @@ pub const Lexer = struct {
         start,
         identifier,
         number,
+        invalid,
     };
 
     const TokenList = std.MultiArrayList(struct {
@@ -25,7 +26,10 @@ pub const Lexer = struct {
     });
 
     pub fn init(text: [:0]const u8) Lexer {
-        return .{ .currentText = text, .position = 0 };
+        return .{
+            .currentText = text,
+            .position = 0,
+        };
     }
 
     pub fn reset(self: *Lexer, newText: []const u8, pos: ?u32) void {
@@ -38,93 +42,89 @@ pub const Lexer = struct {
     }
 
     pub fn scan(self: *Lexer) Token {
-        var result = Token{ .syntax = .EndOfFileToken, .location = .{
-            .start = self.position,
-            .end = undefined,
-        } };
+        var result = Token{
+            .syntax = undefined,
+            .location = .{
+                .start = self.position,
+                .end = undefined,
+            },
+        };
 
-        var state: State = .start;
-
-        while (true) : (self.position += 1) {
-            const char = self.currentText[self.position];
-
-            switch (state) {
-                .start => switch (char) {
-                    0 => {
-                        if (self.position != self.currentText.len) {
-                            result.syntax = .UnknowToken;
-                            result.location.start = self.position;
-                            self.position += 1;
-                            result.location.end = self.position;
-
-                            return result;
+        state: switch (State.start) {
+            .start => switch (self.currentText[self.position]) {
+                0 => {
+                    if (self.position == self.currentText.len)
+                        return .{
+                            .syntax = .EndOfFileToken,
+                            .location = .{
+                                .start = self.position,
+                                .end = self.position,
+                            },
                         }
-
-                        break;
-                    },
-                    ' ', '\t', '\r', '\n' => {
-                        result.location.start += 1;
-                    },
-                    ';' => {
-                        result.syntax = .SemiColon;
-                        self.position += 1;
-                        break;
-                    },
-                    ',' => {
-                        result.syntax = .Comma;
-                        self.position += 1;
-                        break;
-                    },
-                    '(' => {
-                        result.syntax = .OpenParen;
-                        self.position += 1;
-                        break;
-                    },
-                    ')' => {
-                        result.syntax = .ClosingParen;
-                        self.position += 1;
-                        break;
-                    },
-                    '{' => {
-                        result.syntax = .OpenBrace;
-                        self.position += 1;
-                        break;
-                    },
-                    '}' => {
-                        result.syntax = .ClosingBrace;
-                        self.position += 1;
-                        break;
-                    },
-                    '[' => {
-                        result.syntax = .OpenBracket;
-                        self.position += 1;
-                        break;
-                    },
-                    ']' => {
-                        result.syntax = .ClosingBracket;
-                        self.position += 1;
-                        break;
-                    },
-                    'a'...'z', 'A'...'Z', '_', '$' => {
-                        state = .identifier;
-                        result.syntax = .Identifier;
-                    },
-                    '0'...'9' => {
-                        state = .number;
-                        result.syntax = .Number;
-                    },
-                    else => {
-                        result.syntax = .UnknowToken;
-                        result.location.end = self.position;
-
-                        self.position += 1;
-
-                        return result;
-                    },
+                    else
+                        continue :state .invalid;
                 },
-
-                .identifier => switch (char) {
-                    'a'...'z', 'A'...'Z', '_', '$', '0'...'9' => {},
+                ' ', '\t', '\r', '\n' => {
+                    result.location.start += 1;
+                    self.position += 1;
+                    continue :state .start;
+                },
+                ';' => {
+                    result.syntax = .SemiColon;
+                    self.position += 1;
+                },
+                ',' => {
+                    result.syntax = .Comma;
+                    self.position += 1;
+                },
+                '(' => {
+                    result.syntax = .OpenParen;
+                    self.position += 1;
+                },
+                ')' => {
+                    result.syntax = .ClosingParen;
+                    self.position += 1;
+                },
+                '{' => {
+                    result.syntax = .OpenBrace;
+                    self.position += 1;
+                },
+                '}' => {
+                    result.syntax = .ClosingBrace;
+                    self.position += 1;
+                },
+                '[' => {
+                    result.syntax = .OpenBracket;
+                    self.position += 1;
+                },
+                ']' => {
+                    result.syntax = .ClosingBracket;
+                    self.position += 1;
+                },
+                'a'...'z', 'A'...'Z', '_', '$' => {
+                    result.syntax = .Identifier;
+                    continue :state .identifier;
+                },
+                '0'...'9' => {
+                    result.syntax = .Number;
+                    continue :state .number;
+                },
+                else => continue :state .invalid,
+            },
+            .invalid => {
+                self.position += 1;
+                switch (self.currentText[self.position]) {
+                    0 => if (self.position == self.currentText.len) {
+                        result.syntax = .UnknowToken;
+                    },
+                    '\n' => result.syntax = .UnknowToken,
+                    else => continue :state .invalid,
+                }
+            },
+            .identifier => {
+                self.position += 1;
+                switch (self.currentText[self.position]) {
+                    'a'...'z', 'A'...'Z', '_', '$', '0'...'9' => continue :state .identifier,
                     else => {
                         if (Token.keywords(self.currentText[result.location.start..self.position])) |syntax| {
                             result.syntax = syntax;
@@ -133,20 +133,17 @@ pub const Lexer = struct {
                         if (Token.typesKeyword(self.currentText[result.location.start..self.position])) |syntax| {
                             result.syntax = syntax;
                         }
-
-                        break;
                     },
-                },
+                }
+            },
 
-                .number => switch (char) {
-                    '0'...'9' => {},
-                    else => break,
-                },
-            }
-        }
-
-        if (result.syntax == .EndOfFileToken) {
-            result.location.start = self.position;
+            .number => {
+                self.position += 1;
+                switch (self.currentText[self.position]) {
+                    '0'...'9' => continue :state .number,
+                    else => {},
+                }
+            },
         }
 
         result.location.end = self.position;

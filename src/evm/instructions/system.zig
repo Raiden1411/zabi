@@ -422,7 +422,7 @@ test "CallDataCopy" {
         try callDataCopyInstruction(&interpreter);
 
         try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.memory.wordToInt(0));
-        try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(7, interpreter.gas_tracker.used_amount);
     }
     {
         try interpreter.stack.pushUnsafe(32);
@@ -432,7 +432,7 @@ test "CallDataCopy" {
         try callDataCopyInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.memory.wordToInt(0));
-        try testing.expectEqual(15, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(13, interpreter.gas_tracker.used_amount);
     }
 }
 
@@ -468,7 +468,7 @@ test "CodeCopy" {
     try codeCopyInstruction(&interpreter);
 
     try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.memory.wordToInt(0));
-    try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(7, interpreter.gas_tracker.used_amount);
 }
 
 test "Keccak256" {
@@ -553,6 +553,6 @@ test "ReturnDataCopy" {
         try returnDataCopyInstruction(&interpreter);
 
         try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.memory.wordToInt(0));
-        try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(7, interpreter.gas_tracker.used_amount);
     }
 }

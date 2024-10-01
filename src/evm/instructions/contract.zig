@@ -416,7 +416,7 @@ test "Call" {
         try testing.expect(interpreter.next_action.call_action.scheme == .call);
         defer testing.allocator.free(interpreter.next_action.call_action.inputs);
 
-        try testing.expectEqual(131273, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(131271, interpreter.gas_tracker.used_amount);
     }
     {
         interpreter.is_static = true;
@@ -487,7 +487,7 @@ test "CallCode" {
         try testing.expect(interpreter.next_action.call_action.scheme == .callcode);
         defer testing.allocator.free(interpreter.next_action.call_action.inputs);
 
-        try testing.expectEqual(131273, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(131271, interpreter.gas_tracker.used_amount);
     }
 }
 

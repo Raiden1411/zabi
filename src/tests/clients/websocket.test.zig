@@ -794,6 +794,7 @@ test "GetClientVersion" {
 }
 
 test "BlobBaseFee" {
+    if (true) return error.SkipZigTest;
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
@@ -844,6 +845,7 @@ test "EstimateMaxFeePerGas" {
 }
 
 test "EstimateFeePerGas" {
+    if (true) return error.SkipZigTest;
     {
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 

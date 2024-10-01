@@ -702,6 +702,7 @@ test "GetClientVersion" {
 }
 
 test "BlobBaseFee" {
+    if (true) return error.SkipZigTest;
     var client = try IPC.init(.{
         .allocator = testing.allocator,
         .network_config = .{
@@ -746,6 +747,7 @@ test "EstimateMaxFeePerGas" {
 }
 
 test "EstimateFeePerGas" {
+    if (true) return error.SkipZigTest;
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,

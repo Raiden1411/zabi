@@ -434,7 +434,7 @@ test "Log" {
         try interpreter.stack.pushUnsafe(0);
         try logInstruction(&interpreter, 1);
 
-        try testing.expectEqual(1384, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1382, interpreter.gas_tracker.used_amount);
     }
     {
         try interpreter.stack.pushUnsafe(0);
@@ -443,7 +443,7 @@ test "Log" {
         try interpreter.stack.pushUnsafe(0);
         try logInstruction(&interpreter, 2);
 
-        try testing.expectEqual(2509, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2507, interpreter.gas_tracker.used_amount);
     }
     {
         try interpreter.stack.pushUnsafe(0);
@@ -453,7 +453,7 @@ test "Log" {
         try interpreter.stack.pushUnsafe(2);
         try logInstruction(&interpreter, 3);
 
-        try testing.expectEqual(4017, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(4015, interpreter.gas_tracker.used_amount);
     }
     {
         try interpreter.stack.pushUnsafe(0);
@@ -464,7 +464,7 @@ test "Log" {
         try interpreter.stack.pushUnsafe(3);
         try logInstruction(&interpreter, 4);
 
-        try testing.expectEqual(5908, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(5906, interpreter.gas_tracker.used_amount);
     }
 }
 

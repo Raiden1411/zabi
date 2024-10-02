@@ -48,9 +48,10 @@ pub fn main() !void {
     var interpreter: Interpreter = undefined;
     defer interpreter.deinit();
 
-    try interpreter.init(gpa.allocator(), contract_instance, plain.host(), .{});
+    try interpreter.init(gpa.allocator(), contract_instance, plain.host(), .{ .gas_limit = 300_000_000 });
 
     const result = try interpreter.run();
+    defer result.deinit(gpa.allocator());
 
     std.debug.print("Interpreter result: {any}", .{result});
 }

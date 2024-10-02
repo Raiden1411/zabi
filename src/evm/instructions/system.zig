@@ -54,7 +54,7 @@ pub fn callDataLoadInstruction(self: *Interpreter) (Interpreter.InstructionError
         std.debug.assert(count <= 32 and offset + count <= self.contract.input.len);
 
         const slice = self.contract.input[offset .. offset + count];
-        @memcpy(buffer[32 - count ..], slice);
+        @memcpy(buffer[0..count], slice);
     }
 
     try self.stack.pushUnsafe(@byteSwap(@as(u256, @bitCast(buffer))));

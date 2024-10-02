@@ -41,8 +41,10 @@ pub const Memory = struct {
     }
     /// Creates the memory with `capacity`.
     pub fn initWithCapacity(allocator: Allocator, capacity: usize, limit: ?u64) Allocator.Error!Memory {
-        const buffer = try allocator.alloc(u8, capacity);
+        var buffer = try allocator.alloc(u8, capacity);
         const checkpoints = try ArrayList(usize).initCapacity(allocator, 32);
+
+        buffer.len = 0;
 
         return .{
             .allocator = allocator,
@@ -108,6 +110,7 @@ pub const Memory = struct {
     /// If the new len is lower than the current buffer size data will be lost.
     pub fn resize(self: *Memory, new_len: usize) (Allocator.Error || Memory.Error)!void {
         const new_capacity = self.last_checkpoint + new_len;
+
         if (new_capacity > self.memory_limit)
             return error.MaxMemoryReached;
 
@@ -117,20 +120,17 @@ pub const Memory = struct {
             return;
         }
 
-        if (self.allocator.resize(self.buffer, new_capacity))
-            return;
+        const better = growCapacity(self.total_capacity, new_capacity);
 
         // Allocator refused to resize the memory so we do it ourselves.
-        const new_buffer = try self.allocator.alloc(u8, new_capacity);
+        const new_buffer = try self.allocator.alignedAlloc(u8, null, better);
+        const old_memory = self.buffer.ptr[0..self.total_capacity];
 
-        if (self.buffer.len > new_capacity)
-            @memcpy(new_buffer, self.buffer[0..new_capacity])
-        else
-            @memcpy(new_buffer[0..self.buffer.len], self.buffer);
-
-        self.allocator.free(self.buffer);
-        self.buffer = new_buffer;
-        self.total_capacity = new_capacity;
+        @memcpy(new_buffer[0..self.buffer.len], self.buffer);
+        self.allocator.free(old_memory);
+        self.buffer.ptr = new_buffer.ptr;
+        self.buffer.len = new_capacity;
+        self.total_capacity = new_buffer.len;
     }
     /// Converts a memory "Word" into a u256 number.
     /// This reads the word as `Big` endian.
@@ -197,6 +197,15 @@ pub const Memory = struct {
     pub fn deinit(self: Memory) void {
         self.allocator.free(self.buffer.ptr[0..self.total_capacity]);
         self.checkpoints.deinit();
+    }
+    /// Sames as `ArrayList` growCapacity function.
+    fn growCapacity(current: usize, minimum: usize) usize {
+        var new = current;
+        while (true) {
+            new +|= new / 2 + 8;
+            if (new >= minimum)
+                return new;
+        }
     }
 };
 

@@ -161,7 +161,7 @@ pub fn init(
         .allocator = allocator,
         .code = bytecode,
         .contract = contract_instance,
-        .memory = Memory.initEmpty(allocator, null),
+        .memory = try Memory.initWithDefaultCapacity(allocator, null),
         .gas_tracker = GasTracker.init(opts.gas_limit),
         .host = evm_host,
         .is_static = opts.is_static,
@@ -251,7 +251,7 @@ pub fn run(self: *Interpreter) !InterpreterActions {
 
     return .{ .return_action = .{
         .gas = self.gas_tracker,
-        .output = self.return_data,
+        .output = try self.allocator.dupe(u8, self.return_data),
         .result = self.status,
     } };
 }

@@ -24,15 +24,15 @@ pub fn main() !void {
         .next_color = .reset,
     };
 
-    startAnvilInstances(std.heap.page_allocator) catch {
-        printer.setNextColor(.red);
-        try printer.writer().writeAll("error: ");
-
-        printer.setNextColor(.bold);
-        try printer.writer().writeAll("Failed to connect to anvil! Please ensure that it is running on port 6969\n");
-
-        std.process.exit(1);
-    };
+    // startAnvilInstances(std.heap.page_allocator) catch {
+    //     printer.setNextColor(.red);
+    //     try printer.writer().writeAll("error: ");
+    //
+    //     printer.setNextColor(.bold);
+    //     try printer.writer().writeAll("Failed to connect to anvil! Please ensure that it is running on port 6969\n");
+    //
+    //     std.process.exit(1);
+    // };
 
     const test_funcs: []const TestFn = builtin.test_functions;
 

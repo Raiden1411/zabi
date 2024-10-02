@@ -61,7 +61,7 @@ pub const Memory = struct {
     }
     /// Gets the current size of the `Memory` range.
     pub fn getCurrentMemorySize(self: Memory) u64 {
-        return @truncate(self.buffer.len - self.last_checkpoint);
+        return self.buffer.len - self.last_checkpoint;
     }
     /// Gets a byte from the list's buffer.
     pub fn getMemoryByte(self: Memory, offset: usize) u8 {
@@ -203,10 +203,7 @@ pub const Memory = struct {
 /// Returns number of words what would fit to provided number of bytes,
 /// It rounds up the number bytes to number of words.
 pub inline fn availableWords(size: u64) u64 {
-    const result, const overflow = @addWithOverflow(size, 31);
+    const new_size: u64 = size +| 31;
 
-    if (@bitCast(overflow))
-        return std.math.maxInt(u64) / 2;
-
-    return @divFloor(result, 32);
+    return @divFloor(new_size, 32);
 }

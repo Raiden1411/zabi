@@ -97,24 +97,24 @@ pub fn orInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
 pub fn shiftLeftInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
-    const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPopUnsafe();
+    const shift = try self.stack.tryPopUnsafe();
+    const value = try self.stack.tryPopUnsafe();
 
-    const shift = std.math.shl(u256, first, second);
+    const shifted = std.math.shl(u256, value, shift);
 
-    try self.stack.pushUnsafe(shift);
+    try self.stack.pushUnsafe(shifted);
 }
 /// Performs shr instruction for the interpreter.
 /// SHR -> 0x1C
 pub fn shiftRightInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
-    const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPopUnsafe();
+    const shift = try self.stack.tryPopUnsafe();
+    const value = try self.stack.tryPopUnsafe();
 
-    const shift = std.math.shr(u256, first, second);
+    const shifted = std.math.shr(u256, value, shift);
 
-    try self.stack.pushUnsafe(shift);
+    try self.stack.pushUnsafe(shifted);
 }
 /// Performs SGT instruction for the interpreter.
 /// SGT -> 0x12
@@ -361,8 +361,8 @@ test "Shift Right" {
     interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
     interpreter.program_counter = 0;
 
-    try interpreter.stack.pushUnsafe(1);
     try interpreter.stack.pushUnsafe(2);
+    try interpreter.stack.pushUnsafe(1);
 
     try shiftRightInstruction(&interpreter);
 

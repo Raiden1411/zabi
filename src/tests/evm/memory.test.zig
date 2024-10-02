@@ -21,6 +21,7 @@ test "Memory" {
     var mem = try Memory.initWithDefaultCapacity(testing.allocator, null);
     defer mem.deinit();
 
+    try mem.resize(32);
     {
         mem.writeInt(0, 69);
         try testing.expectEqual(69, mem.getMemoryByte(31));

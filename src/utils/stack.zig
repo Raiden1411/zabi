@@ -120,11 +120,15 @@ pub fn Stack(comptime T: type) type {
             if (self.inner.items.len < position_swap)
                 return error.StackUnderflow;
 
-            const top = self.inner.items[self.inner.items.len - 1];
-            const second = self.inner.items[self.inner.items.len - position_swap];
+            const top = self.inner.items.len - 1;
+            const second = top - position_swap;
 
-            self.inner.items[self.inner.items.len - 1] = second;
-            self.inner.items[self.inner.items.len - position_swap] = top;
+            self.inner.items[top] ^= self.inner.items[second];
+            self.inner.items[second] ^= self.inner.items[top];
+            self.inner.items[top] ^= self.inner.items[second];
+
+            // self.inner.items[self.inner.items.len - 1] = second;
+            // self.inner.items[self.inner.items.len - position_swap] = top;
         }
         /// Swap an item from the stack depending on the provided positions.
         /// This is not thread safe.

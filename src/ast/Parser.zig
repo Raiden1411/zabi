@@ -693,7 +693,12 @@ pub fn parseUsingAlias(self: *Parser) ParserErrors!Span {
         } else try self.scratch.append(self.allocator, path);
 
         switch (self.token_tags[self.token_index]) {
-            .comma => self.token_index += 1,
+            .comma => {
+                if (self.token_tags[self.token_index + 1] == .r_brace)
+                    try self.warn(.trailing_comma);
+
+                self.token_index += 1;
+            },
             .r_brace => {
                 self.token_index += 1;
                 break;
@@ -877,7 +882,12 @@ pub fn parseOverrideSpecifier(self: *Parser) ParserErrors!Node.Index {
             try self.scratch.append(self.allocator, inden);
 
         switch (self.token_tags[self.token_index]) {
-            .comma => self.token_index += 1,
+            .comma => {
+                if (self.token_tags[self.token_index + 1] == .r_paren)
+                    try self.warn(.trailing_comma);
+
+                self.token_index += 1;
+            },
             .r_paren => {
                 self.token_index += 1;
                 break;
@@ -1126,7 +1136,12 @@ pub fn parseInheritanceSpecifiers(self: *Parser) ParserErrors!Span {
         }
 
         switch (self.token_tags[self.token_index]) {
-            .comma => self.token_index += 1,
+            .comma => {
+                if (self.token_tags[self.token_index + 1] == .l_brace)
+                    try self.warn(.trailing_comma);
+
+                self.token_index += 1;
+            },
             .l_brace => break,
             else => try self.warn(.expected_comma_after),
         }
@@ -1665,7 +1680,12 @@ pub fn parseCallExpression(self: *Parser, lhs: Node.Index) ParserErrors!Node.Ind
         }
 
         switch (self.token_tags[self.token_index]) {
-            .comma => self.token_index += 1,
+            .comma => {
+                if (self.token_tags[self.token_index + 1] == .r_paren)
+                    try self.warn(.trailing_comma);
+
+                self.token_index += 1;
+            },
             .r_paren => {
                 self.token_index += 1;
                 break;
@@ -1789,7 +1809,12 @@ pub fn parseCurlySuffixExpr(self: *Parser) ParserErrors!Node.Index {
         try self.scratch.append(self.allocator, params);
 
         switch (self.token_tags[self.token_index]) {
-            .comma => self.token_index += 1,
+            .comma => {
+                if (self.token_tags[self.token_index + 1] == .r_brace)
+                    try self.warn(.trailing_comma);
+
+                self.token_index += 1;
+            },
             .r_brace => {
                 self.token_index += 1;
                 break;
@@ -2854,7 +2879,12 @@ pub fn parseIdentifierBlock(self: *Parser) ParserErrors!Span {
         try self.scratch.append(self.allocator, identifier);
 
         switch (self.token_tags[self.token_index]) {
-            .comma => self.token_index += 1,
+            .comma => {
+                if (self.token_tags[self.token_index + 1] == .r_brace)
+                    try self.warn(.trailing_comma);
+
+                self.token_index += 1;
+            },
             .r_brace => {
                 self.token_index += 1;
                 break;

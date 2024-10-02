@@ -14,7 +14,7 @@ test "Available words" {
     try testing.expectEqual(availableWords(63), 2);
     try testing.expectEqual(availableWords(64), 2);
     try testing.expectEqual(availableWords(65), 3);
-    try testing.expectEqual(availableWords(std.math.maxInt(u64)), std.math.maxInt(u64) / 2);
+    try testing.expectEqual(availableWords(std.math.maxInt(u64)), std.math.maxInt(u64) / 32);
 }
 
 test "Memory" {

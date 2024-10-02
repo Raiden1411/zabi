@@ -8,6 +8,7 @@ const PlainHost = zabi.evm.host.PlainHost;
 
 pub const CliOptions = struct {
     bytecode: []const u8,
+    calldata: []const u8,
 };
 
 pub fn main() !void {
@@ -22,11 +23,15 @@ pub fn main() !void {
     const buffer = try gpa.allocator().alloc(u8, @divExact(parsed.bytecode.len, 2));
     defer gpa.allocator().free(buffer);
 
+    const calldata = try gpa.allocator().alloc(u8, @divExact(parsed.calldata.len, 2));
+    defer gpa.allocator().free(calldata);
+
     _ = try std.fmt.hexToBytes(buffer, parsed.bytecode);
+    _ = try std.fmt.hexToBytes(calldata, parsed.calldata);
 
     const contract_instance = try Contract.init(
         gpa.allocator(),
-        &.{},
+        calldata,
         .{ .raw = buffer },
         null,
         0,

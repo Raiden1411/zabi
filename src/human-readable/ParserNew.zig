@@ -32,6 +32,51 @@ pub fn deinit(self: *Parser) void {
     self.scratch.deinit(self.allocator);
 }
 
+pub fn parseSource(self: *Parser) ParserErrors!void {
+    try self.nodes.append(self.allocator, .{
+        .tag = .root,
+        .main_token = 0,
+        .data = undefined,
+    });
+
+    const members = try self.parseUnits();
+
+    if (self.token_tags[self.token_index] != .EndOfFileToken)
+        return error.ParsingError;
+
+    self.nodes.items(.data)[0] = .{
+        .lhs = members.start,
+        .rhs = members.end,
+    };
+}
+
+pub fn parseUnits(self: *Parser) ParserErrors!Node.Range {
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
+
+    while (true) {
+        switch (self.token_tags[self.token_index]) {
+            .EndOfFileToken => break,
+            else => {},
+        }
+
+        try self.scratch.append(self.allocator, try self.expectUnit());
+    }
+
+    const slice = self.scratch.items[scratch..];
+
+    return self.listToSpan(slice);
+}
+
+pub fn expectUnit(self: *Parser) ParserErrors!Node.Index {
+    const unit = try self.parseUnit();
+
+    if (unit == 0)
+        return error.ParsingError;
+
+    return unit;
+}
+
 pub fn parseUnit(self: *Parser) ParserErrors!Node.Index {
     return switch (self.token_tags[self.token_index]) {
         .Function,
@@ -47,18 +92,18 @@ pub fn parseUnit(self: *Parser) ParserErrors!Node.Index {
 }
 
 pub fn parseFunctionProto(self: *Parser) ParserErrors!Node.Index {
-    const keyword = switch (self.token_tags[self.token_index]) {
-        .Function,
+    const keyword = self.consumeToken(.Function) orelse return null_node;
+
+    const reserve = try self.reserveNode(.function_proto);
+    errdefer self.unreserveNode(reserve);
+
+    const identifier = switch (self.token_tags[self.token_index]) {
+        .Identifier,
         .Fallback,
         .Receive,
         => self.nextToken(),
         else => return null_node,
     };
-
-    const reserve = try self.reserveNode(.function_proto);
-    errdefer self.unreserveNode(reserve);
-
-    const identifier = try self.expectToken(.Identifier);
 
     _ = try self.expectToken(.OpenParen);
 
@@ -469,7 +514,7 @@ pub fn parseVariableDecl(self: *Parser) ParserErrors!Node.Index {
         else => null_node,
     };
 
-    const identifier = try self.expectToken(.Identifier);
+    const identifier = self.consumeToken(.Identifier) orelse null_node;
 
     return self.addNode(.{
         .tag = .var_decl,
@@ -489,9 +534,9 @@ pub fn parseStructDecl(self: *Parser) ParserErrors!Node.Index {
 
     const identifier = try self.expectToken(.Identifier);
 
-    const fields = try self.parseStructFields();
-
     _ = try self.expectToken(.OpenBrace);
+
+    const fields = try self.parseStructFields();
 
     return switch (fields) {
         .zero_one => |elem| self.setNode(reserve, .{
@@ -524,16 +569,11 @@ pub fn parseStructFields(self: *Parser) ParserErrors!Span {
         try self.scratch.append(self.allocator, field);
 
         switch (self.token_tags[self.token_index]) {
-            .Comma => {
-                if (self.token_tags[self.token_index + 1] == .ClosingBrace)
-                    return error.ParsingError;
-                self.token_index += 1;
-            },
             .ClosingBrace => {
                 self.token_index += 1;
                 break;
             },
-            else => return error.ParsingError,
+            else => {},
         }
     }
 

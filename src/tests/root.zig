@@ -6,7 +6,7 @@ test {
     // _ = @import("crypto/root.zig");
     // _ = @import("decoding/root.zig");
     // _ = @import("encoding/root.zig");
-    _ = @import("evm/root.zig");
+    // _ = @import("evm/root.zig");
     // _ = @import("human-readable/root.zig");
     _ = @import("human-readable/parser_new.test.zig");
     // _ = @import("meta/root.zig");

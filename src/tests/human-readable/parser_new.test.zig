@@ -2,20 +2,25 @@ const tokenizer = @import("../../human-readable/lexer.zig");
 const std = @import("std");
 const testing = std.testing;
 
-const Parser = @import("../../human-readable/ParserNew.zig");
+const Parser = @import("../../human-readable/Parser.zig");
 const Ast = @import("../../human-readable/Ast.zig");
 const HumanAbi = @import("../../human-readable/HumanAbi.zig");
 
 test "Human readable" {
-    var ast = try Ast.parse(testing.allocator, "struct Foo{uint bar;}");
-    defer ast.deinit(testing.allocator);
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    const abi = try HumanAbi.parse(arena.allocator(), "function foo(uint bar) payable returns(string bar)");
+    // defer ast.deinit(testing.allocator);
 
     // const abi_gen: HumanAbi = .{
     //     .allocator = testing.allocator,
     //     .ast = &ast,
     // };
-
-    std.debug.print("FOOOOO: {any}\n", .{ast.nodes.items(.tag)});
+    //
+    // const abi = try abi_gen.toAbi();
+    // std.debug.print("FOOOOO: {any}\n", .{ast.nodes.items(.tag)});
     // std.debug.print("FOOOOO: {s}\n", .{ast.getNodeSource(1)});
-    // std.debug.print("FOOOOO: {}\n", .{try abi_gen.toStructParamComponent(1)});
+    std.debug.print("FOOOOO: {any}\n", .{abi});
+    std.debug.print("FOOOOO: {any}\n", .{abi.len});
 }

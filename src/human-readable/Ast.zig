@@ -3,7 +3,7 @@ const token = @import("tokens.zig");
 const tokenizer = @import("lexer.zig");
 
 const Allocator = std.mem.Allocator;
-const Parser = @import("ParserNew.zig");
+const Parser = @import("Parser.zig");
 const TokenTag = token.Tag.SoliditySyntax;
 
 const Ast = @This();
@@ -75,9 +75,9 @@ pub fn deinit(self: *Ast, allocator: Allocator) void {
     allocator.free(self.extra_data);
 }
 
-pub fn functionProto(self: Ast, node: Node.Index) ast.ConstructorDecl {
+pub fn functionProto(self: Ast, node: Node.Index) ast.FunctionDecl {
     const nodes = self.nodes.items(.tag);
-    std.debug.assert(nodes[node] == .function_proto_multi);
+    std.debug.assert(nodes[node] == .function_proto);
 
     const data = self.nodes.items(.data)[node];
     const main_token = self.nodes.items(.main_token)[node];
@@ -121,7 +121,7 @@ pub fn functionProto(self: Ast, node: Node.Index) ast.ConstructorDecl {
 
 pub fn functionProtoOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.FunctionDecl {
     const nodes = self.nodes.items(.tag);
-    std.debug.assert(nodes[node] == .function_proto_simple);
+    std.debug.assert(nodes[node] == .function_proto_one);
 
     const data = self.nodes.items(.data)[node];
     const main_token = self.nodes.items(.main_token)[node];
@@ -165,7 +165,7 @@ pub fn functionProtoOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index
     return result;
 }
 
-pub fn functionProtoMulti(self: Ast, node: Node.Index) ast.ConstructorDecl {
+pub fn functionProtoMulti(self: Ast, node: Node.Index) ast.FunctionDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .function_proto_multi);
 

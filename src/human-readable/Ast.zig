@@ -112,6 +112,7 @@ pub fn functionProto(self: Ast, node: Node.Index) ast.ConstructorDecl {
             .View => result.view = index,
             .Payable => result.payable = index,
             .External => result.external = index,
+            else => unreachable, // Unexpected token
         }
     }
 
@@ -157,6 +158,7 @@ pub fn functionProtoOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index
             .View => result.view = index,
             .Payable => result.payable = index,
             .External => result.external = index,
+            else => unreachable, // Unexpected token
         }
     }
 
@@ -199,6 +201,7 @@ pub fn functionProtoMulti(self: Ast, node: Node.Index) ast.ConstructorDecl {
             .View => result.view = index,
             .Payable => result.payable = index,
             .External => result.external = index,
+            else => unreachable, // Unexpected token
         }
     }
 
@@ -242,6 +245,126 @@ pub fn functionProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.In
             .View => result.view = index,
             .Payable => result.payable = index,
             .External => result.external = index,
+            else => unreachable, // Unexpected token
+        }
+    }
+
+    return result;
+}
+
+pub fn receiveProto(self: Ast, node: Node.Index) ast.ReceiveDecl {
+    const nodes = self.nodes.items(.tag);
+    std.debug.assert(nodes[node] == .receive_proto);
+
+    const data = self.nodes.items(.data)[node];
+    const main_token = self.nodes.items(.main_token)[node];
+
+    var result: ast.ReceiveDecl = .{
+        .main_token = main_token,
+        .payable = null,
+        .pure = null,
+        .view = null,
+        .external = null,
+        .public = null,
+        .override = null,
+        .virtual = null,
+    };
+
+    const node_specifier = self.nodes.items(.main_token)[data.rhs];
+    const specifiers = self.extraData(Node.Range, node_specifier);
+
+    for (self.extra_data[specifiers.start..specifiers.end]) |index| {
+        switch (self.tokens.items(.tag)[index]) {
+            .Virtual => result.virtual = index,
+            .Override => result.override = index,
+            .Pure => result.pure = index,
+            .Public => result.public = index,
+            .View => result.view = index,
+            .Payable => result.payable = index,
+            .External => result.external = index,
+            else => unreachable, // Unexpected token
+        }
+    }
+
+    return result;
+}
+
+pub fn fallbackProtoMulti(self: Ast, node: Node.Index) ast.FallbackDecl {
+    const nodes = self.nodes.items(.tag);
+    std.debug.assert(nodes[node] == .fallback_proto_multi);
+
+    const data = self.nodes.items(.data)[node];
+    const main_token = self.nodes.items(.main_token)[node];
+    const params = self.extraData(Node.Range, data.lhs);
+
+    var result: ast.FallbackDecl = .{
+        .ast = .{
+            .params = self.extra_data[params.start..params.end],
+        },
+        .main_token = main_token,
+        .payable = null,
+        .pure = null,
+        .view = null,
+        .external = null,
+        .public = null,
+        .override = null,
+        .virtual = null,
+    };
+
+    const node_specifier = self.nodes.items(.main_token)[data.rhs];
+    const specifiers = self.extraData(Node.Range, node_specifier);
+
+    for (self.extra_data[specifiers.start..specifiers.end]) |index| {
+        switch (self.tokens.items(.tag)[index]) {
+            .Virtual => result.virtual = index,
+            .Override => result.override = index,
+            .Pure => result.pure = index,
+            .Public => result.public = index,
+            .View => result.view = index,
+            .Payable => result.payable = index,
+            .External => result.external = index,
+            else => unreachable, // Unexpected token
+        }
+    }
+
+    return result;
+}
+
+pub fn fallbackProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.FallbackDecl {
+    const nodes = self.nodes.items(.tag);
+    std.debug.assert(nodes[node] == .fallback_proto_simple);
+
+    const data = self.nodes.items(.data)[node];
+    const main_token = self.nodes.items(.main_token)[node];
+    node_buffer[0] = data.lhs;
+
+    var result: ast.FallbackDecl = .{
+        .ast = .{
+            .params = if (data.lhs == 0) node_buffer[0..0] else node_buffer[0..1],
+        },
+        .main_token = main_token,
+        .payable = null,
+        .pure = null,
+        .view = null,
+        .external = null,
+        .public = null,
+        .override = null,
+        .virtual = null,
+    };
+
+    const node_specifier = self.nodes.items(.main_token)[data.rhs];
+    const specifiers = self.extraData(Node.Range, node_specifier);
+
+    for (self.extra_data[specifiers.start..specifiers.end]) |index| {
+        switch (self.tokens.items(.tag)[index]) {
+            .Virtual => result.virtual = index,
+            .Override => result.override = index,
+            .Pure => result.pure = index,
+            .Public => result.public = index,
+            .View => result.view = index,
+            .Payable => result.payable = index,
+            .External => result.external = index,
+            else => unreachable, // Unexpected token
         }
     }
 
@@ -282,6 +405,7 @@ pub fn constructorProtoMulti(self: Ast, node: Node.Index) ast.ConstructorDecl {
             .View => result.view = index,
             .Payable => result.payable = index,
             .External => result.external = index,
+            else => unreachable, // Unexpected token
         }
     }
 
@@ -322,6 +446,7 @@ pub fn constructorProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node
             .View => result.view = index,
             .Payable => result.payable = index,
             .External => result.external = index,
+            else => unreachable, // Unexpected token
         }
     }
 
@@ -346,7 +471,7 @@ pub fn eventProtoMulti(self: Ast, node: Node.Index) ast.EventDecl {
     };
 }
 
-pub fn eventProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.ErrorDecl {
+pub fn eventProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.EventDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .event_proto_simple);
 
@@ -473,6 +598,9 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
             .struct_decl,
             .struct_decl_one,
             .unreachable_node,
+            .fallback_proto_simple,
+            .fallback_proto_multi,
+            .receive_proto,
             => return main[current_node],
 
             .array_type,
@@ -523,7 +651,11 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 current_node = data[current_node].lhs;
             },
 
+            .receive_proto,
+            => current_node = data[current_node].rhs,
+
             .constructor_proto_simple,
+            .fallback_proto_simple,
             => {
                 end_offset += 1;
                 const specifiers_node = main[data[current_node].rhs];
@@ -535,6 +667,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 } else current_node = data[current_node].rhs;
             },
             .constructor_proto_multi,
+            .fallback_proto_multi,
             => {
                 end_offset += 1;
                 const specifiers_node = main[data[current_node].rhs];
@@ -651,6 +784,33 @@ pub fn getNodeSource(self: Ast, node: Node.Index) []const u8 {
 }
 
 pub const ast = struct {
+    pub const ReceiveDecl = struct {
+        main_token: TokenIndex,
+        view: ?TokenIndex,
+        pure: ?TokenIndex,
+        payable: ?TokenIndex,
+        public: ?TokenIndex,
+        external: ?TokenIndex,
+        virtual: ?TokenIndex,
+        override: ?TokenIndex,
+    };
+
+    pub const FallbackDecl = struct {
+        ast: ComponentDecl,
+        main_token: TokenIndex,
+        view: ?TokenIndex,
+        pure: ?TokenIndex,
+        payable: ?TokenIndex,
+        public: ?TokenIndex,
+        external: ?TokenIndex,
+        virtual: ?TokenIndex,
+        override: ?TokenIndex,
+
+        const ComponentDecl = struct {
+            params: []const Node.Index,
+        };
+    };
+
     pub const ConstructorDecl = struct {
         ast: ComponentDecl,
         main_token: TokenIndex,
@@ -736,6 +896,11 @@ pub const Node = struct {
 
         constructor_proto_simple,
         constructor_proto_multi,
+
+        fallback_proto_simple,
+        fallback_proto_multi,
+
+        receive_proto,
 
         event_proto_simple,
         event_proto_multi,

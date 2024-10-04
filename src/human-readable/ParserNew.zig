@@ -18,20 +18,29 @@ const Span = union(enum) {
     multi: Node.Range,
 };
 
+/// Allocator used by the parser.
 allocator: Allocator,
+/// Source to parse.
 source: [:0]const u8,
+/// Current parser index
 token_index: TokenIndex,
+/// Slices of all tokenized token tags.
 token_tags: []const TokenTag,
+/// Struct of arrays for the node.
 nodes: Ast.NodeList,
+/// Array list that contains extra data.
 extra: std.ArrayListUnmanaged(Node.Index),
+/// Temporary space used in parsing.
 scratch: std.ArrayListUnmanaged(Node.Index),
 
+/// Clears any allocated memory.
 pub fn deinit(self: *Parser) void {
     self.nodes.deinit(self.allocator);
     self.extra.deinit(self.allocator);
     self.scratch.deinit(self.allocator);
 }
 
+/// Parses all of the source and build the `Ast`.
 pub fn parseSource(self: *Parser) ParserErrors!void {
     try self.nodes.append(self.allocator, .{
         .tag = .root,
@@ -79,10 +88,9 @@ pub fn expectUnit(self: *Parser) ParserErrors!Node.Index {
 
 pub fn parseUnit(self: *Parser) ParserErrors!Node.Index {
     return switch (self.token_tags[self.token_index]) {
-        .Function,
-        .Fallback,
-        .Receive,
-        => self.parseFunctionProto(),
+        .Function => self.parseFunctionProto(),
+        .Fallback => self.parseFallbackProto(),
+        .Receive => self.parseReceiveProto(),
         .Constructor => self.parseConstructorProto(),
         .Event => self.parseEventProto(),
         .Error => self.parseErrorProto(),
@@ -170,6 +178,56 @@ pub fn parseFunctionProto(self: *Parser) ParserErrors!Node.Index {
     };
 }
 
+pub fn parseReceiveProto(self: *Parser) ParserErrors!Node.Index {
+    const receive_keyword = self.consumeToken(.Receive) orelse return null_node;
+
+    _ = try self.expectToken(.OpenParen);
+    _ = try self.expectToken(.ClosingParen);
+
+    const specifiers = try self.parseSpecifiers();
+
+    return self.addNode(.{
+        .tag = .receive_proto,
+        .main_token = receive_keyword,
+        .data = .{
+            .lhs = undefined,
+            .rhs = specifiers,
+        },
+    });
+}
+
+pub fn parseFallbackProto(self: *Parser) ParserErrors!Node.Index {
+    const fallback_keyword = self.consumeToken(.Fallback) orelse return null_node;
+
+    const reserve = try self.reserveNode(.fallback_proto_multi);
+    errdefer self.unreserveNode(reserve);
+
+    _ = try self.expectToken(.OpenParen);
+
+    const params = try self.parseVariableDecls();
+
+    const specifiers = try self.parseSpecifiers();
+
+    return switch (params) {
+        .zero_one => |elem| self.setNode(reserve, .{
+            .tag = .fallback_proto_simple,
+            .main_token = fallback_keyword,
+            .data = .{
+                .lhs = elem,
+                .rhs = specifiers,
+            },
+        }),
+        .multi => |elems| self.setNode(reserve, .{
+            .tag = .fallback_proto_multi,
+            .main_token = fallback_keyword,
+            .data = .{
+                .lhs = try self.addExtraData(elems),
+                .rhs = specifiers,
+            },
+        }),
+    };
+}
+
 pub fn parseConstructorProto(self: *Parser) ParserErrors!Node.Index {
     const constructor_keyword = self.consumeToken(.Constructor) orelse return null_node;
 
@@ -202,21 +260,50 @@ pub fn parseConstructorProto(self: *Parser) ParserErrors!Node.Index {
     };
 }
 
-pub fn parseSpecifiers(self: *Parser) Allocator.Error!Node.Index {
+pub fn parseSpecifiers(self: *Parser) ParserErrors!Node.Index {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
+
+    var specifier: enum {
+        seen_visibility,
+        seen_mutability,
+        seen_both,
+        none,
+    } = .none;
 
     while (true) {
         switch (self.token_tags[self.token_index]) {
             .Public,
+            .External,
+            .Internal,
+            .Private,
+            => {
+                switch (specifier) {
+                    .seen_visibility,
+                    .seen_both,
+                    => return error.ParsingError,
+                    .seen_mutability => specifier = .seen_both,
+                    .none => specifier = .seen_visibility,
+                }
+
+                try self.scratch.append(self.allocator, self.nextToken());
+            },
             .Pure,
             .Payable,
             .View,
+            => {
+                switch (specifier) {
+                    .seen_mutability,
+                    .seen_both,
+                    => return error.ParsingError,
+                    .seen_visibility => specifier = .seen_both,
+                    .none => specifier = .seen_mutability,
+                }
+
+                try self.scratch.append(self.allocator, self.nextToken());
+            },
             .Virtual,
             .Override,
-            .Internal,
-            .Private,
-            .External,
             => try self.scratch.append(self.allocator, self.nextToken()),
             else => break,
         }

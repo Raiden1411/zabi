@@ -52,32 +52,32 @@ pub fn main() !void {
     defer client.deinit();
 
     try printer.writer().print("{s}Benchmark running in {s} mode\n", .{ " " ** 20, @tagName(@import("builtin").mode) });
-    try printer.writeBoarder(.HumanReadableAbi);
-
-    {
-        const opts = .{ .warmup_runs = 5, .runs = 100 };
-
-        var count: usize = 0;
-        while (count < opts.warmup_runs) : (count += 1) {
-            const abi = try zabi_root.human_readable.parsing.parseHumanReadable(zabi_root.abi.abitypes.Abi, allocator, constants.slice);
-            defer abi.deinit();
-        }
-
-        var timer = try std.time.Timer.start();
-        while (count < opts.runs) : (count += 1) {
-            const abi = try zabi_root.human_readable.parsing.parseHumanReadable(zabi_root.abi.abitypes.Abi, allocator, constants.slice);
-            defer abi.deinit();
-        }
-
-        const mean = @divFloor(timer.lap(), opts.runs);
-
-        const result: benchmark.BenchmarkResult = .{
-            .allocator = allocator,
-            .opts = opts,
-            .mean = mean,
-        };
-        result.printSummary();
-    }
+    // try printer.writeBoarder(.HumanReadableAbi);
+    //
+    // {
+    //     const opts = .{ .warmup_runs = 5, .runs = 100 };
+    //
+    //     var count: usize = 0;
+    //     while (count < opts.warmup_runs) : (count += 1) {
+    //         const abi = try zabi_root.human_readable.parsing.parseHumanReadable(zabi_root.abi.abitypes.Abi, allocator, constants.slice);
+    //         defer abi.deinit();
+    //     }
+    //
+    //     var timer = try std.time.Timer.start();
+    //     while (count < opts.runs) : (count += 1) {
+    //         const abi = try zabi_root.human_readable.parsing.parseHumanReadable(zabi_root.abi.abitypes.Abi, allocator, constants.slice);
+    //         defer abi.deinit();
+    //     }
+    //
+    //     const mean = @divFloor(timer.lap(), opts.runs);
+    //
+    //     const result: benchmark.BenchmarkResult = .{
+    //         .allocator = allocator,
+    //         .opts = opts,
+    //         .mean = mean,
+    //     };
+    //     result.printSummary();
+    // }
 
     try printer.writeBoarder(.HttpClient);
     {

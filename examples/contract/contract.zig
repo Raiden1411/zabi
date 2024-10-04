@@ -30,7 +30,7 @@ pub fn main() !void {
         \\  function approve(address operator, uint256 size) external returns (bool)
         \\  function balanceOf(address owner) public view returns (uint256)
     ;
-    var abi_parsed = try human.parseHumanReadable(Abi, gpa.allocator(), slice);
+    var abi_parsed = try human.parseHumanReadable(gpa.allocator(), slice);
     defer abi_parsed.deinit();
 
     var contract = try Contract.init(.{

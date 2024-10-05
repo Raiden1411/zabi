@@ -533,7 +533,7 @@ pub fn parseErrorVarDecl(self: *Parser) ParserErrors!Node.Index {
     if (sol_type == 0)
         return null_node;
 
-    const identifier = try self.expectToken(.Identifier);
+    const identifier = self.consumeToken(.Identifier) orelse null_node;
 
     return self.addNode(.{
         .tag = .error_var_decl,
@@ -698,20 +698,75 @@ pub fn expectType(self: *Parser) ParserErrors!Node.Index {
     return index;
 }
 
-pub fn parseType(self: *Parser) Allocator.Error!Node.Index {
+pub fn parseType(self: *Parser) ParserErrors!Node.Index {
     const sol_type = switch (self.token_tags[self.token_index]) {
         .Identifier => try self.addNode(.{
-            .tag = .identifier,
+            .tag = .struct_type,
             .main_token = self.nextToken(),
             .data = .{
                 .lhs = undefined,
                 .rhs = undefined,
             },
         }),
-        else => self.consumeElementaryType(),
+        .OpenParen => try self.parseTupleType(),
+        else => try self.consumeElementaryType(),
     };
 
-    return sol_type;
+    if (self.token_tags[self.token_index] != .OpenBracket)
+        return sol_type;
+
+    const l_bracket = self.token_index;
+
+    const r_bracket = while (true) {
+        switch (self.token_tags[self.token_index]) {
+            .OpenBracket,
+            .Number,
+            => self.token_index += 1,
+            .ClosingBracket => {
+                if (self.token_tags[self.token_index + 1] == .OpenBracket) {
+                    self.token_index += 1;
+                    continue;
+                }
+
+                break self.nextToken();
+            },
+            else => return error.ParsingError,
+        }
+    };
+
+    return self.addNode(.{
+        .tag = .array_type,
+        .main_token = l_bracket,
+        .data = .{
+            .lhs = sol_type,
+            .rhs = r_bracket,
+        },
+    });
+}
+
+pub fn parseTupleType(self: *Parser) ParserErrors!Node.Index {
+    const l_paren = self.consumeToken(.OpenParen) orelse return null_node;
+
+    const values = try self.parseErrorVarDecls();
+
+    return switch (values) {
+        .zero_one => |elem| self.addNode(.{
+            .tag = .tuple_type_one,
+            .main_token = l_paren,
+            .data = .{
+                .lhs = elem,
+                .rhs = self.token_index - 1,
+            },
+        }),
+        .multi => |elems| self.addNode(.{
+            .tag = .tuple_type,
+            .main_token = l_paren,
+            .data = .{
+                .lhs = try self.addExtraData(elems),
+                .rhs = self.token_index - 1,
+            },
+        }),
+    };
 }
 
 pub fn consumeElementaryType(self: *Parser) Allocator.Error!Node.Index {

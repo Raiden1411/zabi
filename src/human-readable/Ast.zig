@@ -582,7 +582,7 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
             .root => return 0,
 
             .elementary_type,
-            .identifier,
+            .struct_type,
             .function_proto_simple,
             .function_proto_multi,
             .function_proto_one,
@@ -633,13 +633,13 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
         switch (nodes[current_node]) {
             .root => return @as(TokenIndex, @intCast(self.tokens.len - 1)),
 
-            .array_type,
             .tuple_type,
             .tuple_type_one,
-            => return 0 + end_offset,
+            .array_type,
+            => return data[current_node].rhs + end_offset,
 
             .elementary_type,
-            .identifier,
+            .struct_type,
             .unreachable_node,
             => return main[current_node] + end_offset,
 
@@ -891,7 +891,7 @@ pub const Node = struct {
 
     pub const Tag = enum {
         root,
-        identifier,
+        struct_type,
         unreachable_node,
 
         constructor_proto_simple,

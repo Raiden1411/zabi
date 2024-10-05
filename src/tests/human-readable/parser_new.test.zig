@@ -10,7 +10,7 @@ test "Human readable" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
 
-    const abi = try HumanAbi.parse(arena.allocator(), "function foo(uint bar) payable returns(string bar)");
+    const abi = try HumanAbi.parse(arena.allocator(), "struct Bar{uint bazz;}\nstruct Foo{uint baz; Bar jazz;}\nfunction foo(Foo[69][] bar)");
     // defer ast.deinit(testing.allocator);
 
     // const abi_gen: HumanAbi = .{

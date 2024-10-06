@@ -50,7 +50,7 @@ pub fn parse(arena: Allocator, source: [:0]const u8) Errors!Abi {
         .ast = &ast,
         .struct_params = .empty,
     };
-    errdefer abi_gen.struct_params.deinit(arena);
+    defer abi_gen.struct_params.deinit(arena);
 
     return abi_gen.toAbi();
 }
@@ -59,7 +59,7 @@ pub fn toAbi(self: *HumanAbi) (HumanAbiErrors || error{ UnexpectedNode, Unexpect
     const nodes = self.ast.nodes.items(.tag);
     const data = self.ast.nodes.items(.data);
 
-    var list = std.ArrayList(AbiItem).init(self.allocator);
+    var list = try std.ArrayList(AbiItem).initCapacity(self.allocator, self.ast.nodes.len);
     errdefer list.deinit();
 
     for (nodes, 0..) |node, index| {
@@ -77,7 +77,7 @@ pub fn toAbi(self: *HumanAbi) (HumanAbiErrors || error{ UnexpectedNode, Unexpect
             .fallback_proto_multi,
             .fallback_proto_simple,
             .receive_proto,
-            => try list.append(try self.toAbiItem(@intCast(index))),
+            => list.appendAssumeCapacity(try self.toAbiItem(@intCast(index))),
             .struct_decl_one,
             => {
                 const struct_param = try self.toStructComponentsOne(@intCast(index));
@@ -95,6 +95,8 @@ pub fn toAbi(self: *HumanAbi) (HumanAbiErrors || error{ UnexpectedNode, Unexpect
             else => continue,
         }
     }
+
+    list.shrinkAndFree(list.items.len);
 
     return list.toOwnedSlice();
 }

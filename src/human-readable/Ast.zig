@@ -37,14 +37,20 @@ pub fn parse(allocator: Allocator, source: [:0]const u8) Parser.ParserErrors!Ast
     var tokens: TokenList = .{};
     var lexer = tokenizer.Lexer.init(source);
 
-    while (true) {
-        const tok = lexer.scan();
-        try tokens.append(allocator, .{
-            .tag = tok.syntax,
-            .start = @intCast(tok.location.start),
-        });
+    outer: while (true) {
+        const bytes_left = lexer.currentText.len - lexer.position;
+        const estimated = @max(64, bytes_left / 8);
+        try tokens.ensureUnusedCapacity(allocator, estimated);
 
-        if (tok.syntax == .EndOfFileToken) break;
+        for (0..estimated) |_| {
+            const scan = lexer.scan();
+            tokens.appendAssumeCapacity(.{
+                .tag = scan.syntax,
+                .start = @intCast(scan.location.start),
+            });
+
+            if (scan.syntax == .EndOfFileToken) break :outer;
+        }
     }
 
     var parser: Parser = .{
@@ -58,7 +64,12 @@ pub fn parse(allocator: Allocator, source: [:0]const u8) Parser.ParserErrors!Ast
     };
     defer parser.deinit();
 
+    try parser.nodes.ensureTotalCapacity(allocator, tokens.len + 1);
+
     try parser.parseSource();
+
+    parser.nodes.shrinkAndFree(allocator, parser.nodes.len);
+    parser.extra.shrinkAndFree(allocator, parser.extra.items.len);
 
     return .{
         .source = source,

@@ -402,6 +402,8 @@ pub fn toAbiParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiParame
     const data = self.ast.nodes.items(.data);
     const main = self.ast.nodes.items(.main_token);
     const starts = self.ast.tokens.items(.start);
+    const token_tags = self.ast.tokens.items(.tag);
+
     std.debug.assert(nodes[node] == .var_decl);
 
     switch (nodes[data[node].lhs]) {
@@ -418,7 +420,7 @@ pub fn toAbiParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiParame
                     var buffer: [256]u8 = undefined;
                     const slice = try std.fmt.bufPrint(&buffer, "tuple{s}", .{self.ast.source[open_bracket..closing_bracket]});
 
-                    const param_type = try ParamType.typeToUnion(slice, self.allocator);
+                    const param_type = try ParamType.typeToUnionWithTag(self.allocator, slice, .Tuple);
                     const components = try self.toAbiComponents(data[array_type].lhs);
 
                     return .{
@@ -434,7 +436,7 @@ pub fn toAbiParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiParame
                     var buffer: [256]u8 = undefined;
                     const slice = try std.fmt.bufPrint(&buffer, "tuple{s}", .{self.ast.source[open_bracket..closing_bracket]});
 
-                    const param_type = try ParamType.typeToUnion(slice, self.allocator);
+                    const param_type = try ParamType.typeToUnionWithTag(self.allocator, slice, .Tuple);
                     const components = self.struct_params.get(self.ast.tokenSlice(main[data[array_type].lhs])) orelse return error.MissingTypeDeclaration;
 
                     return .{
@@ -445,7 +447,7 @@ pub fn toAbiParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiParame
                 },
                 else => {
                     const type_slice = self.ast.getNodeSource(data[node].lhs);
-                    const param_type = try ParamType.typeToUnion(type_slice, self.allocator);
+                    const param_type = try ParamType.typeToUnionWithTag(self.allocator, type_slice, token_tags[main[data[array_type].lhs]]);
 
                     return .{
                         .type = param_type,
@@ -466,8 +468,7 @@ pub fn toAbiParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiParame
             };
         },
         .elementary_type => {
-            const type_slice = self.ast.tokenSlice(main[data[node].lhs]);
-            const param_type = try ParamType.typeToUnion(type_slice, self.allocator);
+            const param_type = ParamType.fromHumanReadableTokenTag(token_tags[main[data[node].lhs]]).?;
 
             return .{
                 .type = param_type,
@@ -512,6 +513,7 @@ pub fn toAbiEventParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiE
     const data = self.ast.nodes.items(.data);
     const main = self.ast.nodes.items(.main_token);
     const starts = self.ast.tokens.items(.start);
+    const token_tags = self.ast.tokens.items(.tag);
 
     std.debug.assert(nodes[node] == .event_var_decl);
 
@@ -529,7 +531,7 @@ pub fn toAbiEventParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiE
                     var buffer: [256]u8 = undefined;
                     const slice = try std.fmt.bufPrint(&buffer, "tuple{s}", .{self.ast.source[open_bracket..closing_bracket]});
 
-                    const param_type = try ParamType.typeToUnion(slice, self.allocator);
+                    const param_type = try ParamType.typeToUnionWithTag(self.allocator, slice, .Tuple);
                     const components = try self.toAbiComponents(data[array_type].lhs);
 
                     return .{
@@ -546,7 +548,7 @@ pub fn toAbiEventParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiE
                     var buffer: [256]u8 = undefined;
                     const slice = try std.fmt.bufPrint(&buffer, "tuple{s}", .{self.ast.source[open_bracket..closing_bracket]});
 
-                    const param_type = try ParamType.typeToUnion(slice, self.allocator);
+                    const param_type = try ParamType.typeToUnionWithTag(self.allocator, slice, .Tuple);
                     const components = self.struct_params.get(self.ast.tokenSlice(main[data[array_type].lhs])) orelse return error.MissingTypeDeclaration;
 
                     return .{
@@ -558,7 +560,7 @@ pub fn toAbiEventParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiE
                 },
                 else => {
                     const type_slice = self.ast.getNodeSource(data[node].lhs);
-                    const param_type = try ParamType.typeToUnion(type_slice, self.allocator);
+                    const param_type = try ParamType.typeToUnionWithTag(self.allocator, type_slice, token_tags[main[data[array_type].lhs]]);
 
                     return .{
                         .type = param_type,
@@ -581,8 +583,7 @@ pub fn toAbiEventParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiE
             };
         },
         .elementary_type => {
-            const type_slice = self.ast.tokenSlice(main[data[node].lhs]);
-            const param_type = try ParamType.typeToUnion(type_slice, self.allocator);
+            const param_type = ParamType.fromHumanReadableTokenTag(token_tags[main[data[node].lhs]]).?;
 
             return .{
                 .type = param_type,
@@ -609,6 +610,7 @@ pub fn toAbiParameterFromDecl(self: HumanAbi, node: Node.Index) HumanAbiErrors!A
     const data = self.ast.nodes.items(.data);
     const main = self.ast.nodes.items(.main_token);
     const starts = self.ast.tokens.items(.start);
+    const token_tags = self.ast.tokens.items(.tag);
 
     std.debug.assert(nodes[node] == .error_var_decl or nodes[node] == .struct_field);
 
@@ -626,7 +628,7 @@ pub fn toAbiParameterFromDecl(self: HumanAbi, node: Node.Index) HumanAbiErrors!A
                     var buffer: [256]u8 = undefined;
                     const slice = try std.fmt.bufPrint(&buffer, "tuple{s}", .{self.ast.source[open_bracket..closing_bracket]});
 
-                    const param_type = try ParamType.typeToUnion(slice, self.allocator);
+                    const param_type = try ParamType.typeToUnionWithTag(self.allocator, slice, .Tuple);
                     const components = try self.toAbiComponents(data[array_type].lhs);
 
                     return .{
@@ -642,7 +644,7 @@ pub fn toAbiParameterFromDecl(self: HumanAbi, node: Node.Index) HumanAbiErrors!A
                     var buffer: [256]u8 = undefined;
                     const slice = try std.fmt.bufPrint(&buffer, "tuple{s}", .{self.ast.source[open_bracket..closing_bracket]});
 
-                    const param_type = try ParamType.typeToUnion(slice, self.allocator);
+                    const param_type = try ParamType.typeToUnionWithTag(self.allocator, slice, .Tuple);
                     const components = self.struct_params.get(self.ast.tokenSlice(main[data[array_type].lhs])) orelse return error.MissingTypeDeclaration;
 
                     return .{
@@ -653,7 +655,7 @@ pub fn toAbiParameterFromDecl(self: HumanAbi, node: Node.Index) HumanAbiErrors!A
                 },
                 else => {
                     const type_slice = self.ast.getNodeSource(data[node].lhs);
-                    const param_type = try ParamType.typeToUnion(type_slice, self.allocator);
+                    const param_type = try ParamType.typeToUnionWithTag(self.allocator, type_slice, token_tags[main[data[array_type].lhs]]);
 
                     return .{
                         .type = param_type,
@@ -674,8 +676,7 @@ pub fn toAbiParameterFromDecl(self: HumanAbi, node: Node.Index) HumanAbiErrors!A
             };
         },
         .elementary_type => {
-            const type_slice = self.ast.tokenSlice(main[data[node].lhs]);
-            const param_type = try ParamType.typeToUnion(type_slice, self.allocator);
+            const param_type = ParamType.fromHumanReadableTokenTag(token_tags[main[data[node].lhs]]).?;
 
             return .{
                 .type = param_type,

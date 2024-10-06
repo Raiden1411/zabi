@@ -50,8 +50,10 @@ pub fn parseSource(self: *Parser) ParserErrors!void {
 
     const members = try self.parseUnits();
 
-    if (self.token_tags[self.token_index] != .EndOfFileToken)
+    if (self.token_tags[self.token_index] != .EndOfFileToken) {
+        @branchHint(.cold);
         return error.ParsingError;
+    }
 
     self.nodes.items(.data)[0] = .{
         .lhs = members.start,
@@ -80,8 +82,10 @@ pub fn parseUnits(self: *Parser) ParserErrors!Node.Range {
 pub fn expectUnit(self: *Parser) ParserErrors!Node.Index {
     const unit = try self.parseUnit();
 
-    if (unit == 0)
+    if (unit == 0) {
+        @branchHint(.cold);
         return error.ParsingError;
+    }
 
     return unit;
 }
@@ -281,7 +285,10 @@ pub fn parseSpecifiers(self: *Parser) ParserErrors!Node.Index {
                 switch (specifier) {
                     .seen_visibility,
                     .seen_both,
-                    => return error.ParsingError,
+                    => {
+                        @branchHint(.cold);
+                        return error.ParsingError;
+                    },
                     .seen_mutability => specifier = .seen_both,
                     .none => specifier = .seen_visibility,
                 }
@@ -295,7 +302,10 @@ pub fn parseSpecifiers(self: *Parser) ParserErrors!Node.Index {
                 switch (specifier) {
                     .seen_mutability,
                     .seen_both,
-                    => return error.ParsingError,
+                    => {
+                        @branchHint(.cold);
+                        return error.ParsingError;
+                    },
                     .seen_visibility => specifier = .seen_both,
                     .none => specifier = .seen_mutability,
                 }
@@ -407,7 +417,10 @@ pub fn parseEventVarDecls(self: *Parser) ParserErrors!Span {
                 self.token_index += 1;
                 break;
             },
-            else => return error.ParsingError,
+            else => {
+                @branchHint(.cold);
+                return error.ParsingError;
+            },
         }
     }
 
@@ -440,7 +453,10 @@ pub fn parseErrorVarDecls(self: *Parser) ParserErrors!Span {
                 self.token_index += 1;
                 break;
             },
-            else => return error.ParsingError,
+            else => {
+                @branchHint(.cold);
+                return error.ParsingError;
+            },
         }
     }
 
@@ -479,8 +495,10 @@ pub fn parseReturnParams(self: *Parser) ParserErrors!Node.Range {
 
     const slice = self.scratch.items[scratch..];
 
-    if (slice.len == 0)
+    if (slice.len == 0) {
+        @branchHint(.cold);
         return error.ParsingError;
+    }
 
     return self.listToSpan(slice);
 }
@@ -505,7 +523,10 @@ pub fn parseVariableDecls(self: *Parser) ParserErrors!Span {
                 self.token_index += 1;
                 break;
             },
-            else => return error.ParsingError,
+            else => {
+                @branchHint(.cold);
+                return error.ParsingError;
+            },
         }
     }
 
@@ -521,8 +542,10 @@ pub fn parseVariableDecls(self: *Parser) ParserErrors!Span {
 pub fn expectErrorVarDecl(self: *Parser) ParserErrors!Node.Index {
     const index = try self.parseErrorVarDecl();
 
-    if (index == 0)
+    if (index == 0) {
+        @branchHint(.cold);
         return error.ParsingError;
+    }
 
     return index;
 }
@@ -548,8 +571,10 @@ pub fn parseErrorVarDecl(self: *Parser) ParserErrors!Node.Index {
 pub fn expectEventVarDecl(self: *Parser) ParserErrors!Node.Index {
     const index = try self.parseEventVarDecl();
 
-    if (index == 0)
+    if (index == 0) {
+        @branchHint(.cold);
         return error.ParsingError;
+    }
 
     return index;
 }
@@ -581,8 +606,10 @@ pub fn parseEventVarDecl(self: *Parser) ParserErrors!Node.Index {
 pub fn expectVarDecl(self: *Parser) ParserErrors!Node.Index {
     const index = try self.parseVariableDecl();
 
-    if (index == 0)
+    if (index == 0) {
+        @branchHint(.cold);
         return error.ParsingError;
+    }
 
     return index;
 }
@@ -692,8 +719,10 @@ pub fn expectStructField(self: *Parser) ParserErrors!Node.Index {
 pub fn expectType(self: *Parser) ParserErrors!Node.Index {
     const index = try self.parseType();
 
-    if (index == 0)
+    if (index == 0) {
+        @branchHint(.cold);
         return error.ParsingError;
+    }
 
     return index;
 }
@@ -892,7 +921,10 @@ fn consumeToken(self: *Parser, expected: TokenTag) ?TokenIndex {
 }
 
 fn expectToken(self: *Parser, expected: TokenTag) error{ParsingError}!TokenIndex {
-    return if (self.token_tags[self.token_index] == expected) self.nextToken() else return error.ParsingError;
+    return if (self.token_tags[self.token_index] == expected) self.nextToken() else {
+        @branchHint(.cold);
+        return error.ParsingError;
+    };
 }
 
 fn nextToken(self: *Parser) TokenIndex {

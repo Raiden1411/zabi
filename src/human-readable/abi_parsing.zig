@@ -51,19 +51,3 @@ pub fn parseHumanReadable(alloc: Allocator, source: [:0]const u8) HumanAbi.Error
 
     return abi_parsed;
 }
-
-// fn innerParse(comptime T: type, parser: *Parser) Parser.ParseErrors!T {
-//     return switch (T) {
-//         abi.Abi => parser.parseAbiProto(),
-//         abi.AbiItem => parser.parseAbiItemProto(),
-//         abi.Function => parser.parseFunctionFnProto(),
-//         abi.Event => parser.parseEventFnProto(),
-//         abi.Error => parser.parseErrorFnProto(),
-//         abi.Constructor => parser.parseConstructorFnProto(),
-//         abi.Fallback => parser.parseFallbackFnProto(),
-//         abi.Receive => parser.parseReceiveFnProto(),
-//         []const param.AbiParameter => parser.parseFuncParamsDecl(),
-//         []const param.AbiEventParameter => parser.parseEventParamsDecl(),
-//         inline else => @compileError("Provided type '" ++ @typeName(T) ++ "' is not supported for human readable parsing"),
-//     };
-// }

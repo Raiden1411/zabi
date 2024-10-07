@@ -8,7 +8,6 @@ test {
     _ = @import("encoding/root.zig");
     _ = @import("evm/root.zig");
     _ = @import("human-readable/root.zig");
-    _ = @import("human-readable/parser_new.test.zig");
     _ = @import("meta/root.zig");
     _ = @import("utils/root.zig");
 }

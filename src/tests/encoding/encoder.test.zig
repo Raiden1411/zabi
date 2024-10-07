@@ -146,10 +146,10 @@ test "EncodePacked" {
 }
 
 test "Constructor" {
-    const sig = try human.parseHumanReadable(abi.Constructor, testing.allocator, "constructor(bool foo)");
+    const sig = try human.parseHumanReadable(testing.allocator, "constructor(bool foo)");
     defer sig.deinit();
 
-    const encoded = try sig.value.encode(testing.allocator, .{true});
+    const encoded = try sig.value[0].abiConstructor.encode(testing.allocator, .{true});
     defer encoded.deinit();
 
     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded.data)});
@@ -158,11 +158,11 @@ test "Constructor" {
 }
 
 test "Constructor multi params" {
-    const sig = try human.parseHumanReadable(abi.Constructor, testing.allocator, "constructor(bool foo, string bar)");
+    const sig = try human.parseHumanReadable(testing.allocator, "constructor(bool foo, string bar)");
     defer sig.deinit();
 
     const fizz: []const u8 = "fizzbuzz";
-    const encoded = try sig.value.encode(testing.allocator, .{ true, fizz });
+    const encoded = try sig.value[0].abiConstructor.encode(testing.allocator, .{ true, fizz });
     defer encoded.deinit();
 
     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded.data)});
@@ -172,11 +172,11 @@ test "Constructor multi params" {
 }
 
 test "Error signature" {
-    const sig = try human.parseHumanReadable(abi.Error, testing.allocator, "error Foo(bool foo, string bar)");
+    const sig = try human.parseHumanReadable(testing.allocator, "error Foo(bool foo, string bar)");
     defer sig.deinit();
 
     const fizz: []const u8 = "fizzbuzz";
-    const encoded = try sig.value.encode(testing.allocator, .{ true, fizz });
+    const encoded = try sig.value[0].abiError.encode(testing.allocator, .{ true, fizz });
     defer testing.allocator.free(encoded);
 
     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
@@ -186,10 +186,10 @@ test "Error signature" {
 }
 
 test "Event signature" {
-    const sig = try human.parseHumanReadable(abi.Event, testing.allocator, "event Transfer(address indexed from, address indexed to, uint256 tokenId)");
+    const sig = try human.parseHumanReadable(testing.allocator, "event Transfer(address indexed from, address indexed to, uint256 tokenId)");
     defer sig.deinit();
 
-    const encoded = try sig.value.encode(testing.allocator);
+    const encoded = try sig.value[0].abiEvent.encode(testing.allocator);
 
     const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&encoded)});
     defer testing.allocator.free(hex);
@@ -198,10 +198,10 @@ test "Event signature" {
 }
 
 test "Event signature non indexed" {
-    const sig = try human.parseHumanReadable(abi.Event, testing.allocator, "event Transfer(address from, address to, uint256 tokenId)");
+    const sig = try human.parseHumanReadable(testing.allocator, "event Transfer(address from, address to, uint256 tokenId)");
     defer sig.deinit();
 
-    const encoded = try sig.value.encode(testing.allocator);
+    const encoded = try sig.value[0].abiEvent.encode(testing.allocator);
 
     const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&encoded)});
     defer testing.allocator.free(hex);
@@ -210,11 +210,11 @@ test "Event signature non indexed" {
 }
 
 test "Function" {
-    const sig = try human.parseHumanReadable(abi.Function, testing.allocator, "function Foo(bool foo, string bar)");
+    const sig = try human.parseHumanReadable(testing.allocator, "function Foo(bool foo, string bar)");
     defer sig.deinit();
 
     const fizz: []const u8 = "fizzbuzz";
-    const encoded = try sig.value.encode(testing.allocator, .{ true, fizz });
+    const encoded = try sig.value[0].abiFunction.encode(testing.allocator, .{ true, fizz });
     defer testing.allocator.free(encoded);
 
     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
@@ -224,10 +224,10 @@ test "Function" {
 }
 
 test "Function outputs" {
-    const sig = try human.parseHumanReadable(abi.Function, testing.allocator, "function Foo(bool foo, string bar) public view returns(int120 baz)");
+    const sig = try human.parseHumanReadable(testing.allocator, "function Foo(bool foo, string bar) public view returns(int120 baz)");
     defer sig.deinit();
 
-    const encoded = try sig.value.encodeOutputs(testing.allocator, .{1});
+    const encoded = try sig.value[0].abiFunction.encodeOutputs(testing.allocator, .{1});
     defer testing.allocator.free(encoded);
 
     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
@@ -237,11 +237,11 @@ test "Function outputs" {
 }
 
 test "AbiItem" {
-    const sig = try human.parseHumanReadable(abi.AbiItem, testing.allocator, "function Foo(bool foo, string bar)");
+    const sig = try human.parseHumanReadable(testing.allocator, "function Foo(bool foo, string bar)");
     defer sig.deinit();
 
     const fizz: []const u8 = "fizzbuzz";
-    const encoded = try sig.value.abiFunction.encode(testing.allocator, .{ true, fizz });
+    const encoded = try sig.value[0].abiFunction.encode(testing.allocator, .{ true, fizz });
     defer testing.allocator.free(encoded);
 
     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});

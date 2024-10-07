@@ -21,10 +21,10 @@ test "Decode empty inputs" {
 }
 
 test "Decode empty args" {
-    const event = try human.parseHumanReadable(AbiEvent, testing.allocator, "event Transfer(address indexed from, address indexed to, uint256 tokenId)");
+    const event = try human.parseHumanReadable(testing.allocator, "event Transfer(address indexed from, address indexed to, uint256 tokenId)");
     defer event.deinit();
 
-    const encoded = try encodeLogs(testing.allocator, event.value, .{});
+    const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{});
     defer testing.allocator.free(encoded);
 
     const decoded = try decodeLogs(struct { Hash }, encoded, .{});
@@ -33,10 +33,10 @@ test "Decode empty args" {
 }
 
 test "Decode with args" {
-    const event = try human.parseHumanReadable(AbiEvent, testing.allocator, "event Transfer(address indexed from, address indexed to, uint256 tokenId)");
+    const event = try human.parseHumanReadable(testing.allocator, "event Transfer(address indexed from, address indexed to, uint256 tokenId)");
     defer event.deinit();
 
-    const encoded = try encodeLogs(testing.allocator, event.value, .{ null, try utils.addressToBytes("0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC") });
+    const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{ null, try utils.addressToBytes("0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC") });
     defer testing.allocator.free(encoded);
 
     const decoded = try decodeLogs(struct { Hash, ?Hash, [20]u8 }, encoded, .{});
@@ -46,10 +46,10 @@ test "Decode with args" {
 
 test "Decoded with args string/bytes" {
     {
-        const event = try human.parseHumanReadable(AbiEvent, testing.allocator, "event Foo(string indexed message)");
+        const event = try human.parseHumanReadable(testing.allocator, "event Foo(string indexed message)");
         defer event.deinit();
 
-        const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
+        const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{"hello"});
         defer testing.allocator.free(encoded);
 
         const decoded = try decodeLogs(std.meta.Tuple(&[_]type{ Hash, Hash }), encoded, .{});
@@ -57,10 +57,10 @@ test "Decoded with args string/bytes" {
         try testing.expectEqualDeep(.{ try utils.hashToBytes("0x9f0b7f1630bdb7d474466e2dfef0fb9dff65f7a50eec83935b68f77d0808f08a"), try utils.hashToBytes("0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8") }, decoded);
     }
     {
-        const event = try human.parseHumanReadable(AbiEvent, testing.allocator, "event Foo(string indexed message)");
+        const event = try human.parseHumanReadable(testing.allocator, "event Foo(string indexed message)");
         defer event.deinit();
 
-        const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
+        const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{"hello"});
         defer testing.allocator.free(encoded);
 
         const decoded = try decodeLogs(std.meta.Tuple(&[_]type{ Hash, ?Hash }), encoded, .{});
@@ -68,10 +68,10 @@ test "Decoded with args string/bytes" {
         try testing.expectEqualDeep(.{ try utils.hashToBytes("0x9f0b7f1630bdb7d474466e2dfef0fb9dff65f7a50eec83935b68f77d0808f08a"), try utils.hashToBytes("0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8") }, decoded);
     }
     {
-        const event = try human.parseHumanReadable(AbiEvent, testing.allocator, "event Foo(bytes indexed message)");
+        const event = try human.parseHumanReadable(testing.allocator, "event Foo(bytes indexed message)");
         defer event.deinit();
 
-        const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
+        const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{"hello"});
         defer testing.allocator.free(encoded);
 
         const decoded = try decodeLogs(std.meta.Tuple(&[_]type{ Hash, Hash }), encoded, .{});
@@ -82,10 +82,10 @@ test "Decoded with args string/bytes" {
 
 test "Decode Arrays" {
     {
-        const event = try human.parseHumanReadable(AbiEvent, testing.allocator, "event Foo(address indexed a)");
+        const event = try human.parseHumanReadable(testing.allocator, "event Foo(address indexed a)");
         defer event.deinit();
 
-        const encoded = try encodeLogs(testing.allocator, event.value, .{try utils.addressToBytes("0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97")});
+        const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{try utils.addressToBytes("0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97")});
         defer testing.allocator.free(encoded);
 
         const decoded = try decodeLogs(struct { Hash, [20]u8 }, encoded, .{});
@@ -94,10 +94,10 @@ test "Decode Arrays" {
     }
 
     {
-        const event = try human.parseHumanReadable(AbiEvent, testing.allocator, "event Foo(bytes5 indexed a)");
+        const event = try human.parseHumanReadable(testing.allocator, "event Foo(bytes5 indexed a)");
         defer event.deinit();
 
-        const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
+        const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{"hello"});
         defer testing.allocator.free(encoded);
 
         const decoded = try decodeLogs(struct { Hash, [5]u8 }, encoded, .{ .bytes_endian = .little });
@@ -105,10 +105,10 @@ test "Decode Arrays" {
         try testing.expectEqualDeep(.{ encoded[0], "hello".* }, decoded);
     }
     {
-        const event = try human.parseHumanReadable(AbiEvent, testing.allocator, "event Foo(bytes5 indexed a)");
+        const event = try human.parseHumanReadable(testing.allocator, "event Foo(bytes5 indexed a)");
         defer event.deinit();
 
-        const encoded = try encodeLogs(testing.allocator, event.value, .{"hello"});
+        const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{"hello"});
         defer testing.allocator.free(encoded);
 
         const decoded = try decodeLogs(struct { Hash, *const [5]u8 }, encoded, .{ .allocator = testing.allocator, .bytes_endian = .little });
@@ -119,10 +119,10 @@ test "Decode Arrays" {
 }
 
 test "Decode with remaing types" {
-    const event = try human.parseHumanReadable(AbiEvent, testing.allocator, "event Foo(uint indexed a, int indexed b, bool indexed c)");
+    const event = try human.parseHumanReadable(testing.allocator, "event Foo(uint indexed a, int indexed b, bool indexed c)");
     defer event.deinit();
 
-    const encoded = try encodeLogs(testing.allocator, event.value, .{ 69, -420, true });
+    const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{ 69, -420, true });
     defer testing.allocator.free(encoded);
 
     const decoded = try decodeLogs(std.meta.Tuple(&[_]type{ Hash, u256, i256, bool }), encoded, .{});
@@ -137,19 +137,19 @@ test "Decode with remaing types" {
 
 test "Errors" {
     {
-        const event = try human.parseHumanReadable(AbiEvent, testing.allocator, "event Foo(uint indexed a)");
+        const event = try human.parseHumanReadable(testing.allocator, "event Foo(uint indexed a)");
         defer event.deinit();
 
-        const encoded = try encodeLogs(testing.allocator, event.value, .{69});
+        const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{69});
         defer testing.allocator.free(encoded);
 
         try testing.expectError(error.ExpectedAllocator, decodeLogs(struct { Hash, *const [5]u8 }, encoded, .{ .bytes_endian = .little }));
     }
     {
-        const event = try human.parseHumanReadable(AbiEvent, testing.allocator, "event Foo(uint indexed a)");
+        const event = try human.parseHumanReadable(testing.allocator, "event Foo(uint indexed a)");
         defer event.deinit();
 
-        const encoded = try encodeLogs(testing.allocator, event.value, .{null});
+        const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{null});
         defer testing.allocator.free(encoded);
 
         try testing.expectError(error.UnexpectedTupleFieldType, decodeLogs(struct { Hash, [5]u8 }, encoded, .{ .bytes_endian = .little }));

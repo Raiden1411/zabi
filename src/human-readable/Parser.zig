@@ -60,7 +60,9 @@ pub fn parseSource(self: *Parser) ParserErrors!void {
         .rhs = members.end,
     };
 }
-
+/// Parsers all of the solidity source unit values.
+///
+/// More info can be found [here](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.sourceUnit)
 pub fn parseUnits(self: *Parser) ParserErrors!Node.Range {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
@@ -78,7 +80,7 @@ pub fn parseUnits(self: *Parser) ParserErrors!Node.Range {
 
     return self.listToSpan(slice);
 }
-
+/// Expects to find a source unit otherwise it will fail.
 pub fn expectUnit(self: *Parser) ParserErrors!Node.Index {
     const unit = try self.parseUnit();
 
@@ -89,7 +91,9 @@ pub fn expectUnit(self: *Parser) ParserErrors!Node.Index {
 
     return unit;
 }
-
+/// Parses a single source unit.
+///
+/// More info can be found [here](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.sourceUnit)
 pub fn parseUnit(self: *Parser) ParserErrors!Node.Index {
     return switch (self.token_tags[self.token_index]) {
         .Function => self.parseFunctionProto(),
@@ -102,7 +106,7 @@ pub fn parseUnit(self: *Parser) ParserErrors!Node.Index {
         else => return null_node,
     };
 }
-
+/// Parses a solidity function accordingly to the language grammar.
 pub fn parseFunctionProto(self: *Parser) ParserErrors!Node.Index {
     const keyword = self.consumeToken(.Function) orelse return null_node;
 
@@ -181,7 +185,7 @@ pub fn parseFunctionProto(self: *Parser) ParserErrors!Node.Index {
         }),
     };
 }
-
+/// Parses a solidity receive function accordingly to the language grammar.
 pub fn parseReceiveProto(self: *Parser) ParserErrors!Node.Index {
     const receive_keyword = self.consumeToken(.Receive) orelse return null_node;
 
@@ -199,7 +203,7 @@ pub fn parseReceiveProto(self: *Parser) ParserErrors!Node.Index {
         },
     });
 }
-
+/// Parses a solidity fallback function accordingly to the language grammar.
 pub fn parseFallbackProto(self: *Parser) ParserErrors!Node.Index {
     const fallback_keyword = self.consumeToken(.Fallback) orelse return null_node;
 
@@ -231,7 +235,7 @@ pub fn parseFallbackProto(self: *Parser) ParserErrors!Node.Index {
         }),
     };
 }
-
+/// Parses a solidity constructor declaration accordingly to the language grammar.
 pub fn parseConstructorProto(self: *Parser) ParserErrors!Node.Index {
     const constructor_keyword = self.consumeToken(.Constructor) orelse return null_node;
 
@@ -263,7 +267,7 @@ pub fn parseConstructorProto(self: *Parser) ParserErrors!Node.Index {
         }),
     };
 }
-
+/// Parses all of the solidity mutability or visibility specifiers.
 pub fn parseSpecifiers(self: *Parser) ParserErrors!Node.Index {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
@@ -330,7 +334,7 @@ pub fn parseSpecifiers(self: *Parser) ParserErrors!Node.Index {
         },
     });
 }
-
+/// Parses a solidity error declaration accordingly to the language grammar.
 pub fn parseErrorProto(self: *Parser) ParserErrors!Node.Index {
     const error_keyword = self.consumeToken(.Error) orelse return null_node;
 
@@ -362,7 +366,7 @@ pub fn parseErrorProto(self: *Parser) ParserErrors!Node.Index {
         }),
     };
 }
-
+/// Parses a solidity event declaration accordingly to the language grammar.
 pub fn parseEventProto(self: *Parser) ParserErrors!Node.Index {
     const event_keyword = self.consumeToken(.Event) orelse return null_node;
 
@@ -396,7 +400,7 @@ pub fn parseEventProto(self: *Parser) ParserErrors!Node.Index {
         }),
     };
 }
-
+/// Parses the possible event declaration parameters according to the language grammar.
 pub fn parseEventVarDecls(self: *Parser) ParserErrors!Span {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
@@ -409,8 +413,10 @@ pub fn parseEventVarDecls(self: *Parser) ParserErrors!Span {
 
         switch (self.token_tags[self.token_index]) {
             .Comma => {
-                if (self.token_tags[self.token_index + 1] == .ClosingParen)
+                if (self.token_tags[self.token_index + 1] == .ClosingParen) {
+                    @branchHint(.cold);
                     return error.ParsingError;
+                }
                 self.token_index += 1;
             },
             .ClosingParen => {
@@ -432,7 +438,7 @@ pub fn parseEventVarDecls(self: *Parser) ParserErrors!Span {
         else => Span{ .multi = try self.listToSpan(slice) },
     };
 }
-
+/// Parses the possible error declaration parameters according to the language grammar.
 pub fn parseErrorVarDecls(self: *Parser) ParserErrors!Span {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
@@ -445,8 +451,10 @@ pub fn parseErrorVarDecls(self: *Parser) ParserErrors!Span {
 
         switch (self.token_tags[self.token_index]) {
             .Comma => {
-                if (self.token_tags[self.token_index + 1] == .ClosingParen)
+                if (self.token_tags[self.token_index + 1] == .ClosingParen) {
+                    @branchHint(.cold);
                     return error.ParsingError;
+                }
                 self.token_index += 1;
             },
             .ClosingParen => {
@@ -468,7 +476,7 @@ pub fn parseErrorVarDecls(self: *Parser) ParserErrors!Span {
         else => Span{ .multi = try self.listToSpan(slice) },
     };
 }
-
+/// Parses the possible function declaration parameters according to the language grammar.
 pub fn parseReturnParams(self: *Parser) ParserErrors!Node.Range {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
@@ -481,15 +489,20 @@ pub fn parseReturnParams(self: *Parser) ParserErrors!Node.Range {
 
         switch (self.token_tags[self.token_index]) {
             .Comma => {
-                if (self.token_tags[self.token_index + 1] == .ClosingParen)
+                if (self.token_tags[self.token_index + 1] == .ClosingParen) {
+                    @branchHint(.cold);
                     return error.ParsingError;
+                }
                 self.token_index += 1;
             },
             .ClosingParen => {
                 self.token_index += 1;
                 break;
             },
-            else => return error.ParsingError,
+            else => {
+                @branchHint(.cold);
+                return error.ParsingError;
+            },
         }
     }
 
@@ -502,7 +515,7 @@ pub fn parseReturnParams(self: *Parser) ParserErrors!Node.Range {
 
     return self.listToSpan(slice);
 }
-
+/// Parses the possible function declaration parameters according to the language grammar.
 pub fn parseVariableDecls(self: *Parser) ParserErrors!Span {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
@@ -515,8 +528,10 @@ pub fn parseVariableDecls(self: *Parser) ParserErrors!Span {
 
         switch (self.token_tags[self.token_index]) {
             .Comma => {
-                if (self.token_tags[self.token_index + 1] == .ClosingParen)
+                if (self.token_tags[self.token_index + 1] == .ClosingParen) {
+                    @branchHint(.cold);
                     return error.ParsingError;
+                }
                 self.token_index += 1;
             },
             .ClosingParen => {
@@ -538,7 +553,7 @@ pub fn parseVariableDecls(self: *Parser) ParserErrors!Span {
         else => Span{ .multi = try self.listToSpan(slice) },
     };
 }
-
+/// Expects to find a `error_var_decl`. Otherwise returns an error.
 pub fn expectErrorVarDecl(self: *Parser) ParserErrors!Node.Index {
     const index = try self.parseErrorVarDecl();
 
@@ -549,7 +564,7 @@ pub fn expectErrorVarDecl(self: *Parser) ParserErrors!Node.Index {
 
     return index;
 }
-
+/// Parses the possible error declaration parameter according to the language grammar.
 pub fn parseErrorVarDecl(self: *Parser) ParserErrors!Node.Index {
     const sol_type = try self.parseType();
 
@@ -567,7 +582,7 @@ pub fn parseErrorVarDecl(self: *Parser) ParserErrors!Node.Index {
         },
     });
 }
-
+/// Expects to find a `event_var_decl`. Otherwise returns an error.
 pub fn expectEventVarDecl(self: *Parser) ParserErrors!Node.Index {
     const index = try self.parseEventVarDecl();
 
@@ -578,7 +593,7 @@ pub fn expectEventVarDecl(self: *Parser) ParserErrors!Node.Index {
 
     return index;
 }
-
+/// Parses the possible event declaration parameter according to the language grammar.
 pub fn parseEventVarDecl(self: *Parser) ParserErrors!Node.Index {
     const sol_type = try self.parseType();
 
@@ -602,7 +617,7 @@ pub fn parseEventVarDecl(self: *Parser) ParserErrors!Node.Index {
         },
     });
 }
-
+/// Expects to find a `var_decl`. Otherwise returns an error.
 pub fn expectVarDecl(self: *Parser) ParserErrors!Node.Index {
     const index = try self.parseVariableDecl();
 
@@ -613,7 +628,7 @@ pub fn expectVarDecl(self: *Parser) ParserErrors!Node.Index {
 
     return index;
 }
-
+/// Parses the possible function declaration parameter according to the language grammar.
 pub fn parseVariableDecl(self: *Parser) ParserErrors!Node.Index {
     const sol_type = try self.parseType();
 
@@ -639,7 +654,7 @@ pub fn parseVariableDecl(self: *Parser) ParserErrors!Node.Index {
         },
     });
 }
-
+/// Parses a struct declaration according to the language grammar.
 pub fn parseStructDecl(self: *Parser) ParserErrors!Node.Index {
     const struct_index = self.consumeToken(.Struct) orelse return null_node;
 
@@ -671,7 +686,7 @@ pub fn parseStructDecl(self: *Parser) ParserErrors!Node.Index {
         }),
     };
 }
-
+/// Parses all of the structs fields according to the language grammar.
 pub fn parseStructFields(self: *Parser) ParserErrors!Span {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
@@ -699,7 +714,7 @@ pub fn parseStructFields(self: *Parser) ParserErrors!Span {
         else => Span{ .multi = try self.listToSpan(slice) },
     };
 }
-
+/// Expects to find a struct parameter or fails.
 pub fn expectStructField(self: *Parser) ParserErrors!Node.Index {
     const field_type = try self.expectType();
     const identifier = try self.expectToken(.Identifier);
@@ -715,7 +730,7 @@ pub fn expectStructField(self: *Parser) ParserErrors!Node.Index {
         },
     });
 }
-
+/// Expects to find either a `elementary_type`, `tuple_type`, `tuple_type_one`, `array_type` or `struct_type`
 pub fn expectType(self: *Parser) ParserErrors!Node.Index {
     const index = try self.parseType();
 
@@ -726,7 +741,7 @@ pub fn expectType(self: *Parser) ParserErrors!Node.Index {
 
     return index;
 }
-
+/// Parses the token into either a `elementary_type`, `tuple_type`, `tuple_type_one`, `array_type` or `struct_type`
 pub fn parseType(self: *Parser) ParserErrors!Node.Index {
     const sol_type = switch (self.token_tags[self.token_index]) {
         .Identifier => try self.addNode(.{
@@ -759,7 +774,10 @@ pub fn parseType(self: *Parser) ParserErrors!Node.Index {
 
                 break self.nextToken();
             },
-            else => return error.ParsingError,
+            else => {
+                @branchHint(.cold);
+                return error.ParsingError;
+            },
         }
     };
 
@@ -772,7 +790,7 @@ pub fn parseType(self: *Parser) ParserErrors!Node.Index {
         },
     });
 }
-
+/// Parses the tuple type similarly to `parseErrorVarDecls`.
 pub fn parseTupleType(self: *Parser) ParserErrors!Node.Index {
     const l_paren = self.consumeToken(.OpenParen) orelse return null_node;
 
@@ -797,7 +815,7 @@ pub fn parseTupleType(self: *Parser) ParserErrors!Node.Index {
         }),
     };
 }
-
+/// Creates a `elementary_type` node based on the solidity type keywords.
 pub fn consumeElementaryType(self: *Parser) Allocator.Error!Node.Index {
     return switch (self.token_tags[self.token_index]) {
         .Address,
@@ -916,17 +934,18 @@ pub fn consumeElementaryType(self: *Parser) Allocator.Error!Node.Index {
 }
 // Internal parser actions
 
+/// Consumes a token or returns null.
 fn consumeToken(self: *Parser, expected: TokenTag) ?TokenIndex {
     return if (self.token_tags[self.token_index] == expected) self.nextToken() else null;
 }
-
+/// Expects to find a token or fails.
 fn expectToken(self: *Parser, expected: TokenTag) error{ParsingError}!TokenIndex {
     return if (self.token_tags[self.token_index] == expected) self.nextToken() else {
         @branchHint(.cold);
         return error.ParsingError;
     };
 }
-
+/// Advances the parser index and returns the previous one
 fn nextToken(self: *Parser) TokenIndex {
     const index = self.token_index;
 
@@ -965,7 +984,7 @@ fn unreserveNode(self: *Parser, index: usize) void {
         self.nodes.items(.main_token)[index] = self.token_index;
     }
 }
-
+/// Adds the extra data struct into the allocated buffer.
 fn addExtraData(self: *Parser, extra: anytype) Allocator.Error!Node.Index {
     const fields = std.meta.fields(@TypeOf(extra));
 

@@ -33,6 +33,7 @@ nodes: NodeList.Slice,
 /// Slice of extra data produces by the parser.
 extra_data: []const Node.Index,
 
+/// Parses the source and build the Ast based on it.
 pub fn parse(allocator: Allocator, source: [:0]const u8) Parser.ParserErrors!Ast {
     var tokens: TokenList = .{};
     var lexer = tokenizer.Lexer.init(source);
@@ -85,7 +86,7 @@ pub fn deinit(self: *Ast, allocator: Allocator) void {
     self.nodes.deinit(allocator);
     allocator.free(self.extra_data);
 }
-
+/// Build the ast representation for a `function_proto` node.
 pub fn functionProto(self: Ast, node: Node.Index) ast.FunctionDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .function_proto);
@@ -129,7 +130,7 @@ pub fn functionProto(self: Ast, node: Node.Index) ast.FunctionDecl {
 
     return result;
 }
-
+/// Build the ast representation for a `function_proto_one` node.
 pub fn functionProtoOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.FunctionDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .function_proto_one);
@@ -175,7 +176,7 @@ pub fn functionProtoOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index
 
     return result;
 }
-
+/// Build the ast representation for a `function_proto_multi` node.
 pub fn functionProtoMulti(self: Ast, node: Node.Index) ast.FunctionDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .function_proto_multi);
@@ -218,7 +219,7 @@ pub fn functionProtoMulti(self: Ast, node: Node.Index) ast.FunctionDecl {
 
     return result;
 }
-
+/// Build the ast representation for a `function_proto_simple` node.
 pub fn functionProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.FunctionDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .function_proto_simple);
@@ -262,7 +263,7 @@ pub fn functionProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.In
 
     return result;
 }
-
+/// Build the ast representation for a `receive_proto` node.
 pub fn receiveProto(self: Ast, node: Node.Index) ast.ReceiveDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .receive_proto);
@@ -299,7 +300,7 @@ pub fn receiveProto(self: Ast, node: Node.Index) ast.ReceiveDecl {
 
     return result;
 }
-
+/// Build the ast representation for a `fallback_proto_multi` node.
 pub fn fallbackProtoMulti(self: Ast, node: Node.Index) ast.FallbackDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .fallback_proto_multi);
@@ -340,7 +341,7 @@ pub fn fallbackProtoMulti(self: Ast, node: Node.Index) ast.FallbackDecl {
 
     return result;
 }
-
+/// Build the ast representation for a `fallback_proto_simple` node.
 pub fn fallbackProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.FallbackDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .fallback_proto_simple);
@@ -381,7 +382,7 @@ pub fn fallbackProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.In
 
     return result;
 }
-
+/// Build the ast representation for a `constructor_proto_multi` node.
 pub fn constructorProtoMulti(self: Ast, node: Node.Index) ast.ConstructorDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .constructor_proto_multi);
@@ -422,7 +423,7 @@ pub fn constructorProtoMulti(self: Ast, node: Node.Index) ast.ConstructorDecl {
 
     return result;
 }
-
+/// Build the ast representation for a `constructor_proto_simple` node.
 pub fn constructorProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.ConstructorDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .constructor_proto_simple);
@@ -463,7 +464,7 @@ pub fn constructorProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node
 
     return result;
 }
-
+/// Build the ast representation for a `event_proto_multi` node.
 pub fn eventProtoMulti(self: Ast, node: Node.Index) ast.EventDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .event_proto_multi);
@@ -481,7 +482,7 @@ pub fn eventProtoMulti(self: Ast, node: Node.Index) ast.EventDecl {
         .anonymous = null,
     };
 }
-
+/// Build the ast representation for a `event_proto_simple` node.
 pub fn eventProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.EventDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .event_proto_simple);
@@ -499,7 +500,7 @@ pub fn eventProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index
         .anonymous = null,
     };
 }
-
+/// Build the ast representation for a `error_proto_multi` node.
 pub fn errorProtoMulti(self: Ast, node: Node.Index) ast.ErrorDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .error_proto_multi);
@@ -516,7 +517,7 @@ pub fn errorProtoMulti(self: Ast, node: Node.Index) ast.ErrorDecl {
         .name = data.lhs,
     };
 }
-
+/// Build the ast representation for a `error_proto_simple` node.
 pub fn errorProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.ErrorDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .error_proto_simple);
@@ -533,7 +534,7 @@ pub fn errorProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index
         .name = data.lhs,
     };
 }
-
+/// Build the ast representation for a `struct_decl` node.
 pub fn structDecl(self: Ast, node: Node.Index) ast.StructDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .struct_decl);
@@ -550,7 +551,7 @@ pub fn structDecl(self: Ast, node: Node.Index) ast.StructDecl {
         .name = data.lhs,
     };
 }
-
+/// Build the ast representation for a `struct_decl_one` node.
 pub fn structDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.StructDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .struct_decl_one);
@@ -567,7 +568,7 @@ pub fn structDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) a
         .name = data.lhs,
     };
 }
-
+/// Converts the data in `extra_data` into `T`.
 pub fn extraData(self: Ast, comptime T: type, node: Node.Index) T {
     const fields = std.meta.fields(T);
     var result: T = undefined;
@@ -580,7 +581,7 @@ pub fn extraData(self: Ast, comptime T: type, node: Node.Index) T {
 
     return result;
 }
-
+/// Finds the first `TokenIndex` based on the provided node.
 pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
     const main = self.nodes.items(.main_token);
     const data = self.nodes.items(.data);
@@ -630,7 +631,7 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
         }
     }
 }
-
+/// Finds the last `TokenIndex` based on the provided node.
 pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
     const main = self.nodes.items(.main_token);
     const data = self.nodes.items(.data);
@@ -763,7 +764,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
         }
     }
 }
-
+/// Takes the associated token slice based on the provided token index.
 pub fn tokenSlice(self: Ast, token_index: TokenIndex) []const u8 {
     const token_tag = self.tokens.items(.tag)[token_index];
     const token_start = self.tokens.items(.start)[token_index];
@@ -781,7 +782,7 @@ pub fn tokenSlice(self: Ast, token_index: TokenIndex) []const u8 {
 
     return self.source[tok.location.start..tok.location.end];
 }
-
+/// Gets the source code associated with the provided node.
 pub fn getNodeSource(self: Ast, node: Node.Index) []const u8 {
     const token_start = self.tokens.items(.start);
 
@@ -794,6 +795,7 @@ pub fn getNodeSource(self: Ast, node: Node.Index) []const u8 {
     return self.source[start..end];
 }
 
+/// Ast representation of some of the "main" nodes.
 pub const ast = struct {
     pub const ReceiveDecl = struct {
         main_token: TokenIndex,
@@ -888,11 +890,16 @@ pub const ast = struct {
     };
 };
 
+/// Ast Node representation.
 pub const Node = struct {
+    /// Associated tag of the node
     tag: Tag,
+    /// The node or token index of the `lhs` and `rhs` fields.
     data: Data,
+    /// The main token index associated with the node.
     main_token: TokenIndex,
 
+    /// Index type into the slice.
     pub const Index = u32;
 
     // Assert that out tag is always size 1.
@@ -900,6 +907,7 @@ pub const Node = struct {
         std.debug.assert(@sizeOf(Tag) == 1);
     }
 
+    /// Enum of all of the possible node tags.
     pub const Tag = enum {
         root,
         struct_type,

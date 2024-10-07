@@ -201,13 +201,16 @@ pub const DocsGenerator = struct {
             .keyword_enum => try out_file.writeAll("enum {\n"),
             .keyword_struct => try out_file.writeAll("struct {\n"),
             .keyword_union => try out_file.writeAll("union(enum) {\n"),
-            else => std.debug.panic("Unexpected node token found: {s}", .{@tagName(self.tokens[container_token])}),
+            else => std.debug.panic("Unexpected token found: {s}", .{@tagName(self.tokens[container_token])}),
         }
 
         for (container.ast.members) |member| {
             switch (self.nodes[member]) {
                 .container_field_init => try self.extractFromContainerField(out_file, member),
-                .fn_decl, .simple_var_decl => continue,
+                .fn_decl,
+                .simple_var_decl,
+                .@"comptime",
+                => continue,
                 else => std.debug.panic("Unexpected node token found: {s}", .{@tagName(self.nodes[member])}),
             }
         }
@@ -217,7 +220,9 @@ pub const DocsGenerator = struct {
             switch (self.nodes[member]) {
                 .fn_decl => try self.extractFromFnProto(member, out_file, duplicate),
                 .simple_var_decl => try self.extractFromSimpleVar(out_file, member, duplicate),
-                .container_field_init => continue,
+                .container_field_init,
+                .@"comptime",
+                => continue,
                 else => std.debug.panic("Unexpected node token found: {s}", .{@tagName(self.nodes[member])}),
             }
         }
@@ -358,6 +363,7 @@ pub const DocsGenerator = struct {
             .number_literal,
             .sub,
             .string_literal,
+            .@"comptime",
             => return,
             else => std.debug.panic("Unexpected token found: {s}\n", .{@tagName(self.nodes[variable.ast.init_node])}),
         }

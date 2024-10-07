@@ -100,7 +100,7 @@ pub fn toAbi(self: *HumanAbi) (HumanAbiErrors || error{ UnexpectedNode, Unexpect
 
     return list.toOwnedSlice();
 }
-
+/// Generates an `AbiItem` based on the provided node. Not all nodes are supported.
 pub fn toAbiItem(self: HumanAbi, node: Node.Index) (HumanAbiErrors || error{ UnexpectedNode, UnexpectedMutability })!AbiItem {
     const nodes = self.ast.nodes.items(.tag);
 
@@ -121,7 +121,7 @@ pub fn toAbiItem(self: HumanAbi, node: Node.Index) (HumanAbiErrors || error{ Une
         else => error.UnexpectedNode,
     };
 }
-
+/// Generates a `AbiFunction` from a `function_proto`.
 pub fn toAbiFunction(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiFunction {
     const nodes = self.ast.nodes.items(.tag);
     std.debug.assert(nodes[node] == .function_proto);
@@ -153,7 +153,7 @@ pub fn toAbiFunction(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiFunctio
         .outputs = returns,
     };
 }
-
+/// Generates a `AbiFunction` from a `function_proto_one`.
 pub fn toAbiFunctionOne(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiFunction {
     const nodes = self.ast.nodes.items(.tag);
     std.debug.assert(nodes[node] == .function_proto_one);
@@ -186,7 +186,7 @@ pub fn toAbiFunctionOne(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiFunc
         .outputs = returns,
     };
 }
-
+/// Generates a `AbiFunction` from a `function_proto_multi`.
 pub fn toAbiFunctionMulti(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiFunction {
     const nodes = self.ast.nodes.items(.tag);
     std.debug.assert(nodes[node] == .function_proto_multi);
@@ -217,7 +217,7 @@ pub fn toAbiFunctionMulti(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiFu
         .outputs = &.{},
     };
 }
-
+/// Generates a `AbiFunction` from a `function_proto_simple`.
 pub fn toAbiFunctionSimple(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiFunction {
     const nodes = self.ast.nodes.items(.tag);
     std.debug.assert(nodes[node] == .function_proto_simple);
@@ -249,7 +249,9 @@ pub fn toAbiFunctionSimple(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiF
         .outputs = &.{},
     };
 }
-
+/// Generates a `AbiParameter` as a tuple with the components.
+///
+/// It gets generated from a `struct_decl` node.
 pub fn toStructComponents(self: HumanAbi, node: Node.Index) HumanAbiErrors![]const AbiParameter {
     const nodes = self.ast.nodes.items(.tag);
     std.debug.assert(nodes[node] == .struct_decl);
@@ -260,7 +262,9 @@ pub fn toStructComponents(self: HumanAbi, node: Node.Index) HumanAbiErrors![]con
 
     return params;
 }
-
+/// Generates a `AbiParameter` as a tuple with the components.
+///
+/// It gets generated from a `struct_decl_one` node.
 pub fn toStructComponentsOne(self: HumanAbi, node: Node.Index) HumanAbiErrors![]const AbiParameter {
     const nodes = self.ast.nodes.items(.tag);
     std.debug.assert(nodes[node] == .struct_decl_one);
@@ -272,7 +276,7 @@ pub fn toStructComponentsOne(self: HumanAbi, node: Node.Index) HumanAbiErrors![]
 
     return params;
 }
-
+/// Generates a `AbiConstructor` from a `constructor_proto_multi`.
 pub fn toAbiConstructorMulti(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiConstructor {
     const nodes = self.ast.nodes.items(.tag);
     std.debug.assert(nodes[node] == .constructor_proto_multi);
@@ -287,7 +291,7 @@ pub fn toAbiConstructorMulti(self: HumanAbi, node: Node.Index) HumanAbiErrors!Ab
         .stateMutability = if (ast_constructor.payable != null) .payable else .nonpayable,
     };
 }
-
+/// Generates a `AbiConstructor` from a `constructor_proto_simple`.
 pub fn toAbiConstructorSimple(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiConstructor {
     const nodes = self.ast.nodes.items(.tag);
     std.debug.assert(nodes[node] == .constructor_proto_simple);
@@ -303,7 +307,7 @@ pub fn toAbiConstructorSimple(self: HumanAbi, node: Node.Index) HumanAbiErrors!A
         .stateMutability = if (ast_constructor.payable != null) .payable else .nonpayable,
     };
 }
-
+/// Generates a `AbiEvent` from a `event_proto_multi`.
 pub fn toAbiEventMulti(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiEvent {
     const nodes = self.ast.nodes.items(.tag);
     std.debug.assert(nodes[node] == .event_proto_multi);
@@ -318,7 +322,7 @@ pub fn toAbiEventMulti(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiEvent
         .inputs = params,
     };
 }
-
+/// Generates a `AbiEvent` from a `event_proto_simple`.
 pub fn toAbiEventSimple(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiEvent {
     const nodes = self.ast.nodes.items(.tag);
     std.debug.assert(nodes[node] == .event_proto_simple);
@@ -334,7 +338,7 @@ pub fn toAbiEventSimple(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiEven
         .inputs = params,
     };
 }
-
+/// Generates a `AbiError` from a `error_proto_multi`.
 pub fn toAbiErrorMulti(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiError {
     const nodes = self.ast.nodes.items(.tag);
     std.debug.assert(nodes[node] == .error_proto_multi);
@@ -349,7 +353,7 @@ pub fn toAbiErrorMulti(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiError
         .inputs = params,
     };
 }
-
+/// Generates a `AbiError` from a `error_proto_simple`.
 pub fn toAbiErrorSimple(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiError {
     const nodes = self.ast.nodes.items(.tag);
     std.debug.assert(nodes[node] == .error_proto_simple);
@@ -365,7 +369,7 @@ pub fn toAbiErrorSimple(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiErro
         .inputs = params,
     };
 }
-
+/// Generates a `[]const AbiParameter` from a slice of `var_decl`.
 pub fn toAbiParameters(self: HumanAbi, nodes: []const Node.Index) HumanAbiErrors![]const AbiParameter {
     var params = try std.ArrayList(AbiParameter).initCapacity(self.allocator, nodes.len);
     errdefer params.deinit();
@@ -376,7 +380,7 @@ pub fn toAbiParameters(self: HumanAbi, nodes: []const Node.Index) HumanAbiErrors
 
     return params.toOwnedSlice();
 }
-
+/// Generates a `[]const AbiEventParameter` from a slice of `struct_field` or `error_var_decl`.
 pub fn toAbiParametersFromDecl(self: HumanAbi, nodes: []const Node.Index) HumanAbiErrors![]const AbiParameter {
     var params = try std.ArrayList(AbiParameter).initCapacity(self.allocator, nodes.len);
     errdefer params.deinit();
@@ -387,7 +391,7 @@ pub fn toAbiParametersFromDecl(self: HumanAbi, nodes: []const Node.Index) HumanA
 
     return params.toOwnedSlice();
 }
-
+/// Generates a `[]const AbiEventParameter` from a slice of `event_var_decl`.
 pub fn toAbiEventParameters(self: HumanAbi, nodes: []const Node.Index) HumanAbiErrors![]const AbiEventParameter {
     var params = try std.ArrayList(AbiEventParameter).initCapacity(self.allocator, nodes.len);
     errdefer params.deinit();
@@ -398,7 +402,7 @@ pub fn toAbiEventParameters(self: HumanAbi, nodes: []const Node.Index) HumanAbiE
 
     return params.toOwnedSlice();
 }
-
+/// Generates a `AbiParameter` from a `var_decl`.
 pub fn toAbiParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiParameter {
     const nodes = self.ast.nodes.items(.tag);
     const data = self.ast.nodes.items(.data);
@@ -489,7 +493,9 @@ pub fn toAbiParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiParame
         else => unreachable, // Invalid Node.
     }
 }
-
+/// Generates a `[]const AbiParameter` or in other words generates the tuple components.
+///
+/// It is expecting the node to be a `tuple_type` or a `tuple_type_one`.
 pub fn toAbiComponents(self: HumanAbi, node: Node.Index) HumanAbiErrors![]const AbiParameter {
     const nodes = self.ast.nodes.items(.tag);
     const data = self.ast.nodes.items(.data);
@@ -509,7 +515,7 @@ pub fn toAbiComponents(self: HumanAbi, node: Node.Index) HumanAbiErrors![]const 
 
     return components;
 }
-
+/// Generates a `AbiEventParameter` from a `event_var_decl`.
 pub fn toAbiEventParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiEventParameter {
     const nodes = self.ast.nodes.items(.tag);
     const data = self.ast.nodes.items(.data);
@@ -606,7 +612,7 @@ pub fn toAbiEventParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiE
         else => unreachable, // Invalid Node.
     }
 }
-
+/// Generates a `AbiParameter` from a `error_var_decl` or a `struct_field`.
 pub fn toAbiParameterFromDecl(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiParameter {
     const nodes = self.ast.nodes.items(.tag);
     const data = self.ast.nodes.items(.data);
@@ -697,7 +703,7 @@ pub fn toAbiParameterFromDecl(self: HumanAbi, node: Node.Index) HumanAbiErrors!A
         else => unreachable, // Invalid Node.
     }
 }
-
+/// Generates a `AbiFallback` from a `fallback_proto_multi`.
 pub fn toAbiFallbackMulti(self: HumanAbi, node: Node.Index) Allocator.Error!AbiFallback {
     const nodes = self.ast.nodes.items(.tag);
     std.debug.assert(nodes[node] == .fallback_proto_multi);
@@ -709,7 +715,7 @@ pub fn toAbiFallbackMulti(self: HumanAbi, node: Node.Index) Allocator.Error!AbiF
         .stateMutability = if (ast_fallback.payable != null) .payable else .nonpayable,
     };
 }
-
+/// Generates a `AbiFallback` from a `fallback_proto_simple`.
 pub fn toAbiFallbackSimple(self: HumanAbi, node: Node.Index) Allocator.Error!AbiFallback {
     const nodes = self.ast.nodes.items(.tag);
     std.debug.assert(nodes[node] == .fallback_proto_simple);
@@ -722,7 +728,7 @@ pub fn toAbiFallbackSimple(self: HumanAbi, node: Node.Index) Allocator.Error!Abi
         .stateMutability = if (ast_fallback.payable != null) .payable else .nonpayable,
     };
 }
-
+/// Generates a `AbiReceive` from a `receive_proto`.
 pub fn toAbiReceive(self: HumanAbi, node: Node.Index) (Allocator.Error || error{UnexpectedMutability})!AbiReceive {
     const nodes = self.ast.nodes.items(.tag);
     std.debug.assert(nodes[node] == .receive_proto);

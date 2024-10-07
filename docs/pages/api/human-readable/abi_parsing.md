@@ -25,6 +25,6 @@ tokens from the provided signature
 ### Signature
 
 ```zig
-pub fn parseHumanReadable(comptime T: type, alloc: Allocator, source: [:0]const u8) Parser.ParseErrors!AbiParsed(T)
+pub fn parseHumanReadable(alloc: Allocator, source: [:0]const u8) HumanAbi.Errors!AbiParsed(Abi)
 ```
 

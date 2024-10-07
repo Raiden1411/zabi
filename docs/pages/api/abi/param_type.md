@@ -41,6 +41,15 @@ union(enum) {
 }
 ```
 
+### FromHumanReadableTokenTag
+Converts a human readable token into `ParamType`.
+
+### Signature
+
+```zig
+pub fn fromHumanReadableTokenTag(tag: TokenTags) ?ParamType
+```
+
 ### FreeArrayParamType
 User must call this if the union type contains a fixedArray or dynamicArray field.
 They create pointers so they must be destroyed after.
@@ -80,5 +89,12 @@ or call the destroy method on your allocator manually
 
 ```zig
 pub fn typeToUnion(abitype: []const u8, alloc: Allocator) ParamErrors!ParamType
+```
+
+### TypeToUnionWithTag
+### Signature
+
+```zig
+pub fn typeToUnionWithTag(allocator: Allocator, abitype: []const u8, token_tag: TokenTags) ParamErrors!ParamType
 ```
 

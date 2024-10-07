@@ -50,14 +50,14 @@ pub fn callDataLoadInstruction(self: *Interpreter) (Interpreter.InstructionError
 
     var buffer: [32]u8 = [_]u8{0} ** 32;
     if (offset < self.contract.input.len) {
-        const count = @min(32, self.contract.input.len - offset);
+        const count: u8 = @min(32, self.contract.input.len - offset);
         std.debug.assert(count <= 32 and offset + count <= self.contract.input.len);
 
         const slice = self.contract.input[offset .. offset + count];
-        @memcpy(buffer[32 - count ..], slice);
+        @memcpy(buffer[0..count], slice);
     }
 
-    try self.stack.pushUnsafe(@bitCast(buffer));
+    try self.stack.pushUnsafe(@byteSwap(@as(u256, @bitCast(buffer))));
 }
 /// Runs the calldatasize instructions opcodes for the interpreter.
 /// 0x36 -> CALLDATASIZE
@@ -422,7 +422,7 @@ test "CallDataCopy" {
         try callDataCopyInstruction(&interpreter);
 
         try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.memory.wordToInt(0));
-        try testing.expectEqual(7, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
     }
     {
         try interpreter.stack.pushUnsafe(32);
@@ -432,7 +432,7 @@ test "CallDataCopy" {
         try callDataCopyInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.memory.wordToInt(0));
-        try testing.expectEqual(13, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(15, interpreter.gas_tracker.used_amount);
     }
 }
 
@@ -468,7 +468,7 @@ test "CodeCopy" {
     try codeCopyInstruction(&interpreter);
 
     try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.memory.wordToInt(0));
-    try testing.expectEqual(7, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
 }
 
 test "Keccak256" {
@@ -553,6 +553,6 @@ test "ReturnDataCopy" {
         try returnDataCopyInstruction(&interpreter);
 
         try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.memory.wordToInt(0));
-        try testing.expectEqual(7, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
     }
 }

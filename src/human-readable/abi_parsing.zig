@@ -3,13 +3,14 @@ const param = @import("../abi/abi_parameter.zig");
 const std = @import("std");
 const testing = std.testing;
 const tokens = @import("tokens.zig");
+
+const Abi = abi.Abi;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Extract = @import("../meta/utils.zig").Extract;
 const ParamType = @import("../abi/param_type.zig").ParamType;
 const StateMutability = @import("../abi/state_mutability.zig").StateMutability;
-const Lexer = @import("lexer.zig").Lexer;
-const Parser = @import("Parser.zig");
+const HumanAbi = @import("HumanAbi.zig");
 
 pub fn AbiParsed(comptime T: type) type {
     return struct {
@@ -32,10 +33,13 @@ pub fn AbiParsed(comptime T: type) type {
 /// The return value will depend on the abi type selected.
 /// The function will return an error if the provided type doesn't match the
 /// tokens from the provided signature
-pub fn parseHumanReadable(comptime T: type, alloc: Allocator, source: [:0]const u8) Parser.ParseErrors!AbiParsed(T) {
+pub fn parseHumanReadable(alloc: Allocator, source: [:0]const u8) HumanAbi.Errors!AbiParsed(Abi) {
     std.debug.assert(source.len > 0);
 
-    var abi_parsed = AbiParsed(T){ .arena = try alloc.create(ArenaAllocator), .value = undefined };
+    var abi_parsed = AbiParsed(Abi){
+        .arena = try alloc.create(ArenaAllocator),
+        .value = undefined,
+    };
     errdefer alloc.destroy(abi_parsed.arena);
 
     abi_parsed.arena.* = ArenaAllocator.init(alloc);
@@ -43,45 +47,7 @@ pub fn parseHumanReadable(comptime T: type, alloc: Allocator, source: [:0]const 
 
     const allocator = abi_parsed.arena.allocator();
 
-    var lex = Lexer.init(source);
-
-    var list = Parser.TokenList{};
-    defer list.deinit(allocator);
-
-    while (true) {
-        const tok = lex.scan();
-        try list.append(allocator, .{ .token_type = tok.syntax, .start = tok.location.start, .end = tok.location.end });
-
-        if (tok.syntax == .EndOfFileToken) break;
-    }
-
-    var parser: Parser = .{
-        .alloc = allocator,
-        .tokens = list.items(.token_type),
-        .tokens_start = list.items(.start),
-        .tokens_end = list.items(.end),
-        .token_index = 0,
-        .source = source,
-        .structs = .{},
-    };
-
-    abi_parsed.value = try innerParse(T, &parser);
+    abi_parsed.value = try HumanAbi.parse(allocator, source);
 
     return abi_parsed;
-}
-
-fn innerParse(comptime T: type, parser: *Parser) Parser.ParseErrors!T {
-    return switch (T) {
-        abi.Abi => parser.parseAbiProto(),
-        abi.AbiItem => parser.parseAbiItemProto(),
-        abi.Function => parser.parseFunctionFnProto(),
-        abi.Event => parser.parseEventFnProto(),
-        abi.Error => parser.parseErrorFnProto(),
-        abi.Constructor => parser.parseConstructorFnProto(),
-        abi.Fallback => parser.parseFallbackFnProto(),
-        abi.Receive => parser.parseReceiveFnProto(),
-        []const param.AbiParameter => parser.parseFuncParamsDecl(),
-        []const param.AbiEventParameter => parser.parseEventParamsDecl(),
-        inline else => @compileError("Provided type '" ++ @typeName(T) ++ "' is not supported for human readable parsing"),
-    };
 }

@@ -78,7 +78,13 @@ pub fn parse(allocator: Allocator, source: [:0]const u8) Parser.ParserErrors!Ast
     };
     defer parser.deinit();
 
+    try parser.nodes.ensureTotalCapacity(allocator, tokens.len + 1);
+
     try parser.parseSource();
+
+    parser.nodes.shrinkAndFree(allocator, parser.nodes.len);
+    parser.extra_data.shrinkAndFree(allocator, parser.extra_data.items.len);
+    parser.errors.shrinkAndFree(allocator, parser.errors.items.len);
 
     return .{
         .source = source,

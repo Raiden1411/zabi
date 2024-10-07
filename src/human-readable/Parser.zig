@@ -1,632 +1,1009 @@
 const std = @import("std");
-const testing = std.testing;
-const abi = @import("../abi/abi.zig");
 
-// Types
-const Abi = abi.Abi;
-const AbiItem = abi.AbiItem;
-const AbiParameter = @import("../abi/abi_parameter.zig").AbiParameter;
-const AbiEventParameter = @import("../abi/abi_parameter.zig").AbiEventParameter;
 const Allocator = std.mem.Allocator;
-const Constructor = abi.Constructor;
-const Error = abi.Error;
-const Event = abi.Event;
-const Fallback = abi.Fallback;
-const Function = abi.Function;
-const Receive = abi.Receive;
-const Lexer = @import("lexer.zig").Lexer;
-const StateMutability = @import("../abi/state_mutability.zig").StateMutability;
-const ParamErrors = @import("../abi/param_type.zig").ParamErrors;
-const ParamType = @import("../abi/param_type.zig").ParamType;
-const Tokens = @import("tokens.zig").Tag.SoliditySyntax;
-
-pub const TokenList = std.MultiArrayList(struct {
-    token_type: Tokens,
-    start: u32,
-    end: u32,
-});
-
-/// Set of possible errors that can happen while parsing.
-pub const ParseErrors = error{
-    InvalidDataLocation,
-    UnexceptedToken,
-    InvalidType,
-    ExpectedCommaAfterParam,
-    EmptyReturnParams,
-} || ParamErrors || Allocator.Error;
+const Ast = @import("Ast.zig");
+const Node = Ast.Node;
+const TokenIndex = Ast.TokenIndex;
+const TokenTag = @import("tokens.zig").Tag.SoliditySyntax;
 
 const Parser = @This();
 
-/// The allocator used in parsing.
-alloc: Allocator,
-/// Slice of tokens produced by the lexer.
-tokens: []const Tokens,
-/// Slice of start positions of the source of the token.
-tokens_start: []const u32,
-/// Slice of end positions of the source of the token.
-tokens_end: []const u32,
-/// The current token index.
-token_index: u32,
-/// The slice that cotains the token source.
-source: []const u8,
-/// Hashmap of the preparsed structs.
-structs: std.StringHashMapUnmanaged([]const AbiParameter),
+/// Errors that can happing whilest parsing the source code.
+pub const ParserErrors = error{ParsingError} || Allocator.Error;
 
-/// Parse a string or a multi line string with solidity signatures.\
-/// This will return all signatures as a slice of `AbiItem`.
+const null_node: Node.Index = 0;
+
+const Span = union(enum) {
+    zero_one: Node.Index,
+    multi: Node.Range,
+};
+
+/// Allocator used by the parser.
+allocator: Allocator,
+/// Source to parse.
+source: [:0]const u8,
+/// Current parser index
+token_index: TokenIndex,
+/// Slices of all tokenized token tags.
+token_tags: []const TokenTag,
+/// Struct of arrays for the node.
+nodes: Ast.NodeList,
+/// Array list that contains extra data.
+extra: std.ArrayListUnmanaged(Node.Index),
+/// Temporary space used in parsing.
+scratch: std.ArrayListUnmanaged(Node.Index),
+
+/// Clears any allocated memory.
+pub fn deinit(self: *Parser) void {
+    self.nodes.deinit(self.allocator);
+    self.extra.deinit(self.allocator);
+    self.scratch.deinit(self.allocator);
+}
+
+/// Parses all of the source and build the `Ast`.
+pub fn parseSource(self: *Parser) ParserErrors!void {
+    try self.nodes.append(self.allocator, .{
+        .tag = .root,
+        .main_token = 0,
+        .data = undefined,
+    });
+
+    const members = try self.parseUnits();
+
+    if (self.token_tags[self.token_index] != .EndOfFileToken) {
+        @branchHint(.cold);
+        return error.ParsingError;
+    }
+
+    self.nodes.items(.data)[0] = .{
+        .lhs = members.start,
+        .rhs = members.end,
+    };
+}
+/// Parsers all of the solidity source unit values.
 ///
-/// This supports parsing struct signatures if its intended to use
-/// The struct signatures must be defined top down.
-///
-/// **Example**
-/// ```zig
-/// var lex = Lexer.init(source);
-///
-/// var list = Parser.TokenList{};
-/// defer list.deinit(allocator);
-///
-/// while (true) {
-///     const tok = lex.scan();
-///
-///     try list.append(allocator, .{
-///         .token_type = tok.syntax,
-///         .start = tok.location.start,
-///         .end = tok.location.end,
-///     });
-///
-///     if (tok.syntax == .EndOfFileToken) break;
-/// }
-///
-/// var parser: Parser = .{
-///     .alloc = allocator,
-///     .tokens = list.items(.token_type),
-///     .tokens_start = list.items(.start),
-///     .tokens_end = list.items(.end),
-///     .token_index = 0,
-///     .source = source,
-///     .structs = .{},
-/// };
-///
-/// const abi = try parser.parseAbiProto();
-/// ```
-pub fn parseAbiProto(p: *Parser) ParseErrors!Abi {
-    var abi_list = std.ArrayList(AbiItem).init(p.alloc);
+/// More info can be found [here](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.sourceUnit)
+pub fn parseUnits(self: *Parser) ParserErrors!Node.Range {
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
 
     while (true) {
-        if (p.tokens[p.token_index] == .Struct) {
-            try p.parseStructProto();
-            continue;
+        switch (self.token_tags[self.token_index]) {
+            .EndOfFileToken => break,
+            else => {},
         }
 
-        try abi_list.append(try p.parseAbiItemProto());
-
-        if (p.tokens[p.token_index] == .EndOfFileToken) break;
+        try self.scratch.append(self.allocator, try self.expectUnit());
     }
 
-    return abi_list.toOwnedSlice();
-}
+    const slice = self.scratch.items[scratch..];
 
-/// Parse a single solidity signature based on expected tokens.
+    return self.listToSpan(slice);
+}
+/// Expects to find a source unit otherwise it will fail.
+pub fn expectUnit(self: *Parser) ParserErrors!Node.Index {
+    const unit = try self.parseUnit();
+
+    if (unit == 0) {
+        @branchHint(.cold);
+        return error.ParsingError;
+    }
+
+    return unit;
+}
+/// Parses a single source unit.
 ///
-/// Will return an error if the token is not expected.
-pub fn parseAbiItemProto(p: *Parser) ParseErrors!AbiItem {
-    return switch (p.tokens[p.token_index]) {
-        .Function => .{ .abiFunction = try p.parseFunctionFnProto() },
-        .Event => .{ .abiEvent = try p.parseEventFnProto() },
-        .Error => .{ .abiError = try p.parseErrorFnProto() },
-        .Constructor => .{ .abiConstructor = try p.parseConstructorFnProto() },
-        .Fallback => .{ .abiFallback = try p.parseFallbackFnProto() },
-        .Receive => .{ .abiReceive = try p.parseReceiveFnProto() },
-        inline else => error.UnexceptedToken,
+/// More info can be found [here](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.sourceUnit)
+pub fn parseUnit(self: *Parser) ParserErrors!Node.Index {
+    return switch (self.token_tags[self.token_index]) {
+        .Function => self.parseFunctionProto(),
+        .Fallback => self.parseFallbackProto(),
+        .Receive => self.parseReceiveProto(),
+        .Constructor => self.parseConstructorProto(),
+        .Event => self.parseEventProto(),
+        .Error => self.parseErrorProto(),
+        .Struct => self.parseStructDecl(),
+        else => return null_node,
     };
 }
+/// Parses a solidity function accordingly to the language grammar.
+pub fn parseFunctionProto(self: *Parser) ParserErrors!Node.Index {
+    const keyword = self.consumeToken(.Function) orelse return null_node;
 
-/// Parse single solidity function signature.\
-/// FunctionProto -> Function KEYWORD, Identifier, OpenParen, ParamDecls?, ClosingParen, Visibility?, StateMutability?, Returns?
-pub fn parseFunctionFnProto(p: *Parser) ParseErrors!Function {
-    _ = try p.expectToken(.Function);
-    const name = p.parseIdentifier().?;
+    const reserve = try self.reserveNode(.function_proto);
+    errdefer self.unreserveNode(reserve);
 
-    _ = try p.expectToken(.OpenParen);
-
-    const inputs: []const AbiParameter = if (p.tokens[p.token_index] == .ClosingParen) &.{} else try p.parseFuncParamsDecl();
-
-    _ = try p.expectToken(.ClosingParen);
-
-    try p.parseVisibility();
-
-    const state: StateMutability = switch (p.tokens[p.token_index]) {
-        .Payable => .payable,
-        .View => .view,
-        .Pure => .pure,
-        inline else => .nonpayable,
+    const identifier = switch (self.token_tags[self.token_index]) {
+        .Identifier,
+        .Fallback,
+        .Receive,
+        => self.nextToken(),
+        else => return null_node,
     };
 
-    if (state != .nonpayable) _ = p.nextToken();
+    _ = try self.expectToken(.OpenParen);
 
-    if (p.consumeToken(.Returns)) |_| {
-        _ = try p.expectToken(.OpenParen);
+    const params = try self.parseVariableDecls();
+    const specifiers = try self.parseSpecifiers();
 
-        const outputs: []const AbiParameter = if (p.tokens[p.token_index] == .ClosingParen) return error.EmptyReturnParams else try p.parseFuncParamsDecl();
+    if (self.consumeToken(.Returns)) |_| {
+        _ = try self.expectToken(.OpenParen);
+        const returns = try self.parseReturnParams();
 
-        _ = try p.expectToken(.ClosingParen);
-
-        return .{ .type = .function, .name = name, .inputs = inputs, .outputs = outputs, .stateMutability = state };
-    }
-
-    return .{ .type = .function, .name = name, .inputs = inputs, .outputs = &.{}, .stateMutability = state };
-}
-
-/// Parse single solidity event signature.\
-/// EventProto -> Event KEYWORD, Identifier, OpenParen, ParamDecls?, ClosingParen
-pub fn parseEventFnProto(p: *Parser) ParseErrors!Event {
-    _ = try p.expectToken(.Event);
-    const name = p.parseIdentifier().?;
-
-    _ = try p.expectToken(.OpenParen);
-
-    const inputs: []const AbiEventParameter = if (p.tokens[p.token_index] == .ClosingParen) &.{} else try p.parseEventParamsDecl();
-
-    _ = try p.expectToken(.ClosingParen);
-
-    return .{ .type = .event, .inputs = inputs, .name = name };
-}
-
-/// Parse single solidity error signature.\
-/// ErrorProto -> Error KEYWORD, Identifier, OpenParen, ParamDecls?, ClosingParen
-pub fn parseErrorFnProto(p: *Parser) ParseErrors!Error {
-    _ = try p.expectToken(.Error);
-    const name = p.parseIdentifier().?;
-
-    _ = try p.expectToken(.OpenParen);
-
-    const inputs: []const AbiParameter = if (p.tokens[p.token_index] == .ClosingParen) &.{} else try p.parseErrorParamsDecl();
-
-    _ = try p.expectToken(.ClosingParen);
-
-    return .{ .type = .@"error", .inputs = inputs, .name = name };
-}
-
-/// Parse single solidity constructor signature.\
-/// ConstructorProto -> Constructor KEYWORD, OpenParen, ParamDecls?, ClosingParen, StateMutability?
-pub fn parseConstructorFnProto(p: *Parser) ParseErrors!Constructor {
-    _ = try p.expectToken(.Constructor);
-
-    _ = try p.expectToken(.OpenParen);
-
-    const inputs: []const AbiParameter = if (p.tokens[p.token_index] == .ClosingParen) &.{} else try p.parseFuncParamsDecl();
-
-    _ = try p.expectToken(.ClosingParen);
-
-    return switch (p.tokens[p.token_index]) {
-        .Payable => .{ .type = .constructor, .stateMutability = .payable, .inputs = inputs },
-        inline else => .{ .type = .constructor, .stateMutability = .nonpayable, .inputs = inputs },
-    };
-}
-
-/// Parse single solidity struct signature.\
-/// StructProto -> Struct KEYWORD, Identifier, OpenBrace, ParamDecls, ClosingBrace
-pub fn parseStructProto(p: *Parser) ParseErrors!void {
-    _ = try p.expectToken(.Struct);
-
-    const name = p.parseIdentifier().?;
-
-    _ = try p.expectToken(.OpenBrace);
-
-    const params = try p.parseStructParamDecls();
-
-    _ = try p.expectToken(.ClosingBrace);
-
-    try p.structs.put(p.alloc, name, params);
-}
-
-/// Parse single solidity fallback signature.\
-/// FallbackProto -> Fallback KEYWORD, OpenParen, ClosingParen, StateMutability?
-pub fn parseFallbackFnProto(p: *Parser) error{UnexceptedToken}!Fallback {
-    _ = try p.expectToken(.Fallback);
-    _ = try p.expectToken(.OpenParen);
-    _ = try p.expectToken(.ClosingParen);
-
-    switch (p.tokens[p.token_index]) {
-        .Payable => {
-            if (p.tokens[p.token_index + 1] != .EndOfFileToken) return error.UnexceptedToken;
-
-            return .{ .type = .fallback, .stateMutability = .payable };
-        },
-        .EndOfFileToken => return .{ .type = .fallback, .stateMutability = .nonpayable },
-        inline else => return error.UnexceptedToken,
-    }
-}
-
-/// Parse single solidity receive signature.\
-/// ReceiveProto -> Receive KEYWORD, OpenParen, ClosingParen, External, Payable
-pub fn parseReceiveFnProto(p: *Parser) error{UnexceptedToken}!Receive {
-    _ = try p.expectToken(.Receive);
-    _ = try p.expectToken(.OpenParen);
-    _ = try p.expectToken(.ClosingParen);
-    _ = try p.expectToken(.External);
-    _ = try p.expectToken(.Payable);
-
-    return .{ .type = .receive, .stateMutability = .payable };
-}
-
-/// Parse solidity function params.\
-/// TypeExpr, DataLocation?, Identifier?, Comma?
-pub fn parseFuncParamsDecl(p: *Parser) ParseErrors![]const AbiParameter {
-    var param_list = std.ArrayList(AbiParameter).init(p.alloc);
-
-    while (true) {
-        const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple(AbiParameter) else null;
-
-        if (tuple_param != null) {
-            try param_list.append(tuple_param.?);
-
-            switch (p.tokens[p.token_index]) {
-                .Comma => p.token_index += 1,
-                .ClosingParen => break,
-                .EndOfFileToken => break,
-                inline else => return error.ExpectedCommaAfterParam,
-            }
-
-            continue;
-        }
-
-        var components: ?[]const AbiParameter = null;
-        const abitype = param_type: {
-            if (p.parseTypeExpr()) |result| break :param_type result else |err| {
-                // Before failing we check if he have an Identifier token
-                // And see it was defined as a struct.
-                const last = p.token_index - 1;
-
-                if (p.tokens[last] == .Identifier) {
-                    const name = p.source[p.tokens_start[last]..p.tokens_end[last]];
-
-                    if (p.structs.get(name)) |val| {
-                        components = val;
-                        const start = p.token_index;
-                        const arr = if (try p.parseArrayType()) |index| p.source[p.tokens_start[start]..p.tokens_end[index]] else "";
-
-                        break :param_type try ParamType.typeToUnion(try std.fmt.allocPrint(p.alloc, "tuple{s}", .{arr}), p.alloc);
-                    }
-
-                    return err;
-                }
-
-                return err;
-            }
-        };
-
-        const location = p.parseDataLocation();
-        if (location) |tok| {
-            _ = p.consumeToken(tok);
-            switch (tok) {
-                .Indexed => return error.InvalidDataLocation,
-                .Memory, .Calldata, .Storage => {
-                    const isValid = switch (abitype) {
-                        .string, .bytes => true,
-                        .dynamicArray => true,
-                        .fixedArray => true,
-                        inline else => false,
-                    };
-
-                    if (!isValid) return error.InvalidDataLocation;
+        return switch (params) {
+            .zero_one => |elem| return self.setNode(reserve, .{
+                .tag = .function_proto_one,
+                .main_token = keyword,
+                .data = .{
+                    .lhs = try self.addExtraData(Node.FunctionProtoOne{
+                        .specifiers = specifiers,
+                        .identifier = identifier,
+                        .param = elem,
+                    }),
+                    .rhs = try self.addExtraData(returns),
                 },
-                inline else => {},
-            }
-        }
-
-        const name = p.parseIdentifier() orelse "";
-        const param = .{ .type = abitype, .name = name, .internalType = null, .components = components };
-
-        try param_list.append(param);
-
-        switch (p.tokens[p.token_index]) {
-            .Comma => p.token_index += 1,
-            .ClosingParen => break,
-            .EndOfFileToken => break,
-            inline else => return error.ExpectedCommaAfterParam,
-        }
+            }),
+            .multi => |elem| return self.setNode(reserve, .{
+                .tag = .function_proto,
+                .main_token = keyword,
+                .data = .{
+                    .lhs = try self.addExtraData(Node.FunctionProto{
+                        .specifiers = specifiers,
+                        .identifier = identifier,
+                        .params_start = elem.start,
+                        .params_end = elem.end,
+                    }),
+                    .rhs = try self.addExtraData(returns),
+                },
+            }),
+        };
     }
 
-    return try param_list.toOwnedSlice();
+    return switch (params) {
+        .zero_one => |elem| return self.setNode(reserve, .{
+            .tag = .function_proto_simple,
+            .main_token = keyword,
+            .data = .{
+                .lhs = try self.addExtraData(Node.FunctionProtoSimple{
+                    .identifier = identifier,
+                    .param = elem,
+                }),
+                .rhs = specifiers,
+            },
+        }),
+        .multi => |elem| return self.setNode(reserve, .{
+            .tag = .function_proto_multi,
+            .main_token = keyword,
+            .data = .{
+                .lhs = try self.addExtraData(Node.FunctionProtoMulti{
+                    .identifier = identifier,
+                    .params_start = elem.start,
+                    .params_end = elem.end,
+                }),
+                .rhs = specifiers,
+            },
+        }),
+    };
 }
+/// Parses a solidity receive function accordingly to the language grammar.
+pub fn parseReceiveProto(self: *Parser) ParserErrors!Node.Index {
+    const receive_keyword = self.consumeToken(.Receive) orelse return null_node;
 
-/// Parse solidity event params.\
-/// TypeExpr, DataLocation?, Identifier?, Comma?
-pub fn parseEventParamsDecl(p: *Parser) ParseErrors![]const AbiEventParameter {
-    var param_list = std.ArrayList(AbiEventParameter).init(p.alloc);
+    _ = try self.expectToken(.OpenParen);
+    _ = try self.expectToken(.ClosingParen);
 
-    while (true) {
-        const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple(AbiEventParameter) else null;
+    const specifiers = try self.parseSpecifiers();
 
-        if (tuple_param) |t_param| {
-            try param_list.append(t_param);
-
-            switch (p.tokens[p.token_index]) {
-                .Comma => p.token_index += 1,
-                .ClosingParen => break,
-                .EndOfFileToken => break,
-                inline else => return error.ExpectedCommaAfterParam,
-            }
-
-            continue;
-        }
-
-        var components: ?[]const AbiParameter = null;
-        const abitype = param_type: {
-            if (p.parseTypeExpr()) |result| break :param_type result else |err| {
-                // Before failing we check if he have an Identifier token
-                // And see it was defined as a struct.
-                const last = p.token_index - 1;
-
-                if (p.tokens[last] == .Identifier) {
-                    const name = p.source[p.tokens_start[last]..p.tokens_end[last]];
-
-                    if (p.structs.get(name)) |val| {
-                        components = val;
-                        const start = p.token_index;
-                        const arr = if (try p.parseArrayType()) |index| p.source[p.tokens_start[start]..p.tokens_end[index]] else "";
-
-                        break :param_type try ParamType.typeToUnion(try std.fmt.allocPrint(p.alloc, "tuple{s}", .{arr}), p.alloc);
-                    }
-
-                    return err;
-                }
-
-                return err;
-            }
-        };
-
-        const location = p.parseDataLocation();
-        const indexed = indexed: {
-            if (location) |tok| {
-                _ = p.consumeToken(tok);
-                switch (tok) {
-                    .Indexed => break :indexed true,
-                    inline else => return error.InvalidDataLocation,
-                }
-            } else break :indexed false;
-        };
-
-        const name = p.parseIdentifier() orelse "";
-        const param = .{ .type = abitype, .name = name, .indexed = indexed, .internalType = null, .components = components };
-
-        try param_list.append(param);
-
-        switch (p.tokens[p.token_index]) {
-            .Comma => p.token_index += 1,
-            .ClosingParen => break,
-            .EndOfFileToken => break,
-            inline else => return error.ExpectedCommaAfterParam,
-        }
-    }
-
-    return try param_list.toOwnedSlice();
-}
-
-/// Parse solidity error params.\
-/// TypeExpr, DataLocation?, Identifier?, Comma?
-pub fn parseErrorParamsDecl(p: *Parser) ParseErrors![]const AbiParameter {
-    var param_list = std.ArrayList(AbiParameter).init(p.alloc);
-
-    while (true) {
-        const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple(AbiParameter) else null;
-
-        if (tuple_param != null) {
-            try param_list.append(tuple_param.?);
-
-            switch (p.tokens[p.token_index]) {
-                .Comma => p.token_index += 1,
-                .ClosingParen => break,
-                .EndOfFileToken => break,
-                inline else => return error.ExpectedCommaAfterParam,
-            }
-
-            continue;
-        }
-
-        var components: ?[]const AbiParameter = null;
-        const abitype = param_type: {
-            if (p.parseTypeExpr()) |result| break :param_type result else |err| {
-                const last = p.token_index - 1;
-
-                if (p.tokens[last] == .Identifier) {
-                    const name = p.source[p.tokens_start[last]..p.tokens_end[last]];
-
-                    if (p.structs.get(name)) |val| {
-                        components = val;
-                        const start = p.token_index;
-                        const arr = if (try p.parseArrayType()) |index| p.source[p.tokens_start[start]..p.tokens_end[index]] else "";
-
-                        break :param_type try ParamType.typeToUnion(try std.fmt.allocPrint(p.alloc, "tuple{s}", .{arr}), p.alloc);
-                    }
-
-                    return err;
-                }
-
-                return err;
-            }
-        };
-
-        const location = p.parseDataLocation();
-        if (location != null) return error.InvalidDataLocation;
-
-        const name = p.parseIdentifier() orelse "";
-        const param: AbiParameter = .{ .type = abitype, .name = name, .internalType = null, .components = components };
-
-        try param_list.append(param);
-
-        switch (p.tokens[p.token_index]) {
-            .Comma => p.token_index += 1,
-            .ClosingParen => break,
-            .EndOfFileToken => break,
-            inline else => return error.ExpectedCommaAfterParam,
-        }
-    }
-
-    return try param_list.toOwnedSlice();
-}
-
-/// Parse solidity struct params.\
-/// TypeExpr, Identifier?, SemiColon
-pub fn parseStructParamDecls(p: *Parser) ParseErrors![]const AbiParameter {
-    var param_list = std.ArrayList(AbiParameter).init(p.alloc);
-
-    while (true) {
-        const tuple_param = if (p.consumeToken(.OpenParen) != null) try p.parseTuple(AbiParameter) else null;
-
-        if (tuple_param != null) {
-            try param_list.append(tuple_param.?);
-
-            _ = try p.expectToken(.SemiColon);
-
-            switch (p.tokens[p.token_index]) {
-                .ClosingBrace => break,
-                .EndOfFileToken => return error.UnexceptedToken,
-                inline else => continue,
-            }
-        }
-
-        var components: ?[]const AbiParameter = null;
-        const abitype = param_type: {
-            if (p.parseTypeExpr()) |result| break :param_type result else |err| {
-                const last = p.token_index - 1;
-
-                if (p.tokens[last] == .Identifier) {
-                    const name = p.source[p.tokens_start[last]..p.tokens_end[last]];
-
-                    if (p.structs.get(name)) |val| {
-                        components = val;
-                        const start = p.token_index;
-                        const arr = if (try p.parseArrayType()) |index| p.source[p.tokens_start[start]..p.tokens_end[index]] else "";
-
-                        break :param_type try ParamType.typeToUnion(try std.fmt.allocPrint(p.alloc, "tuple{s}", .{arr}), p.alloc);
-                    }
-
-                    return err;
-                }
-
-                return err;
-            }
-        };
-
-        const location = p.parseDataLocation();
-        if (location != null) return error.InvalidDataLocation;
-
-        const name = p.parseIdentifier() orelse "";
-        const param: AbiParameter = .{ .type = abitype, .name = name, .internalType = null, .components = components };
-
-        try param_list.append(param);
-
-        _ = try p.expectToken(.SemiColon);
-
-        switch (p.tokens[p.token_index]) {
-            .ClosingBrace => break,
-            .EndOfFileToken => return error.UnexceptedToken,
-            inline else => continue,
-        }
-    }
-
-    return try param_list.toOwnedSlice();
-}
-
-/// Parse solidity tuple params.\
-/// OpenParen, TypeExpr, Identifier?, Comma?, ClosingParen
-pub fn parseTuple(p: *Parser, comptime T: type) ParseErrors!T {
-    const components = try p.parseErrorParamsDecl();
-
-    _ = try p.expectToken(.ClosingParen);
-    const start = p.token_index;
-    const end = try p.parseArrayType();
-    const array_slice = if (end) |arr| p.source[p.tokens_start[start]..p.tokens_end[arr]] else null;
-
-    const type_name = try std.fmt.allocPrint(p.alloc, "tuple{s}", .{array_slice orelse ""});
-
-    const abitype = try ParamType.typeToUnion(type_name, p.alloc);
-
-    const location = p.parseDataLocation();
-    const name = p.parseIdentifier() orelse "";
-
-    return switch (T) {
-        AbiParameter => {
-            if (location != null) return error.InvalidDataLocation;
-            return .{ .type = abitype, .name = name, .internalType = null, .components = components };
+    return self.addNode(.{
+        .tag = .receive_proto,
+        .main_token = receive_keyword,
+        .data = .{
+            .lhs = undefined,
+            .rhs = specifiers,
         },
-        AbiEventParameter => .{ .type = abitype, .name = name, .internalType = null, .indexed = location == .Indexed, .components = components },
-        inline else => error.InvalidType,
+    });
+}
+/// Parses a solidity fallback function accordingly to the language grammar.
+pub fn parseFallbackProto(self: *Parser) ParserErrors!Node.Index {
+    const fallback_keyword = self.consumeToken(.Fallback) orelse return null_node;
+
+    const reserve = try self.reserveNode(.fallback_proto_multi);
+    errdefer self.unreserveNode(reserve);
+
+    _ = try self.expectToken(.OpenParen);
+
+    const params = try self.parseVariableDecls();
+
+    const specifiers = try self.parseSpecifiers();
+
+    return switch (params) {
+        .zero_one => |elem| self.setNode(reserve, .{
+            .tag = .fallback_proto_simple,
+            .main_token = fallback_keyword,
+            .data = .{
+                .lhs = elem,
+                .rhs = specifiers,
+            },
+        }),
+        .multi => |elems| self.setNode(reserve, .{
+            .tag = .fallback_proto_multi,
+            .main_token = fallback_keyword,
+            .data = .{
+                .lhs = try self.addExtraData(elems),
+                .rhs = specifiers,
+            },
+        }),
     };
 }
+/// Parses a solidity constructor declaration accordingly to the language grammar.
+pub fn parseConstructorProto(self: *Parser) ParserErrors!Node.Index {
+    const constructor_keyword = self.consumeToken(.Constructor) orelse return null_node;
 
-fn parseTypeExpr(p: *Parser) (ParamErrors || error{UnexceptedToken})!ParamType {
-    const index = p.nextToken();
-    const tok = p.tokens[index];
+    const reserve = try self.reserveNode(.constructor_proto_multi);
+    errdefer self.unreserveNode(reserve);
 
-    if (tok.lexToken()) |type_name| {
-        const slice = if (try p.parseArrayType()) |arr| p.source[p.tokens_start[index]..p.tokens_end[arr]] else type_name;
+    _ = try self.expectToken(.OpenParen);
 
-        return try ParamType.typeToUnion(slice, p.alloc);
+    const params = try self.parseVariableDecls();
+
+    const specifiers = try self.parseSpecifiers();
+
+    return switch (params) {
+        .zero_one => |elem| self.setNode(reserve, .{
+            .tag = .constructor_proto_simple,
+            .main_token = constructor_keyword,
+            .data = .{
+                .lhs = elem,
+                .rhs = specifiers,
+            },
+        }),
+        .multi => |elems| self.setNode(reserve, .{
+            .tag = .constructor_proto_multi,
+            .main_token = constructor_keyword,
+            .data = .{
+                .lhs = try self.addExtraData(elems),
+                .rhs = specifiers,
+            },
+        }),
+    };
+}
+/// Parses all of the solidity mutability or visibility specifiers.
+pub fn parseSpecifiers(self: *Parser) ParserErrors!Node.Index {
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
+
+    var specifier: enum {
+        seen_visibility,
+        seen_mutability,
+        seen_both,
+        none,
+    } = .none;
+
+    while (true) {
+        switch (self.token_tags[self.token_index]) {
+            .Public,
+            .External,
+            .Internal,
+            .Private,
+            => {
+                switch (specifier) {
+                    .seen_visibility,
+                    .seen_both,
+                    => {
+                        @branchHint(.cold);
+                        return error.ParsingError;
+                    },
+                    .seen_mutability => specifier = .seen_both,
+                    .none => specifier = .seen_visibility,
+                }
+
+                try self.scratch.append(self.allocator, self.nextToken());
+            },
+            .Pure,
+            .Payable,
+            .View,
+            => {
+                switch (specifier) {
+                    .seen_mutability,
+                    .seen_both,
+                    => {
+                        @branchHint(.cold);
+                        return error.ParsingError;
+                    },
+                    .seen_visibility => specifier = .seen_both,
+                    .none => specifier = .seen_mutability,
+                }
+
+                try self.scratch.append(self.allocator, self.nextToken());
+            },
+            .Virtual,
+            .Override,
+            => try self.scratch.append(self.allocator, self.nextToken()),
+            else => break,
+        }
     }
 
-    return error.UnexceptedToken;
+    const slice = self.scratch.items[scratch..];
+
+    return self.addNode(.{
+        .tag = .specifiers,
+        .main_token = try self.addExtraData(try self.listToSpan(slice)),
+        .data = .{
+            .lhs = undefined,
+            .rhs = undefined,
+        },
+    });
 }
+/// Parses a solidity error declaration accordingly to the language grammar.
+pub fn parseErrorProto(self: *Parser) ParserErrors!Node.Index {
+    const error_keyword = self.consumeToken(.Error) orelse return null_node;
 
-fn parseArrayType(p: *Parser) error{UnexceptedToken}!?u32 {
+    const reserve = try self.reserveNode(.error_proto_multi);
+    errdefer self.unreserveNode(reserve);
+
+    const identifier = try self.expectToken(.Identifier);
+
+    _ = try self.expectToken(.OpenParen);
+
+    const params = try self.parseErrorVarDecls();
+
+    return switch (params) {
+        .zero_one => |elem| self.setNode(reserve, .{
+            .tag = .error_proto_simple,
+            .main_token = error_keyword,
+            .data = .{
+                .lhs = identifier,
+                .rhs = elem,
+            },
+        }),
+        .multi => |elems| self.setNode(reserve, .{
+            .tag = .error_proto_multi,
+            .main_token = error_keyword,
+            .data = .{
+                .lhs = identifier,
+                .rhs = try self.addExtraData(elems),
+            },
+        }),
+    };
+}
+/// Parses a solidity event declaration accordingly to the language grammar.
+pub fn parseEventProto(self: *Parser) ParserErrors!Node.Index {
+    const event_keyword = self.consumeToken(.Event) orelse return null_node;
+
+    const reserve = try self.reserveNode(.event_proto_multi);
+    errdefer self.unreserveNode(reserve);
+
+    const identifier = try self.expectToken(.Identifier);
+
+    _ = try self.expectToken(.OpenParen);
+
+    const params = try self.parseEventVarDecls();
+
+    _ = self.consumeToken(.Anonymous);
+
+    return switch (params) {
+        .zero_one => |elem| self.setNode(reserve, .{
+            .tag = .event_proto_simple,
+            .main_token = event_keyword,
+            .data = .{
+                .lhs = identifier,
+                .rhs = elem,
+            },
+        }),
+        .multi => |elems| self.setNode(reserve, .{
+            .tag = .event_proto_multi,
+            .main_token = event_keyword,
+            .data = .{
+                .lhs = identifier,
+                .rhs = try self.addExtraData(elems),
+            },
+        }),
+    };
+}
+/// Parses the possible event declaration parameters according to the language grammar.
+pub fn parseEventVarDecls(self: *Parser) ParserErrors!Span {
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
+
     while (true) {
-        const token = p.nextToken();
+        if (self.consumeToken(.ClosingParen)) |_| break;
 
-        switch (p.tokens[token]) {
-            .OpenBracket => continue,
-            .Number => {
-                _ = try p.expectToken(.ClosingBracket);
-                p.token_index -= 1;
+        const field = try self.expectEventVarDecl();
+        try self.scratch.append(self.allocator, field);
+
+        switch (self.token_tags[self.token_index]) {
+            .Comma => {
+                if (self.token_tags[self.token_index + 1] == .ClosingParen) {
+                    @branchHint(.cold);
+                    return error.ParsingError;
+                }
+                self.token_index += 1;
             },
-            .ClosingBracket => switch (p.tokens[p.token_index]) {
-                .OpenBracket => continue,
-                else => return token,
+            .ClosingParen => {
+                self.token_index += 1;
+                break;
             },
-            inline else => {
-                p.token_index -= 1;
-                return null;
+            else => {
+                @branchHint(.cold);
+                return error.ParsingError;
             },
         }
     }
-}
 
-fn parseDataLocation(p: *Parser) ?Tokens {
-    const tok = p.tokens[p.token_index];
+    const slice = self.scratch.items[scratch..];
 
-    return switch (tok) {
-        .Indexed, .Calldata, .Storage, .Memory => tok,
-        inline else => null,
+    return switch (slice.len) {
+        0 => Span{ .zero_one = 0 },
+        1 => Span{ .zero_one = slice[0] },
+        else => Span{ .multi = try self.listToSpan(slice) },
     };
 }
+/// Parses the possible error declaration parameters according to the language grammar.
+pub fn parseErrorVarDecls(self: *Parser) ParserErrors!Span {
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
 
-fn parseVisibility(p: *Parser) error{UnexceptedToken}!void {
-    const external = p.consumeToken(.External) orelse 0;
-    const public = p.consumeToken(.Public) orelse 0;
+    while (true) {
+        if (self.consumeToken(.ClosingParen)) |_| break;
 
-    if (external != 0 and public != 0) {
-        return error.UnexceptedToken;
+        const field = try self.expectErrorVarDecl();
+        try self.scratch.append(self.allocator, field);
+
+        switch (self.token_tags[self.token_index]) {
+            .Comma => {
+                if (self.token_tags[self.token_index + 1] == .ClosingParen) {
+                    @branchHint(.cold);
+                    return error.ParsingError;
+                }
+                self.token_index += 1;
+            },
+            .ClosingParen => {
+                self.token_index += 1;
+                break;
+            },
+            else => {
+                @branchHint(.cold);
+                return error.ParsingError;
+            },
+        }
     }
+
+    const slice = self.scratch.items[scratch..];
+
+    return switch (slice.len) {
+        0 => Span{ .zero_one = 0 },
+        1 => Span{ .zero_one = slice[0] },
+        else => Span{ .multi = try self.listToSpan(slice) },
+    };
 }
+/// Parses the possible function declaration parameters according to the language grammar.
+pub fn parseReturnParams(self: *Parser) ParserErrors!Node.Range {
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
 
-fn parseIdentifier(p: *Parser) ?[]const u8 {
-    return if (p.consumeToken(.Identifier)) |ident| p.source[p.tokens_start[ident]..p.tokens_end[ident]] else null;
+    while (true) {
+        if (self.consumeToken(.ClosingParen)) |_| break;
+
+        const field = try self.expectVarDecl();
+        try self.scratch.append(self.allocator, field);
+
+        switch (self.token_tags[self.token_index]) {
+            .Comma => {
+                if (self.token_tags[self.token_index + 1] == .ClosingParen) {
+                    @branchHint(.cold);
+                    return error.ParsingError;
+                }
+                self.token_index += 1;
+            },
+            .ClosingParen => {
+                self.token_index += 1;
+                break;
+            },
+            else => {
+                @branchHint(.cold);
+                return error.ParsingError;
+            },
+        }
+    }
+
+    const slice = self.scratch.items[scratch..];
+
+    if (slice.len == 0) {
+        @branchHint(.cold);
+        return error.ParsingError;
+    }
+
+    return self.listToSpan(slice);
 }
+/// Parses the possible function declaration parameters according to the language grammar.
+pub fn parseVariableDecls(self: *Parser) ParserErrors!Span {
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
 
-fn expectToken(p: *Parser, expected: Tokens) error{UnexceptedToken}!u32 {
-    if (p.tokens[p.token_index] != expected) return error.UnexceptedToken;
+    while (true) {
+        if (self.consumeToken(.ClosingParen)) |_| break;
 
-    return p.nextToken();
+        const field = try self.expectVarDecl();
+        try self.scratch.append(self.allocator, field);
+
+        switch (self.token_tags[self.token_index]) {
+            .Comma => {
+                if (self.token_tags[self.token_index + 1] == .ClosingParen) {
+                    @branchHint(.cold);
+                    return error.ParsingError;
+                }
+                self.token_index += 1;
+            },
+            .ClosingParen => {
+                self.token_index += 1;
+                break;
+            },
+            else => {
+                @branchHint(.cold);
+                return error.ParsingError;
+            },
+        }
+    }
+
+    const slice = self.scratch.items[scratch..];
+
+    return switch (slice.len) {
+        0 => Span{ .zero_one = 0 },
+        1 => Span{ .zero_one = slice[0] },
+        else => Span{ .multi = try self.listToSpan(slice) },
+    };
 }
+/// Expects to find a `error_var_decl`. Otherwise returns an error.
+pub fn expectErrorVarDecl(self: *Parser) ParserErrors!Node.Index {
+    const index = try self.parseErrorVarDecl();
 
-fn consumeToken(p: *Parser, tok: Tokens) ?u32 {
-    return if (p.tokens[p.token_index] == tok) p.nextToken() else null;
-}
-
-fn nextToken(p: *Parser) u32 {
-    const index = p.token_index;
-    p.token_index += 1;
+    if (index == 0) {
+        @branchHint(.cold);
+        return error.ParsingError;
+    }
 
     return index;
+}
+/// Parses the possible error declaration parameter according to the language grammar.
+pub fn parseErrorVarDecl(self: *Parser) ParserErrors!Node.Index {
+    const sol_type = try self.parseType();
+
+    if (sol_type == 0)
+        return null_node;
+
+    const identifier = self.consumeToken(.Identifier) orelse null_node;
+
+    return self.addNode(.{
+        .tag = .error_var_decl,
+        .main_token = identifier,
+        .data = .{
+            .lhs = sol_type,
+            .rhs = undefined,
+        },
+    });
+}
+/// Expects to find a `event_var_decl`. Otherwise returns an error.
+pub fn expectEventVarDecl(self: *Parser) ParserErrors!Node.Index {
+    const index = try self.parseEventVarDecl();
+
+    if (index == 0) {
+        @branchHint(.cold);
+        return error.ParsingError;
+    }
+
+    return index;
+}
+/// Parses the possible event declaration parameter according to the language grammar.
+pub fn parseEventVarDecl(self: *Parser) ParserErrors!Node.Index {
+    const sol_type = try self.parseType();
+
+    if (sol_type == 0)
+        return null_node;
+
+    const modifier = switch (self.token_tags[self.token_index]) {
+        .Indexed,
+        => self.nextToken(),
+        else => null_node,
+    };
+
+    const identifier = try self.expectToken(.Identifier);
+
+    return self.addNode(.{
+        .tag = .event_var_decl,
+        .main_token = modifier,
+        .data = .{
+            .lhs = sol_type,
+            .rhs = identifier,
+        },
+    });
+}
+/// Expects to find a `var_decl`. Otherwise returns an error.
+pub fn expectVarDecl(self: *Parser) ParserErrors!Node.Index {
+    const index = try self.parseVariableDecl();
+
+    if (index == 0) {
+        @branchHint(.cold);
+        return error.ParsingError;
+    }
+
+    return index;
+}
+/// Parses the possible function declaration parameter according to the language grammar.
+pub fn parseVariableDecl(self: *Parser) ParserErrors!Node.Index {
+    const sol_type = try self.parseType();
+
+    if (sol_type == 0)
+        return null_node;
+
+    const modifier = switch (self.token_tags[self.token_index]) {
+        .Calldata,
+        .Storage,
+        .Memory,
+        => self.nextToken(),
+        else => null_node,
+    };
+
+    const identifier = self.consumeToken(.Identifier) orelse null_node;
+
+    return self.addNode(.{
+        .tag = .var_decl,
+        .main_token = modifier,
+        .data = .{
+            .lhs = sol_type,
+            .rhs = identifier,
+        },
+    });
+}
+/// Parses a struct declaration according to the language grammar.
+pub fn parseStructDecl(self: *Parser) ParserErrors!Node.Index {
+    const struct_index = self.consumeToken(.Struct) orelse return null_node;
+
+    const reserve = try self.reserveNode(.struct_decl);
+    errdefer self.unreserveNode(reserve);
+
+    const identifier = try self.expectToken(.Identifier);
+
+    _ = try self.expectToken(.OpenBrace);
+
+    const fields = try self.parseStructFields();
+
+    return switch (fields) {
+        .zero_one => |elem| self.setNode(reserve, .{
+            .tag = .struct_decl_one,
+            .main_token = struct_index,
+            .data = .{
+                .lhs = identifier,
+                .rhs = elem,
+            },
+        }),
+        .multi => |elems| self.setNode(reserve, .{
+            .tag = .struct_decl,
+            .main_token = struct_index,
+            .data = .{
+                .lhs = identifier,
+                .rhs = try self.addExtraData(elems),
+            },
+        }),
+    };
+}
+/// Parses all of the structs fields according to the language grammar.
+pub fn parseStructFields(self: *Parser) ParserErrors!Span {
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
+
+    while (true) {
+        if (self.consumeToken(.ClosingBrace)) |_| break;
+
+        const field = try self.expectStructField();
+        try self.scratch.append(self.allocator, field);
+
+        switch (self.token_tags[self.token_index]) {
+            .ClosingBrace => {
+                self.token_index += 1;
+                break;
+            },
+            else => {},
+        }
+    }
+
+    const slice = self.scratch.items[scratch..];
+
+    return switch (slice.len) {
+        0 => Span{ .zero_one = 0 },
+        1 => Span{ .zero_one = slice[0] },
+        else => Span{ .multi = try self.listToSpan(slice) },
+    };
+}
+/// Expects to find a struct parameter or fails.
+pub fn expectStructField(self: *Parser) ParserErrors!Node.Index {
+    const field_type = try self.expectType();
+    const identifier = try self.expectToken(.Identifier);
+
+    _ = try self.expectToken(.SemiColon);
+
+    return self.addNode(.{
+        .tag = .struct_field,
+        .main_token = identifier,
+        .data = .{
+            .lhs = field_type,
+            .rhs = undefined,
+        },
+    });
+}
+/// Expects to find either a `elementary_type`, `tuple_type`, `tuple_type_one`, `array_type` or `struct_type`
+pub fn expectType(self: *Parser) ParserErrors!Node.Index {
+    const index = try self.parseType();
+
+    if (index == 0) {
+        @branchHint(.cold);
+        return error.ParsingError;
+    }
+
+    return index;
+}
+/// Parses the token into either a `elementary_type`, `tuple_type`, `tuple_type_one`, `array_type` or `struct_type`
+pub fn parseType(self: *Parser) ParserErrors!Node.Index {
+    const sol_type = switch (self.token_tags[self.token_index]) {
+        .Identifier => try self.addNode(.{
+            .tag = .struct_type,
+            .main_token = self.nextToken(),
+            .data = .{
+                .lhs = undefined,
+                .rhs = undefined,
+            },
+        }),
+        .OpenParen => try self.parseTupleType(),
+        else => try self.consumeElementaryType(),
+    };
+
+    if (self.token_tags[self.token_index] != .OpenBracket)
+        return sol_type;
+
+    const l_bracket = self.token_index;
+
+    const r_bracket = while (true) {
+        switch (self.token_tags[self.token_index]) {
+            .OpenBracket,
+            .Number,
+            => self.token_index += 1,
+            .ClosingBracket => {
+                if (self.token_tags[self.token_index + 1] == .OpenBracket) {
+                    self.token_index += 1;
+                    continue;
+                }
+
+                break self.nextToken();
+            },
+            else => {
+                @branchHint(.cold);
+                return error.ParsingError;
+            },
+        }
+    };
+
+    return self.addNode(.{
+        .tag = .array_type,
+        .main_token = l_bracket,
+        .data = .{
+            .lhs = sol_type,
+            .rhs = r_bracket,
+        },
+    });
+}
+/// Parses the tuple type similarly to `parseErrorVarDecls`.
+pub fn parseTupleType(self: *Parser) ParserErrors!Node.Index {
+    const l_paren = self.consumeToken(.OpenParen) orelse return null_node;
+
+    const values = try self.parseErrorVarDecls();
+
+    return switch (values) {
+        .zero_one => |elem| self.addNode(.{
+            .tag = .tuple_type_one,
+            .main_token = l_paren,
+            .data = .{
+                .lhs = elem,
+                .rhs = self.token_index - 1,
+            },
+        }),
+        .multi => |elems| self.addNode(.{
+            .tag = .tuple_type,
+            .main_token = l_paren,
+            .data = .{
+                .lhs = try self.addExtraData(elems),
+                .rhs = self.token_index - 1,
+            },
+        }),
+    };
+}
+/// Creates a `elementary_type` node based on the solidity type keywords.
+pub fn consumeElementaryType(self: *Parser) Allocator.Error!Node.Index {
+    return switch (self.token_tags[self.token_index]) {
+        .Address,
+        .Bool,
+        .Tuple,
+        .String,
+        .Bytes,
+        .Bytes1,
+        .Bytes2,
+        .Bytes3,
+        .Bytes4,
+        .Bytes5,
+        .Bytes6,
+        .Bytes7,
+        .Bytes8,
+        .Bytes9,
+        .Bytes10,
+        .Bytes11,
+        .Bytes12,
+        .Bytes13,
+        .Bytes14,
+        .Bytes15,
+        .Bytes16,
+        .Bytes17,
+        .Bytes18,
+        .Bytes19,
+        .Bytes20,
+        .Bytes21,
+        .Bytes22,
+        .Bytes23,
+        .Bytes24,
+        .Bytes25,
+        .Bytes26,
+        .Bytes27,
+        .Bytes28,
+        .Bytes29,
+        .Bytes30,
+        .Bytes31,
+        .Bytes32,
+        .Uint,
+        .Uint8,
+        .Uint16,
+        .Uint24,
+        .Uint32,
+        .Uint40,
+        .Uint48,
+        .Uint56,
+        .Uint64,
+        .Uint72,
+        .Uint80,
+        .Uint88,
+        .Uint96,
+        .Uint104,
+        .Uint112,
+        .Uint120,
+        .Uint128,
+        .Uint136,
+        .Uint144,
+        .Uint152,
+        .Uint160,
+        .Uint168,
+        .Uint176,
+        .Uint184,
+        .Uint192,
+        .Uint200,
+        .Uint208,
+        .Uint216,
+        .Uint224,
+        .Uint232,
+        .Uint240,
+        .Uint248,
+        .Uint256,
+        .Int,
+        .Int8,
+        .Int16,
+        .Int24,
+        .Int32,
+        .Int40,
+        .Int48,
+        .Int56,
+        .Int64,
+        .Int72,
+        .Int80,
+        .Int88,
+        .Int96,
+        .Int104,
+        .Int112,
+        .Int120,
+        .Int128,
+        .Int136,
+        .Int144,
+        .Int152,
+        .Int160,
+        .Int168,
+        .Int176,
+        .Int184,
+        .Int192,
+        .Int200,
+        .Int208,
+        .Int216,
+        .Int224,
+        .Int232,
+        .Int240,
+        .Int248,
+        .Int256,
+        => self.addNode(.{
+            .tag = .elementary_type,
+            .main_token = self.nextToken(),
+            .data = .{
+                .lhs = undefined,
+                .rhs = undefined,
+            },
+        }),
+        else => null_node,
+    };
+}
+// Internal parser actions
+
+/// Consumes a token or returns null.
+fn consumeToken(self: *Parser, expected: TokenTag) ?TokenIndex {
+    return if (self.token_tags[self.token_index] == expected) self.nextToken() else null;
+}
+/// Expects to find a token or fails.
+fn expectToken(self: *Parser, expected: TokenTag) error{ParsingError}!TokenIndex {
+    return if (self.token_tags[self.token_index] == expected) self.nextToken() else {
+        @branchHint(.cold);
+        return error.ParsingError;
+    };
+}
+/// Advances the parser index and returns the previous one
+fn nextToken(self: *Parser) TokenIndex {
+    const index = self.token_index;
+
+    self.token_index += 1;
+
+    return index;
+}
+
+// Node actions
+
+/// Appends node to the list and returns the index.
+fn addNode(self: *Parser, node: Node) Allocator.Error!Node.Index {
+    const index = @as(Node.Index, @intCast(self.nodes.len));
+    try self.nodes.append(self.allocator, node);
+
+    return index;
+}
+/// Sets a node based on the provided index.
+fn setNode(self: *Parser, index: usize, child: Node) Node.Index {
+    self.nodes.set(index, child);
+
+    return @as(Node.Index, @intCast(index));
+}
+/// Reserves a node index on the arraylist.
+fn reserveNode(self: *Parser, tag: Ast.Node.Tag) Allocator.Error!usize {
+    try self.nodes.resize(self.allocator, self.nodes.len + 1);
+    self.nodes.items(.tag)[self.nodes.len - 1] = tag;
+    return self.nodes.len - 1;
+}
+/// Unreserves the node and sets a empty node into it if the element is not in the end.
+fn unreserveNode(self: *Parser, index: usize) void {
+    if (self.nodes.len == index) {
+        self.nodes.resize(self.allocator, self.nodes.len - 1) catch unreachable;
+    } else {
+        self.nodes.items(.tag)[index] = .unreachable_node;
+        self.nodes.items(.main_token)[index] = self.token_index;
+    }
+}
+/// Adds the extra data struct into the allocated buffer.
+fn addExtraData(self: *Parser, extra: anytype) Allocator.Error!Node.Index {
+    const fields = std.meta.fields(@TypeOf(extra));
+
+    try self.extra.ensureUnusedCapacity(self.allocator, fields.len);
+    const result: u32 = @intCast(self.extra.items.len);
+
+    inline for (fields) |field| {
+        std.debug.assert(field.type == Node.Index);
+        self.extra.appendAssumeCapacity(@field(extra, field.name));
+    }
+
+    return result;
+}
+
+fn listToSpan(self: *Parser, slice: []const Node.Index) Allocator.Error!Node.Range {
+    try self.extra.appendSlice(self.allocator, slice);
+
+    return Node.Range{
+        .start = @as(Node.Index, @intCast(self.extra.items.len - slice.len)),
+        .end = @as(Node.Index, @intCast(self.extra.items.len)),
+    };
 }

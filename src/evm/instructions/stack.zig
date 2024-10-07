@@ -30,8 +30,9 @@ pub fn pushInstruction(self: *Interpreter, size: u8) (Interpreter.InstructionErr
     const slice = self.code[self.program_counter + 1 .. self.program_counter + 1 + size];
 
     var buffer: [32]u8 = [_]u8{0} ** 32;
-    @memcpy(buffer[0..size], slice[0..]);
-    try self.stack.pushUnsafe(@bitCast(buffer));
+    @memcpy(buffer[32 - size ..], slice[0..]);
+
+    try self.stack.pushUnsafe(std.mem.readInt(u256, &buffer, .big));
 
     self.program_counter += size;
 }
@@ -155,7 +156,7 @@ test "Swap" {
 
         try swapInstruction(&interpreter, 1);
 
-        try testing.expectEqual(69, interpreter.stack.popUnsafe().?);
+        try testing.expectEqual(420, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
     }
     {
@@ -166,7 +167,7 @@ test "Swap" {
         try interpreter.stack.pushUnsafe(69);
         try interpreter.stack.pushUnsafe(69);
 
-        try swapInstruction(&interpreter, 6);
+        try swapInstruction(&interpreter, 5);
 
         try testing.expectEqual(0xFF, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(6, interpreter.gas_tracker.used_amount);

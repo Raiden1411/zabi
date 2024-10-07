@@ -279,7 +279,7 @@ test "Reverted" {
 
         try testing.expectEqual(undefined, @as(u256, @bitCast(interpreter.return_data[0..32].*)));
         try testing.expectEqual(.reverted, interpreter.status);
-        try testing.expectEqual(1, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
     }
     {
         interpreter.spec = .FRONTIER;
@@ -308,5 +308,5 @@ test "Return" {
 
     try testing.expectEqual(undefined, @as(u256, @bitCast(interpreter.return_data[0..32].*)));
     try testing.expectEqual(.returned, interpreter.status);
-    try testing.expectEqual(1, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
 }

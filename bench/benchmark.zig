@@ -59,13 +59,13 @@ pub fn main() !void {
 
         var count: usize = 0;
         while (count < opts.warmup_runs) : (count += 1) {
-            const abi = try zabi_root.human_readable.parsing.parseHumanReadable(zabi_root.abi.abitypes.Abi, allocator, constants.slice);
+            const abi = try zabi_root.human_readable.parsing.parseHumanReadable(allocator, constants.slice);
             defer abi.deinit();
         }
 
         var timer = try std.time.Timer.start();
         while (count < opts.runs) : (count += 1) {
-            const abi = try zabi_root.human_readable.parsing.parseHumanReadable(zabi_root.abi.abitypes.Abi, allocator, constants.slice);
+            const abi = try zabi_root.human_readable.parsing.parseHumanReadable(allocator, constants.slice);
             defer abi.deinit();
         }
 
@@ -327,16 +327,20 @@ pub fn decodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
 
     try printer.writer().writeAll("Abi Logs Decoding... ");
     {
-        const event = try parseHumanReadable(
-            Event,
-            allocator,
-            "event Foo(uint indexed a, int indexed b, bool indexed c, bytes5 indexed d)",
-        );
-        defer event.deinit();
+        const event: Event = .{
+            .type = .event,
+            .name = "Foo",
+            .inputs = &.{
+                .{ .type = .{ .uint = 256 }, .indexed = true, .name = "a" },
+                .{ .type = .{ .int = 256 }, .indexed = true, .name = "b" },
+                .{ .type = .{ .bool = {} }, .indexed = true, .name = "c" },
+                .{ .type = .{ .fixedBytes = 5 }, .indexed = true, .name = "d" },
+            },
+        };
 
         const encoded = try encodeLogTopics(
             allocator,
-            event.value,
+            event,
             .{ 69, -420, true, "01234" },
         );
         defer allocator.free(encoded);
@@ -408,16 +412,20 @@ pub fn encodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
 
     try printer.writer().writeAll("ABI Logs Encoding... ");
     {
-        const event = try parseHumanReadable(
-            Event,
-            allocator,
-            "event Foo(uint indexed a, int indexed b, bool indexed c, bytes5 indexed d)",
-        );
-        defer event.deinit();
+        const event: Event = .{
+            .type = .event,
+            .name = "Foo",
+            .inputs = &.{
+                .{ .type = .{ .uint = 256 }, .indexed = true, .name = "a" },
+                .{ .type = .{ .int = 256 }, .indexed = true, .name = "b" },
+                .{ .type = .{ .bool = {} }, .indexed = true, .name = "c" },
+                .{ .type = .{ .fixedBytes = 5 }, .indexed = true, .name = "d" },
+            },
+        };
 
         const result = try benchmark.benchmark(allocator, zabi_root.encoding.logs_encoding.encodeLogTopics, .{
             allocator,
-            event.value,
+            event,
             .{ 69, -420, true, "01234" },
         }, .{ .warmup_runs = 5, .runs = 100 });
         result.printSummary();

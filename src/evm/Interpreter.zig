@@ -161,7 +161,7 @@ pub fn init(
         .allocator = allocator,
         .code = bytecode,
         .contract = contract_instance,
-        .memory = Memory.initEmpty(allocator, null),
+        .memory = try Memory.initWithDefaultCapacity(allocator, null),
         .gas_tracker = GasTracker.init(opts.gas_limit),
         .host = evm_host,
         .is_static = opts.is_static,
@@ -251,18 +251,20 @@ pub fn run(self: *Interpreter) !InterpreterActions {
 
     return .{ .return_action = .{
         .gas = self.gas_tracker,
-        .output = &.{},
+        .output = try self.allocator.dupe(u8, self.return_data),
         .result = self.status,
     } };
 }
 /// Resizes the inner memory size. Adds gas expansion cost to
 /// the gas tracker.
 pub fn resize(self: *Interpreter, new_size: u64) (Allocator.Error || GasTracker.Error || Memory.Error)!void {
-    const count = mem.availableWords(new_size);
-    const mem_cost = gas.calculateMemoryCost(count);
-    const current_cost = gas.calculateMemoryCost(mem.availableWords(self.memory.getCurrentMemorySize()));
-    const cost = mem_cost - current_cost;
+    if (new_size > self.memory.getCurrentMemorySize()) {
+        const count = mem.availableWords(new_size);
+        const mem_cost = gas.calculateMemoryCost(count);
+        const current_cost = gas.calculateMemoryCost(mem.availableWords(self.memory.getCurrentMemorySize()));
+        const cost = mem_cost - current_cost;
 
-    try self.gas_tracker.updateTracker(cost);
-    return self.memory.resize(count * 32);
+        try self.gas_tracker.updateTracker(cost);
+        return self.memory.resize(count * 32);
+    }
 }

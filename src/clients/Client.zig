@@ -43,6 +43,7 @@ const FetchResult = http.Client.FetchResult;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
+const HttpClient = http.Connection;
 const HttpConnection = http.Client.Connection;
 const Log = log.Log;
 const LogRequest = log.LogRequest;
@@ -71,11 +72,8 @@ const Wei = types.Wei;
 const httplog = std.log.scoped(.http);
 
 /// Set of errors while fetching from a json rpc http endpoint.
-pub const FetchErrors = Allocator.Error || Client.RequestError || Client.Request.WaitError || Client.Request.FinishError || Client.Request.ReadError || error{
-    InvalidRequest,
-    InvalidEndpointConfig,
-    StreamTooLong,
-};
+pub const FetchErrors = Allocator.Error || Client.RequestError || Client.Request.WaitError ||
+    Client.Request.FinishError || Client.Request.ReadError || error{ InvalidRequest, InvalidEndpointConfig, StreamTooLong };
 
 /// Set of possible errors while starting the client.
 pub const InitErrors = Allocator.Error || error{ FailedToConnect, UnsupportedSchema, InvalidEndpointConfig };
@@ -109,7 +107,7 @@ pub const InitOptions = struct {
 /// This allocator will get set by the arena.
 allocator: Allocator,
 /// The underlaying http client used to manage all the calls.
-client: http.Client,
+client: HttpClient,
 /// Connection used as a reference for http client connections
 connection: *HttpConnection,
 /// The network config that the client is connected to.
@@ -395,7 +393,10 @@ pub fn estimateGas(self: *PubClient, call_object: EthCall, opts: BlockNumberRequ
 /// Gets the information based on the latest block if `base_fee_per_gas` is set to null.
 ///
 /// If the node you are currently using supports `eth_maxPriorityFeePerGas` consider using [estimateMaxFeePerGas](/api/clients/Client#estimateMaxFeePerGas).
-pub fn estimateMaxFeePerGasManual(self: *PubClient, base_fee_per_gas: ?Gwei) (BasicRequestErrors || error{ UnableToFetchFeeInfoFromBlock, InvalidBlockNumber })!Gwei {
+pub fn estimateMaxFeePerGasManual(
+    self: *PubClient,
+    base_fee_per_gas: ?Gwei,
+) (BasicRequestErrors || error{ UnableToFetchFeeInfoFromBlock, InvalidBlockNumber })!Gwei {
     const current_fee: ?Gwei = block: {
         if (base_fee_per_gas) |fee| break :block fee;
 
@@ -420,7 +421,12 @@ pub fn estimateMaxFeePerGas(self: *PubClient) BasicRequestErrors!RPCResponse(Gwe
 /// Returns historical gas information, allowing you to track trends over time.
 ///
 /// RPC Method: [eth_feeHistory](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_feehistory)
-pub fn feeHistory(self: *PubClient, blockCount: u64, newest_block: BlockNumberRequest, reward_percentil: ?[]const f64) BasicRequestErrors!RPCResponse(FeeHistory) {
+pub fn feeHistory(
+    self: *PubClient,
+    blockCount: u64,
+    newest_block: BlockNumberRequest,
+    reward_percentil: ?[]const f64,
+) BasicRequestErrors!RPCResponse(FeeHistory) {
     const tag: BalanceBlockTag = newest_block.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
@@ -588,7 +594,11 @@ pub fn getContractCode(self: *PubClient, opts: BalanceRequest) !RPCResponse(Hex)
 ///
 /// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterchanges \
 /// https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterlogs
-pub fn getFilterOrLogChanges(self: *PubClient, filter_id: u128, method: EthereumRpcMethods) (BasicRequestErrors || error{ InvalidFilterId, InvalidRpcMethod })!RPCResponse(Logs) {
+pub fn getFilterOrLogChanges(
+    self: *PubClient,
+    filter_id: u128,
+    method: EthereumRpcMethods,
+) (BasicRequestErrors || error{ InvalidFilterId, InvalidRpcMethod })!RPCResponse(Logs) {
     var request_buffer: [1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
@@ -925,7 +935,11 @@ pub fn getTransactionReceipt(self: *PubClient, transaction_hash: Hash) (BasicReq
 /// Returns the receipt of a transaction by transaction hash.
 ///
 /// RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
-pub fn getTransactionReceiptType(self: *PubClient, comptime T: type, transaction_hash: Hash) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt) {
+pub fn getTransactionReceiptType(
+    self: *PubClient,
+    comptime T: type,
+    transaction_hash: Hash,
+) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt) {
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{transaction_hash},
         .method = .eth_getTransactionReceipt,
@@ -993,7 +1007,11 @@ pub fn getTxPoolStatus(self: *PubClient) BasicRequestErrors!RPCResponse(TxPoolSt
 /// Returns information about a uncle of a block by hash and uncle index position.
 ///
 /// RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblockhashandindex)
-pub fn getUncleByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: usize) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(Block) {
+pub fn getUncleByBlockHashAndIndex(
+    self: *PubClient,
+    block_hash: Hash,
+    index: usize,
+) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(Block) {
     return self.getUncleByBlockHashAndIndexType(Block, block_hash, index);
 }
 /// Returns information about a uncle of a block by hash and uncle index position.
@@ -1002,7 +1020,12 @@ pub fn getUncleByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: us
 /// you know extractly the shape of the data that the block is expected to be like.
 ///
 /// RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblockhashandindex)
-pub fn getUncleByBlockHashAndIndexType(self: *PubClient, comptime T: type, block_hash: Hash, index: usize) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(T) {
+pub fn getUncleByBlockHashAndIndexType(
+    self: *PubClient,
+    comptime T: type,
+    block_hash: Hash,
+    index: usize,
+) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(T) {
     const request: EthereumRequest(struct { Hash, usize }) = .{
         .params = .{ block_hash, index },
         .method = .eth_getUncleByBlockHashAndIndex,
@@ -1459,7 +1482,7 @@ pub fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) S
                 httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
                 // Clears any message that was written
-                try body.resize(0);
+                try body.shrinkRetainingCapacity(0);
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;

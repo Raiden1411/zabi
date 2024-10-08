@@ -76,7 +76,14 @@ pub fn MulticallArguments(comptime targets: []const MulticallTargets) type {
             .alignment = if (@sizeOf(Arguments) > 0) @alignOf(Arguments) else 0,
         };
     }
-    return @Type(.{ .@"struct" = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+    return @Type(.{
+        .@"struct" = .{
+            .layout = .auto,
+            .fields = &fields,
+            .decls = &.{},
+            .is_tuple = true,
+        },
+    });
 }
 
 /// Multicall3 aggregate3 abi representation.
@@ -143,7 +150,7 @@ pub fn Multicall(comptime client: Clients) type {
         ) Self.Error!AbiDecoded([]const Result) {
             comptime std.debug.assert(targets.len == function_arguments.len);
 
-            var abi_list = std.ArrayList(Call3).init(self.rpc_client.allocator);
+            var abi_list = try std.ArrayList(Call3).initCapacity(self.rpc_client.allocator, targets.len);
             errdefer abi_list.deinit();
 
             inline for (targets, function_arguments) |target, argument| {
@@ -155,7 +162,7 @@ pub fn Multicall(comptime client: Clients) type {
                     .allowFailure = allow_failure,
                 };
 
-                try abi_list.append(call3);
+                abi_list.appendAssumeCapacity(call3);
             }
 
             // We don't free the memory here because we wrap it on a arena.

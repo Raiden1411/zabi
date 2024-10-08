@@ -43,7 +43,7 @@ const FetchResult = http.Client.FetchResult;
 const Gwei = types.Gwei;
 const Hash = types.Hash;
 const Hex = types.Hex;
-const HttpClient = http.Connection;
+const HttpClient = http.Client;
 const HttpConnection = http.Client.Connection;
 const Log = log.Log;
 const LogRequest = log.LogRequest;
@@ -1482,7 +1482,7 @@ pub fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) S
                 httplog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
                 // Clears any message that was written
-                try body.shrinkRetainingCapacity(0);
+                body.shrinkRetainingCapacity(0);
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;

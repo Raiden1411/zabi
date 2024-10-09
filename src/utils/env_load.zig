@@ -31,7 +31,6 @@ pub const TokenIndex = u32;
 pub const TokenList = std.MultiArrayList(struct {
     tag: Token.Tag,
     start: Offset,
-    end: Offset,
 });
 
 /// Tokenizer that will produce lexicar tokens so that the
@@ -61,109 +60,132 @@ pub const Tokenizer = struct {
     }
     /// Advances the tokenizer's state and produces a single token.
     pub fn next(self: *Tokenizer) Token {
-        var state: State = .start;
         var result: Token = .{ .token = undefined, .location = .{
             .start = self.index,
             .end = undefined,
         } };
 
-        while (true) : (self.index += 1) {
-            const char = self.buffer[self.index];
-            switch (state) {
-                .start => switch (char) {
-                    0 => {
-                        if (self.index == self.buffer.len)
-                            return .{ .token = .eof, .location = .{
-                                .start = self.index,
-                                .end = self.index,
-                            } };
-                    },
-                    ' ',
-                    '\n',
-                    '\t',
-                    '\r',
-                    '"',
-                    => result.location.start += 1,
-                    'a'...'z',
-                    'A'...'Z',
-                    '_',
-                    => {
-                        state = .identifier;
-                        result.token = .identifier;
-                    },
-                    '=' => {
-                        state = .assignment;
-                        result.location.start += 1;
-                    },
-                    else => state = .invalid,
+        state: switch (State.start) {
+            .start => switch (self.buffer[self.index]) {
+                0 => {
+                    if (self.index == self.buffer.len)
+                        return .{ .token = .eof, .location = .{
+                            .start = self.index,
+                            .end = self.index,
+                        } }
+                    else
+                        continue :state .invalid;
                 },
-                .invalid => switch (char) {
+                ' ',
+                '\n',
+                '\t',
+                '\r',
+                '"',
+                => {
+                    self.index += 1;
+                    result.location.start += 1;
+                    continue :state .start;
+                },
+                'a'...'z',
+                'A'...'Z',
+                '_',
+                => {
+                    result.token = .identifier;
+                    self.index += 1;
+                    continue :state .identifier;
+                },
+                '=' => {
+                    self.index += 1;
+                    result.location.start += 1;
+                    continue :state .assignment;
+                },
+                else => {
+                    self.index += 1;
+                    continue :state .invalid;
+                },
+            },
+            .invalid => {
+                self.index += 1;
+                switch (self.buffer[self.index]) {
                     0 => if (self.index == self.buffer.len) {
                         result.token = .invalid;
-                        break;
                     },
-                    '\n' => {
-                        result.token = .invalid;
-                        break;
-                    },
-                    else => continue,
+                    '\n' => result.token = .invalid,
+                    else => continue :state .invalid,
+                }
+            },
+            .identifier => switch (self.buffer[self.index]) {
+                'a'...'z',
+                'A'...'Z',
+                '_',
+                '0'...'9',
+                => {
+                    self.index += 1;
+                    continue :state .identifier;
                 },
-                .identifier => switch (char) {
-                    'a'...'z',
-                    'A'...'Z',
-                    '_',
-                    '0'...'9',
-                    => continue,
-                    else => break,
+                else => {},
+            },
+            .assignment => switch (self.buffer[self.index]) {
+                0 => {
+                    if (self.index == self.buffer.len) {
+                        return .{ .token = .invalid, .location = .{
+                            .start = self.index,
+                            .end = self.index,
+                        } };
+                    } else continue :state .invalid;
                 },
-                .assignment => switch (char) {
-                    0 => {
-                        if (self.index == self.buffer.len)
-                            return .{ .token = .invalid, .location = .{
-                                .start = self.index,
-                                .end = self.index,
-                            } };
-                    },
-                    '\'',
-                    '"',
-                    ' ',
-                    => result.location.start += 1,
-                    '\n',
-                    '\r',
-                    '\t',
-                    => {
-                        result.token = .invalid;
-                        state = .invalid;
-                    },
-                    '0'...'9' => {
-                        result.token = .value_int;
-                        state = .value_int;
-                    },
-                    else => {
-                        result.token = .value;
-                        state = .value;
-                    },
+                '\'',
+                '"',
+                ' ',
+                => {
+                    self.index += 1;
+                    result.location.start += 1;
+                    continue :state .assignment;
                 },
-                .value_int => switch (char) {
-                    '0'...'9' => continue,
-                    else => break,
+                '\n',
+                '\r',
+                '\t',
+                => {
+                    result.token = .invalid;
+                    continue :state .invalid;
                 },
-                .value => switch (char) {
-                    0,
-                    '\'',
-                    '"',
-                    => break,
-                    '\n',
-                    '\r',
-                    '\t',
-                    ' ',
-                    => {
-                        result.token = .invalid;
-                        state = .invalid;
-                    },
-                    else => if (std.ascii.isAscii(char)) continue else break,
+                '0'...'9' => {
+                    self.index += 1;
+                    result.token = .value_int;
+                    continue :state .value_int;
                 },
-            }
+                else => {
+                    self.index += 1;
+                    result.token = .value;
+                    continue :state .value;
+                },
+            },
+            .value_int => switch (self.buffer[self.index]) {
+                '0'...'9' => {
+                    self.index += 1;
+                    continue :state .value_int;
+                },
+                else => {},
+            },
+            .value => switch (self.buffer[self.index]) {
+                0,
+                '\'',
+                '"',
+                => {},
+                '\n',
+                '\r',
+                '\t',
+                ' ',
+                => {
+                    self.index += 1;
+                    result.token = .invalid;
+                    continue :state .invalid;
+                },
+                else => if (std.ascii.isAscii(self.buffer[self.index])) {
+                    self.index += 1;
+                    continue :state .value;
+                },
+            },
         }
 
         result.location.end = self.index;
@@ -177,14 +199,12 @@ pub const Tokenizer = struct {
 pub const ParserEnv = struct {
     /// Slice of produced token tags from the tokenizer.
     token_tags: []const Token.Tag,
-    /// Slice of produced start indexes the tokenizer.
-    starts: []const Offset,
-    /// Slice of produced end indexes from the tokenizer.
-    ends: []const Offset,
+    /// Slice of produced token starts from the tokenizer.
+    token_starts: []const Offset,
     /// The current index in any of the previous slices.
     token_index: TokenIndex,
     /// The source that will be used to load values from.
-    source: []const u8,
+    source: [:0]const u8,
     /// The enviroment map that will be used to load the variables to.
     env_map: *EnvMap,
 
@@ -201,10 +221,18 @@ pub const ParserEnv = struct {
     /// IDENT -> VALUE/VALUE_INT
     pub fn parseAndLoadOne(self: *ParserEnv) (Allocator.Error || error{UnexpectedToken})!void {
         const identifier_index = try self.parseIdentifier();
-        const value_index = try self.parseValue();
+        _ = try self.parseValue();
 
-        const identifier = self.source[self.starts[@intCast(identifier_index)]..self.ends[@intCast(identifier_index)]];
-        const value = self.source[self.starts[@intCast(value_index)]..self.ends[@intCast(value_index)]];
+        var tokenizer = Tokenizer{
+            .buffer = self.source,
+            .index = self.token_starts[identifier_index],
+        };
+
+        const iden_token = tokenizer.next();
+        const value_token = tokenizer.next();
+
+        const identifier = self.source[iden_token.location.start..iden_token.location.end];
+        const value = self.source[value_token.location.start..value_token.location.end];
 
         try self.env_map.put(identifier, value);
     }
@@ -267,7 +295,6 @@ pub fn parseToEnviromentVariables(
         try tokens.append(allocator, .{
             .tag = token.token,
             .start = @intCast(token.location.start),
-            .end = @intCast(token.location.end),
         });
 
         if (token.token == .eof)
@@ -278,8 +305,7 @@ pub fn parseToEnviromentVariables(
         .source = source,
         .env_map = env_map,
         .token_tags = tokens.items(.tag),
-        .starts = tokens.items(.start),
-        .ends = tokens.items(.end),
+        .token_starts = tokens.items(.start),
         .token_index = 0,
     };
 

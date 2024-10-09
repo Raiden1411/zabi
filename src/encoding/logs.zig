@@ -61,7 +61,7 @@ pub fn encodeLogTopicsComptime(allocator: Allocator, comptime event: AbiEvent, v
         }
     }
 
-    return try list.toOwnedSlice();
+    return list.toOwnedSlice();
 }
 /// Encode event log topics
 ///

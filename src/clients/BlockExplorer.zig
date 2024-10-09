@@ -802,7 +802,7 @@ pub fn sendRequest(self: *Explorer, comptime T: type, uri: Uri) SendRequestError
                 explorer_log.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
                 // Clears any message that was written
-                body.clearAndFree();
+                body.shrinkRetainingCapacity(0);
 
                 std.time.sleep(std.time.ns_per_ms * backoff);
                 continue;

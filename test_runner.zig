@@ -49,7 +49,7 @@ pub fn main() !void {
         if (std.mem.endsWith(u8, test_runner.name, ".test_0"))
             continue;
 
-        if (std.mem.endsWith(u8, test_runner.name, "Root"))
+        if (std.ascii.endsWithIgnoreCase(test_runner.name, "Root"))
             continue;
 
         var iter = std.mem.splitAny(u8, test_runner.name, ".");

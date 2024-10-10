@@ -1189,7 +1189,7 @@ pub fn readLoop(self: *IPC) ReadLoopErrors!void {
     while (true) {
         const message = self.ipc_reader.readMessage() catch |err| switch (err) {
             error.Closed, error.ConnectionResetByPeer, error.BrokenPipe, error.NotOpenForReading => {
-                _ = @atomicStore(bool, &self.ipc_reader.closed, true, .monotonic);
+                @atomicStore(bool, &self.ipc_reader.closed, true, .monotonic);
                 return error.Closed;
             },
             else => return,

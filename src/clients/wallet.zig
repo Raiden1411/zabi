@@ -328,7 +328,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         pub fn deinit(self: *WalletSelf) void {
             self.envelopes_pool.deinit(self.allocator);
             self.rpc_client.deinit();
-            self.nonce_manager = null;
 
             const allocator = self.allocator;
             allocator.destroy(self);
@@ -477,7 +476,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
                             break :blk nonce;
                         } else {
-                            const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
+                            const nonce = try self.rpc_client.getAddressTransactionCount(.{
+                                .address = self.signer.address_bytes,
+                                .tag = .pending,
+                            });
                             defer nonce.deinit();
 
                             break :blk nonce.response;
@@ -501,19 +503,21 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         request.gas = gas.response;
                     }
 
-                    return .{ .cancun = .{
-                        .chainId = chain_id,
-                        .nonce = nonce,
-                        .gas = request.gas.?,
-                        .maxFeePerGas = request.maxFeePerGas.?,
-                        .maxPriorityFeePerGas = request.maxPriorityFeePerGas.?,
-                        .maxFeePerBlobGas = max_fee_per_blob,
-                        .to = request.to,
-                        .data = request.data,
-                        .value = request.value.?,
-                        .accessList = accessList,
-                        .blobVersionedHashes = blob_version,
-                    } };
+                    return .{
+                        .cancun = .{
+                            .chainId = chain_id,
+                            .nonce = nonce,
+                            .gas = request.gas.?,
+                            .maxFeePerGas = request.maxFeePerGas.?,
+                            .maxPriorityFeePerGas = request.maxPriorityFeePerGas.?,
+                            .maxFeePerBlobGas = max_fee_per_blob,
+                            .to = request.to,
+                            .data = request.data,
+                            .value = request.value.?,
+                            .accessList = accessList,
+                            .blobVersionedHashes = blob_version,
+                        },
+                    };
                 },
                 .london => {
                     var request: LondonEthCall = .{
@@ -566,17 +570,19 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         request.gas = gas.response;
                     }
 
-                    return .{ .london = .{
-                        .chainId = chain_id,
-                        .nonce = nonce,
-                        .gas = request.gas.?,
-                        .maxFeePerGas = request.maxFeePerGas.?,
-                        .maxPriorityFeePerGas = request.maxPriorityFeePerGas.?,
-                        .to = request.to,
-                        .data = request.data,
-                        .value = request.value.?,
-                        .accessList = accessList,
-                    } };
+                    return .{
+                        .london = .{
+                            .chainId = chain_id,
+                            .nonce = nonce,
+                            .gas = request.gas.?,
+                            .maxFeePerGas = request.maxFeePerGas.?,
+                            .maxPriorityFeePerGas = request.maxPriorityFeePerGas.?,
+                            .to = request.to,
+                            .data = request.data,
+                            .value = request.value.?,
+                            .accessList = accessList,
+                        },
+                    };
                 },
                 .berlin => {
                     var request: LegacyEthCall = .{
@@ -623,16 +629,18 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         request.gas = gas.response;
                     }
 
-                    return .{ .berlin = .{
-                        .chainId = chain_id,
-                        .nonce = nonce,
-                        .gas = request.gas.?,
-                        .gasPrice = request.gasPrice.?,
-                        .to = request.to,
-                        .data = request.data,
-                        .value = request.value.?,
-                        .accessList = accessList,
-                    } };
+                    return .{
+                        .berlin = .{
+                            .chainId = chain_id,
+                            .nonce = nonce,
+                            .gas = request.gas.?,
+                            .gasPrice = request.gasPrice.?,
+                            .to = request.to,
+                            .data = request.data,
+                            .value = request.value.?,
+                            .accessList = accessList,
+                        },
+                    };
                 },
                 .legacy => {
                     var request: LegacyEthCall = .{
@@ -678,15 +686,17 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         request.gas = gas.response;
                     }
 
-                    return .{ .legacy = .{
-                        .chainId = chain_id,
-                        .nonce = nonce,
-                        .gas = request.gas.?,
-                        .gasPrice = request.gasPrice.?,
-                        .to = request.to,
-                        .data = request.data,
-                        .value = request.value.?,
-                    } };
+                    return .{
+                        .legacy = .{
+                            .chainId = chain_id,
+                            .nonce = nonce,
+                            .gas = request.gas.?,
+                            .gasPrice = request.gasPrice.?,
+                            .to = request.to,
+                            .data = request.data,
+                            .value = request.value.?,
+                        },
+                    };
                 },
                 .deposit => return error.UnsupportedTransactionType,
                 _ => return error.UnsupportedTransactionType,
@@ -924,10 +934,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         ) (EIP712Errors || Signer.RecoverPubKeyErrors)!bool {
             const hash = try eip712.hashTypedData(self.allocator, eip712_types, primary_type, domain, message);
 
-            const address = try Signer.recoverAddress(sig, hash);
-            const wallet_address = self.getWalletAddress();
+            const address: u160 = @bitCast(try Signer.recoverAddress(sig, hash));
+            const wallet_address: u160 = @bitCast(self.getWalletAddress());
 
-            return std.mem.eql(u8, &wallet_address, &address);
+            return address == wallet_address;
         }
         /// Waits until the transaction gets mined and we can grab the receipt.
         /// It fails if the retry counter is excedded.

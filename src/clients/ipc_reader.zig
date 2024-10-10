@@ -52,11 +52,10 @@ pub const IpcReader = struct {
     }
     /// Frees the buffer and closes the stream.
     pub fn deinit(self: Self) void {
-        self.allocator.free(self.buffer);
-
         if (@atomicLoad(bool, &self.closed, .acquire))
             return;
 
+        self.allocator.free(self.buffer);
         self.stream.close();
     }
     /// Reads the bytes directly from the socket. Will allocate more memory as needed.

@@ -11,6 +11,7 @@ const NodeOffset = Ast.Offset;
 const Token = tokenizer.Token;
 const Tokenizer = tokenizer.Tokenizer;
 const TokenIndex = Ast.TokenIndex;
+
 const Parser = @This();
 
 /// Errors that can happing whilest parsing the source code.
@@ -18,16 +19,19 @@ pub const ParserErrors = error{ParsingError} || Allocator.Error;
 
 const null_node: Node.Index = 0;
 
+/// Taken from zig's std.
 const Span = union(enum) {
     zero_one: Node.Index,
     multi: Node.Range,
 };
 
+/// Taken from zig's std.
 const Association = enum {
     left,
     none,
 };
 
+/// Taken from zig's std.
 const OperationInfo = struct {
     precedence: i8,
     tag: Node.Tag,

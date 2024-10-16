@@ -26,11 +26,7 @@ pub fn divInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPopUnsafe();
 
-    std.debug.assert(second != 0); // division by 0
-
-    const div = @divFloor(first, second);
-
-    try self.stack.pushUnsafe(div);
+    try self.stack.pushUnsafe(if (second == 0) 0 else @divFloor(first, second));
 }
 /// Performs exponent instruction for the interpreter.
 /// EXP -> 0x0A
@@ -56,9 +52,8 @@ pub fn modAdditionInstruction(self: *Interpreter) Interpreter.InstructionErrors!
     std.debug.assert(third != 0); // remainder division by 0
 
     const add = first +% second;
-    const mod = @mod(add, third);
 
-    try self.stack.pushUnsafe(mod);
+    try self.stack.pushUnsafe(if (third == 0) add else @mod(add, third));
 }
 /// Performs mod instruction for the interpreter.
 /// MOD -> 0x06
@@ -68,11 +63,7 @@ pub fn modInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPopUnsafe();
 
-    std.debug.assert(second != 0); // remainder division by 0
-
-    const mod = @mod(first, second);
-
-    try self.stack.pushUnsafe(mod);
+    try self.stack.pushUnsafe(if (second == 0) 0 else @mod(first, second));
 }
 /// Performs mul + mod instruction for the interpreter.
 /// MULMOD -> 0x09
@@ -83,12 +74,9 @@ pub fn modMultiplicationInstruction(self: *Interpreter) Interpreter.InstructionE
     const second = try self.stack.tryPopUnsafe();
     const third = try self.stack.tryPopUnsafe();
 
-    std.debug.assert(third != 0); // remainder division by 0
-
     const mul = first *% second;
-    const mod = @mod(mul, third);
 
-    try self.stack.pushUnsafe(mod);
+    try self.stack.pushUnsafe(if (third == 0) mul else @mod(mul, third));
 }
 /// Performs mul instruction for the interpreter.
 /// MUL -> 0x02
@@ -113,11 +101,7 @@ pub fn signedDivInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
     const casted_first: i256 = @bitCast(first);
     const casted_second: i256 = @bitCast(second);
 
-    std.debug.assert(casted_second != 0); // division by 0
-
-    const div: u256 = @bitCast(@divFloor(casted_first, casted_second));
-
-    try self.stack.pushUnsafe(div);
+    try self.stack.pushUnsafe(if (casted_second == 0) 0 else @bitCast(@divTrunc(casted_first, casted_second)));
 }
 /// Performs signextend instruction for the interpreter.
 /// SIGNEXTEND -> 0x0B
@@ -149,11 +133,7 @@ pub fn signedModInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
     const casted_first: i256 = @bitCast(first);
     const casted_second: i256 = @bitCast(second);
 
-    std.debug.assert(casted_second != 0); // remainder division by 0
-
-    const div = @mod(casted_first, casted_second);
-
-    try self.stack.pushUnsafe(@bitCast(div));
+    try self.stack.pushUnsafe(if (casted_second == 0) 0 else @bitCast(@rem(casted_first, casted_second)));
 }
 /// Performs sub instruction for the interpreter.
 /// SUB -> 0x03

@@ -201,7 +201,7 @@ pub const Memory = struct {
     fn growCapacity(current: usize, minimum: usize) usize {
         var new = current;
         while (true) {
-            new +|= new / 2 + 32;
+            new +|= new / 2 + 8;
             if (new >= minimum)
                 return new;
         }

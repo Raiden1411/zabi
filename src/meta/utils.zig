@@ -38,7 +38,7 @@ pub fn Extract(comptime T: type, comptime needle: []const u8) type {
     const info = @typeInfo(T).@"enum";
     var counter: usize = 0;
 
-    var iter = std.mem.tokenizeSequence(u8, needle, ",");
+    var iter = std.mem.tokenizeScalar(u8, needle, ',');
 
     while (iter.next()) |tok| {
         inline for (info.fields) |field| {

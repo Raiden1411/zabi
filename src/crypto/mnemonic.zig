@@ -56,7 +56,7 @@ pub fn toEntropy(
 ) error{ InvalidMnemonicWord, InvalidMnemonicChecksum }!EntropyArray(word_count) {
     const words = wordlist orelse english;
 
-    var iter = std.mem.tokenizeAny(u8, password, " ");
+    var iter = std.mem.tokenizeScalar(u8, password, ' ');
     const size = comptime std.math.divCeil(u16, 11 * word_count, 8) catch @compileError("Invalid word_count size");
 
     var entropy: [size]u8 = [_]u8{0} ** size;
@@ -200,7 +200,7 @@ pub const Wordlist = struct {
     fn loadList(raw_list: []const u8) [Wordlist.list_count][]const u8 {
         @setEvalBranchQuota(100000);
 
-        var iter = std.mem.tokenizeAny(u8, raw_list, "\n");
+        var iter = std.mem.tokenizeScalar(u8, raw_list, '\n');
         var list_buffer: [Wordlist.list_count][]const u8 = undefined;
 
         var count: usize = 0;

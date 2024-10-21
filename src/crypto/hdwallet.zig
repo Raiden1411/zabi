@@ -73,7 +73,7 @@ pub const HDWalletNode = struct {
         if (path[0] != 'm')
             return error.InvalidPath;
 
-        var tokenize = std.mem.tokenizeAny(u8, path[1..], "/");
+        var tokenize = std.mem.tokenizeScalar(u8, path[1..], '/');
         var node = self;
 
         if (tokenize.peek() == null)
@@ -182,7 +182,7 @@ pub const EunuchNode = struct {
         if (path[0] != 'm')
             return error.InvalidPath;
 
-        var tokenize = std.mem.tokenizeAny(u8, path[1..], "/");
+        var tokenize = std.mem.tokenizeScalar(u8, path[1..], '/');
         var node = self;
 
         if (tokenize.peek() == null)

@@ -78,7 +78,7 @@ pub fn convertEnsToBytes(out: []u8, label: []const u8) usize {
         return @intCast(0);
     }
 
-    var iter = std.mem.tokenizeSequence(u8, label, ".");
+    var iter = std.mem.tokenizeScalar(u8, label, '.');
 
     var position: usize = 0;
     while (iter.next()) |name| {

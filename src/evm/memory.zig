@@ -122,15 +122,14 @@ pub const Memory = struct {
 
         const better = growCapacity(self.total_capacity, new_capacity);
 
-        // Allocator refused to resize the memory so we do it ourselves.
-        const new_buffer = try self.allocator.alignedAlloc(u8, null, better);
+        const new_buffer = try self.allocator.alloc(u8, better);
         const old_memory = self.buffer.ptr[0..self.total_capacity];
 
         @memcpy(new_buffer[0..self.buffer.len], self.buffer);
         self.allocator.free(old_memory);
         self.buffer.ptr = new_buffer.ptr;
         self.buffer.len = new_capacity;
-        self.total_capacity = new_buffer.len;
+        self.total_capacity = better;
     }
     /// Converts a memory "Word" into a u256 number.
     /// This reads the word as `Big` endian.
@@ -198,11 +197,11 @@ pub const Memory = struct {
         self.allocator.free(self.buffer.ptr[0..self.total_capacity]);
         self.checkpoints.deinit();
     }
-    /// Sames as `ArrayList` growCapacity function.
+    /// Adapted from `ArrayList` growCapacity function.
     fn growCapacity(current: usize, minimum: usize) usize {
         var new = current;
         while (true) {
-            new +|= new / 2 + 8;
+            new +|= new / 2 + 32;
             if (new >= minimum)
                 return new;
         }

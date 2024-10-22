@@ -62,9 +62,11 @@ fn addDependencies(b: *std.Build, mod: *std.Build.Module, target: std.Build.Reso
         .optimize = optimize,
     });
     const ws = b.dependency("ws", .{ .target = target, .optimize = optimize });
+    const zg = b.dependency("zg", .{});
 
     mod.addImport("c-kzg-4844", c_kzg_4844_dep.module("c-kzg-4844"));
     mod.addImport("ws", ws.module("websocket"));
+    mod.addImport("Normalize", zg.module("Normalize"));
     mod.linkLibrary(c_kzg_4844_dep.artifact("c-kzg-4844"));
     mod.linkLibrary(blst_dep.artifact("blst"));
 }

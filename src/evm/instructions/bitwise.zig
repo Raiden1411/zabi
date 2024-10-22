@@ -186,10 +186,9 @@ pub fn xorInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
 
 test "And" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try interpreter.stack.pushUnsafe(0x7f);
@@ -203,10 +202,9 @@ test "And" {
 
 test "Or" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try interpreter.stack.pushUnsafe(0x7f);
@@ -220,10 +218,9 @@ test "Or" {
 
 test "Xor" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try interpreter.stack.pushUnsafe(0x7f);
@@ -237,10 +234,9 @@ test "Xor" {
 
 test "Greater than" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try interpreter.stack.pushUnsafe(0x7f);
@@ -254,10 +250,9 @@ test "Greater than" {
 
 test "Lower than" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try interpreter.stack.pushUnsafe(0x7f);
@@ -271,10 +266,9 @@ test "Lower than" {
 
 test "Equal" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try interpreter.stack.pushUnsafe(0x7f);
@@ -288,10 +282,9 @@ test "Equal" {
 
 test "IsZero" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try interpreter.stack.pushUnsafe(0);
@@ -304,10 +297,9 @@ test "IsZero" {
 
 test "Signed Greater than" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try interpreter.stack.pushUnsafe(std.math.maxInt(u256) - 1);
@@ -321,10 +313,9 @@ test "Signed Greater than" {
 
 test "Signed Lower than" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try interpreter.stack.pushUnsafe(std.math.maxInt(u256));
@@ -338,10 +329,9 @@ test "Signed Lower than" {
 
 test "Shift Left" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try interpreter.stack.pushUnsafe(2);
@@ -355,10 +345,9 @@ test "Shift Left" {
 
 test "Shift Right" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try interpreter.stack.pushUnsafe(2);
@@ -372,10 +361,9 @@ test "Shift Right" {
 
 test "SAR" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     {
@@ -400,10 +388,9 @@ test "SAR" {
 
 test "Not" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try interpreter.stack.pushUnsafe(0);
@@ -416,10 +403,9 @@ test "Not" {
 
 test "Byte" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     {

@@ -182,10 +182,9 @@ test "Address" {
     defer contract.deinit(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
 
@@ -208,10 +207,9 @@ test "Caller" {
     defer contract.deinit(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
 
@@ -234,10 +232,9 @@ test "Value" {
     defer contract.deinit(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
 
@@ -260,10 +257,9 @@ test "CodeSize" {
     defer contract.deinit(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
 
@@ -286,10 +282,9 @@ test "CallDataSize" {
     defer contract.deinit(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
 
@@ -312,10 +307,9 @@ test "Gas" {
     defer contract.deinit(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(1000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
 
@@ -338,10 +332,9 @@ test "ReturnDataSize" {
     defer contract.deinit(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
     interpreter.return_data = &.{};
@@ -366,10 +359,9 @@ test "CallDataLoad" {
     defer contract.deinit(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
 
@@ -404,12 +396,11 @@ test "CallDataCopy" {
 
     var interpreter: Interpreter = undefined;
     defer {
-        interpreter.stack.deinit();
         interpreter.memory.deinit();
     }
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
@@ -451,12 +442,11 @@ test "CodeCopy" {
 
     var interpreter: Interpreter = undefined;
     defer {
-        interpreter.stack.deinit();
         interpreter.memory.deinit();
     }
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
@@ -486,12 +476,11 @@ test "Keccak256" {
 
     var interpreter: Interpreter = undefined;
     defer {
-        interpreter.stack.deinit();
         interpreter.memory.deinit();
     }
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
@@ -534,12 +523,11 @@ test "ReturnDataCopy" {
 
     var interpreter: Interpreter = undefined;
     defer {
-        interpreter.stack.deinit();
         interpreter.memory.deinit();
     }
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);

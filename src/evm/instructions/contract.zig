@@ -290,10 +290,9 @@ pub fn resizeMemoryAndGetRange(self: *Interpreter, offset: u256, len: u256) (Int
 
 test "Create" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.allocator = testing.allocator;
 
@@ -332,12 +331,11 @@ test "Create2" {
 
     var interpreter: Interpreter = undefined;
     defer {
-        interpreter.stack.deinit();
         interpreter.memory.deinit();
     }
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.allocator = testing.allocator;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
@@ -371,12 +369,11 @@ test "Call" {
 
     var interpreter: Interpreter = undefined;
     defer {
-        interpreter.stack.deinit();
         interpreter.memory.deinit();
     }
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.allocator = testing.allocator;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
@@ -442,12 +439,11 @@ test "CallCode" {
 
     var interpreter: Interpreter = undefined;
     defer {
-        interpreter.stack.deinit();
         interpreter.memory.deinit();
     }
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.allocator = testing.allocator;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
@@ -499,12 +495,11 @@ test "DelegateCall" {
 
     var interpreter: Interpreter = undefined;
     defer {
-        interpreter.stack.deinit();
         interpreter.memory.deinit();
     }
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.allocator = testing.allocator;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
@@ -542,12 +537,11 @@ test "StaticCall" {
 
     var interpreter: Interpreter = undefined;
     defer {
-        interpreter.stack.deinit();
         interpreter.memory.deinit();
     }
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.allocator = testing.allocator;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);

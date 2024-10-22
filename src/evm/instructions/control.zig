@@ -110,10 +110,9 @@ fn returnAction(self: *Interpreter, status: Interpreter.InterpreterStatus) (Inte
 
 test "Program counter" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try programCounterInstruction(&interpreter);
@@ -124,10 +123,9 @@ test "Program counter" {
 
 test "Unknown" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try unknownInstruction(&interpreter);
@@ -137,10 +135,9 @@ test "Unknown" {
 
 test "Invalid" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try invalidInstruction(&interpreter);
@@ -150,10 +147,9 @@ test "Invalid" {
 
 test "Stopped" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try stopInstruction(&interpreter);
@@ -163,10 +159,9 @@ test "Stopped" {
 
 test "Jumpdest" {
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
 
     try jumpDestInstruction(&interpreter);
@@ -187,10 +182,9 @@ test "Jump" {
     defer contract.deinit(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
 
@@ -224,10 +218,9 @@ test "Conditional Jump" {
     defer contract.deinit(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
 
@@ -260,13 +253,12 @@ test "Conditional Jump" {
 test "Reverted" {
     var interpreter: Interpreter = undefined;
     defer {
-        interpreter.stack.deinit();
         interpreter.memory.deinit();
         testing.allocator.free(interpreter.return_data);
     }
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
     interpreter.return_data = &.{};
@@ -290,13 +282,12 @@ test "Reverted" {
 test "Return" {
     var interpreter: Interpreter = undefined;
     defer {
-        interpreter.stack.deinit();
         interpreter.memory.deinit();
         testing.allocator.free(interpreter.return_data);
     }
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
     interpreter.return_data = &.{};

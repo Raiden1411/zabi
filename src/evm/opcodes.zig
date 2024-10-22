@@ -4,6 +4,7 @@ const instructions = @import("instructions/root.zig");
 const EnumFieldStruct = std.enums.EnumFieldStruct;
 const Interpreter = @import("Interpreter.zig");
 
+/// Comptime generated table from EVM instructions.
 pub const instruction_table = InstructionTable.generateTable(.{
     .STOP = .{ .execution = instructions.control.stopInstruction, .max_stack = maxStack(1024, 0, 0) },
     .ADD = .{ .execution = instructions.arithmetic.addInstruction, .max_stack = maxStack(1024, 2, 1) },
@@ -337,10 +338,13 @@ pub const Opcodes = enum(u8) {
     }
 };
 
+/// EVM instruction table.
 pub const InstructionTable = struct {
+    /// Array of instructions.
     inner: [256]Operations,
 
     /// Generates the instruction opcode table.
+    /// This is a similiar implementation to `std.enums.directEnumArray`
     pub fn generateTable(fields: EnumFieldStruct(Opcodes, Operations, null)) InstructionTable {
         const info = @typeInfo(@TypeOf(fields));
 

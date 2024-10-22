@@ -13,6 +13,17 @@ test "Index" {
     }
 }
 
+test "Word" {
+    {
+        const List = @import("../../crypto/mnemonic.zig").Wordlist;
+
+        var foo = try List.loadListAndNormalize(testing.allocator, @embedFile("../../crypto/wordlists/english.txt"));
+        defer foo.deinit();
+
+        try testing.expectEqual(21, try foo.getIndexAndNormalize("actor"));
+    }
+}
+
 test "English" {
     {
         const seed = "test test test test test test test test test test test junk";

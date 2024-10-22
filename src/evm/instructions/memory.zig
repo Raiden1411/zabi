@@ -89,12 +89,11 @@ pub fn mstore8Instruction(self: *Interpreter) MemoryInstructionErrors!void {
 test "Mstore" {
     var interpreter: Interpreter = undefined;
     defer {
-        interpreter.stack.deinit();
         interpreter.memory.deinit();
     }
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
 
@@ -121,12 +120,11 @@ test "Mstore" {
 test "Mstore8" {
     var interpreter: Interpreter = undefined;
     defer {
-        interpreter.stack.deinit();
         interpreter.memory.deinit();
     }
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
 
@@ -153,12 +151,11 @@ test "Mstore8" {
 test "Msize" {
     var interpreter: Interpreter = undefined;
     defer {
-        interpreter.stack.deinit();
         interpreter.memory.deinit();
     }
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
 
@@ -181,12 +178,11 @@ test "Msize" {
 test "MCopy" {
     var interpreter: Interpreter = undefined;
     defer {
-        interpreter.stack.deinit();
         interpreter.memory.deinit();
     }
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
 

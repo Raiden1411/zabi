@@ -126,9 +126,6 @@ pub fn Stack(comptime T: type) type {
             self.inner.items[top] ^= self.inner.items[second];
             self.inner.items[second] ^= self.inner.items[top];
             self.inner.items[top] ^= self.inner.items[second];
-
-            // self.inner.items[self.inner.items.len - 1] = second;
-            // self.inner.items[self.inner.items.len - position_swap] = top;
         }
         /// Swap an item from the stack depending on the provided positions.
         /// This is not thread safe.
@@ -177,6 +174,94 @@ pub fn Stack(comptime T: type) type {
         /// Returns number of items available in the stack
         pub fn availableSize(self: Self) usize {
             return self.max_size - self.inner.items.len;
+        }
+    };
+}
+
+/// Stack implementation based on the `std.BoundedArray`.
+pub fn BoundedStack(comptime size: usize) type {
+    return struct {
+        const Self = @This();
+
+        /// Set of possible errors while performing stack operations.
+        pub const Error = error{ StackOverflow, StackUnderflow };
+
+        /// Inner buffer that will hold the stack items.
+        inner: [size]u256 = undefined,
+        /// Stack size.
+        len: usize,
+
+        /// Swaps the top value of the stack with the different position.
+        /// This is not thread safe.
+        pub fn swapToTopUnsafe(self: *Self, position_swap: usize) error{StackUnderflow}!void {
+            if (self.inner.len < position_swap)
+                return error.StackUnderflow;
+
+            const top = self.len - 1;
+            const second = top - position_swap;
+
+            self.inner[top] ^= self.inner[second];
+            self.inner[second] ^= self.inner[top];
+            self.inner[top] ^= self.inner[second];
+        }
+        /// Duplicates an item from the stack. Appends it to the top.
+        /// This is not thread safe.
+        pub fn dupUnsafe(self: *Self, position: usize) Self.Error!void {
+            if (self.inner.len < position)
+                return error.StackUnderflow;
+
+            const item = self.inner[self.len - position];
+            try self.pushUnsafe(item);
+        }
+        /// Pops item from the stack. Returns `StackUnderflow` if it cannot.
+        /// This is not thread safe,
+        pub fn pushUnsafe(self: *Self, item: u256) error{StackOverflow}!void {
+            try self.ensureUnusedCapacity(1);
+            self.appendAssumeCapacity(item);
+        }
+        /// Appends item to the inner buffer. Increments the `len` of this array.
+        pub fn appendAssumeCapacity(self: *Self, item: u256) void {
+            std.debug.assert(self.len < size);
+
+            self.len += 1;
+            self.inner[self.len - 1] = item;
+        }
+        /// Ensures that the stack has enough room to grow.
+        /// Otherwise it returns `StackOverflow`.
+        pub fn ensureUnusedCapacity(self: Self, grow: usize) error{StackOverflow}!void {
+            if (self.len + grow > size) {
+                return error.StackOverflow;
+            }
+        }
+        /// Pops item from the stack. Returns `null` if it cannot.
+        /// This is not thread safe,
+        pub fn popUnsafe(self: *Self) ?u256 {
+            return self.popOrNull();
+        }
+        /// Pops item from the stack. Returns `StackUnderflow` if it cannot.
+        /// This is not thread safe,
+        pub fn tryPopUnsafe(self: *Self) error{StackUnderflow}!u256 {
+            return self.popOrNull() orelse error.StackUnderflow;
+        }
+        /// Pops item from the stack.
+        /// Returns null if the `len` is 0.
+        pub fn popOrNull(self: *Self) ?u256 {
+            return if (self.len == 0) null else self.pop();
+        }
+        /// Pops item from the stack.
+        pub fn pop(self: *Self) u256 {
+            const item = self.inner[self.len - 1];
+            self.len -= 1;
+
+            return item;
+        }
+        /// Returns the current stack size.
+        pub fn stackHeight(self: *Self) usize {
+            return self.len;
+        }
+        /// Returns number of items available in the stack
+        pub fn availableSize(self: Self) usize {
+            return self.inner.len - self.len;
         }
     };
 }

@@ -126,10 +126,9 @@ test "BaseFee" {
     host.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -146,10 +145,9 @@ test "BlobBaseFee" {
     host.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -175,10 +173,9 @@ test "BlobHash" {
     host.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -214,10 +211,9 @@ test "Timestamp" {
     host.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -234,10 +230,9 @@ test "BlockNumber" {
     host.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -254,10 +249,9 @@ test "ChainId" {
     host.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -282,10 +276,9 @@ test "Coinbase" {
     host.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -302,10 +295,9 @@ test "Difficulty" {
     host.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -322,10 +314,9 @@ test "GasPrice" {
     host.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -342,10 +333,9 @@ test "Origin" {
     host.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 
@@ -362,10 +352,9 @@ test "GasLimit" {
     host.init(testing.allocator);
 
     var interpreter: Interpreter = undefined;
-    defer interpreter.stack.deinit();
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = try Stack(u256).initWithCapacity(testing.allocator, 1024);
+    interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = host.host();
 

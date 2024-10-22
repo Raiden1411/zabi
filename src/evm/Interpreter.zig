@@ -19,7 +19,7 @@ const Memory = mem.Memory;
 const PlainHost = host_type.PlainHost;
 const ReturnAction = actions.ReturnAction;
 const SpecId = specid.SpecId;
-const Stack = @import("../utils/stack.zig").Stack;
+const Stack = @import("../utils/stack.zig").BoundedStack(1024);
 
 const Interpreter = @This();
 
@@ -114,7 +114,7 @@ program_counter: u64,
 /// The spec for this interpreter.
 spec: SpecId,
 /// The stack of the interpreter with 1024 max size.
-stack: Stack(u256),
+stack: Stack,
 /// The current interpreter status.
 status: InterpreterStatus,
 /// The buffer containing the return data
@@ -168,14 +168,13 @@ pub fn init(
         .next_action = .no_action,
         .program_counter = 0,
         .spec = opts.spec_id,
-        .stack = try Stack(u256).initWithCapacity(allocator, 1024),
+        .stack = .{ .len = 0 },
         .status = .running,
         .return_data = &[0]u8{},
     };
 }
 /// Clear memory and destroy's any created pointers.
 pub fn deinit(self: *Interpreter) void {
-    self.stack.deinit();
     self.memory.deinit();
 
     self.allocator.free(self.code);

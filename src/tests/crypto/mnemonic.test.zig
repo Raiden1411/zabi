@@ -4,6 +4,7 @@ const testing = std.testing;
 
 const fromEntropy = @import("../../crypto/mnemonic.zig").fromEntropy;
 const toEntropy = @import("../../crypto/mnemonic.zig").toEntropy;
+const toEntropyNormalize = @import("../../crypto/mnemonic.zig").toEntropyNormalize;
 
 test "Index" {
     {
@@ -28,6 +29,15 @@ test "English" {
     {
         const seed = "test test test test test test test test test test test junk";
         const entropy = try toEntropy(12, seed, null);
+
+        const bar = try fromEntropy(testing.allocator, 12, entropy, null);
+        defer testing.allocator.free(bar);
+
+        try testing.expectEqualStrings(seed, bar);
+    }
+    {
+        const seed = "test test test test test test test test test test test junk";
+        const entropy = try toEntropyNormalize(12, seed, null);
 
         const bar = try fromEntropy(testing.allocator, 12, entropy, null);
         defer testing.allocator.free(bar);

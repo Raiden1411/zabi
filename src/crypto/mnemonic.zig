@@ -43,6 +43,8 @@ pub fn mnemonicToSeed(password: []const u8) (WeakParametersError || OutputTooLon
 }
 /// Converts the mnemonic phrase into it's entropy representation.
 ///
+/// Assumes that the password was previously normalized.
+///
 /// **Example**
 /// ```zig
 /// const seed = "test test test test test test test test test test test junk";
@@ -68,6 +70,58 @@ pub fn toEntropy(
     var count: usize = 0;
     while (iter.next()) |word| {
         const index = words.getIndex(word) orelse return error.InvalidMnemonicWord;
+
+        for (0..11) |bit| {
+            if (index & std.math.shl(u16, 1, 10 - bit) != 0) {
+                entropy[count >> 3] |= std.math.shl(u8, 1, 7 - (count % 8));
+            }
+            count += 1;
+        }
+    }
+
+    const entropy_bytes = comptime 32 * word_count / 3;
+    const checksum_bytes = comptime word_count / 3;
+    const checksum_mask = ((1 << checksum_bytes) - 1) << (8 - checksum_bytes) & 0xFF;
+
+    var buffer: [32]u8 = undefined;
+    Sha256.hash(entropy[0 .. entropy_bytes / 8], &buffer, .{});
+
+    const checksum = buffer[0] & checksum_mask;
+
+    if (checksum != entropy[entropy.len - 1] & checksum)
+        return error.InvalidMnemonicChecksum;
+
+    return entropy[0 .. entropy_bytes / 8].*;
+}
+/// Converts the mnemonic phrase into it's entropy representation.
+///
+/// This will normalize the words in the mnemonic phrase.
+///
+/// **Example**
+/// ```zig
+/// const seed = "test test test test test test test test test test test junk";
+/// const entropy = try toEntropyNormalize(12, seed, null);
+///
+/// const bar = try fromEntropy(testing.allocator, 12, entropy, null);
+/// defer testing.allocator.free(bar);
+///
+/// try testing.expectEqualStrings(seed, bar);
+/// ```
+pub fn toEntropyNormalize(
+    comptime word_count: comptime_int,
+    password: []const u8,
+    wordlist: ?Wordlist,
+) !EntropyArray(word_count) {
+    const words = wordlist orelse english;
+
+    var iter = std.mem.tokenizeScalar(u8, password, ' ');
+    const size = comptime std.math.divCeil(u16, 11 * word_count, 8) catch @compileError("Invalid word_count size");
+
+    var entropy: [size]u8 = [_]u8{0} ** size;
+
+    var count: usize = 0;
+    while (iter.next()) |word| {
+        const index = try words.getIndexAndNormalize(word) orelse return error.InvalidMnemonicWord;
 
         for (0..11) |bit| {
             if (index & std.math.shl(u16, 1, 10 - bit) != 0) {

@@ -1,4 +1,4 @@
-const param_type = @import("../../abi/param_type.zig");
+const param_type = @import("zabi-abi").param_type;
 const std = @import("std");
 const testing = std.testing;
 

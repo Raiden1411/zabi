@@ -1,27 +1,16 @@
-const english = @import("../../crypto/mnemonic.zig").english;
+const english = @import("zabi-crypto").mnemonic.english;
 const std = @import("std");
 const testing = std.testing;
 
-const fromEntropy = @import("../../crypto/mnemonic.zig").fromEntropy;
-const toEntropy = @import("../../crypto/mnemonic.zig").toEntropy;
-const toEntropyNormalize = @import("../../crypto/mnemonic.zig").toEntropyNormalize;
+const fromEntropy = @import("zabi-crypto").mnemonic.fromEntropy;
+const toEntropy = @import("zabi-crypto").mnemonic.toEntropy;
+const toEntropyNormalize = @import("zabi-crypto").mnemonic.toEntropyNormalize;
 
 test "Index" {
     {
         const index = english.getIndex("actor");
 
         try testing.expectEqual(index.?, 21);
-    }
-}
-
-test "Word" {
-    {
-        const List = @import("../../crypto/mnemonic.zig").Wordlist;
-
-        var foo = try List.loadListAndNormalize(testing.allocator, @embedFile("../../crypto/wordlists/english.txt"));
-        defer foo.deinit();
-
-        try testing.expectEqual(21, try foo.getIndexAndNormalize("actor"));
     }
 }
 

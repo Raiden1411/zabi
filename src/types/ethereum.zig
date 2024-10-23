@@ -1,11 +1,11 @@
 const block = @import("block.zig");
 const log = @import("log.zig");
-const meta = @import("../meta/root.zig");
+const meta = @import("zabi-meta");
 const proof = @import("proof.zig");
 const std = @import("std");
 const sync = @import("syncing.zig");
 const transaction = @import("transaction.zig");
-const txpool = @import("../types/txpool.zig");
+const txpool = @import("txpool.zig");
 
 const AccessListResult = transaction.AccessListResult;
 const Allocator = std.mem.Allocator;

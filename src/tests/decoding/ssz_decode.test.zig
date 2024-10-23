@@ -1,9 +1,9 @@
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 
-const encodeSSZ = @import("../../encoding/ssz.zig").encodeSSZ;
-const decodeSSZ = @import("../../decoding/ssz_decode.zig").decodeSSZ;
+const encodeSSZ = @import("zabi-encoding").ssz.encodeSSZ;
+const decodeSSZ = @import("zabi-decoding").ssz.decodeSSZ;
 
 test "Decoded Bool" {
     {

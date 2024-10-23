@@ -1,13 +1,17 @@
 const ckzg4844 = @import("c-kzg-4844");
-const constants = @import("../utils/constants.zig");
-const eip712 = @import("../abi/eip712.zig");
-const encoder = @import("../encoding/encoder.zig");
-const serialize = @import("../encoding/serialize.zig");
+const constants = zabi_utils.constants;
+const eip712 = @import("zabi-abi").eip712;
+const encoder = zabi_encoding.abi_encoding;
+const serialize = zabi_encoding.serialize;
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("../types/transaction.zig");
-const types = @import("../types/ethereum.zig");
-const utils = @import("../utils/utils.zig");
+const transaction = zabi_types.transactions;
+const types = zabi_types.ethereum;
+const utils = zabi_utils.utils;
+const zabi_encoding = @import("zabi-encoding");
+const zabi_crypto = @import("zabi-crypto");
+const zabi_types = @import("zabi-types");
+const zabi_utils = @import("zabi-utils");
 
 // Types
 const AccessList = transaction.AccessList;
@@ -30,8 +34,8 @@ const PubClient = @import("Client.zig");
 const RPCResponse = types.RPCResponse;
 const SerializeErrors = serialize.SerializeErrors;
 const Sidecar = ckzg4844.KZG4844.Sidecar;
-const Signer = @import("../crypto/Signer.zig");
-const Signature = @import("../crypto/signature.zig").Signature;
+const Signer = zabi_crypto.Signer;
+const Signature = zabi_crypto.signature.Signature;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const TransactionReceipt = transaction.TransactionReceipt;
 const TypedDataDomain = eip712.TypedDataDomain;

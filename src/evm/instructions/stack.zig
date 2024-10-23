@@ -3,7 +3,6 @@ const std = @import("std");
 const testing = std.testing;
 
 const Interpreter = @import("../Interpreter.zig");
-const Stack = @import("../../utils/stack.zig").Stack;
 
 /// Runs the swap instructions opcodes for the interpreter.
 /// 0x80 .. 0x8F -> DUP1 .. DUP16

@@ -3,7 +3,6 @@ const std = @import("std");
 const testing = std.testing;
 
 const Allocator = std.mem.Allocator;
-const Stack = @import("../../utils/stack.zig").Stack;
 const Interpreter = @import("../Interpreter.zig");
 
 /// Performs add instruction for the interpreter.

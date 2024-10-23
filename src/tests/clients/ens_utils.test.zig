@@ -1,4 +1,4 @@
-const ens_utils = @import("../../clients/ens/ens_utils.zig");
+const ens_utils = @import("zabi-ens").utils;
 const std = @import("std");
 const testing = std.testing;
 

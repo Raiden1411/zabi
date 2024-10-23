@@ -1,10 +1,10 @@
-const args_parser = zabi.args;
 const std = @import("std");
-const zabi = @import("zabi");
+const zabi_evm = @import("zabi-evm");
+const zabi_utils = @import("zabi-utils");
 
-const Contract = zabi.evm.contract.Contract;
-const Interpreter = zabi.evm.Interpreter;
-const PlainHost = zabi.evm.host.PlainHost;
+const Contract = zabi_evm.contract.Contract;
+const Interpreter = zabi_evm.Interpreter;
+const PlainHost = zabi_evm.host.PlainHost;
 
 pub const CliOptions = struct {
     bytecode: []const u8,
@@ -17,7 +17,7 @@ pub fn main() !void {
     var iter = try std.process.argsWithAllocator(allocator);
     defer iter.deinit();
 
-    const parsed = args_parser.parseArgs(CliOptions, allocator, &iter);
+    const parsed = zabi_utils.args.parseArgs(CliOptions, allocator, &iter);
 
     const buffer = try allocator.alloc(u8, @divExact(parsed.bytecode.len, 2));
     defer allocator.free(buffer);

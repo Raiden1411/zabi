@@ -1,11 +1,11 @@
-const abi = @import("../../abi/abi.zig");
-const human = @import("../../human-readable/abi_parsing.zig");
-const parse = @import("../../decoding/parse_transaction.zig");
-const serialize = @import("../../encoding/serialize.zig");
+const abi = @import("zabi-abi").abitypes;
+const human = @import("zabi-human").parsing;
+const parse = @import("zabi-decoding").parse_transacition;
+const serialize = @import("zabi-encoding").serialize;
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("../../types/transaction.zig");
-const utils = @import("../../utils/utils.zig");
+const transaction = @import("zabi-types").transactions;
+const utils = @import("zabi-utils").utils;
 
 // Types
 const BerlinTransactionEnvelope = transaction.BerlinTransactionEnvelope;
@@ -16,8 +16,8 @@ const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
 const LegacyTransactionEnvelopeSigned = transaction.LegacyTransactionEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
 const LondonTransactionEnvelopeSigned = transaction.LondonTransactionEnvelopeSigned;
-const Signature = @import("../../crypto/signature.zig").Signature;
-const Signer = @import("../../crypto/Signer.zig");
+const Signature = @import("zabi-crypto").signature.Signature;
+const Signer = @import("zabi-crypto").Signer;
 
 // Functions
 const parseTransaction = parse.parseTransaction;

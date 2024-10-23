@@ -1,4 +1,4 @@
-const args_parser = zabi.args;
+const args_parser = zabi.utils.args;
 const std = @import("std");
 const zabi = @import("zabi");
 
@@ -46,7 +46,10 @@ pub fn main() !void {
         switch (transaction.response) {
             .london => |tx_london| {
                 if (tx_london.to) |to| {
-                    if (std.mem.eql(u8, &to, &try zabi.utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"))) {
+                    const casted_to: u160 = @bitCast(to);
+                    const expected: u160 = comptime @bitCast(zabi.utils.utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable);
+
+                    if (casted_to == expected) {
                         std.debug.print("Found usdc transaction in the value of {d} wei\n", .{tx_london.value});
                         break;
                     }

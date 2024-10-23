@@ -1,7 +1,7 @@
 /// Custom Solidity lexer.
-const lexer = @import("lexer.zig");
+pub const lexer = @import("lexer.zig");
 /// Custom solidity tokens.
-const tokens = @import("tokens.zig");
+pub const tokens = @import("tokens.zig");
 
 /// The abi parser.
 pub const parsing = @import("abi_parsing.zig");

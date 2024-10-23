@@ -1,7 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
-const parameter = @import("../../abi/abi_parameter.zig");
-const param_type = @import("../../abi/param_type.zig");
+const parameter = @import("zabi-abi").abi_parameter;
+const param_type = @import("zabi-abi").param_type;
 
 const AbiParameter = parameter.AbiParameter;
 const AbiEventParameter = parameter.AbiEventParameter;

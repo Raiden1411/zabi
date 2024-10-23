@@ -1,13 +1,14 @@
-const abitype = @import("../abi/abi.zig");
-const block = @import("../types/block.zig");
-const decoder = @import("../decoding/decoder.zig");
-const encoder = @import("../encoding/encoder.zig");
-const logs = @import("../types/log.zig");
-const meta = @import("../meta/abi.zig");
+const abitype = @import("zabi-abi").abitypes;
+const block = zabi_types.block;
+const decoder = @import("zabi-decoding").abi_decoder;
+const encoder = @import("zabi-encoding").abi_encoding;
+const logs = zabi_types.log;
+const meta = @import("zabi-meta").abi;
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("../types/transaction.zig");
-const types = @import("../types/ethereum.zig");
+const transaction = zabi_types.transactions;
+const types = zabi_types.ethereum;
+const zabi_types = @import("zabi-types");
 
 // Types
 const Abi = abitype.Abi;

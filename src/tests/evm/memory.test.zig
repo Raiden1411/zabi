@@ -1,4 +1,4 @@
-const memory = @import("../../evm/memory.zig");
+const memory = @import("zabi-evm").memory;
 const std = @import("std");
 const testing = std.testing;
 

@@ -1,7 +1,7 @@
-const serialize = @import("../../clients/optimism/serialize_deposit.zig");
+const serialize = @import("zabi-op-stack").serialize;
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 
 const serializeDepositTransaction = serialize.serializeDepositTransaction;
 

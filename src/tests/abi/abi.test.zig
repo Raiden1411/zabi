@@ -1,4 +1,4 @@
-const abi = @import("../../abi/abi.zig");
+const abi = @import("zabi-abi").abitypes;
 const std = @import("std");
 const testing = std.testing;
 

@@ -1,10 +1,10 @@
-const abi = @import("../abi/abi.zig");
+const abi = @import("zabi-abi").abitypes;
 const block = @import("block.zig");
-const meta = @import("../meta/root.zig");
+const meta = @import("zabi-meta");
 const std = @import("std");
 const testing = std.testing;
 const types = @import("ethereum.zig");
-const utils = @import("../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 
 const Abi = abi.Abi;
 const Address = types.Address;

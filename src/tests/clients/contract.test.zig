@@ -1,8 +1,8 @@
-const contract_client = @import("../../clients/contract.zig");
+const contract_client = @import("zabi-clients").contract;
 const std = @import("std");
 const testing = std.testing;
-const types = @import("../../types/ethereum.zig");
-const utils = @import("../../utils/utils.zig");
+const types = @import("zabi-types").ethereum;
+const utils = @import("zabi-utils").utils;
 
 const Contract = contract_client.Contract;
 const ContractComptime = contract_client.ContractComptime;

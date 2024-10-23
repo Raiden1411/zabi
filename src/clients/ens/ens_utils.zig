@@ -1,7 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
-const types = @import("../../types/ethereum.zig");
-const utils = @import("../../utils/utils.zig");
+const types = @import("zabi-types").ethereum;
+const utils = @import("zabi-utils").utils;
 
 const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;

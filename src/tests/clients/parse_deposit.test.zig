@@ -1,9 +1,9 @@
-const parse = @import("../../clients/optimism/parse_deposit.zig");
-const serialize = @import("../../clients/optimism/serialize_deposit.zig");
+const parse = @import("zabi-op-stack").parse;
+const serialize = @import("zabi-op-stack").serialize;
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("../../clients/optimism/types/transaction.zig");
-const utils = @import("../../utils/utils.zig");
+const transaction = @import("zabi-types").transactions;
+const utils = @import("zabi-utils").utils;
 
 const DepositTransaction = transaction.DepositTransaction;
 

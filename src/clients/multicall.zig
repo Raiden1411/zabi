@@ -1,10 +1,10 @@
-const abitypes = @import("../abi/abi.zig");
-const decoder = @import("../decoding/decoder.zig");
-const encoder = @import("../encoding/encoder.zig");
-const meta_abi = @import("../meta/abi.zig");
+const abitypes = @import("zabi-abi").abitypes;
+const decoder = @import("zabi-decoding").abi_decoder;
+const encoder = @import("zabi-encoding").abi_encoding;
+const meta_abi = @import("zabi-meta").abi;
 const std = @import("std");
-const types = @import("../types/ethereum.zig");
-const utils = @import("../utils/utils.zig");
+const types = @import("zabi-types").ethereum;
+const utils = @import("zabi-utils").utils;
 
 const AbiDecoded = decoder.AbiDecoded;
 const AbiParametersToPrimative = meta_abi.AbiParametersToPrimative;

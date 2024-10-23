@@ -1,12 +1,12 @@
-const block = @import("../../types/block.zig");
-const ethereum = @import("../../types/ethereum.zig");
-const logs = @import("../../types/log.zig");
-const proof = @import("../../types/proof.zig");
+const block = @import("zabi-types").block;
+const ethereum = @import("zabi-types").ethereum;
+const logs = @import("zabi-types").log;
+const proof = @import("zabi-types").proof;
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("../../types/transaction.zig");
+const transaction = @import("zabi-types").transactions;
 
-const generateRandomData = @import("../../utils/generator.zig").generateRandomData;
+const generateRandomData = @import("zabi-utils").generator.generateRandomData;
 
 test "Zabi types" {
     // Block types

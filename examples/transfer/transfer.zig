@@ -1,6 +1,6 @@
-const args_parser = zabi.args;
+const args_parser = zabi.utils.args;
 const std = @import("std");
-const utils = zabi.utils;
+const utils = zabi.utils.utils;
 const zabi = @import("zabi");
 
 const Wallet = zabi.clients.wallet.Wallet(.websocket);

@@ -1,4 +1,4 @@
-const eip712 = @import("../../abi/eip712.zig");
+const eip712 = @import("zabi-abi").eip712;
 const std = @import("std");
 const testing = std.testing;
 

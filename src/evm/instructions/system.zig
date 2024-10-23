@@ -1,13 +1,12 @@
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 
 const Contract = @import("../contract.zig").Contract;
 const Interpreter = @import("../Interpreter.zig");
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Memory = @import("../memory.zig").Memory;
-const Stack = @import("../../utils/stack.zig").Stack;
 
 /// Runs the address instructions opcodes for the interpreter.
 /// 0x30 -> ADDRESS

@@ -1,13 +1,14 @@
-const abi = @import("../abi/abi.zig");
-const params = @import("../abi/abi_parameter.zig");
+const abi = zabi_abi.abitypes;
+const params = zabi_abi.abi_parameter;
 const std = @import("std");
 const testing = std.testing;
+const zabi_abi = @import("zabi-abi");
 
 // Types
 const Abitype = abi.Abitype;
 const AbiEventParameter = params.AbiEventParameter;
 const AbiParameter = params.AbiParameter;
-const ParamType = @import("../abi/param_type.zig").ParamType;
+const ParamType = zabi_abi.param_type.ParamType;
 
 /// Sames as `AbiParametersToPrimative` but for event parameter types.
 pub fn AbiEventParametersDataToPrimative(comptime paramters: []const AbiEventParameter) type {

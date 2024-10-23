@@ -1,4 +1,4 @@
-const args_parser = zabi.args;
+const args_parser = zabi.utils.args;
 const std = @import("std");
 const zabi = @import("zabi");
 

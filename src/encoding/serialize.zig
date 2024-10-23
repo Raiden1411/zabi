@@ -1,11 +1,12 @@
-const meta = @import("../meta/utils.zig");
+const kzg = @import("c-kzg-4844");
+const meta = @import("zabi-meta").utils;
 const std = @import("std");
 const rlp = @import("rlp.zig");
-const transaction = @import("../types/transaction.zig");
+const transaction = zabi_types.transactions;
 const testing = std.testing;
-const types = @import("../types/ethereum.zig");
-const utils = @import("../utils/utils.zig");
-const kzg = @import("c-kzg-4844");
+const types = zabi_types.ethereum;
+const utils = @import("zabi-utils").utils;
+const zabi_types = @import("zabi-types");
 
 // Types
 const AccessList = transaction.AccessList;
@@ -34,8 +35,7 @@ const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
 const RlpEncodeErrors = rlp.RlpEncodeErrors;
 const Sidecar = kzg.KZG4844.Sidecar;
 const Sidecars = kzg.KZG4844.Sidecars;
-const Signature = @import("../crypto/signature.zig").Signature;
-const Signer = @import("../crypto/Signer.zig");
+const Signature = @import("zabi-crypto").signature.Signature;
 const StructToTupleType = meta.StructToTupleType;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const Tuple = std.meta.Tuple;

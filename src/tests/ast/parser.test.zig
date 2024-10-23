@@ -1,9 +1,9 @@
-const tokenizer = @import("../../ast/tokenizer.zig");
+const tokenizer = @import("zabi-ast").tokenizer;
 const std = @import("std");
 const testing = std.testing;
 
-const Parser = @import("../../ast/Parser.zig");
-const Ast = @import("../../ast/Ast.zig");
+const Parser = @import("zabi-ast").Parser;
+const Ast = @import("zabi-ast").Ast;
 
 test "Pragma" {
     var tokens: Ast.TokenList = .{};

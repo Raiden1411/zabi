@@ -1,7 +1,7 @@
-const op_utils = @import("../../clients/optimism/utils.zig");
+const op_utils = @import("zabi-op-stack").utils;
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 
 const getL2HashFromL1DepositInfo = op_utils.getL2HashFromL1DepositInfo;
 const getSourceHash = op_utils.getSourceHash;

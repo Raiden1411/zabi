@@ -1,8 +1,8 @@
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 
-const encodeRlp = @import("../../encoding/rlp.zig").encodeRlp;
+const encodeRlp = @import("zabi-encoding").rlp.encodeRlp;
 
 test "Empty" {
     const empty = try encodeRlp(testing.allocator, .{ false, "", 0 });

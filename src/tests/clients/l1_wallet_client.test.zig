@@ -1,11 +1,11 @@
 const std = @import("std");
 const testing = std.testing;
-const types = @import("../../types/ethereum.zig");
-const withdrawl = @import("../../clients/optimism/types/withdrawl.zig");
-const utils = @import("../../utils/utils.zig");
+const types = @import("zabi-types").ethereum;
+const withdrawl = @import("zabi-op-stack").withdrawal_types;
+const utils = @import("zabi-utils").utils;
 
 const Hash = types.Hash;
-const L1WalletClient = @import("../../clients/optimism/clients/L1WalletClient.zig").L1WalletClient;
+const L1WalletClient = @import("zabi-op-stack").l1_wallet_client.L1WalletClient;
 const WithdrawalEnvelope = withdrawl.WithdrawalEnvelope;
 
 test "InitiateWithdrawal" {

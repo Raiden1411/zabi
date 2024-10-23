@@ -1,5 +1,5 @@
-const decoder = @import("../decoding/decoder.zig");
-const encoder = @import("../encoding/encoder.zig");
+const decoder = @import("zabi-decoding").abi_decoder;
+const encoder = @import("zabi-encoding").abi_encoding;
 const std = @import("std");
 const testing = std.testing;
 

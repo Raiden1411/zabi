@@ -1,18 +1,14 @@
 const std = @import("std");
-const abi = @import("../abi/abi.zig");
-const human = @import("../human-readable/abi_parsing.zig");
+const abi = @import("zabi-abi").abitypes;
 const testing = std.testing;
-const types = @import("../types/ethereum.zig");
-const utils = @import("../utils/utils.zig");
+const types = @import("zabi-types").ethereum;
+const utils = @import("zabi-utils").utils;
 
 // Types
 const AbiEvent = abi.Event;
 const Allocator = std.mem.Allocator;
 const Endian = std.builtin.Endian;
 const Hash = types.Hash;
-
-// Functions
-const encodeLogs = @import("../encoding/logs.zig").encodeLogTopics;
 
 /// Set of possible errors while performing logs decoding.
 pub const LogsDecoderErrors = Allocator.Error || error{ InvalidLength, UnexpectedTupleFieldType, ExpectedAllocator };

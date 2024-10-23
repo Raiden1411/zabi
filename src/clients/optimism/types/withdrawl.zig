@@ -1,5 +1,5 @@
-const types = @import("../../../types/ethereum.zig");
-const utils = @import("../../../meta/utils.zig");
+const types = @import("zabi-types").ethereum;
+const utils = @import("zabi-meta").utils;
 
 const Address = types.Address;
 const Gwei = types.Gwei;

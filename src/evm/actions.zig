@@ -1,7 +1,7 @@
 const enviroment = @import("enviroment.zig");
 const gas = @import("gas_tracker.zig");
 const std = @import("std");
-const types = @import("../types/ethereum.zig");
+const types = @import("zabi-types").ethereum;
 
 const Address = types.Address;
 const GasTracker = gas.GasTracker;

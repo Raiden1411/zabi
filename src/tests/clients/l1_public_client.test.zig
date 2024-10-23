@@ -1,10 +1,10 @@
-const client = @import("../../clients/optimism/clients/L1PubClient.zig");
+const client = @import("zabi-op-stack").l1_public_client;
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 const test_clients = @import("../constants.zig");
 
-const Anvil = @import("../../clients/Anvil.zig");
+const Anvil = @import("zabi-clients").Anvil;
 const L1Client = client.L1Client;
 
 test "GetL2HashFromL1DepositInfo" {

@@ -1,9 +1,9 @@
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 
-const encodeRlp = @import("../../encoding/rlp.zig").encodeRlp;
-const decodeRlp = @import("../../decoding/rlp_decode.zig").decodeRlp;
+const encodeRlp = @import("zabi-encoding").rlp.encodeRlp;
+const decodeRlp = @import("zabi-decoding").rlp.decodeRlp;
 
 test "Decoded bool" {
     const t = try decodeRlp(testing.allocator, bool, &[_]u8{0x01});

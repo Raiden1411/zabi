@@ -1,5 +1,5 @@
 const std = @import("std");
-const meta = @import("../meta/root.zig");
+const meta = @import("zabi-meta");
 const tx_types = @import("transaction.zig");
 const types = @import("ethereum.zig");
 
@@ -7,7 +7,7 @@ const Address = types.Address;
 const AddressHashMap = std.AutoArrayHashMap(Address, PoolTransactionByNonce);
 const InspectAddressHashMap = std.AutoArrayHashMap(Address, InspectPoolTransactionByNonce);
 const Allocator = std.mem.Allocator;
-const ConvertToEnum = meta.ConvertToEnum;
+const ConvertToEnum = meta.utils.ConvertToEnum;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const PoolPendingTransactionHashMap = std.AutoArrayHashMap(u64, Transaction);
 const InspectPoolPendingTransactionHashMap = std.AutoArrayHashMap(u64, []const u8);

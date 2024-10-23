@@ -1,6 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 
 const addressToBytes = utils.addressToBytes;
 const bytesToInt = utils.bytesToInt;

@@ -1,20 +1,20 @@
-const abi = @import("../../abi/abi.zig");
-const abi_param = @import("../../abi/abi_parameter.zig");
-const human = @import("../../human-readable/abi_parsing.zig");
-const meta = @import("../../meta/abi.zig");
+const abi = @import("zabi-abi").abitypes;
+const abi_param = @import("zabi-abi").abi_parameter;
+const human = @import("zabi-human").parsing;
+const meta = @import("zabi-meta").abi;
 const std = @import("std");
 const testing = std.testing;
-const types = @import("../../types/ethereum.zig");
-const utils = @import("../../utils/utils.zig");
+const types = @import("zabi-types").ethereum;
+const utils = @import("zabi-utils").utils;
 
 /// Types
 const AbiParameter = abi_param.AbiParameter;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
-const ParamType = @import("../../abi/param_type.zig").ParamType;
+const ParamType = @import("zabi-abi").param_type.ParamType;
 
-const encodeAbiParameters = @import("../../encoding/encoder.zig").encodeAbiParameters;
-const encodeAbiParametersComptime = @import("../../encoding/encoder.zig").encodeAbiParametersComptime;
-const encodePacked = @import("../../encoding/encoder.zig").encodePacked;
+const encodeAbiParameters = @import("zabi-encoding").abi_encoding.encodeAbiParameters;
+const encodeAbiParametersComptime = @import("zabi-encoding").abi_encoding.encodeAbiParametersComptime;
+const encodePacked = @import("zabi-encoding").abi_encoding.encodePacked;
 
 test "Bool" {
     try testEncode("0000000000000000000000000000000000000000000000000000000000000001", &.{.{ .type = .{ .bool = {} }, .name = "foo" }}, .{true});

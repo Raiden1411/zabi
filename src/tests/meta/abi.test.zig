@@ -1,11 +1,11 @@
-const abi = @import("../../abi/abi.zig");
+const abi = @import("zabi-abi").abitypes;
 const std = @import("std");
 const testing = std.testing;
 
-const AbiEventParameterToPrimativeType = @import("../../meta/abi.zig").AbiEventParameterToPrimativeType;
-const AbiEventParametersToPrimativeType = @import("../../meta/abi.zig").AbiEventParametersToPrimativeType;
-const AbiParametersToPrimative = @import("../../meta/abi.zig").AbiParametersToPrimative;
-const AbiParameterToPrimative = @import("../../meta/abi.zig").AbiParameterToPrimative;
+const AbiEventParameterToPrimativeType = @import("zabi-meta").abi.AbiEventParameterToPrimativeType;
+const AbiEventParametersToPrimativeType = @import("zabi-meta").abi.AbiEventParametersToPrimativeType;
+const AbiParametersToPrimative = @import("zabi-meta").abi.AbiParametersToPrimative;
+const AbiParameterToPrimative = @import("zabi-meta").abi.AbiParameterToPrimative;
 
 test "Meta" {
     try testing.expectEqual(AbiParametersToPrimative(&.{}), void);

@@ -1,7 +1,7 @@
-const generator = @import("../../utils/generator.zig");
+const generator = @import("zabi-utils").generator;
 const std = @import("std");
 const testing = std.testing;
-const types = @import("../../types/root.zig");
+const types = @import("zabi-types");
 
 test "Parse/Stringify Json" {
     {
@@ -320,7 +320,7 @@ test "Parse/Stringify Json" {
             \\}
             \\
         ;
-        const parsed = try std.json.parseFromSlice(@import("../../types/txpool.zig").TxPoolContent, testing.allocator, slice, .{});
+        const parsed = try std.json.parseFromSlice(@import("zabi-types").txpool.TxPoolContent, testing.allocator, slice, .{});
         defer parsed.deinit();
 
         const all = try std.json.stringifyAlloc(testing.allocator, parsed.value, .{});
@@ -379,7 +379,7 @@ test "Parse/Stringify Json" {
             \\}
         ;
 
-        const parsed = try std.json.parseFromSlice(@import("../../types/txpool.zig").TxPoolInspect, testing.allocator, slice, .{});
+        const parsed = try std.json.parseFromSlice(@import("zabi-types").txpool.TxPoolInspect, testing.allocator, slice, .{});
         defer parsed.deinit();
 
         const all = try std.json.stringifyAlloc(testing.allocator, parsed.value, .{});

@@ -2,17 +2,17 @@ const benchmark = @import("BenchmarkType.zig");
 const constants = @import("constants.zig");
 const std = @import("std");
 const zabi_root = @import("zabi");
-const generator = zabi_root.generator;
+const generator = zabi_root.utils.generator;
 
 // Types
 const Ast = zabi_root.ast.Ast;
 const Allocator = std.mem.Allocator;
 const Event = zabi_root.abi.abitypes.Event;
-const HDWalletNode = zabi_root.hdwallet.HDWalletNode;
+const HDWalletNode = zabi_root.crypto.hdwallet.HDWalletNode;
 const HmacSha512 = std.crypto.auth.hmac.sha2.HmacSha512;
 const HttpRpcClient = zabi_root.clients.PubClient;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
-const Signer = zabi_root.Signer;
+const Signer = zabi_root.crypto.Signer;
 const TerminalColors = std.io.tty.Color;
 const TransactionEnvelope = zabi_root.types.transactions.TransactionEnvelope;
 const ZigColor = std.zig.Color;
@@ -24,11 +24,11 @@ const decodeRlp = zabi_root.decoding.rlp.decodeRlp;
 const encodeAbiParameters = zabi_root.encoding.abi_encoding.encodeAbiParameters;
 const encodeLogTopics = zabi_root.encoding.logs_encoding.encodeLogTopics;
 const encodeRlp = zabi_root.encoding.rlp.encodeRlp;
-const fromEntropy = zabi_root.mnemonic.fromEntropy;
+const fromEntropy = zabi_root.crypto.mnemonic.fromEntropy;
 const parseTransaction = zabi_root.decoding.parse_transacition.parseTransaction;
 const parseHumanReadable = zabi_root.human_readable.parsing.parseHumanReadable;
 const serializeTransaction = zabi_root.encoding.serialize.serializeTransaction;
-const toEntropy = zabi_root.mnemonic.toEntropy;
+const toEntropy = zabi_root.crypto.mnemonic.toEntropy;
 
 pub const std_options: std.Options = .{
     .log_level = .info,

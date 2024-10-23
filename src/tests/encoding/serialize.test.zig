@@ -1,13 +1,13 @@
-const serialize = @import("../../encoding/serialize.zig");
+const serialize = @import("zabi-encoding").serialize;
 const std = @import("std");
 const testing = std.testing;
-const types = @import("../../types/ethereum.zig");
-const utils = @import("../../utils/utils.zig");
+const types = @import("zabi-types").ethereum;
+const utils = @import("zabi-utils").utils;
 
 // Types
 const Hash = types.Hash;
-const Signature = @import("../../crypto/signature.zig").Signature;
-const Signer = @import("../../crypto/Signer.zig");
+const Signature = @import("zabi-crypto").signature.Signature;
+const Signer = @import("zabi-crypto").Signer;
 
 const serializeTransaction = serialize.serializeTransaction;
 const serializeCancunTransaction = serialize.serializeCancunTransaction;

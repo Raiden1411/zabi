@@ -1,5 +1,5 @@
-const abi = @import("../../abi/abi.zig");
-const abi_parameter = @import("../../abi/abi_parameter.zig");
+const abi = @import("zabi-abi").abitypes;
+const abi_parameter = @import("zabi-abi").abi_parameter;
 
 const AbiParameter = abi_parameter.AbiParameter;
 const AbiEventParameter = abi_parameter.AbiEventParameter;

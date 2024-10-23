@@ -1,7 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
 
-const createJumpTable = @import("../../evm/analysis.zig").createJumpTable;
+const createJumpTable = @import("zabi-evm").analysis.createJumpTable;
 
 test "Create Jump Table" {
     var code = [_]u8{ 0x60, 0x04, 0x56, 0xfd, 0x5b, 0x60, 0x01 };

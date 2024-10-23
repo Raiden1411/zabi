@@ -1,11 +1,11 @@
-const abi = @import("../../abi/abi.zig");
-const multicall = @import("../../clients/multicall.zig");
+const abi = @import("zabi-abi").abitypes;
+const multicall = @import("zabi-clients").multicall;
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 
 const Function = abi.Function;
-const IPC = @import("../../clients/IPC.zig");
+const IPC = @import("zabi-clients").IpcClient;
 const MulticallTargets = multicall.MulticallTargets;
 
 test "BlockByNumber" {

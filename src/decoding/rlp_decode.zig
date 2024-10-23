@@ -1,10 +1,9 @@
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../utils/utils.zig");
+const utils = @import("zabi-utils");
 
 // Types
 const Allocator = std.mem.Allocator;
-const encodeRlp = @import("../encoding/rlp.zig").encodeRlp;
 
 /// Set of errors while performing RLP decoding.
 pub const RlpDecodeErrors = error{ UnexpectedValue, InvalidEnumTag, LengthMissmatch } || Allocator.Error || std.fmt.ParseIntError;

@@ -1,8 +1,9 @@
-const args_parser = zabi.utils.args;
+const args_parser = @import("zabi-utils").args;
+const clients = @import("zabi-clients");
+const decoder = @import("zabi-decoding");
 const std = @import("std");
-const zabi = @import("zabi");
 
-const WebSocket = zabi.clients.WebSocket;
+const WebSocket = clients.WebSocket;
 
 pub const CliOptions = struct {
     url: []const u8,
@@ -26,8 +27,8 @@ pub fn main() !void {
     defer socket.deinit();
 
     const id = try socket.watchLogs(.{
-        .address = try zabi.utils.utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
-        .topics = &.{@constCast(&try zabi.utils.utils.hashToBytes("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"))},
+        .address = try @import("zabi-utils").utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+        .topics = &.{@constCast(&try @import("zabi-utils").utils.hashToBytes("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"))},
     });
     defer id.deinit();
 
@@ -39,10 +40,10 @@ pub fn main() !void {
         const event = try socket.getLogsSubEvent();
         defer event.deinit();
 
-        const value = try zabi.decoding.abi_decoder.decodeAbiParameter(u256, gpa.allocator(), event.response.params.result.data, .{});
+        const value = try decoder.abi_decoder.decodeAbiParameter(u256, gpa.allocator(), event.response.params.result.data, .{});
         defer value.deinit();
 
-        const topics = try zabi.decoding.logs_decoder.decodeLogs(struct { [32]u8, [20]u8, [20]u8 }, event.response.params.result.topics, .{});
+        const topics = try decoder.logs_decoder.decodeLogs(struct { [32]u8, [20]u8, [20]u8 }, event.response.params.result.topics, .{});
 
         std.debug.print("Transfer event found. Value transfered: {d} dollars\n", .{value.result / 1000000});
         std.debug.print("From: 0x{s}\n", .{std.fmt.fmtSliceHexLower(&topics[1])});

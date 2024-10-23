@@ -206,7 +206,7 @@ pub fn build(b: *std.Build) void {
 
     const lib_unit_tests = b.addTest(.{
         .name = "zabi-tests",
-        .root_source_file = b.path("src/root.zig"),
+        .root_source_file = b.path("tests/root.zig"),
         .target = target,
         .optimize = optimize,
         .test_runner = b.path("test_runner.zig"),

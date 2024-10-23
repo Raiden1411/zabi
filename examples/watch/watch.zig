@@ -1,8 +1,8 @@
-const args_parser = zabi.utils.args;
+const args_parser = @import("zabi-utils").args;
 const std = @import("std");
-const zabi = @import("zabi");
+const clients = @import("zabi-clients");
 
-const WebSocket = zabi.clients.WebSocket;
+const WebSocket = clients.WebSocket;
 
 pub const CliOptions = struct {
     url: []const u8,
@@ -47,7 +47,7 @@ pub fn main() !void {
             .london => |tx_london| {
                 if (tx_london.to) |to| {
                     const casted_to: u160 = @bitCast(to);
-                    const expected: u160 = comptime @bitCast(zabi.utils.utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable);
+                    const expected: u160 = comptime @bitCast(@import("zabi-utils").utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable);
 
                     if (casted_to == expected) {
                         std.debug.print("Found usdc transaction in the value of {d} wei\n", .{tx_london.value});

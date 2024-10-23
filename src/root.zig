@@ -36,7 +36,3 @@ pub const superchain = @import("zabi-op-stack");
 pub const types = @import("zabi-types");
 /// Set of nice to have utils.
 pub const utils = @import("zabi-utils");
-
-test {
-    _ = @import("tests/root.zig");
-}

@@ -1,9 +1,8 @@
-const args_parser = zabi.utils.args;
+const args_parser = @import("zabi-utils").args;
 const std = @import("std");
-const utils = zabi.utils.utils;
-const zabi = @import("zabi");
+const clients = @import("zabi-clients");
 
-const Wallet = zabi.clients.wallet.Wallet(.websocket);
+const Wallet = clients.wallet.Wallet(.websocket);
 
 const CliOptions = struct {
     priv_key: [32]u8,
@@ -31,7 +30,7 @@ pub fn main() !void {
     }, true);
     defer wallet.deinit();
 
-    const hash = try wallet.sendTransaction(.{ .type = .london, .to = try utils.addressToBytes("0x0000000000000000000000000000000000000000"), .value = 42069 });
+    const hash = try wallet.sendTransaction(.{ .type = .london, .to = try @import("zabi-utils").utils.addressToBytes("0x0000000000000000000000000000000000000000"), .value = 42069 });
     defer hash.deinit();
 
     const receipt = try wallet.waitForTransactionReceipt(hash.response, 0);

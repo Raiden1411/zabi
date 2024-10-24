@@ -1,7 +1,8 @@
 const env = @import("enviroment.zig");
-const log_types = @import("../types/log.zig");
+const log_types = zabi_types.log;
 const std = @import("std");
-const types = @import("../types/ethereum.zig");
+const types = zabi_types.ethereum;
+const zabi_types = @import("zabi-types");
 
 const Address = types.Address;
 const Allocator = std.mem.Allocator;

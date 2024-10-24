@@ -1,8 +1,9 @@
-const constants = @import("../utils/constants.zig");
+const constants = zabi_utils.constants;
 const host = @import("host.zig");
 const mem = @import("memory.zig");
 const testing = @import("std").testing;
-const utils = @import("../utils/utils.zig");
+const utils = zabi_utils.utils;
+const zabi_utils = @import("zabi-utils");
 
 const SpecId = @import("specification.zig").SpecId;
 const SelfDestructResult = host.SelfDestructResult;

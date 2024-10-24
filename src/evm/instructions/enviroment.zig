@@ -6,7 +6,6 @@ const testing = std.testing;
 const BlobExcessGasAndPrice = enviroment.BlobExcessGasAndPrice;
 const Interpreter = @import("../Interpreter.zig");
 const PlainHost = @import("../host.zig").PlainHost;
-const Stack = @import("../../utils/stack.zig").Stack;
 
 /// Performs the basefee instruction for the interpreter.
 /// 0x48 -> BASEFEE

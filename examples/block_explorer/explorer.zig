@@ -1,8 +1,8 @@
-const args_parser = zabi.args;
+const args_parser = @import("zabi-utils").args;
 const std = @import("std");
-const zabi = @import("zabi");
+const clients = @import("zabi-clients");
 
-const BlockExplorer = zabi.clients.BlockExplorer;
+const BlockExplorer = clients.BlockExplorer;
 
 pub const CliOptions = struct {
     apikey: []const u8,

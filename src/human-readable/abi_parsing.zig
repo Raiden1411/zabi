@@ -1,15 +1,17 @@
-const abi = @import("../abi/abi.zig");
-const param = @import("../abi/abi_parameter.zig");
+const abi = zabi_abi.abitypes;
+const param = zabi_abi.abi_parameter;
 const std = @import("std");
 const testing = std.testing;
 const tokens = @import("tokens.zig");
+const zabi_abi = @import("zabi-abi");
+const zabi_meta = @import("zabi-meta");
 
 const Abi = abi.Abi;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
-const Extract = @import("../meta/utils.zig").Extract;
-const ParamType = @import("../abi/param_type.zig").ParamType;
-const StateMutability = @import("../abi/state_mutability.zig").StateMutability;
+const Extract = zabi_meta.utils.Extract;
+const ParamType = zabi_abi.param_type.ParamType;
+const StateMutability = zabi_abi.state_mutability.StateMutability;
 const HumanAbi = @import("HumanAbi.zig");
 
 pub fn AbiParsed(comptime T: type) type {

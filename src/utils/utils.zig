@@ -1,8 +1,9 @@
 const constants = @import("constants.zig");
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("../types/transaction.zig");
-const types = @import("../types/ethereum.zig");
+const transaction = zabi_types.transactions;
+const types = zabi_types.ethereum;
+const zabi_types = @import("zabi-types");
 
 // Types
 const Address = types.Address;

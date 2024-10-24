@@ -1,9 +1,11 @@
 const std = @import("std");
-const abi = @import("../abi/abi_parameter.zig");
-const meta = @import("../meta/abi.zig");
+const abi = zabi_abi.abi_parameter;
+const meta = @import("zabi-meta").abi;
 const testing = std.testing;
-const types = @import("../types/ethereum.zig");
-const utils = @import("../utils/utils.zig");
+const types = @import("zabi-types").ethereum;
+const utils = @import("zabi-utils").utils;
+const zabi_abi = @import("zabi-abi");
+
 const assert = std.debug.assert;
 
 /// Types
@@ -13,11 +15,11 @@ const AbiParametersToPrimative = meta.AbiParametersToPrimative;
 const Address = types.Address;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
-const Constructor = @import("../abi/abi.zig").Constructor;
-const Error = @import("../abi/abi.zig").Error;
+const Constructor = zabi_abi.abitypes.Constructor;
+const Error = zabi_abi.abitypes.Error;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
-const Function = @import("../abi/abi.zig").Function;
-const ParamType = @import("../abi/param_type.zig").ParamType;
+const Function = zabi_abi.abitypes.Function;
+const ParamType = zabi_abi.param_type.ParamType;
 
 /// Set of errors while perfoming abi encoding.
 pub const EncodeErrors = Allocator.Error || error{

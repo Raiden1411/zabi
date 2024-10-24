@@ -1,13 +1,12 @@
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 
 const Contract = @import("../contract.zig").Contract;
 const GasTracker = gas.GasTracker;
 const Interpreter = @import("../Interpreter.zig");
 const Memory = @import("../memory.zig").Memory;
-const Stack = @import("../../utils/stack.zig").Stack;
 
 /// Runs the jumpi instruction opcode for the interpreter.
 /// 0x57 -> JUMPI

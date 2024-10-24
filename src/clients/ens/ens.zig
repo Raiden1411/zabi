@@ -1,29 +1,30 @@
 const abi_ens = @import("abi_ens.zig");
-const block = @import("../../types/block.zig");
-const clients = @import("../../root.zig");
-const decoder = @import("../../decoding/decoder.zig");
-const encoder = @import("../../encoding/encoder.zig");
+const block = zabi_types.block;
+const clients = @import("zabi-clients");
+const decoder = @import("zabi-decoding").abi_decoder;
+const encoder = @import("zabi-encoding").abi_encoding;
 const ens_utils = @import("ens_utils.zig");
 const std = @import("std");
 const testing = std.testing;
-const types = @import("../../types/ethereum.zig");
-const utils = @import("../../utils/utils.zig");
+const types = zabi_types.ethereum;
+const utils = @import("zabi-utils").utils;
+const zabi_types = @import("zabi-types");
 
 const AbiDecoded = decoder.AbiDecoded;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const BlockNumberRequest = block.BlockNumberRequest;
-const Clients = clients.clients.wallet.WalletClients;
+const Clients = clients.wallet.WalletClients;
 const DecoderErrors = decoder.DecoderErrors;
 const EncodeErrors = encoder.EncodeErrors;
 const Hex = types.Hex;
 const InitOptsHttp = PubClient.InitOptions;
 const InitOptsWs = WebSocketClient.InitOptions;
 const InitOptsIpc = IpcClient.InitOptions;
-const IpcClient = clients.clients.IpcClient;
-const PubClient = clients.clients.PubClient;
+const IpcClient = clients.IpcClient;
+const PubClient = clients.PubClient;
 const RPCResponse = types.RPCResponse;
-const WebSocketClient = clients.clients.WebSocket;
+const WebSocketClient = clients.WebSocket;
 
 /// A public client that interacts with the ENS contracts.
 ///

@@ -1,7 +1,8 @@
-const args_parser = zabi.args;
+const args_parser = @import("zabi-utils").args;
 const std = @import("std");
-const zabi = @import("zabi");
-const Wallet = zabi.clients.wallet.Wallet(.http);
+const clients = @import("zabi-clients");
+
+const Wallet = clients.wallet.Wallet(.http);
 
 const CliOptions = struct {
     priv_key: [32]u8,

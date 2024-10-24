@@ -1,14 +1,15 @@
 const abi_items = @import("../abi_optimism.zig");
-const clients = @import("../../root.zig");
-const encoder = @import("../../../encoding/encoder.zig");
-const serialize = @import("../../../encoding/serialize.zig");
+const clients = @import("zabi-clients");
+const encoder = @import("zabi-encoding").abi_encoding;
+const serialize = @import("zabi-encoding").serialize;
 const std = @import("std");
 const testing = std.testing;
-const transactions = @import("../../../types/transaction.zig");
+const transactions = zabi_types.transactions;
 const op_types = @import("../types/types.zig");
 const op_utils = @import("../utils.zig");
-const types = @import("../../../types/ethereum.zig");
-const utils = @import("../../../utils/utils.zig");
+const types = zabi_types.ethereum;
+const utils = @import("zabi-utils").utils;
+const zabi_types = @import("zabi-types");
 const withdrawal_types = @import("../types/withdrawl.zig");
 
 const Clients = clients.wallet.WalletClients;
@@ -21,7 +22,7 @@ const LondonEthCall = transactions.LondonEthCall;
 const LondonTransactionEnvelope = transactions.LondonTransactionEnvelope;
 const PreparedWithdrawal = withdrawal_types.PreparedWithdrawal;
 const RPCResponse = types.RPCResponse;
-const Signer = @import("../../../crypto/Signer.zig");
+const Signer = @import("zabi-crypto").Signer;
 const SerializeErrors = serialize.SerializeErrors;
 const WithdrawalRequest = withdrawal_types.WithdrawalRequest;
 

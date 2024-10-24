@@ -1,11 +1,12 @@
+const abi = zabi_abi.abitypes;
+const abi_parameter = zabi_abi.abi_parameter;
+const human = @import("zabi-human").parsing;
+const meta = @import("zabi-meta").abi;
 const std = @import("std");
-const abi = @import("../abi/abi.zig");
-const abi_parameter = @import("../abi/abi_parameter.zig");
-const human = @import("../human-readable/abi_parsing.zig");
-const meta = @import("../meta/abi.zig");
 const testing = std.testing;
-const types = @import("../types/ethereum.zig");
-const utils = @import("../utils/utils.zig");
+const types = @import("zabi-types").ethereum;
+const utils = @import("zabi-utils").utils;
+const zabi_abi = @import("zabi-abi");
 
 // Types
 const AbiEvent = abi.Event;

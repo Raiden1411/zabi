@@ -1,11 +1,9 @@
-const meta = @import("../../meta/utils.zig");
-const rlp = @import("../../decoding/rlp_decode.zig");
+const meta = @import("zabi-meta").utils;
+const rlp = @import("zabi-decoding").rlp;
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("types/transaction.zig");
-const utils = @import("../../utils/utils.zig");
-
-const serializeDepositTransaction = @import("serialize_deposit.zig").serializeDepositTransaction;
+const transaction = @import("zabi-types").transactions;
+const utils = @import("zabi-utils").utils;
 
 const Allocator = std.mem.Allocator;
 const DepositTransaction = transaction.DepositTransaction;

@@ -1,5 +1,12 @@
 /// A generic client for interacting with EVM contracts.
 pub const contract = @import("contract.zig");
+/// Multicall contract wrapper that exposes contract functions.
+pub const multicall = @import("multicall.zig");
+/// Network config for different type of chains and associated contracts.
+pub const network = @import("network.zig");
+/// Dedicated `searchUrlParams` for zabi expected types.
+/// This also includes the `QueryWriter` which details the supported types
+pub const url = @import("url.zig");
 /// A generic wallet implementation to send transactions
 /// and sign messages with.
 pub const wallet = @import("wallet.zig");
@@ -22,3 +29,7 @@ pub const IpcClient = @import("IPC.zig");
 /// but you should have all the tool available in the library if you want to target
 /// the PRO methods.
 pub const BlockExplorer = @import("BlockExplorer.zig");
+/// Custom wrapper for interacting with the Anvil testchain
+pub const Anvil = @import("Anvil.zig");
+/// Custom wrapper for interacting with the Hardhat testchain
+pub const Hardhat = @import("Hardhat.zig");

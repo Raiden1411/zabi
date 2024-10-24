@@ -1,8 +1,9 @@
-const abi = @import("../abi/abi.zig");
-const param = @import("../abi/abi_parameter.zig");
-const param_types = @import("../abi/param_type.zig");
+const abi = zabi_abi.abitypes;
+const param = zabi_abi.abi_parameter;
+const param_types = zabi_abi.param_type;
 const std = @import("std");
 const tokens = @import("tokens.zig");
+const zabi_abi = @import("zabi-abi");
 
 const AbiParameter = param.AbiParameter;
 const AbiEventParameter = param.AbiEventParameter;
@@ -20,7 +21,7 @@ const Node = Ast.Node;
 const ParamErrors = param_types.ParamErrors;
 const ParamType = param_types.ParamType;
 const Parser = @import("Parser.zig");
-const StateMutability = @import("../abi/state_mutability.zig").StateMutability;
+const StateMutability = zabi_abi.state_mutability.StateMutability;
 
 /// Set of errors when converting to the abi
 pub const HumanAbiErrors = ParamErrors || Allocator.Error || error{ NoSpaceLeft, MissingTypeDeclaration };

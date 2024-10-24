@@ -1,5 +1,5 @@
 const std = @import("std");
-const meta = @import("../meta/root.zig");
+const meta = @import("zabi-meta");
 
 // Types
 const Allocator = std.mem.Allocator;

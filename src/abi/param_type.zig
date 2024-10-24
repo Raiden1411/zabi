@@ -1,6 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
-const tokens = @import("../human-readable/tokens.zig");
+const tokens = @import("zabi-human").tokens;
 
 // Types
 const Allocator = std.mem.Allocator;

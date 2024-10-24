@@ -1,10 +1,9 @@
-const meta = @import("../meta/utils.zig");
+const meta = @import("zabi-meta").utils;
 const std = @import("std");
-const rlp = @import("../decoding/rlp_decode.zig");
-const serialize = @import("../encoding/serialize.zig");
+const rlp = @import("rlp_decode.zig");
 const testing = std.testing;
-const transaction = @import("../types/transaction.zig");
-const utils = @import("../utils/utils.zig");
+const transaction = @import("zabi-types").transactions;
+const utils = @import("zabi-utils").utils;
 
 // Types
 const AccessList = transaction.AccessList;
@@ -27,8 +26,6 @@ const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
 const LondonTransactionEnvelopeSigned = transaction.LondonTransactionEnvelopeSigned;
 const RlpDecodeErrors = rlp.RlpDecodeErrors;
-const Signature = @import("../crypto/signature.zig").Signature;
-const Signer = @import("../crypto/Signer.zig");
 const StructToTupleType = meta.StructToTupleType;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const TransactionEnvelopeSigned = transaction.TransactionEnvelopeSigned;

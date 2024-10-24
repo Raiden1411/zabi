@@ -2,7 +2,7 @@ const actions = @import("../actions.zig");
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 
 const Allocator = std.mem.Allocator;
 const CallAction = actions.CallAction;
@@ -10,7 +10,6 @@ const CreateScheme = actions.CreateScheme;
 const Interpreter = @import("../Interpreter.zig");
 const Memory = @import("../memory.zig").Memory;
 const PlainHost = @import("../host.zig").PlainHost;
-const Stack = @import("../../utils/stack.zig").Stack;
 
 /// Performs call instruction for the interpreter.
 /// CALL -> 0xF1

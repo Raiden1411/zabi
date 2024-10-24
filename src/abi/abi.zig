@@ -1,16 +1,19 @@
-const encoder = @import("../encoding/encoder.zig");
-const encoder_logs = @import("../encoding/logs.zig");
-const decoder = @import("../decoding/decoder.zig");
-const decoder_logs = @import("../decoding/logs_decode.zig");
-const meta = @import("../meta/root.zig");
+const encoder = zabi_encoding.abi_encoding;
+const encoder_logs = zabi_encoding.logs_encoding;
+const decoder = zabi_decoding.abi_decoder;
+const decoder_logs = zabi_decoding.logs_decoder;
+const meta = @import("zabi-meta");
 const std = @import("std");
-const types = @import("../types/ethereum.zig");
+const types = @import("zabi-types").ethereum;
+const abi = @import("root.zig");
+const zabi_encoding = @import("zabi-encoding");
+const zabi_decoding = @import("zabi-decoding");
 
 // Types
 const AbiDecoded = decoder.AbiDecoded;
 const AbiEncoded = encoder.AbiEncoded;
-const AbiEventParameter = @import("abi_parameter.zig").AbiEventParameter;
-const AbiParameter = @import("abi_parameter.zig").AbiParameter;
+const AbiEventParameter = abi.abi_parameter.AbiEventParameter;
+const AbiParameter = abi.abi_parameter.AbiParameter;
 const Allocator = std.mem.Allocator;
 const DecodeOptions = decoder.DecodeOptions;
 const DecodeErrors = decoder.DecoderErrors;
@@ -24,7 +27,7 @@ const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
 const ParseOptions = std.json.ParseOptions;
-const StateMutability = @import("state_mutability.zig").StateMutability;
+const StateMutability = abi.state_mutability.StateMutability;
 const Value = std.json.Value;
 
 /// Set of possible abi values according to the abi spec.

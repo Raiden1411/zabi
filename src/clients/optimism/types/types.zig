@@ -1,4 +1,4 @@
-const ethereum_types = @import("../../../types/ethereum.zig");
+const ethereum_types = @import("zabi-types").ethereum;
 
 const Address = ethereum_types.Address;
 const Gwei = ethereum_types.Gwei;

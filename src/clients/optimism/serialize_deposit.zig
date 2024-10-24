@@ -1,10 +1,10 @@
-const meta = @import("../../meta/utils.zig");
-const rlp = @import("../../encoding/rlp.zig");
+const meta = @import("zabi-meta").utils;
+const rlp = @import("zabi-encoding").rlp;
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("types/transaction.zig");
-const types = @import("../../types/ethereum.zig");
-const utils = @import("../../utils/utils.zig");
+const transaction = @import("zabi-types").transactions;
+const types = @import("zabi-types").ethereum;
+const utils = @import("zabi-utils").utils;
 
 const Allocator = std.mem.Allocator;
 const DepositTransaction = transaction.DepositTransaction;

@@ -1,15 +1,14 @@
 const gas = @import("../gas_tracker.zig");
 const host = @import("../host.zig");
-const log_types = @import("../../types/log.zig");
+const log_types = @import("zabi-types").log;
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 
 const Interpreter = @import("../Interpreter.zig");
 const Log = log_types.Log;
 const PlainHost = host.PlainHost;
 const Memory = @import("../memory.zig").Memory;
-const Stack = @import("../../utils/stack.zig").Stack;
 
 /// Set of possible errors for host instructions.
 pub const HostInstructionErrors = Interpreter.InstructionErrors || error{UnexpectedError};

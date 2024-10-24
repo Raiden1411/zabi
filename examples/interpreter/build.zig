@@ -26,5 +26,6 @@ fn addDependencies(b: *std.Build, step: *std.Build.Step.Compile) void {
         .optimize = optimize,
     });
 
-    step.root_module.addImport("zabi", zabi.module("zabi"));
+    step.root_module.addImport("zabi-evm", zabi.module("zabi-evm"));
+    step.root_module.addImport("zabi-utils", zabi.module("zabi-utils"));
 }

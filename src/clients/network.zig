@@ -1,6 +1,6 @@
 const std = @import("std");
-const ethereum = @import("../types/ethereum.zig");
-const utils = @import("../utils/utils.zig");
+const ethereum = @import("zabi-types").ethereum;
+const utils = @import("zabi-utils").utils;
 
 const Address = ethereum.Address;
 const Chains = ethereum.PublicChains;

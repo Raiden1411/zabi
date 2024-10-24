@@ -1,6 +1,6 @@
 const errors = std.crypto.errors;
 const std = @import("std");
-const types = @import("../types/ethereum.zig");
+const types = @import("zabi-types").ethereum;
 
 // Types
 const Address = types.Address;

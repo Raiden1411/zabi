@@ -19,7 +19,7 @@ const Memory = mem.Memory;
 const PlainHost = host_type.PlainHost;
 const ReturnAction = actions.ReturnAction;
 const SpecId = specid.SpecId;
-const Stack = @import("../utils/stack.zig").BoundedStack(1024);
+const Stack = @import("zabi-utils").stack.BoundedStack(1024);
 
 const Interpreter = @This();
 

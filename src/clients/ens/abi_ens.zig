@@ -1,4 +1,4 @@
-const Function = @import("../../abi/abi.zig").Function;
+const Function = @import("zabi-abi").abitypes.Function;
 
 pub const addr_resolver: Function = .{
     .name = "addr",

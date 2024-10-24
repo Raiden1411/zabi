@@ -1,9 +1,10 @@
-const constants = @import("../utils/constants.zig");
+const constants = @import("zabi-utils").constants;
 const specification = @import("specification.zig");
 const std = @import("std");
-const transaction = @import("../types/transaction.zig");
-const types = @import("../types/ethereum.zig");
-const utils = @import("../utils/utils.zig");
+const transaction = zabi_types.transactions;
+const types = zabi_types.ethereum;
+const utils = @import("zabi-utils").utils;
+const zabi_types = @import("zabi-types");
 
 const Address = types.Address;
 const AccessList = transaction.AccessList;

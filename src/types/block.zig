@@ -1,8 +1,8 @@
-const meta = @import("../meta/root.zig");
+const meta = @import("zabi-meta");
 const std = @import("std");
 const transactions = @import("transaction.zig");
 const types = @import("ethereum.zig");
-const utils = @import("../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 
 // Types
 const Address = types.Address;
@@ -26,6 +26,7 @@ pub const BlockTag = enum { latest, earliest, pending, safe, finalized };
 pub const BalanceBlockTag = Extract(BlockTag, "latest,pending,earliest");
 /// Specific tags used in some RPC requests
 pub const ProofBlockTag = Extract(BlockTag, "latest,earliest");
+
 /// Used in the RPC method requests
 pub const BlockRequest = struct {
     block_number: ?u64 = null,
@@ -250,11 +251,12 @@ pub const BlobBlock = struct {
     nonce: ?u64,
     number: ?u64,
     parentBeaconBlockRoot: ?Hash = null,
+    requestsRoot: ?Hash = null,
     parentHash: Hash,
     receiptsRoot: Hash,
     sealFields: ?[]const Hex = null,
     sha3Uncles: Hash,
-    size: u64,
+    size: ?u64 = null,
     stateRoot: Hash,
     timestamp: u64,
     totalDifficulty: ?u256 = null,

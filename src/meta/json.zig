@@ -1,7 +1,7 @@
+const meta_utils = @import("utils.zig");
 const std = @import("std");
 const testing = std.testing;
-const types = @import("../types/root.zig");
-const meta_utils = @import("../meta/utils.zig");
+const types = @import("zabi-types");
 
 const Allocator = std.mem.Allocator;
 const ConvertToEnum = meta_utils.ConvertToEnum;

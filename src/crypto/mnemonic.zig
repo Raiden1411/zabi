@@ -3,7 +3,7 @@
 const errors = std.crypto.errors;
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;

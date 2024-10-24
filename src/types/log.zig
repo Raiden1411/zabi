@@ -1,6 +1,6 @@
 const std = @import("std");
 const block = @import("block.zig");
-const meta = @import("../meta/root.zig");
+const meta = @import("zabi-meta");
 const types = @import("ethereum.zig");
 
 // Types

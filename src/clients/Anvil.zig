@@ -1,9 +1,10 @@
-const meta_json = @import("../meta/json.zig");
-const meta_utils = @import("../meta/utils.zig");
-const specification = @import("../evm/specification.zig");
+const meta_json = zabi_meta.json;
+const meta_utils = zabi_meta.utils;
+const specification = @import("zabi-evm").specification;
 const std = @import("std");
-const types = @import("../types/ethereum.zig");
-const utils = @import("../utils/utils.zig");
+const types = @import("zabi-types").ethereum;
+const utils = @import("zabi-utils").utils;
+const zabi_meta = @import("zabi-meta");
 
 const Address = types.Address;
 const Allocator = std.mem.Allocator;

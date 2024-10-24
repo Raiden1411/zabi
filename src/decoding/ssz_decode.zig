@@ -4,11 +4,10 @@
 
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 
 // Types
 const Allocator = std.mem.Allocator;
-const encodeSSZ = @import("../encoding/ssz.zig").encodeSSZ;
 
 /// Set of possible errors while performing ssz decoding.
 pub const SSZDecodeErrors = Allocator.Error || error{ InvalidEnumType, IndexOutOfBounds };

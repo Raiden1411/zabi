@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
-const ConvertToEnum = @import("../meta/utils.zig").ConvertToEnum;
+const ConvertToEnum = @import("zabi-meta").utils.ConvertToEnum;
 
 const assert = std.debug.assert;
 

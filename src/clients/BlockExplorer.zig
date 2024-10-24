@@ -1,10 +1,11 @@
-const abi = @import("../abi/abi.zig");
-const explorer = @import("../types/explorer.zig");
+const abi = @import("zabi-abi").abitypes;
+const explorer = zabi_types.explorer;
 const std = @import("std");
 const testing = std.testing;
-const types = @import("../types/ethereum.zig");
+const types = zabi_types.ethereum;
 const url = @import("url.zig");
-const utils = @import("../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
+const zabi_types = @import("zabi-types");
 
 const Abi = abi.Abi;
 const Address = types.Address;

@@ -1,11 +1,12 @@
-const log = @import("../../types/log.zig");
+const log = zabi_types.log;
 const std = @import("std");
 const testing = std.testing;
-const op_transactions = @import("types/transaction.zig");
+const op_transactions = @import("zabi-types").transactions;
 const op_types = @import("types/types.zig");
 const serialize = @import("serialize_deposit.zig");
-const types = @import("../../types/ethereum.zig");
-const utils = @import("../../utils/utils.zig");
+const types = zabi_types.ethereum;
+const utils = @import("zabi-utils").utils;
+const zabi_types = @import("zabi-types");
 
 const Address = types.Address;
 const Allocator = std.mem.Allocator;

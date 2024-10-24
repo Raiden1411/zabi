@@ -1,13 +1,13 @@
-const abi = zabi.abi;
-const args_parser = zabi.args;
-const human = zabi.human_readable.parsing;
+const abi = @import("zabi-abi").abitypes;
+const args_parser = @import("zabi-utils").args;
+const clients = @import("zabi-clients");
+const human = @import("zabi-human").parsing;
 const std = @import("std");
-const utils = zabi.utils;
-const zabi = @import("zabi");
+const utils = @import("zabi-utils").utils;
 
-const Abi = abi.abitypes.Abi;
-const Contract = zabi.clients.contract.Contract(.http);
-const Wallet = zabi.clients.wallet.Wallet(.http);
+const Abi = abi.Abi;
+const Contract = clients.contract.Contract(.http);
+const Wallet = clients.wallet.Wallet(.http);
 
 const CliOptions = struct {
     priv_key: [32]u8,

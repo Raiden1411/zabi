@@ -12,7 +12,14 @@ In the `build.zig.zon` file, add the following to the dependencies object.
 The compiler will produce a hash mismatch error, add the `.hash` field to `build.zig.zon`
 with the hash the compiler tells you it found.
 
-Then in your `build.zig` file add the following to the `exe` section for the executable where you wish to have ZAbi available.
+You can also use `zig fetch` to automatically do the above steps.
+
+```bash
+zig fetch --save https://github.com/Raiden1411/zabi/archive/VERSION_NUMBER.tar.gz 
+zig fetch --save git+https://github.com/Raiden1411/zabi.git#LATEST_COMMIT
+```
+
+Then in your `build.zig` file add the following to the `exe` section for the executable where you wish to have `zabi` available.
 
 ```zig
 const zabi_module = b.dependency("zabi", .{}).module("zabi");

@@ -23,9 +23,6 @@ pub const ens = @import("zabi-ens");
 pub const evm = @import("zabi-evm");
 /// Custom human readable parser. Supports tuples and structs.
 pub const human_readable = @import("zabi-human");
-/// KZG commitments. Related to EIP4844. Uses the c library
-/// to enable support for zabi to use.
-pub const kzg4844 = @import("c-kzg-4844");
 /// Set of utils for meta programming in zabi as
 /// well as where the custom json parser/stringify that we use resides.
 pub const meta = @import("zabi-meta");

@@ -318,6 +318,21 @@ pub fn build(b: *std.Build) void {
         test_step_coverage.dependOn(&install_coverage.step);
     }
 
+    // Runs the benchmark
+    {
+        const bench = b.addExecutable(.{
+            .name = "benchmark",
+            .root_source_file = b.path("bench/benchmark.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        bench.root_module.addImport("zabi", zabi);
+
+        const runner = b.addRunArtifact(bench);
+        const step = b.step("bench", "Benchmark zabi");
+        step.dependOn(&runner.step);
+    }
+
     // Build and generate docs for zabi. Uses the `doc_comments` spread across the codebase.
     // Always build in `ReleaseFast`.
     buildDocs(b, target);

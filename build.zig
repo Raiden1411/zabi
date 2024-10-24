@@ -292,7 +292,7 @@ pub fn build(b: *std.Build) void {
         var run_lib_unit_tests_coverage = b.addRunArtifact(lib_unit_tests);
 
         const test_step_coverage = b.step("coverage", "Run unit tests with kcov coverage");
-        test_step.dependOn(&run_lib_unit_tests_coverage.step);
+        test_step_coverage.dependOn(&run_lib_unit_tests_coverage.step);
 
         const coverage_output = b.makeTempPath();
         const include = b.fmt("--include-pattern=/src", .{});
@@ -315,7 +315,7 @@ pub fn build(b: *std.Build) void {
         test_step_coverage.dependOn(&tests_run.step);
 
         install_coverage.step.dependOn(&run_lib_unit_tests.step);
-        test_step.dependOn(&install_coverage.step);
+        test_step_coverage.dependOn(&install_coverage.step);
     }
 
     // Build and generate docs for zabi. Uses the `doc_comments` spread across the codebase.

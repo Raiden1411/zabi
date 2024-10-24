@@ -4,6 +4,7 @@ const builtin = @import("builtin");
 
 const min_zig_string = "0.14.0-dev.1573+4d81e8ee9";
 
+/// Build zabi modules and test runners.
 pub fn build(b: *std.Build) void {
     comptime {
         const current_zig = builtin.zig_version;
@@ -24,6 +25,28 @@ pub fn build(b: *std.Build) void {
     });
     addDependencies(b, zabi, target, optimize);
 
+    // Build the library with the abi module.
+    const zabi_abi = b.addModule("zabi-abi", .{
+        .root_source_file = b.path("src/abi/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // Build the library with the sol-ast module.
+    const zabi_ast = b.addModule("zabi-ast", .{
+        .root_source_file = b.path("src/ast/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // Build the library with the rpc-clients module.
+    const zabi_clients = b.addModule("zabi-clients", .{
+        .root_source_file = b.path("src/clients/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    addDependencies(b, zabi_clients, target, optimize);
+
     // Build the library with the crypto module.
     const zabi_crypto = b.addModule("zabi-crypto", .{
         .root_source_file = b.path("src/crypto/root.zig"),
@@ -32,159 +55,70 @@ pub fn build(b: *std.Build) void {
     });
     addDependencies(b, zabi_crypto, target, optimize);
 
-    // Build the library with the crypto module.
-    const zabi_abi = b.addModule("zabi-abi", .{
-        .root_source_file = b.path("src/abi/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // Build the library with the crypto module.
-    const zabi_meta = b.addModule("zabi-meta", .{
-        .root_source_file = b.path("src/meta/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // Build the library with the crypto module.
-    const zabi_utils = b.addModule("zabi-utils", .{
-        .root_source_file = b.path("src/utils/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // Build the library with the crypto module.
-    const zabi_types = b.addModule("zabi-types", .{
-        .root_source_file = b.path("src/types/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // Build the library with the crypto module.
-    const zabi_human = b.addModule("zabi-human", .{
-        .root_source_file = b.path("src/human-readable/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // Build the library with the crypto module.
-    const zabi_encoding = b.addModule("zabi-encoding", .{
-        .root_source_file = b.path("src/encoding/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // Build the library with the crypto module.
-    const zabi_evm = b.addModule("zabi-evm", .{
-        .root_source_file = b.path("src/evm/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const zabi_ast = b.addModule("zabi-ast", .{
-        .root_source_file = b.path("src/ast/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const zabi_clients = b.addModule("zabi-clients", .{
-        .root_source_file = b.path("src/clients/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    addDependencies(b, zabi_clients, target, optimize);
-
+    // Build the library with the decoding module.
     const zabi_decoding = b.addModule("zabi-decoding", .{
         .root_source_file = b.path("src/decoding/root.zig"),
         .target = target,
         .optimize = optimize,
     });
 
+    // Build the library with the ens-client module.
     const zabi_ens = b.addModule("zabi-ens", .{
         .root_source_file = b.path("src/clients/ens/root.zig"),
         .target = target,
         .optimize = optimize,
     });
 
+    // Build the library with the encoding module.
+    const zabi_encoding = b.addModule("zabi-encoding", .{
+        .root_source_file = b.path("src/encoding/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // Build the library with the evm module.
+    const zabi_evm = b.addModule("zabi-evm", .{
+        .root_source_file = b.path("src/evm/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // Build the library with the human-readable abi parsing module.
+    const zabi_human = b.addModule("zabi-human", .{
+        .root_source_file = b.path("src/human-readable/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // Build the library with the meta-programming module.
+    const zabi_meta = b.addModule("zabi-meta", .{
+        .root_source_file = b.path("src/meta/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // Build the library with the op-stack module.
     const zabi_op_stack = b.addModule("zabi-op-stack", .{
         .root_source_file = b.path("src/clients/optimism/root.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    {
-        zabi_abi.addImport("zabi-decoding", zabi_decoding);
-        zabi_abi.addImport("zabi-encoding", zabi_encoding);
-        zabi_abi.addImport("zabi-human", zabi_human);
-        zabi_abi.addImport("zabi-meta", zabi_meta);
-        zabi_abi.addImport("zabi-types", zabi_types);
-    }
-    {
-        zabi_clients.addImport("zabi-abi", zabi_abi);
-        zabi_clients.addImport("zabi-crypto", zabi_crypto);
-        zabi_clients.addImport("zabi-decoding", zabi_decoding);
-        zabi_clients.addImport("zabi-encoding", zabi_encoding);
-        zabi_clients.addImport("zabi-evm", zabi_evm);
-        zabi_clients.addImport("zabi-meta", zabi_meta);
-        zabi_clients.addImport("zabi-types", zabi_types);
-        zabi_clients.addImport("zabi-utils", zabi_utils);
-    }
-    {
-        zabi_crypto.addImport("zabi-utils", zabi_utils);
-        zabi_crypto.addImport("zabi-types", zabi_types);
-    }
-    {
-        zabi_decoding.addImport("zabi-meta", zabi_meta);
-        zabi_decoding.addImport("zabi-types", zabi_types);
-        zabi_decoding.addImport("zabi-utils", zabi_utils);
-    }
-    {
-        zabi_encoding.addImport("zabi-abi", zabi_abi);
-        zabi_encoding.addImport("zabi-crypto", zabi_crypto);
-        zabi_encoding.addImport("zabi-meta", zabi_meta);
-        zabi_encoding.addImport("zabi-types", zabi_types);
-        zabi_encoding.addImport("zabi-utils", zabi_utils);
-    }
-    {
-        zabi_ens.addImport("zabi-abi", zabi_abi);
-        zabi_ens.addImport("zabi-clients", zabi_clients);
-        zabi_ens.addImport("zabi-decoding", zabi_decoding);
-        zabi_ens.addImport("zabi-encoding", zabi_encoding);
-        zabi_ens.addImport("zabi-types", zabi_types);
-        zabi_ens.addImport("zabi-utils", zabi_utils);
-    }
-    {
-        zabi_evm.addImport("zabi-utils", zabi_utils);
-        zabi_evm.addImport("zabi-meta", zabi_meta);
-        zabi_evm.addImport("zabi-types", zabi_types);
-    }
-    {
-        zabi_human.addImport("zabi-abi", zabi_abi);
-        zabi_human.addImport("zabi-meta", zabi_meta);
-    }
-    {
-        zabi_meta.addImport("zabi-abi", zabi_abi);
-        zabi_meta.addImport("zabi-types", zabi_types);
-    }
-    {
-        zabi_op_stack.addImport("zabi-abi", zabi_abi);
-        zabi_op_stack.addImport("zabi-clients", zabi_clients);
-        zabi_op_stack.addImport("zabi-crypto", zabi_crypto);
-        zabi_op_stack.addImport("zabi-decoding", zabi_decoding);
-        zabi_op_stack.addImport("zabi-encoding", zabi_encoding);
-        zabi_op_stack.addImport("zabi-meta", zabi_meta);
-        zabi_op_stack.addImport("zabi-types", zabi_types);
-        zabi_op_stack.addImport("zabi-utils", zabi_utils);
-    }
-    {
-        zabi_utils.addImport("zabi-meta", zabi_meta);
-        zabi_utils.addImport("zabi-types", zabi_types);
-    }
-    {
-        zabi_types.addImport("zabi-abi", zabi_abi);
-        zabi_types.addImport("zabi-meta", zabi_meta);
-        zabi_types.addImport("zabi-utils", zabi_utils);
-    }
+    // Build the library with the types module.
+    const zabi_types = b.addModule("zabi-types", .{
+        .root_source_file = b.path("src/types/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // Build the library with the utils module.
+    const zabi_utils = b.addModule("zabi-utils", .{
+        .root_source_file = b.path("src/utils/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // Adds the dependencies for `zabi` module.
     {
         zabi.addImport("zabi-abi", zabi_abi);
         zabi.addImport("zabi-ast", zabi_ast);
@@ -199,6 +133,103 @@ pub fn build(b: *std.Build) void {
         zabi.addImport("zabi-op-stack", zabi_op_stack);
         zabi.addImport("zabi-types", zabi_types);
         zabi.addImport("zabi-utils", zabi_utils);
+    }
+
+    // Adds the dependencies for `zabi-abi` module.
+    {
+        zabi_abi.addImport("zabi-decoding", zabi_decoding);
+        zabi_abi.addImport("zabi-encoding", zabi_encoding);
+        zabi_abi.addImport("zabi-human", zabi_human);
+        zabi_abi.addImport("zabi-meta", zabi_meta);
+        zabi_abi.addImport("zabi-types", zabi_types);
+    }
+
+    // Adds the dependencies for `zabi-client` module.
+    {
+        zabi_clients.addImport("zabi-abi", zabi_abi);
+        zabi_clients.addImport("zabi-crypto", zabi_crypto);
+        zabi_clients.addImport("zabi-decoding", zabi_decoding);
+        zabi_clients.addImport("zabi-encoding", zabi_encoding);
+        zabi_clients.addImport("zabi-evm", zabi_evm);
+        zabi_clients.addImport("zabi-meta", zabi_meta);
+        zabi_clients.addImport("zabi-types", zabi_types);
+        zabi_clients.addImport("zabi-utils", zabi_utils);
+    }
+
+    // Adds the dependencies for `zabi-crypto` module.
+    {
+        zabi_crypto.addImport("zabi-utils", zabi_utils);
+        zabi_crypto.addImport("zabi-types", zabi_types);
+    }
+
+    // Adds the dependencies for `zabi-decoding` module.
+    {
+        zabi_decoding.addImport("zabi-meta", zabi_meta);
+        zabi_decoding.addImport("zabi-types", zabi_types);
+        zabi_decoding.addImport("zabi-utils", zabi_utils);
+    }
+
+    // Adds the dependencies for `zabi-encoding` module.
+    {
+        zabi_encoding.addImport("zabi-abi", zabi_abi);
+        zabi_encoding.addImport("zabi-crypto", zabi_crypto);
+        zabi_encoding.addImport("zabi-meta", zabi_meta);
+        zabi_encoding.addImport("zabi-types", zabi_types);
+        zabi_encoding.addImport("zabi-utils", zabi_utils);
+    }
+
+    // Adds the dependencies for `zabi-ens` module.
+    {
+        zabi_ens.addImport("zabi-abi", zabi_abi);
+        zabi_ens.addImport("zabi-clients", zabi_clients);
+        zabi_ens.addImport("zabi-decoding", zabi_decoding);
+        zabi_ens.addImport("zabi-encoding", zabi_encoding);
+        zabi_ens.addImport("zabi-types", zabi_types);
+        zabi_ens.addImport("zabi-utils", zabi_utils);
+    }
+
+    // Adds the dependencies for `zabi-evm` module.
+    {
+        zabi_evm.addImport("zabi-utils", zabi_utils);
+        zabi_evm.addImport("zabi-meta", zabi_meta);
+        zabi_evm.addImport("zabi-types", zabi_types);
+    }
+
+    // Adds the dependencies for `zabi-human` module.
+    {
+        zabi_human.addImport("zabi-abi", zabi_abi);
+        zabi_human.addImport("zabi-meta", zabi_meta);
+    }
+
+    // Adds the dependencies for `zabi-meta` module.
+    {
+        zabi_meta.addImport("zabi-abi", zabi_abi);
+        zabi_meta.addImport("zabi-types", zabi_types);
+    }
+
+    // Adds the dependencies for `zabi-op-stack` module.
+    {
+        zabi_op_stack.addImport("zabi-abi", zabi_abi);
+        zabi_op_stack.addImport("zabi-clients", zabi_clients);
+        zabi_op_stack.addImport("zabi-crypto", zabi_crypto);
+        zabi_op_stack.addImport("zabi-decoding", zabi_decoding);
+        zabi_op_stack.addImport("zabi-encoding", zabi_encoding);
+        zabi_op_stack.addImport("zabi-meta", zabi_meta);
+        zabi_op_stack.addImport("zabi-types", zabi_types);
+        zabi_op_stack.addImport("zabi-utils", zabi_utils);
+    }
+
+    // Adds the dependencies for `zabi-types` module.
+    {
+        zabi_types.addImport("zabi-abi", zabi_abi);
+        zabi_types.addImport("zabi-meta", zabi_meta);
+        zabi_types.addImport("zabi-utils", zabi_utils);
+    }
+
+    // Adds the dependencies for `zabi-utils` module.
+    {
+        zabi_utils.addImport("zabi-meta", zabi_meta);
+        zabi_utils.addImport("zabi-types", zabi_types);
     }
 
     const load_variables = b.option(bool, "load_variables", "Load enviroment variables from a \"env\" file.") orelse false;
@@ -231,12 +262,61 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
 
-    if (load_variables) {
+    if (load_variables)
         loadVariables(b, env_file_path, run_lib_unit_tests);
-    }
 
     // Build and run coverage test runner if `zig build coverage` was ran
-    buildAndRunConverage(b, target, optimize);
+    {
+        const lib_unit_tests_coverage = b.addTest(.{
+            .name = "zabi-tests-coverage",
+            .root_source_file = b.path("tests/root.zig"),
+            .target = target,
+            .optimize = optimize,
+            .test_runner = b.path("test_runner.zig"),
+        });
+        lib_unit_tests_coverage.root_module.addImport("zabi-abi", zabi_abi);
+        lib_unit_tests_coverage.root_module.addImport("zabi-ast", zabi_ast);
+        lib_unit_tests_coverage.root_module.addImport("zabi-clients", zabi_clients);
+        lib_unit_tests_coverage.root_module.addImport("zabi-crypto", zabi_crypto);
+        lib_unit_tests_coverage.root_module.addImport("zabi-decoding", zabi_decoding);
+        lib_unit_tests_coverage.root_module.addImport("zabi-encoding", zabi_encoding);
+        lib_unit_tests_coverage.root_module.addImport("zabi-ens", zabi_ens);
+        lib_unit_tests_coverage.root_module.addImport("zabi-evm", zabi_evm);
+        lib_unit_tests_coverage.root_module.addImport("zabi-human", zabi_human);
+        lib_unit_tests_coverage.root_module.addImport("zabi-meta", zabi_meta);
+        lib_unit_tests_coverage.root_module.addImport("zabi-op-stack", zabi_op_stack);
+        lib_unit_tests_coverage.root_module.addImport("zabi-types", zabi_types);
+        lib_unit_tests_coverage.root_module.addImport("zabi-utils", zabi_utils);
+        addDependencies(b, &lib_unit_tests_coverage.root_module, target, optimize);
+
+        var run_lib_unit_tests_coverage = b.addRunArtifact(lib_unit_tests);
+
+        const test_step_coverage = b.step("coverage", "Run unit tests with kcov coverage");
+        test_step.dependOn(&run_lib_unit_tests_coverage.step);
+
+        const coverage_output = b.makeTempPath();
+        const include = b.fmt("--include-pattern=/src", .{});
+        const args = &[_]std.Build.Step.Run.Arg{
+            .{ .bytes = b.dupe("kcov") },
+            .{ .bytes = b.dupe(include) },
+            .{ .bytes = b.pathJoin(&.{ coverage_output, "output" }) },
+        };
+
+        var tests_run = b.addRunArtifact(lib_unit_tests);
+        run_lib_unit_tests_coverage.has_side_effects = true;
+        run_lib_unit_tests_coverage.argv.insertSlice(b.allocator, 0, args) catch @panic("OutOfMemory");
+
+        const install_coverage = b.addInstallDirectory(.{
+            .source_dir = .{ .cwd_relative = b.pathJoin(&.{ coverage_output, "output" }) },
+            .install_dir = .{ .custom = "coverage" },
+            .install_subdir = "",
+        });
+
+        test_step_coverage.dependOn(&tests_run.step);
+
+        install_coverage.step.dependOn(&run_lib_unit_tests.step);
+        test_step.dependOn(&install_coverage.step);
+    }
 
     // Build and generate docs for zabi. Uses the `doc_comments` spread across the codebase.
     // Always build in `ReleaseFast`.
@@ -245,6 +325,7 @@ pub fn build(b: *std.Build) void {
     // Build the wasm file. Always build in `ReleaseSmall` on `wasm32-freestanding.
     buildWasm(b);
 }
+
 /// Adds zabi project dependencies.
 fn addDependencies(b: *std.Build, mod: *std.Build.Module, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
     const c_kzg_4844_dep = b.dependency("c-kzg-4844", .{
@@ -264,45 +345,7 @@ fn addDependencies(b: *std.Build, mod: *std.Build.Module, target: std.Build.Reso
     mod.linkLibrary(c_kzg_4844_dep.artifact("c-kzg-4844"));
     mod.linkLibrary(blst_dep.artifact("blst"));
 }
-/// Build the coverage test executable and run it
-fn buildAndRunConverage(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
-    const lib_unit_tests = b.addTest(.{
-        .name = "zabi-tests-coverage",
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
-        .optimize = optimize,
-        .test_runner = b.path("test_runner.zig"),
-    });
 
-    addDependencies(b, &lib_unit_tests.root_module, target, optimize);
-    var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
-
-    const test_step = b.step("coverage", "Run unit tests with kcov coverage");
-    test_step.dependOn(&run_lib_unit_tests.step);
-
-    const coverage_output = b.makeTempPath();
-    const include = b.fmt("--include-pattern=/src", .{});
-    const args = &[_]std.Build.Step.Run.Arg{
-        .{ .bytes = b.dupe("kcov") },
-        .{ .bytes = b.dupe(include) },
-        .{ .bytes = b.pathJoin(&.{ coverage_output, "output" }) },
-    };
-
-    var tests_run = b.addRunArtifact(lib_unit_tests);
-    run_lib_unit_tests.has_side_effects = true;
-    run_lib_unit_tests.argv.insertSlice(b.allocator, 0, args) catch @panic("OutOfMemory");
-
-    const install_coverage = b.addInstallDirectory(.{
-        .source_dir = .{ .cwd_relative = b.pathJoin(&.{ coverage_output, "output" }) },
-        .install_dir = .{ .custom = "coverage" },
-        .install_subdir = "",
-    });
-
-    test_step.dependOn(&tests_run.step);
-
-    install_coverage.step.dependOn(&run_lib_unit_tests.step);
-    test_step.dependOn(&install_coverage.step);
-}
 /// Builds and runs a runner to generate documentation based on the `doc_comments` tokens in the codebase.
 fn buildDocs(b: *std.Build, target: std.Build.ResolvedTarget) void {
     const docs = b.addExecutable(.{
@@ -319,6 +362,7 @@ fn buildDocs(b: *std.Build, target: std.Build.ResolvedTarget) void {
     const docs_step = b.step("docs", "Generate documentation based on the source code.");
     docs_step.dependOn(&docs_run.step);
 }
+
 /// Builds for wasm32-freestanding target.
 fn buildWasm(b: *std.Build) void {
     const wasm_crosstarget: std.Target.Query = .{
@@ -361,6 +405,7 @@ fn buildWasm(b: *std.Build) void {
 
     wasm_step.dependOn(&wasm_install.step);
 }
+
 /// Loads enviroment variables from a `.env` file in case they aren't already present.
 fn loadVariables(b: *std.Build, env_path: []const u8, exe: *std.Build.Step.Run) void {
     var file = std.fs.cwd().openFile(env_path, .{}) catch |err|

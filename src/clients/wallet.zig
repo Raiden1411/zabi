@@ -17,6 +17,7 @@ const zabi_utils = @import("zabi-utils");
 const AccessList = transaction.AccessList;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
+const AuthorizationPayload = transaction.AuthorizationPayload;
 const Blob = ckzg4844.KZG4844.Blob;
 const Chains = types.PublicChains;
 const EIP712Errors = eip712.EIP712Errors;
@@ -32,6 +33,7 @@ const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Mutex = std.Thread.Mutex;
 const PubClient = @import("Client.zig");
 const RPCResponse = types.RPCResponse;
+const RlpEncodeErrors = zabi_encoding.rlp.RlpEncodeErrors;
 const SerializeErrors = serialize.SerializeErrors;
 const Sidecar = ckzg4844.KZG4844.Sidecar;
 const Signer = zabi_crypto.Signer;
@@ -310,7 +312,11 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// }, true);
         /// defer wallet.deinit();
         /// ```
-        pub fn init(private_key: ?Hash, opts: InitOpts, nonce_manager: bool) (error{IdentityElement} || ClientType.InitErrors)!*WalletSelf {
+        pub fn init(
+            private_key: ?Hash,
+            opts: InitOpts,
+            nonce_manager: bool,
+        ) (error{IdentityElement} || ClientType.InitErrors)!*WalletSelf {
             const self = try opts.allocator.create(WalletSelf);
             errdefer opts.allocator.destroy(self);
 
@@ -417,6 +423,49 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             const message = try encoder.encodePacked(self.allocator, values);
 
             return message;
+        }
+        pub fn hashAuthorityEip7702(
+            self: *WalletSelf,
+            authority: Address,
+            nonce: ?u64,
+        ) RlpEncodeErrors!Hash {
+            const envelope: struct { u64, Address, ?u64 } = .{
+                @intCast(@intFromEnum(self.rpc_client.network_config.chain_id)),
+                authority,
+                nonce,
+            };
+
+            const encoded = try zabi_encoding.rlp.encodeRlp(self.allocator, envelope);
+            defer self.allocator.free(encoded);
+
+            var serialized = try self.allocator.alloc(u8, encoded.len + 1);
+            // Add the transaction type
+            serialized[0] = 5;
+            @memcpy(serialized[1..], encoded);
+
+            var buffer: Hash = undefined;
+            Keccak256.hash(encoded, &buffer, .{});
+
+            return buffer;
+        }
+
+        pub fn signAuthorizationEip7702(
+            self: *WalletSelf,
+            authority: Address,
+            nonce: ?u64,
+        ) (Signer.SigningErrors || RlpEncodeErrors)!AuthorizationPayload {
+            const hash = try self.hashAuthorityEip7702(authority, nonce);
+
+            const signature = try self.signer.sign(hash);
+
+            return .{
+                .chain_id = @intFromEnum(self.rpc_client.network_config.chain_id),
+                .nonce = nonce,
+                .address = authority,
+                .y_parity = signature.v,
+                .r = signature.r,
+                .s = signature.s,
+            };
         }
         /// Find a specific prepared envelope from the pool based on the given search criteria.
         pub fn findTransactionEnvelopeFromPool(self: *WalletSelf, search: TransactionEnvelopePool.SearchCriteria) ?TransactionEnvelope {

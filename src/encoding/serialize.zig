@@ -12,6 +12,7 @@ const zabi_types = @import("zabi-types");
 const AccessList = transaction.AccessList;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
+const AuthorizationPayload = transaction.AuthorizationPayload;
 const BerlinEnvelope = transaction.BerlinEnvelope;
 const BerlinEnvelopeSigned = transaction.BerlinEnvelopeSigned;
 const BerlinTransactionEnvelope = transaction.BerlinTransactionEnvelope;
@@ -21,6 +22,9 @@ const CancunEnvelopeSigned = transaction.CancunEnvelopeSigned;
 const CancunSignedWrapper = transaction.CancunSignedWrapper;
 const CancunWrapper = transaction.CancunWrapper;
 const CancunTransactionEnvelope = transaction.CancunTransactionEnvelope;
+const Eip7702Envelope = transaction.Eip7702Envelope;
+const Eip7702EnvelopeSigned = transaction.Eip7702EnvelopeSigned;
+const Eip7702TransactionEnvelope = transaction.Eip7702TransactionEnvelope;
 const Hash = types.Hash;
 const Hex = types.Hex;
 const KZG4844 = kzg.KZG4844;
@@ -70,9 +74,70 @@ pub fn serializeTransaction(allocator: Allocator, tx: TransactionEnvelope, sig: 
     return switch (tx) {
         .berlin => |val| try serializeTransactionEIP2930(allocator, val, sig),
         .cancun => |val| try serializeCancunTransaction(allocator, val, sig),
+        .eip7702 => |val| try serializeTransactionEIP7702(allocator, val, sig),
         .legacy => |val| try serializeTransactionLegacy(allocator, val, sig),
         .london => |val| try serializeTransactionEIP1559(allocator, val, sig),
     };
+}
+/// Function to serialize eip7702 transactions.
+/// Caller ownes the memory
+pub fn serializeTransactionEIP7702(allocator: Allocator, tx: Eip7702TransactionEnvelope, sig: ?Signature) SerializeErrors![]u8 {
+    const prep_access = try prepareAccessList(allocator, tx.accessList);
+    defer allocator.free(prep_access);
+
+    const prep_auth = try prepareAuthorizationList(allocator, tx.authorizationList);
+    defer allocator.free(prep_auth);
+
+    if (sig) |signature| {
+        const envelope_signed: Eip7702EnvelopeSigned = .{
+            tx.chainId,
+            tx.nonce,
+            tx.maxPriorityFeePerGas,
+            tx.maxFeePerGas,
+            tx.gas,
+            tx.to,
+            tx.value,
+            tx.data,
+            prep_access,
+            prep_auth,
+            signature.v,
+            signature.r,
+            signature.s,
+        };
+
+        const encoded_sig = try rlp.encodeRlp(allocator, envelope_signed);
+        defer allocator.free(encoded_sig);
+
+        var serialized = try allocator.alloc(u8, encoded_sig.len + 1);
+        // Add the transaction type
+        serialized[0] = 4;
+        @memcpy(serialized[1..], encoded_sig);
+
+        return serialized;
+    }
+
+    const envelope_signed: Eip7702Envelope = .{
+        tx.chainId,
+        tx.nonce,
+        tx.maxPriorityFeePerGas,
+        tx.maxFeePerGas,
+        tx.gas,
+        tx.to,
+        tx.value,
+        tx.data,
+        prep_access,
+        prep_auth,
+    };
+
+    const encoded = try rlp.encodeRlp(allocator, envelope_signed);
+    defer allocator.free(encoded);
+
+    var serialized = try allocator.alloc(u8, encoded.len + 1);
+    // Add the transaction type
+    serialized[0] = 4;
+    @memcpy(serialized[1..], encoded);
+
+    return serialized;
 }
 /// Serializes a cancun type transactions without blobs.
 ///
@@ -469,12 +534,23 @@ pub fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnv
 }
 /// Serializes the access list into a slice of tuples of hex values.
 pub fn prepareAccessList(allocator: Allocator, access_list: []const AccessList) Allocator.Error![]const StructToTupleType(AccessList) {
-    var tuple_list = std.ArrayList(StructToTupleType(AccessList)).init(allocator);
+    var tuple_list = try std.ArrayList(StructToTupleType(AccessList)).init(allocator, access_list.len);
     errdefer tuple_list.deinit();
 
     for (access_list) |access| {
-        try tuple_list.append(.{ access.address, access.storageKeys });
+        tuple_list.appendAssumeCapacity(.{ access.address, access.storageKeys });
     }
 
-    return try tuple_list.toOwnedSlice();
+    return tuple_list.toOwnedSlice();
+}
+/// Serializes the authorization list into a slice of tuples of hex values.
+pub fn prepareAuthorizationList(allocator: Allocator, authorization_list: []const AuthorizationPayload) Allocator.Error![]const StructToTupleType(AuthorizationPayload) {
+    var tuple_list = try std.ArrayList(StructToTupleType(AuthorizationPayload)).initCapacity(allocator, authorization_list.len);
+    errdefer tuple_list.deinit();
+
+    for (authorization_list) |auth| {
+        tuple_list.appendAssumeCapacity(.{ auth.chain_id, auth.address, auth.nonce, auth.y_parity, auth.r, auth.s });
+    }
+
+    return tuple_list.toOwnedSlice();
 }

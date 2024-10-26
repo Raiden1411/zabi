@@ -24,26 +24,30 @@ const Token = std.json.Token;
 const Value = std.json.Value;
 const Wei = types.Wei;
 
-/// Tuple representig an encoded envelope for the Berlin hardfork
+/// Tuple representing an encoded envelope for the Berlin hardfork.
 pub const BerlinEnvelope = StructToTupleType(BerlinTransactionEnvelope);
-/// Tuple representig an encoded envelope for the Berlin hardfork with the signature
+/// Tuple representing an encoded envelope for the Berlin hardfork with the signature.
 pub const BerlinEnvelopeSigned = StructToTupleType(BerlinTransactionEnvelopeSigned);
-/// Tuple representig an encoded envelope for a legacy transaction
-pub const LegacyEnvelope = StructToTupleType(Omit(LegacyTransactionEnvelope, &.{"chainId"}));
-/// Tuple representig an encoded envelope for a legacy transaction
-pub const LegacyEnvelopeSigned = StructToTupleType(Omit(LegacyTransactionEnvelopeSigned, &.{"chainId"}));
-/// Tuple representig an encoded envelope for the London hardfork
-pub const LondonEnvelope = StructToTupleType(LondonTransactionEnvelope);
-/// Tuple representig an encoded envelope for the London hardfork with the signature
-pub const LondonEnvelopeSigned = StructToTupleType(LondonTransactionEnvelopeSigned);
-/// Tuple representig an encoded envelope for the London hardfork
+/// Tuple representing an encoded envelope for the London hardfork.
 pub const CancunEnvelope = StructToTupleType(CancunTransactionEnvelope);
-/// Tuple representig an encoded envelope for the London hardfork with the signature
+/// Tuple representing an encoded envelope for the London hardfork with the signature.
 pub const CancunEnvelopeSigned = StructToTupleType(CancunTransactionEnvelopeSigned);
-/// Signed cancun transaction converted to wrapper with blobs, commitments and proofs
+/// Signed cancun transaction converted to wrapper with blobs, commitments and proofs.
 pub const CancunSignedWrapper = Merge(StructToTupleType(CancunTransactionEnvelopeSigned), struct { []const Blob, []const KZGCommitment, []const KZGProof });
-/// Cancun transaction converted to wrapper with blobs, commitments and proofs
+/// Cancun transaction converted to wrapper with blobs, commitments and proofs.
 pub const CancunWrapper = Merge(StructToTupleType(CancunTransactionEnvelope), struct { []const Blob, []const KZGCommitment, []const KZGProof });
+/// Tuple representing EIP 7702 authorization envelope tuple.
+pub const Eip7702Envelope = StructToTupleType(Eip7702TransactionEnvelope);
+/// Tuple representing EIP 7702 authorization envelope tuple with the signature.
+pub const Eip7702EnvelopeSigned = StructToTupleType(Eip7702TransactionEnvelopeSigned);
+/// Tuple representing an encoded envelope for a legacy transaction.
+pub const LegacyEnvelope = StructToTupleType(Omit(LegacyTransactionEnvelope, &.{"chainId"}));
+/// Tuple representing an encoded envelope for a legacy transaction with the signature.
+pub const LegacyEnvelopeSigned = StructToTupleType(Omit(LegacyTransactionEnvelopeSigned, &.{"chainId"}));
+/// Tuple representing an encoded envelope for the London hardfork.
+pub const LondonEnvelope = StructToTupleType(LondonTransactionEnvelope);
+/// Tuple representing an encoded envelope for the London hardfork with the signature.
+pub const LondonEnvelopeSigned = StructToTupleType(LondonTransactionEnvelopeSigned);
 
 pub const TransactionTypes = enum(u8) { legacy = 0x00, berlin = 0x01, london = 0x02, cancun = 0x03, deposit = 0x7e, _ };
 
@@ -51,8 +55,34 @@ pub const TransactionTypes = enum(u8) { legacy = 0x00, berlin = 0x01, london = 0
 pub const TransactionEnvelope = union(enum) {
     berlin: BerlinTransactionEnvelope,
     cancun: CancunTransactionEnvelope,
+    eip7702: Eip7702TransactionEnvelope,
     legacy: LegacyTransactionEnvelope,
     london: LondonTransactionEnvelope,
+};
+/// The transaction envelope from eip7702.
+pub const Eip7702TransactionEnvelopeSigned = struct {
+    chainId: u64,
+    nonce: u64,
+    maxPriorityFeePerGas: u64,
+    maxFeePerGas: u64,
+    gasLimit: u64,
+    to: ?Address = null,
+    value: Wei,
+    data: ?Hex = null,
+    accessList: []const AccessList,
+    authorizationList: []const AuthorizationPayload,
+
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The transaction envelope from the Cancun hardfork
 pub const CancunTransactionEnvelope = struct {
@@ -166,6 +196,27 @@ pub const AccessList = struct {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
+/// EIP7702 authorization payload.
+pub const AuthorizationPayload = struct {
+    y_parity: u8,
+    chain_id: u64,
+    nonce: u64,
+    address: Address,
+    r: u256,
+    s: u256,
+
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
+};
 /// Struct representing the result of create accessList
 pub const AccessListResult = struct {
     accessList: []const AccessList,
@@ -187,8 +238,37 @@ pub const AccessListResult = struct {
 pub const TransactionEnvelopeSigned = union(enum) {
     berlin: BerlinTransactionEnvelopeSigned,
     cancun: CancunTransactionEnvelopeSigned,
+    eip7702: Eip7702TransactionEnvelope,
     legacy: LegacyTransactionEnvelopeSigned,
     london: LondonTransactionEnvelopeSigned,
+};
+/// The transaction envelope from eip7702.
+pub const Eip7702TransactionEnvelope = struct {
+    chainId: u64,
+    nonce: u64,
+    maxPriorityFeePerGas: u64,
+    maxFeePerGas: u64,
+    gasLimit: u64,
+    to: ?Address = null,
+    value: Wei,
+    data: ?Hex = null,
+    accessList: []const AccessList,
+    authorizationList: []const AuthorizationPayload,
+    v: u2,
+    r: u256,
+    s: u256,
+
+    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
 };
 /// The transaction envelope from the London hardfork with the signature fields
 pub const CancunTransactionEnvelopeSigned = struct {
@@ -945,6 +1025,7 @@ pub const FeeHistory = struct {
     }
 };
 
+/// Op stack deposit transaction representation.
 pub const DepositTransaction = struct {
     sourceHash: Hash,
     from: Address,
@@ -956,6 +1037,7 @@ pub const DepositTransaction = struct {
     data: ?Hex,
 };
 
+/// Op stack deposit transaction representation with the signed parameters.
 pub const DepositTransactionSigned = struct {
     hash: Hash,
     nonce: u64,
@@ -994,6 +1076,7 @@ pub const DepositTransactionSigned = struct {
     }
 };
 
+/// Op stack deposit data.
 pub const DepositData = struct {
     mint: u256,
     value: Wei,
@@ -1002,6 +1085,7 @@ pub const DepositData = struct {
     data: ?Hex,
 };
 
+/// Op stack return type when decoding a deposit transaction from the contract.
 pub const TransactionDeposited = struct {
     from: Address,
     to: Address,
@@ -1011,6 +1095,7 @@ pub const TransactionDeposited = struct {
     blockHash: Hash,
 };
 
+/// Op stack deposit envelope to be serialized.
 pub const DepositTransactionEnvelope = struct {
     gas: ?Gwei = null,
     mint: ?Wei = null,

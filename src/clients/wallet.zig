@@ -424,12 +424,13 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             return message;
         }
+
         pub fn hashAuthorityEip7702(
             self: *WalletSelf,
             authority: Address,
-            nonce: ?u64,
+            nonce: u64,
         ) RlpEncodeErrors!Hash {
-            const envelope: struct { u64, Address, ?u64 } = .{
+            const envelope: struct { u64, Address, u64 } = .{
                 @intCast(@intFromEnum(self.rpc_client.network_config.chain_id)),
                 authority,
                 nonce,
@@ -454,19 +455,37 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             authority: Address,
             nonce: ?u64,
         ) (Signer.SigningErrors || RlpEncodeErrors)!AuthorizationPayload {
-            const hash = try self.hashAuthorityEip7702(authority, nonce);
+            const nonce_from: u256 = nonce: {
+                if (nonce) |nonce_unwrapped|
+                    break :nonce @intCast(nonce_unwrapped);
+
+                if (self.nonce_manager) |*manager| {
+                    break :nonce @intCast(try manager.getNonce(self.rpc_client));
+                }
+
+                const rpc_nonce = try self.rpc_client.getAddressTransactionCount(.{
+                    .tag = .pending,
+                    .address = self.signer.address_bytes,
+                });
+                defer rpc_nonce.deinit();
+
+                break :nonce @intCast(rpc_nonce.response);
+            };
+
+            const hash = try self.hashAuthorityEip7702(authority, nonce_from);
 
             const signature = try self.signer.sign(hash);
 
             return .{
                 .chain_id = @intFromEnum(self.rpc_client.network_config.chain_id),
-                .nonce = nonce,
+                .nonce = nonce_from,
                 .address = authority,
                 .y_parity = signature.v,
                 .r = signature.r,
                 .s = signature.s,
             };
         }
+
         /// Find a specific prepared envelope from the pool based on the given search criteria.
         pub fn findTransactionEnvelopeFromPool(self: *WalletSelf, search: TransactionEnvelopePool.SearchCriteria) ?TransactionEnvelope {
             return self.envelopes_pool.findTransactionEnvelope(self.allocator, search);
@@ -663,7 +682,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
                             break :blk nonce;
                         } else {
-                            const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
+                            const nonce = try self.rpc_client.getAddressTransactionCount(.{
+                                .address = self.signer.address_bytes,
+                                .tag = .pending,
+                            });
                             defer nonce.deinit();
 
                             break :blk nonce.response;
@@ -771,6 +793,20 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             return Signer.recoverAddress(sig, hash);
         }
+
+        pub fn recoverAuthorizationAddress(
+            self: *WalletSelf,
+            authorization_payload: AuthorizationPayload,
+        ) (RlpEncodeErrors || Signer.RecoverPubKeyErrors)!Address {
+            const hash = try self.hashAuthorityEip7702(authorization_payload.authority, authorization_payload.nonce);
+
+            return Signer.recoverAddress(.{
+                .v = @truncate(authorization_payload.y_parity),
+                .r = authorization_payload.r,
+                .s = authorization_payload.s,
+            }, hash);
+        }
+
         /// Search the internal `TransactionEnvelopePool` to find the specified transaction based on the `type` and nonce.
         ///
         /// If there are duplicate transaction that meet the search criteria it will send the first it can find.\
@@ -948,6 +984,26 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             const expected_addr: u160 = @bitCast(expected_address orelse self.signer.address_bytes);
 
             const recovered_address: u160 = @bitCast(try recoverAuthMessageAddress(auth_message, sig));
+
+            return expected_addr == recovered_address;
+        }
+
+        pub fn verifyAuthorization(
+            self: *WalletSelf,
+            expected_address: ?Address,
+            authorization_payload: AuthorizationPayload,
+        ) (ClientType.BasicRequestErrors || Signer.RecoverPubKeyErrors)!bool {
+            const expected_addr: u160 = @bitCast(expected_address orelse self.signer.address_bytes);
+
+            const recovered_address: u160 = @bitCast(try self.recoverAuthorizationAddress(
+                authorization_payload.authority,
+                authorization_payload.nonce,
+                .{
+                    .v = @truncate(authorization_payload.y_parity),
+                    .r = authorization_payload.r,
+                    .s = authorization_payload.s,
+                },
+            ));
 
             return expected_addr == recovered_address;
         }

@@ -350,6 +350,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     if (tx_eip1559.chainId != @intFromEnum(self.rpc_client.network_config.chain_id)) return error.InvalidChainId;
                     if (tx_eip1559.maxPriorityFeePerGas > tx_eip1559.maxFeePerGas) return error.TransactionTipToHigh;
                 },
+                .eip7702 => |tx_eip7702| {
+                    if (tx_eip7702.chainId != @intFromEnum(self.rpc_client.network_config.chain_id)) return error.InvalidChainId;
+                    if (tx_eip7702.maxPriorityFeePerGas > tx_eip7702.maxFeePerGas) return error.TransactionTipToHigh;
+                },
                 .cancun => |tx_eip4844| {
                     if (tx_eip4844.chainId != @intFromEnum(self.rpc_client.network_config.chain_id)) return error.InvalidChainId;
                     if (tx_eip4844.maxPriorityFeePerGas > tx_eip4844.maxFeePerGas) return error.TransactionTipToHigh;
@@ -424,14 +428,21 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             return message;
         }
-
+        /// Find a specific prepared envelope from the pool based on the given search criteria.
+        pub fn findTransactionEnvelopeFromPool(self: *WalletSelf, search: TransactionEnvelopePool.SearchCriteria) ?TransactionEnvelope {
+            return self.envelopes_pool.findTransactionEnvelope(self.allocator, search);
+        }
+        /// Generates the authorization hash based on the eip7702 specification.
+        /// For more information please go [here](https://eips.ethereum.org/EIPS/eip-7702)
+        ///
+        /// This is still experimental since the EIP has not being deployed into any mainnet.
         pub fn hashAuthorityEip7702(
             self: *WalletSelf,
             authority: Address,
             nonce: u64,
         ) RlpEncodeErrors!Hash {
             const envelope: struct { u64, Address, u64 } = .{
-                @intCast(@intFromEnum(self.rpc_client.network_config.chain_id)),
+                @intFromEnum(self.rpc_client.network_config.chain_id),
                 authority,
                 nonce,
             };
@@ -440,55 +451,16 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             defer self.allocator.free(encoded);
 
             var serialized = try self.allocator.alloc(u8, encoded.len + 1);
+            defer self.allocator.free(serialized);
+
             // Add the transaction type
-            serialized[0] = 5;
+            serialized[0] = 0x05;
             @memcpy(serialized[1..], encoded);
 
             var buffer: Hash = undefined;
-            Keccak256.hash(encoded, &buffer, .{});
+            Keccak256.hash(serialized, &buffer, .{});
 
             return buffer;
-        }
-
-        pub fn signAuthorizationEip7702(
-            self: *WalletSelf,
-            authority: Address,
-            nonce: ?u64,
-        ) (Signer.SigningErrors || RlpEncodeErrors)!AuthorizationPayload {
-            const nonce_from: u256 = nonce: {
-                if (nonce) |nonce_unwrapped|
-                    break :nonce @intCast(nonce_unwrapped);
-
-                if (self.nonce_manager) |*manager| {
-                    break :nonce @intCast(try manager.getNonce(self.rpc_client));
-                }
-
-                const rpc_nonce = try self.rpc_client.getAddressTransactionCount(.{
-                    .tag = .pending,
-                    .address = self.signer.address_bytes,
-                });
-                defer rpc_nonce.deinit();
-
-                break :nonce @intCast(rpc_nonce.response);
-            };
-
-            const hash = try self.hashAuthorityEip7702(authority, nonce_from);
-
-            const signature = try self.signer.sign(hash);
-
-            return .{
-                .chain_id = @intFromEnum(self.rpc_client.network_config.chain_id),
-                .nonce = nonce_from,
-                .address = authority,
-                .y_parity = signature.v,
-                .r = signature.r,
-                .s = signature.s,
-            };
-        }
-
-        /// Find a specific prepared envelope from the pool based on the given search criteria.
-        pub fn findTransactionEnvelopeFromPool(self: *WalletSelf, search: TransactionEnvelopePool.SearchCriteria) ?TransactionEnvelope {
-            return self.envelopes_pool.findTransactionEnvelope(self.allocator, search);
         }
         /// Get the wallet address.
         ///
@@ -773,6 +745,73 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         },
                     };
                 },
+                .eip7702 => {
+                    var request: LondonEthCall = .{
+                        .to = unprepared_envelope.to,
+                        .from = address,
+                        .gas = unprepared_envelope.gas,
+                        .maxFeePerGas = unprepared_envelope.maxFeePerGas,
+                        .maxPriorityFeePerGas = unprepared_envelope.maxPriorityFeePerGas,
+                        .data = unprepared_envelope.data,
+                        .value = unprepared_envelope.value orelse 0,
+                    };
+
+                    const curr_block = try self.rpc_client.getBlockByNumber(.{});
+                    defer curr_block.deinit();
+
+                    const base_fee = switch (curr_block.response) {
+                        inline else => |block_info| block_info.baseFeePerGas,
+                    };
+
+                    const chain_id = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
+                    const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
+                    const authList: []const AuthorizationPayload = unprepared_envelope.authList orelse &.{};
+
+                    const nonce: u64 = unprepared_envelope.nonce orelse blk: {
+                        if (self.nonce_manager) |*manager| {
+                            const nonce = try manager.updateNonce(self.rpc_client);
+
+                            break :blk nonce;
+                        } else {
+                            const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
+                            defer nonce.deinit();
+
+                            break :blk nonce.response;
+                        }
+                    };
+
+                    if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
+                        const fees = try self.rpc_client.estimateFeesPerGas(.{ .london = request }, base_fee);
+                        request.maxPriorityFeePerGas = unprepared_envelope.maxPriorityFeePerGas orelse fees.london.max_priority_fee;
+                        request.maxFeePerGas = unprepared_envelope.maxFeePerGas orelse fees.london.max_fee_gas;
+
+                        if (unprepared_envelope.maxFeePerGas) |fee| {
+                            if (fee < fees.london.max_priority_fee) return error.MaxFeePerGasUnderflow;
+                        }
+                    }
+
+                    if (unprepared_envelope.gas == null) {
+                        const gas = try self.rpc_client.estimateGas(.{ .london = request }, .{});
+                        defer gas.deinit();
+
+                        request.gas = gas.response;
+                    }
+
+                    return .{
+                        .eip7702 = .{
+                            .chainId = chain_id,
+                            .nonce = nonce,
+                            .gas = request.gas.?,
+                            .maxFeePerGas = request.maxFeePerGas.?,
+                            .maxPriorityFeePerGas = request.maxPriorityFeePerGas.?,
+                            .to = request.to,
+                            .data = request.data,
+                            .value = request.value.?,
+                            .accessList = accessList,
+                            .authorizationList = authList,
+                        },
+                    };
+                },
                 .deposit => return error.UnsupportedTransactionType,
                 _ => return error.UnsupportedTransactionType,
             }
@@ -928,6 +967,43 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             return self.signer.sign(hash_buffer);
         }
+
+        pub fn signAuthorizationEip7702(
+            self: *WalletSelf,
+            authority: Address,
+            nonce: ?u64,
+        ) (ClientType.BasicRequestErrors || Signer.SigningErrors || RlpEncodeErrors)!AuthorizationPayload {
+            const nonce_from: u256 = nonce: {
+                if (nonce) |nonce_unwrapped|
+                    break :nonce @intCast(nonce_unwrapped);
+
+                if (self.nonce_manager) |*manager| {
+                    break :nonce @intCast(try manager.getNonce(self.rpc_client));
+                }
+
+                const rpc_nonce = try self.rpc_client.getAddressTransactionCount(.{
+                    .tag = .pending,
+                    .address = self.signer.address_bytes,
+                });
+                defer rpc_nonce.deinit();
+
+                break :nonce @intCast(rpc_nonce.response);
+            };
+
+            const hash = try self.hashAuthorityEip7702(authority, nonce_from);
+
+            const signature = try self.signer.sign(hash);
+
+            return .{
+                .chain_id = @intFromEnum(self.rpc_client.network_config.chain_id),
+                .nonce = nonce_from,
+                .address = authority,
+                .y_parity = signature.v,
+                .r = signature.r,
+                .s = signature.s,
+            };
+        }
+
         /// Signs an ethereum message with the specified prefix.
         ///
         /// The Signatures recoverId doesn't include the chain_id.

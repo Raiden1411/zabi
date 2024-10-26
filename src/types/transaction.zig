@@ -49,7 +49,16 @@ pub const LondonEnvelope = StructToTupleType(LondonTransactionEnvelope);
 /// Tuple representing an encoded envelope for the London hardfork with the signature.
 pub const LondonEnvelopeSigned = StructToTupleType(LondonTransactionEnvelopeSigned);
 
-pub const TransactionTypes = enum(u8) { legacy = 0x00, berlin = 0x01, london = 0x02, cancun = 0x03, deposit = 0x7e, _ };
+/// All of the transaction types.
+pub const TransactionTypes = enum(u8) {
+    legacy = 0x00,
+    berlin = 0x01,
+    london = 0x02,
+    cancun = 0x03,
+    eip7702 = 0x04,
+    deposit = 0x7e,
+    _,
+};
 
 /// The transaction envelope that will be serialized before getting sent to the network.
 pub const TransactionEnvelope = union(enum) {
@@ -60,12 +69,12 @@ pub const TransactionEnvelope = union(enum) {
     london: LondonTransactionEnvelope,
 };
 /// The transaction envelope from eip7702.
-pub const Eip7702TransactionEnvelopeSigned = struct {
+pub const Eip7702TransactionEnvelope = struct {
     chainId: u64,
     nonce: u64,
     maxPriorityFeePerGas: u64,
     maxFeePerGas: u64,
-    gasLimit: u64,
+    gas: u64,
     to: ?Address = null,
     value: Wei,
     data: ?Hex = null,
@@ -198,10 +207,10 @@ pub const AccessList = struct {
 };
 /// EIP7702 authorization payload.
 pub const AuthorizationPayload = struct {
-    y_parity: u8,
     chain_id: u64,
-    nonce: u64,
     address: Address,
+    nonce: u64,
+    y_parity: u8,
     r: u256,
     s: u256,
 
@@ -238,17 +247,17 @@ pub const AccessListResult = struct {
 pub const TransactionEnvelopeSigned = union(enum) {
     berlin: BerlinTransactionEnvelopeSigned,
     cancun: CancunTransactionEnvelopeSigned,
-    eip7702: Eip7702TransactionEnvelope,
+    eip7702: Eip7702TransactionEnvelopeSigned,
     legacy: LegacyTransactionEnvelopeSigned,
     london: LondonTransactionEnvelopeSigned,
 };
 /// The transaction envelope from eip7702.
-pub const Eip7702TransactionEnvelope = struct {
+pub const Eip7702TransactionEnvelopeSigned = struct {
     chainId: u64,
     nonce: u64,
     maxPriorityFeePerGas: u64,
     maxFeePerGas: u64,
-    gasLimit: u64,
+    gas: u64,
     to: ?Address = null,
     value: Wei,
     data: ?Hex = null,
@@ -392,6 +401,7 @@ pub const UnpreparedTransactionEnvelope = struct {
     data: ?Hex = null,
     accessList: ?[]const AccessList = null,
     blobVersionedHashes: ?[]const Hash = null,
+    authList: ?[]const AuthorizationPayload = null,
 };
 /// The representation of a London hardfork pending transaction.
 pub const LondonPendingTransaction = struct {

@@ -534,7 +534,7 @@ pub fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnv
 }
 /// Serializes the access list into a slice of tuples of hex values.
 pub fn prepareAccessList(allocator: Allocator, access_list: []const AccessList) Allocator.Error![]const StructToTupleType(AccessList) {
-    var tuple_list = try std.ArrayList(StructToTupleType(AccessList)).init(allocator, access_list.len);
+    var tuple_list = try std.ArrayList(StructToTupleType(AccessList)).initCapacity(allocator, access_list.len);
     errdefer tuple_list.deinit();
 
     for (access_list) |access| {

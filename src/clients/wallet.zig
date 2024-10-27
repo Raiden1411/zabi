@@ -819,9 +819,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Recovers the address associated with the signature based on the message.\
         /// To reconstruct the message use `authMessageEip3074`
         ///
-        /// You can pass null to `nonce` if you want to target a specific nonce.\
-        /// Otherwise if with either use the `nonce_manager` if it can or fetch from the network.
-        ///
         /// Reconstructs the message from them and returns the address bytes.
         pub fn recoverAuthMessageAddress(
             auth_message: []u8,
@@ -832,12 +829,12 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             return Signer.recoverAddress(sig, hash);
         }
-
+        /// Recovers the address associated with the signature based on the authorization payload.
         pub fn recoverAuthorizationAddress(
             self: *WalletSelf,
             authorization_payload: AuthorizationPayload,
         ) (RlpEncodeErrors || Signer.RecoverPubKeyErrors)!Address {
-            const hash = try self.hashAuthorityEip7702(authorization_payload.authority, authorization_payload.nonce);
+            const hash = try self.hashAuthorityEip7702(authorization_payload.address, authorization_payload.nonce);
 
             return Signer.recoverAddress(.{
                 .v = @truncate(authorization_payload.y_parity),
@@ -845,7 +842,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 .s = authorization_payload.s,
             }, hash);
         }
-
         /// Search the internal `TransactionEnvelopePool` to find the specified transaction based on the `type` and nonce.
         ///
         /// If there are duplicate transaction that meet the search criteria it will send the first it can find.\
@@ -967,18 +963,24 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             return self.signer.sign(hash_buffer);
         }
-
+        /// Signs and prepares an eip7702 authorization message.
+        /// For more details on the implementation see [here](https://eips.ethereum.org/EIPS/eip-7702#specification).
+        ///
+        /// You can pass null to `nonce` if you want to target a specific nonce.\
+        /// Otherwise if with either use the `nonce_manager` if it can or fetch from the network.
+        ///
+        /// This is still experimental since the EIP has not being deployed into any mainnet.
         pub fn signAuthorizationEip7702(
             self: *WalletSelf,
             authority: Address,
             nonce: ?u64,
         ) (ClientType.BasicRequestErrors || Signer.SigningErrors || RlpEncodeErrors)!AuthorizationPayload {
-            const nonce_from: u256 = nonce: {
+            const nonce_from = nonce: {
                 if (nonce) |nonce_unwrapped|
-                    break :nonce @intCast(nonce_unwrapped);
+                    break :nonce nonce_unwrapped;
 
                 if (self.nonce_manager) |*manager| {
-                    break :nonce @intCast(try manager.getNonce(self.rpc_client));
+                    break :nonce try manager.getNonce(self.rpc_client);
                 }
 
                 const rpc_nonce = try self.rpc_client.getAddressTransactionCount(.{
@@ -987,7 +989,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 });
                 defer rpc_nonce.deinit();
 
-                break :nonce @intCast(rpc_nonce.response);
+                break :nonce rpc_nonce.response;
             };
 
             const hash = try self.hashAuthorityEip7702(authority, nonce_from);
@@ -1003,7 +1005,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 .s = signature.s,
             };
         }
-
         /// Signs an ethereum message with the specified prefix.
         ///
         /// The Signatures recoverId doesn't include the chain_id.
@@ -1063,23 +1064,18 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             return expected_addr == recovered_address;
         }
-
+        /// Verifies if the authorization message was signed by the provided address.\
+        ///
+        /// You can pass null to `expected_address` if you want to use this wallet instance
+        /// associated address.
         pub fn verifyAuthorization(
             self: *WalletSelf,
             expected_address: ?Address,
             authorization_payload: AuthorizationPayload,
-        ) (ClientType.BasicRequestErrors || Signer.RecoverPubKeyErrors)!bool {
+        ) (ClientType.BasicRequestErrors || Signer.RecoverPubKeyErrors || RlpEncodeErrors)!bool {
             const expected_addr: u160 = @bitCast(expected_address orelse self.signer.address_bytes);
 
-            const recovered_address: u160 = @bitCast(try self.recoverAuthorizationAddress(
-                authorization_payload.authority,
-                authorization_payload.nonce,
-                .{
-                    .v = @truncate(authorization_payload.y_parity),
-                    .r = authorization_payload.r,
-                    .s = authorization_payload.s,
-                },
-            ));
+            const recovered_address: u160 = @bitCast(try self.recoverAuthorizationAddress(authorization_payload));
 
             return expected_addr == recovered_address;
         }

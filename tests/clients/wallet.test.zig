@@ -34,6 +34,41 @@ test "HashAuthorization" {
     try testing.expectEqualStrings(hex, "5daf8ca195709ae5c4f081a74786f87dbce7ab39130624532d52a47ad2627181");
 }
 
+test "Recover Auth Address" {
+    const uri = try std.Uri.parse("http://localhost:6969/");
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    var wallet = try Wallet(.http).init(buffer, .{
+        .allocator = testing.allocator,
+        .network_config = .{ .endpoint = .{ .uri = uri } },
+    }, false);
+
+    defer wallet.deinit();
+
+    const message = try wallet.signAuthorizationEip7702(try utils.addressToBytes("0x90F79bf6EB2c4f870365E785982E1f101E93b906"), 0);
+
+    try testing.expect(@as(u160, @bitCast(try wallet.recoverAuthorizationAddress(message))) == @as(u160, @bitCast(wallet.getWalletAddress())));
+    try testing.expect(@as(u160, @bitCast(try wallet.recoverAuthorizationAddress(message))) != @as(u160, @bitCast(try utils.addressToBytes("0x90F79bf6EB2c4f870365E785982E1f101E93b906"))));
+}
+
+test "Verify Auth" {
+    const uri = try std.Uri.parse("http://localhost:6969/");
+    var buffer: Hash = undefined;
+    _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+    var wallet = try Wallet(.http).init(buffer, .{
+        .allocator = testing.allocator,
+        .network_config = .{ .endpoint = .{ .uri = uri } },
+    }, false);
+
+    defer wallet.deinit();
+
+    const message = try wallet.signAuthorizationEip7702(try utils.addressToBytes("0x90F79bf6EB2c4f870365E785982E1f101E93b906"), 0);
+
+    try testing.expect(try wallet.verifyAuthorization(null, message));
+}
+
 test "AuthMessage" {
     {
         const uri = try std.Uri.parse("http://localhost:6969/");

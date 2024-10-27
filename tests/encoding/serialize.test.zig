@@ -14,6 +14,91 @@ const serializeCancunTransaction = serialize.serializeCancunTransaction;
 const serializeTransactionLegacy = serialize.serializeTransactionLegacy;
 const serializeTransactionEIP1559 = serialize.serializeTransactionEIP1559;
 const serializeTransactionEIP2930 = serialize.serializeTransactionEIP2930;
+const serializeTransactionEIP7702 = serialize.serializeTransactionEIP7702;
+
+test "Base eip 7702" {
+    {
+        const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+        const base = try serializeTransactionEIP7702(testing.allocator, .{
+            .chainId = 1,
+            .nonce = 0,
+            .maxPriorityFeePerGas = try utils.parseGwei(2),
+            .maxFeePerGas = try utils.parseGwei(2),
+            .gas = 0,
+            .to = to,
+            .value = try utils.parseEth(1),
+            .data = null,
+            .accessList = &.{},
+            .authorizationList = &.{
+                .{
+                    .chain_id = 1,
+                    .address = [_]u8{0} ** 20,
+                    .nonce = 69,
+                    .y_parity = 0,
+                    .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                    .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                },
+                .{
+                    .chain_id = 10,
+                    .address = [_]u8{0} ** 20,
+                    .nonce = 420,
+                    .y_parity = 1,
+                    .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                    .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                },
+            },
+        }, null);
+        defer testing.allocator.free(base);
+
+        const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+        defer testing.allocator.free(hex);
+
+        try testing.expectEqualStrings("04f8670180847735940084773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080c0f838da0194000000000000000000000000000000000000000045800101dc0a9400000000000000000000000000000000000000008201a4010101", hex);
+    }
+
+    {
+        const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+        const base = try serializeTransactionEIP7702(testing.allocator, .{
+            .chainId = 1,
+            .nonce = 0,
+            .maxPriorityFeePerGas = try utils.parseGwei(2),
+            .maxFeePerGas = try utils.parseGwei(2),
+            .gas = 0,
+            .to = to,
+            .value = try utils.parseEth(1),
+            .data = null,
+            .accessList = &.{},
+            .authorizationList = &.{
+                .{
+                    .chain_id = 1,
+                    .address = try utils.addressToBytes("0xfba3912ca04dd458c843e2ee08967fc04f3579c2"),
+                    .nonce = 420,
+                    .y_parity = 0,
+                    .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                    .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                },
+                .{
+                    .chain_id = 10,
+                    .address = [_]u8{0} ** 20,
+                    .nonce = 69,
+                    .y_parity = 1,
+                    .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                    .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                },
+            },
+        }, .{
+            .v = 1,
+            .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+            .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+        });
+        defer testing.allocator.free(base);
+
+        const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+        defer testing.allocator.free(hex);
+
+        try testing.expectEqualStrings("04f86a0180847735940084773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080c0f838dc0194fba3912ca04dd458c843e2ee08967fc04f3579c28201a4800101da0a94000000000000000000000000000000000000000045010101010101", hex);
+    }
+}
 
 test "Base eip 4844" {
     const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");

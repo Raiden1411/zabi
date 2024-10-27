@@ -191,7 +191,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
 
             const address = self.wallet.getWalletAddress();
             const call: EthCall = switch (copy.type) {
-                .cancun, .london => .{ .london = .{
+                .cancun, .london, .eip7702 => .{ .london = .{
                     .from = address,
                     .to = copy.to,
                     .data = copy.data,
@@ -426,7 +426,7 @@ pub fn Contract(comptime client_type: ClientType) type {
 
             const address = self.wallet.getWalletAddress();
             const call: EthCall = switch (copy.type) {
-                .cancun, .london => .{ .london = .{
+                .cancun, .london, .eip7702 => .{ .london = .{
                     .from = address,
                     .to = copy.to,
                     .data = copy.data,

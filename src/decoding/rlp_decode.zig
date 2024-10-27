@@ -42,7 +42,12 @@ fn decodeItem(allocator: Allocator, comptime T: type, encoded: []const u8, posit
 
             std.debug.assert(position < encoded.len); // Overflow on encoded string,
 
-            if (encoded[position] < 0x80) return .{ .consumed = 1, .data = @intCast(encoded[position]) };
+            if (encoded[position] < 0x80)
+                return .{
+                    .consumed = 1,
+                    .data = if (info.int.bits < 8) @truncate(encoded[position]) else @intCast(encoded[position]),
+                };
+
             const len = encoded[position] - 0x80;
 
             std.debug.assert(position + len < encoded.len); // Overflow on encoded string,
@@ -53,7 +58,7 @@ fn decodeItem(allocator: Allocator, comptime T: type, encoded: []const u8, posit
             const slice = try std.fmt.allocPrint(allocator, "{s}", .{hexed});
             defer allocator.free(slice);
 
-            return .{ .consumed = len + 1, .data = if (slice.len != 0) try std.fmt.parseInt(T, slice, 16) else @intCast(0) };
+            return .{ .consumed = len + 1, .data = if (slice.len != 0) try utils.utils.bytesToInt(T, @constCast(hex_number)) else @intCast(0) };
         },
         .float => {
             std.debug.assert(position < encoded.len); // Overflow on encoded string,
@@ -258,11 +263,15 @@ fn decodeItem(allocator: Allocator, comptime T: type, encoded: []const u8, posit
                     errdefer result.deinit();
 
                     var cur_pos = position + arr_len + 1;
-                    for (0..parsed_len) |_| {
-                        if (cur_pos >= encoded.len) break;
+                    var read: usize = 0;
+
+                    while (true) {
+                        if (read >= parsed_len)
+                            break;
                         const decoded = try decodeItem(allocator, ptr_info.child, encoded[cur_pos..], 0);
                         try result.append(decoded.data);
                         cur_pos += decoded.consumed;
+                        read += decoded.consumed;
                     }
 
                     return .{ .consumed = cur_pos, .data = try result.toOwnedSlice() };
@@ -319,7 +328,7 @@ fn decodeItem(allocator: Allocator, comptime T: type, encoded: []const u8, posit
 
                 var cur_pos = position + arr_len + 1;
                 inline for (struct_info.fields, 0..) |field, i| {
-                    const decoded = try decodeItem(allocator, field.type, encoded, cur_pos);
+                    const decoded = try decodeItem(allocator, field.type, encoded[cur_pos..], 0);
                     result[i] = decoded.data;
                     cur_pos += decoded.consumed;
                 }

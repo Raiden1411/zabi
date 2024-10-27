@@ -35,16 +35,16 @@ test "Base eip 7702" {
                     .address = [_]u8{0} ** 20,
                     .nonce = 69,
                     .y_parity = 0,
-                    .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
-                    .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                    .r = 1,
+                    .s = 1,
                 },
                 .{
                     .chain_id = 10,
                     .address = [_]u8{0} ** 20,
                     .nonce = 420,
                     .y_parity = 1,
-                    .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
-                    .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                    .r = 1,
+                    .s = 1,
                 },
             },
         }, null);
@@ -74,22 +74,22 @@ test "Base eip 7702" {
                     .address = try utils.addressToBytes("0xfba3912ca04dd458c843e2ee08967fc04f3579c2"),
                     .nonce = 420,
                     .y_parity = 0,
-                    .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
-                    .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                    .r = 1,
+                    .s = 1,
                 },
                 .{
                     .chain_id = 10,
                     .address = [_]u8{0} ** 20,
                     .nonce = 69,
                     .y_parity = 1,
-                    .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
-                    .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                    .r = 1,
+                    .s = 1,
                 },
             },
         }, .{
             .v = 1,
-            .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
-            .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+            .r = 1,
+            .s = 1,
         });
         defer testing.allocator.free(base);
 
@@ -345,7 +345,16 @@ test "Base eip2930 with accessList" {
 
 test "Base eip2930 with data" {
     const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
-    const base = try serializeTransactionEIP2930(testing.allocator, .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = @constCast(&[_]u8{ 0x12, 0x34 }), .accessList = &.{} }, null);
+    const base = try serializeTransactionEIP2930(testing.allocator, .{
+        .chainId = 1,
+        .nonce = 69,
+        .gasPrice = try utils.parseGwei(2),
+        .gas = 21001,
+        .to = to,
+        .value = try utils.parseEth(1),
+        .data = @constCast(&[_]u8{ 0x12, 0x34 }),
+        .accessList = &.{},
+    }, null);
     defer testing.allocator.free(base);
 
     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});

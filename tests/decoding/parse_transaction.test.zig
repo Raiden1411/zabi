@@ -12,6 +12,8 @@ const BerlinTransactionEnvelope = transaction.BerlinTransactionEnvelope;
 const BerlinTransactionEnvelopeSigned = transaction.BerlinTransactionEnvelopeSigned;
 const CancunTransactionEnvelope = transaction.CancunTransactionEnvelope;
 const CancunTransactionEnvelopeSigned = transaction.CancunTransactionEnvelopeSigned;
+const Eip7702TransactionEnvelope = transaction.Eip7702TransactionEnvelope;
+const Eip7702TransactionEnvelopeSigned = transaction.Eip7702TransactionEnvelopeSigned;
 const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
 const LegacyTransactionEnvelopeSigned = transaction.LegacyTransactionEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
@@ -28,6 +30,47 @@ const parseEip2930Transaction = parse.parseEip2930Transaction;
 const parseSignedEip2930Transaction = parse.parseSignedEip2930Transaction;
 const parseEip4844Transaction = parse.parseEip4844Transaction;
 const parseSignedEip4844Transaction = parse.parseSignedEip4844Transaction;
+
+test "Base eip 7702" {
+    const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+    const tx: Eip7702TransactionEnvelope = .{
+        .chainId = 1,
+        .nonce = 0,
+        .maxPriorityFeePerGas = try utils.parseGwei(2),
+        .maxFeePerGas = try utils.parseGwei(2),
+        .gas = 0,
+        .to = to,
+        .value = try utils.parseEth(1),
+        .data = null,
+        .accessList = &.{},
+        .authorizationList = &.{
+            .{
+                .chain_id = 1,
+                .address = [_]u8{0} ** 20,
+                .nonce = 69,
+                .y_parity = 0,
+                .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+            },
+            .{
+                .chain_id = 10,
+                .address = [_]u8{0} ** 20,
+                .nonce = 420,
+                .y_parity = 1,
+                .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+            },
+        },
+    };
+
+    const base = try serialize.serializeTransaction(testing.allocator, .{ .eip7702 = tx }, null);
+    defer testing.allocator.free(base);
+
+    const parsed = try parseTransaction(testing.allocator, base);
+    defer parsed.deinit();
+
+    try testing.expectEqualDeep(tx, parsed.value.eip7702);
+}
 
 test "Base eip 4844" {
     const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
@@ -46,9 +89,6 @@ test "Base eip 4844" {
     };
     const base = try serialize.serializeTransaction(testing.allocator, .{ .cancun = tx }, null);
     defer testing.allocator.free(base);
-
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
-    defer testing.allocator.free(hex);
 
     const parsed = try parseTransaction(testing.allocator, base);
     defer parsed.deinit();
@@ -283,7 +323,16 @@ test "Base eip2930 with accessList" {
 
 test "Base eip2930 with data" {
     const to = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
-    const tx: BerlinTransactionEnvelope = .{ .chainId = 1, .nonce = 69, .gasPrice = try utils.parseGwei(2), .gas = 21001, .to = to, .value = try utils.parseEth(1), .data = @constCast(&[_]u8{ 0x12, 0x34 }), .accessList = &.{} };
+    const tx: BerlinTransactionEnvelope = .{
+        .chainId = 1,
+        .nonce = 69,
+        .gasPrice = try utils.parseGwei(2),
+        .gas = 21001,
+        .to = to,
+        .value = try utils.parseEth(1),
+        .data = @constCast(&[_]u8{ 0x12, 0x34 }),
+        .accessList = &.{},
+    };
     const base = try serialize.serializeTransaction(testing.allocator, .{ .berlin = tx }, null);
     defer testing.allocator.free(base);
 
@@ -387,6 +436,83 @@ test "Base legacy with data" {
     try testing.expectEqualDeep(tx, parsed.value.legacy);
 }
 
+test "Serialize eip7702 with signature" {
+    const to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
+
+    const tx: Eip7702TransactionEnvelope = .{
+        .chainId = 1,
+        .nonce = 0,
+        .maxPriorityFeePerGas = try utils.parseGwei(2),
+        .maxFeePerGas = try utils.parseGwei(2),
+        .gas = 0,
+        .to = to,
+        .value = try utils.parseEth(1),
+        .data = null,
+        .accessList = &.{},
+        .authorizationList = &.{
+            .{
+                .chain_id = 1,
+                .address = [_]u8{0} ** 20,
+                .nonce = 69,
+                .y_parity = 0,
+                .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+            },
+            .{
+                .chain_id = 10,
+                .address = [_]u8{0} ** 20,
+                .nonce = 420,
+                .y_parity = 1,
+                .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+            },
+        },
+    };
+
+    const sig = try generateSignature("04f867018084773594008477359400809470997970C51812dc3A010C7d01b50e0d17dc79C8880de0b6b3a764000080c0f838da0194000000000000000000000000000000000000000045800101dc0a9400000000000000000000000000000000000000008201a4010101");
+
+    const encoded = try serialize.serializeTransaction(testing.allocator, .{ .eip7702 = tx }, sig);
+    defer testing.allocator.free(encoded);
+
+    const parsed = try parseSignedTransaction(testing.allocator, encoded);
+    defer parsed.deinit();
+
+    const tx_signed: Eip7702TransactionEnvelopeSigned = .{
+        .chainId = 1,
+        .nonce = 0,
+        .maxPriorityFeePerGas = try utils.parseGwei(2),
+        .maxFeePerGas = try utils.parseGwei(2),
+        .gas = 0,
+        .to = to,
+        .value = try utils.parseEth(1),
+        .data = null,
+        .accessList = &.{},
+        .authorizationList = &.{
+            .{
+                .chain_id = 1,
+                .address = [_]u8{0} ** 20,
+                .nonce = 69,
+                .y_parity = 0,
+                .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+            },
+            .{
+                .chain_id = 10,
+                .address = [_]u8{0} ** 20,
+                .nonce = 420,
+                .y_parity = 1,
+                .r = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+                .s = @byteSwap(@as(u256, @bitCast([_]u8{0} ** 31 ++ [1]u8{1}))),
+            },
+        },
+        .v = sig.v,
+        .r = sig.r,
+        .s = sig.s,
+    };
+
+    try testing.expectEqualDeep(tx_signed, parsed.value.eip7702);
+}
+
 test "Serialize eip4844 with signature" {
     const to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
 
@@ -412,10 +538,26 @@ test "Serialize eip4844 with signature" {
     const parsed = try parseSignedTransaction(testing.allocator, encoded);
     defer parsed.deinit();
 
-    const tx_signed: CancunTransactionEnvelopeSigned = .{ .chainId = 1, .nonce = 69, .maxFeePerGas = try utils.parseGwei(2), .data = null, .maxPriorityFeePerGas = try utils.parseGwei(2), .gas = 0, .value = try utils.parseEth(1), .accessList = &.{}, .to = to, .maxFeePerBlobGas = 0, .blobVersionedHashes = &.{[_]u8{0} ** 32}, .v = 0, .r = sig.r, .s = sig.s };
+    const tx_signed: CancunTransactionEnvelopeSigned = .{
+        .chainId = 1,
+        .nonce = 69,
+        .maxFeePerGas = try utils.parseGwei(2),
+        .data = null,
+        .maxPriorityFeePerGas = try utils.parseGwei(2),
+        .gas = 0,
+        .value = try utils.parseEth(1),
+        .accessList = &.{},
+        .to = to,
+        .maxFeePerBlobGas = 0,
+        .blobVersionedHashes = &.{[_]u8{0} ** 32},
+        .v = 0,
+        .r = sig.r,
+        .s = sig.s,
+    };
 
     try testing.expectEqualDeep(tx_signed, parsed.value.cancun);
 }
+
 test "Serialize eip1559 with signature" {
     const to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
     const sig = try generateSignature("02f1827a6980847735940084773594008252099470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a764000080c0");
@@ -534,8 +676,8 @@ test "Errors" {
     try testing.expectError(error.InvalidTransactionType, parseEip4844Transaction(testing.allocator, &[_]u8{0x02}));
     try testing.expectError(error.InvalidTransactionType, parseEip1559Transaction(testing.allocator, &[_]u8{0x03}));
     try testing.expectError(error.InvalidTransactionType, parseEip2930Transaction(testing.allocator, &[_]u8{0x02}));
-    try testing.expectError(error.InvalidTransactionType, parseTransaction(testing.allocator, &[_]u8{0x04}));
-    try testing.expectError(error.InvalidTransactionType, parseSignedTransaction(testing.allocator, &[_]u8{0x04}));
+    try testing.expectError(error.InvalidTransactionType, parseTransaction(testing.allocator, &[_]u8{0x06}));
+    try testing.expectError(error.InvalidTransactionType, parseSignedTransaction(testing.allocator, &[_]u8{0x06}));
 }
 
 fn generateSignature(message: []const u8) !Signature {

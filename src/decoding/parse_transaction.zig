@@ -34,6 +34,7 @@ const RlpDecodeErrors = rlp.RlpDecodeErrors;
 const StructToTupleType = meta.StructToTupleType;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const TransactionEnvelopeSigned = transaction.TransactionEnvelopeSigned;
+const TransactionTypes = transaction.TransactionTypes;
 
 /// Return type of `parseTransaction`.
 pub fn ParsedTransaction(comptime T: type) type {
@@ -110,29 +111,20 @@ pub fn parseTransaction(allocator: Allocator, serialized: []const u8) ParseTrans
 /// const parsed = try parseTransactionLeaky(testing.allocator, min);
 /// ```
 pub fn parseTransactionLeaky(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!TransactionEnvelope {
-    const hexed = if (std.mem.startsWith(u8, serialized, "0x")) serialized[2..] else serialized;
+    const tx_type: TransactionTypes = @enumFromInt(serialized[0]);
 
-    var bytes = hexed;
+    switch (tx_type) {
+        .eip7702 => return .{ .eip7702 = try parseEip7702Transaction(allocator, serialized) },
+        .cancun => return .{ .cancun = try parseEip4844Transaction(allocator, serialized) },
+        .london => return .{ .london = try parseEip1559Transaction(allocator, serialized) },
+        .berlin => return .{ .berlin = try parseEip2930Transaction(allocator, serialized) },
 
-    if (utils.isHexString(serialized)) {
-        var buffer: [1024]u8 = undefined;
-        // If we failed to convert from hex we assume that serialized are already in bytes.
-        const decoded = try std.fmt.hexToBytes(buffer[0..], hexed);
-        bytes = decoded;
+        .deposit,
+        .legacy,
+        => return error.InvalidTransactionType,
+
+        _ => return .{ .legacy = try parseLegacyTransaction(allocator, serialized) },
     }
-
-    if (bytes[0] == 4)
-        return .{ .eip7702 = try parseEip7702Transaction(allocator, bytes) };
-    if (bytes[0] == 3)
-        return .{ .cancun = try parseEip4844Transaction(allocator, bytes) };
-    if (bytes[0] == 2)
-        return .{ .london = try parseEip1559Transaction(allocator, bytes) };
-    if (bytes[0] == 1)
-        return .{ .berlin = try parseEip2930Transaction(allocator, bytes) };
-    if (bytes[0] >= 0xc0)
-        return .{ .legacy = try parseLegacyTransaction(allocator, bytes) };
-
-    return error.InvalidTransactionType;
 }
 /// Parses unsigned serialized eip7702 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseEip7702Transaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!Eip7702TransactionEnvelope {
@@ -267,6 +259,9 @@ pub fn parseEip2930Transaction(allocator: Allocator, serialized: []const u8) Par
 
 /// Parses unsigned serialized legacy transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseLegacyTransaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!LegacyTransactionEnvelope {
+    if (serialized[0] < 0xc0)
+        return error.InvalidTransactionType;
+
     // zig fmt: off
     const nonce, 
     const gas_price, 
@@ -303,29 +298,20 @@ pub fn parseSignedTransaction(allocator: Allocator, serialized: []const u8) Pars
 
 /// Parses signed serialized transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseSignedTransactionLeaky(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!TransactionEnvelopeSigned {
-    const hexed = if (std.mem.startsWith(u8, serialized, "0x")) serialized[2..] else serialized;
+    const tx_type: TransactionTypes = @enumFromInt(serialized[0]);
 
-    var bytes = hexed;
+    switch (tx_type) {
+        .eip7702 => return .{ .eip7702 = try parseSignedEip7702Transaction(allocator, serialized) },
+        .cancun => return .{ .cancun = try parseSignedEip4844Transaction(allocator, serialized) },
+        .london => return .{ .london = try parseSignedEip1559Transaction(allocator, serialized) },
+        .berlin => return .{ .berlin = try parseSignedEip2930Transaction(allocator, serialized) },
 
-    if (utils.isHexString(serialized)) {
-        var buffer: [1024]u8 = undefined;
-        // If we failed to convert from hex we assume that serialized are already in bytes.
-        const decoded = std.fmt.hexToBytes(buffer[0..], hexed) catch hexed;
-        bytes = decoded;
+        .deposit,
+        .legacy,
+        => return error.InvalidTransactionType,
+
+        _ => return .{ .legacy = try parseSignedLegacyTransaction(allocator, serialized) },
     }
-
-    if (bytes[0] == 4)
-        return .{ .eip7702 = try parseSignedEip7702Transaction(allocator, bytes) };
-    if (bytes[0] == 3)
-        return .{ .cancun = try parseSignedEip4844Transaction(allocator, bytes) };
-    if (bytes[0] == 2)
-        return .{ .london = try parseSignedEip1559Transaction(allocator, bytes) };
-    if (bytes[0] == 1)
-        return .{ .berlin = try parseSignedEip2930Transaction(allocator, bytes) };
-    if (bytes[0] >= 0xc0)
-        return .{ .legacy = try parseSignedLegacyTransaction(allocator, bytes) };
-
-    return error.InvalidTransactionType;
 }
 /// Parses unsigned serialized eip7702 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseSignedEip7702Transaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!Eip7702TransactionEnvelopeSigned {
@@ -484,6 +470,9 @@ pub fn parseSignedEip2930Transaction(allocator: Allocator, serialized: []const u
 
 /// Parses signed serialized legacy transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseSignedLegacyTransaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!LegacyTransactionEnvelopeSigned {
+    if (serialized[0] < 0xc0)
+        return error.InvalidTransactionType;
+
     // zig fmt: off
     const nonce, 
     const gas_price, 

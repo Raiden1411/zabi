@@ -302,10 +302,7 @@ pub const TokenExplorerTransaction = struct {
             switch (@field(seen, field.name)) {
                 0 => if (field.default_value) |default_value| {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
-                } else {
-                    std.debug.print("FOOO: {s}", .{field.name});
-                    return error.MissingField;
-                },
+                } else return error.MissingField,
                 1 => {},
                 else => {
                     switch (options.duplicate_field_behavior) {

@@ -1,7 +1,159 @@
 ## instruction_table
 
+Comptime generated table from EVM instructions.
+
 ```zig
-InstructionTable.init()
+InstructionTable.generateTable(.{
+    .STOP = .{ .execution = instructions.control.stopInstruction, .max_stack = maxStack(1024, 0, 0) },
+    .ADD = .{ .execution = instructions.arithmetic.addInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .MUL = .{ .execution = instructions.arithmetic.mulInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .SUB = .{ .execution = instructions.arithmetic.subInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .DIV = .{ .execution = instructions.arithmetic.divInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .SDIV = .{ .execution = instructions.arithmetic.signedDivInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .MOD = .{ .execution = instructions.arithmetic.modInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .SMOD = .{ .execution = instructions.arithmetic.signedModInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .ADDMOD = .{ .execution = instructions.arithmetic.modAdditionInstruction, .max_stack = maxStack(1024, 3, 1) },
+    .MULMOD = .{ .execution = instructions.arithmetic.modMultiplicationInstruction, .max_stack = maxStack(1024, 3, 1) },
+    .EXP = .{ .execution = instructions.arithmetic.exponentInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .SIGNEXTEND = .{ .execution = instructions.arithmetic.signExtendInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .LT = .{ .execution = instructions.bitwise.lowerThanInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .GT = .{ .execution = instructions.bitwise.greaterThanInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .SLT = .{ .execution = instructions.bitwise.signedLowerThanInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .SGT = .{ .execution = instructions.bitwise.signedGreaterThanInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .EQ = .{ .execution = instructions.bitwise.equalInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .ISZERO = .{ .execution = instructions.bitwise.isZeroInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .AND = .{ .execution = instructions.bitwise.andInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .OR = .{ .execution = instructions.bitwise.orInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .XOR = .{ .execution = instructions.bitwise.xorInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .NOT = .{ .execution = instructions.bitwise.notInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .BYTE = .{ .execution = instructions.bitwise.byteInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .SHL = .{ .execution = instructions.bitwise.shiftLeftInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .SHR = .{ .execution = instructions.bitwise.shiftRightInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .SAR = .{ .execution = instructions.bitwise.signedShiftRightInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .KECCAK256 = .{ .execution = instructions.system.keccakInstruction, .max_stack = maxStack(1024, 2, 1) },
+    .ADDRESS = .{ .execution = instructions.system.addressInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .BALANCE = .{ .execution = instructions.host.balanceInstruction, .max_stack = maxStack(1024, 1, 1) },
+    .ORIGIN = .{ .execution = instructions.enviroment.originInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .CALLER = .{ .execution = instructions.system.callerInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .CALLVALUE = .{ .execution = instructions.system.callValueInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .CALLDATALOAD = .{ .execution = instructions.system.callDataLoadInstruction, .max_stack = maxStack(1024, 1, 1) },
+    .CALLDATASIZE = .{ .execution = instructions.system.callDataSizeInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .CALLDATACOPY = .{ .execution = instructions.system.callDataCopyInstruction, .max_stack = maxStack(1024, 3, 0) },
+    .CODESIZE = .{ .execution = instructions.system.codeSizeInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .CODECOPY = .{ .execution = instructions.system.codeCopyInstruction, .max_stack = maxStack(1024, 3, 0) },
+    .GASPRICE = .{ .execution = instructions.enviroment.gasPriceInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .EXTCODESIZE = .{ .execution = instructions.host.extCodeSizeInstruction, .max_stack = maxStack(1024, 1, 1) },
+    .EXTCODECOPY = .{ .execution = instructions.host.extCodeSizeInstruction, .max_stack = maxStack(1024, 4, 0) },
+    .RETURNDATASIZE = .{ .execution = instructions.system.returnDataSizeInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .RETURNDATACOPY = .{ .execution = instructions.system.returnDataCopyInstruction, .max_stack = maxStack(1024, 3, 0) },
+    .EXTCODEHASH = .{ .execution = instructions.host.extCodeHashInstruction, .max_stack = maxStack(1024, 1, 1) },
+    .BLOCKHASH = .{ .execution = instructions.host.blockHashInstruction, .max_stack = maxStack(1024, 1, 1) },
+    .COINBASE = .{ .execution = instructions.enviroment.coinbaseInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .TIMESTAMP = .{ .execution = instructions.enviroment.timestampInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .NUMBER = .{ .execution = instructions.enviroment.blockNumberInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .PREVRANDAO = .{ .execution = instructions.enviroment.difficultyInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .GASLIMIT = .{ .execution = instructions.enviroment.gasLimitInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .CHAINID = .{ .execution = instructions.enviroment.chainIdInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .SELFBALANCE = .{ .execution = instructions.host.selfBalanceInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .BASEFEE = .{ .execution = instructions.enviroment.baseFeeInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .BLOBHASH = .{ .execution = instructions.enviroment.blobHashInstruction, .max_stack = maxStack(1024, 1, 1) },
+    .BLOBBASEFEE = .{ .execution = instructions.enviroment.blobBaseFeeInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .POP = .{ .execution = instructions.stack.popInstruction, .max_stack = maxStack(1024, 1, 0) },
+    .MLOAD = .{ .execution = instructions.memory.mloadInstruction, .max_stack = maxStack(1024, 1, 1) },
+    .MSTORE = .{ .execution = instructions.memory.mstoreInstruction, .max_stack = maxStack(1024, 2, 0) },
+    .MSTORE8 = .{ .execution = instructions.memory.mstore8Instruction, .max_stack = maxStack(1024, 2, 0) },
+    .SLOAD = .{ .execution = instructions.host.sloadInstruction, .max_stack = maxStack(1024, 1, 1) },
+    .SSTORE = .{ .execution = instructions.host.sstoreInstruction, .max_stack = maxStack(1024, 2, 0) },
+    .JUMP = .{ .execution = instructions.control.jumpInstruction, .max_stack = maxStack(1024, 1, 0) },
+    .JUMPI = .{ .execution = instructions.control.conditionalJumpInstruction, .max_stack = maxStack(1024, 2, 0) },
+    .PC = .{ .execution = instructions.control.programCounterInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .MSIZE = .{ .execution = instructions.memory.msizeInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .GAS = .{ .execution = instructions.system.gasInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .JUMPDEST = .{ .execution = instructions.control.jumpDestInstruction, .max_stack = maxStack(1024, 0, 0) },
+    .TLOAD = .{ .execution = instructions.host.tloadInstruction, .max_stack = maxStack(1024, 1, 1) },
+    .TSTORE = .{ .execution = instructions.host.tstoreInstruction, .max_stack = maxStack(1024, 2, 0) },
+    .MCOPY = .{ .execution = instructions.memory.mcopyInstruction, .max_stack = maxStack(1024, 3, 0) },
+    .PUSH0 = .{ .execution = instructions.stack.pushZeroInstruction, .max_stack = maxStack(1024, 0, 1) },
+    .PUSH1 = .{ .execution = makePushInstruction(1), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH2 = .{ .execution = makePushInstruction(2), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH3 = .{ .execution = makePushInstruction(3), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH4 = .{ .execution = makePushInstruction(4), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH5 = .{ .execution = makePushInstruction(5), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH6 = .{ .execution = makePushInstruction(6), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH7 = .{ .execution = makePushInstruction(7), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH8 = .{ .execution = makePushInstruction(8), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH9 = .{ .execution = makePushInstruction(9), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH10 = .{ .execution = makePushInstruction(10), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH11 = .{ .execution = makePushInstruction(11), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH12 = .{ .execution = makePushInstruction(12), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH13 = .{ .execution = makePushInstruction(13), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH14 = .{ .execution = makePushInstruction(14), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH15 = .{ .execution = makePushInstruction(15), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH16 = .{ .execution = makePushInstruction(16), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH17 = .{ .execution = makePushInstruction(17), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH18 = .{ .execution = makePushInstruction(18), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH19 = .{ .execution = makePushInstruction(19), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH20 = .{ .execution = makePushInstruction(20), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH21 = .{ .execution = makePushInstruction(21), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH22 = .{ .execution = makePushInstruction(22), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH23 = .{ .execution = makePushInstruction(23), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH24 = .{ .execution = makePushInstruction(24), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH25 = .{ .execution = makePushInstruction(25), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH26 = .{ .execution = makePushInstruction(26), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH27 = .{ .execution = makePushInstruction(27), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH28 = .{ .execution = makePushInstruction(28), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH29 = .{ .execution = makePushInstruction(29), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH30 = .{ .execution = makePushInstruction(30), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH31 = .{ .execution = makePushInstruction(31), .max_stack = maxStack(1024, 0, 1) },
+    .PUSH32 = .{ .execution = makePushInstruction(32), .max_stack = maxStack(1024, 0, 1) },
+    .DUP1 = .{ .execution = makeDupInstruction(1), .max_stack = maxStack(1024, 1, 2) },
+    .DUP2 = .{ .execution = makeDupInstruction(2), .max_stack = maxStack(1024, 2, 3) },
+    .DUP3 = .{ .execution = makeDupInstruction(3), .max_stack = maxStack(1024, 3, 4) },
+    .DUP4 = .{ .execution = makeDupInstruction(4), .max_stack = maxStack(1024, 4, 5) },
+    .DUP5 = .{ .execution = makeDupInstruction(5), .max_stack = maxStack(1024, 5, 6) },
+    .DUP6 = .{ .execution = makeDupInstruction(6), .max_stack = maxStack(1024, 6, 7) },
+    .DUP7 = .{ .execution = makeDupInstruction(7), .max_stack = maxStack(1024, 7, 8) },
+    .DUP8 = .{ .execution = makeDupInstruction(8), .max_stack = maxStack(1024, 8, 9) },
+    .DUP9 = .{ .execution = makeDupInstruction(9), .max_stack = maxStack(1024, 10, 10) },
+    .DUP10 = .{ .execution = makeDupInstruction(10), .max_stack = maxStack(1024, 10, 11) },
+    .DUP11 = .{ .execution = makeDupInstruction(11), .max_stack = maxStack(1024, 11, 12) },
+    .DUP12 = .{ .execution = makeDupInstruction(12), .max_stack = maxStack(1024, 12, 13) },
+    .DUP13 = .{ .execution = makeDupInstruction(13), .max_stack = maxStack(1024, 13, 14) },
+    .DUP14 = .{ .execution = makeDupInstruction(14), .max_stack = maxStack(1024, 14, 15) },
+    .DUP15 = .{ .execution = makeDupInstruction(15), .max_stack = maxStack(1024, 15, 16) },
+    .DUP16 = .{ .execution = makeDupInstruction(16), .max_stack = maxStack(1024, 16, 17) },
+    .SWAP1 = .{ .execution = makeSwapInstruction(1), .max_stack = maxStack(1024, 2, 2) },
+    .SWAP2 = .{ .execution = makeSwapInstruction(2), .max_stack = maxStack(1024, 3, 3) },
+    .SWAP3 = .{ .execution = makeSwapInstruction(3), .max_stack = maxStack(1024, 4, 4) },
+    .SWAP4 = .{ .execution = makeSwapInstruction(4), .max_stack = maxStack(1024, 5, 5) },
+    .SWAP5 = .{ .execution = makeSwapInstruction(5), .max_stack = maxStack(1024, 6, 6) },
+    .SWAP6 = .{ .execution = makeSwapInstruction(6), .max_stack = maxStack(1024, 7, 7) },
+    .SWAP7 = .{ .execution = makeSwapInstruction(7), .max_stack = maxStack(1024, 8, 8) },
+    .SWAP8 = .{ .execution = makeSwapInstruction(8), .max_stack = maxStack(1024, 9, 9) },
+    .SWAP9 = .{ .execution = makeSwapInstruction(9), .max_stack = maxStack(1024, 10, 10) },
+    .SWAP10 = .{ .execution = makeSwapInstruction(10), .max_stack = maxStack(1024, 11, 11) },
+    .SWAP11 = .{ .execution = makeSwapInstruction(11), .max_stack = maxStack(1024, 12, 12) },
+    .SWAP12 = .{ .execution = makeSwapInstruction(12), .max_stack = maxStack(1024, 13, 13) },
+    .SWAP13 = .{ .execution = makeSwapInstruction(13), .max_stack = maxStack(1024, 14, 14) },
+    .SWAP14 = .{ .execution = makeSwapInstruction(14), .max_stack = maxStack(1024, 15, 15) },
+    .SWAP15 = .{ .execution = makeSwapInstruction(15), .max_stack = maxStack(1024, 16, 16) },
+    .SWAP16 = .{ .execution = makeSwapInstruction(16), .max_stack = maxStack(1024, 17, 17) },
+    .LOG0 = .{ .execution = makeLogInstruction(0), .max_stack = maxStack(1024, 2, 0) },
+    .LOG1 = .{ .execution = makeLogInstruction(1), .max_stack = maxStack(1024, 3, 0) },
+    .LOG2 = .{ .execution = makeLogInstruction(2), .max_stack = maxStack(1024, 4, 0) },
+    .LOG3 = .{ .execution = makeLogInstruction(3), .max_stack = maxStack(1024, 5, 0) },
+    .LOG4 = .{ .execution = makeLogInstruction(4), .max_stack = maxStack(1024, 6, 0) },
+    .CREATE = .{ .execution = makeCreateInstruction(false), .max_stack = maxStack(1024, 3, 1) },
+    .CALL = .{ .execution = instructions.contract.callInstruction, .max_stack = maxStack(1024, 7, 1) },
+    .CALLCODE = .{ .execution = instructions.contract.callCodeInstruction, .max_stack = maxStack(1024, 7, 1) },
+    .RETURN = .{ .execution = instructions.control.returnInstruction, .max_stack = maxStack(1024, 2, 0) },
+    .DELEGATECALL = .{ .execution = instructions.contract.delegateCallInstruction, .max_stack = maxStack(1024, 6, 1) },
+    .CREATE2 = .{ .execution = makeCreateInstruction(true), .max_stack = maxStack(1024, 6, 0) },
+    .STATICCALL = .{ .execution = instructions.contract.staticCallInstruction, .max_stack = maxStack(1024, 6, 1) },
+    .REVERT = .{ .execution = instructions.control.revertInstruction, .max_stack = maxStack(1024, 2, 0) },
+    .INVALID = .{ .execution = instructions.control.invalidInstruction, .max_stack = maxStack(1024, 0, 0) },
+    .SELFDESTRUCT = .{ .execution = instructions.host.selfDestructInstruction, .max_stack = maxStack(1024, 1, 0) },
+})
 ```
 
 ## Opcodes
@@ -176,21 +328,25 @@ pub fn toOpcode(num: u8) ?Opcodes
 
 ## InstructionTable
 
+EVM instruction table.
+
 ### Properties
 
 ```zig
 struct {
+  /// Array of instructions.
   inner: [256]Operations
 }
 ```
 
-### Init
-Creates the instruction table.
+### GenerateTable
+Generates the instruction opcode table.
+This is a similiar implementation to `std.enums.directEnumArray`
 
 ### Signature
 
 ```zig
-pub fn init() InstructionTable
+pub fn generateTable(fields: EnumFieldStruct(Opcodes, Operations, null)) InstructionTable
 ```
 
 ### GetInstruction

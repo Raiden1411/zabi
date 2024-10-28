@@ -244,11 +244,12 @@ struct {
   nonce: ?u64
   number: ?u64
   parentBeaconBlockRoot: ?Hash = null
+  requestsRoot: ?Hash = null
   parentHash: Hash
   receiptsRoot: Hash
   sealFields: ?[]const Hex = null
   sha3Uncles: Hash
-  size: u64
+  size: ?u64 = null
   stateRoot: Hash
   timestamp: u64
   totalDifficulty: ?u256 = null

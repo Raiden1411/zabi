@@ -82,6 +82,15 @@ const parsed = try parseTransactionLeaky(testing.allocator, min);
 pub fn parseTransactionLeaky(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!TransactionEnvelope
 ```
 
+## ParseEip7702Transaction
+Parses unsigned serialized eip7702 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
+
+### Signature
+
+```zig
+pub fn parseEip7702Transaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!Eip7702TransactionEnvelope
+```
+
 ## ParseEip4844Transaction
 Parses unsigned serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 
@@ -137,6 +146,15 @@ Parses signed serialized transactions. Recommend to use an arena or similar othe
 pub fn parseSignedTransactionLeaky(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!TransactionEnvelopeSigned
 ```
 
+## ParseSignedEip7702Transaction
+Parses unsigned serialized eip7702 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
+
+### Signature
+
+```zig
+pub fn parseSignedEip7702Transaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!Eip7702TransactionEnvelopeSigned
+```
+
 ## ParseSignedEip4844Transaction
 Parses signed serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 
@@ -180,5 +198,14 @@ Parses serialized transaction accessLists. Recommend to use an arena or similar 
 
 ```zig
 pub fn parseAccessList(allocator: Allocator, access_list: []const StructToTupleType(AccessList)) Allocator.Error![]const AccessList
+```
+
+## ParseAuthorizationList
+Parses serialized transaction accessLists. Recommend to use an arena or similar otherwise its expected to leak memory.
+
+### Signature
+
+```zig
+pub fn parseAuthorizationList(allocator: Allocator, auth_list: []const StructToTupleType(AuthorizationPayload)) Allocator.Error![]const AuthorizationPayload
 ```
 

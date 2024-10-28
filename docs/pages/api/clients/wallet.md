@@ -284,7 +284,11 @@ defer wallet.deinit();
 ### Signature
 
 ```zig
-pub fn init(private_key: ?Hash, opts: InitOpts, nonce_manager: bool) (error{IdentityElement} || ClientType.InitErrors)!*WalletSelf
+pub fn init(
+    private_key: ?Hash,
+    opts: InitOpts,
+    nonce_manager: bool,
+) (error{IdentityElement} || ClientType.InitErrors)!*WalletSelf
 ```
 
 ## AssertTransaction
@@ -325,6 +329,22 @@ Find a specific prepared envelope from the pool based on the given search criter
 
 ```zig
 pub fn findTransactionEnvelopeFromPool(self: *WalletSelf, search: TransactionEnvelopePool.SearchCriteria) ?TransactionEnvelope
+```
+
+## HashAuthorityEip7702
+Generates the authorization hash based on the eip7702 specification.
+For more information please go [here](https://eips.ethereum.org/EIPS/eip-7702)
+
+This is still experimental since the EIP has not being deployed into any mainnet.
+
+### Signature
+
+```zig
+pub fn hashAuthorityEip7702(
+    self: *WalletSelf,
+    authority: Address,
+    nonce: u64,
+) RlpEncodeErrors!Hash
 ```
 
 ## GetWalletAddress
@@ -368,9 +388,6 @@ pub fn prepareTransaction(
 Recovers the address associated with the signature based on the message.\
 To reconstruct the message use `authMessageEip3074`
 
-You can pass null to `nonce` if you want to target a specific nonce.\
-Otherwise if with either use the `nonce_manager` if it can or fetch from the network.
-
 Reconstructs the message from them and returns the address bytes.
 
 ### Signature
@@ -380,6 +397,18 @@ pub fn recoverAuthMessageAddress(
     auth_message: []u8,
     sig: Signature,
 ) Signer.RecoverPubKeyErrors!Address
+```
+
+## RecoverAuthorizationAddress
+Recovers the address associated with the signature based on the authorization payload.
+
+### Signature
+
+```zig
+pub fn recoverAuthorizationAddress(
+    self: *WalletSelf,
+    authorization_payload: AuthorizationPayload,
+) (RlpEncodeErrors || Signer.RecoverPubKeyErrors)!Address
 ```
 
 ## SearchPoolAndSendTransaction
@@ -472,6 +501,25 @@ pub fn signAuthMessageEip3074(
 ) (ClientType.BasicRequestErrors || Signer.SigningErrors)!Signature
 ```
 
+## SignAuthorizationEip7702
+Signs and prepares an eip7702 authorization message.
+For more details on the implementation see [here](https://eips.ethereum.org/EIPS/eip-7702#specification).
+
+You can pass null to `nonce` if you want to target a specific nonce.\
+Otherwise if with either use the `nonce_manager` if it can or fetch from the network.
+
+This is still experimental since the EIP has not being deployed into any mainnet.
+
+### Signature
+
+```zig
+pub fn signAuthorizationEip7702(
+    self: *WalletSelf,
+    authority: Address,
+    nonce: ?u64,
+) (ClientType.BasicRequestErrors || Signer.SigningErrors || RlpEncodeErrors)!AuthorizationPayload
+```
+
 ## SignEthereumMessage
 Signs an ethereum message with the specified prefix.
 
@@ -533,6 +581,22 @@ pub fn verifyAuthMessage(
     auth_message: []u8,
     sig: Signature,
 ) (ClientType.BasicRequestErrors || Signer.RecoverPubKeyErrors)!bool
+```
+
+## VerifyAuthorization
+Verifies if the authorization message was signed by the provided address.\
+
+You can pass null to `expected_address` if you want to use this wallet instance
+associated address.
+
+### Signature
+
+```zig
+pub fn verifyAuthorization(
+    self: *WalletSelf,
+    expected_address: ?Address,
+    authorization_payload: AuthorizationPayload,
+) (ClientType.BasicRequestErrors || Signer.RecoverPubKeyErrors || RlpEncodeErrors)!bool
 ```
 
 ## VerifyMessage

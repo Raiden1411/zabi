@@ -9,6 +9,7 @@ const utils = @import("zabi-utils").utils;
 const AccessList = transaction.AccessList;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
+const AuthorizationPayload = transaction.AuthorizationPayload;
 const BerlinEnvelope = transaction.BerlinEnvelope;
 const BerlinEnvelopeSigned = transaction.BerlinEnvelopeSigned;
 const BerlinTransactionEnvelope = transaction.BerlinTransactionEnvelope;
@@ -17,6 +18,10 @@ const CancunEnvelope = transaction.CancunEnvelope;
 const CancunEnvelopeSigned = transaction.CancunEnvelopeSigned;
 const CancunTransactionEnvelope = transaction.CancunTransactionEnvelope;
 const CancunTransactionEnvelopeSigned = transaction.CancunTransactionEnvelopeSigned;
+const Eip7702Envelope = transaction.Eip7702Envelope;
+const Eip7702EnvelopeSigned = transaction.Eip7702EnvelopeSigned;
+const Eip7702TransactionEnvelope = transaction.Eip7702TransactionEnvelope;
+const Eip7702TransactionEnvelopeSigned = transaction.Eip7702TransactionEnvelopeSigned;
 const LegacyEnvelope = transaction.LegacyEnvelope;
 const LegacyEnvelopeSigned = transaction.LegacyEnvelopeSigned;
 const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
@@ -29,6 +34,7 @@ const RlpDecodeErrors = rlp.RlpDecodeErrors;
 const StructToTupleType = meta.StructToTupleType;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const TransactionEnvelopeSigned = transaction.TransactionEnvelopeSigned;
+const TransactionTypes = transaction.TransactionTypes;
 
 /// Return type of `parseTransaction`.
 pub fn ParsedTransaction(comptime T: type) type {
@@ -105,27 +111,54 @@ pub fn parseTransaction(allocator: Allocator, serialized: []const u8) ParseTrans
 /// const parsed = try parseTransactionLeaky(testing.allocator, min);
 /// ```
 pub fn parseTransactionLeaky(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!TransactionEnvelope {
-    const hexed = if (std.mem.startsWith(u8, serialized, "0x")) serialized[2..] else serialized;
+    const tx_type: TransactionTypes = @enumFromInt(serialized[0]);
 
-    var bytes = hexed;
+    switch (tx_type) {
+        .eip7702 => return .{ .eip7702 = try parseEip7702Transaction(allocator, serialized) },
+        .cancun => return .{ .cancun = try parseEip4844Transaction(allocator, serialized) },
+        .london => return .{ .london = try parseEip1559Transaction(allocator, serialized) },
+        .berlin => return .{ .berlin = try parseEip2930Transaction(allocator, serialized) },
 
-    if (utils.isHexString(serialized)) {
-        var buffer: [1024]u8 = undefined;
-        // If we failed to convert from hex we assume that serialized are already in bytes.
-        const decoded = try std.fmt.hexToBytes(buffer[0..], hexed);
-        bytes = decoded;
+        .deposit,
+        .legacy,
+        => return error.InvalidTransactionType,
+
+        _ => return .{ .legacy = try parseLegacyTransaction(allocator, serialized) },
     }
+}
+/// Parses unsigned serialized eip7702 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
+pub fn parseEip7702Transaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!Eip7702TransactionEnvelope {
+    if (serialized[0] != 4)
+        return error.InvalidTransactionType;
 
-    if (bytes[0] == 3)
-        return .{ .cancun = try parseEip4844Transaction(allocator, bytes) };
-    if (bytes[0] == 2)
-        return .{ .london = try parseEip1559Transaction(allocator, bytes) };
-    if (bytes[0] == 1)
-        return .{ .berlin = try parseEip2930Transaction(allocator, bytes) };
-    if (bytes[0] >= 0xc0)
-        return .{ .legacy = try parseLegacyTransaction(allocator, bytes) };
+    // zig fmt: off
+    const chainId, 
+    const nonce,
+    const max_priority,
+    const max_fee, 
+    const gas, 
+    const address, 
+    const value, 
+    const data, 
+    const access_list,
+    const authorization_list = try rlp.decodeRlp(allocator, Eip7702Envelope, serialized[1..]);
+    // zig fmt: on
 
-    return error.InvalidTransactionType;
+    const list = try parseAccessList(allocator, access_list);
+    const auth_list = try parseAuthorizationList(allocator, authorization_list);
+
+    return .{
+        .chainId = chainId,
+        .nonce = nonce,
+        .maxPriorityFeePerGas = max_priority,
+        .maxFeePerGas = max_fee,
+        .gas = gas,
+        .to = address,
+        .value = value,
+        .data = data,
+        .accessList = list,
+        .authorizationList = auth_list,
+    };
 }
 /// Parses unsigned serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseEip4844Transaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!CancunTransactionEnvelope {
@@ -226,6 +259,9 @@ pub fn parseEip2930Transaction(allocator: Allocator, serialized: []const u8) Par
 
 /// Parses unsigned serialized legacy transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseLegacyTransaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!LegacyTransactionEnvelope {
+    if (serialized[0] < 0xc0)
+        return error.InvalidTransactionType;
+
     // zig fmt: off
     const nonce, 
     const gas_price, 
@@ -262,27 +298,60 @@ pub fn parseSignedTransaction(allocator: Allocator, serialized: []const u8) Pars
 
 /// Parses signed serialized transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseSignedTransactionLeaky(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!TransactionEnvelopeSigned {
-    const hexed = if (std.mem.startsWith(u8, serialized, "0x")) serialized[2..] else serialized;
+    const tx_type: TransactionTypes = @enumFromInt(serialized[0]);
 
-    var bytes = hexed;
+    switch (tx_type) {
+        .eip7702 => return .{ .eip7702 = try parseSignedEip7702Transaction(allocator, serialized) },
+        .cancun => return .{ .cancun = try parseSignedEip4844Transaction(allocator, serialized) },
+        .london => return .{ .london = try parseSignedEip1559Transaction(allocator, serialized) },
+        .berlin => return .{ .berlin = try parseSignedEip2930Transaction(allocator, serialized) },
 
-    if (utils.isHexString(serialized)) {
-        var buffer: [1024]u8 = undefined;
-        // If we failed to convert from hex we assume that serialized are already in bytes.
-        const decoded = std.fmt.hexToBytes(buffer[0..], hexed) catch hexed;
-        bytes = decoded;
+        .deposit,
+        .legacy,
+        => return error.InvalidTransactionType,
+
+        _ => return .{ .legacy = try parseSignedLegacyTransaction(allocator, serialized) },
     }
+}
+/// Parses unsigned serialized eip7702 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
+pub fn parseSignedEip7702Transaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!Eip7702TransactionEnvelopeSigned {
+    if (serialized[0] != 4)
+        return error.InvalidTransactionType;
 
-    if (bytes[0] == 3)
-        return .{ .cancun = try parseSignedEip4844Transaction(allocator, bytes) };
-    if (bytes[0] == 2)
-        return .{ .london = try parseSignedEip1559Transaction(allocator, bytes) };
-    if (bytes[0] == 1)
-        return .{ .berlin = try parseSignedEip2930Transaction(allocator, bytes) };
-    if (bytes[0] >= 0xc0)
-        return .{ .legacy = try parseSignedLegacyTransaction(allocator, bytes) };
+    // zig fmt: off
+    const chainId, 
+    const nonce,
+    const max_priority,
+    const max_fee, 
+    const gas, 
+    const address, 
+    const value, 
+    const data, 
+    const access_list,
+    const authorization_list,
+    const v, 
+    const r, 
+    const s = try rlp.decodeRlp(allocator, Eip7702EnvelopeSigned, serialized[1..]);
+    // zig fmt: on
 
-    return error.InvalidTransactionType;
+    const list = try parseAccessList(allocator, access_list);
+    const auth_list = try parseAuthorizationList(allocator, authorization_list);
+
+    return .{
+        .chainId = chainId,
+        .nonce = nonce,
+        .maxPriorityFeePerGas = max_priority,
+        .maxFeePerGas = max_fee,
+        .gas = gas,
+        .to = address,
+        .value = value,
+        .data = data,
+        .accessList = list,
+        .authorizationList = auth_list,
+        .v = v,
+        .r = r,
+        .s = s,
+    };
 }
 /// Parses signed serialized eip1559 transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseSignedEip4844Transaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!CancunTransactionEnvelopeSigned {
@@ -401,6 +470,9 @@ pub fn parseSignedEip2930Transaction(allocator: Allocator, serialized: []const u
 
 /// Parses signed serialized legacy transactions. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseSignedLegacyTransaction(allocator: Allocator, serialized: []const u8) ParseTransactionErrors!LegacyTransactionEnvelopeSigned {
+    if (serialized[0] < 0xc0)
+        return error.InvalidTransactionType;
+
     // zig fmt: off
     const nonce, 
     const gas_price, 
@@ -465,15 +537,41 @@ pub fn parseSignedLegacyTransaction(allocator: Allocator, serialized: []const u8
 
 /// Parses serialized transaction accessLists. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseAccessList(allocator: Allocator, access_list: []const StructToTupleType(AccessList)) Allocator.Error![]const AccessList {
-    var list = std.ArrayList(AccessList).init(allocator);
+    var list = try std.ArrayList(AccessList).initCapacity(allocator, access_list.len);
     errdefer list.deinit();
 
     for (access_list) |item| {
         const address, const storage_keys = item;
 
-        try list.ensureUnusedCapacity(1);
         list.appendAssumeCapacity(.{ .address = address, .storageKeys = storage_keys });
     }
 
     return try list.toOwnedSlice();
+}
+/// Parses serialized transaction accessLists. Recommend to use an arena or similar otherwise its expected to leak memory.
+pub fn parseAuthorizationList(allocator: Allocator, auth_list: []const StructToTupleType(AuthorizationPayload)) Allocator.Error![]const AuthorizationPayload {
+    var list = try std.ArrayList(AuthorizationPayload).initCapacity(allocator, auth_list.len);
+    errdefer list.deinit();
+
+    for (auth_list) |item| {
+        // zig fmt: off
+        const chainId, 
+        const address,
+        const nonce,
+        const y_parity,
+        const r,
+        const s = item;
+        // zig fmt: on
+
+        list.appendAssumeCapacity(.{
+            .chain_id = chainId,
+            .address = address,
+            .nonce = nonce,
+            .y_parity = y_parity,
+            .r = r,
+            .s = s,
+        });
+    }
+
+    return list.toOwnedSlice();
 }

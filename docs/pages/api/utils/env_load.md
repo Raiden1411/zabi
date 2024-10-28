@@ -85,7 +85,6 @@ MultiArrayList used to generate the neccessary information for the parser to use
 std.MultiArrayList(struct {
     tag: Token.Tag,
     start: Offset,
-    end: Offset,
 })
 ```
 
@@ -134,14 +133,12 @@ into a `EnvMap`.
 struct {
   /// Slice of produced token tags from the tokenizer.
   token_tags: []const Token.Tag
-  /// Slice of produced start indexes the tokenizer.
-  starts: []const Offset
-  /// Slice of produced end indexes from the tokenizer.
-  ends: []const Offset
+  /// Slice of produced token starts from the tokenizer.
+  token_starts: []const Offset
   /// The current index in any of the previous slices.
   token_index: TokenIndex
   /// The source that will be used to load values from.
-  source: []const u8
+  source: [:0]const u8
   /// The enviroment map that will be used to load the variables to.
   env_map: *EnvMap
 }

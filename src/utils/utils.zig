@@ -219,7 +219,7 @@ pub fn bytesToInt(comptime T: type, slice: []u8) error{Overflow}!T {
     var x: IntType = 0;
 
     for (slice, 0..) |bit, i| {
-        x += std.math.shl(T, bit, (slice.len - 1 - i) * 8);
+        x += std.math.shl(T, if (info.int.bits < 8) @truncate(bit) else bit, (slice.len - 1 - i) * 8);
     }
 
     return if (T == IntType)

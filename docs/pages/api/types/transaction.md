@@ -1,6 +1,6 @@
 ## BerlinEnvelope
 
-Tuple representig an encoded envelope for the Berlin hardfork
+Tuple representing an encoded envelope for the Berlin hardfork.
 
 ```zig
 StructToTupleType(BerlinTransactionEnvelope)
@@ -8,47 +8,15 @@ StructToTupleType(BerlinTransactionEnvelope)
 
 ## BerlinEnvelopeSigned
 
-Tuple representig an encoded envelope for the Berlin hardfork with the signature
+Tuple representing an encoded envelope for the Berlin hardfork with the signature.
 
 ```zig
 StructToTupleType(BerlinTransactionEnvelopeSigned)
 ```
 
-## LegacyEnvelope
-
-Tuple representig an encoded envelope for a legacy transaction
-
-```zig
-StructToTupleType(Omit(LegacyTransactionEnvelope, &.{"chainId"}))
-```
-
-## LegacyEnvelopeSigned
-
-Tuple representig an encoded envelope for a legacy transaction
-
-```zig
-StructToTupleType(Omit(LegacyTransactionEnvelopeSigned, &.{"chainId"}))
-```
-
-## LondonEnvelope
-
-Tuple representig an encoded envelope for the London hardfork
-
-```zig
-StructToTupleType(LondonTransactionEnvelope)
-```
-
-## LondonEnvelopeSigned
-
-Tuple representig an encoded envelope for the London hardfork with the signature
-
-```zig
-StructToTupleType(LondonTransactionEnvelopeSigned)
-```
-
 ## CancunEnvelope
 
-Tuple representig an encoded envelope for the London hardfork
+Tuple representing an encoded envelope for the London hardfork.
 
 ```zig
 StructToTupleType(CancunTransactionEnvelope)
@@ -56,7 +24,7 @@ StructToTupleType(CancunTransactionEnvelope)
 
 ## CancunEnvelopeSigned
 
-Tuple representig an encoded envelope for the London hardfork with the signature
+Tuple representing an encoded envelope for the London hardfork with the signature.
 
 ```zig
 StructToTupleType(CancunTransactionEnvelopeSigned)
@@ -64,7 +32,7 @@ StructToTupleType(CancunTransactionEnvelopeSigned)
 
 ## CancunSignedWrapper
 
-Signed cancun transaction converted to wrapper with blobs, commitments and proofs
+Signed cancun transaction converted to wrapper with blobs, commitments and proofs.
 
 ```zig
 Merge(StructToTupleType(CancunTransactionEnvelopeSigned), struct { []const Blob, []const KZGCommitment, []const KZGProof })
@@ -72,13 +40,63 @@ Merge(StructToTupleType(CancunTransactionEnvelopeSigned), struct { []const Blob,
 
 ## CancunWrapper
 
-Cancun transaction converted to wrapper with blobs, commitments and proofs
+Cancun transaction converted to wrapper with blobs, commitments and proofs.
 
 ```zig
 Merge(StructToTupleType(CancunTransactionEnvelope), struct { []const Blob, []const KZGCommitment, []const KZGProof })
 ```
 
+## Eip7702Envelope
+
+Tuple representing EIP 7702 authorization envelope tuple.
+
+```zig
+StructToTupleType(Eip7702TransactionEnvelope)
+```
+
+## Eip7702EnvelopeSigned
+
+Tuple representing EIP 7702 authorization envelope tuple with the signature.
+
+```zig
+StructToTupleType(Eip7702TransactionEnvelopeSigned)
+```
+
+## LegacyEnvelope
+
+Tuple representing an encoded envelope for a legacy transaction.
+
+```zig
+StructToTupleType(Omit(LegacyTransactionEnvelope, &.{"chainId"}))
+```
+
+## LegacyEnvelopeSigned
+
+Tuple representing an encoded envelope for a legacy transaction with the signature.
+
+```zig
+StructToTupleType(Omit(LegacyTransactionEnvelopeSigned, &.{"chainId"}))
+```
+
+## LondonEnvelope
+
+Tuple representing an encoded envelope for the London hardfork.
+
+```zig
+StructToTupleType(LondonTransactionEnvelope)
+```
+
+## LondonEnvelopeSigned
+
+Tuple representing an encoded envelope for the London hardfork with the signature.
+
+```zig
+StructToTupleType(LondonTransactionEnvelopeSigned)
+```
+
 ## TransactionTypes
+
+All of the transaction types.
 
 ### Properties
 
@@ -88,6 +106,7 @@ enum {
   berlin = 0x01
   london = 0x02
   cancun = 0x03
+  eip7702 = 0x04
   deposit = 0x7e
   _
 }
@@ -103,8 +122,30 @@ The transaction envelope that will be serialized before getting sent to the netw
 union(enum) {
   berlin: BerlinTransactionEnvelope
   cancun: CancunTransactionEnvelope
+  eip7702: Eip7702TransactionEnvelope
   legacy: LegacyTransactionEnvelope
   london: LondonTransactionEnvelope
+}
+```
+
+## Eip7702TransactionEnvelope
+
+The transaction envelope from eip7702.
+
+### Properties
+
+```zig
+struct {
+  chainId: u64
+  nonce: u64
+  maxPriorityFeePerGas: u64
+  maxFeePerGas: u64
+  gas: u64
+  to: ?Address = null
+  value: Wei
+  data: ?Hex = null
+  accessList: []const AccessList
+  authorizationList: []const AuthorizationPayload
 }
 ```
 
@@ -200,6 +241,23 @@ struct {
 }
 ```
 
+## AuthorizationPayload
+
+EIP7702 authorization payload.
+
+### Properties
+
+```zig
+struct {
+  chain_id: u64
+  address: Address
+  nonce: u64
+  y_parity: u8
+  r: u256
+  s: u256
+}
+```
+
 ## AccessListResult
 
 Struct representing the result of create accessList
@@ -223,8 +281,33 @@ Signed transaction envelope with the signature fields
 union(enum) {
   berlin: BerlinTransactionEnvelopeSigned
   cancun: CancunTransactionEnvelopeSigned
+  eip7702: Eip7702TransactionEnvelopeSigned
   legacy: LegacyTransactionEnvelopeSigned
   london: LondonTransactionEnvelopeSigned
+}
+```
+
+## Eip7702TransactionEnvelopeSigned
+
+The transaction envelope from eip7702.
+
+### Properties
+
+```zig
+struct {
+  chainId: u64
+  nonce: u64
+  maxPriorityFeePerGas: u64
+  maxFeePerGas: u64
+  gas: u64
+  to: ?Address = null
+  value: Wei
+  data: ?Hex = null
+  accessList: []const AccessList
+  authorizationList: []const AuthorizationPayload
+  v: u2
+  r: u256
+  s: u256
 }
 ```
 
@@ -340,6 +423,7 @@ struct {
   data: ?Hex = null
   accessList: ?[]const AccessList = null
   blobVersionedHashes: ?[]const Hash = null
+  authList: ?[]const AuthorizationPayload = null
 }
 ```
 
@@ -873,6 +957,109 @@ struct {
   /// List every txs priority fee per block
   /// Depending on the blockCount or the newestBlock this can be null
   reward: ?[]const []const u256 = null
+}
+```
+
+## DepositTransaction
+
+Op stack deposit transaction representation.
+
+### Properties
+
+```zig
+struct {
+  sourceHash: Hash
+  from: Address
+  to: ?Address
+  mint: u256
+  value: Wei
+  gas: Gwei
+  isSystemTx: bool
+  data: ?Hex
+}
+```
+
+## DepositTransactionSigned
+
+Op stack deposit transaction representation with the signed parameters.
+
+### Properties
+
+```zig
+struct {
+  hash: Hash
+  nonce: u64
+  blockHash: ?Hash
+  blockNumber: ?u64
+  transactionIndex: ?u64
+  from: Address
+  to: ?Address
+  value: Wei
+  gasPrice: Gwei
+  gas: Gwei
+  input: Hex
+  v: usize
+  /// Represented as values instead of the hash because
+  /// a valid signature is not guaranteed to be 32 bits
+  r: u256
+  /// Represented as values instead of the hash because
+  /// a valid signature is not guaranteed to be 32 bits
+  s: u256
+  type: TransactionTypes
+  sourceHash: Hex
+  mint: ?u256 = null
+  isSystemTx: ?bool = null
+  depositReceiptVersion: ?u64 = null
+}
+```
+
+## DepositData
+
+Op stack deposit data.
+
+### Properties
+
+```zig
+struct {
+  mint: u256
+  value: Wei
+  gas: Gwei
+  creation: bool
+  data: ?Hex
+}
+```
+
+## TransactionDeposited
+
+Op stack return type when decoding a deposit transaction from the contract.
+
+### Properties
+
+```zig
+struct {
+  from: Address
+  to: Address
+  version: u256
+  opaqueData: Hex
+  logIndex: usize
+  blockHash: Hash
+}
+```
+
+## DepositTransactionEnvelope
+
+Op stack deposit envelope to be serialized.
+
+### Properties
+
+```zig
+struct {
+  gas: ?Gwei = null
+  mint: ?Wei = null
+  value: ?Wei = null
+  creation: bool = false
+  data: ?Hex = null
+  to: ?Address = null
 }
 ```
 

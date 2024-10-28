@@ -3,11 +3,8 @@
 Set of errors while fetching from a json rpc http endpoint.
 
 ```zig
-Allocator.Error || Client.RequestError || Client.Request.WaitError || Client.Request.FinishError || Client.Request.ReadError || error{
-    InvalidRequest,
-    InvalidEndpointConfig,
-    StreamTooLong,
-}
+Allocator.Error || Client.RequestError || Client.Request.WaitError ||
+    Client.Request.FinishError || Client.Request.ReadError || error{ InvalidRequest, InvalidEndpointConfig, StreamTooLong }
 ```
 
 ## InitErrors
@@ -246,7 +243,10 @@ If the node you are currently using supports `eth_maxPriorityFeePerGas` consider
 ### Signature
 
 ```zig
-pub fn estimateMaxFeePerGasManual(self: *PubClient, base_fee_per_gas: ?Gwei) (BasicRequestErrors || error{ UnableToFetchFeeInfoFromBlock, InvalidBlockNumber })!Gwei
+pub fn estimateMaxFeePerGasManual(
+    self: *PubClient,
+    base_fee_per_gas: ?Gwei,
+) (BasicRequestErrors || error{ UnableToFetchFeeInfoFromBlock, InvalidBlockNumber })!Gwei
 ```
 
 ## EstimateMaxFeePerGas
@@ -266,7 +266,12 @@ RPC Method: [eth_feeHistory](https://ethereum.org/en/developers/docs/apis/json-r
 ### Signature
 
 ```zig
-pub fn feeHistory(self: *PubClient, blockCount: u64, newest_block: BlockNumberRequest, reward_percentil: ?[]const f64) BasicRequestErrors!RPCResponse(FeeHistory)
+pub fn feeHistory(
+    self: *PubClient,
+    blockCount: u64,
+    newest_block: BlockNumberRequest,
+    reward_percentil: ?[]const f64,
+) BasicRequestErrors!RPCResponse(FeeHistory)
 ```
 
 ## GetAccounts
@@ -428,7 +433,11 @@ https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getfilterlogs
 ### Signature
 
 ```zig
-pub fn getFilterOrLogChanges(self: *PubClient, filter_id: u128, method: EthereumRpcMethods) (BasicRequestErrors || error{ InvalidFilterId, InvalidRpcMethod })!RPCResponse(Logs)
+pub fn getFilterOrLogChanges(
+    self: *PubClient,
+    filter_id: u128,
+    method: EthereumRpcMethods,
+) (BasicRequestErrors || error{ InvalidFilterId, InvalidRpcMethod })!RPCResponse(Logs)
 ```
 
 ## GetGasPrice
@@ -662,7 +671,11 @@ RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/
 ### Signature
 
 ```zig
-pub fn getTransactionReceiptType(self: *PubClient, comptime T: type, transaction_hash: Hash) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt)
+pub fn getTransactionReceiptType(
+    self: *PubClient,
+    comptime T: type,
+    transaction_hash: Hash,
+) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt)
 ```
 
 ## GetTxPoolContent
@@ -726,7 +739,11 @@ RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers
 ### Signature
 
 ```zig
-pub fn getUncleByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: usize) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(Block)
+pub fn getUncleByBlockHashAndIndex(
+    self: *PubClient,
+    block_hash: Hash,
+    index: usize,
+) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(Block)
 ```
 
 ## GetUncleByBlockHashAndIndexType
@@ -740,7 +757,12 @@ RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers
 ### Signature
 
 ```zig
-pub fn getUncleByBlockHashAndIndexType(self: *PubClient, comptime T: type, block_hash: Hash, index: usize) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(T)
+pub fn getUncleByBlockHashAndIndexType(
+    self: *PubClient,
+    comptime T: type,
+    block_hash: Hash,
+    index: usize,
+) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(T)
 ```
 
 ## GetUncleByBlockNumberAndIndex

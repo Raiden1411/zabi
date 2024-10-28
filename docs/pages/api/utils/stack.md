@@ -178,3 +178,126 @@ Returns number of items available in the stack
 pub fn availableSize(self: Self) usize
 ```
 
+## BoundedStack
+Stack implementation based on the `std.BoundedArray`.
+
+### Signature
+
+```zig
+pub fn BoundedStack(comptime size: usize) type
+```
+
+## Error
+
+Set of possible errors while performing stack operations.
+
+```zig
+error{ StackOverflow, StackUnderflow }
+```
+
+## SwapToTopUnsafe
+Swaps the top value of the stack with the different position.
+This is not thread safe.
+
+### Signature
+
+```zig
+pub fn swapToTopUnsafe(self: *Self, position_swap: usize) error{StackUnderflow}!void
+```
+
+## DupUnsafe
+Duplicates an item from the stack. Appends it to the top.
+This is not thread safe.
+
+### Signature
+
+```zig
+pub fn dupUnsafe(self: *Self, position: usize) Self.Error!void
+```
+
+## PushUnsafe
+Pops item from the stack. Returns `StackUnderflow` if it cannot.
+This is not thread safe,
+
+### Signature
+
+```zig
+pub fn pushUnsafe(self: *Self, item: u256) error{StackOverflow}!void
+```
+
+## AppendAssumeCapacity
+Appends item to the inner buffer. Increments the `len` of this array.
+
+### Signature
+
+```zig
+pub fn appendAssumeCapacity(self: *Self, item: u256) void
+```
+
+## EnsureUnusedCapacity
+Ensures that the stack has enough room to grow.
+Otherwise it returns `StackOverflow`.
+
+### Signature
+
+```zig
+pub fn ensureUnusedCapacity(self: Self, grow: usize) error{StackOverflow}!void
+```
+
+## PopUnsafe
+Pops item from the stack. Returns `null` if it cannot.
+This is not thread safe,
+
+### Signature
+
+```zig
+pub fn popUnsafe(self: *Self) ?u256
+```
+
+## TryPopUnsafe
+Pops item from the stack. Returns `StackUnderflow` if it cannot.
+This is not thread safe,
+
+### Signature
+
+```zig
+pub fn tryPopUnsafe(self: *Self) error{StackUnderflow}!u256
+```
+
+## PopOrNull
+Pops item from the stack.
+Returns null if the `len` is 0.
+
+### Signature
+
+```zig
+pub fn popOrNull(self: *Self) ?u256
+```
+
+## Pop
+Pops item from the stack.
+
+### Signature
+
+```zig
+pub fn pop(self: *Self) u256
+```
+
+## StackHeight
+Returns the current stack size.
+
+### Signature
+
+```zig
+pub fn stackHeight(self: *Self) usize
+```
+
+## AvailableSize
+Returns number of items available in the stack
+
+### Signature
+
+```zig
+pub fn availableSize(self: Self) usize
+```
+

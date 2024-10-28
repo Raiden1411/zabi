@@ -37,6 +37,16 @@ defer testing.allocator.free(base_legacy);
 pub fn serializeTransaction(allocator: Allocator, tx: TransactionEnvelope, sig: ?Signature) SerializeErrors![]u8
 ```
 
+## SerializeTransactionEIP7702
+Function to serialize eip7702 transactions.
+Caller ownes the memory
+
+### Signature
+
+```zig
+pub fn serializeTransactionEIP7702(allocator: Allocator, tx: Eip7702TransactionEnvelope, sig: ?Signature) SerializeErrors![]u8
+```
+
 ## SerializeCancunTransaction
 Serializes a cancun type transactions without blobs.
 
@@ -105,5 +115,14 @@ Serializes the access list into a slice of tuples of hex values.
 
 ```zig
 pub fn prepareAccessList(allocator: Allocator, access_list: []const AccessList) Allocator.Error![]const StructToTupleType(AccessList)
+```
+
+## PrepareAuthorizationList
+Serializes the authorization list into a slice of tuples of hex values.
+
+### Signature
+
+```zig
+pub fn prepareAuthorizationList(allocator: Allocator, authorization_list: []const AuthorizationPayload) Allocator.Error![]const StructToTupleType(AuthorizationPayload)
 ```
 

@@ -245,7 +245,7 @@ pub fn connect(self: *IPC, path: []const u8) error{ InvalidIPCPath, FailedToConn
 pub fn blobBaseFee(self: *IPC) BasicRequestErrors!RPCResponse(Gwei) {
     return self.sendBasicRequest(Gwei, .eth_blobBaseFee);
 }
-/// Create an accessList of addresses and storageKeys for an transaction to access
+/// Create an accessList of addresses and storageKeys for a transaction to access
 ///
 /// RPC Method: [eth_createAccessList](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_createaccesslist)
 pub fn createAccessList(self: *IPC, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(AccessListResult) {

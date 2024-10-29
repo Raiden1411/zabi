@@ -130,7 +130,7 @@ pub fn blobBaseFee(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(Gwei)
 ```
 
 ## CreateAccessList
-Create an accessList of addresses and storageKeys for an transaction to access
+Create an accessList of addresses and storageKeys for a transaction to access
 
 RPC Method: [eth_createAccessList](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_createaccesslist)
 

@@ -10,7 +10,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-13]
         examples: [wallet, transfer, contract, watch, interpreter, block_explorer]
     runs-on: ${{ matrix.os }}
     steps:

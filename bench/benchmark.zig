@@ -268,12 +268,12 @@ pub fn decodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
 
         var count: usize = 0;
         while (count < opts.warmup_runs) : (count += 1) {
-            _ = try zabi_root.decoding.rlp.decodeRlp(allocator, @TypeOf(multi), encoded);
+            _ = try zabi_root.decoding.rlp.decodeRlp(@TypeOf(multi), allocator, encoded);
         }
 
         var timer = try std.time.Timer.start();
         while (count < opts.runs) : (count += 1) {
-            _ = try zabi_root.decoding.rlp.decodeRlp(allocator, @TypeOf(multi), encoded);
+            _ = try zabi_root.decoding.rlp.decodeRlp(@TypeOf(multi), allocator, encoded);
         }
 
         const mean = @divFloor(timer.lap(), opts.runs);

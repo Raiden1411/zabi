@@ -141,7 +141,7 @@ pub fn parseEip7702Transaction(allocator: Allocator, serialized: []const u8) Par
     const value, 
     const data, 
     const access_list,
-    const authorization_list = try rlp.decodeRlp(allocator, Eip7702Envelope, serialized[1..]);
+    const authorization_list = try rlp.decodeRlp(Eip7702Envelope, allocator, serialized[1..]);
     // zig fmt: on
 
     const list = try parseAccessList(allocator, access_list);
@@ -176,7 +176,7 @@ pub fn parseEip4844Transaction(allocator: Allocator, serialized: []const u8) Par
     const data, 
     const access_list,
     const max_blob_gas,
-    const blob_hashes = try rlp.decodeRlp(allocator, CancunEnvelope, serialized[1..]);
+    const blob_hashes = try rlp.decodeRlp(CancunEnvelope, allocator, serialized[1..]);
     // zig fmt: on
 
     const list = try parseAccessList(allocator, access_list);
@@ -209,7 +209,7 @@ pub fn parseEip1559Transaction(allocator: Allocator, serialized: []const u8) Par
     const address, 
     const value, 
     const data, 
-    const access_list = try rlp.decodeRlp(allocator, LondonEnvelope, serialized[1..]);
+    const access_list = try rlp.decodeRlp(LondonEnvelope, allocator,  serialized[1..]);
     // zig fmt: on
 
     const list = try parseAccessList(allocator, access_list);
@@ -240,7 +240,7 @@ pub fn parseEip2930Transaction(allocator: Allocator, serialized: []const u8) Par
     const address,
     const value,
     const data, 
-    const access_list = try rlp.decodeRlp(allocator, BerlinEnvelope, serialized[1..]);
+    const access_list = try rlp.decodeRlp(BerlinEnvelope, allocator,  serialized[1..]);
     // zig fmt: on
 
     const list = try parseAccessList(allocator, access_list);
@@ -268,7 +268,7 @@ pub fn parseLegacyTransaction(allocator: Allocator, serialized: []const u8) Pars
     const gas,
     const address,
     const value,
-    const data = try rlp.decodeRlp(allocator, LegacyEnvelope, serialized);
+    const data = try rlp.decodeRlp(LegacyEnvelope, allocator,  serialized);
     // zig fmt: on
 
     return .{
@@ -331,7 +331,7 @@ pub fn parseSignedEip7702Transaction(allocator: Allocator, serialized: []const u
     const authorization_list,
     const v, 
     const r, 
-    const s = try rlp.decodeRlp(allocator, Eip7702EnvelopeSigned, serialized[1..]);
+    const s = try rlp.decodeRlp(Eip7702EnvelopeSigned, allocator, serialized[1..]);
     // zig fmt: on
 
     const list = try parseAccessList(allocator, access_list);
@@ -372,7 +372,7 @@ pub fn parseSignedEip4844Transaction(allocator: Allocator, serialized: []const u
     const blob_hashes,
     const v,
     const r,
-    const s = try rlp.decodeRlp(allocator, CancunEnvelopeSigned, serialized[1..]);
+    const s = try rlp.decodeRlp(CancunEnvelopeSigned, allocator, serialized[1..]);
     // zig fmt: on
 
     const list = try parseAccessList(allocator, access_list);
@@ -411,7 +411,7 @@ pub fn parseSignedEip1559Transaction(allocator: Allocator, serialized: []const u
     const access_list,
     const v,
     const r,
-    const s = try rlp.decodeRlp(allocator, LondonEnvelopeSigned, serialized[1..]);
+    const s = try rlp.decodeRlp(LondonEnvelopeSigned, allocator, serialized[1..]);
     // zig fmt: on
 
     const list = try parseAccessList(allocator, access_list);
@@ -448,7 +448,7 @@ pub fn parseSignedEip2930Transaction(allocator: Allocator, serialized: []const u
     const access_list,
     const v,
     const r,
-    const s = try rlp.decodeRlp(allocator, BerlinEnvelopeSigned, serialized[1..]);
+    const s = try rlp.decodeRlp(BerlinEnvelopeSigned, allocator,  serialized[1..]);
     // zig fmt: on
 
     const list = try parseAccessList(allocator, access_list);
@@ -482,7 +482,7 @@ pub fn parseSignedLegacyTransaction(allocator: Allocator, serialized: []const u8
     const data,
     const v,
     const r,
-    const s = try rlp.decodeRlp(allocator, LegacyEnvelopeSigned, serialized);
+    const s = try rlp.decodeRlp(LegacyEnvelopeSigned, allocator,  serialized);
     // zig fmt: on
 
     const chainId = if (v > 0 and r == null and s == null) v else 0;

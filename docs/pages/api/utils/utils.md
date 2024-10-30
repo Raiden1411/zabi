@@ -124,7 +124,7 @@ hex represented string.
 ### Signature
 
 ```zig
-pub fn bytesToInt(comptime T: type, slice: []u8) error{Overflow}!T
+pub fn bytesToInt(comptime T: type, slice: []const u8) error{Overflow}!T
 ```
 
 ## CalcultateBlobGasPrice

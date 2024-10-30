@@ -1,352 +1,299 @@
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("zabi-utils");
+const utils = @import("zabi-utils").utils;
 
 // Types
 const Allocator = std.mem.Allocator;
 
 /// Set of errors while performing RLP decoding.
-pub const RlpDecodeErrors = error{ UnexpectedValue, InvalidEnumTag, LengthMissmatch } || Allocator.Error || std.fmt.ParseIntError;
+pub const RlpDecodeErrors = error{ UnexpectedValue, InvalidEnumTag, LengthMissmatch, Overflow } || Allocator.Error;
 
-/// RLP decoding. Encoded string must follow the RLP specs.
-pub fn decodeRlp(allocator: Allocator, comptime T: type, encoded: []const u8) RlpDecodeErrors!T {
-    const decoded = try decodeItem(allocator, T, encoded, 0);
+/// RLP decoding wrapper function. Encoded string must follow the RLP specification.
+///
+/// Supported types:
+///   * `bool`
+///   * `int`
+///   * `enum`, `enum_literal`
+///   * `null`
+///   * `?T`
+///   * `[N]T` array types.
+///   * `[]const T` slices.
+///   * `structs`. Both tuple and non tuples.
+///
+/// All other types are currently not supported.
+pub fn decodeRlp(comptime T: type, allocator: Allocator, encoded: []const u8) RlpDecodeErrors!T {
+    var decoder = RlpDecoder.init(encoded);
 
-    return decoded.data;
+    return decoder.decode(T, allocator);
 }
 
-fn DecodedResult(comptime T: type) type {
-    return struct { consumed: usize, data: T };
-}
+/// RLP Decoder structure. Decodes based on the RLP specification.
+pub const RlpDecoder = struct {
+    /// The RLP encoded slice.
+    encoded: []const u8,
+    /// The position into the encoded slice.
+    position: usize,
 
-fn decodeItem(allocator: Allocator, comptime T: type, encoded: []const u8, position: usize) RlpDecodeErrors!DecodedResult(T) {
-    const info = @typeInfo(T);
+    /// Sets the decoder initial state.
+    pub fn init(encoded: []const u8) RlpDecoder {
+        std.debug.assert(encoded.len > 0); // Invalid encoded slice len.
 
-    std.debug.assert(encoded.len > 0); // Cannot decode 0 length;
+        return .{
+            .encoded = encoded,
+            .position = 0,
+        };
+    }
+    /// Advances the decoder position by `new` size.
+    pub fn advancePosition(self: *RlpDecoder, new: usize) void {
+        self.position += new;
+    }
+    /// Decodes a rlp encoded slice into a provided type.
+    /// The encoded slice must follow the RLP specification.
+    ///
+    /// Supported types:
+    ///   * `bool`
+    ///   * `int`
+    ///   * `enum`, `enum_literal`
+    ///   * `null`
+    ///   * `?T`
+    ///   * `[N]T` array types.
+    ///   * `[]const T` slices.
+    ///   * `structs`. Both tuple and non tuples.
+    ///
+    /// All other types are currently not supported.
+    pub fn decode(self: *RlpDecoder, comptime T: type, allocator: Allocator) RlpDecodeErrors!T {
+        const info = @typeInfo(T);
 
-    if (position > encoded.len - 1)
-        return error.Overflow;
+        switch (info) {
+            .bool => {
+                const byte = self.encoded[self.position];
+                self.advancePosition(1);
 
-    switch (info) {
-        .bool => {
-            std.debug.assert(position < encoded.len); // Overflow on encoded string,
-            switch (encoded[position]) {
-                0x80 => return .{ .consumed = 1, .data = false },
-                0x01 => return .{ .consumed = 1, .data = true },
-                else => return error.UnexpectedValue,
-            }
-        },
-        .int => {
-            if (info.int.signedness == .signed)
-                @compileError("Signed integers are not supported for RLP decoding");
+                switch (byte) {
+                    0x80 => return false,
+                    0x01 => return true,
+                    else => return error.UnexpectedValue,
+                }
+            },
+            .int => |int_info| {
+                if (int_info.signedness == .signed)
+                    @compileError("Signed integers are not supported for RLP decoding");
 
-            std.debug.assert(position < encoded.len); // Overflow on encoded string,
+                std.debug.assert(self.position < self.encoded.len);
 
-            if (encoded[position] < 0x80)
-                return .{
-                    .consumed = 1,
-                    .data = if (info.int.bits < 8) @truncate(encoded[position]) else @intCast(encoded[position]),
-                };
+                const bit = self.encoded[self.position];
+                self.advancePosition(1);
 
-            const len = encoded[position] - 0x80;
+                if (bit < 0x80)
+                    return if (int_info.bits < 8) @truncate(bit) else @intCast(bit);
 
-            std.debug.assert(position + len < encoded.len); // Overflow on encoded string,
-            const hex_number = encoded[position + 1 .. position + len + 1];
+                const int_size = bit - 0x80;
 
-            const hexed = std.fmt.fmtSliceHexLower(hex_number);
+                std.debug.assert(self.position + int_size <= self.encoded.len);
 
-            const slice = try std.fmt.allocPrint(allocator, "{s}", .{hexed});
-            defer allocator.free(slice);
+                const number = self.encoded[self.position .. self.position + int_size];
+                self.advancePosition(number.len);
 
-            return .{ .consumed = len + 1, .data = if (slice.len != 0) try utils.utils.bytesToInt(T, @constCast(hex_number)) else @intCast(0) };
-        },
-        .float => {
-            std.debug.assert(position < encoded.len); // Overflow on encoded string,
+                return utils.bytesToInt(T, number);
+            },
+            .null => {
+                std.debug.assert(self.position < self.encoded.len);
 
-            if (encoded[position] < 0x80) return .{ .consumed = 1, .data = @as(T, @floatFromInt(encoded[position])) };
-            const len = encoded[position] - 0x80;
-            const hex_number = encoded[position + 1 .. position + len + 1];
+                return if (self.encoded[self.position] != 0x80) error.UnexpectedValue else null;
+            },
+            .optional => |opt_info| {
+                std.debug.assert(self.position < self.encoded.len);
 
-            const hexed = std.fmt.fmtSliceHexLower(hex_number);
+                if (self.encoded[self.position] == 0x80) {
+                    self.advancePosition(1);
+                    return null;
+                }
 
-            const slice = try std.fmt.allocPrint(allocator, "{s}", .{hexed});
-            defer allocator.free(slice);
+                const decoded = try self.decode(opt_info.child, allocator);
 
-            const bits = info.float.bits;
-            const AsInt = @Type(.{ .int = .{ .signedness = .unsigned, .bits = bits } });
-            const parsed = try std.fmt.parseInt(AsInt, slice, 16);
-            return .{ .consumed = len + 1, .data = if (slice.len != 0) @as(T, @floatFromInt(parsed)) else @floatCast(0) };
-        },
-        .null => {
-            std.debug.assert(position < encoded.len); // Overflow on encoded string,
-            return if (encoded[position] != 0x80) error.UnexpectedValue else .{ .consumed = 1, .data = null };
-        },
-        .optional => |opt_info| {
-            std.debug.assert(position < encoded.len); // Overflow on encoded string,
-            //
-            if (encoded[position] == 0x80) return .{ .consumed = 1, .data = null };
+                return @as(T, decoded);
+            },
+            .@"enum", .enum_literal => {
+                const tag_name = try self.decodeString();
 
-            const opt = try decodeItem(allocator, opt_info.child, encoded, position);
-            return .{ .consumed = opt.consumed, .data = opt.data };
-        },
-        .@"enum", .enum_literal => {
-            std.debug.assert(position < encoded.len); // Overflow on encoded string,
+                return std.meta.stringToEnum(T, tag_name) orelse error.InvalidEnumTag;
+            },
+            .array => |arr_info| {
+                std.debug.assert(self.position < self.encoded.len);
 
-            const size = encoded[position];
-
-            if (size <= 0xb7) {
-                const str_len = size - 0x80;
-                std.debug.assert(position + str_len < encoded.len); // Overflow on encoded string,
-
-                const slice = encoded[position + 1 .. position + str_len + 1];
-                const e = std.meta.stringToEnum(T, slice) orelse return error.InvalidEnumTag;
-
-                return .{ .consumed = str_len + 1, .data = e };
-            }
-            const len_size = size - 0xb7;
-            std.debug.assert(position + len_size < encoded.len); // Overflow on encoded string,
-
-            const len = encoded[position + 1 .. position + len_size + 1];
-
-            const hexed = std.fmt.fmtSliceHexLower(len);
-
-            const len_slice = try std.fmt.allocPrint(allocator, "{s}", .{hexed});
-            defer allocator.free(len_slice);
-
-            const parsed = try std.fmt.parseInt(usize, len_slice, 16);
-            std.debug.assert(position + len_size + parsed < encoded.len); // Overflow on encoded string,
-
-            const e = std.meta.stringToEnum(T, encoded[position + len_size + 1 .. position + parsed + 1 + len_size]) orelse return error.InvalidEnumTag;
-
-            return .{ .consumed = 2 + len_size + parsed, .data = e };
-        },
-        .array => |arr_info| {
-            std.debug.assert(position < encoded.len); // Overflow on encoded string,
-
-            if (arr_info.child == u8) {
-                const size = encoded[position];
-                if (size <= 0xb7) {
-                    const str_len = size - 0x80;
-                    std.debug.assert(position + str_len < encoded.len); // Overflow on encoded string,
-
-                    const slice = encoded[position + 1 .. position + str_len + 1];
+                if (arr_info.child == u8) {
+                    const slice = try self.decodeString();
 
                     if (slice.len != arr_info.len)
                         return error.LengthMissmatch;
 
-                    var result: T = undefined;
-                    @memcpy(result[0..], slice[0..arr_info.len]);
-
-                    return .{ .consumed = str_len + 1, .data = result };
+                    return slice[0..arr_info.len].*;
                 }
-                const len_size = size - 0xb7;
-                const len = encoded[position + 1 .. position + len_size + 1];
-                std.debug.assert(position + len_size < encoded.len); // Overflow on encoded string,
-
-                const hexed = std.fmt.fmtSliceHexLower(len);
-                const len_slice = try std.fmt.allocPrint(allocator, "{s}", .{hexed});
-                defer allocator.free(len_slice);
-
-                const parsed = try std.fmt.parseInt(usize, len_slice, 16);
-
-                std.debug.assert(position + len_size + parsed < encoded.len); // Overflow on encoded string,
-                const slice = encoded[position + 1 + len_size .. position + parsed + 1 + len_size];
-
-                if (slice.len != arr_info.len)
-                    return error.LengthMissmatch;
 
                 var result: T = undefined;
-                @memcpy(result[0..], slice[0..arr_info.len]);
+                const size = self.encoded[self.position];
+                self.advancePosition(1);
 
-                return .{ .consumed = 2 + len_size + parsed, .data = result };
-            }
+                if (size <= 0xf7) {
+                    for (0..arr_info.len) |i| {
+                        result[i] = try self.decode(arr_info.child, allocator);
+                    }
 
-            const arr_size = encoded[position];
+                    return result;
+                }
 
-            if (arr_size <= 0xf7) {
-                var result: T = undefined;
+                const len = size - 0xf7;
+                self.advancePosition(len);
 
-                var cur_pos = position + 1;
                 for (0..arr_info.len) |i| {
-                    const decoded = try decodeItem(allocator, arr_info.child, encoded, cur_pos);
-                    result[i] = decoded.data;
-                    cur_pos += decoded.consumed;
+                    result[i] = try self.decode(arr_info.child, allocator);
                 }
 
-                return .{ .consumed = arr_info.len + 1, .data = result };
-            }
+                return result;
+            },
+            .pointer => |ptr_info| {
+                switch (ptr_info.size) {
+                    .One => {
+                        const result = try allocator.create(ptr_info.child);
+                        errdefer allocator.destroy(result);
 
-            const arr_len = arr_size - 0xf7;
-            var result: T = undefined;
+                        result.* = try self.decode(ptr_info.child, allocator);
 
-            var cur_pos = position + arr_len + 1;
-            for (0..arr_info.len) |i| {
-                const decoded = try decodeItem(allocator, arr_info.child, encoded[cur_pos..], 0);
-                result[i] = decoded.data;
-                cur_pos += decoded.consumed;
-            }
+                        return result;
+                    },
+                    .Slice => {
+                        std.debug.assert(self.position < self.encoded.len);
 
-            return .{ .consumed = arr_info.len + 1, .data = result };
-        },
-        .pointer => |ptr_info| {
-            switch (ptr_info.size) {
-                .One => {
-                    const res: *ptr_info.child = try allocator.create(ptr_info.child);
-                    const decoded = try decodeItem(allocator, ptr_info.child, encoded, position);
-                    res.* = decoded.data;
+                        if (ptr_info.child == u8) {
+                            const slice = try self.decodeString();
 
-                    return .{ .consumed = decoded.consumed, .data = res };
-                },
-                .Slice => {
-                    std.debug.assert(position < encoded.len); // Overflow on encoded string,
+                            if (ptr_info.is_const)
+                                return slice;
 
-                    if (ptr_info.child == u8) {
-                        const size = encoded[position];
-
-                        if (size <= 0xb7) {
-                            const str_len = size - 0x80;
-                            const slice = encoded[position + 1 .. position + str_len + 1];
-
-                            if (ptr_info.is_const) return .{ .consumed = str_len + 1, .data = slice };
-                            return .{ .consumed = str_len + 1, .data = @constCast(slice) };
+                            return @constCast(slice);
                         }
 
-                        const len_size = size - 0xb7;
-                        const len = encoded[position + 1 .. position + len_size + 1];
-                        std.debug.assert(position + len_size < encoded.len); // Overflow on encoded string,
+                        const size = self.encoded[self.position];
+                        self.advancePosition(1);
 
-                        const hexed = std.fmt.fmtSliceHexLower(len);
-                        const len_slice = try std.fmt.allocPrint(allocator, "{s}", .{hexed});
-                        defer allocator.free(len_slice);
+                        if (size <= 0xf7) {
+                            const slice_len = size - 0xc0;
 
-                        const parsed = try std.fmt.parseInt(usize, len_slice, 16);
-                        std.debug.assert(position + len_size + parsed < encoded.len); // Overflow on encoded string,
+                            var result = std.ArrayList(ptr_info.child).init(allocator);
+                            errdefer result.deinit();
 
-                        if (ptr_info.is_const)
-                            return .{ .consumed = 2 + len_size + parsed, .data = encoded[position + 1 + len_size .. position + parsed + 1 + len_size] };
+                            const expected_position = self.position + slice_len;
 
-                        return .{ .consumed = 2 + len_size + parsed, .data = @constCast(encoded[position + 1 + len_size .. position + parsed + 1 + len_size]) };
-                    }
-                    const arr_size = encoded[position];
+                            while (true) {
+                                if (self.position >= expected_position)
+                                    break;
 
-                    if (arr_size <= 0xf7) {
-                        const arr_len = arr_size - 0xC0;
+                                const decoded = try self.decode(ptr_info.child, allocator);
+                                try result.append(decoded);
+                            }
+
+                            std.debug.assert(self.position == expected_position);
+
+                            return result.toOwnedSlice();
+                        }
+
+                        const slice_len = size - 0xf7;
+
                         var result = std.ArrayList(ptr_info.child).init(allocator);
                         errdefer result.deinit();
 
-                        var read: usize = 0;
+                        std.debug.assert(self.position + slice_len <= self.encoded.len);
+                        const len = self.encoded[self.position .. self.position + slice_len];
+                        const number = try utils.bytesToInt(usize, len);
+
+                        self.advancePosition(slice_len);
+                        const expected_position = self.position + number;
+
                         while (true) {
-                            if (read >= arr_len)
+                            if (self.position >= expected_position)
                                 break;
 
-                            const decoded = try decodeItem(allocator, ptr_info.child, encoded[read + position + 1 ..], 0);
-                            try result.append(decoded.data);
-                            read += decoded.consumed;
+                            const decoded = try self.decode(ptr_info.child, allocator);
+                            try result.append(decoded);
                         }
 
-                        std.debug.assert(read == arr_len);
+                        std.debug.assert(self.position == expected_position);
 
-                        return .{ .consumed = arr_len + 1, .data = try result.toOwnedSlice() };
-                    }
-
-                    const arr_len = arr_size - 0xf7;
-                    const len = encoded[position + 1 .. position + arr_len + 1];
-                    std.debug.assert(position + arr_len < encoded.len); // Overflow on encoded string,
-
-                    const hexed = std.fmt.fmtSliceHexLower(len);
-
-                    const len_slice = try std.fmt.allocPrint(allocator, "{s}", .{hexed});
-                    defer allocator.free(len_slice);
-
-                    const parsed_len = try std.fmt.parseInt(usize, len_slice, 16);
-                    var result = std.ArrayList(ptr_info.child).init(allocator);
-                    errdefer result.deinit();
-
-                    var cur_pos = position + arr_len + 1;
-                    var read: usize = 0;
-
-                    while (true) {
-                        if (read >= parsed_len)
-                            break;
-                        const decoded = try decodeItem(allocator, ptr_info.child, encoded[cur_pos..], 0);
-                        try result.append(decoded.data);
-                        cur_pos += decoded.consumed;
-                        read += decoded.consumed;
-                    }
-
-                    return .{ .consumed = cur_pos, .data = try result.toOwnedSlice() };
-                },
-                else => @compileError("Unable to parse pointer type " ++ @typeName(T)),
-            }
-        },
-        .vector => |vec_info| {
-            const arr_size = encoded[position];
-
-            if (arr_size <= 0xf7) {
-                var result: T = undefined;
-
-                var cur_pos = position + 1;
-                for (0..vec_info.len) |i| {
-                    const decoded = try decodeItem(allocator, vec_info.child, encoded, cur_pos);
-                    result[i] = decoded.data;
-                    cur_pos += decoded.consumed;
+                        return result.toOwnedSlice();
+                    },
+                    else => @compileError("Unable to decode to pointer type '" ++ @typeName(T) ++ "'"),
                 }
+            },
+            .@"struct" => |struct_info| {
+                if (struct_info.is_tuple) {
+                    const size = self.encoded[self.position];
+                    self.advancePosition(1);
 
-                return .{ .consumed = vec_info.len + 1, .data = result };
-            }
+                    if (size <= 0xf7) {
+                        var result: T = undefined;
 
-            const arr_len = arr_size - 0xf7;
-            var result: T = undefined;
+                        inline for (struct_info.fields) |field| {
+                            @field(result, field.name) = try self.decode(field.type, allocator);
+                        }
 
-            var cur_pos = position + arr_len + 1;
-            for (0..vec_info.len) |i| {
-                const decoded = try decodeItem(allocator, vec_info.child, encoded[cur_pos..], 0);
-                result[i] = decoded.data;
-                cur_pos += decoded.consumed;
-            }
+                        return result;
+                    }
 
-            return .{ .consumed = vec_info.len + 1, .data = result };
-        },
-        .@"struct" => |struct_info| {
-            if (struct_info.is_tuple) {
-                const arr_size = encoded[position];
-                if (arr_size <= 0xf7) {
+                    const len = size - 0xf7;
+                    self.advancePosition(len);
+
                     var result: T = undefined;
 
-                    var cur_pos = position + 1;
                     inline for (struct_info.fields, 0..) |field, i| {
-                        const decoded = try decodeItem(allocator, field.type, encoded, cur_pos);
-                        result[i] = decoded.data;
-                        cur_pos += decoded.consumed;
+                        result[i] = try self.decode(field.type, allocator);
                     }
 
-                    return .{ .consumed = cur_pos, .data = result };
+                    return result;
                 }
 
-                const arr_len = arr_size - 0xf7;
                 var result: T = undefined;
 
-                var cur_pos = position + arr_len + 1;
-                inline for (struct_info.fields, 0..) |field, i| {
-                    const decoded = try decodeItem(allocator, field.type, encoded[cur_pos..], 0);
-                    result[i] = decoded.data;
-                    cur_pos += decoded.consumed;
+                inline for (struct_info.fields) |field| {
+                    @field(result, field.name) = try self.decode(field.type, allocator);
                 }
 
-                return .{ .consumed = cur_pos, .data = result };
-            }
-
-            var result: T = undefined;
-
-            var cur_pos = position;
-            inline for (struct_info.fields) |field| {
-                const decoded = try decodeItem(allocator, field.type, encoded, cur_pos);
-                @field(result, field.name) = decoded.data;
-                cur_pos += decoded.consumed;
-            }
-
-            return .{ .consumed = cur_pos, .data = result };
-        },
-        else => @compileError("Unable to parse type " ++ @typeName(T)),
+                return result;
+            },
+            else => @compileError("Unable to decode to type '" ++ @typeName(T) ++ "'"),
+        }
     }
-}
+    /// Decodes directly to a `[]const u8` slice from the expected RLP specification.
+    fn decodeString(self: *RlpDecoder) RlpDecodeErrors![]const u8 {
+        std.debug.assert(self.position < self.encoded.len);
+
+        const size = self.encoded[self.position];
+
+        if (size <= 0xb7) {
+            const len = size - 0x80;
+
+            std.debug.assert(self.position + len <= self.encoded.len);
+            self.advancePosition(1);
+
+            const slice = self.encoded[self.position .. self.position + len];
+            self.advancePosition(slice.len);
+
+            return slice;
+        }
+
+        const len = size - 0xb7;
+
+        std.debug.assert(self.position + len < self.encoded.len);
+        self.advancePosition(1);
+
+        const slice_len = self.encoded[self.position .. self.position + len];
+        self.advancePosition(slice_len.len);
+
+        const number = try utils.bytesToInt(usize, slice_len);
+        std.debug.assert(self.position + number <= self.encoded.len);
+
+        const slice = self.encoded[self.position .. self.position + number];
+        self.advancePosition(number);
+
+        return slice;
+    }
+};

@@ -213,7 +213,7 @@ pub inline fn computeSize(int: u256) u8 {
 }
 /// Similar to `parseInt` but handles the hex bytes and not the
 /// hex represented string.
-pub fn bytesToInt(comptime T: type, slice: []u8) error{Overflow}!T {
+pub fn bytesToInt(comptime T: type, slice: []const u8) error{Overflow}!T {
     const info = @typeInfo(T);
     const IntType = std.meta.Int(info.int.signedness, @max(8, info.int.bits));
     var x: IntType = 0;

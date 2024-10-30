@@ -23,7 +23,7 @@ pub fn parseDepositTransaction(allocator: Allocator, encoded: []u8) !DepositTran
     const value, 
     const gas, 
     const is_system,
-    const data = try rlp.decodeRlp(allocator, StructToTupleType(DepositTransaction), encoded[1..]);
+    const data = try rlp.decodeRlp(StructToTupleType(DepositTransaction), allocator, encoded[1..]);
     // zig fmt: on
 
     return .{

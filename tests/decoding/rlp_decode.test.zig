@@ -6,59 +6,43 @@ const encodeRlp = @import("zabi-encoding").rlp.encodeRlp;
 const decodeRlp = @import("zabi-decoding").rlp.decodeRlp;
 
 test "Decoded bool" {
-    const t = try decodeRlp(testing.allocator, bool, &[_]u8{0x01});
+    const t = try decodeRlp(bool, testing.allocator, &[_]u8{0x01});
     try testing.expect(t);
 
-    const f = try decodeRlp(testing.allocator, bool, &[_]u8{0x80});
+    const f = try decodeRlp(bool, testing.allocator, &[_]u8{0x80});
     try testing.expect(!f);
 }
 
 test "Decoded Int" {
     const low = try encodeRlp(testing.allocator, 127);
     defer testing.allocator.free(low);
-    const decoded_low = try decodeRlp(testing.allocator, u8, low);
+    const decoded_low = try decodeRlp(u8, testing.allocator, low);
 
     try testing.expectEqual(127, decoded_low);
 
     const medium = try encodeRlp(testing.allocator, 69420);
     defer testing.allocator.free(medium);
-    const decoded_medium = try decodeRlp(testing.allocator, u24, medium);
+    const decoded_medium = try decodeRlp(u24, testing.allocator, medium);
 
     try testing.expectEqual(69420, decoded_medium);
 
     const big = try encodeRlp(testing.allocator, std.math.maxInt(u64));
     defer testing.allocator.free(big);
-    const decoded_big = try decodeRlp(testing.allocator, u64, big);
+    const decoded_big = try decodeRlp(u64, testing.allocator, big);
 
     try testing.expectEqual(std.math.maxInt(u64), decoded_big);
-}
-
-test "Decoded Float" {
-    const low = try encodeRlp(testing.allocator, 127);
-    defer testing.allocator.free(low);
-    const decoded_low = try decodeRlp(testing.allocator, f16, low);
-
-    const float: f16 = 127;
-    try testing.expectEqual(float, decoded_low);
-
-    const medium = try encodeRlp(testing.allocator, 69420);
-    defer testing.allocator.free(medium);
-    const decoded_medium = try decodeRlp(testing.allocator, f32, medium);
-
-    const float_med: f32 = 69420;
-    try testing.expectEqual(float_med, decoded_medium);
 }
 
 test "Decoded Strings < 56" {
     const str = try encodeRlp(testing.allocator, "dog");
     defer testing.allocator.free(str);
-    const decoded_str = try decodeRlp(testing.allocator, []const u8, str);
+    const decoded_str = try decodeRlp([]const u8, testing.allocator, str);
 
     try testing.expectEqualStrings("dog", decoded_str);
 
     const lorem = try encodeRlp(testing.allocator, "Lorem ipsum dolor sit amet, consectetur adipisicing eli");
     defer testing.allocator.free(lorem);
-    const decoded_lorem = try decodeRlp(testing.allocator, []const u8, lorem);
+    const decoded_lorem = try decodeRlp([]const u8, testing.allocator, lorem);
 
     try testing.expectEqualStrings("Lorem ipsum dolor sit amet, consectetur adipisicing eli", decoded_lorem);
 }
@@ -67,7 +51,7 @@ test "Decoded Strings > 56" {
     {
         const lorem = try encodeRlp(testing.allocator, "Lorem ipsum dolor sit amet, consectetur adipisicing elit");
         defer testing.allocator.free(lorem);
-        const decoded_lorem = try decodeRlp(testing.allocator, []const u8, lorem);
+        const decoded_lorem = try decodeRlp([]const u8, testing.allocator, lorem);
 
         try testing.expectEqualStrings("Lorem ipsum dolor sit amet, consectetur adipisicing elit", decoded_lorem);
 
@@ -75,14 +59,14 @@ test "Decoded Strings > 56" {
 
         const encoded = try encodeRlp(testing.allocator, big);
         defer testing.allocator.free(encoded);
-        const decoded_big = try decodeRlp(testing.allocator, []const u8, encoded);
+        const decoded_big = try decodeRlp([]const u8, testing.allocator, encoded);
 
         try testing.expectEqualStrings(big, decoded_big);
     }
     {
         const lorem = try encodeRlp(testing.allocator, "Lorem ipsum dolor sit amet, consectetur adipisicing elit");
         defer testing.allocator.free(lorem);
-        const decoded_lorem = try decodeRlp(testing.allocator, [56]u8, lorem);
+        const decoded_lorem = try decodeRlp([56]u8, testing.allocator, lorem);
 
         try testing.expectEqualStrings("Lorem ipsum dolor sit amet, consectetur adipisicing elit", &decoded_lorem);
 
@@ -90,26 +74,9 @@ test "Decoded Strings > 56" {
 
         const encoded = try encodeRlp(testing.allocator, big);
         defer testing.allocator.free(encoded);
-        const decoded_big = try decodeRlp(testing.allocator, [895]u8, encoded);
+        const decoded_big = try decodeRlp([895]u8, testing.allocator, encoded);
 
         try testing.expectEqualStrings(big, &decoded_big);
-    }
-}
-
-test "Decoded Vector" {
-    {
-        const one: @Vector(2, bool) = .{ true, true };
-        const decoded_one = try decodeRlp(testing.allocator, @Vector(2, bool), &[_]u8{ 0xc2, 0x01, 0x01 });
-
-        try testing.expectEqualDeep(&one, &decoded_one);
-    }
-    {
-        const bigs: @Vector(256, u32) = [_]u32{0xf8} ** 256;
-        const enc_bigs = try encodeRlp(testing.allocator, bigs);
-        defer testing.allocator.free(enc_bigs);
-        const decoded_bigs = try decodeRlp(testing.allocator, @Vector(256, u32), enc_bigs);
-
-        try testing.expectEqualDeep(bigs, decoded_bigs);
     }
 }
 
@@ -118,7 +85,7 @@ test "Decoded Arrays" {
 
     const encoded = try encodeRlp(testing.allocator, one);
     defer testing.allocator.free(encoded);
-    const decoded_one = try decodeRlp(testing.allocator, [2]bool, encoded);
+    const decoded_one = try decodeRlp([2]bool, testing.allocator, encoded);
 
     try testing.expectEqualSlices(bool, &one, &decoded_one);
 
@@ -126,7 +93,7 @@ test "Decoded Arrays" {
 
     const enc_nested = try encodeRlp(testing.allocator, nested);
     defer testing.allocator.free(enc_nested);
-    const decoded_nested = try decodeRlp(testing.allocator, [2][]const bool, enc_nested);
+    const decoded_nested = try decodeRlp([2][]const bool, testing.allocator, enc_nested);
     defer testing.allocator.free(decoded_nested[0]);
     defer testing.allocator.free(decoded_nested[1]);
 
@@ -136,14 +103,14 @@ test "Decoded Arrays" {
     const big: [256]bool = [_]bool{true} ** 256;
     const enc_big = try encodeRlp(testing.allocator, big);
     defer testing.allocator.free(enc_big);
-    const decoded_big = try decodeRlp(testing.allocator, [256]bool, enc_big);
+    const decoded_big = try decodeRlp([256]bool, testing.allocator, enc_big);
 
     try testing.expectEqualSlices(bool, &big, &decoded_big);
 
     const bigs: [256]u32 = [_]u32{0xf8} ** 256;
     const enc_bigs = try encodeRlp(testing.allocator, bigs);
     defer testing.allocator.free(enc_bigs);
-    const decoded_bigs = try decodeRlp(testing.allocator, [256]u32, enc_bigs);
+    const decoded_bigs = try decodeRlp([256]u32, testing.allocator, enc_bigs);
 
     try testing.expectEqualSlices(u32, &bigs, &decoded_bigs);
 
@@ -151,7 +118,7 @@ test "Decoded Arrays" {
     const enc_str = try encodeRlp(testing.allocator, strings);
     defer testing.allocator.free(enc_str);
 
-    const dec_str = try decodeRlp(testing.allocator, [2][]const u8, enc_str);
+    const dec_str = try decodeRlp([2][]const u8, testing.allocator, enc_str);
 
     try testing.expectEqualStrings(strings[0], dec_str[0]);
     try testing.expectEqualStrings(strings[1], dec_str[1]);
@@ -162,7 +129,7 @@ test "Decoded Slices" {
 
     const encoded = try encodeRlp(testing.allocator, one);
     defer testing.allocator.free(encoded);
-    const decoded_one = try decodeRlp(testing.allocator, []const bool, encoded);
+    const decoded_one = try decodeRlp([]const bool, testing.allocator, encoded);
     defer testing.allocator.free(decoded_one);
 
     try testing.expectEqualSlices(bool, one, decoded_one);
@@ -171,7 +138,7 @@ test "Decoded Slices" {
 
     const enc_nested = try encodeRlp(testing.allocator, nested);
     defer testing.allocator.free(enc_nested);
-    const decoded_nested = try decodeRlp(testing.allocator, []const [2]bool, enc_nested);
+    const decoded_nested = try decodeRlp([]const [2]bool, testing.allocator, enc_nested);
     defer testing.allocator.free(decoded_nested);
 
     try testing.expectEqualSlices(u8, enc_nested, &[_]u8{ 0xc9, 0xc2, 0x01, 0x80, 0xc2, 0x01, 0x01, 0xc2, 0x80, 0x80 });
@@ -180,7 +147,7 @@ test "Decoded Slices" {
     const enc_big = try encodeRlp(testing.allocator, big);
     defer testing.allocator.free(enc_big);
 
-    const decoded_big = try decodeRlp(testing.allocator, []const u32, enc_big);
+    const decoded_big = try decodeRlp([]const u32, testing.allocator, enc_big);
     defer testing.allocator.free(decoded_big);
 
     try testing.expectEqualSlices(u32, big, decoded_big);
@@ -189,7 +156,7 @@ test "Decoded Slices" {
     const enc_str = try encodeRlp(testing.allocator, strings);
     defer testing.allocator.free(enc_str);
 
-    const dec_str = try decodeRlp(testing.allocator, []const []const u8, enc_str);
+    const dec_str = try decodeRlp([]const []const u8, testing.allocator, enc_str);
     defer testing.allocator.free(dec_str);
 
     try testing.expectEqualStrings(strings[0], dec_str[0]);
@@ -206,7 +173,7 @@ test "Decoded Enums" {
 
         const encoded = try encodeRlp(testing.allocator, Enum.foo);
         defer testing.allocator.free(encoded);
-        const decoded = try decodeRlp(testing.allocator, Enum, encoded);
+        const decoded = try decodeRlp(Enum, testing.allocator, encoded);
 
         try testing.expectEqual(Enum.foo, decoded);
     }
@@ -215,7 +182,7 @@ test "Decoded Enums" {
 
         const encoded = try encodeRlp(testing.allocator, Enum.qwertyuiopasdfghjklzxcvbnmqwertyuiopasdfghjklzxcvbnmasdfghjklwertyuiopzxcvbnmasdfghdsafgsadffbgnbhbfvgfjhdshsfghdfhbhgfjdvdsfhbfgh);
         defer testing.allocator.free(encoded);
-        const decoded = try decodeRlp(testing.allocator, Enum, encoded);
+        const decoded = try decodeRlp(Enum, testing.allocator, encoded);
 
         try testing.expectEqual(Enum.qwertyuiopasdfghjklzxcvbnmqwertyuiopasdfghjklzxcvbnmasdfghjklwertyuiopzxcvbnmasdfghdsafgsadffbgnbhbfvgfjhdshsfghdfhbhgfjdvdsfhbfgh, decoded);
     }
@@ -231,7 +198,7 @@ test "Decoded Optionals" {
 
     const encoded = try encodeRlp(testing.allocator, value);
     defer testing.allocator.free(encoded);
-    const decoded = try decodeRlp(testing.allocator, ?Enum, encoded);
+    const decoded = try decodeRlp(?Enum, testing.allocator, encoded);
 
     try testing.expectEqual(null, decoded);
 }
@@ -241,7 +208,7 @@ test "Decoded Structs" {
     const ex: Simple = .{};
     const encoded = try encodeRlp(testing.allocator, ex);
     defer testing.allocator.free(encoded);
-    const decoded = try decodeRlp(testing.allocator, Simple, encoded);
+    const decoded = try decodeRlp(Simple, testing.allocator, encoded);
 
     try testing.expectEqual(ex.one, decoded.one);
     try testing.expectEqual(ex.two, decoded.two);
@@ -251,7 +218,7 @@ test "Decoded Structs" {
     const nested_ex: Nested = .{};
     const encoded_nest = try encodeRlp(testing.allocator, nested_ex);
     defer testing.allocator.free(encoded_nest);
-    const decoded_nested = try decodeRlp(testing.allocator, Nested, encoded_nest);
+    const decoded_nested = try decodeRlp(Nested, testing.allocator, encoded_nest);
 
     try testing.expectEqual(nested_ex.one, decoded_nested.one);
     try testing.expectEqual(nested_ex.two, decoded_nested.two);
@@ -263,14 +230,14 @@ test "Decoded Tuples" {
     const one: std.meta.Tuple(&[_]type{u8}) = .{127};
     const encoded = try encodeRlp(testing.allocator, one);
     defer testing.allocator.free(encoded);
-    const decoded = try decodeRlp(testing.allocator, std.meta.Tuple(&[_]type{u8}), encoded);
+    const decoded = try decodeRlp(std.meta.Tuple(&[_]type{u8}), testing.allocator, encoded);
 
     try testing.expectEqual(one, decoded);
 
     const multi: std.meta.Tuple(&[_]type{ u8, bool, []const u8 }) = .{ 127, false, "foobar" };
     const enc_multi = try encodeRlp(testing.allocator, multi);
     defer testing.allocator.free(enc_multi);
-    const decoded_multi = try decodeRlp(testing.allocator, std.meta.Tuple(&[_]type{ u8, bool, []const u8 }), enc_multi);
+    const decoded_multi = try decodeRlp(std.meta.Tuple(&[_]type{ u8, bool, []const u8 }), testing.allocator, enc_multi);
 
     try testing.expectEqual(multi[0], decoded_multi[0]);
     try testing.expectEqual(multi[1], decoded_multi[1]);
@@ -279,7 +246,7 @@ test "Decoded Tuples" {
     const nested: std.meta.Tuple(&[_]type{[]const u64}) = .{&[_]u64{ 69, 420 }};
     const nested_enc = try encodeRlp(testing.allocator, nested);
     defer testing.allocator.free(nested_enc);
-    const decoded_nested = try decodeRlp(testing.allocator, std.meta.Tuple(&[_]type{[]const u64}), nested_enc);
+    const decoded_nested = try decodeRlp(std.meta.Tuple(&[_]type{[]const u64}), testing.allocator, nested_enc);
     defer testing.allocator.free(decoded_nested[0]);
 
     try testing.expectEqualSlices(u64, nested[0], decoded_nested[0]);
@@ -288,19 +255,19 @@ test "Decoded Tuples" {
 test "Decoded Pointer" {
     const big = try encodeRlp(testing.allocator, &std.math.maxInt(u64));
     defer testing.allocator.free(big);
-    const decoded_big = try decodeRlp(testing.allocator, *u64, big);
+    const decoded_big = try decodeRlp(*u64, testing.allocator, big);
     defer testing.allocator.destroy(decoded_big);
 
     try testing.expectEqual(std.math.maxInt(u64), decoded_big.*);
 }
 
 test "Errors" {
-    try testing.expectError(error.UnexpectedValue, decodeRlp(testing.allocator, bool, &[_]u8{0x02}));
+    try testing.expectError(error.UnexpectedValue, decodeRlp(bool, testing.allocator, &[_]u8{0x02}));
 
     {
         const lorem = try encodeRlp(testing.allocator, "Lorem ipsum dolor sit amet, consectetur adipisicing elit");
         defer testing.allocator.free(lorem);
-        const decoded_lorem = try decodeRlp(testing.allocator, [56]u8, lorem);
+        const decoded_lorem = try decodeRlp([56]u8, testing.allocator, lorem);
 
         try testing.expectEqualStrings("Lorem ipsum dolor sit amet, consectetur adipisicing elit", &decoded_lorem);
 
@@ -308,6 +275,6 @@ test "Errors" {
 
         const encoded = try encodeRlp(testing.allocator, big);
         defer testing.allocator.free(encoded);
-        try testing.expectError(error.LengthMissmatch, decodeRlp(testing.allocator, [894]u8, encoded));
+        try testing.expectError(error.LengthMissmatch, decodeRlp([894]u8, testing.allocator, encoded));
     }
 }

@@ -19,7 +19,7 @@ pub fn encodeSSZ(allocator: Allocator, value: anytype) Allocator.Error![]u8 {
 
     try encodeItem(value, &list);
 
-    return try list.toOwnedSlice();
+    return list.toOwnedSlice();
 }
 
 fn encodeItem(value: anytype, list: *std.ArrayList(u8)) Allocator.Error!void {
@@ -61,7 +61,7 @@ fn encodeItem(value: anytype, list: *std.ArrayList(u8)) Allocator.Error!void {
         },
         .pointer => |ptr_info| {
             switch (ptr_info.size) {
-                .One => return try encodeItem(value.*, list),
+                .One => return encodeItem(value.*, list),
                 .Slice => {
                     if (ptr_info.child == u8) {
                         try writer.writeAll(value);
@@ -102,10 +102,8 @@ fn encodeItem(value: anytype, list: *std.ArrayList(u8)) Allocator.Error!void {
         .@"enum", .enum_literal => try writer.writeAll(@tagName(value)),
         .error_set => try writer.writeAll(@errorName(value)),
         .array => |arr_info| {
-            if (arr_info.child == u8) {
-                try writer.writeAll(&value);
-                return;
-            }
+            if (arr_info.child == u8)
+                return writer.writeAll(&value);
 
             if (arr_info.child == bool) {
                 var as_byte: u8 = 0;
@@ -195,6 +193,4 @@ fn sizeOfValue(value: anytype) usize {
         .null => return @intCast(0),
         else => @compileError("Unsupported type " ++ @typeName(@TypeOf(value))),
     }
-    // It should never reach this
-    unreachable;
 }

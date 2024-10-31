@@ -112,7 +112,7 @@ pub fn decodeSSZ(comptime T: type, serialized: []const u8) SSZDecodeErrors!T {
                 if (union_index == i) {
                     return @unionInit(T, field.name, try decodeSSZ(field.type, serialized[1..]));
                 }
-            }
+            } else return error.InvalidEnumType;
         },
         .@"struct" => |struct_info| {
             comptime var num_fields = 0;
@@ -158,7 +158,4 @@ pub fn decodeSSZ(comptime T: type, serialized: []const u8) SSZDecodeErrors!T {
         },
         else => @compileError("Unsupported type " ++ @typeName(T)),
     }
-
-    // it should never be reached
-    unreachable;
 }

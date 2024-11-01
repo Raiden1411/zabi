@@ -10,18 +10,53 @@ const ArrayListWriter = std.ArrayList(u8).Writer;
 /// Set of errors while performing rlp encoding.
 pub const RlpEncodeErrors = error{ NegativeNumber, Overflow } || Allocator.Error;
 
-// pub fn encodeRlp(allocator: Allocator, payload: anytype) RlpEncodeErrors![]u8 {
-//     _ = allocator;
-//     _ = payload;
-// }
-
+/// RLP Encoding according to the [spec](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
+/// This also supports generating a `Writer` interface.
+///
+/// Supported types:
+///   * `bool`
+///   * `int`
+///   * `enum`, `enum_literal`
+///   * `error_set`,
+///   * `null`
+///   * `?T`
+///   * `[N]T` array types.
+///   * `[]const T` slices.
+///   * `*T` pointer types.
+///   * `structs`. Both tuple and non tuples.
+///
+/// All other types are currently not supported.
+///
+/// Depending on your use case you case use this in to ways.
+///
+/// Use `encodeNoList` if the type that you need to encode isn't a tuple, slice or array (doesn't apply for u8 slices and arrays.)
+/// and use `encodeList` if you need to encode the above mentioned.
+///
+/// Only `encodeList` will allocate memory when using this interface.
 pub fn RlpEncoder(comptime OutWriter: type) type {
     return struct {
         stream: OutWriter,
 
         const Self = @This();
+
+        /// Set of errors that can be produced when encoding values.
         pub const Error = OutWriter.Error || error{ Overflow, NegativeNumber };
 
+        /// Value that are used to identifity the size depending on the type
+        pub const RlpSizeTag = enum(u8) {
+            number = 0x80,
+            string = 0xb7,
+            list = 0xf7,
+        };
+
+        /// Sets the initial state.
+        pub fn init(stream: OutWriter) Self {
+            return .{
+                .stream = stream,
+            };
+        }
+        /// RLP Encoding according to the [spec](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
+        /// For non `u8` slices and arrays use `encodeList`. Same applies for tuples and structs.
         pub fn encodeNoList(self: *Self, payload: anytype) Error!void {
             const info = @typeInfo(@TypeOf(payload));
 
@@ -42,20 +77,7 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
                     if (payload < 0x80)
                         return self.stream.writeByte(@intCast(payload));
 
-                    const base = std.math.log2(payload);
-                    const upper = (std.math.shl(@TypeOf(payload), 1, base)) - 1;
-                    const magnitude_bits = if (upper >= payload) base else base + 1;
-
-                    const size = std.math.divCeil(@TypeOf(payload), magnitude_bits, 8) catch return error.Overflow;
-
-                    try self.stream.writeByte(0x80 + @as(u8, @truncate(size)));
-
-                    const buffer_size = @divExact(@typeInfo(ByteAlignedInt(@TypeOf(payload))).int.bits, 8);
-                    var buffer: [buffer_size]u8 = undefined;
-
-                    std.mem.writeInt(ByteAlignedInt(@TypeOf(payload)), &buffer, @intCast(payload), .big);
-
-                    return self.stream.writeAll(buffer[buffer.len - @as(u8, @truncate(size)) ..]);
+                    return self.writeSize(ByteAlignedInt(@TypeOf(payload)), payload, .number);
                 },
                 .comptime_int => {
                     if (payload < 0) return error.NegativeNumber;
@@ -88,7 +110,10 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
                 else => @compileError("Unable to encode type '" ++ @typeName(@TypeOf(payload)) ++ "'"),
             }
         }
-
+        /// RLP Encoding according to the [spec](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
+        /// Only use this if you payload contains a slice, array or tuple/struct.
+        ///
+        /// This will allocate memory because it creates a `ArrayList` writer for the recursive calls.
         pub fn encodeList(self: *Self, allocator: Allocator, payload: anytype) Error!void {
             const info = @typeInfo(@TypeOf(payload));
 
@@ -104,9 +129,7 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
                     var arr = std.ArrayList(u8).init(allocator);
                     errdefer arr.deinit();
 
-                    var recursive: RlpEncoder(ArrayListWriter) = .{
-                        .stream = arr.writer(),
-                    };
+                    var recursive: RlpEncoder(ArrayListWriter) = .init(arr.writer());
 
                     for (payload) |item| {
                         try recursive.encodeList(allocator, item);
@@ -123,20 +146,7 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
                         return self.stream.writeAll(slice);
                     }
 
-                    const base = std.math.log2(slice.len);
-                    const upper = (std.math.shl(usize, 1, base)) - 1;
-                    const magnitude_bits = if (upper >= slice.len) base else base + 1;
-
-                    const size = std.math.divCeil(usize, magnitude_bits, 8) catch return error.Overflow;
-
-                    try self.stream.writeByte(0xf7 + @as(u8, @truncate(size)));
-
-                    const buffer_size = @divExact(@typeInfo(usize).int.bits, 8);
-                    var buffer: [buffer_size]u8 = undefined;
-
-                    std.mem.writeInt(usize, &buffer, slice.len, .big);
-
-                    try self.stream.writeAll(buffer[buffer.len - @as(u8, @truncate(size)) ..]);
+                    try self.writeSize(usize, slice.len, .list);
                     return self.stream.writeAll(slice);
                 },
                 .pointer => |ptr_info| {
@@ -152,9 +162,7 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
                             var arr = std.ArrayList(u8).init(allocator);
                             errdefer arr.deinit();
 
-                            var recursive: RlpEncoder(ArrayListWriter) = .{
-                                .stream = arr.writer(),
-                            };
+                            var recursive: RlpEncoder(ArrayListWriter) = .init(arr.writer());
 
                             for (payload) |item| {
                                 try recursive.encodeList(allocator, item);
@@ -171,20 +179,7 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
                                 return self.stream.writeAll(slice);
                             }
 
-                            const base = std.math.log2(slice.len);
-                            const upper = (std.math.shl(usize, 1, base)) - 1;
-                            const magnitude_bits = if (upper >= slice.len) base else base + 1;
-
-                            const size = std.math.divCeil(usize, magnitude_bits, 8) catch return error.Overflow;
-
-                            try self.stream.writeByte(0xf7 + @as(u8, @truncate(size)));
-
-                            const buffer_size = @divExact(@typeInfo(usize).int.bits, 8);
-                            var buffer: [buffer_size]u8 = undefined;
-
-                            std.mem.writeInt(usize, &buffer, slice.len, .big);
-
-                            try self.stream.writeAll(buffer[buffer.len - @as(u8, @truncate(size)) ..]);
+                            try self.writeSize(usize, slice.len, .list);
                             return self.stream.writeAll(slice);
                         },
                         else => return self.encodeNoList(payload),
@@ -198,9 +193,7 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
                         var arr = std.ArrayList(u8).init(allocator);
                         errdefer arr.deinit();
 
-                        var recursive: RlpEncoder(ArrayListWriter) = .{
-                            .stream = arr.writer(),
-                        };
+                        var recursive: RlpEncoder(ArrayListWriter) = .init(arr.writer());
 
                         inline for (payload) |item| {
                             try recursive.encodeList(allocator, item);
@@ -217,20 +210,7 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
                             return self.stream.writeAll(slice);
                         }
 
-                        const base = std.math.log2(slice.len);
-                        const upper = (std.math.shl(usize, 1, base)) - 1;
-                        const magnitude_bits = if (upper >= slice.len) base else base + 1;
-
-                        const size = std.math.divCeil(usize, magnitude_bits, 8) catch return error.Overflow;
-
-                        try self.stream.writeByte(0xf7 + @as(u8, @truncate(size)));
-
-                        const buffer_size = @divExact(@typeInfo(usize).int.bits, 8);
-                        var buffer: [buffer_size]u8 = undefined;
-
-                        std.mem.writeInt(usize, &buffer, slice.len, .big);
-
-                        try self.stream.writeAll(buffer[buffer.len - @as(u8, @truncate(size)) ..]);
+                        try self.writeSize(usize, slice.len, .list);
                         return self.stream.writeAll(slice);
                     }
 
@@ -241,7 +221,9 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
                 else => return self.encodeNoList(payload),
             }
         }
-
+        /// Performs RLP encoding on a "string" type.
+        ///
+        /// For more information please check the [spec](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
         pub fn encodeString(self: *Self, slice: []const u8) Error!void {
             if (slice.len == 0)
                 return self.stream.writeByte(0x80);
@@ -255,32 +237,62 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
             if (slice.len > std.math.maxInt(u64))
                 return error.Overflow;
 
-            const base = std.math.log2(slice.len);
-            const upper = (std.math.shl(usize, 1, base)) - 1;
-            const magnitude_bits = if (upper >= slice.len) base else base + 1;
-
-            const size = std.math.divCeil(usize, magnitude_bits, 8) catch return error.Overflow;
-
-            try self.stream.writeByte(0xb7 + @as(u8, @truncate(size)));
-
-            const buffer_size = @divExact(@typeInfo(usize).int.bits, 8);
-            var buffer: [buffer_size]u8 = undefined;
-
-            std.mem.writeInt(usize, &buffer, slice.len, .big);
-
-            try self.stream.writeAll(buffer[buffer.len - @as(u8, @truncate(size)) ..]);
+            try self.writeSize(usize, slice.len, .string);
 
             return self.stream.writeAll(slice);
+        }
+        /// Finds the bit size of the passed number and writes it to the stream.
+        ///
+        /// Example:
+        /// ```zig
+        /// const slice = "dog";
+        ///
+        /// try rlp_encoder.writeSize(usize, slice.len, .number);
+        /// // Encodes as 0x80 + slice.len
+        ///
+        /// try rlp_encoder.writeSize(usize, slice.len, .string);
+        /// // Encodes as 0xb7 + slice.len
+        ///
+        /// try rlp_encoder.writeSize(usize, slice.len, .list);
+        /// // Encodes as 0xf7 + slice.len
+        /// ```
+        pub fn writeSize(self: *Self, comptime T: type, number: T, tag: RlpSizeTag) Error!void {
+            if (@typeInfo(T) != .int)
+                @compileError("This method only support integers");
+
+            const base = std.math.log2(number);
+            const upper = (std.math.shl(T, 1, base)) - 1;
+            const magnitude_bits = if (upper >= number) base else base + 1;
+
+            const size = std.math.divCeil(T, magnitude_bits, 8) catch return error.Overflow;
+
+            try self.stream.writeByte(@intFromEnum(tag) + @as(u8, @truncate(size)));
+
+            const buffer_size = @divExact(@typeInfo(T).int.bits, 8);
+            var buffer: [buffer_size]u8 = undefined;
+
+            std.mem.writeInt(T, &buffer, number, .big);
+
+            return self.stream.writeAll(buffer[buffer.len - @as(u8, @truncate(size)) ..]);
         }
     };
 }
 
 /// RLP Encoding according to the [spec](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
 ///
-/// Reflects on the items and encodes based on it's type.\
-/// Supports almost all of zig's type.
+/// Supported types:
+///   * `bool`
+///   * `int`
+///   * `enum`, `enum_literal`
+///   * `error_set`,
+///   * `null`
+///   * `?T`
+///   * `[N]T` array types.
+///   * `[]const T` slices.
+///   * `*T` pointer types.
+///   * `structs`. Both tuple and non tuples.
 ///
-/// Doesn't support `opaque`, `fn`, `anyframe`, `error_union`, `void`, `null` types.
+/// All other types are currently not supported.
 ///
 /// **Example**
 /// ```zig
@@ -291,276 +303,36 @@ pub fn encodeRlp(allocator: Allocator, payload: anytype) RlpEncodeErrors![]u8 {
     var list = std.ArrayList(u8).init(allocator);
     errdefer list.deinit();
 
-    var encoder: RlpEncoder(ArrayListWriter) = .{
-        .stream = list.writer(),
-    };
-
+    var encoder: RlpEncoder(ArrayListWriter) = .init(list.writer());
     try encoder.encodeList(allocator, payload);
 
-    // switch (info) {
-    //     .bool => if (payload) try writer.writeByte(0x01) else try writer.writeByte(0x80),
-    //     .int => |int_info| {
-    //         if (int_info.signedness == .signed)
-    //             @compileError("Signed integers are not supported for RLP decoding.");
-    //
-    //         if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intCast(payload)) else {
-    //             const buffer_size = @divExact(@typeInfo(ByteAlignedInt(@TypeOf(payload))).int.bits, 8);
-    //
-    //             const base = std.math.log2(payload);
-    //             const upper = (std.math.shl(@TypeOf(payload), 1, base)) - 1;
-    //             const magnitude_bits = if (upper >= payload) base else base + 1;
-    //
-    //             const size = std.math.divCeil(@TypeOf(payload), magnitude_bits, 8) catch return error.Overflow;
-    //
-    //             try writer.writeByte(0x80 + @as(u8, @truncate(size)));
-    //
-    //             var buffer: [buffer_size]u8 = undefined;
-    //             std.mem.writeInt(ByteAlignedInt(@TypeOf(payload)), &buffer, @intCast(payload), .big);
-    //
-    //             try writer.writeAll(buffer[buffer.len - @as(u8, @truncate(size)) ..]);
-    //         }
-    //     },
-    //     .comptime_int => {
-    //         if (payload < 0) return error.NegativeNumber;
-    //
-    //         if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intCast(payload)) else {
-    //             const IntType = std.math.IntFittingRange(payload, payload);
-    //             return encodeRlp(allocator, @as(IntType, @intCast(payload)));
-    //         }
-    //     },
-    //     .float => |float_info| {
-    //         if (payload < 0)
-    //             return error.NegativeNumber;
-    //
-    //         if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intFromFloat(payload)) else {
-    //             const bits = float_info.bits;
-    //             const IntType = @Type(.{ .int = .{ .signedness = .unsigned, .bits = bits } });
-    //             const as_int = @as(IntType, @bitCast(payload));
-    //             var buffer: [32]u8 = undefined;
-    //             const size_slice = utils.formatInt(as_int, &buffer);
-    //             try writer.writeByte(0x80 + size_slice);
-    //             try writer.writeAll(buffer[32 - size_slice ..]);
-    //         }
-    //     },
-    //     .comptime_float => {
-    //         if (payload < 0) return error.NegativeNumber;
-    //
-    //         if (payload == 0) try writer.writeByte(0x80) else if (payload < 0x80) try writer.writeByte(@intFromFloat(payload)) else {
-    //             if (payload > std.math.maxInt(u256))
-    //                 @compileError("Cannot fit " ++ payload ++ " as u256");
-    //
-    //             const size = comptime utils.computeSize(@intFromFloat(payload));
-    //             try writer.writeByte(0x80 + size);
-    //             var buffer: [32]u8 = undefined;
-    //             const size_slice = utils.formatInt(@intFromFloat(payload), &buffer);
-    //             try writer.writeAll(buffer[32 - size_slice ..]);
-    //         }
-    //     },
-    //     .null => try writer.writeByte(0x80),
-    //     .optional => {
-    //         if (payload) |item| return encodeRlp(allocator, item) else try writer.writeByte(0x80);
-    //     },
-    //     .@"enum", .enum_literal => return encodeRlp(allocator, @tagName(payload)),
-    //     .error_set => return encodeRlp(allocator, @errorName(payload)),
-    //     .array => |arr_info| {
-    //         if (arr_info.child == u8) {
-    //             if (payload.len == 0) try writer.writeByte(0x80) else if (payload.len < 56) {
-    //                 try writer.writeByte(@intCast(0x80 + payload.len));
-    //                 try writer.writeAll(&payload);
-    //             } else {
-    //                 if (payload.len > std.math.maxInt(u64))
-    //                     return error.Overflow;
-    //
-    //                 var buffer: [32]u8 = undefined;
-    //                 const size = utils.formatInt(payload.len, &buffer);
-    //                 try writer.writeByte(0xb7 + size);
-    //                 try writer.writeAll(buffer[32 - size ..]);
-    //                 try writer.writeAll(&payload);
-    //             }
-    //         } else {
-    //             if (payload.len == 0) try writer.writeByte(0xc0) else {
-    //                 var arr = std.ArrayList(u8).init(allocator);
-    //                 errdefer arr.deinit();
-    //
-    //                 const arr_writer = arr.writer();
-    //
-    //                 for (payload) |item| {
-    //                     const slice = try encodeRlp(allocator, item);
-    //                     defer allocator.free(slice);
-    //
-    //                     try arr_writer.writeAll(slice);
-    //                 }
-    //
-    //                 const bytes = try arr.toOwnedSlice();
-    //                 defer allocator.free(bytes);
-    //
-    //                 if (bytes.len > std.math.maxInt(u64))
-    //                     return error.Overflow;
-    //
-    //                 if (bytes.len < 56) {
-    //                     try writer.writeByte(@intCast(0xc0 + bytes.len));
-    //                     try writer.writeAll(bytes);
-    //                 } else {
-    //                     var buffer: [32]u8 = undefined;
-    //                     const size = utils.formatInt(bytes.len, &buffer);
-    //                     try writer.writeByte(0xf7 + size);
-    //                     try writer.writeAll(buffer[32 - size ..]);
-    //                     try writer.writeAll(bytes);
-    //                 }
-    //             }
-    //         }
-    //     },
-    //     .pointer => |ptr_info| {
-    //         switch (ptr_info.size) {
-    //             .One => return encodeRlp(allocator, payload.*),
-    //             .Slice, .Many => {
-    //                 if (ptr_info.child == u8) {
-    //                     if (payload.len == 0) try writer.writeByte(0x80) else if (payload.len < 56) {
-    //                         try writer.writeByte(@intCast(0x80 + payload.len));
-    //                         try writer.writeAll(payload);
-    //                     } else {
-    //                         if (payload.len > std.math.maxInt(u64))
-    //                             return error.Overflow;
-    //
-    //                         var buffer: [32]u8 = undefined;
-    //                         const size = utils.formatInt(payload.len, &buffer);
-    //                         try writer.writeByte(0xb7 + size);
-    //                         try writer.writeAll(buffer[32 - size ..]);
-    //                         try writer.writeAll(payload);
-    //                     }
-    //                 } else {
-    //                     if (payload.len == 0) try writer.writeByte(0xc0) else {
-    //                         var slice = std.ArrayList(u8).init(allocator);
-    //                         errdefer slice.deinit();
-    //                         const slice_writer = slice.writer();
-    //
-    //                         for (payload) |item| {
-    //                             const encoded = try encodeRlp(allocator, item);
-    //                             defer allocator.free(encoded);
-    //
-    //                             try slice_writer.writeAll(encoded);
-    //                         }
-    //
-    //                         const bytes = try slice.toOwnedSlice();
-    //                         defer allocator.free(bytes);
-    //
-    //                         if (bytes.len > std.math.maxInt(u64))
-    //                             return error.Overflow;
-    //
-    //                         if (bytes.len < 56) {
-    //                             try writer.writeByte(@intCast(0xc0 + bytes.len));
-    //                             try writer.writeAll(bytes);
-    //                         } else {
-    //                             var buffer: [32]u8 = undefined;
-    //                             const size = utils.formatInt(bytes.len, &buffer);
-    //                             try writer.writeByte(0xf7 + size);
-    //                             try writer.writeAll(buffer[32 - size ..]);
-    //                             try writer.writeAll(bytes);
-    //                         }
-    //                     }
-    //                 }
-    //             },
-    //             else => @compileError("Unable to parse pointer type " ++ @typeName(@TypeOf(payload))),
-    //         }
-    //     },
-    //     .@"struct" => |struct_info| {
-    //         if (struct_info.is_tuple) {
-    //             if (payload.len == 0) try writer.writeByte(0xc0) else {
-    //                 var tuple = std.ArrayList(u8).init(allocator);
-    //                 errdefer tuple.deinit();
-    //                 const tuple_writer = tuple.writer();
-    //
-    //                 inline for (payload) |item| {
-    //                     const slice = try encodeRlp(allocator, item);
-    //                     defer allocator.free(slice);
-    //
-    //                     try tuple_writer.writeAll(slice);
-    //                 }
-    //
-    //                 const bytes = try tuple.toOwnedSlice();
-    //                 defer allocator.free(bytes);
-    //
-    //                 if (bytes.len > std.math.maxInt(u64))
-    //                     return error.Overflow;
-    //
-    //                 if (bytes.len < 56) {
-    //                     try writer.writeByte(@intCast(0xc0 + bytes.len));
-    //                     try writer.writeAll(bytes);
-    //                 } else {
-    //                     var buffer: [32]u8 = undefined;
-    //                     const size = utils.formatInt(bytes.len, &buffer);
-    //                     try writer.writeByte(0xf7 + size);
-    //                     try writer.writeAll(buffer[32 - size ..]);
-    //                     try writer.writeAll(bytes);
-    //                 }
-    //             }
-    //         } else {
-    //             inline for (struct_info.fields) |field| {
-    //                 const slice = try encodeRlp(allocator, @field(payload, field.name));
-    //                 defer allocator.free(slice);
-    //
-    //                 try writer.writeAll(slice);
-    //             }
-    //         }
-    //     },
-    //     .@"union" => |union_info| {
-    //         if (union_info.tag_type) |TagType| {
-    //             inline for (union_info.fields) |u_field| {
-    //                 if (payload == @field(TagType, u_field.name)) {
-    //                     if (u_field.type == void) {
-    //                         const slice = try encodeRlp(allocator, u_field.name);
-    //                         defer allocator.free(slice);
-    //
-    //                         try writer.writeAll(slice);
-    //                     } else {
-    //                         const slice = try encodeRlp(allocator, @field(payload, u_field.name));
-    //                         defer allocator.free(slice);
-    //
-    //                         try writer.writeAll(slice);
-    //                     }
-    //                 }
-    //             }
-    //         } else {
-    //             const slice = try encodeRlp(allocator, @tagName(payload));
-    //             defer allocator.free(slice);
-    //
-    //             try writer.writeAll(slice);
-    //         }
-    //     },
-    //     .vector => |vec_info| {
-    //         if (vec_info.len == 0) try writer.writeByte(0xc0) else {
-    //             var slice = std.ArrayList(u8).init(allocator);
-    //             errdefer slice.deinit();
-    //             const slice_writer = slice.writer();
-    //
-    //             for (0..vec_info.len) |i| {
-    //                 const encoded = try encodeRlp(allocator, payload[i]);
-    //                 defer allocator.free(encoded);
-    //
-    //                 try slice_writer.writeAll(encoded);
-    //             }
-    //
-    //             const bytes = try slice.toOwnedSlice();
-    //             defer allocator.free(bytes);
-    //
-    //             if (bytes.len > std.math.maxInt(u64))
-    //                 return error.Overflow;
-    //
-    //             if (bytes.len < 56) {
-    //                 try writer.writeByte(@intCast(0xc0 + bytes.len));
-    //                 try writer.writeAll(bytes);
-    //             } else {
-    //                 var buffer: [32]u8 = undefined;
-    //                 const size = utils.formatInt(bytes.len, &buffer);
-    //                 try writer.writeByte(0xf7 + size);
-    //                 try writer.writeAll(buffer[32 - size ..]);
-    //                 try writer.writeAll(bytes);
-    //             }
-    //         }
-    //     },
-    //
-    //     else => @compileError("Unable to parse type " ++ @typeName(@TypeOf(payload))),
-    // }
-
     return list.toOwnedSlice();
+}
+/// RLP Encoding according to the [spec](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
+///
+/// Supported types:
+///   * `bool`
+///   * `int`
+///   * `enum`, `enum_literal`
+///   * `error_set`,
+///   * `null`
+///   * `?T`
+///   * `[N]T` array types.
+///   * `[]const T` slices.
+///   * `*T` pointer types.
+///   * `structs`. Both tuple and non tuples.
+///
+/// All other types are currently not supported.
+///
+/// **Example**
+/// ```zig
+/// var list = std.ArrayList(u8).init(allocator);
+/// errdefer list.deinit();
+///
+/// try encodeRlpFromArrayListWriter(allocator, 69420, list);
+/// const encoded = try list.toOwnedSlice();
+/// ```
+pub fn encodeRlpFromArrayListWriter(allocator: Allocator, payload: anytype, list: *ArrayListWriter) RlpEncodeErrors!void {
+    var encoder: RlpEncoder(ArrayListWriter) = .init(list);
+    try encoder.encodeList(allocator, payload);
 }

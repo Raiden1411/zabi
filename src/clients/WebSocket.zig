@@ -126,8 +126,6 @@ allocator: Allocator,
 sub_channel: Channel(JsonParsed(Value)),
 /// Channel used to communicate between threads on rpc events.
 rpc_channel: Stack(JsonParsed(Value)),
-/// Mutex to manage locks between threads
-mutex: Mutex = .{},
 /// The chains config
 network_config: NetworkConfig,
 /// Callback function for when the connection is closed.
@@ -154,9 +152,6 @@ pub fn serverMessage(
     message: []u8,
     message_type: ws.MessageTextType,
 ) (Stack(JsonParsed(Value)).Error || error{ FailedToJsonParseResponse, InvalidTypeMessage, UnexpectedError })!void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
-
     wslog.debug("Got message: {s}", .{message});
     switch (message_type) {
         .text => {
@@ -222,8 +217,6 @@ pub fn init(opts: InitOptions) InitErrors!*WebSocketHandler {
 /// If you are using the subscription channel this operation can take time
 /// as it will need to cleanup each node.
 pub fn deinit(self: *WebSocketHandler) void {
-    self.mutex.lock();
-
     while (@atomicRmw(bool, &self.ws_client._closed, .Xchg, true, .seq_cst)) {
         std.time.sleep(10 * std.time.ns_per_ms);
     }

@@ -119,8 +119,6 @@ pub const InitOptions = struct {
 allocator: Allocator,
 /// The IPC net stream to read and write requests.
 ipc_reader: IpcReader,
-/// Mutex to manage locks between threads
-mutex: Mutex = .{},
 /// The target chain network configuration. Check `NetworkConfig` for more details.
 network_config: NetworkConfig,
 /// Callback function for when the connection is closed.
@@ -191,8 +189,6 @@ pub fn init(opts: InitOptions) InitErrors!*IPC {
 ///
 /// All future calls will deadlock.
 pub fn deinit(self: *IPC) void {
-    self.mutex.lock();
-
     while (self.sub_channel.getOrNull()) |response| {
         response.deinit();
     }
@@ -1191,7 +1187,11 @@ pub fn newPendingTransactionFilter(self: *IPC) BasicRequestErrors!RPCResponse(u1
 pub fn readLoop(self: *IPC) ReadLoopErrors!void {
     while (true) {
         const message = self.ipc_reader.readMessage() catch |err| switch (err) {
-            error.Closed, error.ConnectionResetByPeer, error.BrokenPipe, error.NotOpenForReading => {
+            error.Closed,
+            error.ConnectionResetByPeer,
+            error.BrokenPipe,
+            error.NotOpenForReading,
+            => {
                 @atomicStore(bool, &self.ipc_reader.closed, true, .monotonic);
                 return error.Closed;
             },

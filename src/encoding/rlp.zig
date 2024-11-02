@@ -7,9 +7,6 @@ const Allocator = std.mem.Allocator;
 const ByteAlignedInt = std.math.ByteAlignedInt;
 const ArrayListWriter = std.ArrayList(u8).Writer;
 
-/// Set of errors while performing rlp encoding.
-pub const RlpEncodeErrors = error{ NegativeNumber, Overflow } || Allocator.Error;
-
 /// RLP Encoding according to the [spec](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
 /// This also supports generating a `Writer` interface.
 ///
@@ -35,12 +32,15 @@ pub const RlpEncodeErrors = error{ NegativeNumber, Overflow } || Allocator.Error
 /// Only `encodeList` will allocate memory when using this interface.
 pub fn RlpEncoder(comptime OutWriter: type) type {
     return struct {
+        /// The underlaying stream that we will write to.
         stream: OutWriter,
 
         const Self = @This();
 
         /// Set of errors that can be produced when encoding values.
         pub const Error = OutWriter.Error || error{ Overflow, NegativeNumber };
+        /// The writer interface that can rlp encode.
+        pub const Writer = std.io.Writer(*Self, Error, encodeString);
 
         /// Value that are used to identifity the size depending on the type
         pub const RlpSizeTag = enum(u8) {
@@ -275,6 +275,10 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
 
             return self.stream.writeAll(buffer[buffer.len - @as(u8, @truncate(size)) ..]);
         }
+        /// RLP encoding writer interface.
+        pub fn writer(self: *Self) Writer {
+            return .{ .context = self };
+        }
     };
 }
 
@@ -299,7 +303,7 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
 /// const encoded = try encodeRlp(allocator, 69420);
 /// defer allocator.free(encoded);
 /// ```
-pub fn encodeRlp(allocator: Allocator, payload: anytype) RlpEncodeErrors![]u8 {
+pub fn encodeRlp(allocator: Allocator, payload: anytype) RlpEncoder(ArrayListWriter).Error![]u8 {
     var list = std.ArrayList(u8).init(allocator);
     errdefer list.deinit();
 
@@ -332,7 +336,7 @@ pub fn encodeRlp(allocator: Allocator, payload: anytype) RlpEncodeErrors![]u8 {
 /// try encodeRlpFromArrayListWriter(allocator, 69420, list);
 /// const encoded = try list.toOwnedSlice();
 /// ```
-pub fn encodeRlpFromArrayListWriter(allocator: Allocator, payload: anytype, list: *ArrayListWriter) RlpEncodeErrors!void {
+pub fn encodeRlpFromArrayListWriter(allocator: Allocator, payload: anytype, list: ArrayListWriter) RlpEncoder(ArrayListWriter).Error!void {
     var encoder: RlpEncoder(ArrayListWriter) = .init(list);
     try encoder.encodeList(allocator, payload);
 }

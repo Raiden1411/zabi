@@ -107,6 +107,14 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
                         else => @compileError("Unable to encode pointer type '" ++ @typeName(@TypeOf(payload)) ++ "'"),
                     }
                 },
+                .@"struct" => |struct_info| {
+                    if (struct_info.is_tuple)
+                        @compileError("This method doesn't support tuples. Please use `encodeList` instead.");
+
+                    inline for (struct_info.fields) |field| {
+                        try self.encodeNoList(@field(payload, field.name));
+                    }
+                },
                 else => @compileError("Unable to encode type '" ++ @typeName(@TypeOf(payload)) ++ "'"),
             }
         }

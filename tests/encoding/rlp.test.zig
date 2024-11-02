@@ -4,13 +4,6 @@ const utils = @import("zabi-utils").utils;
 
 const encodeRlp = @import("zabi-encoding").rlp.encodeRlp;
 
-// test "Empty" {
-//     const empty = try encodeRlp(testing.allocator, .{ false, "", 0 });
-//     defer testing.allocator.free(empty);
-//
-//     try testing.expectEqualSlices(u8, empty, &[_]u8{0xC3} ++ &[_]u8{0x80} ** 3);
-// }
-
 test "Int" {
     const low = try encodeRlp(testing.allocator, 127);
     defer testing.allocator.free(low);
@@ -196,16 +189,3 @@ test "Optionals" {
 
     try testing.expectEqualSlices(u8, encoded, &[_]u8{0x80});
 }
-
-// test "Errors" {
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{-69}));
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{-69.420}));
-//
-//     const negative: u8 = -69;
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{negative}));
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{@as(f16, @floatFromInt(negative))}));
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{[_]u8{negative}}));
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{.{negative}}));
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{@Vector(1, u8){negative}}));
-//     try testing.expectError(error.NegativeNumber, encodeRlp(testing.allocator, .{&[_]u8{negative}}));
-// }

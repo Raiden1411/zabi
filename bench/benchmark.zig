@@ -55,7 +55,7 @@ pub fn main() !void {
     try printer.writeBoarder(.HumanReadableAbi);
 
     {
-        const opts = .{ .warmup_runs = 5, .runs = 100 };
+        const opts: benchmark.BenchmarkOptions = .{ .warmup_runs = 5, .runs = 100 };
 
         var count: usize = 0;
         while (count < opts.warmup_runs) : (count += 1) {
@@ -95,7 +95,7 @@ pub fn main() !void {
     {
         try printer.writer().writeAll("Parsing solidity...");
 
-        const opts = .{ .warmup_runs = 5, .runs = 100 };
+        const opts: benchmark.BenchmarkOptions = .{ .warmup_runs = 5, .runs = 100 };
 
         var count: usize = 0;
         while (count < opts.warmup_runs) : (count += 1) {
@@ -202,7 +202,7 @@ pub fn signerMethods(allocator: Allocator, printer: *ColorWriter(@TypeOf(std.io.
         try printer.writer().writeAll("Mnemonic Entropy...");
         const seed = "test test test test test test test test test test test junk";
 
-        const opts = .{ .warmup_runs = 5, .runs = 100 };
+        const opts: benchmark.BenchmarkOptions = .{ .warmup_runs = 5, .runs = 100 };
 
         var count: usize = 0;
         while (count < opts.warmup_runs) : (count += 1) {
@@ -264,7 +264,7 @@ pub fn decodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
         const encoded = try encodeRlp(allocator, multi);
         defer allocator.free(encoded);
 
-        const opts = .{ .warmup_runs = 5, .runs = 100 };
+        const opts: benchmark.BenchmarkOptions = .{ .warmup_runs = 5, .runs = 100 };
 
         var count: usize = 0;
         while (count < opts.warmup_runs) : (count += 1) {
@@ -291,7 +291,7 @@ pub fn decodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
         const encoded = try encodeAbiParameters(allocator, constants.params, constants.items);
         defer encoded.deinit();
 
-        const opts = .{ .warmup_runs = 5, .runs = 100 };
+        const opts: benchmark.BenchmarkOptions = .{ .warmup_runs = 5, .runs = 100 };
 
         var count: usize = 0;
         while (count < opts.warmup_runs) : (count += 1) {
@@ -345,7 +345,7 @@ pub fn decodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
         );
         defer allocator.free(encoded);
 
-        const opts = .{ .warmup_runs = 5, .runs = 100 };
+        const opts: benchmark.BenchmarkOptions = .{ .warmup_runs = 5, .runs = 100 };
 
         var count: usize = 0;
         while (count < opts.warmup_runs) : (count += 1) {

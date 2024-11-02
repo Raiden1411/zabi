@@ -12,7 +12,7 @@ const encodeLogTopics = @import("zabi-encoding").logs_encoding.encodeLogTopics;
 const encodeLogTopicsComptime = @import("zabi-encoding").logs_encoding.encodeLogTopicsComptime;
 
 test "Empty inputs" {
-    const event = .{ .type = .event, .inputs = &.{}, .name = "Transfer" };
+    const event: abi.Event = .{ .type = .event, .inputs = &.{}, .name = "Transfer" };
 
     const encoded = try encodeLogTopics(testing.allocator, event, .{});
     defer testing.allocator.free(encoded);

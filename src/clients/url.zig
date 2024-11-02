@@ -139,21 +139,18 @@ pub fn QueryWriter(comptime OutStream: type) type {
                 .bool => {
                     try self.valueOrParameterStart();
                     if (value) try self.stream.writeAll("true") else try self.stream.writeAll("false");
-                    self.valueDone();
-                    return;
+                    return self.valueDone();
                 },
                 .int => {
                     try self.valueOrParameterStart();
                     try self.stream.print("{}", .{value});
-                    self.valueDone();
-                    return;
+                    return self.valueDone();
                 },
                 .comptime_int => return self.writeValue(@as(std.math.IntFittingRange(value, value), value)),
                 .float, .comptime_float => {
                     try self.valueOrParameterStart();
                     try self.stream.print("{}", .{value});
-                    self.valueDone();
-                    return;
+                    return self.valueDone();
                 },
                 .optional => {
                     if (value) |val| {
@@ -165,12 +162,14 @@ pub fn QueryWriter(comptime OutStream: type) type {
                 .null => {
                     try self.valueOrParameterStart();
                     try self.stream.writeAll("null");
-                    self.valueDone();
+
+                    return self.valueDone();
                 },
                 .@"enum", .enum_literal => {
                     try self.valueOrParameterStart();
                     try self.stream.writeAll(@tagName(value));
-                    self.valueDone();
+
+                    return self.valueDone();
                 },
                 .array => |arr_info| {
                     if (arr_info.child != u8)
@@ -208,7 +207,8 @@ pub fn QueryWriter(comptime OutStream: type) type {
                             try self.stream.writeAll(hexed[0..]);
                         },
                     }
-                    self.valueDone();
+
+                    return self.valueDone();
                 },
                 .pointer => |ptr_info| {
                     switch (ptr_info.size) {
@@ -251,6 +251,7 @@ pub fn QueryWriter(comptime OutStream: type) type {
                                 try self.writeValue(val);
                                 self.next_punctuation = .comma;
                             }
+
                             return self.valueDone();
                         },
                         else => @compileError("Unsupported pointer type " ++ @typeName(@TypeOf(value))),

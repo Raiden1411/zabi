@@ -36,7 +36,7 @@ const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
 const LondonEnvelope = transaction.LondonEnvelope;
 const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
-const RlpEncodeErrors = rlp.RlpEncodeErrors;
+const RlpEncodeErrors = rlp.RlpEncoder(std.ArrayList(u8).Writer).Error;
 const Sidecar = kzg.KZG4844.Sidecar;
 const Sidecars = kzg.KZG4844.Sidecars;
 const Signature = @import("zabi-crypto").signature.Signature;
@@ -105,14 +105,13 @@ pub fn serializeTransactionEIP7702(allocator: Allocator, tx: Eip7702TransactionE
             signature.s,
         };
 
-        const encoded_sig = try rlp.encodeRlp(allocator, envelope_signed);
-        defer allocator.free(encoded_sig);
+        var list = std.ArrayList(u8).init(allocator);
+        errdefer list.deinit();
 
-        var serialized = try allocator.alloc(u8, encoded_sig.len + 1);
-        // Add the transaction type
-        serialized[0] = 4;
-        @memcpy(serialized[1..], encoded_sig);
+        try list.writer().writeByte(0x04);
+        try rlp.encodeRlpFromArrayListWriter(allocator, envelope_signed, list.writer());
 
+        const serialized = try list.toOwnedSlice();
         return serialized;
     }
 
@@ -129,14 +128,13 @@ pub fn serializeTransactionEIP7702(allocator: Allocator, tx: Eip7702TransactionE
         prep_auth,
     };
 
-    const encoded = try rlp.encodeRlp(allocator, envelope_signed);
-    defer allocator.free(encoded);
+    var list = std.ArrayList(u8).init(allocator);
+    errdefer list.deinit();
 
-    var serialized = try allocator.alloc(u8, encoded.len + 1);
-    // Add the transaction type
-    serialized[0] = 4;
-    @memcpy(serialized[1..], encoded);
+    try list.writer().writeByte(0x04);
+    try rlp.encodeRlpFromArrayListWriter(allocator, envelope_signed, list.writer());
 
+    const serialized = try list.toOwnedSlice();
     return serialized;
 }
 /// Serializes a cancun type transactions without blobs.
@@ -168,14 +166,13 @@ pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnv
             signature.s,
         };
 
-        const encoded_sig = try rlp.encodeRlp(allocator, envelope_signed);
-        defer allocator.free(encoded_sig);
+        var list = std.ArrayList(u8).init(allocator);
+        errdefer list.deinit();
 
-        var serialized = try allocator.alloc(u8, encoded_sig.len + 1);
-        // Add the transaction type
-        serialized[0] = 3;
-        @memcpy(serialized[1..], encoded_sig);
+        try list.writer().writeByte(0x03);
+        try rlp.encodeRlpFromArrayListWriter(allocator, envelope_signed, list.writer());
 
+        const serialized = try list.toOwnedSlice();
         return serialized;
     }
 
@@ -193,14 +190,13 @@ pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnv
         blob_hashes,
     };
 
-    const encoded = try rlp.encodeRlp(allocator, envelope);
-    defer allocator.free(encoded);
+    var list = std.ArrayList(u8).init(allocator);
+    errdefer list.deinit();
 
-    var serialized = try allocator.alloc(u8, encoded.len + 1);
-    // Add the transaction type
-    serialized[0] = 3;
-    @memcpy(serialized[1..], encoded);
+    try list.writer().writeByte(0x03);
+    try rlp.encodeRlpFromArrayListWriter(allocator, envelope, list.writer());
 
+    const serialized = try list.toOwnedSlice();
     return serialized;
 }
 /// Serializes a cancun sidecars into the eip4844 wrapper.
@@ -237,14 +233,13 @@ pub fn serializeCancunTransactionWithBlobs(allocator: Allocator, tx: CancunTrans
             proofs,
         };
 
-        const encoded_sig = try rlp.encodeRlp(allocator, envelope_signed);
-        defer allocator.free(encoded_sig);
+        var list = std.ArrayList(u8).init(allocator);
+        errdefer list.deinit();
 
-        var serialized = try allocator.alloc(u8, encoded_sig.len + 1);
-        // Add the transaction type
-        serialized[0] = 3;
-        @memcpy(serialized[1..], encoded_sig);
+        try list.writer().writeByte(0x03);
+        try rlp.encodeRlpFromArrayListWriter(allocator, envelope_signed, list.writer());
 
+        const serialized = try list.toOwnedSlice();
         return serialized;
     }
 
@@ -265,14 +260,13 @@ pub fn serializeCancunTransactionWithBlobs(allocator: Allocator, tx: CancunTrans
         proofs,
     };
 
-    const encoded = try rlp.encodeRlp(allocator, envelope);
-    defer allocator.free(encoded);
+    var list = std.ArrayList(u8).init(allocator);
+    errdefer list.deinit();
 
-    var serialized = try allocator.alloc(u8, encoded.len + 1);
-    // Add the transaction type;
-    serialized[0] = 3;
-    @memcpy(serialized[1..], encoded);
+    try list.writer().writeByte(0x03);
+    try rlp.encodeRlpFromArrayListWriter(allocator, envelope, list.writer());
 
+    const serialized = try list.toOwnedSlice();
     return serialized;
 }
 /// Serializes a cancun sidecars into the eip4844 wrapper.
@@ -313,14 +307,13 @@ pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTr
             list_sidecar.items(.proof),
         };
 
-        const encoded_sig = try rlp.encodeRlp(allocator, envelope_signed);
-        defer allocator.free(encoded_sig);
+        var list = std.ArrayList(u8).init(allocator);
+        errdefer list.deinit();
 
-        var serialized = try allocator.alloc(u8, encoded_sig.len + 1);
-        // Add the transaction type;
-        serialized[0] = 3;
-        @memcpy(serialized[1..], encoded_sig);
+        try list.writer().writeByte(0x03);
+        try rlp.encodeRlpFromArrayListWriter(allocator, envelope_signed, list.writer());
 
+        const serialized = try list.toOwnedSlice();
         return serialized;
     }
 
@@ -341,14 +334,13 @@ pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTr
         list_sidecar.items(.proof),
     };
 
-    const encoded = try rlp.encodeRlp(allocator, envelope);
-    defer allocator.free(encoded);
+    var list = std.ArrayList(u8).init(allocator);
+    errdefer list.deinit();
 
-    var serialized = try allocator.alloc(u8, encoded.len + 1);
-    // Add the transaction type;
-    serialized[0] = 3;
-    @memcpy(serialized[1..], encoded);
+    try list.writer().writeByte(0x03);
+    try rlp.encodeRlpFromArrayListWriter(allocator, envelope, list.writer());
 
+    const serialized = try list.toOwnedSlice();
     return serialized;
 }
 /// Function to serialize eip1559 transactions.
@@ -373,14 +365,13 @@ pub fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEn
             signature.s,
         };
 
-        const encoded_sig = try rlp.encodeRlp(allocator, envelope_sig);
-        defer allocator.free(encoded_sig);
+        var list = std.ArrayList(u8).init(allocator);
+        errdefer list.deinit();
 
-        var serialized = try allocator.alloc(u8, encoded_sig.len + 1);
-        // Add the transaction type;
-        serialized[0] = 2;
-        @memcpy(serialized[1..], encoded_sig);
+        try list.writer().writeByte(0x02);
+        try rlp.encodeRlpFromArrayListWriter(allocator, envelope_sig, list.writer());
 
+        const serialized = try list.toOwnedSlice();
         return serialized;
     }
 
@@ -396,14 +387,13 @@ pub fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEn
         prep_access,
     };
 
-    const encoded = try rlp.encodeRlp(allocator, envelope);
-    defer allocator.free(encoded);
+    var list = std.ArrayList(u8).init(allocator);
+    errdefer list.deinit();
 
-    var serialized = try allocator.alloc(u8, encoded.len + 1);
-    // Add the transaction type;
-    serialized[0] = 2;
-    @memcpy(serialized[1..], encoded);
+    try list.writer().writeByte(0x02);
+    try rlp.encodeRlpFromArrayListWriter(allocator, envelope, list.writer());
 
+    const serialized = try list.toOwnedSlice();
     return serialized;
 }
 /// Function to serialize eip2930 transactions.
@@ -427,14 +417,13 @@ pub fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEn
             signature.s,
         };
 
-        const encoded_sig = try rlp.encodeRlp(allocator, envelope_sig);
-        defer allocator.free(encoded_sig);
+        var list = std.ArrayList(u8).init(allocator);
+        errdefer list.deinit();
 
-        var serialized = try allocator.alloc(u8, encoded_sig.len + 1);
-        // Add the transaction type;
-        serialized[0] = 1;
-        @memcpy(serialized[1..], encoded_sig);
+        try list.writer().writeByte(0x01);
+        try rlp.encodeRlpFromArrayListWriter(allocator, envelope_sig, list.writer());
 
+        const serialized = try list.toOwnedSlice();
         return serialized;
     }
 
@@ -449,14 +438,13 @@ pub fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEn
         prep_access,
     };
 
-    const encoded = try rlp.encodeRlp(allocator, envelope);
-    defer allocator.free(encoded);
+    var list = std.ArrayList(u8).init(allocator);
+    errdefer list.deinit();
 
-    var serialized = try allocator.alloc(u8, encoded.len + 1);
-    // Add the transaction type;
-    serialized[0] = 1;
-    @memcpy(serialized[1..], encoded);
+    try list.writer().writeByte(0x01);
+    try rlp.encodeRlpFromArrayListWriter(allocator, envelope, list.writer());
 
+    const serialized = try list.toOwnedSlice();
     return serialized;
 }
 /// Function to serialize legacy transactions.

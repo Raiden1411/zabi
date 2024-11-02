@@ -1,3 +1,4 @@
+const abitypes = @import("zabi-abi").abitypes;
 const contract_client = @import("zabi-clients").contract;
 const std = @import("std");
 const testing = std.testing;
@@ -10,7 +11,7 @@ const Hash = types.Hash;
 
 test "DeployContract" {
     {
-        const abi = &.{
+        const abi: abitypes.Abi = &.{
             .{
                 .abiConstructor = .{
                     .type = .constructor,
@@ -43,7 +44,7 @@ test "DeployContract" {
         defer hash.deinit();
     }
     {
-        const abi = &.{
+        const abi: abitypes.Abi = &.{
             .{
                 .abiConstructor = .{
                     .type = .constructor,
@@ -76,7 +77,7 @@ test "DeployContract" {
         defer hash.deinit();
     }
     {
-        const abi = &.{
+        const abi: abitypes.Abi = &.{
             .{
                 .abiConstructor = .{
                     .type = .constructor,
@@ -111,7 +112,7 @@ test "DeployContract" {
 
 test "WriteContract" {
     {
-        const abi = &.{
+        const abi: abitypes.Abi = &.{
             .{
                 .abiFunction = .{
                     .type = .function,
@@ -153,7 +154,7 @@ test "WriteContract" {
         defer result.deinit();
     }
     {
-        const abi = &.{
+        const abi: abitypes.Abi = &.{
             .{
                 .abiFunction = .{
                     .type = .function,
@@ -193,7 +194,7 @@ test "WriteContract" {
         defer result.deinit();
     }
     {
-        const abi = &.{
+        const abi: abitypes.Abi = &.{
             .{
                 .abiFunction = .{
                     .type = .function,
@@ -270,7 +271,7 @@ test "WriteContract" {
 
 test "SimulateWriteCall" {
     {
-        const abi = &.{
+        const abi: abitypes.Abi = &.{
             .{
                 .abiFunction = .{
                     .type = .function,
@@ -309,7 +310,7 @@ test "SimulateWriteCall" {
         defer result.deinit();
     }
     {
-        const abi = &.{
+        const abi: abitypes.Abi = &.{
             .{
                 .abiFunction = .{
                     .type = .function,
@@ -345,7 +346,7 @@ test "SimulateWriteCall" {
         defer result.deinit();
     }
     {
-        const abi = &.{
+        const abi: abitypes.Abi = &.{
             .{
                 .abiFunction = .{
                     .type = .function,
@@ -384,7 +385,7 @@ test "SimulateWriteCall" {
         defer result.deinit();
     }
     {
-        const abi = &.{
+        const abi: abitypes.Abi = &.{
             .{
                 .abiFunction = .{
                     .type = .function,

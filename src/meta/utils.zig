@@ -153,7 +153,7 @@ pub fn StructToTupleType(comptime T: type) type {
                     .type = Type,
                     .default_value = null,
                     .is_comptime = false,
-                    .alignment = if (@sizeOf(Type) > 0) @alignOf(Type) else 0,
+                    .alignment = 0,
                 };
             },
             .array => |arr_info| {
@@ -166,7 +166,7 @@ pub fn StructToTupleType(comptime T: type) type {
                         .type = [arr_info.len]Type,
                         .default_value = null,
                         .is_comptime = false,
-                        .alignment = if (@sizeOf(Type) > 0) @alignOf(Type) else 0,
+                        .alignment = 0,
                     };
 
                     continue;
@@ -176,7 +176,7 @@ pub fn StructToTupleType(comptime T: type) type {
                     .type = field.type,
                     .default_value = field.default_value,
                     .is_comptime = field.is_comptime,
-                    .alignment = field.alignment,
+                    .alignment = 0,
                 };
             },
             .pointer => |ptr_info| {
@@ -189,7 +189,7 @@ pub fn StructToTupleType(comptime T: type) type {
                         .type = []const Type,
                         .default_value = null,
                         .is_comptime = false,
-                        .alignment = if (@sizeOf(Type) > 0) @alignOf(Type) else 0,
+                        .alignment = 0,
                     };
 
                     continue;
@@ -197,18 +197,18 @@ pub fn StructToTupleType(comptime T: type) type {
                 fields[i] = .{
                     .name = std.fmt.comptimePrint("{d}", .{i}),
                     .type = field.type,
-                    .default_value = field.default_value,
+                    .default_value = null,
                     .is_comptime = field.is_comptime,
-                    .alignment = field.alignment,
+                    .alignment = 0,
                 };
             },
             else => {
                 fields[i] = .{
                     .name = std.fmt.comptimePrint("{d}", .{i}),
                     .type = field.type,
-                    .default_value = field.default_value,
+                    .default_value = null,
                     .is_comptime = field.is_comptime,
-                    .alignment = field.alignment,
+                    .alignment = 0,
                 };
             },
         }

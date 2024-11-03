@@ -23,7 +23,7 @@ Zabi aims to add support for interacting with ethereum or any compatible EVM bas
 
 ### Zig Versions
 
-Zabi will support zig v0.13 in seperate branches. If you would like to use it you can find it in the `zig_version_0.13.0` branch where you can build it against zig 0.13.0.
+Zabi will support zig v0.13 in separate branches. If you would like to use it you can find it in the `zig_version_0.13.0` branch where you can build it against zig 0.13.0.
 The main branch of zabi will follow the latest commits from zig and the other branch will be stable in terms of zig versions but not features from zabi.
 
 ### Integration
@@ -78,14 +78,14 @@ You can install the latest version of zig [here](https://ziglang.org/download/) 
 ### Features
 
 - Json RPC with support for http/s, ws/s and ipc connections.
-- EVM Interperter that you can use to run contract bytecode.
+- EVM Interpreter that you can use to run contract bytecode.
 - Wallet instances and contract instances to use for interacting with nodes/json rpc.
 - Wallet nonce manager that uses a json rpc as a source of truth.
 - BlockExplorer support. Only the free methods from those api endpoints are supported.
 - Custom Secp256k1 ECDSA signer using only Zig and implementation of RFC6979 nonce generator.
 - Custom JSON Parser that can be used to deserialize and serialized RPC data at runtime.
 - Custom solidity tokenizer and parser generator.
-- Hability to translate solidity source code to zig.
+- Ability to translate solidity source code to zig.
 - ABI to zig types.
 - Support for EIP712.
 - Support for EIP3074 authorization message.

@@ -229,7 +229,7 @@ fn encodeLog(allocator: Allocator, param: AbiEventParameter, value: anytype) !?H
 
             var writer = list.writer();
 
-            const NestedType = findNestedType(@TypeOf(value));
+            const NestedType = FindNestedType(@TypeOf(value));
 
             var flatten = std.ArrayList(NestedType).init(testing.allocator);
             errdefer flatten.deinit();
@@ -308,7 +308,7 @@ fn encodeLog(allocator: Allocator, param: AbiEventParameter, value: anytype) !?H
 
                     var writer = list.writer();
 
-                    const NestedType = findNestedType(@TypeOf(value));
+                    const NestedType = FindNestedType(@TypeOf(value));
                     var flatten = std.ArrayList(NestedType).init(testing.allocator);
                     errdefer flatten.deinit();
 
@@ -375,7 +375,7 @@ fn encodeLog(allocator: Allocator, param: AbiEventParameter, value: anytype) !?H
     }
 }
 
-fn flattenSliceOrArray(comptime T: type, value: anytype, list: *std.ArrayList(T)) !void {
+fn flattenSliceOrArray(comptime T: type, value: anytype, list: *std.ArrayList(T)) Allocator.Error!void {
     for (value) |val| {
         const info = @typeInfo(@TypeOf(value));
 
@@ -397,12 +397,12 @@ fn flattenSliceOrArray(comptime T: type, value: anytype, list: *std.ArrayList(T)
     }
 }
 
-fn findNestedType(comptime T: type) type {
+fn FindNestedType(comptime T: type) type {
     const info = @typeInfo(T);
 
     switch (info) {
-        .array => |arr_info| return findNestedType(arr_info.child),
-        .pointer => |ptr_info| return findNestedType(ptr_info.child),
+        .array => |arr_info| return FindNestedType(arr_info.child),
+        .pointer => |ptr_info| return FindNestedType(ptr_info.child),
         else => return T,
     }
 }

@@ -2,8 +2,10 @@
     .name = "blst",
     .version = "0.3.11",
     .paths = .{""},
-    .dependencies = .{ .blst = .{
-        .url = "https://github.com/supranational/blst/archive/refs/tags/v0.3.11.tar.gz",
-        .hash = "1220266b70d44b17c8147660907b1fd49fae51437e3ee8f96c96e125ac9befd35f08",
-    }, .apple_sdk = .{ .path = "../apple-sdk" } },
+    .dependencies = .{
+        .blst = .{
+            .url = "https://github.com/supranational/blst/archive/refs/tags/v0.3.11.tar.gz",
+            .hash = "1220266b70d44b17c8147660907b1fd49fae51437e3ee8f96c96e125ac9befd35f08",
+        },
+    },
 }

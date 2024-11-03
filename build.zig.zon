@@ -20,11 +20,6 @@
             .hash = "12208cd2d414b4477c365c5eb4c04b077216f8dbe1e2174615c9aab8d495a8c5f231",
         },
         .@"c-kzg-4844" = .{ .path = "./pkg/c-kzg-4844" },
-        .blst = .{ .path = "./pkg/blst" },
-        .zg = .{
-            .url = "git+https://codeberg.org/dude_the_builder/zg.git#70d17ea7aab18178a5f5ffa120229151a8f943e6",
-            .hash = "1220f639e56684b7b69ffd6856771a659a81aa3aff4a1320c0f0dfe62d98e39778ed",
-        },
     },
     .paths = .{
         // This makes *all* files, recursively, included in this package. It is generally

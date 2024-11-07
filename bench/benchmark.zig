@@ -288,8 +288,8 @@ pub fn decodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
 
     try printer.writer().writeAll("Abi Decoding... ");
     {
-        const encoded = try encodeAbiParameters(allocator, constants.params, constants.items);
-        defer encoded.deinit();
+        const encoded = try encodeAbiParameters(constants.params, allocator, constants.items);
+        defer allocator.free(encoded);
 
         const opts: benchmark.BenchmarkOptions = .{ .warmup_runs = 5, .runs = 100 };
 
@@ -298,7 +298,7 @@ pub fn decodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
             const abi = try zabi_root.decoding.abi_decoder.decodeAbiParameter(
                 zabi_root.meta.abi.AbiParametersToPrimative(constants.params),
                 allocator,
-                encoded.data,
+                encoded,
                 .{},
             );
             defer abi.deinit();
@@ -309,7 +309,7 @@ pub fn decodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
             const abi = try zabi_root.decoding.abi_decoder.decodeAbiParameter(
                 zabi_root.meta.abi.AbiParametersToPrimative(constants.params),
                 allocator,
-                encoded.data,
+                encoded,
                 .{},
             );
             defer abi.deinit();
@@ -404,7 +404,7 @@ pub fn encodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
         const result = try benchmark.benchmark(
             allocator,
             encodeAbiParameters,
-            .{ allocator, constants.params, constants.items },
+            .{ constants.params, allocator, constants.items },
             .{ .warmup_runs = 5, .runs = 100 },
         );
         result.printSummary();

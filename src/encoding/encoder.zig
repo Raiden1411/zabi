@@ -13,8 +13,8 @@ const AbiParameter = abi.AbiParameter;
 const AbiParameterToPrimative = meta.AbiParameterToPrimative;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
 const Address = types.Address;
-const ArrayListWriter = std.ArrayList(u8).Writer;
 const Allocator = std.mem.Allocator;
+const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Constructor = zabi_abi.abitypes.Constructor;
 const Error = zabi_abi.abitypes.Error;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
@@ -33,9 +33,13 @@ pub const EncodeErrors = Allocator.Error || error{
     InvalidParamType,
 };
 
-pub const EncodedValues = struct {
+pub const PreEncodedStructure = struct {
     dynamic: bool,
     encoded: []const u8,
+
+    pub fn deinit(self: @This(), allocator: Allocator) void {
+        allocator.free(self.encoded);
+    }
 };
 
 pub fn encodeAbiParameters(
@@ -52,83 +56,48 @@ pub fn encodeAbiParameters(
 pub const AbiEncoder = struct {
     pub const Self = @This();
 
+    /// Sets the initial state of the encoder.
     pub const empty: Self = .{
-        .stack = .empty,
+        .pre_encoded = .empty,
         .heads = .empty,
         .tails = .empty,
+        .heads_size = 0,
+        .tails_size = 0,
     };
 
-    stack: std.ArrayListUnmanaged(EncodedValues),
-    heads: std.ArrayListUnmanaged(u8),
-    tails: std.ArrayListUnmanaged(u8),
+    pre_encoded: ArrayListUnmanaged(PreEncodedStructure),
+    heads: ArrayListUnmanaged(u8),
+    tails: ArrayListUnmanaged(u8),
+    heads_size: u32,
+    tails_size: u32,
 
-    pub fn encodeAbiParameterV2(self: *Self, comptime param: AbiParameter, allocator: Allocator, value: AbiParameterToPrimative(param)) ![]u8 {
-        const static_size = calculateStaticSize(param);
+    pub fn encodeAbiParameters(
+        self: *Self,
+        comptime params: []const AbiParameter,
+        allocator: Allocator,
+        values: AbiParametersToPrimative(params),
+    ) Allocator.Error![]u8 {
+        try self.preEncodeAbiParamters(params, allocator, values);
 
-        const encoded = switch (param.type) {
-            .bool => return encodeBoolean(value)[0..],
-            .int => return encodeBoolean(i256, value)[0..],
-            .uint => return encodeNumber(u256, value)[0..],
-            .address => encodeAddress(value)[0..],
-            .fixedBytes => |bytes| encodeFixedBytes(bytes, value)[0..],
-            .string,
-            .bytes,
-            => encodeString(allocator, value),
-            else => @compileError("Unsupported"),
-        };
-
-        var dynamic_size = 0;
-
-        if (isDynamicType(param)) {
-            const size = encodeNumber(u256, dynamic_size + static_size);
-
-            try self.heads.appendSlice(allocator, size[0..]);
-            try self.tails.appendSlice(allocator, encoded);
-
-            dynamic_size += @intCast(encoded.len);
-        } else {
-            try self.heads.appendSlice(allocator, encoded);
-        }
-
-        const tails_slice = try self.tails.toOwnedSlice(allocator);
-        defer allocator.free(tails_slice);
-
-        try self.heads.appendSlice(tails_slice);
-        return self.heads.toOwnedSlice(allocator);
+        return self.encodePointers(allocator);
     }
 
-    pub fn encodePointers(self: *Self, allocator: Allocator) ![]u8 {
-        const slice = try self.stack.toOwnedSlice(allocator);
+    pub fn encodePointers(self: *Self, allocator: Allocator) Allocator.Error![]u8 {
+        const slice = try self.pre_encoded.toOwnedSlice(allocator);
         defer {
-            for (slice) |s| allocator.free(s.encoded);
+            for (slice) |elem| elem.deinit(allocator);
             allocator.free(slice);
         }
 
-        var static_size: u32 = 0;
-        var dynamic_size: u32 = 0;
-        var tails_size: u32 = 0;
-
-        // Calculates the expected memory size and pointer index start.
-        {
-            for (slice) |param| {
-                if (param.dynamic) {
-                    static_size += 32;
-                    tails_size += 32 + @as(u32, @intCast(param.encoded.len));
-                } else static_size += @intCast(param.encoded.len);
-            }
-        }
-
-        try self.heads.ensureUnusedCapacity(allocator, static_size + tails_size);
-        try self.tails.ensureUnusedCapacity(allocator, tails_size);
+        try self.heads.ensureUnusedCapacity(allocator, self.heads_size + self.tails_size);
+        try self.tails.ensureUnusedCapacity(allocator, self.tails_size);
 
         for (slice) |param| {
             if (param.dynamic) {
-                const size = encodeNumber(u256, dynamic_size + static_size);
+                const size = encodeNumber(u256, self.tails.items.len + self.heads_size);
 
                 self.heads.appendSliceAssumeCapacity(size[0..]);
                 self.tails.appendSliceAssumeCapacity(param.encoded);
-
-                dynamic_size += @intCast(param.encoded.len);
             } else {
                 self.heads.appendSliceAssumeCapacity(param.encoded);
             }
@@ -141,24 +110,13 @@ pub const AbiEncoder = struct {
         return self.heads.toOwnedSlice(allocator);
     }
 
-    pub fn encodeAbiParameters(
-        self: *Self,
-        comptime params: []const AbiParameter,
-        allocator: Allocator,
-        values: AbiParametersToPrimative(params),
-    ) ![]u8 {
-        try self.preEncodeAbiParamters(params, allocator, values);
-
-        return self.encodePointers(allocator);
-    }
-
     pub fn preEncodeAbiParamters(
         self: *Self,
         comptime params: []const AbiParameter,
         allocator: Allocator,
         values: AbiParametersToPrimative(params),
-    ) !void {
-        try self.stack.ensureUnusedCapacity(allocator, values.len);
+    ) Allocator.Error!void {
+        try self.pre_encoded.ensureUnusedCapacity(allocator, values.len);
 
         inline for (params, values) |param, value| {
             try self.preEncodeAbiParameter(param, allocator, value);
@@ -170,54 +128,61 @@ pub const AbiEncoder = struct {
         comptime param: AbiParameter,
         allocator: Allocator,
         value: AbiParameterToPrimative(param),
-    ) !void {
+    ) Allocator.Error!void {
         switch (param.type) {
             .bool => {
                 const encoded = encodeBoolean(value);
 
-                self.stack.appendAssumeCapacity(.{
+                self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
                     .dynamic = false,
                 });
+                self.heads_size += 32;
             },
             .int => {
                 const encoded = encodeNumber(i256, value);
 
-                self.stack.appendAssumeCapacity(.{
+                self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
                     .dynamic = false,
                 });
+                self.heads_size += 32;
             },
             .uint => {
                 const encoded = encodeNumber(u256, value);
 
-                self.stack.appendAssumeCapacity(.{
+                self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
                     .dynamic = false,
                 });
+                self.heads_size += 32;
             },
             .address => {
                 const encoded = encodeAddress(value);
 
-                self.stack.appendAssumeCapacity(.{
+                self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
                     .dynamic = false,
                 });
+                self.heads_size += 32;
             },
             .fixedBytes => |bytes| {
                 const encoded = encodeFixedBytes(bytes, value);
 
-                self.stack.appendAssumeCapacity(.{
+                self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
                     .dynamic = false,
                 });
+                self.heads_size += 32;
             },
             .string,
             .bytes,
             => {
                 const encoded = try encodeString(allocator, value);
 
-                self.stack.appendAssumeCapacity(.{
+                self.heads_size += 32;
+                self.tails_size += @intCast(32 + encoded.len);
+                self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = encoded,
                     .dynamic = true,
                 });
@@ -231,7 +196,7 @@ pub const AbiEncoder = struct {
                 };
 
                 var recursize: Self = .empty;
-                try recursize.stack.ensureUnusedCapacity(allocator, arr_info.size);
+                try recursize.pre_encoded.ensureUnusedCapacity(allocator, arr_info.size);
 
                 inline for (value) |val| {
                     try recursize.preEncodeAbiParameter(new_parameter, allocator, val);
@@ -240,26 +205,29 @@ pub const AbiEncoder = struct {
                 if (isDynamicType(param)) {
                     const slice = try recursize.encodePointers(allocator);
 
-                    return self.stack.appendAssumeCapacity(.{
+                    self.heads_size += 32;
+                    self.tails_size += @intCast(32 + slice.len);
+                    return self.pre_encoded.appendAssumeCapacity(.{
                         .dynamic = true,
                         .encoded = slice,
                     });
                 }
 
-                const slice = try recursize.stack.toOwnedSlice(allocator);
+                const slice = try recursize.pre_encoded.toOwnedSlice(allocator);
                 defer {
                     for (slice) |s| allocator.free(s.encoded);
                     allocator.free(slice);
                 }
 
-                var list = std.ArrayList(u8).init(allocator);
+                var list = try std.ArrayList(u8).initCapacity(allocator, arr_info.size * 32);
                 errdefer list.deinit();
 
-                for (slice) |s| {
-                    try list.writer().writeAll(s.encoded);
+                for (slice) |pre_encoded| {
+                    list.appendSliceAssumeCapacity(pre_encoded.encoded);
                 }
 
-                try self.stack.append(allocator, .{
+                self.heads_size += @intCast(list.items.len);
+                self.pre_encoded.appendAssumeCapacity(.{
                     .dynamic = false,
                     .encoded = try list.toOwnedSlice(),
                 });
@@ -273,7 +241,7 @@ pub const AbiEncoder = struct {
                 };
 
                 var recursize: Self = .empty;
-                try recursize.stack.ensureUnusedCapacity(allocator, value.len);
+                try recursize.pre_encoded.ensureUnusedCapacity(allocator, value.len);
 
                 for (value) |val| {
                     try recursize.preEncodeAbiParameter(new_parameter, allocator, val);
@@ -284,15 +252,25 @@ pub const AbiEncoder = struct {
                 const slice = try recursize.encodePointers(allocator);
                 defer allocator.free(slice);
 
-                self.stack.appendAssumeCapacity(.{
+                self.heads_size += 32;
+                self.tails_size += @intCast(32 + slice.len);
+
+                // Uses the `heads` as a scratch space to concat the slices.
+                try recursize.heads.ensureUnusedCapacity(allocator, 32 + slice.len);
+                recursize.heads.appendSliceAssumeCapacity(size[0..]);
+                recursize.heads.appendSliceAssumeCapacity(slice);
+
+                self.pre_encoded.appendAssumeCapacity(.{
                     .dynamic = true,
-                    .encoded = try std.mem.concat(allocator, u8, &.{ size[0..], slice }),
+                    .encoded = try recursize.heads.toOwnedSlice(allocator),
                 });
             },
             .tuple => {
                 if (param.components) |components| {
+                    const fields = std.meta.fields(@TypeOf(value));
+
                     var recursize: Self = .empty;
-                    try recursize.stack.ensureUnusedCapacity(allocator, std.meta.fields(@TypeOf(value)).len);
+                    try recursize.pre_encoded.ensureUnusedCapacity(allocator, fields.len);
 
                     inline for (components) |component| {
                         try recursize.preEncodeAbiParameter(component, allocator, @field(value, component.name));
@@ -301,26 +279,29 @@ pub const AbiEncoder = struct {
                     if (isDynamicType(param)) {
                         const slice = try recursize.encodePointers(allocator);
 
-                        return self.stack.appendAssumeCapacity(.{
+                        self.heads_size += 32;
+                        self.tails_size += @intCast(32 + slice.len);
+                        return self.pre_encoded.appendAssumeCapacity(.{
                             .dynamic = true,
                             .encoded = slice,
                         });
                     }
 
-                    const slice = try recursize.stack.toOwnedSlice(allocator);
+                    const slice = try recursize.pre_encoded.toOwnedSlice(allocator);
                     defer {
                         for (slice) |s| allocator.free(s.encoded);
                         allocator.free(slice);
                     }
 
-                    var list = std.ArrayList(u8).init(allocator);
+                    var list = try std.ArrayList(u8).initCapacity(allocator, fields.len * 32);
                     errdefer list.deinit();
 
-                    for (slice) |s| {
-                        try list.writer().writeAll(s.encoded);
+                    for (slice) |pre_encoded| {
+                        list.appendSliceAssumeCapacity(pre_encoded.encoded);
                     }
 
-                    try self.stack.append(allocator, .{
+                    self.heads_size += @intCast(list.items.len);
+                    self.pre_encoded.appendAssumeCapacity(.{
                         .dynamic = false,
                         .encoded = try list.toOwnedSlice(),
                     });
@@ -380,44 +361,6 @@ pub const AbiEncoder = struct {
         return list.toOwnedSlice();
     }
 };
-
-pub inline fn calculateStaticSize(comptime param: AbiParameter) u32 {
-    switch (param.type) {
-        .bool,
-        .int,
-        .uint,
-        .fixedBytes,
-        .@"enum",
-        .bytes,
-        .string,
-        .dynamicArray,
-        .address,
-        => return 32,
-        .fixedArray => |arr_info| {
-            const new_parameter: AbiParameter = .{
-                .type = arr_info.child.*,
-                .name = param.name,
-                .internalType = param.internalType,
-                .components = param.components,
-            };
-
-            if (isDynamicType(new_parameter))
-                return 32;
-
-            return @intCast(calculateStaticSize(new_parameter) * arr_info.size);
-        },
-        .tuple => {
-            var offset: u32 = 0;
-            inline for (param.components orelse @compileError("Expected components to not be null")) |component| {
-                if (isDynamicType(component)) {
-                    return 32;
-                } else offset += calculateStaticSize(component);
-            }
-
-            return offset;
-        },
-    }
-}
 
 pub inline fn isDynamicType(comptime param: AbiParameter) bool {
     switch (param.type) {

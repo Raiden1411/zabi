@@ -71,15 +71,6 @@ test "Multiple" {
     // try testing.expectEqualStrings("", none.data);
 }
 
-// test "Errors" {
-//     try testing.expectError(error.InvalidParamType, encodeAbiParameters(testing.allocator, &.{.{ .type = .{ .fixedBytes = 5 }, .name = "foo" }}, .{true}));
-//     try testing.expectError(error.InvalidParamType, encodeAbiParameters(testing.allocator, &.{.{ .type = .{ .int = 5 }, .name = "foo" }}, .{true}));
-//     try testing.expectError(error.InvalidParamType, encodeAbiParameters(testing.allocator, &.{.{ .type = .{ .tuple = {} }, .name = "foo" }}, .{.{ .bar = "foo" }}));
-//     try testing.expectError(error.InvalidParamType, encodeAbiParameters(testing.allocator, &.{.{ .type = .{ .uint = 5 }, .name = "foo" }}, .{"foo"}));
-//     try testing.expectError(error.InvalidParamType, encodeAbiParameters(testing.allocator, &.{.{ .type = .{ .string = {} }, .name = "foo" }}, .{[_][]const u8{"foo"}}));
-//     try testing.expectError(error.InvalidLength, encodeAbiParameters(testing.allocator, &.{.{ .type = .{ .fixedBytes = 55 }, .name = "foo" }}, .{"foo"}));
-// }
-//
 // test "EncodePacked" {
 //     try testEncodePacked("45", .{69});
 //     try testEncodePacked("01", .{true});

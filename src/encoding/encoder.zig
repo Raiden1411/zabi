@@ -33,10 +33,8 @@ pub const PreEncodedStructure = struct {
     }
 };
 
-/// Encode an Solidity `Error` type with the signature and the values encoded.
-/// The signature is calculated by hashing the formated string generated from the `Error` signature.
-///
-/// Caller owns the memory.
+/// Encode an Solidity `Function` type with the signature and the values encoded.
+/// The signature is calculated by hashing the formated string generated from the `Function` signature.
 pub fn encodeAbiFunction(
     comptime func: Function,
     allocator: Allocator,
@@ -57,11 +55,8 @@ pub fn encodeAbiFunction(
 
     return encoder.encodePointers(allocator);
 }
-
-/// Encode an Solidity `Error` type with the signature and the values encoded.
-/// The signature is calculated by hashing the formated string generated from the `Error` signature.
-///
-/// Caller owns the memory.
+/// Encode an Solidity `Function` type with the signature and the values encoded.
+/// This is will use the `func` outputs values as the parameters.
 pub fn encodeAbiFunctionOutputs(
     comptime func: Function,
     allocator: Allocator,
@@ -69,11 +64,8 @@ pub fn encodeAbiFunctionOutputs(
 ) Allocator.Error![]u8 {
     return encodeAbiParameters(func.outputs, allocator, values);
 }
-
 /// Encode an Solidity `Error` type with the signature and the values encoded.
 /// The signature is calculated by hashing the formated string generated from the `Error` signature.
-///
-/// Caller owns the memory.
 pub fn encodeAbiError(
     comptime err: Error,
     allocator: Allocator,
@@ -94,7 +86,7 @@ pub fn encodeAbiError(
 
     return encoder.encodePointers(allocator);
 }
-
+/// Encode an Solidity `Constructor` type with the signature and the values encoded.
 pub fn encodeAbiConstructor(
     comptime constructor: Constructor,
     allocator: Allocator,
@@ -102,7 +94,9 @@ pub fn encodeAbiConstructor(
 ) Allocator.Error![]u8 {
     return encodeAbiParameters(constructor.inputs, allocator, values);
 }
-
+/// Encodes the `values` based on the [specification](https://docs.soliditylang.org/en/develop/abi-spec.html#use-of-dynamic-types)
+///
+/// The values types are checked at comptime based on the provided `params`.
 pub fn encodeAbiParameters(
     comptime params: []const AbiParameter,
     allocator: Allocator,
@@ -114,6 +108,12 @@ pub fn encodeAbiParameters(
     return encoder.encodePointers(allocator);
 }
 
+/// The abi encoding structure used to encoded values with the abi encoding [specification](https://docs.soliditylang.org/en/develop/abi-spec.html#use-of-dynamic-types)
+///
+/// You can initialize this structure like this:
+/// ```zig
+/// var encoder: AbiEncoder = .empty;
+/// ```
 pub const AbiEncoder = struct {
     pub const Self = @This();
 
@@ -126,12 +126,22 @@ pub const AbiEncoder = struct {
         .tails_size = 0,
     };
 
+    /// Essentially a `stack` of encoded values that will need to be analysed
+    /// in the `encodePointers` sets to re-arrange the location in the encoded string.
     pre_encoded: ArrayListUnmanaged(PreEncodedStructure),
+    /// Stream of encoded values that should show up at the top of the encoded slice.
     heads: ArrayListUnmanaged(u8),
+    /// Stream of encoded values that should show up at the enc of the encoded slice.
     tails: ArrayListUnmanaged(u8),
+    /// Used to calculated the initial pointer when facing `dynamic` types.
+    /// Also used to know the memory size of the `heads` stream.
     heads_size: u32,
+    /// Only used to know the memory size of the `tails` stream.
     tails_size: u32,
 
+    /// Encodes the `values` based on the [specification](https://docs.soliditylang.org/en/develop/abi-spec.html#use-of-dynamic-types)
+    ///
+    /// The values types are checked at comptime based on the provided `params`.
     pub fn encodeAbiParameters(
         self: *Self,
         comptime params: []const AbiParameter,
@@ -142,7 +152,8 @@ pub const AbiEncoder = struct {
 
         return self.encodePointers(allocator);
     }
-
+    /// Re-arranges the inner stack based on if the value that it's dealing with is either dynamic or now.
+    /// Places those values in the `heads` or `tails` streams based on that.
     pub fn encodePointers(self: *Self, allocator: Allocator) Allocator.Error![]u8 {
         const slice = try self.pre_encoded.toOwnedSlice(allocator);
         defer {
@@ -170,7 +181,7 @@ pub const AbiEncoder = struct {
         self.heads.appendSliceAssumeCapacity(tails_slice);
         return self.heads.toOwnedSlice(allocator);
     }
-
+    /// Encodes the values and places them on the `inner` stack.
     pub fn preEncodeAbiParamters(
         self: *Self,
         comptime params: []const AbiParameter,
@@ -186,7 +197,7 @@ pub const AbiEncoder = struct {
             try self.preEncodeAbiParameter(param, allocator, value);
         }
     }
-
+    /// Encodes a single value and places them on the `inner` stack.
     pub fn preEncodeAbiParameter(
         self: *Self,
         comptime param: AbiParameter,
@@ -197,11 +208,11 @@ pub const AbiEncoder = struct {
             .bool => {
                 const encoded = encodeBoolean(value);
 
+                self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
                     .dynamic = false,
                 });
-                self.heads_size += 32;
             },
             .int => {
                 const encoded = encodeNumber(i256, value);
@@ -374,58 +385,57 @@ pub const AbiEncoder = struct {
             else => @compileError("Unsupported '" ++ @tagName(param.type) ++ "'"),
         }
     }
-
-    pub fn encodeBoolean(boolean: bool) [32]u8 {
-        var buffer: [32]u8 = undefined;
-        std.mem.writeInt(u256, &buffer, @intFromBool(boolean), .big);
-
-        return buffer;
-    }
-
-    pub fn encodeNumber(comptime T: type, number: T) [32]u8 {
-        const info = @typeInfo(T);
-        assert(info == .int);
-
-        var buffer: [@divExact(info.int.bits, 8)]u8 = undefined;
-        std.mem.writeInt(T, &buffer, number, .big);
-
-        return buffer;
-    }
-
-    pub fn encodeAddress(address: [20]u8) [32]u8 {
-        var buffer: [32]u8 = undefined;
-        std.mem.writeInt(u256, &buffer, @byteSwap(@as(u160, @bitCast(address))), .big);
-
-        return buffer;
-    }
-
-    pub fn encodeFixedBytes(comptime size: usize, payload: [size]u8) [32]u8 {
-        assert(size <= 32);
-        const IntType = std.meta.Int(.unsigned, size * 8);
-
-        var buffer: [32]u8 = undefined;
-        std.mem.writeInt(u256, &buffer, @as(IntType, @bitCast(payload)), .little);
-
-        return buffer;
-    }
-
-    pub fn encodeString(allocator: Allocator, payload: []const u8) Allocator.Error![]u8 {
-        const ceil: usize = @intFromFloat(@ceil(@as(f32, @floatFromInt(payload.len))) / 32);
-        const padded_size = (ceil + 1) * 32;
-
-        var list = try std.ArrayList(u8).initCapacity(allocator, padded_size + 32);
-        errdefer list.deinit();
-
-        var writer = list.writer();
-        try writer.writeInt(u256, payload.len, .big);
-
-        list.appendSliceAssumeCapacity(payload);
-        try writer.writeByteNTimes(0, padded_size - payload.len);
-
-        return list.toOwnedSlice();
-    }
 };
+/// Encodes a boolean value according to the abi encoding specification.
+pub fn encodeBoolean(boolean: bool) [32]u8 {
+    var buffer: [32]u8 = undefined;
+    std.mem.writeInt(u256, &buffer, @intFromBool(boolean), .big);
 
+    return buffer;
+}
+/// Encodes a integer value according to the abi encoding specification.
+pub fn encodeNumber(comptime T: type, number: T) [32]u8 {
+    const info = @typeInfo(T);
+    assert(info == .int);
+
+    var buffer: [@divExact(info.int.bits, 8)]u8 = undefined;
+    std.mem.writeInt(T, &buffer, number, .big);
+
+    return buffer;
+}
+/// Encodes an solidity address value according to the abi encoding specification.
+pub fn encodeAddress(address: Address) [32]u8 {
+    var buffer: [32]u8 = undefined;
+    std.mem.writeInt(u256, &buffer, @byteSwap(@as(u160, @bitCast(address))), .big);
+
+    return buffer;
+}
+/// Encodes an bytes1..32 value according to the abi encoding specification.
+pub fn encodeFixedBytes(comptime size: usize, payload: [size]u8) [32]u8 {
+    assert(size <= 32);
+    const IntType = std.meta.Int(.unsigned, size * 8);
+
+    var buffer: [32]u8 = undefined;
+    std.mem.writeInt(u256, &buffer, @as(IntType, @bitCast(payload)), .little);
+
+    return buffer;
+}
+/// Encodes an solidity string or bytes value according to the abi encoding specification.
+pub fn encodeString(allocator: Allocator, payload: []const u8) Allocator.Error![]u8 {
+    const ceil: usize = @intFromFloat(@ceil(@as(f32, @floatFromInt(payload.len))) / 32);
+    const padded_size = (ceil + 1) * 32;
+
+    var list = try std.ArrayList(u8).initCapacity(allocator, padded_size + 32);
+    errdefer list.deinit();
+
+    var writer = list.writer();
+    try writer.writeInt(u256, payload.len, .big);
+
+    list.appendSliceAssumeCapacity(payload);
+    try writer.writeByteNTimes(0, padded_size - payload.len);
+
+    return list.toOwnedSlice();
+}
 /// Encode values based on solidity's `encodePacked`.
 /// Solidity types are infered from zig ones since it closely follows them.
 ///
@@ -447,7 +457,6 @@ pub fn encodePacked(allocator: Allocator, values: anytype) Allocator.Error![]u8 
 }
 
 // Internal
-
 fn encodePackedParameters(value: anytype, writer: anytype, is_slice: bool) !void {
     const info = @typeInfo(@TypeOf(value));
 

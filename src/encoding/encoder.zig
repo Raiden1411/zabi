@@ -289,23 +289,10 @@ pub const AbiEncoder = struct {
                 }
 
                 const slice = try recursize.pre_encoded.toOwnedSlice(allocator);
-                defer {
-                    for (slice) |s| allocator.free(s.encoded);
-                    allocator.free(slice);
-                }
+                defer allocator.free(slice);
 
-                var list = try std.ArrayList(u8).initCapacity(allocator, arr_info.size * 32);
-                errdefer list.deinit();
-
-                for (slice) |pre_encoded| {
-                    list.appendSliceAssumeCapacity(pre_encoded.encoded);
-                }
-
-                self.heads_size += @intCast(list.items.len);
-                self.pre_encoded.appendAssumeCapacity(.{
-                    .dynamic = false,
-                    .encoded = try list.toOwnedSlice(),
-                });
+                self.heads_size += @intCast(arr_info.size * 32);
+                try self.pre_encoded.appendSlice(allocator, slice);
             },
             .dynamicArray => |slice_info| {
                 const new_parameter: AbiParameter = .{
@@ -363,23 +350,10 @@ pub const AbiEncoder = struct {
                     }
 
                     const slice = try recursize.pre_encoded.toOwnedSlice(allocator);
-                    defer {
-                        for (slice) |s| allocator.free(s.encoded);
-                        allocator.free(slice);
-                    }
+                    defer allocator.free(slice);
 
-                    var list = try std.ArrayList(u8).initCapacity(allocator, fields.len * 32);
-                    errdefer list.deinit();
-
-                    for (slice) |pre_encoded| {
-                        list.appendSliceAssumeCapacity(pre_encoded.encoded);
-                    }
-
-                    self.heads_size += @intCast(list.items.len);
-                    self.pre_encoded.appendAssumeCapacity(.{
-                        .dynamic = false,
-                        .encoded = try list.toOwnedSlice(),
-                    });
+                    self.heads_size += @intCast(fields.len * 32);
+                    try self.pre_encoded.appendSlice(allocator, slice);
                 } else @compileError("Expected tuple parameter components!");
             },
             else => @compileError("Unsupported '" ++ @tagName(param.type) ++ "'"),

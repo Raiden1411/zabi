@@ -154,7 +154,7 @@ pub fn Multicall(comptime client: Clients) type {
             errdefer abi_list.deinit();
 
             inline for (targets, function_arguments) |target, argument| {
-                const encoded = try encoder.encodeAbiFunctionComptime(self.rpc_client.allocator, target.function, argument);
+                const encoded = try target.function.encode(self.rpc_client.allocator, argument);
 
                 const call3: Call3 = .{
                     .target = target.target_address,
@@ -172,7 +172,7 @@ pub fn Multicall(comptime client: Clients) type {
                 self.rpc_client.allocator.free(slice);
             }
 
-            const encoded = try encoder.encodeAbiFunctionComptime(self.rpc_client.allocator, aggregate3_abi, .{@ptrCast(slice)});
+            const encoded = try aggregate3_abi.encode(self.rpc_client.allocator, .{@ptrCast(slice)});
             defer self.rpc_client.allocator.free(encoded);
 
             const data = try self.rpc_client.sendEthCall(.{ .london = .{

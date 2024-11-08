@@ -177,6 +177,9 @@ pub const AbiEncoder = struct {
         allocator: Allocator,
         values: AbiParametersToPrimative(params),
     ) Allocator.Error!void {
+        if (@TypeOf(values) == void)
+            return;
+
         try self.pre_encoded.ensureUnusedCapacity(allocator, values.len);
 
         inline for (params, values) |param, value| {

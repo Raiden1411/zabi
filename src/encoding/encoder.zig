@@ -142,38 +142,38 @@ pub const AbiEncoder = struct {
             .int => {
                 const encoded = encodeNumber(i256, value);
 
+                self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
                     .dynamic = false,
                 });
-                self.heads_size += 32;
             },
             .uint => {
                 const encoded = encodeNumber(u256, value);
 
+                self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
                     .dynamic = false,
                 });
-                self.heads_size += 32;
             },
             .address => {
                 const encoded = encodeAddress(value);
 
+                self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
                     .dynamic = false,
                 });
-                self.heads_size += 32;
             },
             .fixedBytes => |bytes| {
                 const encoded = encodeFixedBytes(bytes, value);
 
+                self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
                     .dynamic = false,
                 });
-                self.heads_size += 32;
             },
             .string,
             .bytes,

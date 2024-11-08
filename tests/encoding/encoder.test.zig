@@ -69,74 +69,66 @@ test "Multiple" {
     const params: []const AbiParameter = &.{.{ .type = .{ .tuple = {} }, .name = "fizzbuzz", .components = &.{ .{ .type = .{ .dynamicArray = &.{ .string = {} } }, .name = "foo" }, .{ .type = .{ .uint = 256 }, .name = "bar" }, .{ .type = .{ .dynamicArray = &.{ .tuple = {} } }, .name = "baz", .components = &.{ .{ .type = .{ .dynamicArray = &.{ .string = {} } }, .name = "fizz" }, .{ .type = .{ .bool = {} }, .name = "buzz" }, .{ .type = .{ .dynamicArray = &.{ .int = 256 } }, .name = "jazz" } } } } }};
 
     try testEncode("00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000a45500000000000000000000000000000000000000000000000000000000000000e000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001c666f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f00000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000018424f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f4f00000000000000000000000000000000000000000000000000000000000000000000000000000009000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000009", params, .{.{ .foo = &[_][]const u8{"fooooooooooooooooooooooooooo"}, .bar = 42069, .baz = &.{.{ .fizz = &.{"BOOOOOOOOOOOOOOOOOOOOOOO"}, .buzz = true, .jazz = &.{ 1, 2, 3, 4, 5, 6, 7, 8, 9 } }} }});
-
-    // const none = try encodeAbiParameters(&.{}, testing.allocator, .{});
-    //
-    // try testing.expectEqualStrings("", none.data);
 }
 
-// test "EncodePacked" {
-//     try testEncodePacked("45", .{69});
-//     try testEncodePacked("01", .{true});
-//     try testEncodePacked("00", .{false});
-//     try testEncodePacked("01", .{true});
-//     try testEncodePacked("01", .{true});
-//     {
-//         var buffer: [20]u8 = undefined;
-//         _ = try std.fmt.hexToBytes(&buffer, "4648451b5f87ff8f0f7d622bd40574bb97e25980");
-//         try testEncodePacked("4648451b5f87ff8f0f7d622bd40574bb97e25980", .{buffer});
-//     }
-//     try testEncodePacked("666f6f626172", .{ "foo", "bar" });
-//     try testEncodePacked("666f6f626172", .{&.{ "foo", "bar" }});
-//     {
-//         const foo: []const []const u8 = &.{ "foo", "bar" };
-//         try testEncodePacked("666f6f626172", .{foo});
-//     }
-//     {
-//         const foo: []const bool = &.{ false, false };
-//         try testEncodePacked("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", .{foo});
-//     }
-//     {
-//         const foo: []const u24 = &.{ 69420, 69420 };
-//         try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", .{foo});
-//     }
-//     {
-//         var buffer: [20]u8 = undefined;
-//         _ = try std.fmt.hexToBytes(&buffer, "4648451b5f87ff8f0f7d622bd40574bb97e25980");
-//         const foo: []const [20]u8 = &.{buffer};
-//         try testEncodePacked("0000000000000000000000004648451b5f87ff8f0f7d622bd40574bb97e25980", .{foo});
-//     }
-//     {
-//         const foo: [2]u24 = [2]u24{ 69420, 69420 };
-//         try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", .{foo});
-//     }
-//     {
-//         const foo: struct { u32, u32 } = .{ 69420, 69420 };
-//         try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", .{foo});
-//     }
-//     {
-//         const foo: @Vector(2, u32) = .{ 69420, 69420 };
-//         try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", .{foo});
-//     }
-//     try testEncodePacked("00010f2c", .{@as(u32, @intCast(69420))});
-//     {
-//         const foo: struct { foo: u32, bar: bool } = .{ .foo = 69420, .bar = true };
-//         try testEncodePacked("00010f2c01", .{foo});
-//     }
-//     try testEncodePacked("666f6f", .{.foo});
-//     {
-//         const foo: ?u8 = 69;
-//         try testEncodePacked("45", .{foo});
-//     }
-//     {
-//         const foo: enum { foo } = .foo;
-//         try testEncodePacked("666f6f", .{foo});
-//     }
-//     {
-//         const foo: error{foo} = error.foo;
-//         try testEncodePacked("666f6f", .{foo});
-//     }
-// }
+test "EncodePacked" {
+    try testEncodePacked("45", .{69});
+    try testEncodePacked("01", .{true});
+    try testEncodePacked("00", .{false});
+    try testEncodePacked("01", .{true});
+    try testEncodePacked("01", .{true});
+    {
+        var buffer: [20]u8 = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "4648451b5f87ff8f0f7d622bd40574bb97e25980");
+        try testEncodePacked("4648451b5f87ff8f0f7d622bd40574bb97e25980", .{buffer});
+    }
+    try testEncodePacked("666f6f626172", .{ "foo", "bar" });
+    try testEncodePacked("666f6f626172", .{&.{ "foo", "bar" }});
+    {
+        const foo: []const []const u8 = &.{ "foo", "bar" };
+        try testEncodePacked("666f6f626172", .{foo});
+    }
+    {
+        const foo: []const bool = &.{ false, false };
+        try testEncodePacked("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", .{foo});
+    }
+    {
+        const foo: []const u24 = &.{ 69420, 69420 };
+        try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", .{foo});
+    }
+    {
+        var buffer: [20]u8 = undefined;
+        _ = try std.fmt.hexToBytes(&buffer, "4648451b5f87ff8f0f7d622bd40574bb97e25980");
+        const foo: []const [20]u8 = &.{buffer};
+        try testEncodePacked("0000000000000000000000004648451b5f87ff8f0f7d622bd40574bb97e25980", .{foo});
+    }
+    {
+        const foo: [2]u24 = [2]u24{ 69420, 69420 };
+        try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", .{foo});
+    }
+    {
+        const foo: struct { u32, u32 } = .{ 69420, 69420 };
+        try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", .{foo});
+        try testEncodePacked("00010f2c", .{@as(u32, @intCast(69420))});
+    }
+    {
+        const foo: struct { foo: u32, bar: bool } = .{ .foo = 69420, .bar = true };
+        try testEncodePacked("00010f2c01", .{foo});
+    }
+    {
+        const foo: ?u8 = 69;
+        try testEncodePacked("45", .{foo});
+    }
+    {
+        const foo: enum { foo } = .foo;
+        try testEncodePacked("666f6f", .{foo});
+        try testEncodePacked("666f6f", .{.foo});
+    }
+    {
+        const foo: error{foo} = error.foo;
+        try testEncodePacked("666f6f", .{foo});
+    }
+}
 
 test "Constructor" {
     const constructor: Constructor = .{

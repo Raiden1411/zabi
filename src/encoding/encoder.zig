@@ -423,6 +423,95 @@ pub const AbiEncoder = struct {
     }
 };
 
+/// Encode values based on solidity's `encodePacked`.
+/// Solidity types are infered from zig ones since it closely follows them.
+///
+/// Caller owns the memory and it must free them.
+pub fn encodePacked(allocator: Allocator, values: anytype) Allocator.Error![]u8 {
+    const fields = @typeInfo(@TypeOf(values));
+
+    if (fields != .@"struct" or !fields.@"struct".is_tuple)
+        @compileError("Expected " ++ @typeName(@TypeOf(values)) ++ " to be a tuple value instead");
+
+    var list = std.ArrayList(u8).init(allocator);
+    errdefer list.deinit();
+
+    inline for (values) |value| {
+        try encodePackedParameters(value, &list.writer(), false);
+    }
+
+    return list.toOwnedSlice();
+}
+
+// Internal
+
+fn encodePackedParameters(value: anytype, writer: anytype, is_slice: bool) !void {
+    const info = @typeInfo(@TypeOf(value));
+
+    switch (info) {
+        .bool => {
+            const as_int = @intFromBool(value);
+            if (is_slice) {
+                try writer.writeInt(u256, as_int, .big);
+            } else try writer.writeInt(u8, as_int, .big);
+        },
+        .int => return if (is_slice) writer.writeInt(u256, value, .big) else writer.writeInt(@TypeOf(value), value, .big),
+        .comptime_int => {
+            var buffer: [32]u8 = undefined;
+            const size = utils.formatInt(@intCast(value), &buffer);
+
+            if (is_slice)
+                try writer.writeAll(buffer[0..])
+            else
+                try writer.writeAll(buffer[32 - size ..]);
+        },
+        .optional => |opt_info| {
+            if (value) |val| {
+                return encodePackedParameters(@as(opt_info.child, val), writer, is_slice);
+            }
+        },
+        .@"enum", .enum_literal => return encodePackedParameters(@tagName(value), writer, is_slice),
+        .error_set => return encodePackedParameters(@errorName(value), writer, is_slice),
+        .array => |arr_info| {
+            if (arr_info.child == u8) {
+                if (arr_info.len == 20) {
+                    if (is_slice) {
+                        var buffer: [32]u8 = [_]u8{0} ** 32;
+                        @memcpy(buffer[12..], value[0..]);
+                        return writer.writeAll(buffer[0..]);
+                    } else return writer.writeAll(&value);
+                }
+
+                return writer.writeAll(&value);
+            }
+
+            for (value) |val| {
+                try encodePackedParameters(val, writer, true);
+            }
+        },
+        .pointer => |ptr_info| {
+            switch (ptr_info.size) {
+                .One => return encodePackedParameters(value.*, writer, is_slice),
+                .Slice => {
+                    if (ptr_info.child == u8)
+                        return writer.writeAll(value);
+
+                    for (value) |val| {
+                        try encodePackedParameters(val, writer, true);
+                    }
+                },
+                else => @compileError("Unsupported ponter type '" ++ @typeName(@TypeOf(value)) ++ "'"),
+            }
+        },
+        .@"struct" => |struct_info| {
+            inline for (struct_info.fields) |field| {
+                try encodePackedParameters(@field(value, field.name), writer, if (struct_info.is_tuple) true else false);
+            }
+        },
+        else => @compileError("Unsupported type '" ++ @typeName(@TypeOf(value)) ++ "'"),
+    }
+}
+
 pub inline fn isDynamicType(comptime param: AbiParameter) bool {
     switch (param.type) {
         .bool,

@@ -47,7 +47,7 @@ pub fn encodeLogTopicsComptime(allocator: Allocator, comptime event: AbiEvent, v
     var list = try std.ArrayList(?Hash).initCapacity(allocator, values.len + 1);
     errdefer list.deinit();
 
-    const hash = try event.encode(allocator);
+    const hash = try event.encode();
 
     try list.append(hash);
 
@@ -89,7 +89,7 @@ pub fn encodeLogTopics(allocator: Allocator, event: AbiEvent, values: anytype) !
     var list = try std.ArrayList(?Hash).initCapacity(allocator, values.len + 1);
     errdefer list.deinit();
 
-    const hash = try event.encode(allocator);
+    const hash = try event.encode();
 
     try list.append(hash);
 

@@ -11,9 +11,9 @@ const zabi_decoding = @import("zabi-decoding");
 
 // Types
 const AbiDecoded = decoder.AbiDecoded;
-const AbiEncoded = encoder.AbiEncoded;
 const AbiEventParameter = abi.abi_parameter.AbiEventParameter;
 const AbiParameter = abi.abi_parameter.AbiParameter;
+const AbiParametersToPrimative = meta.abi.AbiParametersToPrimative;
 const Allocator = std.mem.Allocator;
 const DecodeOptions = decoder.DecodeOptions;
 const DecodeErrors = decoder.DecoderErrors;
@@ -84,22 +84,12 @@ pub const Function = struct {
     ///
     /// Consider using `EncodeAbiFunctionComptime` if the struct is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encode(self: @This(), allocator: Allocator, values: anytype) EncodeErrors![]u8 {
-        const prep_signature = try self.allocPrepare(allocator);
-        defer allocator.free(prep_signature);
-
-        var hashed: [Keccak256.digest_length]u8 = undefined;
-        Keccak256.hash(prep_signature, &hashed, .{});
-
-        const encoded_params = try encoder.encodeAbiParameters(allocator, self.inputs, values);
-        defer encoded_params.deinit();
-
-        const buffer = try allocator.alloc(u8, 4 + encoded_params.data.len);
-
-        @memcpy(buffer[0..4], hashed[0..4]);
-        @memcpy(buffer[4..], encoded_params.data[0..]);
-
-        return buffer;
+    pub fn encode(
+        comptime self: @This(),
+        allocator: Allocator,
+        values: AbiParametersToPrimative(self.inputs),
+    ) EncodeErrors![]u8 {
+        return encoder.encodeAbiFunction(self, allocator, values);
     }
 
     /// Encode the struct signature based on the values provided.
@@ -111,22 +101,12 @@ pub const Function = struct {
     ///
     /// Consider using `EncodeAbiFunctionComptime` if the struct is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encodeOutputs(self: @This(), allocator: Allocator, values: anytype) EncodeErrors![]u8 {
-        const prep_signature = try self.allocPrepare(allocator);
-        defer allocator.free(prep_signature);
-
-        var hashed: [Keccak256.digest_length]u8 = undefined;
-        Keccak256.hash(prep_signature, &hashed, .{});
-
-        const encoded_params = try encoder.encodeAbiParameters(allocator, self.outputs, values);
-        defer encoded_params.deinit();
-
-        const buffer = try allocator.alloc(u8, 4 + encoded_params.data.len);
-
-        @memcpy(buffer[0..4], hashed[0..4]);
-        @memcpy(buffer[4..], encoded_params.data[0..]);
-
-        return buffer;
+    pub fn encodeOutputs(
+        comptime self: @This(),
+        allocator: Allocator,
+        values: AbiParametersToPrimative(self.outputs),
+    ) Allocator.Error![]u8 {
+        return encoder.encodeAbiFunctionOutputs(self, allocator, values);
     }
 
     /// Decode a encoded function based on itself.
@@ -138,7 +118,13 @@ pub const Function = struct {
     ///
     /// Consider using `decodeAbiFunction` if the struct is
     /// comptime know and you dont want to provided the return type.
-    pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T) {
+    pub fn decode(
+        self: @This(),
+        comptime T: type,
+        allocator: Allocator,
+        encoded: []const u8,
+        options: DecodeOptions,
+    ) DecodeErrors!AbiDecoded(T) {
         _ = self;
         return decoder.decodeAbiFunction(T, allocator, encoded, options);
     }
@@ -151,7 +137,13 @@ pub const Function = struct {
     ///
     /// Consider using `decodeAbiFunction` if the struct is
     /// comptime know and you dont want to provided the return type.
-    pub fn decodeOutputs(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T) {
+    pub fn decodeOutputs(
+        self: @This(),
+        comptime T: type,
+        allocator: Allocator,
+        encoded: []const u8,
+        options: DecodeOptions,
+    ) DecodeErrors!AbiDecoded(T) {
         _ = self;
         return decoder.decodeAbiFunctionOutputs(T, allocator, encoded, options);
     }
@@ -246,12 +238,14 @@ pub const Event = struct {
     ///
     /// Consider using `EncodeAbiEventComptime` if the struct is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encode(self: @This(), allocator: Allocator) EncodeErrors!Hash {
-        const prep_signature = try self.allocPrepare(allocator);
-        defer allocator.free(prep_signature);
+    pub fn encode(self: @This()) PrepareErrors!Hash {
+        var buffer: [256]u8 = undefined;
+
+        var stream = std.io.fixedBufferStream(&buffer);
+        try self.prepare(stream.writer());
 
         var hashed: [Keccak256.digest_length]u8 = undefined;
-        Keccak256.hash(prep_signature, &hashed, .{});
+        Keccak256.hash(stream.getWritten(), &hashed, .{});
 
         return hashed;
     }
@@ -341,22 +335,8 @@ pub const Error = struct {
     ///
     /// Consider using `EncodeAbiErrorComptime` if the struct is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encode(self: @This(), allocator: Allocator, values: anytype) EncodeErrors![]u8 {
-        const prep_signature = try self.allocPrepare(allocator);
-        defer allocator.free(prep_signature);
-
-        var hashed: [Keccak256.digest_length]u8 = undefined;
-        Keccak256.hash(prep_signature, &hashed, .{});
-
-        const encoded_params = try encoder.encodeAbiParameters(allocator, self.inputs, values);
-        defer encoded_params.deinit();
-
-        const buffer = try allocator.alloc(u8, 4 + encoded_params.data.len);
-
-        @memcpy(buffer[0..4], hashed[0..4]);
-        @memcpy(buffer[4..], encoded_params.data[0..]);
-
-        return buffer;
+    pub fn encode(comptime self: @This(), allocator: Allocator, values: AbiParametersToPrimative(self.inputs)) EncodeErrors![]u8 {
+        return encoder.encodeAbiError(self, allocator, values);
     }
     /// Decode a encoded error based on itself.
     /// Runtime reflection based on the provided values will occur to determine
@@ -443,8 +423,12 @@ pub const Constructor = struct {
     ///
     /// Consider using `EncodeAbiConstructorComptime` if the struct is
     /// comptime know and you want better typesafety from the compiler
-    pub fn encode(self: @This(), allocator: Allocator, values: anytype) EncodeErrors!AbiEncoded {
-        return encoder.encodeAbiParameters(allocator, self.inputs, values);
+    pub fn encode(
+        comptime self: @This(),
+        allocator: Allocator,
+        values: AbiParametersToPrimative(self.inputs),
+    ) EncodeErrors![]u8 {
+        return encoder.encodeAbiParameters(self.inputs, allocator, values);
     }
 
     /// Decode a encoded constructor arguments based on itself.

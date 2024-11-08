@@ -10,10 +10,14 @@ const utils = @import("zabi-utils").utils;
 /// Types
 const AbiParameter = abi_param.AbiParameter;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
+const AbiItem = abi.AbiItem;
+const Constructor = abi.Constructor;
+const Error = abi.Error;
+const Event = abi.Event;
+const Function = abi.Function;
 const ParamType = @import("zabi-abi").param_type.ParamType;
 
 const encodeAbiParameters = @import("zabi-encoding").abi_encoding.encodeAbiParameters;
-// const encodeAbiParametersComptime = @import("zabi-encoding").abi_encoding.encodeAbiParametersComptime;
 const encodePacked = @import("zabi-encoding").abi_encoding.encodePacked;
 
 test "Bool" {
@@ -133,111 +137,170 @@ test "Multiple" {
 //         try testEncodePacked("666f6f", .{foo});
 //     }
 // }
-//
-// test "Constructor" {
-//     const sig = try human.parseHumanReadable(testing.allocator, "constructor(bool foo)");
-//     defer sig.deinit();
-//
-//     const encoded = try sig.value[0].abiConstructor.encode(testing.allocator, .{true});
-//     defer encoded.deinit();
-//
-//     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded.data)});
-//     defer testing.allocator.free(hex);
-//     try testing.expectEqualStrings("0000000000000000000000000000000000000000000000000000000000000001", hex);
-// }
-//
-// test "Constructor multi params" {
-//     const sig = try human.parseHumanReadable(testing.allocator, "constructor(bool foo, string bar)");
-//     defer sig.deinit();
-//
-//     const fizz: []const u8 = "fizzbuzz";
-//     const encoded = try sig.value[0].abiConstructor.encode(testing.allocator, .{ true, fizz });
-//     defer encoded.deinit();
-//
-//     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded.data)});
-//     defer testing.allocator.free(hex);
-//
-//     try testing.expectEqualStrings("00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", hex);
-// }
-//
-// test "Error signature" {
-//     const sig = try human.parseHumanReadable(testing.allocator, "error Foo(bool foo, string bar)");
-//     defer sig.deinit();
-//
-//     const fizz: []const u8 = "fizzbuzz";
-//     const encoded = try sig.value[0].abiError.encode(testing.allocator, .{ true, fizz });
-//     defer testing.allocator.free(encoded);
-//
-//     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-//     defer testing.allocator.free(hex);
-//
-//     try testing.expectEqualStrings("65c9c0c100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", hex);
-// }
-//
-// test "Event signature" {
-//     const sig = try human.parseHumanReadable(testing.allocator, "event Transfer(address indexed from, address indexed to, uint256 tokenId)");
-//     defer sig.deinit();
-//
-//     const encoded = try sig.value[0].abiEvent.encode(testing.allocator);
-//
-//     const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&encoded)});
-//     defer testing.allocator.free(hex);
-//
-//     try testing.expectEqualStrings("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", hex);
-// }
-//
-// test "Event signature non indexed" {
-//     const sig = try human.parseHumanReadable(testing.allocator, "event Transfer(address from, address to, uint256 tokenId)");
-//     defer sig.deinit();
-//
-//     const encoded = try sig.value[0].abiEvent.encode(testing.allocator);
-//
-//     const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&encoded)});
-//     defer testing.allocator.free(hex);
-//
-//     try testing.expectEqualStrings("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", hex);
-// }
-//
-// test "Function" {
-//     const sig = try human.parseHumanReadable(testing.allocator, "function Foo(bool foo, string bar)");
-//     defer sig.deinit();
-//
-//     const fizz: []const u8 = "fizzbuzz";
-//     const encoded = try sig.value[0].abiFunction.encode(testing.allocator, .{ true, fizz });
-//     defer testing.allocator.free(encoded);
-//
-//     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-//     defer testing.allocator.free(hex);
-//
-//     try testing.expectEqualStrings("65c9c0c100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", hex);
-// }
-//
-// test "Function outputs" {
-//     const sig = try human.parseHumanReadable(testing.allocator, "function Foo(bool foo, string bar) public view returns(int120 baz)");
-//     defer sig.deinit();
-//
-//     const encoded = try sig.value[0].abiFunction.encodeOutputs(testing.allocator, .{1});
-//     defer testing.allocator.free(encoded);
-//
-//     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-//     defer testing.allocator.free(hex);
-//
-//     try testing.expectEqualStrings("65c9c0c10000000000000000000000000000000000000000000000000000000000000001", hex);
-// }
-//
-// test "AbiItem" {
-//     const sig = try human.parseHumanReadable(testing.allocator, "function Foo(bool foo, string bar)");
-//     defer sig.deinit();
-//
-//     const fizz: []const u8 = "fizzbuzz";
-//     const encoded = try sig.value[0].abiFunction.encode(testing.allocator, .{ true, fizz });
-//     defer testing.allocator.free(encoded);
-//
-//     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
-//     defer testing.allocator.free(hex);
-//
-//     try testing.expectEqualStrings("65c9c0c100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", hex);
-// }
+
+test "Constructor" {
+    const constructor: Constructor = .{
+        .type = .constructor,
+        .inputs = &.{
+            .{ .type = .{ .bool = {} }, .name = "foo" },
+        },
+        .stateMutability = .nonpayable,
+    };
+
+    const encoded = try constructor.encode(testing.allocator, .{true});
+    defer testing.allocator.free(encoded);
+
+    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    defer testing.allocator.free(hex);
+
+    try testing.expectEqualStrings("0000000000000000000000000000000000000000000000000000000000000001", hex);
+}
+
+test "Constructor multi params" {
+    const constructor: Constructor = .{
+        .type = .constructor,
+        .inputs = &.{
+            .{ .type = .{ .bool = {} }, .name = "foo" },
+            .{ .type = .{ .string = {} }, .name = "bar" },
+        },
+        .stateMutability = .nonpayable,
+    };
+
+    const fizz: []const u8 = "fizzbuzz";
+    const encoded = try constructor.encode(testing.allocator, .{ true, fizz });
+    defer testing.allocator.free(encoded);
+
+    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    defer testing.allocator.free(hex);
+
+    try testing.expectEqualStrings("00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", hex);
+}
+
+test "Error signature" {
+    const err: Error = .{
+        .type = .@"error",
+        .inputs = &.{
+            .{ .type = .{ .bool = {} }, .name = "foo" },
+            .{ .type = .{ .string = {} }, .name = "bar" },
+        },
+        .name = "Foo",
+    };
+
+    const fizz: []const u8 = "fizzbuzz";
+    const encoded = try err.encode(testing.allocator, .{ true, fizz });
+    defer testing.allocator.free(encoded);
+
+    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    defer testing.allocator.free(hex);
+
+    try testing.expectEqualStrings("65c9c0c100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", hex);
+}
+
+test "Event signature" {
+    const event: Event = .{
+        .type = .event,
+        .inputs = &.{
+            .{ .type = .{ .address = {} }, .name = "from", .indexed = true },
+            .{ .type = .{ .address = {} }, .name = "to", .indexed = true },
+            .{ .type = .{ .uint = 256 }, .name = "tokenId", .indexed = false },
+        },
+        .name = "Transfer",
+    };
+
+    const encoded = try event.encode();
+
+    const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&encoded)});
+    defer testing.allocator.free(hex);
+
+    try testing.expectEqualStrings("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", hex);
+}
+
+test "Event signature non indexed" {
+    const event: Event = .{
+        .type = .event,
+        .inputs = &.{
+            .{ .type = .{ .address = {} }, .name = "from", .indexed = false },
+            .{ .type = .{ .address = {} }, .name = "to", .indexed = false },
+            .{ .type = .{ .uint = 256 }, .name = "tokenId", .indexed = false },
+        },
+        .name = "Transfer",
+    };
+
+    const encoded = try event.encode();
+
+    const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&encoded)});
+    defer testing.allocator.free(hex);
+
+    try testing.expectEqualStrings("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", hex);
+}
+
+test "Function" {
+    const func: Function = .{
+        .type = .function,
+        .inputs = &.{
+            .{ .type = .{ .bool = {} }, .name = "foo" },
+            .{ .type = .{ .string = {} }, .name = "bar" },
+        },
+        .name = "Foo",
+        .stateMutability = .nonpayable,
+        .outputs = &.{},
+    };
+
+    const fizz: []const u8 = "fizzbuzz";
+    const encoded = try func.encode(testing.allocator, .{ true, fizz });
+    defer testing.allocator.free(encoded);
+
+    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    defer testing.allocator.free(hex);
+
+    try testing.expectEqualStrings("65c9c0c100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", hex);
+}
+
+test "Function outputs" {
+    const func: Function = .{
+        .type = .function,
+        .inputs = &.{
+            .{ .type = .{ .bool = {} }, .name = "foo" },
+            .{ .type = .{ .string = {} }, .name = "bar" },
+        },
+        .name = "Foo",
+        .stateMutability = .nonpayable,
+        .outputs = &.{
+            .{ .type = .{ .int = 120 }, .name = "baz" },
+        },
+    };
+    const encoded = try func.encodeOutputs(testing.allocator, .{1});
+    defer testing.allocator.free(encoded);
+
+    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    defer testing.allocator.free(hex);
+
+    try testing.expectEqualStrings("0000000000000000000000000000000000000000000000000000000000000001", hex);
+}
+
+test "AbiItem" {
+    const func: AbiItem = .{
+        .abiFunction = .{
+            .type = .function,
+            .inputs = &.{
+                .{ .type = .{ .bool = {} }, .name = "foo" },
+                .{ .type = .{ .string = {} }, .name = "bar" },
+            },
+            .name = "Foo",
+            .stateMutability = .nonpayable,
+            .outputs = &.{},
+        },
+    };
+
+    const fizz: []const u8 = "fizzbuzz";
+    const encoded = try func.abiFunction.encode(testing.allocator, .{ true, fizz });
+    defer testing.allocator.free(encoded);
+
+    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    defer testing.allocator.free(hex);
+
+    try testing.expectEqualStrings("65c9c0c100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", hex);
+}
 
 fn testEncode(expected: []const u8, comptime params: []const AbiParameter, values: AbiParametersToPrimative(params)) !void {
     const encoded = try encodeAbiParameters(params, testing.allocator, values);

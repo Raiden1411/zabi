@@ -22,16 +22,7 @@ const Function = zabi_abi.abitypes.Function;
 const ParamType = zabi_abi.param_type.ParamType;
 
 /// Set of errors while perfoming abi encoding.
-pub const EncodeErrors = Allocator.Error || error{
-    InvalidIntType,
-    Overflow,
-    BufferExceedsMaxSize,
-    InvalidBits,
-    InvalidLength,
-    NoSpaceLeft,
-    InvalidCharacter,
-    InvalidParamType,
-};
+pub const EncodeErrors = Allocator.Error || error{NoSpaceLeft};
 
 pub const PreEncodedStructure = struct {
     dynamic: bool,
@@ -42,11 +33,81 @@ pub const PreEncodedStructure = struct {
     }
 };
 
+/// Encode an Solidity `Error` type with the signature and the values encoded.
+/// The signature is calculated by hashing the formated string generated from the `Error` signature.
+///
+/// Caller owns the memory.
+pub fn encodeAbiFunction(
+    comptime func: Function,
+    allocator: Allocator,
+    values: AbiParametersToPrimative(func.inputs),
+) EncodeErrors![]u8 {
+    var buffer: [256]u8 = undefined;
+
+    var stream = std.io.fixedBufferStream(&buffer);
+    try func.prepare(stream.writer());
+
+    var hashed: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(stream.getWritten(), &hashed, .{});
+
+    var encoder: AbiEncoder = .empty;
+
+    try encoder.preEncodeAbiParamters(func.inputs, allocator, values);
+    try encoder.heads.appendSlice(allocator, hashed[0..4]);
+
+    return encoder.encodePointers(allocator);
+}
+
+/// Encode an Solidity `Error` type with the signature and the values encoded.
+/// The signature is calculated by hashing the formated string generated from the `Error` signature.
+///
+/// Caller owns the memory.
+pub fn encodeAbiFunctionOutputs(
+    comptime func: Function,
+    allocator: Allocator,
+    values: AbiParametersToPrimative(func.outputs),
+) Allocator.Error![]u8 {
+    return encodeAbiParameters(func.outputs, allocator, values);
+}
+
+/// Encode an Solidity `Error` type with the signature and the values encoded.
+/// The signature is calculated by hashing the formated string generated from the `Error` signature.
+///
+/// Caller owns the memory.
+pub fn encodeAbiError(
+    comptime err: Error,
+    allocator: Allocator,
+    values: AbiParametersToPrimative(err.inputs),
+) EncodeErrors![]u8 {
+    var buffer: [256]u8 = undefined;
+
+    var stream = std.io.fixedBufferStream(&buffer);
+    try err.prepare(stream.writer());
+
+    var hashed: [Keccak256.digest_length]u8 = undefined;
+    Keccak256.hash(stream.getWritten(), &hashed, .{});
+
+    var encoder: AbiEncoder = .empty;
+
+    try encoder.preEncodeAbiParamters(err.inputs, allocator, values);
+    try encoder.heads.appendSlice(allocator, hashed[0..4]);
+
+    return encoder.encodePointers(allocator);
+}
+
+pub fn encodeAbiConstructor(
+    comptime constructor: Constructor,
+    allocator: Allocator,
+    values: AbiParametersToPrimative(constructor.inputs),
+) Allocator.Error![]u8 {
+    return encodeAbiParameters(constructor.inputs, allocator, values);
+}
+
 pub fn encodeAbiParameters(
     comptime params: []const AbiParameter,
     allocator: Allocator,
     values: AbiParametersToPrimative(params),
-) ![]u8 {
+) Allocator.Error![]u8 {
     var encoder: AbiEncoder = .empty;
     try encoder.preEncodeAbiParamters(params, allocator, values);
 

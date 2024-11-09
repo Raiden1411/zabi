@@ -24,6 +24,44 @@ const ParamType = zabi_abi.param_type.ParamType;
 /// Set of errors while perfoming abi encoding.
 pub const EncodeErrors = Allocator.Error || error{NoSpaceLeft};
 
+/// Runtime value representation for abi encoding.
+pub const AbiEncodedValues = union(enum) {
+    bool: bool,
+    uint: u256,
+    int: i256,
+    address: Address,
+    fixed_bytes: []u8,
+    string: []const u8,
+    bytes: []const u8,
+    fixed_array: []const AbiEncodedValues,
+    dynamic_array: []const AbiEncodedValues,
+    tuple: []const AbiEncodedValues,
+
+    /// Checks if the given values is a dynamic abi value.
+    pub fn isDynamic(self: @This()) bool {
+        switch (self) {
+            .bool,
+            .uint,
+            .int,
+            .address,
+            .fixed_bytes,
+            => return false,
+            .string,
+            .bytes,
+            .dynamic_array,
+            => return true,
+            .fixed_array,
+            => |values| return values[0].isDynamic(),
+            .tuple,
+            => |values| for (values) |value| {
+                if (value.isDynamic())
+                    return true;
+            } else return false,
+        }
+    }
+};
+
+/// The encoded values inner structure representation.
 pub const PreEncodedStructure = struct {
     dynamic: bool,
     encoded: []const u8,
@@ -107,6 +145,21 @@ pub fn encodeAbiParameters(
 
     return encoder.encodePointers(allocator);
 }
+/// Encodes the `values` based on the [specification](https://docs.soliditylang.org/en/develop/abi-spec.html#use-of-dynamic-types)
+///
+/// Use this if for some reason you don't know the `Abi` at comptime.
+///
+/// It's recommended to use `encodeAbiParameters` whenever possible but this is provided as a fallback
+/// you cannot use it.
+pub fn encodeAbiParametersValues(
+    allocator: Allocator,
+    values: []const AbiEncodedValues,
+) (Allocator.Error || error{InvalidType})![]u8 {
+    var encoder: AbiEncoder = .empty;
+    try encoder.preEncodeRuntimeValues(allocator, values);
+
+    return encoder.encodePointers(allocator);
+}
 
 /// The abi encoding structure used to encoded values with the abi encoding [specification](https://docs.soliditylang.org/en/develop/abi-spec.html#use-of-dynamic-types)
 ///
@@ -139,6 +192,15 @@ pub const AbiEncoder = struct {
     /// Only used to know the memory size of the `tails` stream.
     tails_size: u32,
 
+    pub fn encodeAbiParametersValues(
+        self: *Self,
+        allocator: Allocator,
+        values: []const AbiEncodedValues,
+    ) Allocator.Error![]u8 {
+        try self.preEncodeRuntimeValues(allocator, values);
+
+        return self.encodePointers(allocator);
+    }
     /// Encodes the `values` based on the [specification](https://docs.soliditylang.org/en/develop/abi-spec.html#use-of-dynamic-types)
     ///
     /// The values types are checked at comptime based on the provided `params`.
@@ -357,6 +419,177 @@ pub const AbiEncoder = struct {
                 } else @compileError("Expected tuple parameter components!");
             },
             else => @compileError("Unsupported '" ++ @tagName(param.type) ++ "'"),
+        }
+    }
+    /// Pre encodes the parameter values according to the specification and places it on `pre_encoded` arraylist.
+    pub fn preEncodeRuntimeValues(
+        self: *Self,
+        allocator: Allocator,
+        values: []const AbiEncodedValues,
+    ) (error{InvalidType} || Allocator.Error)!void {
+        try self.pre_encoded.ensureUnusedCapacity(allocator, values.len);
+
+        for (values) |value| {
+            try self.preEncodeRuntimeValue(allocator, value);
+        }
+    }
+    /// Pre encodes the parameter value according to the specification and places it on `pre_encoded` arraylist.
+    ///
+    /// This methods and some runtime checks to see if the parameter are valid like `preEncodeAbiParameter` that instead uses
+    /// comptime to get the exact expected types.
+    pub fn preEncodeRuntimeValue(
+        self: *Self,
+        allocator: Allocator,
+        value: AbiEncodedValues,
+    ) (error{InvalidType} || Allocator.Error)!void {
+        switch (value) {
+            .bool => |val| {
+                const encoded = encodeBoolean(val);
+
+                self.heads_size += 32;
+                self.pre_encoded.appendAssumeCapacity(.{
+                    .encoded = try allocator.dupe(u8, encoded[0..]),
+                    .dynamic = false,
+                });
+            },
+            .int => |val| {
+                const encoded = encodeNumber(i256, val);
+
+                self.heads_size += 32;
+                self.pre_encoded.appendAssumeCapacity(.{
+                    .encoded = try allocator.dupe(u8, encoded[0..]),
+                    .dynamic = false,
+                });
+            },
+            .uint => |val| {
+                const encoded = encodeNumber(u256, val);
+
+                self.heads_size += 32;
+                self.pre_encoded.appendAssumeCapacity(.{
+                    .encoded = try allocator.dupe(u8, encoded[0..]),
+                    .dynamic = false,
+                });
+            },
+            .address => |val| {
+                const encoded = encodeAddress(val);
+
+                self.heads_size += 32;
+                self.pre_encoded.appendAssumeCapacity(.{
+                    .encoded = try allocator.dupe(u8, encoded[0..]),
+                    .dynamic = false,
+                });
+            },
+            .fixed_bytes => |val| {
+                assert(val.len <= 32); // Fixed bytes can only be max 32 in size
+
+                var buffer: [32]u8 = [_]u8{0} ** 32;
+                @memcpy(buffer[0..val.len], val);
+
+                self.heads_size += 32;
+                self.pre_encoded.appendAssumeCapacity(.{
+                    .encoded = try allocator.dupe(u8, buffer[0..]),
+                    .dynamic = false,
+                });
+            },
+            .string,
+            .bytes,
+            => |val| {
+                const encoded = try encodeString(allocator, val);
+
+                self.heads_size += 32;
+                self.tails_size += @intCast(32 + encoded.len);
+                self.pre_encoded.appendAssumeCapacity(.{
+                    .encoded = encoded,
+                    .dynamic = true,
+                });
+            },
+            .fixed_array => |arr_values| {
+                var recursize: Self = .empty;
+                try recursize.pre_encoded.ensureUnusedCapacity(allocator, arr_values.len);
+
+                const cached: AbiEncodedValues = arr_values[0];
+
+                for (arr_values) |val| {
+                    if (std.meta.activeTag(cached) != std.meta.activeTag(val))
+                        return error.InvalidType;
+
+                    try recursize.preEncodeRuntimeValue(allocator, val);
+                }
+
+                if (value.isDynamic()) {
+                    const slice = try recursize.encodePointers(allocator);
+
+                    self.heads_size += 32;
+                    self.tails_size += @intCast(32 + slice.len);
+                    return self.pre_encoded.appendAssumeCapacity(.{
+                        .dynamic = true,
+                        .encoded = slice,
+                    });
+                }
+
+                const slice = try recursize.pre_encoded.toOwnedSlice(allocator);
+                defer allocator.free(slice);
+
+                self.heads_size += @intCast(arr_values.len * 32);
+                try self.pre_encoded.appendSlice(allocator, slice);
+            },
+
+            .dynamic_array => |arr_values| {
+                var recursize: Self = .empty;
+                try recursize.pre_encoded.ensureUnusedCapacity(allocator, arr_values.len);
+
+                const cached: AbiEncodedValues = arr_values[0];
+
+                for (arr_values) |val| {
+                    if (std.meta.activeTag(cached) != std.meta.activeTag(val))
+                        return error.InvalidType;
+
+                    try recursize.preEncodeRuntimeValue(allocator, val);
+                }
+
+                const size = encodeNumber(u256, arr_values.len);
+
+                const slice = try recursize.encodePointers(allocator);
+                defer allocator.free(slice);
+
+                self.heads_size += 32;
+                self.tails_size += @intCast(32 + slice.len);
+
+                // Uses the `heads` as a scratch space to concat the slices.
+                try recursize.heads.ensureUnusedCapacity(allocator, 32 + slice.len);
+                recursize.heads.appendSliceAssumeCapacity(size[0..]);
+                recursize.heads.appendSliceAssumeCapacity(slice);
+
+                self.pre_encoded.appendAssumeCapacity(.{
+                    .dynamic = true,
+                    .encoded = try recursize.heads.toOwnedSlice(allocator),
+                });
+            },
+            .tuple => |tuple_values| {
+                var recursize: Self = .empty;
+                try recursize.pre_encoded.ensureUnusedCapacity(allocator, tuple_values.len);
+
+                for (tuple_values) |component| {
+                    try recursize.preEncodeRuntimeValue(allocator, component);
+                }
+
+                if (value.isDynamic()) {
+                    const slice = try recursize.encodePointers(allocator);
+
+                    self.heads_size += 32;
+                    self.tails_size += @intCast(32 + slice.len);
+                    return self.pre_encoded.appendAssumeCapacity(.{
+                        .dynamic = true,
+                        .encoded = slice,
+                    });
+                }
+
+                const slice = try recursize.pre_encoded.toOwnedSlice(allocator);
+                defer allocator.free(slice);
+
+                self.heads_size += @intCast(tuple_values.len * 32);
+                try self.pre_encoded.appendSlice(allocator, slice);
+            },
         }
     }
 };

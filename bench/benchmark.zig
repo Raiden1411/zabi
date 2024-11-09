@@ -43,13 +43,13 @@ pub fn main() !void {
         .next_color = .white,
     };
 
-    // const uri = try std.Uri.parse("https://ethereum-rpc.publicnode.com");
-    //
-    // var client = try HttpRpcClient.init(.{
-    //     .allocator = allocator,
-    //     .network_config = .{ .endpoint = .{ .uri = uri } },
-    // });
-    // defer client.deinit();
+    const uri = try std.Uri.parse("https://ethereum-rpc.publicnode.com");
+
+    var client = try HttpRpcClient.init(.{
+        .allocator = allocator,
+        .network_config = .{ .endpoint = .{ .uri = uri } },
+    });
+    defer client.deinit();
 
     try printer.writer().print("{s}Benchmark running in {s} mode\n", .{ " " ** 20, @tagName(@import("builtin").mode) });
     try printer.writeBoarder(.HumanReadableAbi);
@@ -79,17 +79,17 @@ pub fn main() !void {
         result.printSummary();
     }
 
-    // try printer.writeBoarder(.HttpClient);
-    // {
-    //     try printer.writer().writeAll("Get ChainId...");
-    //     const result = try benchmark.benchmark(
-    //         allocator,
-    //         HttpRpcClient.getChainId,
-    //         .{client},
-    //         .{ .runs = 5, .warmup_runs = 1 },
-    //     );
-    //     result.printSummary();
-    // }
+    try printer.writeBoarder(.HttpClient);
+    {
+        try printer.writer().writeAll("Get ChainId...");
+        const result = try benchmark.benchmark(
+            allocator,
+            HttpRpcClient.getChainId,
+            .{client},
+            .{ .runs = 5, .warmup_runs = 1 },
+        );
+        result.printSummary();
+    }
 
     try printer.writeBoarder(.SolidityAst);
     {

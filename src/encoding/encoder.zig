@@ -88,7 +88,7 @@ pub fn encodeAbiFunction(
 
     var encoder: AbiEncoder = .empty;
 
-    try encoder.preEncodeAbiParamters(func.inputs, allocator, values);
+    try encoder.preEncodeAbiParameters(func.inputs, allocator, values);
     try encoder.heads.appendSlice(allocator, hashed[0..4]);
 
     return encoder.encodePointers(allocator);
@@ -119,7 +119,7 @@ pub fn encodeAbiError(
 
     var encoder: AbiEncoder = .empty;
 
-    try encoder.preEncodeAbiParamters(err.inputs, allocator, values);
+    try encoder.preEncodeAbiParameters(err.inputs, allocator, values);
     try encoder.heads.appendSlice(allocator, hashed[0..4]);
 
     return encoder.encodePointers(allocator);
@@ -141,7 +141,7 @@ pub fn encodeAbiParameters(
     values: AbiParametersToPrimative(params),
 ) Allocator.Error![]u8 {
     var encoder: AbiEncoder = .empty;
-    try encoder.preEncodeAbiParamters(params, allocator, values);
+    try encoder.preEncodeAbiParameters(params, allocator, values);
 
     return encoder.encodePointers(allocator);
 }
@@ -157,6 +157,36 @@ pub fn encodeAbiParametersValues(
 ) (Allocator.Error || error{InvalidType})![]u8 {
     var encoder: AbiEncoder = .empty;
     try encoder.preEncodeRuntimeValues(allocator, values);
+
+    return encoder.encodePointers(allocator);
+}
+/// Encodes the `values` based on the [specification](https://docs.soliditylang.org/en/develop/abi-spec.html#use-of-dynamic-types)
+///
+/// This will use zig's ability to provide compile time reflection based on the `values` provided.
+/// The `values` must be a tuple struct. Otherwise it will trigger a compile error.
+///
+/// By default this provides more support for a greater range on zig types that can be used for encoding.
+/// Bellow you will find the list of all support types and what is expected to be encoded as.
+///
+///   * Zig `bool` -> Will be encoded like a boolean value
+///   * Zig `?T` -> Only encodes if the value is not null.
+///   * Zig `int`, `comptime_int` -> Will be encoded based on the signedness of the integer.
+///   * Zig `[N]u8` -> Only support max size of 32. `[20]u8` will be encoded as address types and all other as bytes1..32.
+///                    This is the main limitation because abi encoding of bytes1..32 follows little endian and for address follows big endian.
+///   * Zig `enum` -> The tagname of the enum encoded as a string/bytes value.
+///   * Zig `*T` -> will encoded the child type.
+///   * Zig `[]const u8`, `[]u8` -> Will encode according the string/bytes specification.
+///   * Zig `[]const T` -> Will encode as a dynamic array
+///   * Zig `[N]T` -> Will encode as a dynamic value if the child type is of a dynamic type.
+///   * Zig `struct` -> Will encode as a dynamic value if the child type is of a dynamic type.
+///
+/// All other types are currently not supported.
+pub fn encodeAbiParametersFromReflection(
+    allocator: Allocator,
+    values: anytype,
+) Allocator.Error![]u8 {
+    var encoder: AbiEncoder = .empty;
+    try encoder.preEncodeValuesFromReflection(allocator, values);
 
     return encoder.encodePointers(allocator);
 }
@@ -192,6 +222,15 @@ pub const AbiEncoder = struct {
     /// Only used to know the memory size of the `tails` stream.
     tails_size: u32,
 
+    pub fn encodeAbiParametersFromReflection(
+        self: *Self,
+        allocator: Allocator,
+        values: anytype,
+    ) Allocator.Error![]u8 {
+        try self.preEncodeValuesFromReflection(allocator, values);
+
+        return self.encodePointers(allocator);
+    }
     pub fn encodeAbiParametersValues(
         self: *Self,
         allocator: Allocator,
@@ -210,7 +249,7 @@ pub const AbiEncoder = struct {
         allocator: Allocator,
         values: AbiParametersToPrimative(params),
     ) Allocator.Error![]u8 {
-        try self.preEncodeAbiParamters(params, allocator, values);
+        try self.preEncodeAbiParameters(params, allocator, values);
 
         return self.encodePointers(allocator);
     }
@@ -244,7 +283,7 @@ pub const AbiEncoder = struct {
         return self.heads.toOwnedSlice(allocator);
     }
     /// Encodes the values and places them on the `inner` stack.
-    pub fn preEncodeAbiParamters(
+    pub fn preEncodeAbiParameters(
         self: *Self,
         comptime params: []const AbiParameter,
         allocator: Allocator,
@@ -533,7 +572,6 @@ pub const AbiEncoder = struct {
                 self.heads_size += @intCast(arr_values.len * 32);
                 try self.pre_encoded.appendSlice(allocator, slice);
             },
-
             .dynamic_array => |arr_values| {
                 var recursize: Self = .empty;
                 try recursize.pre_encoded.ensureUnusedCapacity(allocator, arr_values.len);
@@ -590,6 +628,192 @@ pub const AbiEncoder = struct {
                 self.heads_size += @intCast(tuple_values.len * 32);
                 try self.pre_encoded.appendSlice(allocator, slice);
             },
+        }
+    }
+    /// This will use zig's ability to provide compile time reflection based on the `values` provided.
+    /// The `values` must be a tuple struct. Otherwise it will trigger a compile error.
+    pub fn preEncodeValuesFromReflection(self: *Self, allocator: Allocator, values: anytype) Allocator.Error!void {
+        const info = @typeInfo(@TypeOf(values));
+
+        if (info != .@"struct" or !info.@"struct".is_tuple)
+            @compileError("Values must be a tuple struct");
+
+        try self.pre_encoded.ensureUnusedCapacity(allocator, info.@"struct".fields.len);
+
+        inline for (info.@"struct".fields) |field| {
+            try self.preEncodeReflection(allocator, @field(values, field.name));
+        }
+    }
+    /// This will use zig's ability to provide compile time reflection based on the `value` provided.
+    pub fn preEncodeReflection(self: *Self, allocator: Allocator, value: anytype) Allocator.Error!void {
+        const info = @typeInfo(@TypeOf(value));
+
+        switch (info) {
+            .bool => {
+                const encoded = encodeBoolean(value);
+
+                self.heads_size += 32;
+                self.pre_encoded.appendAssumeCapacity(.{
+                    .encoded = try allocator.dupe(u8, encoded[0..]),
+                    .dynamic = false,
+                });
+            },
+            .int => |int_info| {
+                const encoded = switch (int_info.signedness) {
+                    .signed => encodeNumber(i256, value),
+                    .unsigned => encodeNumber(u256, value),
+                };
+
+                self.heads_size += 32;
+                self.pre_encoded.appendAssumeCapacity(.{
+                    .encoded = try allocator.dupe(u8, encoded[0..]),
+                    .dynamic = false,
+                });
+            },
+            .comptime_int => {
+                const IntType = std.math.IntFittingRange(value, value);
+
+                return self.preEncodeReflection(allocator, @as(IntType, @intCast(value)));
+            },
+            .optional => {
+                if (value) |val| return self.preEncodeReflection(allocator, val) else @compileError("Unsupported null value");
+            },
+            .enum_literal,
+            .@"enum",
+            => {
+                const encoded = try encodeString(allocator, @tagName(value));
+
+                self.heads_size += 32;
+                self.tails_size += @intCast(32 + encoded.len);
+
+                self.pre_encoded.appendAssumeCapacity(.{
+                    .encoded = encoded,
+                    .dynamic = true,
+                });
+            },
+            .array => |arr_info| {
+                if (arr_info.child == u8) {
+                    if (arr_info.len == 20) {
+                        const encoded = encodeAddress(value);
+
+                        self.heads_size += 32;
+                        return self.pre_encoded.appendAssumeCapacity(.{
+                            .encoded = try allocator.dupe(u8, encoded[0..]),
+                            .dynamic = false,
+                        });
+                    }
+
+                    const encoded = encodeFixedBytes(arr_info.len, value);
+
+                    self.heads_size += 32;
+                    return self.pre_encoded.appendAssumeCapacity(.{
+                        .encoded = try allocator.dupe(u8, encoded[0..]),
+                        .dynamic = false,
+                    });
+                }
+
+                var recursize: Self = .empty;
+                try recursize.pre_encoded.ensureUnusedCapacity(allocator, arr_info.len);
+
+                inline for (value) |val| {
+                    try recursize.preEncodeReflection(allocator, val);
+                }
+
+                if (utils.isDynamicType(@TypeOf(value))) {
+                    const slice = try recursize.encodePointers(allocator);
+
+                    self.heads_size += 32;
+                    self.tails_size += @intCast(32 + slice.len);
+                    return self.pre_encoded.appendAssumeCapacity(.{
+                        .dynamic = true,
+                        .encoded = slice,
+                    });
+                }
+
+                const slice = try recursize.pre_encoded.toOwnedSlice(allocator);
+                defer allocator.free(slice);
+
+                self.heads_size += @intCast(arr_info.len * 32);
+                try self.pre_encoded.appendSlice(allocator, slice);
+            },
+            .pointer => |ptr_info| {
+                switch (ptr_info.size) {
+                    .One => switch (@typeInfo(ptr_info.child)) {
+                        .array,
+                        => {
+                            const Slice = []const std.meta.Elem(ptr_info.child);
+                            return self.preEncodeReflection(allocator, @as(Slice, value));
+                        },
+                        else => return self.preEncodeReflection(allocator, value.*),
+                    },
+                    .Slice => {
+                        if (ptr_info.child == u8) {
+                            const encoded = try encodeString(allocator, value);
+
+                            self.heads_size += 32;
+                            self.tails_size += @intCast(32 + encoded.len);
+
+                            return self.pre_encoded.appendAssumeCapacity(.{
+                                .encoded = encoded,
+                                .dynamic = true,
+                            });
+                        }
+
+                        var recursize: Self = .empty;
+                        try recursize.pre_encoded.ensureUnusedCapacity(allocator, value.len);
+
+                        for (value) |val| {
+                            try recursize.preEncodeReflection(allocator, val);
+                        }
+
+                        const size = encodeNumber(u256, value.len);
+
+                        const slice = try recursize.encodePointers(allocator);
+                        defer allocator.free(slice);
+
+                        self.heads_size += 32;
+                        self.tails_size += @intCast(32 + slice.len);
+
+                        // Uses the `heads` as a scratch space to concat the slices.
+                        try recursize.heads.ensureUnusedCapacity(allocator, 32 + slice.len);
+                        recursize.heads.appendSliceAssumeCapacity(size[0..]);
+                        recursize.heads.appendSliceAssumeCapacity(slice);
+
+                        self.pre_encoded.appendAssumeCapacity(.{
+                            .dynamic = true,
+                            .encoded = try recursize.heads.toOwnedSlice(allocator),
+                        });
+                    },
+                    else => @compileError("Unsupported pointer type '" ++ @tagName(ptr_info.child) ++ "'"),
+                }
+            },
+            .@"struct" => |struct_info| {
+                var recursize: Self = .empty;
+                try recursize.pre_encoded.ensureUnusedCapacity(allocator, struct_info.fields.len);
+
+                inline for (struct_info.fields) |field| {
+                    try recursize.preEncodeReflection(allocator, @field(value, field.name));
+                }
+
+                if (utils.isDynamicType(@TypeOf(value))) {
+                    const slice = try recursize.encodePointers(allocator);
+
+                    self.heads_size += 32;
+                    self.tails_size += @intCast(32 + slice.len);
+
+                    return self.pre_encoded.appendAssumeCapacity(.{
+                        .dynamic = true,
+                        .encoded = slice,
+                    });
+                }
+
+                const slice = try recursize.pre_encoded.toOwnedSlice(allocator);
+                defer allocator.free(slice);
+
+                self.heads_size += @intCast(struct_info.fields.len * 32);
+                try self.pre_encoded.appendSlice(allocator, slice);
+            },
+            else => @compileError("Unsupported type '" ++ @typeName(@TypeOf(value)) ++ "'"),
         }
     }
 };
@@ -662,6 +886,38 @@ pub fn encodePacked(allocator: Allocator, values: anytype) Allocator.Error![]u8 
 
     return list.toOwnedSlice();
 }
+/// Checks if a given parameter is a dynamic abi type.
+pub inline fn isDynamicType(comptime param: AbiParameter) bool {
+    switch (param.type) {
+        .bool,
+        .int,
+        .uint,
+        .fixedBytes,
+        .@"enum",
+        .address,
+        => return false,
+        .string,
+        .bytes,
+        .dynamicArray,
+        => return true,
+        .fixedArray => |info| {
+            const new_parameter: AbiParameter = .{
+                .type = info.child.*,
+                .name = param.name,
+                .internalType = param.internalType,
+                .components = param.components,
+            };
+
+            return isDynamicType(new_parameter);
+        },
+        .tuple => {
+            inline for (param.components orelse @compileError("Expected components to not be null")) |component| {
+                if (isDynamicType(component))
+                    return true;
+            } else return false;
+        },
+    }
+}
 
 // Internal
 fn encodePackedParameters(value: anytype, writer: anytype, is_slice: bool) !void {
@@ -728,37 +984,5 @@ fn encodePackedParameters(value: anytype, writer: anytype, is_slice: bool) !void
             }
         },
         else => @compileError("Unsupported type '" ++ @typeName(@TypeOf(value)) ++ "'"),
-    }
-}
-
-pub inline fn isDynamicType(comptime param: AbiParameter) bool {
-    switch (param.type) {
-        .bool,
-        .int,
-        .uint,
-        .fixedBytes,
-        .@"enum",
-        .address,
-        => return false,
-        .string,
-        .bytes,
-        .dynamicArray,
-        => return true,
-        .fixedArray => |info| {
-            const new_parameter: AbiParameter = .{
-                .type = info.child.*,
-                .name = param.name,
-                .internalType = param.internalType,
-                .components = param.components,
-            };
-
-            return isDynamicType(new_parameter);
-        },
-        .tuple => {
-            inline for (param.components orelse @compileError("Expected components to not be null")) |component| {
-                if (isDynamicType(component))
-                    return true;
-            } else return false;
-        },
     }
 }

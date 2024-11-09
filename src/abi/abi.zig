@@ -11,6 +11,7 @@ const zabi_decoding = @import("zabi-decoding");
 
 // Types
 const AbiDecoded = decoder.AbiDecoded;
+const AbiEncoder = encoder.AbiEncoder;
 const AbiEventParameter = abi.abi_parameter.AbiEventParameter;
 const AbiParameter = abi.abi_parameter.AbiParameter;
 const AbiParametersToPrimative = meta.abi.AbiParametersToPrimative;
@@ -76,14 +77,31 @@ pub const Function = struct {
         allocator.free(self.outputs);
     }
 
+    pub fn encodeFromReflection(
+        self: @This(),
+        allocator: Allocator,
+        values: anytype,
+    ) EncodeErrors![]u8 {
+        var buffer: [256]u8 = undefined;
+
+        var stream = std.io.fixedBufferStream(&buffer);
+        try self.prepare(stream.writer());
+
+        var hashed: [Keccak256.digest_length]u8 = undefined;
+        Keccak256.hash(stream.getWritten(), &hashed, .{});
+
+        var abi_encoder: AbiEncoder = .empty;
+
+        try abi_encoder.preEncodeValuesFromReflection(allocator, values);
+        try abi_encoder.heads.appendSlice(allocator, hashed[0..4]);
+
+        return abi_encoder.encodePointers(allocator);
+    }
     /// Encode the struct signature based on the values provided.
     /// Runtime reflection based on the provided values will occur to determine
     /// what is the correct method to use to encode the values
     ///
     /// Caller owns the memory.
-    ///
-    /// Consider using `EncodeAbiFunctionComptime` if the struct is
-    /// comptime know and you want better typesafety from the compiler
     pub fn encode(
         comptime self: @This(),
         allocator: Allocator,
@@ -91,16 +109,12 @@ pub const Function = struct {
     ) EncodeErrors![]u8 {
         return encoder.encodeAbiFunction(self, allocator, values);
     }
-
     /// Encode the struct signature based on the values provided.
     /// Runtime reflection based on the provided values will occur to determine
     /// what is the correct method to use to encode the values.
     /// This methods will run the values against the `outputs` proprety.
     ///
     /// Caller owns the memory.
-    ///
-    /// Consider using `EncodeAbiFunctionComptime` if the struct is
-    /// comptime know and you want better typesafety from the compiler
     pub fn encodeOutputs(
         comptime self: @This(),
         allocator: Allocator,
@@ -415,6 +429,15 @@ pub const Constructor = struct {
         if (self.stateMutability != .nonpayable) try writer.print(" {s}", .{@tagName(self.stateMutability)});
     }
 
+    pub fn encodeFromReflection(
+        self: @This(),
+        allocator: Allocator,
+        values: anytype,
+    ) EncodeErrors![]u8 {
+        _ = self;
+
+        return encoder.encodeAbiParametersFromReflection(allocator, values);
+    }
     /// Encode the struct signature based on the values provided.
     /// Runtime reflection based on the provided values will occur to determine
     /// what is the correct method to use to encode the values

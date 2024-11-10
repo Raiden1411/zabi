@@ -43,13 +43,13 @@ pub fn main() !void {
         .next_color = .white,
     };
 
-    // const uri = try std.Uri.parse("https://ethereum-rpc.publicnode.com");
-    //
-    // var client = try HttpRpcClient.init(.{
-    //     .allocator = allocator,
-    //     .network_config = .{ .endpoint = .{ .uri = uri } },
-    // });
-    // defer client.deinit();
+    const uri = try std.Uri.parse("https://ethereum-rpc.publicnode.com");
+
+    var client = try HttpRpcClient.init(.{
+        .allocator = allocator,
+        .network_config = .{ .endpoint = .{ .uri = uri } },
+    });
+    defer client.deinit();
 
     try printer.writer().print("{s}Benchmark running in {s} mode\n", .{ " " ** 20, @tagName(@import("builtin").mode) });
     try printer.writeBoarder(.HumanReadableAbi);
@@ -79,17 +79,17 @@ pub fn main() !void {
         result.printSummary();
     }
 
-    // try printer.writeBoarder(.HttpClient);
-    // {
-    //     try printer.writer().writeAll("Get ChainId...");
-    //     const result = try benchmark.benchmark(
-    //         allocator,
-    //         HttpRpcClient.getChainId,
-    //         .{client},
-    //         .{ .runs = 5, .warmup_runs = 1 },
-    //     );
-    //     result.printSummary();
-    // }
+    try printer.writeBoarder(.HttpClient);
+    {
+        try printer.writer().writeAll("Get ChainId...");
+        const result = try benchmark.benchmark(
+            allocator,
+            HttpRpcClient.getChainId,
+            .{client},
+            .{ .runs = 5, .warmup_runs = 1 },
+        );
+        result.printSummary();
+    }
 
     try printer.writeBoarder(.SolidityAst);
     {
@@ -288,8 +288,8 @@ pub fn decodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
 
     try printer.writer().writeAll("Abi Decoding... ");
     {
-        const encoded = try encodeAbiParameters(allocator, constants.params, constants.items);
-        defer encoded.deinit();
+        const encoded = try encodeAbiParameters(constants.params, allocator, constants.items);
+        defer allocator.free(encoded);
 
         const opts: benchmark.BenchmarkOptions = .{ .warmup_runs = 5, .runs = 100 };
 
@@ -298,7 +298,7 @@ pub fn decodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
             const abi = try zabi_root.decoding.abi_decoder.decodeAbiParameter(
                 zabi_root.meta.abi.AbiParametersToPrimative(constants.params),
                 allocator,
-                encoded.data,
+                encoded,
                 .{},
             );
             defer abi.deinit();
@@ -309,7 +309,7 @@ pub fn decodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
             const abi = try zabi_root.decoding.abi_decoder.decodeAbiParameter(
                 zabi_root.meta.abi.AbiParametersToPrimative(constants.params),
                 allocator,
-                encoded.data,
+                encoded,
                 .{},
             );
             defer abi.deinit();
@@ -404,7 +404,7 @@ pub fn encodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
         const result = try benchmark.benchmark(
             allocator,
             encodeAbiParameters,
-            .{ allocator, constants.params, constants.items },
+            .{ constants.params, allocator, constants.items },
             .{ .warmup_runs = 5, .runs = 100 },
         );
         result.printSummary();

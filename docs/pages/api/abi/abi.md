@@ -59,20 +59,35 @@ struct {
 pub fn deinit(self: @This(), allocator: std.mem.Allocator) void
 ```
 
-### Encode
-Encode the struct signature based on the values provided.
-Runtime reflection based on the provided values will occur to determine
-what is the correct method to use to encode the values
+### EncodeFromReflection
+Abi Encode the struct signature based on the values provided.
 
-Caller owns the memory.
-
-Consider using `EncodeAbiFunctionComptime` if the struct is
-comptime know and you want better typesafety from the compiler
+Compile time reflection is used to encode based on type of the values provided.
 
 ### Signature
 
 ```zig
-pub fn encode(self: @This(), allocator: Allocator, values: anytype) EncodeErrors![]u8
+pub fn encodeFromReflection(
+    self: @This(),
+    allocator: Allocator,
+    values: anytype,
+) EncodeErrors![]u8
+```
+
+### Encode
+Abi Encode the struct signature based on the values provided.
+
+This is only available if `self` is know at comptime. With this we will know the exact type
+of what the `values` should be.
+
+### Signature
+
+```zig
+pub fn encode(
+    comptime self: @This(),
+    allocator: Allocator,
+    values: AbiParametersToPrimative(self.inputs),
+) EncodeErrors![]u8
 ```
 
 ### EncodeOutputs
@@ -83,13 +98,14 @@ This methods will run the values against the `outputs` proprety.
 
 Caller owns the memory.
 
-Consider using `EncodeAbiFunctionComptime` if the struct is
-comptime know and you want better typesafety from the compiler
-
 ### Signature
 
 ```zig
-pub fn encodeOutputs(self: @This(), allocator: Allocator, values: anytype) EncodeErrors![]u8
+pub fn encodeOutputs(
+    comptime self: @This(),
+    allocator: Allocator,
+    values: AbiParametersToPrimative(self.outputs),
+) Allocator.Error![]u8
 ```
 
 ### Decode
@@ -106,7 +122,13 @@ comptime know and you dont want to provided the return type.
 ### Signature
 
 ```zig
-pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T)
+pub fn decode(
+    self: @This(),
+    comptime T: type,
+    allocator: Allocator,
+    encoded: []const u8,
+    options: DecodeOptions,
+) DecodeErrors!AbiDecoded(T)
 ```
 
 ### DecodeOutputs
@@ -123,7 +145,13 @@ comptime know and you dont want to provided the return type.
 ### Signature
 
 ```zig
-pub fn decodeOutputs(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T)
+pub fn decodeOutputs(
+    self: @This(),
+    comptime T: type,
+    allocator: Allocator,
+    encoded: []const u8,
+    options: DecodeOptions,
+) DecodeErrors!AbiDecoded(T)
 ```
 
 ### AllocPrepare
@@ -172,17 +200,12 @@ pub fn deinit(self: @This(), allocator: std.mem.Allocator) void
 ```
 
 ### Encode
-Encode the struct signature based it's hash.
-
-Caller owns the memory.
-
-Consider using `EncodeAbiEventComptime` if the struct is
-comptime know and you want better typesafety from the compiler
+Generates the hash of the struct signatures.
 
 ### Signature
 
 ```zig
-pub fn encode(self: @This(), allocator: Allocator) EncodeErrors!Hash
+pub fn encode(self: @This()) PrepareErrors!Hash
 ```
 
 ### EncodeLogTopics
@@ -254,19 +277,15 @@ pub fn deinit(self: @This(), allocator: Allocator) void
 ```
 
 ### Encode
-Encode the struct signature based on the values provided.
-Runtime reflection based on the provided values will occur to determine
-what is the correct method to use to encode the values
+Abi Encode the struct signature based on the values provided.
 
-Caller owns the memory.
-
-Consider using `EncodeAbiErrorComptime` if the struct is
-comptime know and you want better typesafety from the compiler
+This is only available if `self` is know at comptime. With this we will know the exact type
+of what the `values` should be.
 
 ### Signature
 
 ```zig
-pub fn encode(self: @This(), allocator: Allocator, values: anytype) EncodeErrors![]u8
+pub fn encode(comptime self: @This(), allocator: Allocator, values: AbiParametersToPrimative(self.inputs)) EncodeErrors![]u8
 ```
 
 ### Decode
@@ -334,20 +353,35 @@ struct {
 pub fn deinit(self: @This(), allocator: Allocator) void
 ```
 
-### Encode
-Encode the struct signature based on the values provided.
-Runtime reflection based on the provided values will occur to determine
-what is the correct method to use to encode the values
+### EncodeFromReflection
+Abi Encode the struct signature based on the values provided.
 
-Caller owns the memory.
-
-Consider using `EncodeAbiConstructorComptime` if the struct is
-comptime know and you want better typesafety from the compiler
+Compile time reflection is used to encode based on type of the values provided.
 
 ### Signature
 
 ```zig
-pub fn encode(self: @This(), allocator: Allocator, values: anytype) EncodeErrors!AbiEncoded
+pub fn encodeFromReflection(
+    self: @This(),
+    allocator: Allocator,
+    values: anytype,
+) EncodeErrors![]u8
+```
+
+### Encode
+Abi Encode the struct signature based on the values provided.
+
+This is only available if `self` is know at comptime. With this we will know the exact type
+of what the `values` should be.
+
+### Signature
+
+```zig
+pub fn encode(
+    comptime self: @This(),
+    allocator: Allocator,
+    values: AbiParametersToPrimative(self.inputs),
+) EncodeErrors![]u8
 ```
 
 ### Decode

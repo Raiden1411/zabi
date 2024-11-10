@@ -330,10 +330,10 @@ pub fn Contract(comptime client_type: ClientType) type {
             var copy = overrides;
             const constructor = try getAbiItem(self.abi, .constructor, null);
 
-            const encoded = try constructor.abiConstructor.encode(self.wallet.allocator, constructor_args);
-            defer encoded.deinit();
+            const encoded = try constructor.abiConstructor.encodeFromReflection(self.wallet.allocator, constructor_args);
+            defer self.wallet.allocator.free(encoded);
 
-            const concated = try std.mem.concat(self.wallet.allocator, u8, &.{ bytecode, encoded.data });
+            const concated = try std.mem.concat(self.wallet.allocator, u8, &.{ bytecode, encoded });
             defer self.wallet.allocator.free(concated);
 
             if (copy.to != null)
@@ -383,7 +383,7 @@ pub fn Contract(comptime client_type: ClientType) type {
                 inline else => return error.InvalidFunctionMutability,
             }
 
-            const encoded = try function_item.abiFunction.encode(self.wallet.allocator, function_args);
+            const encoded = try function_item.abiFunction.encodeFromReflection(self.wallet.allocator, function_args);
             defer self.wallet.allocator.free(encoded);
 
             switch (copy) {
@@ -416,7 +416,7 @@ pub fn Contract(comptime client_type: ClientType) type {
             const function_item = try getAbiItem(self.abi, .function, function_name);
             var copy = overrides;
 
-            const encoded = try function_item.abiFunction.encode(self.wallet.allocator, function_args);
+            const encoded = try function_item.abiFunction.encodeFromReflection(self.wallet.allocator, function_args);
             defer if (encoded.len != 0) self.wallet.allocator.free(encoded);
 
             if (copy.to == null)
@@ -485,7 +485,7 @@ pub fn Contract(comptime client_type: ClientType) type {
                 inline else => return error.InvalidFunctionMutability,
             }
 
-            const encoded = try function_item.abiFunction.encode(self.wallet.allocator, function_args);
+            const encoded = try function_item.abiFunction.encodeFromReflection(self.wallet.allocator, function_args);
             defer self.wallet.allocator.free(encoded);
 
             if (copy.to == null)

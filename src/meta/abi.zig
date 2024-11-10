@@ -143,7 +143,12 @@ pub fn AbiEventParameterToPrimativeType(comptime param: AbiEventParameter) type 
     if (!param.indexed) return void;
 
     return switch (param.type) {
-        .tuple, .dynamicArray, .fixedArray, .string, .bytes => [32]u8,
+        .tuple,
+        .dynamicArray,
+        .fixedArray,
+        .string,
+        .bytes,
+        => [32]u8,
         .address => [20]u8,
         .fixedBytes => |fixed| [fixed]u8,
         .bool => bool,
@@ -179,7 +184,14 @@ pub fn AbiParametersToPrimative(comptime paramters: []const AbiParameter) type {
         };
     }
 
-    return @Type(.{ .@"struct" = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+    return @Type(.{
+        .@"struct" = .{
+            .layout = .auto,
+            .fields = &fields,
+            .decls = &.{},
+            .is_tuple = true,
+        },
+    });
 }
 /// Convert solidity ABI paramter to the representing Zig types.
 ///

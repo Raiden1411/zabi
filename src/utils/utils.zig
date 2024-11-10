@@ -26,7 +26,7 @@ pub inline fn isStaticType(comptime T: type) bool {
         },
         .pointer => switch (info.pointer.size) {
             .Many, .Slice, .C => return false,
-            .One => return isStaticType(info.Pointer.child),
+            .One => return isStaticType(info.pointer.child),
         },
         else => @compileError("Unsupported type " ++ @typeName(T)),
     }
@@ -38,7 +38,13 @@ pub inline fn isDynamicType(comptime T: type) bool {
     const info = @typeInfo(T);
 
     switch (info) {
-        .bool, .int, .null => return false,
+        .bool,
+        .int,
+        .null,
+        .float,
+        .comptime_int,
+        .comptime_float,
+        => return false,
         .array => |arr_info| return isDynamicType(arr_info.child),
         .@"struct" => {
             inline for (info.@"struct".fields) |field| {
@@ -50,9 +56,14 @@ pub inline fn isDynamicType(comptime T: type) bool {
 
             return false;
         },
+        .optional => |opt_info| return isDynamicType(opt_info.child),
         .pointer => switch (info.pointer.size) {
             .Many, .Slice, .C => return true,
-            .One => return isStaticType(info.Pointer.child),
+            .One => switch (@typeInfo(info.pointer.child)) {
+                .array => return true,
+
+                else => return isDynamicType(info.pointer.child),
+            },
         },
         else => @compileError("Unsupported type " ++ @typeName(T)),
     }

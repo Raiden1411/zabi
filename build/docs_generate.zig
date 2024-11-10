@@ -189,7 +189,7 @@ pub const DocsGenerator = struct {
         init_node: NodeIndex,
         duplicate: *std.StringHashMap(void),
     ) Allocator.Error!void {
-        const container = self.ast.fullContainerDecl(@constCast(&.{ init_node, init_node }), init_node) orelse
+        const container = self.ast.fullContainerDecl(@constCast(&[_]u32{ init_node, init_node }), init_node) orelse
             std.debug.panic("Unexpected token found: {s}\n", .{@tagName(self.nodes[init_node])});
 
         const container_token = self.ast.firstToken(init_node);

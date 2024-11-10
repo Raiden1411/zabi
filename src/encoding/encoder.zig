@@ -166,7 +166,7 @@ pub fn encodeAbiParametersValues(
 /// The `values` must be a tuple struct. Otherwise it will trigger a compile error.
 ///
 /// By default this provides more support for a greater range on zig types that can be used for encoding.
-/// Bellow you will find the list of all support types and what is expected to be encoded as.
+/// Bellow you will find the list of all supported types and what will they be encoded as.
 ///
 ///   * Zig `bool` -> Will be encoded like a boolean value
 ///   * Zig `?T` -> Only encodes if the value is not null.
@@ -174,7 +174,7 @@ pub fn encodeAbiParametersValues(
 ///   * Zig `[N]u8` -> Only support max size of 32. `[20]u8` will be encoded as address types and all other as bytes1..32.
 ///                    This is the main limitation because abi encoding of bytes1..32 follows little endian and for address follows big endian.
 ///   * Zig `enum` -> The tagname of the enum encoded as a string/bytes value.
-///   * Zig `*T` -> will encoded the child type.
+///   * Zig `*T` -> will encoded the child type. If the child type is an `array` it will encode as string/bytes.
 ///   * Zig `[]const u8`, `[]u8` -> Will encode according the string/bytes specification.
 ///   * Zig `[]const T` -> Will encode as a dynamic array
 ///   * Zig `[N]T` -> Will encode as a dynamic value if the child type is of a dynamic type.
@@ -196,6 +196,9 @@ pub fn encodeAbiParametersFromReflection(
 /// You can initialize this structure like this:
 /// ```zig
 /// var encoder: AbiEncoder = .empty;
+///
+/// try encoder.encodeAbiParameters(params, allocator, .{69, 420});
+/// defer allocator.free(allocator);
 /// ```
 pub const AbiEncoder = struct {
     pub const Self = @This();
@@ -210,11 +213,12 @@ pub const AbiEncoder = struct {
     };
 
     /// Essentially a `stack` of encoded values that will need to be analysed
-    /// in the `encodePointers` sets to re-arrange the location in the encoded string.
+    /// in the `encodePointers` step to re-arrange the location in the encoded slice based on
+    /// if they are dynamic or static types.
     pre_encoded: ArrayListUnmanaged(PreEncodedStructure),
     /// Stream of encoded values that should show up at the top of the encoded slice.
     heads: ArrayListUnmanaged(u8),
-    /// Stream of encoded values that should show up at the enc of the encoded slice.
+    /// Stream of encoded values that should show up at the end of the encoded slice.
     tails: ArrayListUnmanaged(u8),
     /// Used to calculated the initial pointer when facing `dynamic` types.
     /// Also used to know the memory size of the `heads` stream.
@@ -222,6 +226,9 @@ pub const AbiEncoder = struct {
     /// Only used to know the memory size of the `tails` stream.
     tails_size: u32,
 
+    /// Encodes the `values` based on the [specification](https://docs.soliditylang.org/en/develop/abi-spec.html#use-of-dynamic-types)
+    ///
+    /// Uses compile time reflection to determine the behaviour. Please check `encodeAbiParametersFromReflection` for more details.
     pub fn encodeAbiParametersFromReflection(
         self: *Self,
         allocator: Allocator,
@@ -231,6 +238,9 @@ pub const AbiEncoder = struct {
 
         return self.encodePointers(allocator);
     }
+    /// Encodes the `values` based on the [specification](https://docs.soliditylang.org/en/develop/abi-spec.html#use-of-dynamic-types)
+    ///
+    /// Uses the `AbiEncodedValues` type to determine the correct behaviour.
     pub fn encodeAbiParametersValues(
         self: *Self,
         allocator: Allocator,

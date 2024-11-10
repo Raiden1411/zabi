@@ -77,6 +77,9 @@ pub const Function = struct {
         allocator.free(self.outputs);
     }
 
+    /// Abi Encode the struct signature based on the values provided.
+    ///
+    /// Compile time reflection is used to encode based on type of the values provided.
     pub fn encodeFromReflection(
         self: @This(),
         allocator: Allocator,
@@ -97,11 +100,10 @@ pub const Function = struct {
 
         return abi_encoder.encodePointers(allocator);
     }
-    /// Encode the struct signature based on the values provided.
-    /// Runtime reflection based on the provided values will occur to determine
-    /// what is the correct method to use to encode the values
+    /// Abi Encode the struct signature based on the values provided.
     ///
-    /// Caller owns the memory.
+    /// This is only available if `self` is know at comptime. With this we will know the exact type
+    /// of what the `values` should be.
     pub fn encode(
         comptime self: @This(),
         allocator: Allocator,
@@ -245,13 +247,7 @@ pub const Event = struct {
         }
         try writer.print(")", .{});
     }
-
-    /// Encode the struct signature based it's hash.
-    ///
-    /// Caller owns the memory.
-    ///
-    /// Consider using `EncodeAbiEventComptime` if the struct is
-    /// comptime know and you want better typesafety from the compiler
+    /// Generates the hash of the struct signatures.
     pub fn encode(self: @This()) PrepareErrors!Hash {
         var buffer: [256]u8 = undefined;
 
@@ -263,7 +259,6 @@ pub const Event = struct {
 
         return hashed;
     }
-
     /// Encode the struct signature based on the values provided.
     /// Runtime reflection based on the provided values will occur to determine
     /// what is the correct method to use to encode the values
@@ -272,7 +267,6 @@ pub const Event = struct {
     pub fn encodeLogTopics(self: @This(), allocator: Allocator, values: anytype) EncodeLogsErrors![]const ?Hash {
         return try encoder_logs.encodeLogTopics(allocator, self, values);
     }
-
     /// Decode the encoded log topics based on the event signature and the provided type.
     ///
     /// Caller owns the memory.
@@ -280,7 +274,6 @@ pub const Event = struct {
         _ = self;
         return try decoder_logs.decodeLogs(T, encoded, options);
     }
-
     /// Format the struct into a human readable string.
     /// Intended to use for hashing purposes.
     ///
@@ -299,7 +292,6 @@ pub const Event = struct {
 
         return buf_writter.getWritten();
     }
-
     /// Format the struct into a human readable string.
     /// Intended to use for hashing purposes.
     pub fn prepare(self: @This(), writer: anytype) PrepareErrors!void {
@@ -341,14 +333,10 @@ pub const Error = struct {
         try writer.print(")", .{});
     }
 
-    /// Encode the struct signature based on the values provided.
-    /// Runtime reflection based on the provided values will occur to determine
-    /// what is the correct method to use to encode the values
+    /// Abi Encode the struct signature based on the values provided.
     ///
-    /// Caller owns the memory.
-    ///
-    /// Consider using `EncodeAbiErrorComptime` if the struct is
-    /// comptime know and you want better typesafety from the compiler
+    /// This is only available if `self` is know at comptime. With this we will know the exact type
+    /// of what the `values` should be.
     pub fn encode(comptime self: @This(), allocator: Allocator, values: AbiParametersToPrimative(self.inputs)) EncodeErrors![]u8 {
         return encoder.encodeAbiError(self, allocator, values);
     }
@@ -428,7 +416,9 @@ pub const Constructor = struct {
 
         if (self.stateMutability != .nonpayable) try writer.print(" {s}", .{@tagName(self.stateMutability)});
     }
-
+    /// Abi Encode the struct signature based on the values provided.
+    ///
+    /// Compile time reflection is used to encode based on type of the values provided.
     pub fn encodeFromReflection(
         self: @This(),
         allocator: Allocator,
@@ -438,14 +428,10 @@ pub const Constructor = struct {
 
         return encoder.encodeAbiParametersFromReflection(allocator, values);
     }
-    /// Encode the struct signature based on the values provided.
-    /// Runtime reflection based on the provided values will occur to determine
-    /// what is the correct method to use to encode the values
+    /// Abi Encode the struct signature based on the values provided.
     ///
-    /// Caller owns the memory.
-    ///
-    /// Consider using `EncodeAbiConstructorComptime` if the struct is
-    /// comptime know and you want better typesafety from the compiler
+    /// This is only available if `self` is know at comptime. With this we will know the exact type
+    /// of what the `values` should be.
     pub fn encode(
         comptime self: @This(),
         allocator: Allocator,
@@ -453,7 +439,6 @@ pub const Constructor = struct {
     ) EncodeErrors![]u8 {
         return encoder.encodeAbiParameters(self.inputs, allocator, values);
     }
-
     /// Decode a encoded constructor arguments based on itself.
     /// Runtime reflection based on the provided values will occur to determine
     /// what is the correct method to use to encode the values.

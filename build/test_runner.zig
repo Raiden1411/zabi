@@ -1,7 +1,7 @@
 const builtin = @import("builtin");
 const std = @import("std");
 
-const Anvil = @import("src/clients/Anvil.zig");
+const Anvil = @import("zabi-clients").Anvil;
 const FileWriter = std.fs.File.Writer;
 const Options = std.Options;
 const TerminalColors = std.io.tty.Color;

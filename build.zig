@@ -240,7 +240,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("tests/root.zig"),
         .target = target,
         .optimize = optimize,
-        .test_runner = b.path("test_runner.zig"),
+        .test_runner = b.path("build/test_runner.zig"),
     });
     lib_unit_tests.root_module.addImport("zabi-abi", zabi_abi);
     lib_unit_tests.root_module.addImport("zabi-ast", zabi_ast);

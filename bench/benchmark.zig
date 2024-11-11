@@ -339,9 +339,9 @@ pub fn decodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
         };
 
         const encoded = try encodeLogTopics(
-            allocator,
             event,
-            .{ 69, -420, true, "01234" },
+            allocator,
+            .{ 69, -420, true, "01234".* },
         );
         defer allocator.free(encoded);
 
@@ -424,9 +424,9 @@ pub fn encodingFunctions(allocator: Allocator, printer: *ColorWriter(@TypeOf(std
         };
 
         const result = try benchmark.benchmark(allocator, zabi_root.encoding.logs_encoding.encodeLogTopics, .{
-            allocator,
             event,
-            .{ 69, -420, true, "01234" },
+            allocator,
+            .{ 69, -420, true, "01234".* },
         }, .{ .warmup_runs = 5, .runs = 100 });
         result.printSummary();
     }

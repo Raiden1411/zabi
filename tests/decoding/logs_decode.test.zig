@@ -11,7 +11,7 @@ const LogDecoderOptions = logs_decode.LogDecoderOptions;
 
 // Functions
 const decodeLogs = logs_decode.decodeLogs;
-const encodeLogs = @import("zabi-encoding").logs_encoding.encodeLogTopics;
+const encodeLogs = @import("zabi-encoding").logs_encoding.encodeLogTopicsFromReflection;
 
 test "Decode empty inputs" {
     const slice: []const ?Hash = &.{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")};
@@ -36,7 +36,7 @@ test "Decode with args" {
     const event = try human.parseHumanReadable(testing.allocator, "event Transfer(address indexed from, address indexed to, uint256 tokenId)");
     defer event.deinit();
 
-    const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{ null, try utils.addressToBytes("0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC") });
+    const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{ null, @byteSwap(@as(u160, @bitCast(try utils.addressToBytes("0xa5cc3c03994DB5b0d9A5eEdD10CabaB0813678AC")))) });
     defer testing.allocator.free(encoded);
 
     const decoded = try decodeLogs(struct { Hash, ?Hash, [20]u8 }, encoded, .{});
@@ -85,7 +85,7 @@ test "Decode Arrays" {
         const event = try human.parseHumanReadable(testing.allocator, "event Foo(address indexed a)");
         defer event.deinit();
 
-        const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{try utils.addressToBytes("0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97")});
+        const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{@byteSwap(@as(u160, @bitCast(try utils.addressToBytes("0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97"))))});
         defer testing.allocator.free(encoded);
 
         const decoded = try decodeLogs(struct { Hash, [20]u8 }, encoded, .{});
@@ -97,7 +97,7 @@ test "Decode Arrays" {
         const event = try human.parseHumanReadable(testing.allocator, "event Foo(bytes5 indexed a)");
         defer event.deinit();
 
-        const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{"hello"});
+        const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{"hello".*});
         defer testing.allocator.free(encoded);
 
         const decoded = try decodeLogs(struct { Hash, [5]u8 }, encoded, .{ .bytes_endian = .little });
@@ -108,7 +108,7 @@ test "Decode Arrays" {
         const event = try human.parseHumanReadable(testing.allocator, "event Foo(bytes5 indexed a)");
         defer event.deinit();
 
-        const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{"hello"});
+        const encoded = try encodeLogs(testing.allocator, event.value[0].abiEvent, .{"hello".*});
         defer testing.allocator.free(encoded);
 
         const decoded = try decodeLogs(struct { Hash, *const [5]u8 }, encoded, .{ .allocator = testing.allocator, .bytes_endian = .little });

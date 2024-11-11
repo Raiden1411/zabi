@@ -1,408 +1,279 @@
 const abi = zabi_abi.abitypes;
 const abi_parameter = zabi_abi.abi_parameter;
-const human = @import("zabi-human").parsing;
+const encoder = @import("encoder.zig");
 const meta = @import("zabi-meta").abi;
 const std = @import("std");
-const testing = std.testing;
 const types = @import("zabi-types").ethereum;
-const utils = @import("zabi-utils").utils;
 const zabi_abi = @import("zabi-abi");
 
 // Types
 const AbiEvent = abi.Event;
 const AbiEventParameter = abi_parameter.AbiEventParameter;
+const AbiEventParameterDataToPrimative = meta.AbiEventParameterDataToPrimative;
 const AbiEventParametersDataToPrimative = meta.AbiEventParametersDataToPrimative;
+const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
 /// Set of errors while performing logs abi encoding.
-pub const EncodeLogsErrors = Allocator.Error || error{
-    SignedNumber,
-    UnsignedNumber,
-    InvalidParamType,
-    InvalidAddressType,
-    InvalidFixedBytesType,
-    CannotEncodeSliceOfDynamicTypes,
-    ExpectedComponents,
-};
+pub const EncodeLogsErrors = Allocator.Error || error{NoSpaceLeft};
 
-/// Encode event log topics were the abi event is comptime know.
+/// Performs compile time reflection to decided on which way to encode the values.
+/// Uses the [specification](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding) as the base of encoding.
 ///
-/// `values` is expected to be a tuple of the values to encode.
-/// Array and tuples are encoded as the hash representing their values.
+/// Bellow you will find the list of all supported types and what will they be encoded as.
 ///
-/// Example:
+///   * Zig `bool` -> Will be encoded like a boolean value
+///   * Zig `?T` -> Encodes the values if not null otherwise it appends the null value to the topics.
+///   * Zig `int`, `comptime_int` -> Will be encoded based on the signedness of the integer.
+///   * Zig `[N]u8` -> Only support max size of 32. All are encoded as little endian. If you need to use `[20]u8` for address
+///                    please consider encoding as a `u160` and then `@bitCast` that value to an `[20]u8` array.
+///   * Zig `enum`, `enum_literal` -> The tagname of the enum encoded as a string/bytes value.
+///   * Zig `*T` -> will encoded the child type. If the child type is an `array` it will encode as string/bytes.
+///   * Zig `[]const u8`, `[]u8` -> Will encode according the string/bytes specification.
 ///
-/// const event = .{
-///     .type = .event,
-///     .inputs = &.{},
-///     .name = "Transfer"
-/// }
-///
-/// const encoded = encodeLogTopicsComptime(testing.allocator, event, .{});
-///
-/// Result: &.{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")}
-pub fn encodeLogTopicsComptime(allocator: Allocator, comptime event: AbiEvent, values: AbiEventParametersDataToPrimative(event.inputs)) ![]const ?Hash {
-    var list = try std.ArrayList(?Hash).initCapacity(allocator, values.len + 1);
-    errdefer list.deinit();
+/// All other types are currently not supported.
+pub fn encodeLogTopicsFromReflection(
+    allocator: Allocator,
+    event: AbiEvent,
+    values: anytype,
+) EncodeLogsErrors![]const ?Hash {
+    var logs_encoder: AbiLogTopicsEncoderReflection = .empty;
 
-    const hash = try event.encode();
+    return logs_encoder.encodeLogTopicsWithSignature(allocator, event, values);
+}
 
-    try list.append(hash);
+/// Encodes the values based on the [specification](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding)
+///
+/// Most of solidity types are supported, only `fixedArray`, `dynamicArray` and `tuples`
+/// are not supported. These are quite niche and in previous version of zabi they were supported.
+///
+/// However I don't see the benifit of supporting them anymore. If the need arises in the future
+/// this will be added again. But for now this as been disabled.
+pub fn encodeLogTopics(
+    comptime event: AbiEvent,
+    allocator: Allocator,
+    values: AbiEventParametersDataToPrimative(event.inputs),
+) Allocator.Error![]const ?Hash {
+    var logs_encoder: AbiLogTopicsEncoder(event) = .empty;
 
-    if (values.len > 0) {
-        inline for (values, 0..) |value, i| {
-            const param = event.inputs[i];
+    return logs_encoder.encodeLogTopics(allocator, values);
+}
 
-            if (param.indexed) {
-                const encoded = try encodeLog(allocator, param, value);
-                try list.append(encoded);
-            }
+/// Structure used to encode event log topics based on the [specification](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding)
+pub const AbiLogTopicsEncoderReflection = struct {
+    const Self = @This();
+
+    /// Initializes the structure.
+    pub const empty: Self = .{
+        .topics = .empty,
+    };
+
+    /// List of encoded log topics.
+    topics: ArrayListUnmanaged(?Hash),
+
+    /// Generates the signature hash from the provided event and appends it to the `topics`.
+    ///
+    /// If the event inputs are of length 0 it will return the slice with just that hash.
+    /// For more details please checkout `encodeLogTopicsFromReflection`.
+    pub fn encodeLogTopicsWithSignature(
+        self: *Self,
+        allocator: Allocator,
+        event: AbiEvent,
+        values: anytype,
+    ) EncodeLogsErrors![]const ?Hash {
+        const hash = try event.encode();
+
+        const info = @typeInfo(@TypeOf(values));
+
+        if (info != .@"struct" or !info.@"struct".is_tuple)
+            @compileError("`values` must be a tuple struct!");
+
+        try self.topics.ensureUnusedCapacity(allocator, values.len + 1);
+        self.topics.appendAssumeCapacity(hash);
+
+        if (event.inputs.len == 0)
+            return self.topics.toOwnedSlice(allocator);
+
+        inline for (values) |value| {
+            self.encodeLogTopic(value);
         }
+
+        return self.topics.toOwnedSlice(allocator);
     }
+    /// Performs compile time reflection to decided on which way to encode the values.
+    /// Uses the [specification](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding) as the base of encoding.
+    ///
+    /// Bellow you will find the list of all supported types and what will they be encoded as.
+    ///
+    ///   * Zig `bool` -> Will be encoded like a boolean value
+    ///   * Zig `?T` -> Encodes the values if not null otherwise it appends the null value to the topics.
+    ///   * Zig `int`, `comptime_int` -> Will be encoded based on the signedness of the integer.
+    ///   * Zig `[N]u8` -> Only support max size of 32. All are encoded as little endian. If you need to use `[20]u8` for address
+    ///                    please consider encoding as a `u160` and then `@bitCast` that value to an `[20]u8` array.
+    ///   * Zig `enum`, `enum_literal` -> The tagname of the enum encoded as a string/bytes value.
+    ///   * Zig `*T` -> will encoded the child type. If the child type is an `array` it will encode as string/bytes.
+    ///   * Zig `[]const u8`, `[]u8` -> Will encode according the string/bytes specification.
+    ///
+    /// All other types are currently not supported.
+    pub fn encodeLogTopics(
+        self: *Self,
+        allocator: Allocator,
+        values: anytype,
+    ) Allocator.Error![]const ?Hash {
+        const info = @typeInfo(@TypeOf(values));
 
-    return list.toOwnedSlice();
-}
-/// Encode event log topics
-///
-/// `values` is expected to be a tuple of the values to encode.
-/// Array and tuples are encoded as the hash representing their values.
-///
-/// Example:
-///
-/// const event = .{
-///     .type = .event,
-///     .inputs = &.{},
-///     .name = "Transfer"
-/// }
-///
-/// const encoded = encodeLogTopics(testing.allocator, event, .{});
-///
-/// Result: &.{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")}
-pub fn encodeLogTopics(allocator: Allocator, event: AbiEvent, values: anytype) ![]const ?Hash {
-    const info = @typeInfo(@TypeOf(values));
+        if (info != .@"struct" or !info.@"struct".is_tuple)
+            @compileError("`values` must be a tuple struct!");
 
-    if (info != .@"struct" or !info.@"struct".is_tuple)
-        @compileError("Expected tuple type but found " ++ @typeName(@TypeOf(values)));
+        try self.topics.ensureUnusedCapacity(allocator, values.len);
 
-    var list = try std.ArrayList(?Hash).initCapacity(allocator, values.len + 1);
-    errdefer list.deinit();
-
-    const hash = try event.encode();
-
-    try list.append(hash);
-
-    if (values.len > 0) {
-        std.debug.assert(event.inputs.len >= values.len);
-
-        inline for (values, 0..) |value, i| {
-            const param = event.inputs[i];
-
-            if (param.indexed) {
-                const encoded = try encodeLog(allocator, param, value);
-                try list.append(encoded);
-            }
+        inline for (values) |value| {
+            self.encodeLogTopic(value);
         }
+
+        return self.topics.toOwnedSlice(allocator);
     }
-
-    return try list.toOwnedSlice();
-}
-
-fn encodeLog(allocator: Allocator, param: AbiEventParameter, value: anytype) !?Hash {
-    const info = @typeInfo(@TypeOf(value));
-
-    switch (info) {
-        .bool => {
-            switch (param.type) {
-                .bool => {
-                    var buffer: [32]u8 = undefined;
-                    std.mem.writeInt(u256, &buffer, @intFromBool(value), .big);
-
-                    return buffer;
-                },
-                else => return error.InvalidParamType,
-            }
-        },
-        .int => |int_info| {
-            if (value > std.math.maxInt(u256))
-                return error.Overflow;
-
-            switch (param.type) {
-                .uint => {
-                    if (int_info.signedness != .unsigned)
-                        return error.SignedNumber;
-
-                    var buffer: [32]u8 = undefined;
-                    std.mem.writeInt(u256, &buffer, value, .big);
-
-                    return buffer;
-                },
-                .int => {
-                    if (int_info.signedness != .signed)
-                        return error.UnsignedNumber;
-
-                    var buffer: [32]u8 = undefined;
-                    std.mem.writeInt(i256, &buffer, value, .big);
-
-                    return buffer;
-                },
-                else => return error.InvalidParamType,
-            }
-        },
-        .comptime_int => {
-            const IntType = std.math.IntFittingRange(value, value);
-
-            return try encodeLog(allocator, param, @as(IntType, value));
-        },
-        .null => return null,
-        .optional => {
-            if (value) |val| return try encodeLog(allocator, param, val) else return null;
-        },
-        .array => |arr_info| {
-            if (arr_info.child == u8) {
-                switch (param.type) {
-                    .string, .bytes => {
-                        var buffer: [32]u8 = undefined;
-                        Keccak256.hash(&value, &buffer, .{});
-                        return buffer;
-                    },
-                    .address => {
-                        if (arr_info.len != 20)
-                            return error.InvalidAddressType;
-
-                        var buffer: [32]u8 = [_]u8{0} ** 32;
-                        @memcpy(buffer[12..], value[0..]);
-
-                        return buffer;
-                    },
-                    .fixedBytes => |size| {
-                        if (size != arr_info.len or arr_info.len > 32)
-                            return error.InvalidFixedBytesType;
-
-                        var buffer: [32]u8 = [_]u8{0} ** 32;
-                        @memcpy(buffer[0..arr_info.len], value[0..arr_info.len]);
-
-                        return buffer;
-                    },
-                    else => return error.InvalidParamType,
-                }
-            }
-
-            const new_param: AbiEventParameter = n_param: {
-                var new_type = param.type;
-                while (true) {
-                    switch (new_type) {
-                        .dynamicArray => |dyn_arr| {
-                            new_type = dyn_arr.*;
-
-                            switch (new_type) {
-                                .dynamicArray, .fixedArray => continue,
-                                else => break :n_param .{
-                                    .type = new_type,
-                                    .name = param.name,
-                                    .indexed = param.indexed,
-                                    .components = param.components,
-                                },
-                            }
-                        },
-                        .fixedArray => |fixed_arr| {
-                            new_type = fixed_arr.child.*;
-
-                            switch (new_type) {
-                                .dynamicArray, .fixedArray => continue,
-                                else => break :n_param .{
-                                    .type = new_type,
-                                    .name = param.name,
-                                    .indexed = param.indexed,
-                                    .components = param.components,
-                                },
-                            }
-                        },
-                        else => return error.InvalidParamType,
-                    }
-                }
-            };
-
-            var list = try std.ArrayList(u8).initCapacity(allocator, 32 * value.len);
-            errdefer list.deinit();
-
-            var writer = list.writer();
-
-            const NestedType = FindNestedType(@TypeOf(value));
-
-            var flatten = std.ArrayList(NestedType).init(testing.allocator);
-            errdefer flatten.deinit();
-
-            try flattenSliceOrArray(NestedType, value, &flatten);
-            const slice = try flatten.toOwnedSlice();
-            defer testing.allocator.free(slice);
-
-            for (slice) |val| {
-                const res = try encodeLog(allocator, new_param, val);
-                if (res) |result| try writer.writeAll(&result);
-            }
-
-            const hashes_slice = try list.toOwnedSlice();
-            defer allocator.free(hashes_slice);
-
-            var buffer: [32]u8 = undefined;
-            Keccak256.hash(slice, &buffer, .{});
-
-            return buffer;
-        },
-        .pointer => |ptr_info| {
-            switch (ptr_info.size) {
-                .One => return try encodeLog(allocator, param, value.*),
-                .Slice => {
-                    if (ptr_info.child == u8) {
-                        switch (param.type) {
-                            .string, .bytes => {
-                                var buffer: [32]u8 = undefined;
-                                Keccak256.hash(value, &buffer, .{});
-                                return buffer;
-                            },
-                            else => return error.InvalidParamType,
-                        }
-                    }
-
-                    const new_param: AbiEventParameter = n_param: {
-                        var new_type = param.type;
-                        while (true) {
-                            switch (new_type) {
-                                .dynamicArray => |dyn_arr| {
-                                    new_type = dyn_arr.*;
-
-                                    switch (new_type) {
-                                        .dynamicArray, .fixedArray => continue,
-                                        .string, .bytes => return error.CannotEncodeSliceOfDynamicTypes,
-                                        else => break :n_param .{
-                                            .type = new_type,
-                                            .name = param.name,
-                                            .indexed = param.indexed,
-                                            .components = param.components,
-                                        },
-                                    }
-                                },
-                                .fixedArray => |fixed_arr| {
-                                    new_type = fixed_arr.child.*;
-
-                                    switch (new_type) {
-                                        .dynamicArray, .fixedArray => continue,
-                                        .string, .bytes => return error.CannotEncodeSliceOfDynamicTypes,
-                                        else => break :n_param .{
-                                            .type = new_type,
-                                            .name = param.name,
-                                            .indexed = param.indexed,
-                                            .components = param.components,
-                                        },
-                                    }
-                                },
-                                else => return error.InvalidParamType,
-                            }
-                        }
-                    };
-
-                    var list = std.ArrayList(u8).init(allocator);
-                    errdefer list.deinit();
-
-                    var writer = list.writer();
-
-                    const NestedType = FindNestedType(@TypeOf(value));
-                    var flatten = std.ArrayList(NestedType).init(testing.allocator);
-                    errdefer flatten.deinit();
-
-                    try flattenSliceOrArray(NestedType, value, &flatten);
-
-                    const slice = try flatten.toOwnedSlice();
-                    defer testing.allocator.free(slice);
-
-                    for (slice) |val| {
-                        const res = try encodeLog(allocator, new_param, val);
-                        if (res) |result| try writer.writeAll(&result);
-                    }
-
-                    const hashes_slice = try list.toOwnedSlice();
-                    defer allocator.free(hashes_slice);
-
-                    var buffer: [32]u8 = undefined;
-                    Keccak256.hash(hashes_slice, &buffer, .{});
-
-                    return buffer;
-                },
-                else => @compileError("Unsupported pointer type " ++ @typeName(value)),
-            }
-        },
-        .@"struct" => |struct_info| {
-            if (struct_info.is_tuple)
-                @compileError("Tuple types are not supported");
-
-            if (param.type != .tuple)
-                return error.InvalidParamType;
-
-            if (param.components) |components| {
-                var list = std.ArrayList(u8).init(allocator);
-                errdefer list.deinit();
-
-                var writer = list.writer();
-
-                for (components) |component| {
-                    inline for (struct_info.fields) |field| {
-                        if (std.mem.eql(u8, field.name, component.name)) {
-                            const new_param: AbiEventParameter = .{
-                                .indexed = true,
-                                .type = component.type,
-                                .name = component.name,
-                                .components = component.components,
-                            };
-
-                            const res = try encodeLog(allocator, new_param, @field(value, field.name));
-                            if (res) |result| try writer.writeAll(&result);
-                        }
-                    }
-                }
-
-                const hashes_slice = try list.toOwnedSlice();
-                defer allocator.free(hashes_slice);
-
-                var buffer: [32]u8 = undefined;
-                Keccak256.hash(hashes_slice, &buffer, .{});
-
-                return buffer;
-            } else return error.ExpectedComponents;
-        },
-        else => @compileError("Unsupported pointer type " ++ @typeName(value)),
-    }
-}
-
-fn flattenSliceOrArray(comptime T: type, value: anytype, list: *std.ArrayList(T)) Allocator.Error!void {
-    for (value) |val| {
+    /// Uses compile time reflection to decide how to encode the value.
+    ///
+    /// For more information please checkout `AbiLogTopicsEncoderReflection.encodeLogTopics` or `encodeLogTopicsFromReflection`.
+    pub fn encodeLogTopic(self: *Self, value: anytype) void {
         const info = @typeInfo(@TypeOf(value));
 
         switch (info) {
-            .array => {
-                if (@TypeOf(val) == T)
-                    try list.append(val)
-                else
-                    try flattenSliceOrArray(T, val, list);
+            .bool => self.topics.appendAssumeCapacity(encoder.encodeBoolean(value)),
+            .int => |int_info| {
+                const Int = switch (int_info.signedness) {
+                    .unsigned => u256,
+                    .signed => i256,
+                };
+                self.topics.appendAssumeCapacity(encoder.encodeNumber(Int, value));
             },
-            .pointer => {
-                if (@TypeOf(val) == T)
-                    try list.append(val)
-                else
-                    try flattenSliceOrArray(T, val, list);
+            .comptime_int => return self.encodeLogTopic(@as(std.math.IntFittingRange(value, value), value)),
+            .null => self.topics.appendAssumeCapacity(null),
+            .optional => if (value) |val| return self.encodeLogTopic(val) else self.topics.appendAssumeCapacity(null),
+            .@"enum",
+            .enum_literal,
+            => {
+                var buffer: [32]u8 = undefined;
+                Keccak256.hash(@tagName(value), &buffer, .{});
+                self.topics.appendAssumeCapacity(buffer);
             },
-            else => if (@TypeOf(val) == T) try list.append(val),
+            .array => |arr_info| {
+                if (arr_info.child != u8)
+                    @compileError("Only `u8` arrays are supported!");
+
+                if (arr_info.len > 32)
+                    @compileError("Maximum size allowed is 32 bits.");
+
+                self.topics.appendAssumeCapacity(encoder.encodeFixedBytes(arr_info.len, value));
+            },
+            .pointer => |ptr_info| {
+                switch (ptr_info.size) {
+                    .One => switch (@typeInfo(ptr_info.child)) {
+                        .array => {
+                            const Slice = []const std.meta.Elem(ptr_info.child);
+
+                            return self.encodeLogTopic(@as(Slice, value));
+                        },
+                        else => return self.encodeLogTopic(value.*),
+                    },
+                    .Slice => {
+                        if (ptr_info.child != u8)
+                            @compileError("Only `u8` arrays are supported!");
+
+                        var buffer: [32]u8 = undefined;
+                        Keccak256.hash(value, &buffer, .{});
+                        self.topics.appendAssumeCapacity(buffer);
+                    },
+                    else => @compileError("Unsupported pointer type '" ++ @tagName(ptr_info.child) ++ "'"),
+                }
+            },
+            else => @compileError("Unsupported type '" ++ @typeName(@TypeOf(value)) ++ "'"),
         }
     }
-}
+};
 
-fn FindNestedType(comptime T: type) type {
-    const info = @typeInfo(T);
+/// Generates a structure based on the provided `event`.
+///
+/// This generates the event hash as well as the indexed parameters used by `encodeLogTopics`.
+pub fn AbiLogTopicsEncoder(comptime event: AbiEvent) type {
+    return struct {
+        const Self = @This();
 
-    switch (info) {
-        .array => |arr_info| return FindNestedType(arr_info.child),
-        .pointer => |ptr_info| return FindNestedType(ptr_info.child),
-        else => return T,
-    }
+        /// The hash of the event used as the first log topic.
+        const hash = event.encode() catch @compileError("Event signature higher than 256 bits!");
+
+        /// Compile time generation of indexed AbiEventParameters`.
+        const indexed_params = indexed: {
+            var indexed: std.BoundedArray(AbiEventParameter, 32) = .{};
+
+            for (event.inputs) |input| {
+                if (input.indexed) {
+                    indexed.append(input) catch @compileError("Append reached max size of 32");
+                }
+            }
+
+            break :indexed indexed;
+        };
+
+        /// Initialize the structure.
+        pub const empty: Self = .{
+            .topics = .empty,
+        };
+
+        /// List of encoded log topics.
+        topics: ArrayListUnmanaged(?Hash),
+
+        /// Encodes the values based on the [specification](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding)
+        ///
+        /// Most of solidity types are supported, only `fixedArray`, `dynamicArray` and `tuples`
+        /// are not supported. These are quite niche and in previous version of zabi they were supported.
+        ///
+        /// However I don't see the benifit of supporting them anymore. If the need arises in the future
+        /// this will be added again. But for now this as been disabled.
+        pub fn encodeLogTopics(
+            self: *Self,
+            allocator: Allocator,
+            values: AbiEventParametersDataToPrimative(event.inputs),
+        ) Allocator.Error![]const ?Hash {
+            try self.topics.ensureUnusedCapacity(allocator, indexed_params.len + 1);
+            self.topics.appendAssumeCapacity(hash);
+
+            if (indexed_params.len == 0)
+                return self.topics.toOwnedSlice(allocator);
+
+            const params_slice = comptime indexed_params.slice();
+
+            inline for (params_slice, values) |param, value|
+                self.encodeLogTopic(param, value);
+
+            return self.topics.toOwnedSlice(allocator);
+        }
+        /// Encodes the value based on the [specification](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding)
+        ///
+        /// For more details checkout `AbiLogTopicsEncoder(event).encodeLogTopics` or `encodeLogTopics`.
+        pub fn encodeLogTopic(
+            self: *Self,
+            comptime param: AbiEventParameter,
+            value: AbiEventParameterDataToPrimative(param),
+        ) void {
+            switch (param.type) {
+                .bool => self.topics.appendAssumeCapacity(encoder.encodeBoolean(value)),
+                .int => self.topics.appendAssumeCapacity(encoder.encodeNumber(i256, value)),
+                .uint => self.topics.appendAssumeCapacity(encoder.encodeNumber(u256, value)),
+                .address => self.topics.appendAssumeCapacity(encoder.encodeAddress(value)),
+                .fixedBytes => |bytes| self.topics.appendAssumeCapacity(encoder.encodeFixedBytes(bytes, value)),
+                .bytes,
+                .string,
+                => {
+                    var buffer: [32]u8 = undefined;
+                    Keccak256.hash(value, &buffer, .{});
+                    self.topics.appendAssumeCapacity(buffer);
+                },
+                else => @compileError("Unsupported abitype '" ++ @tagName(param.type) ++ "' for log topic encoding."),
+            }
+        }
+    };
 }

@@ -255,7 +255,7 @@ pub fn L1Client(comptime client_type: Clients) type {
                 }));
             }
 
-            return try list.toOwnedSlice();
+            return list.toOwnedSlice();
         }
         /// Calls to the L2OutputOracle contract on L1 to get the output for a given L2 block
         pub fn getL2Output(self: *L1, l2_block_number: u256) (L1Errors || error{
@@ -513,30 +513,31 @@ pub fn L1Client(comptime client_type: Clients) type {
             errdefer list.deinit();
 
             // Event selector for `TransactionDeposited`.
-            const hash: Hash = comptime try utils.hashToBytes("0xb3813568d9991fc951961fcb4c784893574240a28925604d09fc577c55bb7c32");
+            const hash: u256 = comptime @bitCast(utils.hashToBytes("0xb3813568d9991fc951961fcb4c784893574240a28925604d09fc577c55bb7c32") catch unreachable);
 
             for (logs) |log_event| {
-                const hash_topic: Hash = log_event.topics[0] orelse return error.ExpectedTopicData;
+                const hash_topic: u256 = @bitCast(log_event.topics[0] orelse return error.ExpectedTopicData);
 
-                if (std.mem.eql(u8, &hash, &hash_topic)) {
-                    if (log_event.logIndex == null)
-                        return error.UnexpectedNullIndex;
+                if (hash != hash_topic)
+                    continue;
 
-                    const decoded = try decoder.decodeAbiParameter([]u8, self.allocator, log_event.data, .{ .allocate_when = .alloc_always });
-                    defer decoded.deinit();
+                if (log_event.logIndex == null)
+                    return error.UnexpectedNullIndex;
 
-                    const decoded_logs = try decoder_logs.decodeLogs(struct { Hash, Address, Address, u256 }, log_event.topics, .{});
+                const decoded = try decoder.decodeAbiParameter([]u8, self.allocator, log_event.data, .{});
+                defer decoded.deinit();
 
-                    try list.append(.{
-                        .from = decoded_logs[1],
-                        .to = decoded_logs[2],
-                        .version = decoded_logs[3],
-                        // Needs to be duped because the arena owns this memory.
-                        .opaqueData = try self.allocator.dupe(u8, decoded.result),
-                        .logIndex = log_event.logIndex.?,
-                        .blockHash = log_event.blockHash.?,
-                    });
-                }
+                const decoded_logs = try decoder_logs.decodeLogs(struct { Hash, Address, Address, u256 }, log_event.topics, .{});
+
+                try list.append(.{
+                    .from = decoded_logs[1],
+                    .to = decoded_logs[2],
+                    .version = decoded_logs[3],
+                    // Needs to be duped because the arena owns this memory.
+                    .opaqueData = try self.allocator.dupe(u8, decoded.result),
+                    .logIndex = log_event.logIndex.?,
+                    .blockHash = log_event.blockHash.?,
+                });
             }
 
             return list.toOwnedSlice();
@@ -559,26 +560,26 @@ pub fn L1Client(comptime client_type: Clients) type {
             errdefer list.deinit();
 
             // The hash for the event selector `MessagePassed`
-            const hash: Hash = comptime try utils.hashToBytes("0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054");
+            const hash: u256 = comptime @bitCast(utils.hashToBytes("0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054") catch unreachable);
 
             for (receipt.op_receipt.logs) |logs| {
-                const hash_topic: Hash = logs.topics[0] orelse return error.ExpectedTopicData;
+                const hash_topic: u256 = @bitCast(logs.topics[0] orelse return error.ExpectedTopicData);
 
-                if (std.mem.eql(u8, &hash, &hash_topic)) {
-                    const decoded = try decoder.decodeAbiParameterLeaky(struct { u256, u256, []u8, [32]u8 }, self.allocator, logs.data, .{});
+                if (hash != hash_topic)
+                    continue;
 
-                    const decoded_logs = try decoder_logs.decodeLogs(struct { Hash, u256, Address, Address }, logs.topics, .{});
+                const decoded = try decoder.decodeAbiParameterLeaky(struct { u256, u256, []u8, [32]u8 }, self.allocator, logs.data, .{});
+                const decoded_logs = try decoder_logs.decodeLogs(struct { Hash, u256, Address, Address }, logs.topics, .{});
 
-                    try list.append(.{
-                        .nonce = decoded_logs[1],
-                        .target = decoded_logs[2],
-                        .sender = decoded_logs[3],
-                        .value = decoded[0],
-                        .gasLimit = decoded[1],
-                        .data = decoded[2],
-                        .withdrawalHash = decoded[3],
-                    });
-                }
+                try list.append(.{
+                    .nonce = decoded_logs[1],
+                    .target = decoded_logs[2],
+                    .sender = decoded_logs[3],
+                    .value = decoded[0],
+                    .gasLimit = decoded[1],
+                    .data = decoded[2],
+                    .withdrawalHash = decoded[3],
+                });
             }
 
             const messages = try list.toOwnedSlice();
@@ -607,7 +608,9 @@ pub fn L1Client(comptime client_type: Clients) type {
                     return error.ExceedRetriesAmount;
 
                 const output = self.getGame(limit, l2BlockNumber, .random) catch |err| switch (err) {
-                    error.EvmFailedToExecute, error.GameNotFound => {
+                    error.EvmFailedToExecute,
+                    error.GameNotFound,
+                    => {
                         std.time.sleep(self.rpc_client.network_config.pooling_interval);
                         continue;
                     },

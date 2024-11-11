@@ -19,6 +19,21 @@ const Keccak256 = std.crypto.hash.sha3.Keccak256;
 /// Set of errors while performing logs abi encoding.
 pub const EncodeLogsErrors = Allocator.Error || error{NoSpaceLeft};
 
+/// Performs compile time reflection to decided on which way to encode the values.
+/// Uses the [specification](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding) as the base of encoding.
+///
+/// Bellow you will find the list of all supported types and what will they be encoded as.
+///
+///   * Zig `bool` -> Will be encoded like a boolean value
+///   * Zig `?T` -> Encodes the values if not null otherwise it appends the null value to the topics.
+///   * Zig `int`, `comptime_int` -> Will be encoded based on the signedness of the integer.
+///   * Zig `[N]u8` -> Only support max size of 32. All are encoded as little endian. If you need to use `[20]u8` for address
+///                    please consider encoding as a `u160` and then `@bitCast` that value to an `[20]u8` array.
+///   * Zig `enum`, `enum_literal` -> The tagname of the enum encoded as a string/bytes value.
+///   * Zig `*T` -> will encoded the child type. If the child type is an `array` it will encode as string/bytes.
+///   * Zig `[]const u8`, `[]u8` -> Will encode according the string/bytes specification.
+///
+/// All other types are currently not supported.
 pub fn encodeLogTopicsFromReflection(
     allocator: Allocator,
     event: AbiEvent,
@@ -29,6 +44,13 @@ pub fn encodeLogTopicsFromReflection(
     return logs_encoder.encodeLogTopicsWithSignature(allocator, event, values);
 }
 
+/// Encodes the values based on the [specification](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding)
+///
+/// Most of solidity types are supported, only `fixedArray`, `dynamicArray` and `tuples`
+/// are not supported. These are quite niche and in previous version of zabi they were supported.
+///
+/// However I don't see the benifit of supporting them anymore. If the need arises in the future
+/// this will be added again. But for now this as been disabled.
 pub fn encodeLogTopics(
     comptime event: AbiEvent,
     allocator: Allocator,
@@ -39,15 +61,22 @@ pub fn encodeLogTopics(
     return logs_encoder.encodeLogTopics(allocator, values);
 }
 
+/// Structure used to encode event log topics based on the [specification](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding)
 pub const AbiLogTopicsEncoderReflection = struct {
     const Self = @This();
 
+    /// Initializes the structure.
     pub const empty: Self = .{
         .topics = .empty,
     };
 
+    /// List of encoded log topics.
     topics: ArrayListUnmanaged(?Hash),
 
+    /// Generates the signature hash from the provided event and appends it to the `topics`.
+    ///
+    /// If the event inputs are of length 0 it will return the slice with just that hash.
+    /// For more details please checkout `encodeLogTopicsFromReflection`.
     pub fn encodeLogTopicsWithSignature(
         self: *Self,
         allocator: Allocator,
@@ -73,7 +102,21 @@ pub const AbiLogTopicsEncoderReflection = struct {
 
         return self.topics.toOwnedSlice(allocator);
     }
-
+    /// Performs compile time reflection to decided on which way to encode the values.
+    /// Uses the [specification](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding) as the base of encoding.
+    ///
+    /// Bellow you will find the list of all supported types and what will they be encoded as.
+    ///
+    ///   * Zig `bool` -> Will be encoded like a boolean value
+    ///   * Zig `?T` -> Encodes the values if not null otherwise it appends the null value to the topics.
+    ///   * Zig `int`, `comptime_int` -> Will be encoded based on the signedness of the integer.
+    ///   * Zig `[N]u8` -> Only support max size of 32. All are encoded as little endian. If you need to use `[20]u8` for address
+    ///                    please consider encoding as a `u160` and then `@bitCast` that value to an `[20]u8` array.
+    ///   * Zig `enum`, `enum_literal` -> The tagname of the enum encoded as a string/bytes value.
+    ///   * Zig `*T` -> will encoded the child type. If the child type is an `array` it will encode as string/bytes.
+    ///   * Zig `[]const u8`, `[]u8` -> Will encode according the string/bytes specification.
+    ///
+    /// All other types are currently not supported.
     pub fn encodeLogTopics(
         self: *Self,
         allocator: Allocator,
@@ -92,7 +135,9 @@ pub const AbiLogTopicsEncoderReflection = struct {
 
         return self.topics.toOwnedSlice(allocator);
     }
-
+    /// Uses compile time reflection to decide how to encode the value.
+    ///
+    /// For more information please checkout `AbiLogTopicsEncoderReflection.encodeLogTopics` or `encodeLogTopicsFromReflection`.
     pub fn encodeLogTopic(self: *Self, value: anytype) void {
         const info = @typeInfo(@TypeOf(value));
 
@@ -150,9 +195,17 @@ pub const AbiLogTopicsEncoderReflection = struct {
     }
 };
 
+/// Generates a structure based on the provided `event`.
+///
+/// This generates the event hash as well as the indexed parameters used by `encodeLogTopics`.
 pub fn AbiLogTopicsEncoder(comptime event: AbiEvent) type {
     return struct {
+        const Self = @This();
+
+        /// The hash of the event used as the first log topic.
         const hash = event.encode() catch @compileError("Event signature higher than 256 bits!");
+
+        /// Compile time generation of indexed AbiEventParameters`.
         const indexed_params = indexed: {
             var indexed: std.BoundedArray(AbiEventParameter, 32) = .{};
 
@@ -165,14 +218,21 @@ pub fn AbiLogTopicsEncoder(comptime event: AbiEvent) type {
             break :indexed indexed;
         };
 
+        /// Initialize the structure.
         pub const empty: Self = .{
             .topics = .empty,
         };
 
-        const Self = @This();
-
+        /// List of encoded log topics.
         topics: ArrayListUnmanaged(?Hash),
 
+        /// Encodes the values based on the [specification](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding)
+        ///
+        /// Most of solidity types are supported, only `fixedArray`, `dynamicArray` and `tuples`
+        /// are not supported. These are quite niche and in previous version of zabi they were supported.
+        ///
+        /// However I don't see the benifit of supporting them anymore. If the need arises in the future
+        /// this will be added again. But for now this as been disabled.
         pub fn encodeLogTopics(
             self: *Self,
             allocator: Allocator,
@@ -191,7 +251,9 @@ pub fn AbiLogTopicsEncoder(comptime event: AbiEvent) type {
 
             return self.topics.toOwnedSlice(allocator);
         }
-
+        /// Encodes the value based on the [specification](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding)
+        ///
+        /// For more details checkout `AbiLogTopicsEncoder(event).encodeLogTopics` or `encodeLogTopics`.
         pub fn encodeLogTopic(
             self: *Self,
             comptime param: AbiEventParameter,

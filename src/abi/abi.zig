@@ -265,14 +265,14 @@ pub const Event = struct {
     ///
     /// Caller owns the memory.
     pub fn encodeLogTopics(self: @This(), allocator: Allocator, values: anytype) EncodeLogsErrors![]const ?Hash {
-        return try encoder_logs.encodeLogTopics(allocator, self, values);
+        return encoder_logs.encodeLogTopicsFromReflection(allocator, self, values);
     }
     /// Decode the encoded log topics based on the event signature and the provided type.
     ///
     /// Caller owns the memory.
     pub fn decodeLogTopics(self: @This(), comptime T: type, encoded: []const ?Hash, options: LogDecoderOptions) LogsDecoderErrors!T {
         _ = self;
-        return try decoder_logs.decodeLogs(T, encoded, options);
+        return decoder_logs.decodeLogs(T, encoded, options);
     }
     /// Format the struct into a human readable string.
     /// Intended to use for hashing purposes.

@@ -13,7 +13,14 @@ const ParamType = zabi_abi.param_type.ParamType;
 /// Sames as `AbiParametersToPrimative` but for event parameter types.
 pub fn AbiEventParametersDataToPrimative(comptime paramters: []const AbiEventParameter) type {
     if (paramters.len == 0)
-        return @Type(.{ .@"struct" = .{ .layout = .auto, .fields = &.{}, .decls = &.{}, .is_tuple = true } });
+        return @Type(.{
+            .@"struct" = .{
+                .layout = .auto,
+                .fields = &.{},
+                .decls = &.{},
+                .is_tuple = true,
+            },
+        });
 
     var count: usize = 0;
 
@@ -41,7 +48,14 @@ pub fn AbiEventParametersDataToPrimative(comptime paramters: []const AbiEventPar
         }
     }
 
-    return @Type(.{ .@"struct" = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+    return @Type(.{
+        .@"struct" = .{
+            .layout = .auto,
+            .fields = &fields,
+            .decls = &.{},
+            .is_tuple = true,
+        },
+    });
 }
 /// Sames as `AbiParameterToPrimative` but for event parameter types.
 pub fn AbiEventParameterDataToPrimative(comptime param: AbiEventParameter) type {

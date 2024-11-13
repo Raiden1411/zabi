@@ -2,6 +2,7 @@ const schnorr = @import("zabi-crypto").schnorr;
 const std = @import("std");
 const testing = std.testing;
 
+const EthereumSchorrSigner = schnorr.EthereumSchorrSigner;
 const Schnorr = schnorr.SchnorrSigner;
 const SchnorrSignature = @import("zabi-crypto").signature.SchnorrSignature;
 
@@ -9,9 +10,6 @@ test "Signature" {
     const key: [32]u8 = [_]u8{ 129, 67, 33, 128, 106, 189, 229, 67, 64, 108, 116, 150, 77, 15, 162, 47, 94, 199, 40, 148, 106, 225, 122, 152, 113, 177, 105, 30, 18, 13, 94, 40 };
 
     const signer = try Schnorr.init(key);
-
-    var buffer: [32]u8 = undefined;
-    std.crypto.hash.sha2.Sha256.hash("hello", &buffer, .{});
 
     _ = try signer.sign("hello");
 }
@@ -35,4 +33,14 @@ test "Invalid Signature" {
     try testing.expect(!Schnorr.verifyMessage(pub_key, try SchnorrSignature.fromHex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F69E89B4C5564D00349106B8497785DD7D1D713A8AE82B32FA79D5F7FC407D39B"), "243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89"));
     try testing.expect(!Schnorr.verifyMessage(pub_key, try SchnorrSignature.fromHex("0000000000000000000000000000000000000000000000000000000000000000123DDA8328AF9C23A94C1FEECFD123BA4FB73476F0D594DCB65C6425BD186051"), "243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89"));
     try testing.expect(!Schnorr.verifyMessage(pub_key, try SchnorrSignature.fromHex("1FA62E331EDBC21C394792D2AB1100A7B432B013DF3F6FF4F99FCB33E0E1515F28890B3EDB6E7189B630448B515CE4F8622A954CFE545735AAEA5134FCCDB2BD"), "243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89"));
+}
+
+test "Ethereum Schnorr" {
+    var hash: [32]u8 = undefined;
+    std.crypto.hash.sha3.Keccak256.hash("hello", &hash, .{});
+
+    const key: [32]u8 = [_]u8{ 129, 67, 33, 128, 106, 189, 229, 67, 64, 108, 116, 150, 77, 15, 162, 47, 94, 199, 40, 148, 106, 225, 122, 152, 113, 177, 105, 30, 18, 13, 94, 40 };
+
+    const signer = try EthereumSchorrSigner.init(key);
+    _ = try signer.sign(hash);
 }

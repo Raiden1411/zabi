@@ -25,6 +25,198 @@ const RBytesAndScalar = struct {
     scalar: Scalar,
 };
 
+/// Ethereum compatible `Schnorr` signer.
+///
+/// For implementation details please go to the [specification](https://github.com/chronicleprotocol/scribe/blob/main/docs/Schnorr.md)
+pub const EthereumSchorrSigner = struct {
+    const Self = @This();
+
+    /// Similiar to "BIP0340/xxxxx"
+    const context = "ETHEREUM-SCHNORR-SECP256K1-KECCAK256";
+
+    /// Set of possible errors when signing a message.
+    pub const SigningErrors = NotSquareError || NonCanonicalError || EncodingError ||
+        IdentityElementError || error{ InvalidNonce, InvalidPrivateKey };
+
+    /// The private key of this signer.
+    private_key: CompressedScalar,
+    /// The compressed version of the address of this signer.
+    public_key: CompressedPublicKey,
+    /// The chain address of this signer.
+    address_bytes: Address,
+
+    /// Creates the signer state.
+    ///
+    /// Generates a compressed public key from the provided `private_key`.
+    ///
+    /// If a null value is provided a random key will
+    /// be generated. This is to mimic the behaviour from zig's `KeyPair` types.
+    pub fn init(private_key: ?CompressedScalar) IdentityElementError!Self {
+        const key = private_key orelse Secp256k1.scalar.random(.big);
+
+        const public_scalar = try Secp256k1.mul(Secp256k1.basePoint, key, .big);
+        const public_key = public_scalar.toCompressedSec1();
+
+        // Get the address bytes
+        const address = generateAddress(public_key[1..].*);
+
+        return .{
+            .private_key = key,
+            .public_key = public_key,
+            .address_bytes = address,
+        };
+    }
+    /// Constructs the message digest based on the previously signed message.
+    pub fn constructMessageHash(message: CompressedScalar) CompressedScalar {
+        var hash: CompressedScalar = undefined;
+
+        var keccak = Keccak256.init(.{});
+        keccak.update(context);
+        keccak.update("message");
+        keccak.update(message[0..]);
+        keccak.final(&hash);
+
+        return hash;
+    }
+    /// Generates the `k` value from random bytes and the private_key.
+    pub fn hashNonce(random_buffer: CompressedScalar, priv_key: CompressedScalar) CompressedScalar {
+        var hash: CompressedScalar = undefined;
+
+        var keccak = Keccak256.init(.{});
+        keccak.update(context);
+        keccak.update("nonce");
+        keccak.update(random_buffer[0..]);
+        keccak.update(priv_key[0..]);
+        keccak.final(&hash);
+
+        return hash;
+    }
+    /// Generates the `Schnorr` challenge from `R` bytes, a `message_construct` and a generated ethereum address.
+    pub fn hashChallenge(
+        public_key: CompressedPublicKey,
+        message_digest: CompressedScalar,
+        address: Address,
+    ) (EncodingError || NonCanonicalError || NotSquareError)!CompressedScalar {
+        const public = try Secp256k1.fromSec1(public_key[0..]);
+
+        var hash: CompressedScalar = undefined;
+
+        var y_buf: [1]u8 = undefined;
+        y_buf[0] = @intFromBool(!public.affineCoordinates().y.isOdd());
+
+        var keccak = Keccak256.init(.{});
+        keccak.update(context);
+        keccak.update("challenge");
+        keccak.update(public.affineCoordinates().x.toBytes(.big)[0..]);
+        keccak.update(y_buf[0..]);
+        keccak.update(message_digest[0..]);
+        keccak.update(address[0..]);
+        keccak.final(&hash);
+
+        return hash;
+    }
+    /// Generates an ethereum address from the `x` coordinates from a public key.
+    pub fn generateAddress(r: CompressedScalar) Address {
+        // Get the address bytes
+        var hash: CompressedScalar = undefined;
+        Keccak256.hash(r[0..], &hash, .{});
+
+        return hash[12..].*;
+    }
+    /// Converts the `private_key` to a `Secp256k1` scalar.
+    ///
+    /// Negates the scalar if the y coordinates are odd.
+    pub fn privateKeyToScalar(self: Self) (NonCanonicalError || NotSquareError || EncodingError || error{InvalidPrivateKey})!Scalar {
+        const private_scalar = try Scalar.fromBytes(self.private_key, .big);
+        const public_key = try Secp256k1.fromSec1(self.public_key[0..]);
+
+        if (private_scalar.isZero())
+            return error.InvalidPrivateKey;
+
+        // Negates the scalar if y is odd because we are signing `x` only.
+        if (public_key.affineCoordinates().y.isOdd()) {
+            const neg = private_scalar.neg();
+
+            return neg;
+        }
+
+        return private_scalar;
+    }
+    /// Generates a `Schnorr` signature for a given message.
+    ///
+    /// This will not verify if the generated signature is correct.
+    /// Please use `verifyMessage` to make sure  that the generated signature is valid.
+    pub fn signUnsafe(self: Self, message: CompressedScalar) SigningErrors!SchnorrSignature {
+        const message_construct = constructMessageHash(message);
+        const priv = try self.privateKeyToScalar();
+
+        // Generates the random seed.
+        var random_buffer: CompressedScalar = undefined;
+        std.crypto.random.bytes(&random_buffer);
+
+        const nonce = hashNonce(random_buffer, self.private_key);
+        const k = try nonceToScalar(nonce);
+
+        // Derive Rₑ being the Ethereum address of R
+        const address_r = generateAddress(k.bytes[1..].*);
+
+        // Let e = H(Pₓ ‖ Pₚ ‖ m ‖ Rₑ) mod Q
+        const challenge = try hashChallenge(self.public_key, message_construct, address_r);
+        const e = reduceToScalar(Secp256k1.scalar.encoded_length, challenge);
+
+        // Let sig = bytes(R) || bytes((k + ed) mod n).
+        const s = e.mul(priv).add(k.scalar);
+
+        return .{
+            .r = k.bytes[1..].*,
+            .s = s.toBytes(.big),
+        };
+    }
+    /// Generates a `Schnorr` signature for a given message.
+    ///
+    /// This verifies if the generated signature is valid. Otherwise an `InvalidSignature` error is returned.
+    pub fn sign(self: Self, message: CompressedScalar) (SigningErrors || error{InvalidSignature})!SchnorrSignature {
+        const sig = try self.signUnsafe(message);
+
+        if (!self.verifySignature(message, sig))
+            return error.InvalidSignature;
+
+        return sig;
+    }
+    /// Verifies if the provided signature was signed by `Self`.
+    pub fn verifySignature(self: Self, message: CompressedScalar, signature: SchnorrSignature) bool {
+        const message_construct = constructMessageHash(message);
+
+        return verifyMessage(self.public_key, message_construct, signature);
+    }
+    /// Verifies if the provided signature was signed by the provided `x` coordinate bytes from a compressed public key.
+    pub fn verifyMessage(public_key: CompressedPublicKey, message_construct: CompressedScalar, signature: SchnorrSignature) bool {
+        const r = Scalar.fromBytes(signature.r, .big) catch return false;
+        const public = liftX(public_key[1..].*) catch return false;
+
+        const address_r = generateAddress(signature.r);
+
+        // Let e = H(Pₓ ‖ Pₚ ‖ m ‖ Rₑ) mod Q
+        const challenge = hashChallenge(public_key, message_construct, address_r) catch return false;
+        const e = reduceToScalar(Secp256k1.Fe.encoded_length, challenge);
+
+        // s.G
+        const sg = Secp256k1.basePoint.mulPublic(signature.s, .big) catch return false;
+
+        // -e.P
+        const epk = public.mulPublic(e.neg().toBytes(.little), .little) catch return false;
+
+        // Let R = s⋅G - e⋅P.
+        const vr = sg.add(epk);
+
+        // R(x)
+        const vrx = reduceToScalar(Secp256k1.Fe.encoded_length, vr.affineCoordinates().x.toBytes(.big));
+
+        // Returs false if R(y) is isOdd and r != R(x)
+        return !vr.affineCoordinates().y.isOdd() and r.equivalent(vrx);
+    }
+};
+
 /// BIP0340 `Schnorr` signer.
 ///
 /// For implementation details please go to the [specification](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki#user-content-Specification)
@@ -127,7 +319,7 @@ pub const SchnorrSigner = struct {
     pub fn verifySignature(self: Self, signature: SchnorrSignature, message: []const u8) bool {
         return verifyMessage(self.public_key[1..].*, signature, message);
     }
-    /// Verifies if the provided signature was signed by the provided `x` coordinate bytes from a public key.
+    /// Verifies if the provided signature was signed by the provided `x` coordinate bytes from a compressed public key.
     pub fn verifyMessage(pub_key: CompressedScalar, signature: SchnorrSignature, message: []const u8) bool {
         // Let r = int(sig[0:32])
         const r = Scalar.fromBytes(signature.r, .big) catch return false;
@@ -153,22 +345,6 @@ pub const SchnorrSigner = struct {
 
         // Returs false if R(y) is isOdd and r != R(x)
         return !vr.affineCoordinates().y.isOdd() and r.equivalent(vrx);
-    }
-    /// Extracts a point from the `Secp256k1` curve based on the provided `x` coordinates from
-    /// a `CompressedPublicKey` array of bytes.
-    pub fn liftX(encoded: CompressedScalar) (NonCanonicalError || NotSquareError)!Secp256k1 {
-        const x = try Secp256k1.Fe.fromBytes(encoded[0..32].*, .big);
-
-        // Let c = x3 + 7 mod p.
-        const x3 = Secp256k1.B.add(x.pow(u256, 3));
-
-        // Let y = c(p+1)/4 mod p.
-        const sqrt = try x3.sqrt();
-
-        // Return the unique point P such that x(P) = x and y(P) = y if y mod 2 = 0 or y(P) = p-y otherwise.
-        const y = if (sqrt.isOdd()) sqrt.neg() else sqrt;
-
-        return Secp256k1{ .x = x, .y = y };
     }
     /// Generates the auxiliary hash from a random set of bytes.
     pub fn hashAux(random_buffer: [32]u8) CompressedScalar {
@@ -219,30 +395,47 @@ pub const SchnorrSigner = struct {
 
         return hash;
     }
-    /// Generates the `k` scalar and bytes from a given `public_key` with the identifier.
-    pub fn nonceToScalar(bytes: CompressedScalar) (NonCanonicalError || IdentityElementError || error{InvalidNonce})!RBytesAndScalar {
-        const private_scalar = try Scalar.fromBytes(bytes, .big);
-        const public_key = try Secp256k1.basePoint.mul(bytes, .big);
+};
 
-        if (private_scalar.isZero())
-            return error.InvalidNonce;
+/// Extracts a point from the `Secp256k1` curve based on the provided `x` coordinates from
+/// a `CompressedPublicKey` array of bytes.
+pub fn liftX(encoded: CompressedScalar) (NonCanonicalError || NotSquareError)!Secp256k1 {
+    const x = try Secp256k1.Fe.fromBytes(encoded[0..32].*, .big);
 
-        // Negates the scalar if y is odd because we are signing `x` only.
-        if (public_key.affineCoordinates().y.isOdd()) {
-            const neg = private_scalar.neg();
+    // Let c = x3 + 7 mod p.
+    const x3 = Secp256k1.B.add(x.pow(u256, 3));
 
-            return .{
-                .bytes = public_key.toCompressedSec1(),
-                .scalar = neg,
-            };
-        }
+    // Let y = c(p+1)/4 mod p.
+    const sqrt = try x3.sqrt();
+
+    // Return the unique point P such that x(P) = x and y(P) = y if y mod 2 = 0 or y(P) = p-y otherwise.
+    const y = if (sqrt.isOdd()) sqrt.neg() else sqrt;
+
+    return Secp256k1{ .x = x, .y = y };
+}
+/// Generates the `k` scalar and bytes from a given `public_key` with the identifier.
+pub fn nonceToScalar(bytes: CompressedScalar) (NonCanonicalError || IdentityElementError || error{InvalidNonce})!RBytesAndScalar {
+    const private_scalar = try Scalar.fromBytes(bytes, .big);
+    const public_key = try Secp256k1.basePoint.mul(bytes, .big);
+
+    if (private_scalar.isZero())
+        return error.InvalidNonce;
+
+    // Negates the scalar if y is odd because we are signing `x` only.
+    if (public_key.affineCoordinates().y.isOdd()) {
+        const neg = private_scalar.neg();
 
         return .{
             .bytes = public_key.toCompressedSec1(),
-            .scalar = private_scalar,
+            .scalar = neg,
         };
     }
-};
+
+    return .{
+        .bytes = public_key.toCompressedSec1(),
+        .scalar = private_scalar,
+    };
+}
 
 /// Reduce the coordinate of a field element to the scalar field.
 /// Copied from zig std as it's not exposed.

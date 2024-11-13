@@ -308,6 +308,10 @@ export const sidebar = {
 							link: "/api/crypto/Signer",
 						},
 						{
+							text: "Schnorr Signer",
+							link: "/api/crypto/schnorr",
+						},
+						{
 							text: "BIP32 HD Wallets",
 							link: "/api/crypto/hdwallet",
 						},

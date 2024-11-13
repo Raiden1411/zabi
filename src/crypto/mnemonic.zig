@@ -1,5 +1,6 @@
 //! Experimental and unaudited code. Use with caution.
 //! Reference: https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki
+
 const errors = std.crypto.errors;
 const std = @import("std");
 const testing = std.testing;

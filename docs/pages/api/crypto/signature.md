@@ -1,3 +1,54 @@
+## SchnorrSignature
+
+Zig representation of an bip0340 schnorr signature.
+
+### Properties
+
+```zig
+struct {
+  r: [32]u8
+  s: [32]u8
+}
+```
+
+### ToBytes
+Converts the struct signature into bytes.
+
+### Signature
+
+```zig
+pub fn toBytes(sig: SchnorrSignature) [64]u8
+```
+
+### FromBytes
+Converts the signature bytes into the struct.
+
+### Signature
+
+```zig
+pub fn fromBytes(sig: [64]u8) SchnorrSignature
+```
+
+### ToHex
+Converts the struct signature into a hex string.
+
+Caller owns the memory
+
+### Signature
+
+```zig
+pub fn toHex(sig: SchnorrSignature, allocator: Allocator) Allocator.Error![]u8
+```
+
+### FromHex
+Converts a hex signature into it's struct representation.
+
+### Signature
+
+```zig
+pub fn fromHex(hex: []const u8) error{ NoSpaceLeft, InvalidSignature, InvalidLength, InvalidCharacter }!SchnorrSignature
+```
+
 ## Signature
 
 Zig representation of an ethereum signature.
@@ -38,7 +89,7 @@ Caller owns the memory
 ### Signature
 
 ```zig
-pub fn toHex(sig: Signature, allocator: Allocator) ![]u8
+pub fn toHex(sig: Signature, allocator: Allocator) Allocator.Error![]u8
 ```
 
 ### FromHex
@@ -47,7 +98,7 @@ Converts a hex signature into it's struct representation.
 ### Signature
 
 ```zig
-pub fn fromHex(hex: []const u8) !Signature
+pub fn fromHex(hex: []const u8) error{ NoSpaceLeft, InvalidSignature, InvalidLength, InvalidCharacter }!Signature
 ```
 
 ## CompactSignature
@@ -89,7 +140,7 @@ Caller owns the memory
 ### Signature
 
 ```zig
-pub fn toHex(sig: CompactSignature, allocator: Allocator) ![]u8
+pub fn toHex(sig: CompactSignature, allocator: Allocator) Allocator.Error![]u8
 ```
 
 ### FromHex
@@ -98,6 +149,6 @@ Converts a hex signature into it's struct representation.
 ### Signature
 
 ```zig
-pub fn fromHex(hex: []const u8) CompactSignature
+pub fn fromHex(hex: []const u8) error{ NoSpaceLeft, InvalidSignature, InvalidLength, InvalidCharacter }!CompactSignature
 ```
 

@@ -1,5 +1,6 @@
 //! Experimental and unaudited code. Use with caution.
 //! Reference: https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
+//! Reference: https://github.com/chronicleprotocol/scribe/blob/main/docs/Schnorr.md
 
 const errors = std.crypto.errors;
 const std = @import("std");

@@ -2,6 +2,8 @@
 pub const hdwallet = @import("hdwallet.zig");
 /// Implementation of BIP39 for mnemonic seeding and wallets.
 pub const mnemonic = @import("mnemonic.zig");
+/// Implementation of BIP340 for scep256k1 curve schnorr signer.
+pub const schnorr = @import("schnorr.zig");
 /// The signatures types that zabi uses. Supports compact signatures.
 pub const signature = @import("signature.zig");
 

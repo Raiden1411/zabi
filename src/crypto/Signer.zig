@@ -137,7 +137,7 @@ pub fn sign(self: Signer, hash: Hash) SigningErrors!Signature {
     var field_order_buffer: [32]u8 = undefined;
     std.mem.writeInt(u256, &field_order_buffer, Secp256k1.scalar.field_order / 2, .little);
 
-    const cmp = std.crypto.utils.timingSafeCompare(u8, &s_bytes, &field_order_buffer, .little);
+    const cmp = std.crypto.timing_safe.timingSafeCompare(u8, &s_bytes, &field_order_buffer, .little);
     y_int ^= @intFromBool(cmp.compare(.gt));
 
     const s_neg_bytes = s_malliable.neg().toBytes(.little);

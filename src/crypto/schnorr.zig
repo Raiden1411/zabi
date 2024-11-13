@@ -39,8 +39,6 @@ pub const SchnorrSigner = struct {
     private_key: CompressedScalar,
     /// The compressed version of the address of this signer.
     public_key: CompressedPublicKey,
-    /// The chain address of this signer.
-    address_bytes: Address,
 
     /// Generates a compressed public key from the provided `private_key`.
     ///
@@ -52,16 +50,9 @@ pub const SchnorrSigner = struct {
         const public_scalar = try Secp256k1.mul(Secp256k1.basePoint, key, .big);
         const public_key = public_scalar.toCompressedSec1();
 
-        // Get the address bytes
-        var hash: [32]u8 = undefined;
-        Keccak256.hash(public_scalar.toUncompressedSec1()[1..], &hash, .{});
-
-        const address: Address = hash[12..].*;
-
         return .{
             .private_key = key,
             .public_key = public_key,
-            .address_bytes = address,
         };
     }
     /// Converts the `private_key` to a `Secp256k1` scalar.
@@ -136,123 +127,122 @@ pub const SchnorrSigner = struct {
     pub fn verifySignature(self: Self, signature: SchnorrSignature, message: []const u8) bool {
         return verifyMessage(self.public_key[1..].*, signature, message);
     }
-};
+    /// Verifies if the provided signature was signed by the provided `x` coordinate bytes from a public key.
+    pub fn verifyMessage(pub_key: CompressedScalar, signature: SchnorrSignature, message: []const u8) bool {
+        // Let r = int(sig[0:32])
+        const r = Scalar.fromBytes(signature.r, .big) catch return false;
 
-/// Verifies if the provided signature was signed by the provided `x` coordinate bytes from a public key.
-pub fn verifyMessage(pub_key: CompressedScalar, signature: SchnorrSignature, message: []const u8) bool {
-    // Let r = int(sig[0:32])
-    const r = Scalar.fromBytes(signature.r, .big) catch return false;
+        // Let P = lift_x(int(pk))
+        const public_key = liftX(pub_key) catch return false;
 
-    // Let P = lift_x(int(pk))
-    const public_key = liftX(pub_key) catch return false;
+        // Let e = int(hashBIP0340/challenge(bytes(r) || bytes(P) || m))
+        const challenge = hashChallenge(signature.r, public_key.toCompressedSec1()[1..].*, message);
+        const e = reduceToScalar(Secp256k1.Fe.encoded_length, challenge);
 
-    // Let e = int(hashBIP0340/challenge(bytes(r) || bytes(P) || m))
-    const challenge = hashChallenge(signature.r, public_key.toCompressedSec1()[1..].*, message);
-    const e = reduceToScalar(Secp256k1.Fe.encoded_length, challenge);
+        // s.G
+        const sg = Secp256k1.basePoint.mulPublic(signature.s, .big) catch return false;
 
-    // s.G
-    const sg = Secp256k1.basePoint.mulPublic(signature.s, .big) catch return false;
+        // -e.P
+        const epk = public_key.mulPublic(e.neg().toBytes(.little), .little) catch return false;
 
-    // -e.P
-    const epk = public_key.mulPublic(e.neg().toBytes(.little), .little) catch return false;
+        // Let R = s⋅G - e⋅P.
+        const vr = sg.add(epk);
 
-    // Let R = s⋅G - e⋅P.
-    const vr = sg.add(epk);
+        // R(x)
+        const vrx = reduceToScalar(Secp256k1.Fe.encoded_length, vr.affineCoordinates().x.toBytes(.big));
 
-    // R(x)
-    const vrx = reduceToScalar(Secp256k1.Fe.encoded_length, vr.affineCoordinates().x.toBytes(.big));
+        // Returs false if R(y) is isOdd and r != R(x)
+        return !vr.affineCoordinates().y.isOdd() and r.equivalent(vrx);
+    }
+    /// Extracts a point from the `Secp256k1` curve based on the provided `x` coordinates from
+    /// a `CompressedPublicKey` array of bytes.
+    pub fn liftX(encoded: CompressedScalar) (NonCanonicalError || NotSquareError)!Secp256k1 {
+        const x = try Secp256k1.Fe.fromBytes(encoded[0..32].*, .big);
 
-    // Returs false if R(y) is isOdd and r != R(x)
-    return !vr.affineCoordinates().y.isOdd() and r.equivalent(vrx);
-}
-/// Extracts a point from the `Secp256k1` curve based on the provided `x` coordinates from
-/// a `CompressedPublicKey` array of bytes.
-pub fn liftX(encoded: CompressedScalar) (NonCanonicalError || NotSquareError)!Secp256k1 {
-    const x = try Secp256k1.Fe.fromBytes(encoded[0..32].*, .big);
+        // Let c = x3 + 7 mod p.
+        const x3 = Secp256k1.B.add(x.pow(u256, 3));
 
-    // Let c = x3 + 7 mod p.
-    const x3 = Secp256k1.B.add(x.pow(u256, 3));
+        // Let y = c(p+1)/4 mod p.
+        const sqrt = try x3.sqrt();
 
-    // Let y = c(p+1)/4 mod p.
-    const sqrt = try x3.sqrt();
+        // Return the unique point P such that x(P) = x and y(P) = y if y mod 2 = 0 or y(P) = p-y otherwise.
+        const y = if (sqrt.isOdd()) sqrt.neg() else sqrt;
 
-    // Return the unique point P such that x(P) = x and y(P) = y if y mod 2 = 0 or y(P) = p-y otherwise.
-    const y = if (sqrt.isOdd()) sqrt.neg() else sqrt;
+        return Secp256k1{ .x = x, .y = y };
+    }
+    /// Generates the auxiliary hash from a random set of bytes.
+    pub fn hashAux(random_buffer: [32]u8) CompressedScalar {
+        var tag_hash: [32]u8 = undefined;
+        Sha256.hash("BIP0340/aux", &tag_hash, .{});
 
-    return Secp256k1{ .x = x, .y = y };
-}
-/// Generates the auxiliary hash from a random set of bytes.
-pub fn hashAux(random_buffer: [32]u8) CompressedScalar {
-    var tag_hash: [32]u8 = undefined;
-    Sha256.hash("BIP0340/aux", &tag_hash, .{});
+        var hash: [32]u8 = undefined;
 
-    var hash: [32]u8 = undefined;
+        var sha = Sha256.init(.{});
+        sha.update(tag_hash[0..]);
+        sha.update(tag_hash[0..]);
+        sha.update(random_buffer[0..]);
+        sha.final(&hash);
 
-    var sha = Sha256.init(.{});
-    sha.update(tag_hash[0..]);
-    sha.update(tag_hash[0..]);
-    sha.update(random_buffer[0..]);
-    sha.final(&hash);
+        return hash;
+    }
+    /// Generates the `k` value from the mask of the `aux` hash and a `public_key` with the `message`.
+    pub fn hashNonce(t: [32]u8, public_key: [32]u8, message: []const u8) CompressedScalar {
+        var tag_hash: [32]u8 = undefined;
+        Sha256.hash("BIP0340/nonce", &tag_hash, .{});
 
-    return hash;
-}
-/// Generates the `k` value from the mask of the `aux` hash and a `public_key` with the `message`.
-pub fn hashNonce(t: [32]u8, public_key: [32]u8, message: []const u8) CompressedScalar {
-    var tag_hash: [32]u8 = undefined;
-    Sha256.hash("BIP0340/nonce", &tag_hash, .{});
+        var hash: [32]u8 = undefined;
 
-    var hash: [32]u8 = undefined;
+        var sha = Sha256.init(.{});
+        sha.update(tag_hash[0..]);
+        sha.update(tag_hash[0..]);
+        sha.update(t[0..]);
+        sha.update(public_key[0..]);
+        sha.update(message);
+        sha.final(&hash);
 
-    var sha = Sha256.init(.{});
-    sha.update(tag_hash[0..]);
-    sha.update(tag_hash[0..]);
-    sha.update(t[0..]);
-    sha.update(public_key[0..]);
-    sha.update(message);
-    sha.final(&hash);
+        return hash;
+    }
+    /// Generates the `Schnorr` challenge from `R` bytes, `public_key` and the `message` to sign.
+    pub fn hashChallenge(k_r: [32]u8, pub_key: [32]u8, message: []const u8) CompressedScalar {
+        var tag_hash: [32]u8 = undefined;
+        Sha256.hash("BIP0340/challenge", &tag_hash, .{});
 
-    return hash;
-}
-/// Generates the `Schnorr` challenge from `R` bytes, `public_key` and the `message` to sign.
-pub fn hashChallenge(k_r: [32]u8, pub_key: [32]u8, message: []const u8) CompressedScalar {
-    var tag_hash: [32]u8 = undefined;
-    Sha256.hash("BIP0340/challenge", &tag_hash, .{});
+        var hash: [32]u8 = undefined;
 
-    var hash: [32]u8 = undefined;
+        var sha = Sha256.init(.{});
+        sha.update(tag_hash[0..]);
+        sha.update(tag_hash[0..]);
+        sha.update(k_r[0..]);
+        sha.update(pub_key[0..]);
+        sha.update(message);
+        sha.final(&hash);
 
-    var sha = Sha256.init(.{});
-    sha.update(tag_hash[0..]);
-    sha.update(tag_hash[0..]);
-    sha.update(k_r[0..]);
-    sha.update(pub_key[0..]);
-    sha.update(message);
-    sha.final(&hash);
+        return hash;
+    }
+    /// Generates the `k` scalar and bytes from a given `public_key` with the identifier.
+    pub fn nonceToScalar(bytes: CompressedScalar) (NonCanonicalError || IdentityElementError || error{InvalidNonce})!RBytesAndScalar {
+        const private_scalar = try Scalar.fromBytes(bytes, .big);
+        const public_key = try Secp256k1.basePoint.mul(bytes, .big);
 
-    return hash;
-}
-/// Generates the `k` scalar and bytes from a given `public_key` with the identifier.
-pub fn nonceToScalar(bytes: CompressedScalar) (NonCanonicalError || IdentityElementError || error{InvalidNonce})!RBytesAndScalar {
-    const private_scalar = try Scalar.fromBytes(bytes, .big);
-    const public_key = try Secp256k1.basePoint.mul(bytes, .big);
+        if (private_scalar.isZero())
+            return error.InvalidNonce;
 
-    if (private_scalar.isZero())
-        return error.InvalidNonce;
+        // Negates the scalar if y is odd because we are signing `x` only.
+        if (public_key.affineCoordinates().y.isOdd()) {
+            const neg = private_scalar.neg();
 
-    // Negates the scalar if y is odd because we are signing `x` only.
-    if (public_key.affineCoordinates().y.isOdd()) {
-        const neg = private_scalar.neg();
+            return .{
+                .bytes = public_key.toCompressedSec1(),
+                .scalar = neg,
+            };
+        }
 
         return .{
             .bytes = public_key.toCompressedSec1(),
-            .scalar = neg,
+            .scalar = private_scalar,
         };
     }
-
-    return .{
-        .bytes = public_key.toCompressedSec1(),
-        .scalar = private_scalar,
-    };
-}
+};
 
 /// Reduce the coordinate of a field element to the scalar field.
 /// Copied from zig std as it's not exposed.

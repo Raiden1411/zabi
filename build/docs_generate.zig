@@ -430,19 +430,13 @@ const Runner = struct {
     }
     /// Creates the folder that will contain the `md` files.
     pub fn createFolders(self: Runner, sub_path: Dir.Walker.Entry) CreateFolderErrors!void {
-        var path = std.ArrayList(u8).init(self.allocator);
-        errdefer path.deinit();
-
         var buffer: [std.fs.max_path_bytes]u8 = undefined;
-        var path_writer = path.writer();
 
-        try path_writer.print("{s}{s}{s}", .{
-            try std.fs.cwd().realpath(".", &buffer),
+        const joined = try std.fmt.allocPrint(self.allocator, "{s}{s}{s}", .{
+            try std.fs.realpath(".", &buffer),
             "/docs/pages/api/",
             sub_path.path,
         });
-
-        const joined = try path.toOwnedSlice();
         defer self.allocator.free(joined);
 
         try std.fs.makeDirAbsolute(joined);
@@ -458,19 +452,13 @@ const Runner = struct {
         const source = try file.readToEndAllocOptions(self.allocator, std.math.maxInt(u32), null, @alignOf(u8), 0);
         defer self.allocator.free(source);
 
-        var path = std.ArrayList(u8).init(self.allocator);
-        errdefer path.deinit();
-
-        var path_writer = path.writer();
-
-        try path_writer.print("{s}{s}{s}{s}", .{
-            try std.fs.cwd().realpath(".", &buffer),
+        const joined = try std.fmt.allocPrint(self.allocator, "{s}{s}{s}{s}", .{
+            try std.fs.realpath(".", &buffer),
             "/docs/pages/api/",
             sub_path.path[0 .. sub_path.path.len - 3],
             "md",
         });
-
-        const joined = try path.toOwnedSlice();
+        defer self.allocator.free(joined);
 
         var out_file = try std.fs.createFileAbsolute(joined, .{});
         defer out_file.close();

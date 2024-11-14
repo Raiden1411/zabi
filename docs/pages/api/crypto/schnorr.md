@@ -1,8 +1,8 @@
 ## EthereumSchorrSigner
 
-Ethereum compatible `Schnorr` signer.
+Ethereum ERC-7816 compatible `Schnorr` signer.
 
-For implementation details please go to the [specification](https://github.com/chronicleprotocol/scribe/blob/main/docs/Schnorr.md)
+For implementation details please go to the [specification](https://github.com/verklegarden/schnorr-on-evm/blob/main/ERC.md)
 
 ### Properties
 
@@ -100,7 +100,7 @@ Please use `verifyMessage` to make sure  that the generated signature is valid.
 ### Signature
 
 ```zig
-pub fn signUnsafe(self: Self, message: CompressedScalar) SigningErrors!SchnorrSignature
+pub fn signUnsafe(self: Self, message: CompressedScalar) SigningErrors!EthereumSchnorrSignature
 ```
 
 ### Sign
@@ -111,7 +111,7 @@ This verifies if the generated signature is valid. Otherwise an `InvalidSignatur
 ### Signature
 
 ```zig
-pub fn sign(self: Self, message: CompressedScalar) (SigningErrors || error{InvalidSignature})!SchnorrSignature
+pub fn sign(self: Self, message: CompressedScalar) (SigningErrors || error{InvalidSignature})!EthereumSchnorrSignature
 ```
 
 ### VerifySignature
@@ -120,7 +120,7 @@ Verifies if the provided signature was signed by `Self`.
 ### Signature
 
 ```zig
-pub fn verifySignature(self: Self, message: CompressedScalar, signature: SchnorrSignature) bool
+pub fn verifySignature(self: Self, message: CompressedScalar, signature: EthereumSchnorrSignature) bool
 ```
 
 ### VerifyMessage
@@ -129,7 +129,7 @@ Verifies if the provided signature was signed by the provided `x` coordinate byt
 ### Signature
 
 ```zig
-pub fn verifyMessage(public_key: CompressedPublicKey, message_construct: CompressedScalar, signature: SchnorrSignature) bool
+pub fn verifyMessage(public_key: CompressedPublicKey, message_construct: CompressedScalar, signature: EthereumSchnorrSignature) bool
 ```
 
 ## SigningErrors
@@ -265,6 +265,15 @@ Set of possible errors when signing a message.
 ```zig
 NotSquareError || NonCanonicalError || EncodingError ||
         IdentityElementError || error{ InvalidNonce, InvalidPrivateKey }
+```
+
+## GenerateR
+Generates a public key with a private key `Scalar` based on a random generated nonce.
+
+### Signature
+
+```zig
+pub fn generateR(bytes: CompressedScalar) (NonCanonicalError || IdentityElementError || error{InvalidNonce})!PublicKeyAndScalar
 ```
 
 ## LiftX

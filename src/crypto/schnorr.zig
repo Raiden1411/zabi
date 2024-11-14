@@ -1,8 +1,9 @@
 //! Experimental and unaudited code. Use with caution.
 //! Reference: https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki
-//! Reference: https://github.com/chronicleprotocol/scribe/blob/main/docs/Schnorr.md
+//! Reference: https://github.com/verklegarden/schnorr-on-evm/blob/main/ERC.md:
 
 const errors = std.crypto.errors;
+const signatures = @import("signature.zig");
 const std = @import("std");
 const types = @import("zabi-types").ethereum;
 
@@ -11,12 +12,13 @@ const Address = types.Address;
 const CompressedScalar = [32]u8;
 const CompressedPublicKey = [33]u8;
 const EncodingError = errors.EncodingError;
+const EthereumSchnorrSignature = signatures.EthereumSchnorrSignature;
 const IdentityElementError = errors.IdentityElementError;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const NonCanonicalError = errors.NonCanonicalError;
 const NotSquareError = errors.NotSquareError;
 const Scalar = Secp256k1.scalar.Scalar;
-const SchnorrSignature = @import("signature.zig").SchnorrSignature;
+const SchnorrSignature = signatures.SchnorrSignature;
 const Secp256k1 = std.crypto.ecc.Secp256k1;
 const Sha256 = std.crypto.hash.sha2.Sha256;
 
@@ -26,9 +28,15 @@ const RBytesAndScalar = struct {
     scalar: Scalar,
 };
 
-/// Ethereum compatible `Schnorr` signer.
+/// `generateR` result type.
+const PublicKeyAndScalar = struct {
+    r: Secp256k1,
+    scalar: Scalar,
+};
+
+/// Ethereum ERC-7816 compatible `Schnorr` signer.
 ///
-/// For implementation details please go to the [specification](https://github.com/chronicleprotocol/scribe/blob/main/docs/Schnorr.md)
+/// For implementation details please go to the [specification](https://github.com/verklegarden/schnorr-on-evm/blob/main/ERC.md)
 pub const EthereumSchorrSigner = struct {
     const Self = @This();
 
@@ -147,7 +155,7 @@ pub const EthereumSchorrSigner = struct {
     ///
     /// This will not verify if the generated signature is correct.
     /// Please use `verifyMessage` to make sure  that the generated signature is valid.
-    pub fn signUnsafe(self: Self, message: CompressedScalar) SigningErrors!SchnorrSignature {
+    pub fn signUnsafe(self: Self, message: CompressedScalar) SigningErrors!EthereumSchnorrSignature {
         const message_construct = constructMessageHash(message);
         const priv = try self.privateKeyToScalar();
 
@@ -156,10 +164,10 @@ pub const EthereumSchorrSigner = struct {
         std.crypto.random.bytes(&random_buffer);
 
         const nonce = hashNonce(random_buffer, self.private_key);
-        const k = try nonceToScalar(nonce);
+        const k = try generateR(nonce);
 
         // Derive Rₑ being the Ethereum address of R
-        const address_r = generateAddress(k.bytes[1..].*);
+        const address_r = generateAddress(k.r.toCompressedSec1()[1..].*);
 
         // Let e = H(Pₓ ‖ Pₚ ‖ m ‖ Rₑ) mod Q
         const challenge = try hashChallenge(self.public_key, message_construct, address_r);
@@ -169,14 +177,14 @@ pub const EthereumSchorrSigner = struct {
         const s = e.mul(priv).add(k.scalar);
 
         return .{
-            .r = k.bytes[1..].*,
+            .r = k.r,
             .s = s.toBytes(.big),
         };
     }
     /// Generates a `Schnorr` signature for a given message.
     ///
     /// This verifies if the generated signature is valid. Otherwise an `InvalidSignature` error is returned.
-    pub fn sign(self: Self, message: CompressedScalar) (SigningErrors || error{InvalidSignature})!SchnorrSignature {
+    pub fn sign(self: Self, message: CompressedScalar) (SigningErrors || error{InvalidSignature})!EthereumSchnorrSignature {
         const sig = try self.signUnsafe(message);
 
         if (!self.verifySignature(message, sig))
@@ -185,17 +193,19 @@ pub const EthereumSchorrSigner = struct {
         return sig;
     }
     /// Verifies if the provided signature was signed by `Self`.
-    pub fn verifySignature(self: Self, message: CompressedScalar, signature: SchnorrSignature) bool {
+    pub fn verifySignature(self: Self, message: CompressedScalar, signature: EthereumSchnorrSignature) bool {
         const message_construct = constructMessageHash(message);
 
         return verifyMessage(self.public_key, message_construct, signature);
     }
     /// Verifies if the provided signature was signed by the provided `x` coordinate bytes from a compressed public key.
-    pub fn verifyMessage(public_key: CompressedPublicKey, message_construct: CompressedScalar, signature: SchnorrSignature) bool {
-        const r = Scalar.fromBytes(signature.r, .big) catch return false;
+    pub fn verifyMessage(public_key: CompressedPublicKey, message_construct: CompressedScalar, signature: EthereumSchnorrSignature) bool {
+        const r_bytes = signature.r.toCompressedSec1();
+        const r = Scalar.fromBytes(r_bytes[1..].*, .big) catch return false;
+
         const public = liftX(public_key[1..].*) catch return false;
 
-        const address_r = generateAddress(signature.r);
+        const address_r = generateAddress(r_bytes[1..].*);
 
         // Let e = H(Pₓ ‖ Pₚ ‖ m ‖ Rₑ) mod Q
         const challenge = hashChallenge(public_key, message_construct, address_r) catch return false;
@@ -398,6 +408,29 @@ pub const SchnorrSigner = struct {
     }
 };
 
+/// Generates a public key with a private key `Scalar` based on a random generated nonce.
+pub fn generateR(bytes: CompressedScalar) (NonCanonicalError || IdentityElementError || error{InvalidNonce})!PublicKeyAndScalar {
+    const private_scalar = try Scalar.fromBytes(bytes, .big);
+    const r = try Secp256k1.basePoint.mul(bytes, .big);
+
+    if (private_scalar.isZero())
+        return error.InvalidNonce;
+
+    // Negates the scalar if y is odd because we are signing `x` only.
+    if (r.affineCoordinates().y.isOdd()) {
+        const neg = private_scalar.neg();
+
+        return .{
+            .r = r,
+            .scalar = neg,
+        };
+    }
+
+    return .{
+        .r = r,
+        .scalar = private_scalar,
+    };
+}
 /// Extracts a point from the `Secp256k1` curve based on the provided `x` coordinates from
 /// a `CompressedPublicKey` array of bytes.
 pub fn liftX(encoded: CompressedScalar) (NonCanonicalError || NotSquareError)!Secp256k1 {

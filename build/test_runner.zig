@@ -1,6 +1,7 @@
 const builtin = @import("builtin");
 const std = @import("std");
 
+const Allocator = std.mem.Allocator;
 const Anvil = @import("zabi-clients").Anvil;
 const FileWriter = std.fs.File.Writer;
 const Options = std.Options;
@@ -15,107 +16,6 @@ pub const std_options: Options = .{
 /// Wraps the stderr with our color stream.
 const ColorWriterStream = ColorWriter(@TypeOf(std.io.getStdErr().writer()));
 
-pub fn main() !void {
-    var results: TestResults = .{};
-
-    var printer: ColorWriterStream = .{
-        .color = .auto,
-        .underlaying_writer = std.io.getStdErr().writer(),
-        .next_color = .reset,
-    };
-
-    startAnvilInstances(std.heap.page_allocator) catch {
-        printer.setNextColor(.red);
-        try printer.writer().writeAll("error: ");
-
-        printer.setNextColor(.bold);
-        try printer.writer().writeAll("Failed to connect to anvil! Please ensure that it is running on port 6969\n");
-
-        std.process.exit(1);
-    };
-
-    const test_funcs: []const TestFn = builtin.test_functions;
-
-    // Return if we don't have any tests.
-    if (test_funcs.len <= 1)
-        return;
-
-    var module: Modules = .abi;
-
-    for (test_funcs) |test_runner| {
-        std.testing.allocator_instance = .{};
-        const test_result = test_runner.func();
-
-        if (std.mem.endsWith(u8, test_runner.name, ".test_0"))
-            continue;
-
-        if (std.ascii.endsWithIgnoreCase(test_runner.name, "Root"))
-            continue;
-
-        var iter = std.mem.splitAny(u8, test_runner.name, ".");
-        _ = iter.next();
-        const module_name = iter.next().?;
-
-        const current_module = std.meta.stringToEnum(Modules, module_name) orelse module;
-
-        if (current_module != module) {
-            module = current_module;
-            try printer.writeBoarder(module);
-        }
-
-        const submodule = iter.next().?;
-
-        printer.setNextColor(.yellow);
-        try printer.writer().print(" |{s}|", .{submodule});
-
-        const name = name_blk: {
-            while (iter.next()) |value| {
-                if (std.mem.eql(u8, value, "test")) {
-                    _ = iter.next();
-                    const rest = iter.rest();
-                    break :name_blk if (rest.len > 0) rest else test_runner.name;
-                }
-            } else break :name_blk test_runner.name;
-        };
-
-        printer.setNextColor(.dim);
-        try printer.writer().print("{s}Running {s}...", .{ " " ** 2, name });
-
-        if (test_result) |_| {
-            results.passed += 1;
-
-            printer.setNextColor(.green);
-            try printer.writer().writeAll("✓\n");
-        } else |err| switch (err) {
-            error.SkipZigTest => {
-                results.skipped += 1;
-
-                printer.setNextColor(.white);
-                try printer.writer().writeAll("skipped!\n");
-            },
-            else => {
-                results.failed += 1;
-
-                printer.setNextColor(.red);
-                try printer.writer().writeAll("✘\n");
-                if (@errorReturnTrace()) |trace| {
-                    std.debug.dumpStackTrace(trace.*);
-                }
-                break;
-            },
-        }
-
-        if (std.testing.allocator_instance.deinit() == .leak) {
-            results.leaked += 1;
-
-            printer.setNextColor(.blue);
-            try printer.writer().writeAll("leaked!\n");
-        }
-    }
-
-    try printer.printResult(results);
-}
-
 /// Struct that will contain the test results.
 const TestResults = struct {
     passed: u16 = 0,
@@ -124,18 +24,72 @@ const TestResults = struct {
     leaked: u16 = 0,
 };
 
-/// Enum of the possible test modules.
-const Modules = enum {
-    abi,
-    ast,
-    clients,
-    crypto,
-    encoding,
-    evm,
-    decoding,
-    @"human-readable",
-    meta,
-    utils,
+/// ZABI's custom test runner with pretty printing.
+const Runner = struct {
+    const Self = @This();
+
+    pub const empty: Self = .{
+        .color_stream = .empty,
+        .result = .{},
+    };
+
+    /// Color stream to write outputs
+    color_stream: ColorWriterStream,
+    /// Test results.
+    result: TestResults,
+
+    /// Connect to the anvil instance an reset it.
+    pub fn resetAnvilInstance(self: *Self, allocator: Allocator) !void {
+        startAnvilInstances(allocator) catch {
+            self.color_stream.setNextColor(.red);
+            try self.color_stream.writer().writeAll("error: ");
+
+            self.color_stream.setNextColor(.bold);
+            try self.color_stream.writer().writeAll("Failed to connect to anvil! Please ensure that it is running on port 6969\n");
+
+            std.process.exit(1);
+        };
+    }
+    /// Writes the test module name.
+    pub fn writeModule(self: *Self, module: []const u8) ColorWriterStream.Error!void {
+        try self.color_stream.writeModule(module);
+    }
+    /// Writes the test name.
+    pub fn writeTestName(self: *Self, name: []const u8) ColorWriterStream.Error!void {
+        try self.color_stream.writeTestName(name);
+    }
+    /// Write a success result to the stream
+    pub fn writeSuccess(self: *Self) ColorWriterStream.Error!void {
+        self.result.passed += 1;
+
+        self.color_stream.setNextColor(.green);
+        try self.color_stream.writer().writeAll("✓\n");
+    }
+    /// Write a skipped result to the stream
+    pub fn writeSkipped(self: *Self) ColorWriterStream.Error!void {
+        self.result.skipped += 1;
+
+        self.color_stream.setNextColor(.yellow);
+        try self.color_stream.writer().writeAll("skipped!\n");
+    }
+    /// Write a fail result to the stream
+    pub fn writeFail(self: *Self) ColorWriterStream.Error!void {
+        self.result.failed += 1;
+
+        self.color_stream.setNextColor(.red);
+        try self.color_stream.writer().writeAll("✘\n");
+    }
+    /// Write a skipped result to the stream
+    pub fn writeLeaked(self: *Self) ColorWriterStream.Error!void {
+        self.result.leaked += 1;
+
+        self.color_stream.setNextColor(.blue);
+        try self.color_stream.writer().writeAll("leaked!\n");
+    }
+    /// Pretty print the test results.
+    pub fn writeResult(self: *Self) ColorWriterStream.Error!void {
+        try self.color_stream.printResult(self.result);
+    }
 };
 
 /// Custom writer that we use to write tests result and with specific tty colors.
@@ -147,8 +101,12 @@ fn ColorWriter(comptime UnderlayingWriter: type) type {
         const Writer = std.io.Writer(*Self, Error, write);
         const Self = @This();
 
-        pub const BORDER = "=" ** 80;
-        pub const PADDING = " " ** 35;
+        /// Initial empty state.
+        pub const empty: Self = .{
+            .color = .auto,
+            .underlaying_writer = std.io.getStdErr().writer(),
+            .next_color = .reset,
+        };
 
         /// The writer that we will use to write to.
         underlaying_writer: UnderlayingWriter,
@@ -171,10 +129,18 @@ fn ColorWriter(comptime UnderlayingWriter: type) type {
 
             return bytes.len;
         }
-        /// Writes the test boarder with the specified module.
-        pub fn writeBoarder(self: *Self, module: Modules) Error!void {
-            try self.applyColor(.green);
-            try self.underlaying_writer.print("\n{s}\n{s}{s}\n{s}\n", .{ BORDER, PADDING, @tagName(module), BORDER });
+        /// Writes the test module to the stream.
+        pub fn writeModule(self: *Self, module: []const u8) !void {
+            self.setNextColor(.yellow);
+            try self.applyColor(self.next_color);
+            try self.underlaying_writer.print(" |{s}|", .{module});
+            try self.applyColor(.reset);
+        }
+        /// Writes the test name with ansi `dim`.
+        pub fn writeTestName(self: *Self, test_name: []const u8) !void {
+            self.setNextColor(.dim);
+            try self.applyColor(self.next_color);
+            try self.underlaying_writer.print(" Running {s}...", .{test_name});
             try self.applyColor(.reset);
         }
         /// Sets the next color in the stream
@@ -215,6 +181,47 @@ fn ColorWriter(comptime UnderlayingWriter: type) type {
             try self.applyColor(.reset);
         }
     };
+}
+
+/// Main test runner.
+pub fn main() !void {
+    const test_funcs: []const TestFn = builtin.test_functions;
+
+    // Return if we don't have any tests.
+    if (test_funcs.len <= 1)
+        return;
+
+    var runner: Runner = .empty;
+    try runner.resetAnvilInstance(std.heap.page_allocator);
+
+    for (test_funcs) |test_runner| {
+        std.testing.allocator_instance = .{};
+
+        if (std.mem.endsWith(u8, test_runner.name, ".test_0") or
+            std.ascii.endsWithIgnoreCase(test_runner.name, "Root"))
+            continue;
+
+        var iter = std.mem.splitScalar(u8, test_runner.name, '.');
+
+        try runner.writeModule(iter.first());
+        try runner.writeTestName(iter.rest());
+
+        if (test_runner.func()) |_| try runner.writeSuccess() else |err| switch (err) {
+            error.SkipZigTest => try runner.writeSkipped(),
+            else => {
+                try runner.writeFail();
+                if (@errorReturnTrace()) |trace|
+                    std.debug.dumpStackTrace(trace.*);
+
+                break;
+            },
+        }
+
+        if (std.testing.allocator_instance.deinit() == .leak)
+            try runner.writeLeaked();
+    }
+
+    try runner.writeResult();
 }
 
 /// Connects to the anvil instance. Fails if it cant.

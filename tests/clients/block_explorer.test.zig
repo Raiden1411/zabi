@@ -1,7 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
 
-const Explorer = @import("zabi-clients").BlockExplorer;
+const Explorer = @import("zabi").clients.BlockExplorer;
 const QueryParameters = Explorer.QueryParameters;
 
 test "QueryParameters" {

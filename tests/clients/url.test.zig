@@ -1,6 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
-const url = @import("zabi-clients").url;
+const url = @import("zabi").clients.url;
 
 const searchUrlParamsAlloc = url.searchUrlParamsAlloc;
 

@@ -8,10 +8,7 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
@@ -22,9 +19,7 @@ jobs:
           version: master
 
       - name: Run zig fmt
-        working-directory: ./bench
         run: zig fmt --check .
 
       - name: Run Benchmark
-        working-directory: ./bench
-        run: zig build bench
+        run: export TERM=xterm-color; zig build bench -Doptimize=ReleaseFast

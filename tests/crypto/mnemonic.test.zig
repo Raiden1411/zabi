@@ -1,9 +1,9 @@
-const english = @import("zabi-crypto").mnemonic.english;
+const english = @import("zabi").crypto.mnemonic.english;
 const std = @import("std");
 const testing = std.testing;
 
-const fromEntropy = @import("zabi-crypto").mnemonic.fromEntropy;
-const toEntropy = @import("zabi-crypto").mnemonic.toEntropy;
+const fromEntropy = @import("zabi").crypto.mnemonic.fromEntropy;
+const toEntropy = @import("zabi").crypto.mnemonic.toEntropy;
 
 test "Index" {
     {

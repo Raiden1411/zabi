@@ -1,7 +1,7 @@
-const decoder = @import("zabi-decoding").abi_decoder;
+const decoder = @import("zabi").decoding.abi_decoder;
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("zabi-utils").utils;
+const utils = @import("zabi").utils.utils;
 
 const DecodeOptions = decoder.DecodeOptions;
 

@@ -1,8 +1,8 @@
 const std = @import("std");
 const testing = std.testing;
 
-const Lexer = @import("zabi-human").Lexer;
-const Syntax = @import("zabi-human").tokens.Tag.SoliditySyntax;
+const Lexer = @import("zabi").human_readable.Lexer;
+const Syntax = @import("zabi").human_readable.tokens.Tag.SoliditySyntax;
 
 test "It can tokenize" {
     var lex = Lexer.init("function");

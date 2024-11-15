@@ -1,9 +1,9 @@
 const std = @import("std");
 const test_clients = @import("../constants.zig");
 const testing = std.testing;
-const utils = @import("zabi-utils").utils;
+const utils = @import("zabi").utils.utils;
 
-const ENSClient = @import("zabi-ens").client.ENSClient;
+const ENSClient = @import("zabi").ens.client.ENSClient;
 
 test "ENS Text" {
     var ens = try ENSClient(.http).init(

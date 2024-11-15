@@ -1,12 +1,12 @@
-const abi = @import("zabi-abi").abitypes;
-const param = @import("zabi-abi").abi_parameter;
-const param_type = @import("zabi-abi").param_type;
+const abi = @import("zabi").abi.abitypes;
+const param = @import("zabi").abi.abi_parameter;
+const param_type = @import("zabi").abi.param_type;
 const std = @import("std");
 const testing = std.testing;
 
 const ParamType = param_type.ParamType;
 
-const parseHumanReadable = @import("zabi-human").parsing.parseHumanReadable;
+const parseHumanReadable = @import("zabi").human_readable.parsing.parseHumanReadable;
 
 test "Seaport" {
     const slice =

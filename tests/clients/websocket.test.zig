@@ -1,12 +1,12 @@
-const abi = @import("zabi-abi").abitypes;
-const multicall = @import("zabi-clients").multicall;
+const abi = @import("zabi").abi.abitypes;
+const multicall = @import("zabi").clients.multicall;
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("zabi-utils").utils;
+const utils = @import("zabi").utils.utils;
 
 const Function = abi.Function;
 const MulticallTargets = multicall.MulticallTargets;
-const WebSocketHandler = @import("zabi-clients").WebSocket;
+const WebSocketHandler = @import("zabi").clients.WebSocket;
 
 test "BlockByNumber" {
     {

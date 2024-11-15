@@ -1,9 +1,9 @@
-const abitypes = @import("zabi-abi").abitypes;
-const contract_client = @import("zabi-clients").contract;
+const abitypes = @import("zabi").abi.abitypes;
+const contract_client = @import("zabi").clients.contract;
 const std = @import("std");
 const testing = std.testing;
-const types = @import("zabi-types").ethereum;
-const utils = @import("zabi-utils").utils;
+const types = @import("zabi").types.ethereum;
+const utils = @import("zabi").utils.utils;
 
 const Contract = contract_client.Contract;
 const ContractComptime = contract_client.ContractComptime;

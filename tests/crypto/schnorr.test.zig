@@ -1,10 +1,10 @@
-const schnorr = @import("zabi-crypto").schnorr;
+const schnorr = @import("zabi").crypto.schnorr;
 const std = @import("std");
 const testing = std.testing;
 
 const EthereumSchorrSigner = schnorr.EthereumSchorrSigner;
 const Schnorr = schnorr.SchnorrSigner;
-const SchnorrSignature = @import("zabi-crypto").signature.SchnorrSignature;
+const SchnorrSignature = @import("zabi").crypto.signature.SchnorrSignature;
 
 test "Signature" {
     const key: [32]u8 = [_]u8{ 129, 67, 33, 128, 106, 189, 229, 67, 64, 108, 116, 150, 77, 15, 162, 47, 94, 199, 40, 148, 106, 225, 122, 152, 113, 177, 105, 30, 18, 13, 94, 40 };

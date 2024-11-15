@@ -1,4 +1,4 @@
-const abi = @import("zabi-abi").abitypes;
+const abi = @import("zabi").abi.abitypes;
 const std = @import("std");
 const testing = std.testing;
 

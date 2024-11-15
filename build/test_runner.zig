@@ -2,7 +2,7 @@ const builtin = @import("builtin");
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
-const Anvil = @import("zabi-clients").Anvil;
+const Anvil = @import("zabi").clients.Anvil;
 const FileWriter = std.fs.File.Writer;
 const Options = std.Options;
 const TerminalColors = std.io.tty.Color;

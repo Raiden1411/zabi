@@ -1,10 +1,10 @@
 const std = @import("std");
 const testing = std.testing;
 
-const MergeStructs = @import("zabi-meta").utils.MergeStructs;
-const MergeTupleStructs = @import("zabi-meta").utils.MergeTupleStructs;
-const Omit = @import("zabi-meta").utils.Omit;
-const StructToTupleType = @import("zabi-meta").utils.StructToTupleType;
+const MergeStructs = @import("zabi").meta.utils.MergeStructs;
+const MergeTupleStructs = @import("zabi").meta.utils.MergeTupleStructs;
+const Omit = @import("zabi").meta.utils.Omit;
+const StructToTupleType = @import("zabi").meta.utils.StructToTupleType;
 
 test "Meta" {
     try expectEqualStructs(struct { foo: u32, jazz: bool }, MergeStructs(struct { foo: u32 }, struct { jazz: bool }));

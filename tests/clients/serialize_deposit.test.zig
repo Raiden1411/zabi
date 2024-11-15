@@ -1,7 +1,7 @@
-const serialize = @import("zabi-op-stack").serialize;
+const serialize = @import("zabi").superchain.serialize;
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("zabi-utils").utils;
+const utils = @import("zabi").utils.utils;
 
 const serializeDepositTransaction = serialize.serializeDepositTransaction;
 

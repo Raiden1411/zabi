@@ -1,10 +1,10 @@
-const client = @import("zabi-op-stack").l2_public_client;
+const client = @import("zabi").superchain.l2_public_client;
 const std = @import("std");
 const test_clients = @import("../constants.zig");
 const testing = std.testing;
-const utils = @import("zabi-utils").utils;
+const utils = @import("zabi").utils.utils;
 
-const Anvil = @import("zabi-clients").Anvil;
+const Anvil = @import("zabi").clients.Anvil;
 const L2Client = client.L2Client;
 
 test "GetWithdrawMessages" {

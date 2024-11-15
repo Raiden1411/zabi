@@ -1,14 +1,14 @@
-const abi = @import("zabi-abi").abitypes;
-const abi_param = @import("zabi-abi").abi_parameter;
-const human = @import("zabi-human").parsing;
-const meta = @import("zabi-meta").abi;
+const abi = @import("zabi").abi.abitypes;
+const abi_param = @import("zabi").abi.abi_parameter;
+const human = @import("zabi").human_readable.parsing;
+const meta = @import("zabi").meta.abi;
 const std = @import("std");
 const testing = std.testing;
-const types = @import("zabi-types").ethereum;
-const utils = @import("zabi-utils").utils;
+const types = @import("zabi").types.ethereum;
+const utils = @import("zabi").utils.utils;
 
 /// Types
-const AbiEncodedValues = @import("zabi-encoding").abi_encoding.AbiEncodedValues;
+const AbiEncodedValues = @import("zabi").encoding.abi_encoding.AbiEncodedValues;
 const AbiParameter = abi_param.AbiParameter;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
 const AbiItem = abi.AbiItem;
@@ -16,12 +16,12 @@ const Constructor = abi.Constructor;
 const Error = abi.Error;
 const Event = abi.Event;
 const Function = abi.Function;
-const ParamType = @import("zabi-abi").param_type.ParamType;
+const ParamType = @import("zabi").abi.param_type.ParamType;
 
-const encodeAbiParameters = @import("zabi-encoding").abi_encoding.encodeAbiParameters;
-const encodeAbiParametersValues = @import("zabi-encoding").abi_encoding.encodeAbiParametersValues;
-const encodeAbiParametersFromReflection = @import("zabi-encoding").abi_encoding.encodeAbiParametersFromReflection;
-const encodePacked = @import("zabi-encoding").abi_encoding.encodePacked;
+const encodeAbiParameters = @import("zabi").encoding.abi_encoding.encodeAbiParameters;
+const encodeAbiParametersValues = @import("zabi").encoding.abi_encoding.encodeAbiParametersValues;
+const encodeAbiParametersFromReflection = @import("zabi").encoding.abi_encoding.encodeAbiParametersFromReflection;
+const encodePacked = @import("zabi").encoding.abi_encoding.encodePacked;
 
 test "Bool" {
     try testEncode("0000000000000000000000000000000000000000000000000000000000000001", &.{.{ .type = .{ .bool = {} }, .name = "foo" }}, .{true});

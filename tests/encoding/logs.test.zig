@@ -1,15 +1,15 @@
 const std = @import("std");
-const abi = @import("zabi-abi").abitypes;
-const human = @import("zabi-human").parsing;
+const abi = @import("zabi").abi.abitypes;
+const human = @import("zabi").human_readable.parsing;
 const testing = std.testing;
-const types = @import("zabi-types").ethereum;
-const utils = @import("zabi-utils").utils;
+const types = @import("zabi").types.ethereum;
+const utils = @import("zabi").utils.utils;
 
 // Types
 const Hash = types.Hash;
 
-const encodeLogTopicsComptime = @import("zabi-encoding").logs_encoding.encodeLogTopics;
-const encodeLogTopics = @import("zabi-encoding").logs_encoding.encodeLogTopicsFromReflection;
+const encodeLogTopicsComptime = @import("zabi").encoding.logs_encoding.encodeLogTopics;
+const encodeLogTopics = @import("zabi").encoding.logs_encoding.encodeLogTopicsFromReflection;
 
 test "Empty inputs" {
     const event: abi.Event = .{ .type = .event, .inputs = &.{}, .name = "Transfer" };

@@ -1,7 +1,7 @@
 const std = @import("std");
-const utils = @import("zabi-utils").utils;
+const utils = @import("zabi").utils.utils;
 
-const NetworkConfig = @import("zabi-clients").network.NetworkConfig;
+const NetworkConfig = @import("zabi").clients.network.NetworkConfig;
 const Uri = std.Uri;
 
 pub const anvil_mainnet: NetworkConfig = .{

@@ -1,7 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
 
-const JumpTable = @import("zabi-evm").bytecode.JumpTable;
+const JumpTable = @import("zabi").evm.bytecode.JumpTable;
 
 test "JumpTable" {
     // With false as the initial value.

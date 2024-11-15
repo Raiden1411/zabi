@@ -1,8 +1,8 @@
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("zabi-utils").utils;
+const utils = @import("zabi").utils.utils;
 
-const encodeSSZ = @import("zabi-encoding").ssz.encodeSSZ;
+const encodeSSZ = @import("zabi").encoding.ssz.encodeSSZ;
 
 test "Bool" {
     {

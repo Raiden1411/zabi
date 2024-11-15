@@ -1,9 +1,9 @@
-const parse = @import("zabi-op-stack").parse;
-const serialize = @import("zabi-op-stack").serialize;
+const parse = @import("zabi").superchain.parse;
+const serialize = @import("zabi").superchain.serialize;
 const std = @import("std");
 const testing = std.testing;
-const transaction = @import("zabi-types").transactions;
-const utils = @import("zabi-utils").utils;
+const transaction = @import("zabi").types.transactions;
+const utils = @import("zabi").utils.utils;
 
 const DepositTransaction = transaction.DepositTransaction;
 

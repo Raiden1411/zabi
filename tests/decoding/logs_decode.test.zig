@@ -1,9 +1,9 @@
-const abi = @import("zabi-abi").abitypes;
-const human = @import("zabi-human").parsing;
-const logs_decode = @import("zabi-decoding").logs_decoder;
+const abi = @import("zabi").abi.abitypes;
+const human = @import("zabi").human_readable.parsing;
+const logs_decode = @import("zabi").decoding.logs_decoder;
 const std = @import("std");
 const testing = std.testing;
-const utils = @import("zabi-utils").utils;
+const utils = @import("zabi").utils.utils;
 
 const AbiEvent = abi.Event;
 const Hash = [32]u8;
@@ -11,7 +11,7 @@ const LogDecoderOptions = logs_decode.LogDecoderOptions;
 
 // Functions
 const decodeLogs = logs_decode.decodeLogs;
-const encodeLogs = @import("zabi-encoding").logs_encoding.encodeLogTopicsFromReflection;
+const encodeLogs = @import("zabi").encoding.logs_encoding.encodeLogTopicsFromReflection;
 
 test "Decode empty inputs" {
     const slice: []const ?Hash = &.{try utils.hashToBytes("0x406dade31f7ae4b5dbc276258c28dde5ae6d5c2773c5745802c493a2360e55e0")};

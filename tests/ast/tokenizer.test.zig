@@ -1,4 +1,4 @@
-const scanner = @import("zabi-ast").tokenizer;
+const scanner = @import("zabi").ast.tokenizer;
 const std = @import("std");
 const testing = std.testing;
 

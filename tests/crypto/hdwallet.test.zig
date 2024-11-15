@@ -1,4 +1,4 @@
-const hdwallet = @import("zabi-crypto").hdwallet;
+const hdwallet = @import("zabi").crypto.hdwallet;
 const std = @import("std");
 const testing = std.testing;
 

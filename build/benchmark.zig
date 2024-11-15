@@ -376,6 +376,7 @@ pub fn BenchmarkRunner(
     };
 }
 
+/// Main benchmark runner
 pub fn main() !void {
     const test_funcs: []const TestFn = builtin.test_functions;
 

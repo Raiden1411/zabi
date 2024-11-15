@@ -1,14 +1,14 @@
-const abi = @import("zabi-abi").abitypes;
-const multicall = @import("zabi-clients").multicall;
+const abi = @import("zabi").abi.abitypes;
+const multicall = @import("zabi").clients.multicall;
 const std = @import("std");
 const testing = std.testing;
-const types = @import("zabi-types").ethereum;
-const utils = @import("zabi-utils").utils;
+const types = @import("zabi").types.ethereum;
+const utils = @import("zabi").utils.utils;
 
 const Function = abi.Function;
 const MulticallTargets = multicall.MulticallTargets;
 const Hash = types.Hash;
-const PubClient = @import("zabi-clients").PubClient;
+const PubClient = @import("zabi").clients.PubClient;
 
 test "BlockByNumber" {
     {
@@ -1176,6 +1176,6 @@ test "Multicall" {
 
 test "All Ref Decls" {
     std.testing.refAllDecls(PubClient);
-    std.testing.refAllDecls(@import("zabi-clients").Anvil);
-    std.testing.refAllDecls(@import("zabi-clients").Hardhat);
+    std.testing.refAllDecls(@import("zabi").clients.Anvil);
+    std.testing.refAllDecls(@import("zabi").clients.Hardhat);
 }

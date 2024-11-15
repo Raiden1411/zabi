@@ -274,22 +274,10 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .test_runner = b.path("test_runner.zig"),
         });
-        lib_unit_tests_coverage.root_module.addImport("zabi-abi", zabi_abi);
-        lib_unit_tests_coverage.root_module.addImport("zabi-ast", zabi_ast);
-        lib_unit_tests_coverage.root_module.addImport("zabi-clients", zabi_clients);
-        lib_unit_tests_coverage.root_module.addImport("zabi-crypto", zabi_crypto);
-        lib_unit_tests_coverage.root_module.addImport("zabi-decoding", zabi_decoding);
-        lib_unit_tests_coverage.root_module.addImport("zabi-encoding", zabi_encoding);
-        lib_unit_tests_coverage.root_module.addImport("zabi-ens", zabi_ens);
-        lib_unit_tests_coverage.root_module.addImport("zabi-evm", zabi_evm);
-        lib_unit_tests_coverage.root_module.addImport("zabi-human", zabi_human);
-        lib_unit_tests_coverage.root_module.addImport("zabi-meta", zabi_meta);
-        lib_unit_tests_coverage.root_module.addImport("zabi-op-stack", zabi_op_stack);
-        lib_unit_tests_coverage.root_module.addImport("zabi-types", zabi_types);
-        lib_unit_tests_coverage.root_module.addImport("zabi-utils", zabi_utils);
+        lib_unit_tests_coverage.root_module.addImport("zabi", zabi);
         addDependencies(b, &lib_unit_tests_coverage.root_module, target, optimize);
 
-        var run_lib_unit_tests_coverage = b.addRunArtifact(lib_unit_tests);
+        var run_lib_unit_tests_coverage = b.addRunArtifact(lib_unit_tests_coverage);
 
         const test_step_coverage = b.step("coverage", "Run unit tests with kcov coverage");
         test_step_coverage.dependOn(&run_lib_unit_tests_coverage.step);
@@ -320,17 +308,36 @@ pub fn build(b: *std.Build) void {
 
     // Runs the benchmark
     {
-        const bench = b.addExecutable(.{
+        const bench = b.addTest(.{
             .name = "benchmark",
-            .root_source_file = b.path("bench/benchmark.zig"),
+            .root_source_file = b.path("tests/root_benchmark.zig"),
             .target = target,
             .optimize = optimize,
+            .test_runner = b.path("build/benchmark.zig"),
         });
-        bench.root_module.addImport("zabi", zabi);
+        bench.root_module.addImport("zabi-abi", zabi_abi);
+        bench.root_module.addImport("zabi-ast", zabi_ast);
+        bench.root_module.addImport("zabi-clients", zabi_clients);
+        bench.root_module.addImport("zabi-crypto", zabi_crypto);
+        bench.root_module.addImport("zabi-decoding", zabi_decoding);
+        bench.root_module.addImport("zabi-encoding", zabi_encoding);
+        bench.root_module.addImport("zabi-ens", zabi_ens);
+        bench.root_module.addImport("zabi-evm", zabi_evm);
+        bench.root_module.addImport("zabi-human", zabi_human);
+        bench.root_module.addImport("zabi-meta", zabi_meta);
+        bench.root_module.addImport("zabi-op-stack", zabi_op_stack);
+        bench.root_module.addImport("zabi-types", zabi_types);
+        bench.root_module.addImport("zabi-utils", zabi_utils);
+        addDependencies(b, &bench.root_module, target, optimize);
 
-        const runner = b.addRunArtifact(bench);
-        const step = b.step("bench", "Benchmark zabi");
-        step.dependOn(&runner.step);
+        var bench_run = b.addRunArtifact(bench);
+
+        const bench_step = b.step("bench", "Benchmark zabi");
+        bench_step.dependOn(&bench_run.step);
+
+        // const runner = b.addRunArtifact(bench);
+        // const step = b.step("bench", "Benchmark zabi");
+        // step.dependOn(&runner.step);
     }
 
     // Build and generate docs for zabi. Uses the `doc_comments` spread across the codebase.

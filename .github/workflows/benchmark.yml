@@ -22,9 +22,7 @@ jobs:
           version: master
 
       - name: Run zig fmt
-        working-directory: ./bench
         run: zig fmt --check .
 
       - name: Run Benchmark
-        working-directory: ./bench
-        run: zig build bench
+        run: zig build bench -Doptimize=ReleaseFast

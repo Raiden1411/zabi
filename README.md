@@ -83,6 +83,7 @@ You can install the latest version of zig [here](https://ziglang.org/download/) 
 - Wallet nonce manager that uses a json rpc as a source of truth.
 - BlockExplorer support. Only the free methods from those api endpoints are supported.
 - Custom Secp256k1 ECDSA signer using only Zig and implementation of RFC6979 nonce generator.
+- Custom Schnorr signer. BIP0340 and ERC-7816 are both supported.
 - Custom JSON Parser that can be used to deserialize and serialized RPC data at runtime.
 - Custom solidity tokenizer and parser generator.
 - Ability to translate solidity source code to zig.

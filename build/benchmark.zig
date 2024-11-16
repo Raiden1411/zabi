@@ -1,69 +1,14 @@
 const builtin = @import("builtin");
+const color = @import("color.zig");
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
+const ColorWriter = color.ColorWriter;
 const PriorityDequeue = std.PriorityDequeue;
 const TestFn = std.builtin.TestFn;
-const TerminalColors = std.io.tty.Color;
-const ZigColor = std.zig.Color;
 
 /// Wraps the stderr with our color stream.
 const ColorWriterStream = ColorWriter(@TypeOf(std.io.getStdErr().writer()));
-
-/// Custom writer that we use to write tests result and with specific tty colors.
-fn ColorWriter(comptime UnderlayingWriter: type) type {
-    return struct {
-        /// Set of possible errors from this writer.
-        const Error = UnderlayingWriter.Error || std.os.windows.SetConsoleTextAttributeError;
-
-        const Writer = std.io.Writer(*Self, Error, write);
-        const Self = @This();
-
-        /// Initial empty state.
-        pub const empty: Self = .{
-            .color = .auto,
-            .underlaying_writer = std.io.getStdErr().writer(),
-            .next_color = .reset,
-        };
-
-        /// The writer that we will use to write to.
-        underlaying_writer: UnderlayingWriter,
-        /// Zig color tty config.
-        color: ZigColor,
-        /// Next tty color to apply in the stream.
-        next_color: TerminalColors,
-
-        pub fn writer(self: *Self) Writer {
-            return .{ .context = self };
-        }
-        /// Write function that will write to the stream with the `next_color`.
-        pub fn write(self: *Self, bytes: []const u8) Error!usize {
-            if (bytes.len == 0)
-                return bytes.len;
-
-            try self.applyColor(self.next_color);
-            try self.writeNoColor(bytes);
-            try self.applyColor(.reset);
-
-            return bytes.len;
-        }
-        /// Sets the next color in the stream
-        pub fn setNextColor(self: *Self, next: TerminalColors) void {
-            self.next_color = next;
-        }
-        /// Writes the next color to the stream.
-        pub fn applyColor(self: *Self, color: TerminalColors) Error!void {
-            try self.color.renderOptions().ttyconf.setColor(self.underlaying_writer, color);
-        }
-        /// Writes to the stream without colors.
-        pub fn writeNoColor(self: *Self, bytes: []const u8) UnderlayingWriter.Error!void {
-            if (bytes.len == 0)
-                return;
-
-            try self.underlaying_writer.writeAll(bytes);
-        }
-    };
-}
 
 /// Custom benchmark runner that pretty prints all of the taken measurements.
 /// Heavily inspired by [poop](https://github.com/andrewrk/poop/tree/main)

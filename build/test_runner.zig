@@ -1,13 +1,13 @@
 const builtin = @import("builtin");
+const color = @import("color.zig");
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 const Anvil = @import("zabi").clients.Anvil;
+const ColorWriter = color.ColorWriter;
 const FileWriter = std.fs.File.Writer;
 const Options = std.Options;
-const TerminalColors = std.io.tty.Color;
 const TestFn = std.builtin.TestFn;
-const ZigColor = std.zig.Color;
 
 pub const std_options: Options = .{
     .log_level = .info,
@@ -52,11 +52,18 @@ const Runner = struct {
     }
     /// Writes the test module name.
     pub fn writeModule(self: *Self, module: []const u8) ColorWriterStream.Error!void {
-        try self.color_stream.writeModule(module);
+        self.color_stream.setNextColor(.yellow);
+        try self.color_stream.writer().print(" |{s}|", .{module});
+        try self.color_stream.applyReset();
     }
     /// Writes the test name.
     pub fn writeTestName(self: *Self, name: []const u8) ColorWriterStream.Error!void {
-        try self.color_stream.writeTestName(name);
+        self.color_stream.setNextColor(.dim);
+
+        const index = std.mem.lastIndexOf(u8, name, "test.") orelse unreachable;
+
+        try self.color_stream.writer().print(" Running {s}...", .{name[index + 5 ..]});
+        try self.color_stream.applyReset();
     }
     /// Write a success result to the stream
     pub fn writeSuccess(self: *Self) ColorWriterStream.Error!void {
@@ -88,100 +95,28 @@ const Runner = struct {
     }
     /// Pretty print the test results.
     pub fn writeResult(self: *Self) ColorWriterStream.Error!void {
-        try self.color_stream.printResult(self.result);
+        self.color_stream.setNextColor(.reset);
+        try self.color_stream.writer().writeAll("\n    ZABI Tests: ");
+        self.color_stream.setNextColor(.green);
+        try self.color_stream.writer().print("{d} passed\n", .{self.result.passed});
+        self.color_stream.setNextColor(.reset);
+
+        try self.color_stream.writer().writeAll("    ZABI Tests: ");
+        self.color_stream.setNextColor(.red);
+        try self.color_stream.writer().print("{d} failed\n", .{self.result.failed});
+        self.color_stream.setNextColor(.reset);
+
+        try self.color_stream.writer().writeAll("    ZABI Tests: ");
+        self.color_stream.setNextColor(.yellow);
+        try self.color_stream.writer().print("{d} skipped\n", .{self.result.skipped});
+        self.color_stream.setNextColor(.reset);
+
+        try self.color_stream.writer().writeAll("    ZABI Tests: ");
+        self.color_stream.setNextColor(.blue);
+        try self.color_stream.writer().print("{d} leaked\n", .{self.result.leaked});
+        self.color_stream.setNextColor(.reset);
     }
 };
-
-/// Custom writer that we use to write tests result and with specific tty colors.
-fn ColorWriter(comptime UnderlayingWriter: type) type {
-    return struct {
-        /// Set of possible errors from this writer.
-        const Error = UnderlayingWriter.Error || std.os.windows.SetConsoleTextAttributeError;
-
-        const Writer = std.io.Writer(*Self, Error, write);
-        const Self = @This();
-
-        /// Initial empty state.
-        pub const empty: Self = .{
-            .color = .auto,
-            .underlaying_writer = std.io.getStdErr().writer(),
-            .next_color = .reset,
-        };
-
-        /// The writer that we will use to write to.
-        underlaying_writer: UnderlayingWriter,
-        /// Zig color tty config.
-        color: ZigColor,
-        /// Next tty color to apply in the stream.
-        next_color: TerminalColors,
-
-        pub fn writer(self: *Self) Writer {
-            return .{ .context = self };
-        }
-        /// Write function that will write to the stream with the `next_color`.
-        pub fn write(self: *Self, bytes: []const u8) Error!usize {
-            if (bytes.len == 0)
-                return bytes.len;
-
-            try self.applyColor(self.next_color);
-            try self.writeNoColor(bytes);
-            try self.applyColor(.reset);
-
-            return bytes.len;
-        }
-        /// Writes the test module to the stream.
-        pub fn writeModule(self: *Self, module: []const u8) !void {
-            self.setNextColor(.yellow);
-            try self.applyColor(self.next_color);
-            try self.underlaying_writer.print(" |{s}|", .{module});
-            try self.applyColor(.reset);
-        }
-        /// Writes the test name with ansi `dim`.
-        pub fn writeTestName(self: *Self, test_name: []const u8) !void {
-            self.setNextColor(.dim);
-            try self.applyColor(self.next_color);
-            try self.underlaying_writer.print(" Running {s}...", .{test_name});
-            try self.applyColor(.reset);
-        }
-        /// Sets the next color in the stream
-        pub fn setNextColor(self: *Self, next: TerminalColors) void {
-            self.next_color = next;
-        }
-        /// Writes the next color to the stream.
-        pub fn applyColor(self: *Self, color: TerminalColors) Error!void {
-            try self.color.renderOptions().ttyconf.setColor(self.underlaying_writer, color);
-        }
-        /// Writes to the stream without colors.
-        pub fn writeNoColor(self: *Self, bytes: []const u8) UnderlayingWriter.Error!void {
-            if (bytes.len == 0)
-                return;
-
-            try self.underlaying_writer.writeAll(bytes);
-        }
-        /// Prints all of the test results.
-        pub fn printResult(self: *Self, results: TestResults) Error!void {
-            try self.underlaying_writer.writeAll("\n    ZABI Tests: ");
-            try self.applyColor(.green);
-            try self.underlaying_writer.print("{d} passed\n", .{results.passed});
-            try self.applyColor(.reset);
-
-            try self.underlaying_writer.writeAll("    ZABI Tests: ");
-            try self.applyColor(.red);
-            try self.underlaying_writer.print("{d} failed\n", .{results.failed});
-            try self.applyColor(.reset);
-
-            try self.underlaying_writer.writeAll("    ZABI Tests: ");
-            try self.applyColor(.yellow);
-            try self.underlaying_writer.print("{d} skipped\n", .{results.skipped});
-            try self.applyColor(.reset);
-
-            try self.underlaying_writer.writeAll("    ZABI Tests: ");
-            try self.applyColor(.blue);
-            try self.underlaying_writer.print("{d} leaked\n", .{results.leaked});
-            try self.applyColor(.reset);
-        }
-    };
-}
 
 /// Main test runner.
 pub fn main() !void {

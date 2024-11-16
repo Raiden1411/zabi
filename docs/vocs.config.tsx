@@ -44,7 +44,7 @@ export default defineConfig({
 	topNav: [
 		{ text: "Starting", link: "/" },
 		{
-			text: "v0.13.1",
+			text: "v0.15.3",
 			items: [
 				{
 					text: "Releases",

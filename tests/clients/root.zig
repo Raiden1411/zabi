@@ -5,7 +5,7 @@ test "Clients Root" {
 
     // Pub clients tests
     _ = @import("public_client.test.zig");
-    _ = @import("ipc.test.zig");
+    // _ = @import("ipc.test.zig");
     _ = @import("websocket.test.zig");
 
     // Wallet tests

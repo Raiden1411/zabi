@@ -104,7 +104,7 @@ pub const IpcReader = struct {
             }
         }
 
-        self.message_end = self.message_start;
+        @atomicStore(usize, &self.message_end, self.message_start, .release);
         return 0;
     }
     /// Reads one message from the socket stream.
@@ -131,7 +131,7 @@ pub const IpcReader = struct {
     }
     /// Prepares the reader for the next message.
     pub fn prepareForRead(self: *Self) void {
-        self.message_start = self.message_end;
+        @atomicStore(usize, &self.message_start, self.message_end, .release);
     }
     /// Writes a message to the socket stream.
     pub fn writeMessage(self: *Self, message: []u8) Stream.WriteError!void {

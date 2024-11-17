@@ -25,6 +25,7 @@ test "Address" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
+    interpreter.spec = .LATEST;
 
     try evm.instructions.system.addressInstruction(&interpreter);
 
@@ -50,6 +51,7 @@ test "Caller" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
+    interpreter.spec = .LATEST;
 
     try evm.instructions.system.callerInstruction(&interpreter);
 
@@ -75,6 +77,7 @@ test "Value" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
+    interpreter.spec = .LATEST;
 
     try evm.instructions.system.callValueInstruction(&interpreter);
 
@@ -100,6 +103,7 @@ test "CodeSize" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
+    interpreter.spec = .LATEST;
 
     try evm.instructions.system.codeSizeInstruction(&interpreter);
 
@@ -125,6 +129,7 @@ test "CallDataSize" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
+    interpreter.spec = .LATEST;
 
     try evm.instructions.system.callDataSizeInstruction(&interpreter);
 
@@ -150,6 +155,7 @@ test "Gas" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
+    interpreter.spec = .LATEST;
 
     try evm.instructions.system.gasInstruction(&interpreter);
 
@@ -176,6 +182,7 @@ test "ReturnDataSize" {
     interpreter.program_counter = 0;
     interpreter.contract = contract;
     interpreter.return_data = &.{};
+    interpreter.spec = .LATEST;
 
     try evm.instructions.system.returnDataSizeInstruction(&interpreter);
 
@@ -202,6 +209,7 @@ test "CallDataLoad" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.contract = contract;
+    interpreter.spec = .LATEST;
 
     {
         try interpreter.stack.pushUnsafe(0);
@@ -242,6 +250,7 @@ test "CallDataCopy" {
     interpreter.program_counter = 0;
     interpreter.contract = contract;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
+    interpreter.spec = .LATEST;
 
     {
         try interpreter.stack.pushUnsafe(32);
@@ -288,6 +297,7 @@ test "CodeCopy" {
     interpreter.program_counter = 0;
     interpreter.contract = contract;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
+    interpreter.spec = .LATEST;
 
     try interpreter.stack.pushUnsafe(32);
     try interpreter.stack.pushUnsafe(0);
@@ -322,6 +332,7 @@ test "Keccak256" {
     interpreter.program_counter = 0;
     interpreter.contract = contract;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
+    interpreter.spec = .LATEST;
 
     {
         try interpreter.memory.resize(32);
@@ -370,6 +381,7 @@ test "ReturnDataCopy" {
     interpreter.contract = contract;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
     interpreter.return_data = &data;
+    interpreter.spec = .LATEST;
 
     {
         try interpreter.stack.pushUnsafe(32);

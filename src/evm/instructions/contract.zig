@@ -90,10 +90,8 @@ pub fn callCodeInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
 pub fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ InstructionNotEnabled, Overflow } || Memory.Error || Interpreter.InstructionErrors)!void {
     std.debug.assert(!self.is_static); // Requires non static call.
 
-    if (is_create_2) {
-        if (!self.spec.enabled(.PETERSBURG))
-            return error.InstructionNotEnabled;
-    }
+    if (is_create_2 and !self.spec.enabled(.PETERSBURG))
+        return error.InstructionNotEnabled;
 
     const value = try self.stack.tryPopUnsafe();
     const code_offset = try self.stack.tryPopUnsafe();
@@ -148,13 +146,15 @@ pub fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ Instruct
 
     try self.gas_tracker.updateTracker(limit);
 
-    self.next_action = .{ .create_action = .{
-        .value = value,
-        .init_code = buffer,
-        .caller = self.contract.target_address,
-        .gas_limit = limit,
-        .scheme = scheme,
-    } };
+    self.next_action = .{
+        .create_action = .{
+            .value = value,
+            .init_code = buffer,
+            .caller = self.contract.target_address,
+            .gas_limit = limit,
+            .scheme = scheme,
+        },
+    };
 
     self.status = .call_or_create;
 }

@@ -11,6 +11,7 @@ test "Push" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
+    interpreter.spec = .LATEST;
 
     {
         interpreter.code = @constCast(&[_]u8{ 0x60, 0xFF });
@@ -68,6 +69,7 @@ test "Dup" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
+    interpreter.spec = .LATEST;
 
     {
         try interpreter.stack.pushUnsafe(69);
@@ -98,6 +100,7 @@ test "Swap" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
+    interpreter.spec = .LATEST;
 
     {
         try interpreter.stack.pushUnsafe(420);
@@ -129,6 +132,7 @@ test "Pop" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
+    interpreter.spec = .LATEST;
 
     try evm.instructions.stack.pushZeroInstruction(&interpreter);
     try evm.instructions.stack.popInstruction(&interpreter);

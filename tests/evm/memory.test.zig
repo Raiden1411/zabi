@@ -123,6 +123,7 @@ test "Mstore" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
+    interpreter.spec = .LATEST;
 
     {
         try interpreter.stack.pushUnsafe(69);
@@ -154,6 +155,7 @@ test "Mstore8" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
+    interpreter.spec = .LATEST;
 
     {
         try interpreter.stack.pushUnsafe(0xFFFF);
@@ -185,6 +187,7 @@ test "Msize" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
+    interpreter.spec = .LATEST;
 
     {
         try evm.instructions.memory.msizeInstruction(&interpreter);
@@ -212,6 +215,7 @@ test "MCopy" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
+    interpreter.spec = .LATEST;
 
     try interpreter.stack.pushUnsafe(0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f);
     try interpreter.stack.pushUnsafe(32);

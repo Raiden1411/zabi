@@ -325,7 +325,7 @@ pub fn BenchmarkRunner(
 pub fn main() !void {
     const test_funcs: []const TestFn = builtin.test_functions;
 
-    var runner: BenchmarkRunner(5000, 50, 5) = try .init(std.heap.c_allocator);
+    var runner: BenchmarkRunner(3000, 30, 3) = try .init(std.heap.c_allocator);
     defer runner.deinit();
 
     var module: []const u8 = "";

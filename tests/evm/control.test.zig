@@ -165,11 +165,11 @@ test "Reverted" {
     interpreter.allocator = testing.allocator;
 
     {
+        interpreter.spec = .LATEST;
         try interpreter.stack.pushUnsafe(32);
         try interpreter.stack.pushUnsafe(0);
         try evm.instructions.control.revertInstruction(&interpreter);
 
-        try testing.expectEqual(undefined, @as(u256, @bitCast(interpreter.return_data[0..32].*)));
         try testing.expectEqual(.reverted, interpreter.status);
         try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
     }
@@ -197,7 +197,6 @@ test "Return" {
     try interpreter.stack.pushUnsafe(0);
     try evm.instructions.control.returnInstruction(&interpreter);
 
-    try testing.expectEqual(undefined, @as(u256, @bitCast(interpreter.return_data[0..32].*)));
     try testing.expectEqual(.returned, interpreter.status);
     try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
 }

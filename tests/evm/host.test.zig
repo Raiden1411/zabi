@@ -87,6 +87,7 @@ test "ExtCodeCopy" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = plain.host();
+    interpreter.spec = .LATEST;
 
     try interpreter.stack.pushUnsafe(0);
     try interpreter.stack.pushUnsafe(0);
@@ -193,6 +194,7 @@ test "Log" {
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
     interpreter.host = plain.host();
     interpreter.allocator = testing.allocator;
+    interpreter.spec = .LATEST;
 
     {
         try interpreter.stack.pushUnsafe(0);

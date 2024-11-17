@@ -20,6 +20,7 @@ test "Create" {
     interpreter.allocator = testing.allocator;
 
     {
+        interpreter.spec = .LATEST;
         try interpreter.stack.pushUnsafe(0);
         try interpreter.stack.pushUnsafe(0);
         try interpreter.stack.pushUnsafe(0);
@@ -65,6 +66,7 @@ test "Create2" {
     interpreter.host = host.host();
 
     {
+        interpreter.spec = .LATEST;
         try interpreter.stack.pushUnsafe(0);
         try interpreter.stack.pushUnsafe(0);
         try interpreter.stack.pushUnsafe(0);
@@ -171,6 +173,7 @@ test "CallCode" {
     interpreter.allocator = testing.allocator;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
     interpreter.host = host.host();
+    interpreter.spec = .LATEST;
 
     {
         try interpreter.stack.pushUnsafe(0);
@@ -229,6 +232,7 @@ test "DelegateCall" {
     interpreter.host = host.host();
 
     {
+        interpreter.spec = .LATEST;
         try interpreter.stack.pushUnsafe(0);
         try interpreter.stack.pushUnsafe(0);
         try interpreter.stack.pushUnsafe(0);
@@ -271,6 +275,7 @@ test "StaticCall" {
     interpreter.host = host.host();
 
     {
+        interpreter.spec = .LATEST;
         try interpreter.stack.pushUnsafe(0);
         try interpreter.stack.pushUnsafe(0);
         try interpreter.stack.pushUnsafe(0);

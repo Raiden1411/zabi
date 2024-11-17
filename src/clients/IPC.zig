@@ -1186,12 +1186,16 @@ pub fn newPendingTransactionFilter(self: *IPC) BasicRequestErrors!RPCResponse(u1
 /// If a message is too long it will double the buffer size to read the message.
 pub fn readLoop(self: *IPC) ReadLoopErrors!void {
     while (true) {
+        if (@atomicLoad(bool, &self.ipc_reader.closed, .monotonic))
+            return;
+
         const message = self.ipc_reader.readMessage() catch |err| switch (err) {
             error.Closed,
             error.ConnectionResetByPeer,
             error.BrokenPipe,
             error.NotOpenForReading,
             => {
+                ipclog.err("Failed with {s}", .{@errorName(err)});
                 @atomicStore(bool, &self.ipc_reader.closed, true, .monotonic);
                 return error.Closed;
             },

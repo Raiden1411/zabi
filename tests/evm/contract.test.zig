@@ -103,6 +103,7 @@ test "Call" {
     interpreter.allocator = testing.allocator;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
     interpreter.host = host.host();
+    interpreter.spec = .LATEST;
 
     {
         try interpreter.stack.pushUnsafe(0);

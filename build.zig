@@ -275,7 +275,6 @@ pub fn build(b: *std.Build) void {
         kcov_collect.addArgs(&.{
             "kcov",
             "--clean",
-            "--collect-only",
         });
         kcov_collect.addPrefixedDirectoryArg("--include-pattern=", b.path("src"));
         _ = kcov_collect.addOutputFileArg(coverage_lib_unit_tests.name);

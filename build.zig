@@ -256,6 +256,14 @@ pub fn build(b: *std.Build) void {
 
     // Build and run coverage test runner if `zig build coverage` was ran
     {
+        const coverage_lib_unit_tests = b.addTest(.{
+            .name = "zabi-tests-coverage",
+            .root_source_file = b.path("tests/root_benchmark.zig"),
+            .target = target,
+            .optimize = optimize,
+            .test_runner = b.path("build/test_runner.zig"),
+        });
+        coverage_lib_unit_tests.root_module.addImport("zabi", zabi);
         const test_step_coverage = b.step("coverage", "Run unit tests with kcov coverage");
 
         const kcov_collect = std.Build.Step.Run.create(b, "collect coverage");
@@ -270,8 +278,8 @@ pub fn build(b: *std.Build) void {
             "--collect-only",
         });
         kcov_collect.addPrefixedDirectoryArg("--include-pattern=", b.path("src"));
-        _ = kcov_collect.addOutputFileArg(lib_unit_tests.name);
-        kcov_collect.addArtifactArg(lib_unit_tests);
+        _ = kcov_collect.addOutputFileArg(coverage_lib_unit_tests.name);
+        kcov_collect.addArtifactArg(coverage_lib_unit_tests);
         kcov_collect.enableTestRunnerMode();
 
         const install_coverage = b.addInstallDirectory(.{

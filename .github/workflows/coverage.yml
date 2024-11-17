@@ -49,6 +49,6 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          directory: zig-out/coverage/zabi-tests
+          directory: zig-out/coverage/zabi-tests-coverage
           fail_ci_if_error: true
           verbose: true

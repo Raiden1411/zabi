@@ -236,84 +236,61 @@ pub fn build(b: *std.Build) void {
     const env_file_path = b.option([]const u8, "env_file_path", "Specify the location of a env variables file") orelse ".env";
 
     // Builds and runs the main tests of zabi.
+    const lib_unit_tests = b.addTest(.{
+        .name = "zabi-tests",
+        .root_source_file = b.path("tests/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .test_runner = b.path("build/test_runner.zig"),
+    });
+    lib_unit_tests.root_module.addImport("zabi", zabi);
+    addDependencies(b, &lib_unit_tests.root_module, target, optimize);
+
+    var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
+
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_lib_unit_tests.step);
+
+    if (load_variables)
+        loadVariables(b, env_file_path, run_lib_unit_tests);
+
+    // Build and run coverage test runner if `zig build coverage` was ran
     {
-        const lib_unit_tests = b.addTest(.{
-            .name = "zabi-tests",
-            .root_source_file = b.path("tests/root.zig"),
+        const coverage_lib_unit_tests = b.addTest(.{
+            .name = "zabi-tests-coverage",
+            .root_source_file = b.path("tests/root_benchmark.zig"),
             .target = target,
             .optimize = optimize,
             .test_runner = b.path("build/test_runner.zig"),
         });
-        lib_unit_tests.root_module.addImport("zabi", zabi);
-        addDependencies(b, &lib_unit_tests.root_module, target, optimize);
+        coverage_lib_unit_tests.root_module.addImport("zabi", zabi);
+        const test_step_coverage = b.step("coverage", "Run unit tests with kcov coverage");
 
-        var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
-
-        const test_step = b.step("test", "Run unit tests");
-        test_step.dependOn(&run_lib_unit_tests.step);
+        const kcov_collect = std.Build.Step.Run.create(b, "collect coverage");
+        kcov_collect.rename_step_with_output_arg = false;
 
         if (load_variables)
-            loadVariables(b, env_file_path, run_lib_unit_tests);
-    }
+            loadVariables(b, env_file_path, kcov_collect);
 
-    // Build and run coverage test runner if `zig build coverage` was ran
-    {
-        const lib_unit_tests_coverage = b.addTest(.{
-            .name = "zabi-tests-coverage",
-            .root_source_file = b.path("tests/root.zig"),
-            .target = target,
-            .optimize = optimize,
-            .test_runner = b.path("test_runner.zig"),
+        kcov_collect.addArgs(&.{
+            "kcov",
+            "--clean",
         });
-        lib_unit_tests_coverage.root_module.addImport("zabi", zabi);
-        addDependencies(b, &lib_unit_tests_coverage.root_module, target, optimize);
-
-        var run_lib_unit_tests_coverage = b.addRunArtifact(lib_unit_tests_coverage);
-
-        const test_step_coverage = b.step("coverage", "Run unit tests with kcov coverage");
-        test_step_coverage.dependOn(&run_lib_unit_tests_coverage.step);
-
-        const coverage_output = b.makeTempPath();
-        const include = b.fmt("--include-pattern=/src", .{});
-        const args = &[_]std.Build.Step.Run.Arg{
-            .{ .bytes = b.dupe("kcov") },
-            .{ .bytes = b.dupe(include) },
-            .{ .bytes = b.pathJoin(&.{ coverage_output, "output" }) },
-        };
-
-        var tests_run = b.addRunArtifact(lib_unit_tests_coverage);
-        run_lib_unit_tests_coverage.has_side_effects = true;
-        run_lib_unit_tests_coverage.argv.insertSlice(b.allocator, 0, args) catch @panic("OutOfMemory");
+        kcov_collect.addPrefixedDirectoryArg("--include-pattern=", b.path("src"));
+        _ = kcov_collect.addOutputFileArg(coverage_lib_unit_tests.name);
+        kcov_collect.addArtifactArg(coverage_lib_unit_tests);
+        kcov_collect.enableTestRunnerMode();
 
         const install_coverage = b.addInstallDirectory(.{
-            .source_dir = .{ .cwd_relative = b.pathJoin(&.{ coverage_output, "output" }) },
+            .source_dir = kcov_collect.addOutputFileArg("."),
             .install_dir = .{ .custom = "coverage" },
             .install_subdir = "",
         });
-
-        test_step_coverage.dependOn(&tests_run.step);
-
-        install_coverage.step.dependOn(&lib_unit_tests_coverage.step);
         test_step_coverage.dependOn(&install_coverage.step);
     }
 
     // Runs the benchmark
-    {
-        const bench = b.addTest(.{
-            .name = "benchmark",
-            .root_source_file = b.path("tests/root_benchmark.zig"),
-            .target = target,
-            .optimize = optimize,
-            .test_runner = b.path("build/benchmark.zig"),
-        });
-        bench.root_module.addImport("zabi", zabi);
-        addDependencies(b, &bench.root_module, target, optimize);
-
-        var bench_run = b.addRunArtifact(bench);
-
-        const bench_step = b.step("bench", "Benchmark zabi");
-        bench_step.dependOn(&bench_run.step);
-    }
+    buildBenchmark(b, target, optimize, zabi);
 
     // Build and generate docs for zabi. Uses the `doc_comments` spread across the codebase.
     // Always build in `ReleaseFast`.
@@ -324,7 +301,12 @@ pub fn build(b: *std.Build) void {
 }
 
 /// Adds zabi project dependencies.
-fn addDependencies(b: *std.Build, mod: *std.Build.Module, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) void {
+fn addDependencies(
+    b: *std.Build,
+    mod: *std.Build.Module,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+) void {
     const c_kzg_4844_dep = b.dependency("c-kzg-4844", .{
         .target = target,
         .optimize = optimize,
@@ -335,7 +317,28 @@ fn addDependencies(b: *std.Build, mod: *std.Build.Module, target: std.Build.Reso
     mod.addImport("ws", ws.module("websocket"));
     mod.linkLibrary(c_kzg_4844_dep.artifact("c-kzg-4844"));
 }
+/// Builds and runs the benchmarks
+fn buildBenchmark(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    dependency: *std.Build.Module,
+) void {
+    const bench = b.addTest(.{
+        .name = "benchmark",
+        .root_source_file = b.path("tests/root_benchmark.zig"),
+        .target = target,
+        .optimize = optimize,
+        .test_runner = b.path("build/benchmark.zig"),
+    });
+    bench.root_module.addImport("zabi", dependency);
+    addDependencies(b, &bench.root_module, target, optimize);
 
+    var bench_run = b.addRunArtifact(bench);
+
+    const bench_step = b.step("bench", "Benchmark zabi");
+    bench_step.dependOn(&bench_run.step);
+}
 /// Builds and runs a runner to generate documentation based on the `doc_comments` tokens in the codebase.
 fn buildDocs(b: *std.Build, target: std.Build.ResolvedTarget) void {
     const docs = b.addExecutable(.{
@@ -352,7 +355,6 @@ fn buildDocs(b: *std.Build, target: std.Build.ResolvedTarget) void {
     const docs_step = b.step("docs", "Generate documentation based on the source code.");
     docs_step.dependOn(&docs_run.step);
 }
-
 /// Builds for wasm32-freestanding target.
 fn buildWasm(b: *std.Build) void {
     const wasm_crosstarget: std.Target.Query = .{

@@ -1,7 +1,6 @@
 const actions = @import("../actions.zig");
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
-const testing = std.testing;
 const utils = @import("zabi-utils").utils;
 
 const Allocator = std.mem.Allocator;
@@ -91,10 +90,8 @@ pub fn callCodeInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
 pub fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ InstructionNotEnabled, Overflow } || Memory.Error || Interpreter.InstructionErrors)!void {
     std.debug.assert(!self.is_static); // Requires non static call.
 
-    if (is_create_2) {
-        if (!self.spec.enabled(.PETERSBURG))
-            return error.InstructionNotEnabled;
-    }
+    if (is_create_2 and !self.spec.enabled(.PETERSBURG))
+        return error.InstructionNotEnabled;
 
     const value = try self.stack.tryPopUnsafe();
     const code_offset = try self.stack.tryPopUnsafe();
@@ -149,13 +146,15 @@ pub fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ Instruct
 
     try self.gas_tracker.updateTracker(limit);
 
-    self.next_action = .{ .create_action = .{
-        .value = value,
-        .init_code = buffer,
-        .caller = self.contract.target_address,
-        .gas_limit = limit,
-        .scheme = scheme,
-    } };
+    self.next_action = .{
+        .create_action = .{
+            .value = value,
+            .init_code = buffer,
+            .caller = self.contract.target_address,
+            .gas_limit = limit,
+            .scheme = scheme,
+        },
+    };
 
     self.status = .call_or_create;
 }
@@ -285,286 +284,4 @@ pub fn resizeMemoryAndGetRange(self: *Interpreter, offset: u256, len: u256) (Int
     };
 
     return .{ end, length };
-}
-
-test "Create" {
-    var interpreter: Interpreter = undefined;
-
-    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = .{ .len = 0 };
-    interpreter.program_counter = 0;
-    interpreter.allocator = testing.allocator;
-
-    {
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-
-        try createInstruction(&interpreter, false);
-
-        try testing.expect(interpreter.next_action == .create_action);
-        defer testing.allocator.free(interpreter.next_action.create_action.init_code);
-
-        try testing.expectEqual(29531750, interpreter.gas_tracker.used_amount);
-    }
-    {
-        interpreter.spec = .FRONTIER;
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-
-        try createInstruction(&interpreter, false);
-
-        try testing.expect(interpreter.next_action == .create_action);
-        defer testing.allocator.free(interpreter.next_action.create_action.init_code);
-
-        try testing.expectEqual(30_000_000, interpreter.gas_tracker.used_amount);
-    }
-}
-
-test "Create2" {
-    var host: PlainHost = undefined;
-    defer host.deinit();
-
-    host.init(testing.allocator);
-
-    var interpreter: Interpreter = undefined;
-    defer {
-        interpreter.memory.deinit();
-    }
-
-    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = .{ .len = 0 };
-    interpreter.program_counter = 0;
-    interpreter.allocator = testing.allocator;
-    interpreter.memory = Memory.initEmpty(testing.allocator, null);
-    interpreter.host = host.host();
-
-    {
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-
-        try createInstruction(&interpreter, true);
-
-        try testing.expect(interpreter.next_action == .create_action);
-        try testing.expect(interpreter.next_action.create_action.scheme == .create2);
-        defer testing.allocator.free(interpreter.next_action.create_action.init_code);
-
-        try testing.expectEqual(29531750, interpreter.gas_tracker.used_amount);
-    }
-    {
-        interpreter.spec = .FRONTIER;
-        try testing.expectError(error.InstructionNotEnabled, createInstruction(&interpreter, true));
-    }
-}
-
-test "Call" {
-    var host: PlainHost = undefined;
-    defer host.deinit();
-
-    host.init(testing.allocator);
-
-    var interpreter: Interpreter = undefined;
-    defer {
-        interpreter.memory.deinit();
-    }
-
-    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = .{ .len = 0 };
-    interpreter.program_counter = 0;
-    interpreter.allocator = testing.allocator;
-    interpreter.memory = Memory.initEmpty(testing.allocator, null);
-    interpreter.host = host.host();
-
-    {
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0xFFFF);
-
-        try callInstruction(&interpreter);
-
-        try testing.expect(interpreter.next_action == .call_action);
-        try testing.expect(interpreter.status == .call_or_create);
-        try testing.expect(interpreter.next_action.call_action.scheme == .call);
-        defer testing.allocator.free(interpreter.next_action.call_action.inputs);
-
-        try testing.expectEqual(65635, interpreter.gas_tracker.used_amount);
-    }
-    {
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(32);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0xFFFF);
-
-        try callInstruction(&interpreter);
-
-        try testing.expect(interpreter.next_action == .call_action);
-        try testing.expect(interpreter.status == .call_or_create);
-        try testing.expect(interpreter.next_action.call_action.scheme == .call);
-        defer testing.allocator.free(interpreter.next_action.call_action.inputs);
-
-        try testing.expectEqual(131273, interpreter.gas_tracker.used_amount);
-    }
-    {
-        interpreter.is_static = true;
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(32);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(32);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0xFFFF);
-
-        try callInstruction(&interpreter);
-
-        try testing.expect(interpreter.status == .call_with_value_not_allowed_in_static_call);
-    }
-}
-
-test "CallCode" {
-    var host: PlainHost = undefined;
-    defer host.deinit();
-
-    host.init(testing.allocator);
-
-    var interpreter: Interpreter = undefined;
-    defer {
-        interpreter.memory.deinit();
-    }
-
-    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = .{ .len = 0 };
-    interpreter.program_counter = 0;
-    interpreter.allocator = testing.allocator;
-    interpreter.memory = Memory.initEmpty(testing.allocator, null);
-    interpreter.host = host.host();
-
-    {
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0xFFFF);
-
-        try callCodeInstruction(&interpreter);
-
-        try testing.expect(interpreter.next_action == .call_action);
-        try testing.expect(interpreter.status == .call_or_create);
-        try testing.expect(interpreter.next_action.call_action.scheme == .callcode);
-        defer testing.allocator.free(interpreter.next_action.call_action.inputs);
-
-        try testing.expectEqual(65635, interpreter.gas_tracker.used_amount);
-    }
-    {
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(32);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0xFFFF);
-
-        try callCodeInstruction(&interpreter);
-
-        try testing.expect(interpreter.next_action == .call_action);
-        try testing.expect(interpreter.status == .call_or_create);
-        try testing.expect(interpreter.next_action.call_action.scheme == .callcode);
-        defer testing.allocator.free(interpreter.next_action.call_action.inputs);
-
-        try testing.expectEqual(131273, interpreter.gas_tracker.used_amount);
-    }
-}
-
-test "DelegateCall" {
-    var host: PlainHost = undefined;
-    defer host.deinit();
-
-    host.init(testing.allocator);
-
-    var interpreter: Interpreter = undefined;
-    defer {
-        interpreter.memory.deinit();
-    }
-
-    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = .{ .len = 0 };
-    interpreter.program_counter = 0;
-    interpreter.allocator = testing.allocator;
-    interpreter.memory = Memory.initEmpty(testing.allocator, null);
-    interpreter.host = host.host();
-
-    {
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0xFFFF);
-
-        try delegateCallInstruction(&interpreter);
-
-        try testing.expect(interpreter.next_action == .call_action);
-        try testing.expect(interpreter.status == .call_or_create);
-        try testing.expect(interpreter.next_action.call_action.scheme == .delegate);
-        try testing.expect(interpreter.next_action.call_action.value == .limbo);
-        defer testing.allocator.free(interpreter.next_action.call_action.inputs);
-
-        try testing.expectEqual(65635, interpreter.gas_tracker.used_amount);
-    }
-    {
-        interpreter.spec = .FRONTIER;
-        try testing.expectError(error.InstructionNotEnabled, delegateCallInstruction(&interpreter));
-    }
-}
-
-test "StaticCall" {
-    var host: PlainHost = undefined;
-    defer host.deinit();
-
-    host.init(testing.allocator);
-
-    var interpreter: Interpreter = undefined;
-    defer {
-        interpreter.memory.deinit();
-    }
-
-    interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
-    interpreter.stack = .{ .len = 0 };
-    interpreter.program_counter = 0;
-    interpreter.allocator = testing.allocator;
-    interpreter.memory = Memory.initEmpty(testing.allocator, null);
-    interpreter.host = host.host();
-
-    {
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0);
-        try interpreter.stack.pushUnsafe(0xFFFF);
-
-        try staticCallInstruction(&interpreter);
-
-        try testing.expect(interpreter.next_action == .call_action);
-        try testing.expect(interpreter.status == .call_or_create);
-        try testing.expect(interpreter.next_action.call_action.scheme == .static);
-        defer testing.allocator.free(interpreter.next_action.call_action.inputs);
-
-        try testing.expectEqual(65635, interpreter.gas_tracker.used_amount);
-    }
-    {
-        interpreter.spec = .FRONTIER;
-        try testing.expectError(error.InstructionNotEnabled, staticCallInstruction(&interpreter));
-    }
 }

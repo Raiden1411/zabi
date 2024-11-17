@@ -3,6 +3,7 @@ const testing = std.testing;
 
 const Allocator = std.mem.Allocator;
 const Stream = std.net.Stream;
+const Atomic = std.atomic.Value(usize);
 
 /// Socket reader that is expected to be reading socket messages
 /// that are json messages. Growth is linearly based on the provided `growth_rate`.
@@ -23,11 +24,11 @@ pub const IpcReader = struct {
     /// The growth rate of the message buffer.
     growth_rate: usize,
     /// The end of a json message.
-    message_end: usize = 0,
+    message_end: Atomic = Atomic.init(0),
     /// The start of the json message.
-    message_start: usize = 0,
+    message_start: Atomic = Atomic.init(0),
     /// The current position in the buffer.
-    position: usize = 0,
+    position: Atomic = Atomic.init(0),
     /// The stream used to read or write.
     stream: Stream,
     /// If the stream is closed for reading.
@@ -66,12 +67,15 @@ pub const IpcReader = struct {
         if (size == 0)
             return error.Closed;
 
-        if (self.position + size > self.buffer.len)
+        const position = self.position.load(.acquire);
+
+        if (position + size > self.buffer.len)
             try self.grow(size);
 
-        std.debug.assert(self.buffer.len >= self.position + size);
-        @memcpy(self.buffer[self.position .. self.position + size], result[0..size]);
-        self.position += size;
+        std.debug.assert(self.buffer.len >= position + size);
+
+        @memcpy(self.buffer[position .. position + size], result[0..size]);
+        self.position.store(position + size, .release);
     }
     /// Grows the reader buffer based on the growth rate. Will use the `allocator` resize
     /// method if available.
@@ -90,8 +94,11 @@ pub const IpcReader = struct {
     pub fn jsonMessage(self: *@This()) usize {
         var depth: usize = 0;
 
-        while (self.message_end < self.position) : (self.message_end += 1) {
-            switch (self.buffer[self.message_end]) {
+        var message_end = self.message_end.load(.acquire);
+        const position = self.position.load(.acquire);
+
+        while (message_end < position) : (message_end += 1) {
+            switch (self.buffer[message_end]) {
                 '{' => depth += 1,
                 '}' => depth -= 1,
                 else => {},
@@ -99,12 +106,11 @@ pub const IpcReader = struct {
 
             // Check if we read a message or not.
             if (depth == 0) {
-                self.message_end += 1;
-                return self.message_end - self.message_start;
+                self.message_end.store(message_end + 1, .release);
+                return (message_end + 1) - self.message_start.load(.acquire);
             }
         }
 
-        self.message_end = self.message_start;
         return 0;
     }
     /// Reads one message from the socket stream.
@@ -114,24 +120,25 @@ pub const IpcReader = struct {
         self.prepareForRead();
 
         while (true) {
-            if (self.message_start == self.message_end) {
-                const size = self.jsonMessage();
+            const size = self.jsonMessage();
 
-                if (size == 0) {
-                    try self.read();
-                    continue;
-                }
+            if (size == 0) {
+                try self.read();
+                continue;
             }
 
-            std.debug.assert(self.message_start < self.buffer.len);
-            std.debug.assert(self.message_end < self.buffer.len);
+            const message_start = self.message_start.load(.acquire);
+            const message_end = self.message_end.load(.acquire);
 
-            return self.buffer[self.message_start..self.message_end];
+            std.debug.assert(message_start < self.buffer.len);
+            std.debug.assert(message_end < self.buffer.len);
+
+            return self.buffer[message_start..message_end];
         }
     }
     /// Prepares the reader for the next message.
     pub fn prepareForRead(self: *Self) void {
-        self.message_start = self.message_end;
+        self.message_start.store(self.message_end.load(.acquire), .release);
     }
     /// Writes a message to the socket stream.
     pub fn writeMessage(self: *Self, message: []u8) Stream.WriteError!void {

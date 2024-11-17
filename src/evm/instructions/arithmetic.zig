@@ -1,6 +1,5 @@
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
-const testing = std.testing;
 
 const Allocator = std.mem.Allocator;
 const Interpreter = @import("../Interpreter.zig");

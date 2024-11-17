@@ -46,9 +46,9 @@ jobs:
           ANVIL_FORK_URL_OP_SEPOLIA: ${{ secrets.ANVIL_FORK_URL_OP_SEPOLIA }}
           
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          directory: zig-out/coverage/zabi-tests-coverage
+          directory: zig-out/coverage/
           fail_ci_if_error: true
           verbose: true

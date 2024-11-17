@@ -40,6 +40,10 @@ jobs:
         run: |
           kcov --version
           zig build coverage -freference-trace
+        env:
+          ANVIL_FORK_URL: ${{ secrets.ANVIL_FORK_URL }}
+          ANVIL_FORK_URL_SEPOLIA: ${{ secrets.ANVIL_FORK_URL_SEPOLIA }}
+          ANVIL_FORK_URL_OP_SEPOLIA: ${{ secrets.ANVIL_FORK_URL_OP_SEPOLIA }}
           
       - name: Upload to Codecov
         uses: codecov/codecov-action@v3

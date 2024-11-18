@@ -126,10 +126,7 @@ test "RunInstruction Create" {
     try testing.expect(interpreter.status == .call_or_create);
     try testing.expectEqual(29531751, interpreter.gas_tracker.used_amount);
 
-    // const int: u104 = @byteSwap(@as(u104, @bitCast([_]u8{ 0x63, 0xFF, 0xFF, 0xFF, 0xFF, 0x60, 0x00, 0x52, 0x60, 0x04, 0x60, 0x1C, 0xF3 })));
-    // const buffer: [13]u8 = @bitCast(@byteSwap(int));
-    //
-    // try testing.expectEqualSlices(u8, &buffer, result.create_action.init_code);
+    try testing.expectEqualSlices(u8, &[_]u8{ 0x63, 0xFF, 0xFF, 0xFF, 0xFF, 0x60, 0x00, 0x52, 0x60, 0x04, 0x60, 0x1C, 0xF3 }, result.create_action.init_code);
 }
 
 test "RunInstruction Create2" {
@@ -162,11 +159,7 @@ test "RunInstruction Create2" {
     try testing.expect(result.create_action.scheme == .create2);
     try testing.expect(interpreter.status == .call_or_create);
     try testing.expectEqual(29531751, interpreter.gas_tracker.used_amount);
-
-    // const int: u104 = @byteSwap(@as(u104, @bitCast([_]u8{ 0x63, 0xFF, 0xFF, 0xFF, 0xFF, 0x60, 0x00, 0x52, 0x60, 0x04, 0x60, 0x1C, 0xF3 })));
-    // const buffer: [13]u8 = @bitCast(int);
-    //
-    // try testing.expectEqualSlices(u8, &buffer, result.create_action.init_code);
+    try testing.expectEqualSlices(u8, &[_]u8{ 0x63, 0xFF, 0xFF, 0xFF, 0xFF, 0x60, 0x00, 0x52, 0x60, 0x04, 0x60, 0x1C, 0xF3 }, result.create_action.init_code);
 }
 
 test "Running With Jump" {

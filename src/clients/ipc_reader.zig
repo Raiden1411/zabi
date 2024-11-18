@@ -79,7 +79,7 @@ pub const IpcReader = struct {
     }
     /// Grows the reader buffer based on the growth rate. Will use the `allocator` resize
     /// method if available.
-    pub fn grow(self: *@This(), size: usize) Allocator.Error!void {
+    pub fn grow(self: *Self, size: usize) Allocator.Error!void {
         if (self.allocator.resize(self.buffer, self.buffer.len + self.growth_rate + size))
             return;
 

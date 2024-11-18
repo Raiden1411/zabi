@@ -1,4 +1,5 @@
 test "EVM Interpreter root" {
+    _ = @import("arithmetic.test.zig");
     _ = @import("analysis.test.zig");
     _ = @import("interpreter.test.zig");
     _ = @import("bytecode.test.zig");

@@ -8,6 +8,37 @@ const ParamType = param_type.ParamType;
 
 const parseHumanReadable = @import("zabi").human_readable.parsing.parseHumanReadable;
 
+test "Receive and Fallback" {
+    const slice =
+        \\ struct AdditionalRecipient { uint256 amount; }
+        \\ function fallback() external
+        \\ fallback(address bar) external
+        \\ fallback(address bar, uint baz) external
+        \\ receive() external payable
+    ;
+
+    const parsed = try parseHumanReadable(testing.allocator, slice);
+    defer parsed.deinit();
+
+    try testing.expectEqual(parsed.value.len, 4);
+}
+
+test "Tuples" {
+    const slice =
+        \\ function foo((string bar)[] jazz) public
+        \\ function bar((address baz, uint jazz) memory hello) public view returns(address)
+        \\ function baz(((((((((address bar))))))))) public pure returns(address)
+        \\ event world((string bar) dsa, (string hello, address baz) asd) 
+        \\ constructor(address conduitController, bool bar)
+        \\ function getCounter(address offerer, uint bar) public
+    ;
+
+    const parsed = try parseHumanReadable(testing.allocator, slice);
+    defer parsed.deinit();
+
+    try testing.expectEqual(parsed.value.len, 6);
+}
+
 test "Seaport" {
     const slice =
         \\constructor(address conduitController)

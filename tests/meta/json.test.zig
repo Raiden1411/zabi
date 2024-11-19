@@ -23,10 +23,58 @@ test "Parse/Stringify Json" {
         const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
         defer testing.allocator.free(as_slice);
 
-        const parsed = try std.json.parseFromSlice(types.block.BeaconBlock, testing.allocator, as_slice, .{});
+        const parsed = try std.json.parseFromSlice(types.block.Block, testing.allocator, as_slice, .{});
         defer parsed.deinit();
 
-        try testing.expectEqualDeep(gen.generated, parsed.value);
+        try testing.expectEqualDeep(gen.generated, parsed.value.beacon);
+    }
+    {
+        const gen = try generator.generateRandomData(types.block.ArbitrumBlock, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.block.Block, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value.arbitrum);
+    }
+    {
+        const gen = try generator.generateRandomData(types.block.LegacyBlock, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.block.Block, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value.legacy);
+    }
+    {
+        const gen = try generator.generateRandomData(types.block.BeaconBlock, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        {
+            const parsed = try std.json.parseFromSlice(types.block.BeaconBlock, testing.allocator, as_slice, .{});
+            defer parsed.deinit();
+
+            try testing.expectEqualDeep(gen.generated, parsed.value);
+        }
+
+        {
+            const json_value = try std.json.parseFromSlice(std.json.Value, testing.allocator, as_slice, .{});
+            defer json_value.deinit();
+
+            const parsed = try std.json.parseFromValue(types.block.BeaconBlock, testing.allocator, json_value.value, .{});
+            defer parsed.deinit();
+
+            try testing.expectEqualDeep(gen.generated, parsed.value);
+        }
     }
     {
         const gen = try generator.generateRandomData(types.block.BlobBlock, testing.allocator, 0, .{ .slice_size = 20 });
@@ -41,49 +89,61 @@ test "Parse/Stringify Json" {
         try testing.expectEqualDeep(gen.generated, parsed.value);
     }
     {
-        const gen = try generator.generateRandomData(types.transactions.TransactionEnvelope, testing.allocator, 0, .{ .slice_size = 20 });
+        const gen = try generator.generateRandomData(types.block.ArbitrumBlock, testing.allocator, 0, .{ .slice_size = 20 });
         defer gen.deinit();
 
         const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
         defer testing.allocator.free(as_slice);
 
-        const parsed = try std.json.parseFromSlice(types.transactions.TransactionEnvelope, testing.allocator, as_slice, .{});
-        defer parsed.deinit();
+        {
+            const parsed = try std.json.parseFromSlice(types.block.ArbitrumBlock, testing.allocator, as_slice, .{});
+            defer parsed.deinit();
 
-        try testing.expectEqualDeep(gen.generated, parsed.value);
+            try testing.expectEqualDeep(gen.generated, parsed.value);
+        }
+
+        {
+            const json_value = try std.json.parseFromSlice(std.json.Value, testing.allocator, as_slice, .{});
+            defer json_value.deinit();
+
+            const parsed = try std.json.parseFromValue(types.block.ArbitrumBlock, testing.allocator, json_value.value, .{});
+            defer parsed.deinit();
+
+            try testing.expectEqualDeep(gen.generated, parsed.value);
+        }
     }
     {
-        const gen = try generator.generateRandomData(types.transactions.TransactionEnvelopeSigned, testing.allocator, 0, .{ .slice_size = 20 });
+        const gen = try generator.generateRandomData(types.block.LegacyBlock, testing.allocator, 0, .{ .slice_size = 20 });
         defer gen.deinit();
 
         const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
         defer testing.allocator.free(as_slice);
 
-        const parsed = try std.json.parseFromSlice(types.transactions.TransactionEnvelopeSigned, testing.allocator, as_slice, .{});
-        defer parsed.deinit();
+        {
+            const parsed = try std.json.parseFromSlice(types.block.LegacyBlock, testing.allocator, as_slice, .{});
+            defer parsed.deinit();
 
-        try testing.expectEqualDeep(gen.generated, parsed.value);
+            try testing.expectEqualDeep(gen.generated, parsed.value);
+        }
+
+        {
+            const json_value = try std.json.parseFromSlice(std.json.Value, testing.allocator, as_slice, .{});
+            defer json_value.deinit();
+
+            const parsed = try std.json.parseFromValue(types.block.LegacyBlock, testing.allocator, json_value.value, .{});
+            defer parsed.deinit();
+
+            try testing.expectEqualDeep(gen.generated, parsed.value);
+        }
     }
     {
-        const gen = try generator.generateRandomData(types.transactions.TransactionReceipt, testing.allocator, 0, .{ .slice_size = 20 });
+        const gen = try generator.generateRandomData(types.block.BlockTransactions, testing.allocator, 69, .{ .slice_size = 20 });
         defer gen.deinit();
 
         const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
         defer testing.allocator.free(as_slice);
 
-        const parsed = try std.json.parseFromSlice(types.transactions.TransactionReceipt, testing.allocator, as_slice, .{});
-        defer parsed.deinit();
-
-        try testing.expectEqualDeep(gen.generated, parsed.value);
-    }
-    {
-        const gen = try generator.generateRandomData(types.transactions.Transaction, testing.allocator, 0, .{ .slice_size = 20 });
-        defer gen.deinit();
-
-        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
-        defer testing.allocator.free(as_slice);
-
-        const parsed = try std.json.parseFromSlice(types.transactions.Transaction, testing.allocator, as_slice, .{});
+        const parsed = try std.json.parseFromSlice(types.block.BlockTransactions, testing.allocator, as_slice, .{});
         defer parsed.deinit();
 
         try testing.expectEqualDeep(gen.generated, parsed.value);
@@ -384,5 +444,446 @@ test "Parse/Stringify Json" {
 
         const all = try std.json.stringifyAlloc(testing.allocator, parsed.value, .{});
         defer testing.allocator.free(all);
+    }
+}
+
+test "Json Parse Transactions" {
+    {
+        const gen = try generator.generateRandomData(types.transactions.TransactionEnvelope, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.TransactionEnvelope, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.AuthorizationPayload, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.AuthorizationPayload, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.Eip7702TransactionEnvelope, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.Eip7702TransactionEnvelope, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.CancunTransactionEnvelope, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.CancunTransactionEnvelope, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.LondonTransactionEnvelope, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.LondonTransactionEnvelope, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.BerlinTransactionEnvelope, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.BerlinTransactionEnvelope, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.LegacyTransactionEnvelope, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.LegacyTransactionEnvelope, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.TransactionEnvelopeSigned, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.TransactionEnvelopeSigned, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.Eip7702TransactionEnvelopeSigned, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.Eip7702TransactionEnvelopeSigned, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.CancunTransactionEnvelopeSigned, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.CancunTransactionEnvelopeSigned, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.LondonTransactionEnvelopeSigned, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.LondonTransactionEnvelopeSigned, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.BerlinTransactionEnvelopeSigned, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.BerlinTransactionEnvelopeSigned, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.LegacyTransactionEnvelopeSigned, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.LegacyTransactionEnvelopeSigned, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.TransactionReceipt, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.TransactionReceipt, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.CancunReceipt, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.CancunReceipt, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.LegacyReceipt, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.LegacyReceipt, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.DepositReceipt, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.DepositReceipt, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.ArbitrumReceipt, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.ArbitrumReceipt, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.OpstackReceipt, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.OpstackReceipt, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.CancunTransaction, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.CancunTransaction, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.LondonTransaction, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.LondonTransaction, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.BerlinTransaction, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.BerlinTransaction, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.LegacyTransaction, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.LegacyTransaction, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.DepositTransactionEnvelope, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.DepositTransactionEnvelope, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.DepositTransactionSigned, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.DepositTransactionSigned, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.LegacyReceipt, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.TransactionReceipt, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value.legacy);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.OpstackReceipt, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.TransactionReceipt, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value.op_receipt);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.CancunReceipt, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.TransactionReceipt, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value.cancun);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.ArbitrumReceipt, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.TransactionReceipt, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value.arbitrum_receipt);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.DepositReceipt, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.TransactionReceipt, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value.deposit_receipt);
+    }
+
+    {
+        var gen = try generator.generateRandomData(types.transactions.CancunTransaction, testing.allocator, 0, .{ .slice_size = 1 });
+        defer gen.deinit();
+
+        gen.generated.type = .cancun;
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.Transaction, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value.cancun);
+    }
+    {
+        var gen = try generator.generateRandomData(types.transactions.LondonTransaction, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+        gen.generated.type = .london;
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.Transaction, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value.london);
+    }
+    {
+        var gen = try generator.generateRandomData(types.transactions.BerlinTransaction, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+        gen.generated.type = .berlin;
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.Transaction, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value.berlin);
+    }
+    {
+        var gen = try generator.generateRandomData(types.transactions.LegacyTransaction, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+        gen.generated.type = .legacy;
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.Transaction, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value.legacy);
+    }
+    {
+        const gen = try generator.generateRandomData(types.transactions.L2Transaction, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.Transaction, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value.l2_transaction);
+    }
+    {
+        var gen = try generator.generateRandomData(types.transactions.DepositTransactionSigned, testing.allocator, 0, .{ .slice_size = 20 });
+        defer gen.deinit();
+        gen.generated.type = .deposit;
+
+        const as_slice = try std.json.stringifyAlloc(testing.allocator, gen.generated, .{});
+        defer testing.allocator.free(as_slice);
+
+        const parsed = try std.json.parseFromSlice(types.transactions.Transaction, testing.allocator, as_slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqualDeep(gen.generated, parsed.value.deposit);
     }
 }

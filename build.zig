@@ -110,6 +110,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    addDependencies(b, zabi_types, target, optimize);
 
     // Build the library with the utils module.
     const zabi_utils = b.addModule("zabi-utils", .{

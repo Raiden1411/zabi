@@ -715,14 +715,15 @@ pub const Transaction = union(enum) {
         if (tx_type != .string)
             return error.UnexpectedToken;
 
-        const type_value = try std.fmt.parseInt(u8, tx_type.string, 0);
+        const type_value = std.meta.stringToEnum(TransactionTypes, tx_type.string) orelse
+            std.meta.intToEnum(TransactionTypes, try std.fmt.parseInt(u8, tx_type.string, 0)) catch return error.UnexpectedToken;
 
         switch (type_value) {
-            0x00 => return @unionInit(@This(), "legacy", try std.json.parseFromValueLeaky(LegacyTransaction, allocator, source, options)),
-            0x01 => return @unionInit(@This(), "berlin", try std.json.parseFromValueLeaky(BerlinTransaction, allocator, source, options)),
-            0x02 => return @unionInit(@This(), "london", try std.json.parseFromValueLeaky(LondonTransaction, allocator, source, options)),
-            0x03 => return @unionInit(@This(), "cancun", try std.json.parseFromValueLeaky(CancunTransaction, allocator, source, options)),
-            0x7e => return @unionInit(@This(), "deposit", try std.json.parseFromValueLeaky(DepositTransactionSigned, allocator, source, options)),
+            .legacy => return @unionInit(@This(), "legacy", try std.json.parseFromValueLeaky(LegacyTransaction, allocator, source, options)),
+            .berlin => return @unionInit(@This(), "berlin", try std.json.parseFromValueLeaky(BerlinTransaction, allocator, source, options)),
+            .london => return @unionInit(@This(), "london", try std.json.parseFromValueLeaky(LondonTransaction, allocator, source, options)),
+            .cancun => return @unionInit(@This(), "cancun", try std.json.parseFromValueLeaky(CancunTransaction, allocator, source, options)),
+            .deposit => return @unionInit(@This(), "deposit", try std.json.parseFromValueLeaky(DepositTransactionSigned, allocator, source, options)),
             else => return error.UnexpectedToken,
         }
     }

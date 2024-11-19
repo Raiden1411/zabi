@@ -11,7 +11,16 @@ const parseDepositTransaction = parse.parseDepositTransaction;
 const serializeDepositTransaction = serialize.serializeDepositTransaction;
 
 test "Base" {
-    const tx: DepositTransaction = .{ .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), .sourceHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"), .data = null, .to = null, .isSystemTx = false, .mint = 0, .gas = 0, .value = 0 };
+    const tx: DepositTransaction = .{
+        .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+        .sourceHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"),
+        .data = null,
+        .to = null,
+        .isSystemTx = false,
+        .mint = 0,
+        .gas = 0,
+        .value = 0,
+    };
 
     const encoded = try serializeDepositTransaction(testing.allocator, tx);
     defer testing.allocator.free(encoded);
@@ -33,7 +42,16 @@ test "To" {
 }
 
 test "Data" {
-    const tx: DepositTransaction = .{ .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), .sourceHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"), .data = @constCast(&[_]u8{ 0x12, 0x34 }), .to = null, .isSystemTx = false, .mint = 0, .gas = 0, .value = 0 };
+    const tx: DepositTransaction = .{
+        .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+        .sourceHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"),
+        .data = @constCast(&[_]u8{ 0x12, 0x34 }),
+        .to = null,
+        .isSystemTx = false,
+        .mint = 0,
+        .gas = 0,
+        .value = 0,
+    };
 
     const encoded = try serializeDepositTransaction(testing.allocator, tx);
     defer testing.allocator.free(encoded);
@@ -44,7 +62,16 @@ test "Data" {
 }
 
 test "Mint" {
-    const tx: DepositTransaction = .{ .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), .sourceHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"), .data = null, .to = null, .isSystemTx = false, .mint = 69, .gas = 0, .value = 0 };
+    const tx: DepositTransaction = .{
+        .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+        .sourceHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"),
+        .data = null,
+        .to = null,
+        .isSystemTx = false,
+        .mint = 69,
+        .gas = 0,
+        .value = 0,
+    };
 
     const encoded = try serializeDepositTransaction(testing.allocator, tx);
     defer testing.allocator.free(encoded);
@@ -66,7 +93,16 @@ test "Gas" {
 }
 
 test "Value" {
-    const tx: DepositTransaction = .{ .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), .sourceHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"), .data = null, .to = null, .isSystemTx = false, .mint = 0, .gas = 0, .value = 69 };
+    const tx: DepositTransaction = .{
+        .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+        .sourceHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"),
+        .data = null,
+        .to = null,
+        .isSystemTx = false,
+        .mint = 0,
+        .gas = 0,
+        .value = 69,
+    };
 
     const encoded = try serializeDepositTransaction(testing.allocator, tx);
     defer testing.allocator.free(encoded);
@@ -77,7 +113,16 @@ test "Value" {
 }
 
 test "SystemTx" {
-    const tx: DepositTransaction = .{ .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"), .sourceHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"), .data = null, .to = null, .isSystemTx = true, .mint = 0, .gas = 0, .value = 0 };
+    const tx: DepositTransaction = .{
+        .from = try utils.addressToBytes("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+        .sourceHash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"),
+        .data = null,
+        .to = null,
+        .isSystemTx = true,
+        .mint = 0,
+        .gas = 0,
+        .value = 0,
+    };
 
     const encoded = try serializeDepositTransaction(testing.allocator, tx);
     defer testing.allocator.free(encoded);
@@ -85,4 +130,8 @@ test "SystemTx" {
     const decoded = try parseDepositTransaction(testing.allocator, encoded);
 
     try testing.expectEqualDeep(tx, decoded);
+}
+
+test "Errors" {
+    try testing.expectError(error.InvalidTransactionType, parseDepositTransaction(testing.allocator, @constCast(&[_]u8{ 0x03, 0x00 })));
 }

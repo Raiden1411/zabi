@@ -269,7 +269,20 @@ pub fn innerStringify(value: anytype, stream_writer: anytype) !void {
                 return try innerStringify(val, stream_writer);
             } else return try innerStringify(null, stream_writer);
         },
-        .@"enum", .enum_literal => {
+        .enum_literal => {
+            try valueStart(stream_writer);
+            try std.json.encodeJsonString(@tagName(value), .{}, stream_writer.stream);
+            stream_writer.next_punctuation = .comma;
+        },
+        .@"enum" => |enum_info| {
+            if (!enum_info.is_exhaustive) {
+                inline for (enum_info.fields) |field| {
+                    if (value == @field(@TypeOf(value), field.name)) {
+                        break;
+                    }
+                } else return innerStringify(@intFromEnum(value), stream_writer);
+            }
+
             try valueStart(stream_writer);
             try std.json.encodeJsonString(@tagName(value), .{}, stream_writer.stream);
             stream_writer.next_punctuation = .comma;

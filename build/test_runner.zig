@@ -41,13 +41,15 @@ const Runner = struct {
     /// Connect to the anvil instance an reset it.
     pub fn resetAnvilInstance(self: *Self, allocator: Allocator) !void {
         startAnvilInstances(allocator) catch {
-            self.color_stream.setNextColor(.red);
-            try self.color_stream.writer().writeAll("error: ");
-
+            self.color_stream.setNextColor(.yellow);
+            try self.color_stream.writer().writeAll("warning: ");
             self.color_stream.setNextColor(.bold);
             try self.color_stream.writer().writeAll("Failed to connect to anvil! Please ensure that it is running on port 6969\n");
 
-            std.process.exit(1);
+            self.color_stream.setNextColor(.yellow);
+            try self.color_stream.writer().writeAll("warning: ");
+            self.color_stream.setNextColor(.bold);
+            try self.color_stream.writer().writeAll("Test will run but client tests might fail\n\n");
         };
     }
     /// Writes the test module name.

@@ -404,7 +404,7 @@ test "Error" {
         var parser: Parser = undefined;
         defer parser.deinit();
 
-        try buildParser("error Foo(uint foo)", &tokens, &parser);
+        try buildParser("error Foo(uint foo);", &tokens, &parser);
 
         const event = try parser.parseError();
 
@@ -419,7 +419,22 @@ test "Error" {
         var parser: Parser = undefined;
         defer parser.deinit();
 
-        try buildParser("error Foo(uint foo, foo bar)", &tokens, &parser);
+        try buildParser("error Foo();", &tokens, &parser);
+
+        const err = try parser.parseError();
+
+        const data = parser.nodes.items(.data)[err];
+        try testing.expectEqual(.error_proto_simple, parser.nodes.items(.tag)[err]);
+        try testing.expectEqual(0, data.rhs);
+    }
+    {
+        var tokens: Ast.TokenList = .{};
+        defer tokens.deinit(testing.allocator);
+
+        var parser: Parser = undefined;
+        defer parser.deinit();
+
+        try buildParser("error Foo(uint foo, foo bar);", &tokens, &parser);
 
         const event = try parser.parseError();
 
@@ -434,7 +449,7 @@ test "Error" {
         var parser: Parser = undefined;
         defer parser.deinit();
 
-        try buildParser("error Foo(uint foo,)", &tokens, &parser);
+        try buildParser("error Foo(uint foo,);", &tokens, &parser);
 
         _ = try parser.parseError();
         // Trailing comma but we keep parsing.
@@ -455,7 +470,6 @@ test "Error" {
 
 test "It can parse a contract without errors" {
     const slice =
-        \\   uint constant foo = 69;
         \\   struct Voter {
         \\       uint weight; // weight is accumulated by delegation
         \\       bool voted;  // if true, that person already voted
@@ -599,11 +613,51 @@ test "It can parse a contract without errors" {
     defer ast.deinit(testing.allocator);
 
     try testing.expectEqual(ast.nodes.items(.tag)[ast.nodes.len - 1], .contract_decl);
-    try testing.expectEqual(ast.errors.len, 0);
+    try testing.expectEqual(0, ast.errors.len);
+}
+
+test "Parsing source units" {
+    const slice =
+        \\   function vote(uint proposal) public;
+        \\   function votee(uint proposal) public {}
+        \\   pragma solidity >=0.8.20 <=0.8.0;
+        \\   error Jazz(uint boo);
+        \\   enum Bazz {boooooooooo}
+        \\   enum Bazzz {boooooooooo, foooooooooo}
+        \\   using foo.bar for int256;
+        \\   using {console, hello} for * global;
+        \\   type foo_bar is address;
+        \\   uint constant foo = 69;
+        \\
+        \\   event Foo(address bar);
+        \\   event Baz(address indexed bar) anonymous;
+        \\   interface Bar is foo.baz {}
+        \\   interface Bar is foo.baz, baz.foo {uint public lol = 69;}
+        \\   library Bar {address public ads; int8 private fds;}
+        \\   function winningProposal() public view
+        \\           returns (uint winningProposal_, address l)
+        \\   {
+        \\       uint winningVoteCount = 0;
+        \\       for (uint p = 0; p < proposals.length; p++) {
+        \\           if (proposals[p].voteCount > winningVoteCount) {
+        \\               winningVoteCount = proposals[p].voteCount;
+        \\               winningProposal_ = p;
+        \\               fooo.send{value: msg.value}(p);
+        \\           }
+        \\       }
+        \\   }
+    ;
+
+    var ast = try Ast.parse(testing.allocator, slice);
+    defer ast.deinit(testing.allocator);
+
+    try testing.expectEqual(0, ast.errors.len);
 }
 
 test "It can parse a even with errors" {
     const slice =
+        \\   pragma solidity 0.8.20;
+        \\   import \"foo/bar/baz\" as Baz;
         \\   uint constant foo = 69;
         \\   struct Voter {
         \\       uint weight; // weight is accumulated by delegation
@@ -612,7 +666,7 @@ test "It can parse a even with errors" {
         \\       uint vote;   // index of the voted proposal
         \\   }
         \\
-        \\       contract Ballot {
+        \\       abstract contract Ballot {
         \\
         \\   struct Voter {
         \\       uint weight; // weight is accumulated by delegation
@@ -750,6 +804,445 @@ test "It can parse a even with errors" {
     defer ast.deinit(testing.allocator);
 
     try testing.expect(ast.errors.len != 0);
+}
+
+test "Try and Catch" {
+    const slice =
+        \\contract Bar {
+        \\    event Log(string message);
+        \\    event LogBytes(bytes data);
+        \\
+        \\    Foo public foo;
+        \\
+        \\    constructor() {
+        \\        // This Foo contract is used for example of try catch with external call
+        \\        foo = new Foo(msg.sender);
+        \\    }
+        \\
+        \\    // Example of try / catch with external call
+        \\    // tryCatchExternalCall(0) => Log("external call failed")
+        \\    // tryCatchExternalCall(1) => Log("my func was called")
+        \\    function tryCatchExternalCall(uint256 _i) public {
+        \\        try foo.myFunc(_i) returns (string memory result) {
+        \\            emit Log(result);
+        \\        } catch {
+        \\            emit Log("external call failed");
+        \\        }
+        \\    }
+        \\
+        \\    // Example of try / catch with contract creation
+        \\    // tryCatchNewContract(0x0000000000000000000000000000000000000000) => Log("invalid address")
+        \\    // tryCatchNewContract(0x0000000000000000000000000000000000000001) => LogBytes("")
+        \\    // tryCatchNewContract(0x0000000000000000000000000000000000000002) => Log("Foo created")
+        \\    function tryCatchNewContract(address _owner) public {
+        \\        try new Foo(_owner) returns (Foo foo) {
+        \\            // you can use variable foo here
+        \\            emit Log("Foo created");
+        \\        } catch Error(string memory reason) {
+        \\            // catch failing revert() and require()
+        \\            emit Log(reason);
+        \\        } catch (bytes memory reason) {
+        \\            // catch failing assert()
+        \\            emit LogBytes(reason);
+        \\        }
+        \\    }
+        \\}
+    ;
+
+    var ast = try Ast.parse(testing.allocator, slice);
+    defer ast.deinit(testing.allocator);
+
+    try testing.expectEqual(0, ast.errors.len);
+}
+
+test "Uniswap V3" {
+    const slice =
+        \\// SPDX-License-Identifier: MIT
+        \\pragma solidity ^0.8.26;
+        \\
+        \\address constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+        \\address constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+        \\
+        \\interface IERC721Receiver {
+        \\    function onERC721Received(
+        \\        address operator,
+        \\        address from,
+        \\        uint256 tokenId,
+        \\        bytes calldata data
+        \\    ) external returns (bytes4);
+        \\}
+        \\
+        \\contract UniswapV3Liquidity is IERC721Receiver {
+        \\    IERC20 private dai = IERC20(DAI);
+        \\    IWETH private weth = IWETH(WETH);
+        \\
+        \\    int24 private MIN_TICK = -887272;
+        \\    int24 private MAX_TICK = -MIN_TICK;
+        \\    int24 private TICK_SPACING = 60;
+        \\
+        \\    INonfungiblePositionManager public nonfungiblePositionManager =
+        \\        INonfungiblePositionManager(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
+        \\
+        \\    function onERC721Received(
+        \\        address operator,
+        \\        address from,
+        \\        uint256 tokenId,
+        \\        bytes calldata
+        \\    ) external returns (bytes4) {
+        \\        return IERC721Receiver.onERC721Received.selector;
+        \\    }
+        \\
+        \\    function mintNewPosition(uint256 amount0ToAdd, uint256 amount1ToAdd)
+        \\        external
+        \\        returns (
+        \\            uint256 tokenId,
+        \\            uint128 liquidity,
+        \\            uint256 amount0,
+        \\            uint256 amount1
+        \\        )
+        \\    {
+        \\        dai.transferFrom(msg.sender, address(this), amount0ToAdd);
+        \\        weth.transferFrom(msg.sender, address(this), amount1ToAdd);
+        \\
+        \\        dai.approve(address(nonfungiblePositionManager), amount0ToAdd);
+        \\        weth.approve(address(nonfungiblePositionManager), amount1ToAdd);
+        \\
+        \\        INonfungiblePositionManager.MintParams memory params =
+        \\        INonfungiblePositionManager.MintParams({
+        \\            token0: DAI,
+        \\            token1: WETH,
+        \\            fee: 3000,
+        \\            tickLower: (MIN_TICK / TICK_SPACING) * TICK_SPACING,
+        \\            tickUpper: (MAX_TICK / TICK_SPACING) * TICK_SPACING,
+        \\            amount0Desired: amount0ToAdd,
+        \\            amount1Desired: amount1ToAdd,
+        \\            amount0Min: 0,
+        \\            amount1Min: 0,
+        \\            recipient: address(this),
+        \\            deadline: block.timestamp
+        \\        });
+        \\
+        \\        (tokenId, liquidity, amount0, amount1) =
+        \\            nonfungiblePositionManager.mint(params);
+        \\
+        \\        if (amount0 < amount0ToAdd) {
+        \\            dai.approve(address(nonfungiblePositionManager), 0);
+        \\            uint256 refund0 = amount0ToAdd - amount0;
+        \\            dai.transfer(msg.sender, refund0);
+        \\        }
+        \\        if (amount1 < amount1ToAdd) {
+        \\            weth.approve(address(nonfungiblePositionManager), 0);
+        \\            uint256 refund1 = amount1ToAdd - amount1;
+        \\            weth.transfer(msg.sender, refund1);
+        \\        }
+        \\    }
+        \\
+        \\    function collectAllFees(uint256 tokenId)
+        \\        external
+        \\        returns (uint256 amount0, uint256 amount1)
+        \\    {
+        \\        INonfungiblePositionManager.CollectParams memory params =
+        \\        INonfungiblePositionManager.CollectParams({
+        \\            tokenId: tokenId,
+        \\            recipient: address(this),
+        \\            amount0Max: type(uint128).max,
+        \\            amount1Max: type(uint128).max
+        \\        });
+        \\
+        \\        (amount0, amount1) = nonfungiblePositionManager.collect(params);
+        \\    }
+        \\
+        \\    function increaseLiquidityCurrentRange(
+        \\        uint256 tokenId,
+        \\        uint256 amount0ToAdd,
+        \\        uint256 amount1ToAdd
+        \\    ) external returns (uint128 liquidity, uint256 amount0, uint256 amount1) {
+        \\        dai.transferFrom(msg.sender, address(this), amount0ToAdd);
+        \\        weth.transferFrom(msg.sender, address(this), amount1ToAdd);
+        \\
+        \\        dai.approve(address(nonfungiblePositionManager), amount0ToAdd);
+        \\        weth.approve(address(nonfungiblePositionManager), amount1ToAdd);
+        \\
+        \\        INonfungiblePositionManager.IncreaseLiquidityParams memory params =
+        \\        INonfungiblePositionManager.IncreaseLiquidityParams({
+        \\            tokenId: tokenId,
+        \\            amount0Desired: amount0ToAdd,
+        \\            amount1Desired: amount1ToAdd,
+        \\            amount0Min: 0,
+        \\            amount1Min: 0,
+        \\            deadline: block.timestamp
+        \\        });
+        \\
+        \\        (liquidity, amount0, amount1) =
+        \\            nonfungiblePositionManager.increaseLiquidity(params);
+        \\    }
+        \\
+        \\    function decreaseLiquidityCurrentRange(uint256 tokenId, uint128 liquidity)
+        \\        external
+        \\        returns (uint256 amount0, uint256 amount1)
+        \\    {
+        \\        INonfungiblePositionManager.DecreaseLiquidityParams memory params =
+        \\        INonfungiblePositionManager.DecreaseLiquidityParams({
+        \\            tokenId: tokenId,
+        \\            liquidity: liquidity,
+        \\            amount0Min: 0,
+        \\            amount1Min: 0,
+        \\            deadline: block.timestamp
+        \\        });
+        \\
+        \\        (amount0, amount1) =
+        \\            nonfungiblePositionManager.decreaseLiquidity(params);
+        \\    }
+        \\}
+        \\
+        \\interface INonfungiblePositionManager {
+        \\    struct MintParams {
+        \\        address token0;
+        \\        address token1;
+        \\        uint24 fee;
+        \\        int24 tickLower;
+        \\        int24 tickUpper;
+        \\        uint256 amount0Desired;
+        \\        uint256 amount1Desired;
+        \\        uint256 amount0Min;
+        \\        uint256 amount1Min;
+        \\        address recipient;
+        \\        uint256 deadline;
+        \\    }
+        \\
+        \\    function mint(MintParams calldata params)
+        \\        external
+        \\        payable
+        \\        returns (
+        \\            uint256 tokenId,
+        \\            uint128 liquidity,
+        \\            uint256 amount0,
+        \\            uint256 amount1
+        \\        );
+        \\
+        \\    struct IncreaseLiquidityParams {
+        \\        uint256 tokenId;
+        \\        uint256 amount0Desired;
+        \\        uint256 amount1Desired;
+        \\        uint256 amount0Min;
+        \\        uint256 amount1Min;
+        \\        uint256 deadline;
+        \\    }
+        \\
+        \\    function increaseLiquidity(IncreaseLiquidityParams calldata params)
+        \\        external
+        \\        payable
+        \\        returns (uint128 liquidity, uint256 amount0, uint256 amount1);
+        \\
+        \\    struct DecreaseLiquidityParams {
+        \\        uint256 tokenId;
+        \\        uint128 liquidity;
+        \\        uint256 amount0Min;
+        \\        uint256 amount1Min;
+        \\        uint256 deadline;
+        \\    }
+        \\
+        \\    function decreaseLiquidity(DecreaseLiquidityParams calldata params)
+        \\        external
+        \\        payable
+        \\        returns (uint256 amount0, uint256 amount1);
+        \\
+        \\    struct CollectParams {
+        \\        uint256 tokenId;
+        \\        address recipient;
+        \\        uint128 amount0Max;
+        \\        uint128 amount1Max;
+        \\    }
+        \\
+        \\    function collect(CollectParams calldata params)
+        \\        external
+        \\        payable
+        \\        returns (uint256 amount0, uint256 amount1);
+        \\}
+        \\
+        \\interface IERC20 {
+        \\    function totalSupply() external view returns (uint256);
+        \\    function balanceOf(address account) external view returns (uint256);
+        \\    function transfer(address recipient, uint256 amount)
+        \\        external
+        \\        returns (bool);
+        \\    function allowance(address owner, address spender)
+        \\        external
+        \\        view
+        \\        returns (uint256);
+        \\    function approve(address spender, uint256 amount) external returns (bool);
+        \\    function transferFrom(address sender, address recipient, uint256 amount)
+        \\        external
+        \\        returns (bool);
+        \\}
+        \\
+        \\interface IWETH is IERC20 {
+        \\    function deposit() external payable;
+        \\    function withdraw(uint256 amount) external;
+        \\}
+    ;
+
+    var ast = try Ast.parse(testing.allocator, slice);
+    defer ast.deinit(testing.allocator);
+
+    try testing.expectEqual(0, ast.errors.len);
+}
+
+test "Owner Contract" {
+    const slice =
+        \\// SPDX-License-Identifier: MIT
+        \\// OpenZeppelin Contracts (last updated v5.0.0) (access/Ownable.sol)
+        \\
+        \\pragma solidity ^0.8.20;
+        \\
+        \\import {Context} from "../utils/Context.sol";
+        \\
+        \\/**
+        \\ * @dev Contract module which provides a basic access control mechanism, where
+        \\ * there is an account (an owner) that can be granted exclusive access to
+        \\ * specific functions.
+        \\ *
+        \\ * The initial owner is set to the address provided by the deployer. This can
+        \\ * later be changed with {transferOwnership}.
+        \\ *
+        \\ * This module is used through inheritance. It will make available the modifier
+        \\ * `onlyOwner`, which can be applied to your functions to restrict their use to
+        \\ * the owner.
+        \\ */
+        \\abstract contract Ownable is Context {
+        \\    address private _owner;
+        \\
+        \\    /**
+        \\     * @dev The caller account is not authorized to perform an operation.
+        \\     */
+        \\    error OwnableUnauthorizedAccount(address account);
+        \\
+        \\    /**
+        \\     * @dev The owner is not a valid owner account. (eg. `address(0)`)
+        \\     */
+        \\    error OwnableInvalidOwner(address owner);
+        \\
+        \\    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+        \\
+        \\    /**
+        \\     * @dev Initializes the contract setting the address provided by the deployer as the initial owner.
+        \\     */
+        \\    constructor(address initialOwner) {
+        \\        if (initialOwner == address(0)) {
+        \\            revert OwnableInvalidOwner(address(0));
+        \\        }
+        \\        _transferOwnership(initialOwner);
+        \\    }
+        \\
+        \\    /**
+        \\     * @dev Throws if called by any account other than the owner.
+        \\     */
+        \\    modifier onlyOwner() {
+        \\        _checkOwner();
+        \\        _;
+        \\    }
+        \\
+        \\    /**
+        \\     * @dev Returns the address of the current owner.
+        \\     */
+        \\    function owner() public view virtual returns (address) {
+        \\        return _owner;
+        \\    }
+        \\
+        \\    /**
+        \\     * @dev Throws if the sender is not the owner.
+        \\     */
+        \\    function _checkOwner() internal view override(foo) {
+        \\        if (owner() != _msgSender()) {
+        \\            revert OwnableUnauthorizedAccount(_msgSender());
+        \\        }
+        \\    }
+        \\
+        \\    /**
+        \\     * @dev Leaves the contract without owner. It will not be possible to call
+        \\     * `onlyOwner` functions. Can only be called by the current owner.
+        \\     *
+        \\     * NOTE: Renouncing ownership will leave the contract without an owner,
+        \\     * thereby disabling any functionality that is only available to the owner.
+        \\     */
+        \\    function renounceOwnership() public virtual onlyOwner {
+        \\        _transferOwnership(address(0));
+        \\    }
+        \\
+        \\    /**
+        \\     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+        \\     * Can only be called by the current owner.
+        \\     */
+        \\    function transferOwnership(address newOwner) public virtual onlyOwner {
+        \\        if (newOwner == address(0)) {
+        \\            revert OwnableInvalidOwner(address(0));
+        \\        }
+        \\      do {
+        \\        uint ggggg = 42;
+        \\       } while (true);
+        \\        _transferOwnership(newOwner);
+        \\    }
+        \\
+        \\    /**
+        \\     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+        \\     * Internal function without access restriction.
+        \\     */
+        \\    function _transferOwnership(address newOwner) internal override(foo.bar, baz.foo) {
+        \\        address oldOwner = _owner;
+        \\        _owner = newOwner;
+        \\        emit OwnershipTransferred(oldOwner, newOwner);
+        \\    }
+        \\}
+    ;
+
+    var ast = try Ast.parse(testing.allocator, slice);
+    defer ast.deinit(testing.allocator);
+
+    try testing.expectEqual(0, ast.errors.len);
+}
+
+test "Fallback" {
+    const slice =
+        \\// SPDX-License-Identifier: MIT
+        \\pragma solidity ^0.8.26;
+        \\
+        \\contract Fallback {
+        \\    event Log(string func, uint256 gas);
+        \\
+        \\    // Fallback function must be declared as external.
+        \\    fallback() external payable {
+        \\        // send / transfer (forwards 2300 gas to this fallback function)
+        \\        // call (forwards all of the gas)
+        \\        emit Log("fallback", gasleft());
+        \\    }
+        \\
+        \\    // Receive is a variant of fallback that is triggered when msg.data is empty
+        \\    receive() external payable {
+        \\        emit Log("receive", gasleft());
+        \\    }
+        \\
+        \\    // Helper function to check the balance of this contract
+        \\    function getBalance() public view returns (uint256) {
+        \\        return address(this).balance;
+        \\    }
+        \\}
+        \\
+        \\contract SendToFallback {
+        \\    function transferToFallback(address payable _to) public payable {
+        \\        _to.transfer(msg.value);
+        \\    }
+        \\
+        \\    function callFallback(address payable _to) public payable {
+        \\        (bool sent,) = _to.call{value: msg.value}("");
+        \\        require(sent, "Failed to send Ether");
+        \\    }
+        \\}
+    ;
+
+    var ast = try Ast.parse(testing.allocator, slice);
+    defer ast.deinit(testing.allocator);
+
+    try testing.expectEqual(0, ast.errors.len);
 }
 
 fn buildParser(source: [:0]const u8, tokens: *Ast.TokenList, parser: *Parser) !void {

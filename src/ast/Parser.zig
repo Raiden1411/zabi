@@ -257,12 +257,7 @@ pub fn parseSourceUnit(self: *Parser) ParserErrors!Node.Index {
         .keyword_event => return self.parseEvent(),
         .keyword_type => return self.parseUserTypeDefinition(),
         .keyword_using => return self.parseUsingDirective(),
-        .keyword_function => switch (self.token_tags[self.token_index + 1]) {
-            .identifier => return self.parseFunctionDecl(),
-            .l_paren => return self.parseConstantVariableDecl(),
-            else => return null_node,
-        },
-
+        .keyword_function => return self.parseFunctionDecl(),
         else => return self.parseConstantVariableDecl(),
     }
 }
@@ -815,7 +810,17 @@ pub fn parseFunctionSpecifiers(self: *Parser) ParserErrors!Node.Index {
             .keyword_internal,
             => try self.scratch.append(self.allocator, self.nextToken()),
             .keyword_override => try self.scratch.append(self.allocator, try self.parseOverrideSpecifier()),
-            .identifier => try self.scratch.append(self.allocator, try self.parseSuffixExpr()),
+            .identifier => {
+                const identifier_path = try self.consumeIdentifierPath();
+                const call = try self.parseCallExpression(identifier_path);
+
+                if (call == 0) {
+                    try self.scratch.append(self.allocator, identifier_path);
+                    continue;
+                }
+
+                try self.scratch.append(self.allocator, call);
+            },
             else => break,
         }
     }
@@ -921,9 +926,7 @@ pub fn parseModifierProto(self: *Parser) ParserErrors!Node.Index {
     const modifier = self.consumeToken(.keyword_modifier) orelse return null_node;
 
     const identifier = try self.expectToken(.identifier);
-
     const params = if (self.token_tags[self.token_index] != .l_paren) Span{ .zero_one = 0 } else try self.parseParseDeclList();
-
     const specifiers = try self.parseModifierSpecifiers();
 
     return switch (params) {
@@ -999,16 +1002,22 @@ pub fn parseFullFunctionProto(self: *Parser) ParserErrors!Node.Index {
     const fn_index = try self.reserveNode(.function_proto);
     errdefer self.unreserveNode(fn_index);
 
-    // zig fmt: off
-    const identifier = self.consumeToken(.identifier) 
-        orelse self.consumeToken(.keyword_fallback) 
-        orelse self.consumeToken(.keyword_receive)
-        orelse return self.failMsg(.{
-        .tag = .expected_token,
-        .token = self.token_index,
-        .extra = .{ .expected_tag = .identifier },
-    });
-    // zig fmt: on
+    const identifier = switch (self.token_tags[self.token_index]) {
+        .identifier,
+        .keyword_fallback,
+        .keyword_receive,
+        => self.nextToken(),
+        else => switch (self.token_tags[function]) {
+            .keyword_receive,
+            .keyword_fallback,
+            => null_node,
+            else => return self.failMsg(.{
+                .tag = .expected_token,
+                .token = self.token_index,
+                .extra = .{ .expected_tag = .identifier },
+            }),
+        },
+    };
 
     const param_list = try self.parseParseDeclList();
     const specifiers = try self.parseFunctionSpecifiers();
@@ -2030,9 +2039,6 @@ pub fn parsePrimaryExpr(self: *Parser) ParserErrors!Node.Index {
 
                 switch (self.token_tags[self.token_index]) {
                     .comma => {
-                        if (self.token_tags[self.token_index + 1] == .r_paren)
-                            try self.warn(.trailing_comma);
-
                         self.token_index += 1;
                     },
                     .r_paren => {
@@ -2185,7 +2191,7 @@ pub fn parseUserTypeDefinition(self: *Parser) ParserErrors!Node.Index {
     const keyword = self.consumeToken(.keyword_type) orelse return null_node;
     const identifier = try self.expectToken(.identifier);
 
-    _ = try self.expectToken(.keyword_as);
+    _ = try self.expectToken(.keyword_is);
 
     const elem_type = try self.consumeElementaryType();
 
@@ -2207,19 +2213,19 @@ pub fn parseUserTypeDefinition(self: *Parser) ParserErrors!Node.Index {
 ///
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.errorDefinition)
 pub fn parseError(self: *Parser) ParserErrors!Node.Index {
-    const event = try self.expectToken(.keyword_error);
+    const err = try self.expectToken(.keyword_error);
 
     const error_index = try self.reserveNode(.error_proto_multi);
     errdefer self.unreserveNode(error_index);
 
     const identifier = try self.expectToken(.identifier);
-
     const params = try self.parseErrorParamDecls();
+    try self.expectSemicolon();
 
     return switch (params) {
         .zero_one => |elem| return self.setNode(error_index, .{
             .tag = .error_proto_simple,
-            .main_token = event,
+            .main_token = err,
             .data = .{
                 .lhs = identifier,
                 .rhs = elem,
@@ -2227,7 +2233,7 @@ pub fn parseError(self: *Parser) ParserErrors!Node.Index {
         }),
         .multi => |elems| return self.setNode(error_index, .{
             .tag = .error_proto_multi,
-            .main_token = event,
+            .main_token = err,
             .data = .{
                 .lhs = identifier,
                 .rhs = try self.addExtraData(Node.Range{
@@ -3194,6 +3200,7 @@ pub fn consumeStorageLocation(self: *Parser) ?TokenIndex {
         .keyword_memory,
         .keyword_storage,
         .keyword_calldata,
+        .keyword_payable,
         => self.nextToken(),
         else => null,
     };

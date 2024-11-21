@@ -182,6 +182,22 @@ error{
         }
 ```
 
+## Eip3074Envelope
+
+Eip3074 auth message envelope.
+
+### Properties
+
+```zig
+struct {
+  magic: u8
+  chain_id: u256
+  nonce: u256
+  address: u256
+  commitment: Hash
+}
+```
+
 ## SendSignedTransactionErrors
 
 Set of possible errors when sending signed transactions
@@ -277,7 +293,7 @@ var wallet = try Wallet(.http).init(buffer, .{
     .network_config = .{
         .endpoint = .{ .uri = uri },
     },
-}, true);
+}, true // Setting to true initializes the NonceManager);
 defer wallet.deinit();
 ```
 
@@ -286,7 +302,7 @@ defer wallet.deinit();
 ```zig
 pub fn init(
     private_key: ?Hash,
-    opts: InitOpts,
+    opts: ClientInitOptions,
     nonce_manager: bool,
 ) (error{IdentityElement} || ClientType.InitErrors)!*WalletSelf
 ```
@@ -298,7 +314,10 @@ Will return errors where the values are not expected
 ### Signature
 
 ```zig
-pub fn assertTransaction(self: *WalletSelf, tx: TransactionEnvelope) AssertionErrors!void
+pub fn assertTransaction(
+    self: *WalletSelf,
+    tx: TransactionEnvelope,
+) AssertionErrors!void
 ```
 
 ## AuthMessageEip3074
@@ -366,7 +385,10 @@ This appends to the last node of the list.
 ### Signature
 
 ```zig
-pub fn poolTransactionEnvelope(self: *WalletSelf, unprepared_envelope: UnpreparedTransactionEnvelope) PrepareError!void
+pub fn poolTransactionEnvelope(
+    self: *WalletSelf,
+    unprepared_envelope: UnpreparedTransactionEnvelope,
+) PrepareError!void
 ```
 
 ## PrepareTransaction
@@ -463,7 +485,10 @@ Returns the transaction hash.
 ### Signature
 
 ```zig
-pub fn sendSignedTransaction(self: *WalletSelf, tx: TransactionEnvelope) SendSignedTransactionErrors!RPCResponse(Hash)
+pub fn sendSignedTransaction(
+    self: *WalletSelf,
+    tx: TransactionEnvelope,
+) SendSignedTransactionErrors!RPCResponse(Hash)
 ```
 
 ## SendTransaction
@@ -528,7 +553,10 @@ The Signatures recoverId doesn't include the chain_id.
 ### Signature
 
 ```zig
-pub fn signEthereumMessage(self: *WalletSelf, message: []const u8) (Signer.SigningErrors || Allocator.Error)!Signature
+pub fn signEthereumMessage(
+    self: *WalletSelf,
+    message: []const u8,
+) (Signer.SigningErrors || Allocator.Error)!Signature
 ```
 
 ## SignTypedData

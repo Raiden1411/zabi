@@ -175,6 +175,38 @@ pub fn encodeAbiParametersFromReflection(
 ) Allocator.Error![]u8
 ```
 
+## EncodePacked
+Encode values based on solidity's `encodePacked`.
+Solidity types are infered from zig ones since it closely follows them.
+
+Supported zig types:
+
+  * Zig `bool` -> Will be encoded like a boolean value
+  * Zig `?T` -> Only encodes if the value is not null.
+  * Zig `int`, `comptime_int` -> Will be encoded based on the signedness of the integer.
+  * Zig `[N]u8` -> Only support max size of 32. `[20]u8` will be encoded as address types and all other as bytes1..32.
+                   This is the main limitation because abi encoding of bytes1..32 follows little endian and for address follows big endian.
+  * Zig `enum`, `enum_literal`, `error_set` -> The tagname of the enum or the error_set names will be encoded as a string/bytes value.
+  * Zig `*T` -> will encoded the child type. If the child type is an `array` it will encode as string/bytes.
+  * Zig `[]const u8`, `[]u8` -> Will encode according the string/bytes specification.
+  * Zig `[]const T` -> Will encode as a dynamic array
+  * Zig `[N]T` -> Will encode as a dynamic value if the child type is of a dynamic type.
+  * Zig `struct` -> Will encode as a dynamic value if the child type is of a dynamic type.
+
+All other types are currently not supported.
+
+If the value provided is either a `[]const T`, `[N]T`, `[]T`, or `tuple`,
+the child values will be 32 bit padded.
+
+### Signature
+
+```zig
+pub fn encodePacked(
+    allocator: Allocator,
+    value: anytype,
+) Allocator.Error![]u8
+```
+
 ## AbiEncoder
 
 The abi encoding structure used to encoded values with the abi encoding [specification](https://docs.soliditylang.org/en/develop/abi-spec.html#use-of-dynamic-types)
@@ -379,6 +411,58 @@ Sets the initial state of the encoder.
     }
 ```
 
+## EncodePacked
+
+Similar to `AbiEncoder` but used for packed encoding.
+
+### Properties
+
+```zig
+struct {
+  /// Changes the encoder behaviour based on the type of the parameter.
+  param_type: ParameterType
+  /// List that is used to write the encoded values too.
+  list: ArrayList(u8)
+}
+```
+
+### Init
+Sets the initial state of the encoder.
+
+### Signature
+
+```zig
+pub fn init(allocator: Allocator, param_type: ParameterType) EncodePacked
+```
+
+### EncodePacked
+Abi encodes the values. If the values are dynamic all of the child values
+will be encoded as 32 sized values with the expection of []u8 slices.
+
+### Signature
+
+```zig
+pub fn encodePacked(self: *EncodePacked, value: anytype) Allocator.Error![]u8
+```
+
+### EncodePackedValue
+Handles the encoding based on the value type and writes them to the list.
+
+### Signature
+
+```zig
+pub fn encodePackedValue(self: *EncodePacked, value: anytype) Allocator.Error!void
+```
+
+### ChangeParameterType
+Used to change the type of value it's dealing with.
+
+### Signature
+
+```zig
+pub fn changeParameterType(self: *EncodePacked, param_type: ParameterType) void
+```
+
 ## EncodeBoolean
 Encodes a boolean value according to the abi encoding specification.
 
@@ -422,18 +506,6 @@ Encodes an solidity string or bytes value according to the abi encoding specific
 
 ```zig
 pub fn encodeString(allocator: Allocator, payload: []const u8) Allocator.Error![]u8
-```
-
-## EncodePacked
-Encode values based on solidity's `encodePacked`.
-Solidity types are infered from zig ones since it closely follows them.
-
-Caller owns the memory and it must free them.
-
-### Signature
-
-```zig
-pub fn encodePacked(allocator: Allocator, values: anytype) Allocator.Error![]u8
 ```
 
 ## IsDynamicType

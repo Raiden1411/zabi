@@ -195,6 +195,15 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             CreateBlobTransaction,
         };
 
+        /// Eip3074 auth message envelope.
+        pub const Eip3074Envelope = struct {
+            magic: u8,
+            chain_id: u256,
+            nonce: u256,
+            address: u256,
+            commitment: Hash,
+        };
+
         /// Set of possible errors when sending signed transactions
         pub const SendSignedTransactionErrors = Error || Signer.SigningErrors || SerializeErrors;
 
@@ -421,13 +430,13 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             const address_int: u160 = @bitCast(invoker_address);
 
-            const values: struct { u8, u256, u256, u256, Hash } = .{
+            const values: Eip3074Envelope = .{
                 // MAGIC_NUMBER -> https://eips.ethereum.org/EIPS/eip-3074#specification
-                0x04,
-                @intCast(@intFromEnum(self.rpc_client.network_config.chain_id)),
-                nonce_from,
-                @intCast(address_int),
-                commitment,
+                .magic = 0x04,
+                .chain_id = @intCast(@intFromEnum(self.rpc_client.network_config.chain_id)),
+                .nonce = nonce_from,
+                .address = @intCast(address_int),
+                .commitment = commitment,
             };
 
             const message = try encoder.encodePacked(self.allocator, values);

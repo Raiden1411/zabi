@@ -15,6 +15,8 @@ const AbiParametersToPrimative = meta.AbiParametersToPrimative;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const ArrayList = std.ArrayList;
+const ByteAlignedInt = std.math.ByteAlignedInt;
 const Constructor = zabi_abi.abitypes.Constructor;
 const Error = zabi_abi.abitypes.Error;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
@@ -189,6 +191,36 @@ pub fn encodeAbiParametersFromReflection(
     try encoder.preEncodeValuesFromReflection(allocator, values);
 
     return encoder.encodePointers(allocator);
+}
+/// Encode values based on solidity's `encodePacked`.
+/// Solidity types are infered from zig ones since it closely follows them.
+///
+/// Supported zig types:
+///
+///   * Zig `bool` -> Will be encoded like a boolean value
+///   * Zig `?T` -> Only encodes if the value is not null.
+///   * Zig `int`, `comptime_int` -> Will be encoded based on the signedness of the integer.
+///   * Zig `[N]u8` -> Only support max size of 32. `[20]u8` will be encoded as address types and all other as bytes1..32.
+///                    This is the main limitation because abi encoding of bytes1..32 follows little endian and for address follows big endian.
+///   * Zig `enum`, `enum_literal`, `error_set` -> The tagname of the enum or the error_set names will be encoded as a string/bytes value.
+///   * Zig `*T` -> will encoded the child type. If the child type is an `array` it will encode as string/bytes.
+///   * Zig `[]const u8`, `[]u8` -> Will encode according the string/bytes specification.
+///   * Zig `[]const T` -> Will encode as a dynamic array
+///   * Zig `[N]T` -> Will encode as a dynamic value if the child type is of a dynamic type.
+///   * Zig `struct` -> Will encode as a dynamic value if the child type is of a dynamic type.
+///
+/// All other types are currently not supported.
+///
+/// If the value provided is either a `[]const T`, `[N]T`, `[]T`, or `tuple`,
+/// the child values will be 32 bit padded.
+pub fn encodePacked(
+    allocator: Allocator,
+    value: anytype,
+) Allocator.Error![]u8 {
+    var encoder: EncodePacked = .init(allocator, .static);
+    errdefer encoder.list.deinit();
+
+    return encoder.encodePacked(value);
 }
 
 /// The abi encoding structure used to encoded values with the abi encoding [specification](https://docs.soliditylang.org/en/develop/abi-spec.html#use-of-dynamic-types)
@@ -827,6 +859,116 @@ pub const AbiEncoder = struct {
         }
     }
 };
+
+/// Similar to `AbiEncoder` but used for packed encoding.
+pub const EncodePacked = struct {
+    /// The possible value types.
+    const ParameterType = enum {
+        dynamic,
+        static,
+    };
+
+    /// Changes the encoder behaviour based on the type of the parameter.
+    param_type: ParameterType,
+    /// List that is used to write the encoded values too.
+    list: ArrayList(u8),
+
+    /// Sets the initial state of the encoder.
+    pub fn init(allocator: Allocator, param_type: ParameterType) EncodePacked {
+        const list = ArrayList(u8).init(allocator);
+
+        return .{
+            .param_type = param_type,
+            .list = list,
+        };
+    }
+    /// Abi encodes the values. If the values are dynamic all of the child values
+    /// will be encoded as 32 sized values with the expection of []u8 slices.
+    pub fn encodePacked(self: *EncodePacked, value: anytype) Allocator.Error![]u8 {
+        try self.list.ensureUnusedCapacity(@sizeOf(@TypeOf(value)));
+        try self.encodePackedValue(value);
+
+        return self.list.toOwnedSlice();
+    }
+    /// Handles the encoding based on the value type and writes them to the list.
+    pub fn encodePackedValue(self: *EncodePacked, value: anytype) Allocator.Error!void {
+        const info = @typeInfo(@TypeOf(value));
+        const writer = self.list.writer();
+
+        switch (info) {
+            .bool => return switch (self.param_type) {
+                .dynamic => writer.writeInt(u256, @intFromBool(value), .big),
+                .static => writer.writeInt(u8, @intFromBool(value), .big),
+            },
+            .int => return switch (self.param_type) {
+                .dynamic => writer.writeInt(u256, value, .big),
+                .static => writer.writeInt(ByteAlignedInt(@TypeOf(value)), @intCast(value), .big),
+            },
+            .comptime_int => {
+                const IntType = std.math.IntFittingRange(value, value);
+
+                return self.encodePackedValue(@as(IntType, value));
+            },
+            .optional => if (value) |val| return self.encodePackedValue(val),
+            .@"enum",
+            .enum_literal,
+            => return self.encodePackedValue(@tagName(value)),
+            .error_set => return self.encodePackedValue(@errorName(value)),
+            .array => |arr_info| {
+                if (arr_info.child == u8)
+                    switch (self.param_type) {
+                        .dynamic => {
+                            if (arr_info.len == 20)
+                                return writer.writeAll(&encodeAddress(value));
+                            return writer.writeAll(&encodeFixedBytes(arr_info.len, value));
+                        },
+                        .static => return writer.writeAll(&value),
+                    };
+
+                self.changeParameterType(.dynamic);
+                for (value) |val| {
+                    try self.encodePackedValue(val);
+                }
+            },
+            .pointer => |ptr_info| {
+                switch (ptr_info.size) {
+                    .One => switch (@typeInfo(ptr_info.child)) {
+                        .array => {
+                            const Slice = []const std.meta.Elem(ptr_info.child);
+
+                            return self.encodePackedValue(@as(Slice, value));
+                        },
+                        else => return self.encodePackedValue(value.*),
+                    },
+                    .Slice => {
+                        if (ptr_info.child == u8)
+                            return writer.writeAll(value);
+
+                        self.changeParameterType(.dynamic);
+                        for (value) |val| {
+                            try self.encodePackedValue(val);
+                        }
+                    },
+                    else => @compileError("Unsupported pointer type '" ++ @typeName(@TypeOf(value)) ++ "'"),
+                }
+            },
+            .@"struct" => |struct_info| {
+                if (struct_info.is_tuple)
+                    self.changeParameterType(.dynamic);
+
+                inline for (struct_info.fields) |field| {
+                    try self.encodePackedValue(@field(value, field.name));
+                }
+            },
+            else => @compileError("Unsupported type '" ++ @typeName(@TypeOf(value)) ++ "'"),
+        }
+    }
+    /// Used to change the type of value it's dealing with.
+    pub fn changeParameterType(self: *EncodePacked, param_type: ParameterType) void {
+        self.param_type = param_type;
+    }
+};
+
 /// Encodes a boolean value according to the abi encoding specification.
 pub fn encodeBoolean(boolean: bool) [32]u8 {
     var buffer: [32]u8 = undefined;
@@ -877,25 +1019,6 @@ pub fn encodeString(allocator: Allocator, payload: []const u8) Allocator.Error![
 
     return list.toOwnedSlice();
 }
-/// Encode values based on solidity's `encodePacked`.
-/// Solidity types are infered from zig ones since it closely follows them.
-///
-/// Caller owns the memory and it must free them.
-pub fn encodePacked(allocator: Allocator, values: anytype) Allocator.Error![]u8 {
-    const fields = @typeInfo(@TypeOf(values));
-
-    if (fields != .@"struct" or !fields.@"struct".is_tuple)
-        @compileError("Expected " ++ @typeName(@TypeOf(values)) ++ " to be a tuple value instead");
-
-    var list = std.ArrayList(u8).init(allocator);
-    errdefer list.deinit();
-
-    inline for (values) |value| {
-        try encodePackedParameters(value, &list.writer(), false);
-    }
-
-    return list.toOwnedSlice();
-}
 /// Checks if a given parameter is a dynamic abi type.
 pub inline fn isDynamicType(comptime param: AbiParameter) bool {
     switch (param.type) {
@@ -926,73 +1049,5 @@ pub inline fn isDynamicType(comptime param: AbiParameter) bool {
                     return true;
             } else return false;
         },
-    }
-}
-
-// Internal
-fn encodePackedParameters(value: anytype, writer: anytype, is_slice: bool) !void {
-    const info = @typeInfo(@TypeOf(value));
-
-    switch (info) {
-        .bool => {
-            const as_int = @intFromBool(value);
-            if (is_slice) {
-                try writer.writeInt(u256, as_int, .big);
-            } else try writer.writeInt(u8, as_int, .big);
-        },
-        .int => return if (is_slice) writer.writeInt(u256, value, .big) else writer.writeInt(@TypeOf(value), value, .big),
-        .comptime_int => {
-            var buffer: [32]u8 = undefined;
-            const size = utils.formatInt(@intCast(value), &buffer);
-
-            if (is_slice)
-                try writer.writeAll(buffer[0..])
-            else
-                try writer.writeAll(buffer[32 - size ..]);
-        },
-        .optional => |opt_info| {
-            if (value) |val| {
-                return encodePackedParameters(@as(opt_info.child, val), writer, is_slice);
-            }
-        },
-        .@"enum", .enum_literal => return encodePackedParameters(@tagName(value), writer, is_slice),
-        .error_set => return encodePackedParameters(@errorName(value), writer, is_slice),
-        .array => |arr_info| {
-            if (arr_info.child == u8) {
-                if (arr_info.len == 20) {
-                    if (is_slice) {
-                        var buffer: [32]u8 = [_]u8{0} ** 32;
-                        @memcpy(buffer[12..], value[0..]);
-                        return writer.writeAll(buffer[0..]);
-                    } else return writer.writeAll(&value);
-                }
-
-                return writer.writeAll(&value);
-            }
-
-            for (value) |val| {
-                try encodePackedParameters(val, writer, true);
-            }
-        },
-        .pointer => |ptr_info| {
-            switch (ptr_info.size) {
-                .One => return encodePackedParameters(value.*, writer, is_slice),
-                .Slice => {
-                    if (ptr_info.child == u8)
-                        return writer.writeAll(value);
-
-                    for (value) |val| {
-                        try encodePackedParameters(val, writer, true);
-                    }
-                },
-                else => @compileError("Unsupported ponter type '" ++ @typeName(@TypeOf(value)) ++ "'"),
-            }
-        },
-        .@"struct" => |struct_info| {
-            inline for (struct_info.fields) |field| {
-                try encodePackedParameters(@field(value, field.name), writer, if (struct_info.is_tuple) true else false);
-            }
-        },
-        else => @compileError("Unsupported type '" ++ @typeName(@TypeOf(value)) ++ "'"),
     }
 }

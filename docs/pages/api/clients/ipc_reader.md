@@ -17,11 +17,11 @@ struct {
   /// The growth rate of the message buffer.
   growth_rate: usize
   /// The end of a json message.
-  message_end: usize = 0
+  message_end: Atomic = Atomic.init(0)
   /// The start of the json message.
-  message_start: usize = 0
+  message_start: Atomic = Atomic.init(0)
   /// The current position in the buffer.
-  position: usize = 0
+  position: Atomic = Atomic.init(0)
   /// The stream used to read or write.
   stream: Stream
   /// If the stream is closed for reading.
@@ -79,7 +79,7 @@ method if available.
 ### Signature
 
 ```zig
-pub fn grow(self: *@This(), size: usize) Allocator.Error!void
+pub fn grow(self: *Self, size: usize) Allocator.Error!void
 ```
 
 ### JsonMessage

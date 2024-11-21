@@ -248,61 +248,58 @@ test "Multiple" {
 }
 
 test "EncodePacked" {
-    try testEncodePacked("45", .{69});
-    try testEncodePacked("01", .{true});
-    try testEncodePacked("00", .{false});
-    try testEncodePacked("01", .{true});
-    try testEncodePacked("01", .{true});
+    try testEncodePacked("45", 69);
+    try testEncodePacked("01", true);
+    try testEncodePacked("00", false);
     {
         var buffer: [20]u8 = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "4648451b5f87ff8f0f7d622bd40574bb97e25980");
-        try testEncodePacked("4648451b5f87ff8f0f7d622bd40574bb97e25980", .{buffer});
+        try testEncodePacked("4648451b5f87ff8f0f7d622bd40574bb97e25980", buffer);
     }
     try testEncodePacked("666f6f626172", .{ "foo", "bar" });
-    try testEncodePacked("666f6f626172", .{&.{ "foo", "bar" }});
     {
         const foo: []const []const u8 = &.{ "foo", "bar" };
-        try testEncodePacked("666f6f626172", .{foo});
+        try testEncodePacked("666f6f626172", foo);
     }
     {
         const foo: []const bool = &.{ false, false };
-        try testEncodePacked("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", .{foo});
+        try testEncodePacked("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", foo);
     }
     {
         const foo: []const u24 = &.{ 69420, 69420 };
-        try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", .{foo});
+        try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", foo);
     }
     {
         var buffer: [20]u8 = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "4648451b5f87ff8f0f7d622bd40574bb97e25980");
         const foo: []const [20]u8 = &.{buffer};
-        try testEncodePacked("0000000000000000000000004648451b5f87ff8f0f7d622bd40574bb97e25980", .{foo});
+        try testEncodePacked("0000000000000000000000004648451b5f87ff8f0f7d622bd40574bb97e25980", foo);
     }
     {
         const foo: [2]u24 = [2]u24{ 69420, 69420 };
-        try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", .{foo});
+        try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", foo);
     }
     {
         const foo: struct { u32, u32 } = .{ 69420, 69420 };
-        try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", .{foo});
-        try testEncodePacked("00010f2c", .{@as(u32, @intCast(69420))});
+        try testEncodePacked("0000000000000000000000000000000000000000000000000000000000010f2c0000000000000000000000000000000000000000000000000000000000010f2c", foo);
+        try testEncodePacked("00010f2c", @as(u32, @intCast(69420)));
     }
     {
         const foo: struct { foo: u32, bar: bool } = .{ .foo = 69420, .bar = true };
-        try testEncodePacked("00010f2c01", .{foo});
+        try testEncodePacked("00010f2c01", foo);
     }
     {
         const foo: ?u8 = 69;
-        try testEncodePacked("45", .{foo});
+        try testEncodePacked("45", foo);
     }
     {
         const foo: enum { foo } = .foo;
-        try testEncodePacked("666f6f", .{foo});
-        try testEncodePacked("666f6f", .{.foo});
+        try testEncodePacked("666f6f", foo);
+        try testEncodePacked("666f6f", .foo);
     }
     {
         const foo: error{foo} = error.foo;
-        try testEncodePacked("666f6f", .{foo});
+        try testEncodePacked("666f6f", foo);
     }
 }
 
@@ -500,8 +497,8 @@ fn testEncodeReflection(expected: []const u8, values: anytype) !void {
     try testing.expectEqualStrings(expected, hex);
 }
 
-fn testEncodePacked(expected: []const u8, values: anytype) !void {
-    const encoded = try encodePacked(testing.allocator, values);
+fn testEncodePacked(expected: []const u8, value: anytype) !void {
+    const encoded = try encodePacked(testing.allocator, value);
     defer testing.allocator.free(encoded);
 
     const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});

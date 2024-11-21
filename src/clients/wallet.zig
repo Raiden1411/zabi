@@ -18,18 +18,21 @@ const AccessList = transaction.AccessList;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const AuthorizationPayload = transaction.AuthorizationPayload;
+const BerlinTransactionEnvelope = transaction.BerlinTransactionEnvelope;
 const Blob = ckzg4844.KZG4844.Blob;
+const CancunTransactionEnvelope = transaction.CancunTransactionEnvelope;
 const Chains = types.PublicChains;
 const EIP712Errors = eip712.EIP712Errors;
+const Eip7702TransactionEnvelope = transaction.Eip7702TransactionEnvelope;
 const KZG4844 = ckzg4844.KZG4844;
-const LondonEthCall = transaction.LondonEthCall;
-const LegacyEthCall = transaction.LegacyEthCall;
 const Hash = types.Hash;
 const InitOptsHttp = PubClient.InitOptions;
 const InitOptsIpc = IpcClient.InitOptions;
 const InitOptsWs = WebSocketClient.InitOptions;
 const IpcClient = @import("IPC.zig");
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
+const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
+const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
 const Mutex = std.Thread.Mutex;
 const PubClient = @import("Client.zig");
 const RPCResponse = types.RPCResponse;
@@ -165,7 +168,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         };
 
         /// The inital settings depending on the client type.
-        const InitOpts = switch (client_type) {
+        const ClientInitOptions = switch (client_type) {
             .http => InitOptsHttp,
             .websocket => InitOptsWs,
             .ipc => InitOptsIpc,
@@ -309,12 +312,12 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         ///     .network_config = .{
         ///         .endpoint = .{ .uri = uri },
         ///     },
-        /// }, true);
+        /// }, true // Setting to true initializes the NonceManager);
         /// defer wallet.deinit();
         /// ```
         pub fn init(
             private_key: ?Hash,
-            opts: InitOpts,
+            opts: ClientInitOptions,
             nonce_manager: bool,
         ) (error{IdentityElement} || ClientType.InitErrors)!*WalletSelf {
             const self = try opts.allocator.create(WalletSelf);
@@ -344,7 +347,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         }
         /// Asserts that the transactions is ready to be sent.
         /// Will return errors where the values are not expected
-        pub fn assertTransaction(self: *WalletSelf, tx: TransactionEnvelope) AssertionErrors!void {
+        pub fn assertTransaction(
+            self: *WalletSelf,
+            tx: TransactionEnvelope,
+        ) AssertionErrors!void {
             switch (tx) {
                 .london => |tx_eip1559| {
                     if (tx_eip1559.chainId != @intFromEnum(self.rpc_client.network_config.chain_id)) return error.InvalidChainId;
@@ -471,7 +477,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Converts unprepared transaction envelopes and stores them in a pool.
         ///
         /// This appends to the last node of the list.
-        pub fn poolTransactionEnvelope(self: *WalletSelf, unprepared_envelope: UnpreparedTransactionEnvelope) PrepareError!void {
+        pub fn poolTransactionEnvelope(
+            self: *WalletSelf,
+            unprepared_envelope: UnpreparedTransactionEnvelope,
+        ) PrepareError!void {
             const envelope = try self.allocator.create(TransactionEnvelopePool.Node);
             errdefer self.allocator.destroy(envelope);
 
@@ -488,33 +497,18 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             self: *WalletSelf,
             unprepared_envelope: UnpreparedTransactionEnvelope,
         ) PrepareError!TransactionEnvelope {
-            const address = self.getWalletAddress();
-
             switch (unprepared_envelope.type) {
                 .cancun => {
-                    var request: LondonEthCall = .{
-                        .from = address,
-                        .to = unprepared_envelope.to,
-                        .gas = unprepared_envelope.gas,
-                        .maxFeePerGas = unprepared_envelope.maxFeePerGas,
-                        .maxPriorityFeePerGas = unprepared_envelope.maxPriorityFeePerGas,
-                        .data = unprepared_envelope.data,
-                        .value = unprepared_envelope.value orelse 0,
-                    };
+                    var tx: CancunTransactionEnvelope = undefined;
 
-                    const curr_block = try self.rpc_client.getBlockByNumber(.{});
-                    defer curr_block.deinit();
-
-                    const base_fee = switch (curr_block.response) {
-                        inline else => |block_info| block_info.baseFeePerGas,
-                    };
-
-                    const chain_id = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
-                    const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
-                    const max_fee_per_blob = unprepared_envelope.maxFeePerBlobGas orelse try self.rpc_client.estimateBlobMaxFeePerGas();
-                    const blob_version = unprepared_envelope.blobVersionedHashes orelse &.{};
-
-                    const nonce: u64 = unprepared_envelope.nonce orelse blk: {
+                    tx.chainId = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
+                    tx.accessList = unprepared_envelope.accessList orelse &.{};
+                    tx.to = unprepared_envelope.to;
+                    tx.maxFeePerBlobGas = unprepared_envelope.maxFeePerBlobGas orelse try self.rpc_client.estimateBlobMaxFeePerGas();
+                    tx.blobVersionedHashes = unprepared_envelope.blobVersionedHashes orelse &.{};
+                    tx.value = unprepared_envelope.value orelse 0;
+                    tx.data = unprepared_envelope.data;
+                    tx.nonce = unprepared_envelope.nonce orelse blk: {
                         if (self.nonce_manager) |*manager| {
                             const nonce = try manager.updateNonce(self.rpc_client);
 
@@ -530,125 +524,58 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         }
                     };
 
-                    if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
-                        const fees = try self.rpc_client.estimateFeesPerGas(.{ .london = request }, base_fee);
-                        request.maxPriorityFeePerGas = unprepared_envelope.maxPriorityFeePerGas orelse fees.london.max_priority_fee;
-                        request.maxFeePerGas = unprepared_envelope.maxFeePerGas orelse fees.london.max_fee_gas;
+                    const curr_block = try self.rpc_client.getBlockByNumber(.{});
+                    defer curr_block.deinit();
 
-                        if (unprepared_envelope.maxFeePerGas) |fee| {
-                            if (fee < fees.london.max_priority_fee) return error.MaxFeePerGasUnderflow;
+                    const base_fee = switch (curr_block.response) {
+                        inline else => |block_info| block_info.baseFeePerGas,
+                    };
+
+                    const fees = try self.rpc_client.estimateFeesPerGas(.{ .london = .{
+                        .to = unprepared_envelope.to,
+                        .from = self.signer.address_bytes,
+                        .value = tx.value,
+                        .data = tx.data,
+                    } }, base_fee);
+
+                    tx.maxPriorityFeePerGas = blk: {
+                        if (unprepared_envelope.maxFeePerGas) |gas| {
+                            if (gas < fees.london.max_priority_fee)
+                                return error.MaxFeePerGasUnderflow;
+
+                            break :blk gas;
                         }
-                    }
 
-                    if (unprepared_envelope.gas == null) {
-                        const gas = try self.rpc_client.estimateGas(.{ .london = request }, .{});
+                        break :blk fees.london.max_priority_fee;
+                    };
+                    tx.maxFeePerGas = unprepared_envelope.maxFeePerGas orelse fees.london.max_fee_gas;
+                    tx.gas = unprepared_envelope.gas orelse blk: {
+                        const gas = try self.rpc_client.estimateGas(.{
+                            .london = .{
+                                .to = unprepared_envelope.to,
+                                .from = self.signer.address_bytes,
+                                .value = tx.value,
+                                .data = tx.data,
+                                .maxFeePerGas = tx.maxFeePerGas,
+                                .maxPriorityFeePerGas = tx.maxPriorityFeePerGas,
+                            },
+                        }, .{});
                         defer gas.deinit();
 
-                        request.gas = gas.response;
-                    }
-
-                    return .{
-                        .cancun = .{
-                            .chainId = chain_id,
-                            .nonce = nonce,
-                            .gas = request.gas.?,
-                            .maxFeePerGas = request.maxFeePerGas.?,
-                            .maxPriorityFeePerGas = request.maxPriorityFeePerGas.?,
-                            .maxFeePerBlobGas = max_fee_per_blob,
-                            .to = request.to,
-                            .data = request.data,
-                            .value = request.value.?,
-                            .accessList = accessList,
-                            .blobVersionedHashes = blob_version,
-                        },
+                        break :blk gas.response;
                     };
+
+                    return .{ .cancun = tx };
                 },
                 .london => {
-                    var request: LondonEthCall = .{
-                        .to = unprepared_envelope.to,
-                        .from = address,
-                        .gas = unprepared_envelope.gas,
-                        .maxFeePerGas = unprepared_envelope.maxFeePerGas,
-                        .maxPriorityFeePerGas = unprepared_envelope.maxPriorityFeePerGas,
-                        .data = unprepared_envelope.data,
-                        .value = unprepared_envelope.value orelse 0,
-                    };
+                    var tx: LondonTransactionEnvelope = undefined;
 
-                    const curr_block = try self.rpc_client.getBlockByNumber(.{});
-                    defer curr_block.deinit();
-
-                    const base_fee = switch (curr_block.response) {
-                        inline else => |block_info| block_info.baseFeePerGas,
-                    };
-
-                    const chain_id = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
-                    const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
-
-                    const nonce: u64 = unprepared_envelope.nonce orelse blk: {
-                        if (self.nonce_manager) |*manager| {
-                            const nonce = try manager.updateNonce(self.rpc_client);
-
-                            break :blk nonce;
-                        } else {
-                            const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
-                            defer nonce.deinit();
-
-                            break :blk nonce.response;
-                        }
-                    };
-
-                    if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
-                        const fees = try self.rpc_client.estimateFeesPerGas(.{ .london = request }, base_fee);
-                        request.maxPriorityFeePerGas = unprepared_envelope.maxPriorityFeePerGas orelse fees.london.max_priority_fee;
-                        request.maxFeePerGas = unprepared_envelope.maxFeePerGas orelse fees.london.max_fee_gas;
-
-                        if (unprepared_envelope.maxFeePerGas) |fee| {
-                            if (fee < fees.london.max_priority_fee) return error.MaxFeePerGasUnderflow;
-                        }
-                    }
-
-                    if (unprepared_envelope.gas == null) {
-                        const gas = try self.rpc_client.estimateGas(.{ .london = request }, .{});
-                        defer gas.deinit();
-
-                        request.gas = gas.response;
-                    }
-
-                    return .{
-                        .london = .{
-                            .chainId = chain_id,
-                            .nonce = nonce,
-                            .gas = request.gas.?,
-                            .maxFeePerGas = request.maxFeePerGas.?,
-                            .maxPriorityFeePerGas = request.maxPriorityFeePerGas.?,
-                            .to = request.to,
-                            .data = request.data,
-                            .value = request.value.?,
-                            .accessList = accessList,
-                        },
-                    };
-                },
-                .berlin => {
-                    var request: LegacyEthCall = .{
-                        .from = address,
-                        .to = unprepared_envelope.to,
-                        .gas = unprepared_envelope.gas,
-                        .gasPrice = unprepared_envelope.gasPrice,
-                        .data = unprepared_envelope.data,
-                        .value = unprepared_envelope.value orelse 0,
-                    };
-
-                    const curr_block = try self.rpc_client.getBlockByNumber(.{});
-                    defer curr_block.deinit();
-
-                    const base_fee = switch (curr_block.response) {
-                        inline else => |block_info| block_info.baseFeePerGas,
-                    };
-
-                    const chain_id = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
-                    const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
-
-                    const nonce: u64 = unprepared_envelope.nonce orelse blk: {
+                    tx.chainId = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
+                    tx.accessList = unprepared_envelope.accessList orelse &.{};
+                    tx.value = unprepared_envelope.value orelse 0;
+                    tx.data = unprepared_envelope.data;
+                    tx.to = unprepared_envelope.to;
+                    tx.nonce = unprepared_envelope.nonce orelse blk: {
                         if (self.nonce_manager) |*manager| {
                             const nonce = try manager.updateNonce(self.rpc_client);
 
@@ -664,39 +591,128 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         }
                     };
 
-                    if (unprepared_envelope.gasPrice == null) {
-                        const fees = try self.rpc_client.estimateFeesPerGas(.{ .legacy = request }, base_fee);
-                        request.gasPrice = fees.legacy.gas_price;
-                    }
+                    const curr_block = try self.rpc_client.getBlockByNumber(.{});
+                    defer curr_block.deinit();
 
-                    if (unprepared_envelope.gas == null) {
-                        const gas = try self.rpc_client.estimateGas(.{ .legacy = request }, .{});
+                    const base_fee = switch (curr_block.response) {
+                        inline else => |block_info| block_info.baseFeePerGas,
+                    };
+
+                    const fees = try self.rpc_client.estimateFeesPerGas(.{ .london = .{
+                        .to = unprepared_envelope.to,
+                        .from = self.signer.address_bytes,
+                        .value = tx.value,
+                        .data = tx.data,
+                    } }, base_fee);
+
+                    tx.maxPriorityFeePerGas = blk: {
+                        if (unprepared_envelope.maxFeePerGas) |gas| {
+                            if (gas < fees.london.max_priority_fee)
+                                return error.MaxFeePerGasUnderflow;
+
+                            break :blk gas;
+                        }
+
+                        break :blk fees.london.max_priority_fee;
+                    };
+                    tx.maxFeePerGas = unprepared_envelope.maxFeePerGas orelse fees.london.max_fee_gas;
+                    tx.gas = unprepared_envelope.gas orelse blk: {
+                        const gas = try self.rpc_client.estimateGas(.{
+                            .london = .{
+                                .to = unprepared_envelope.to,
+                                .from = self.signer.address_bytes,
+                                .value = tx.value,
+                                .data = tx.data,
+                                .maxFeePerGas = tx.maxFeePerGas,
+                                .maxPriorityFeePerGas = tx.maxPriorityFeePerGas,
+                            },
+                        }, .{});
                         defer gas.deinit();
 
-                        request.gas = gas.response;
-                    }
-
-                    return .{
-                        .berlin = .{
-                            .chainId = chain_id,
-                            .nonce = nonce,
-                            .gas = request.gas.?,
-                            .gasPrice = request.gasPrice.?,
-                            .to = request.to,
-                            .data = request.data,
-                            .value = request.value.?,
-                            .accessList = accessList,
-                        },
+                        break :blk gas.response;
                     };
+
+                    return .{ .london = tx };
+                },
+                .berlin => {
+                    var tx: BerlinTransactionEnvelope = undefined;
+
+                    tx.chainId = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
+                    tx.accessList = unprepared_envelope.accessList orelse &.{};
+                    tx.value = unprepared_envelope.value orelse 0;
+                    tx.to = unprepared_envelope.to;
+                    tx.data = unprepared_envelope.data;
+                    tx.nonce = unprepared_envelope.nonce orelse blk: {
+                        if (self.nonce_manager) |*manager| {
+                            const nonce = try manager.updateNonce(self.rpc_client);
+
+                            break :blk nonce;
+                        } else {
+                            const nonce = try self.rpc_client.getAddressTransactionCount(.{
+                                .address = self.signer.address_bytes,
+                                .tag = .pending,
+                            });
+                            defer nonce.deinit();
+
+                            break :blk nonce.response;
+                        }
+                    };
+
+                    const curr_block = try self.rpc_client.getBlockByNumber(.{});
+                    defer curr_block.deinit();
+
+                    const base_fee = switch (curr_block.response) {
+                        inline else => |block_info| block_info.baseFeePerGas,
+                    };
+
+                    tx.gasPrice = unprepared_envelope.gasPrice orelse blk: {
+                        const fees = try self.rpc_client.estimateFeesPerGas(.{ .legacy = .{
+                            .to = unprepared_envelope.to,
+                            .from = self.signer.address_bytes,
+                            .value = tx.value,
+                            .data = tx.data,
+                        } }, base_fee);
+
+                        break :blk fees.legacy.gas_price;
+                    };
+                    tx.gas = unprepared_envelope.gas orelse blk: {
+                        const gas = try self.rpc_client.estimateGas(.{
+                            .legacy = .{
+                                .to = unprepared_envelope.to,
+                                .from = self.signer.address_bytes,
+                                .value = tx.value,
+                                .data = tx.data,
+                                .gasPrice = tx.gasPrice,
+                            },
+                        }, .{});
+                        defer gas.deinit();
+
+                        break :blk gas.response;
+                    };
+
+                    return .{ .berlin = tx };
                 },
                 .legacy => {
-                    var request: LegacyEthCall = .{
-                        .from = address,
-                        .to = unprepared_envelope.to,
-                        .gas = unprepared_envelope.gas,
-                        .gasPrice = unprepared_envelope.gasPrice,
-                        .data = unprepared_envelope.data,
-                        .value = unprepared_envelope.value orelse 0,
+                    var tx: LegacyTransactionEnvelope = undefined;
+
+                    tx.chainId = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
+                    tx.value = unprepared_envelope.value orelse 0;
+                    tx.data = unprepared_envelope.data;
+                    tx.to = unprepared_envelope.to;
+                    tx.nonce = unprepared_envelope.nonce orelse blk: {
+                        if (self.nonce_manager) |*manager| {
+                            const nonce = try manager.updateNonce(self.rpc_client);
+
+                            break :blk nonce;
+                        } else {
+                            const nonce = try self.rpc_client.getAddressTransactionCount(.{
+                                .address = self.signer.address_bytes,
+                                .tag = .pending,
+                            });
+                            defer nonce.deinit();
+
+                            break :blk nonce.response;
+                        }
                     };
 
                     const curr_block = try self.rpc_client.getBlockByNumber(.{});
@@ -706,54 +722,56 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         inline else => |block_info| block_info.baseFeePerGas,
                     };
 
-                    const chain_id = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
+                    tx.gasPrice = unprepared_envelope.gasPrice orelse blk: {
+                        const fees = try self.rpc_client.estimateFeesPerGas(.{ .legacy = .{
+                            .to = unprepared_envelope.to,
+                            .from = self.signer.address_bytes,
+                            .value = tx.value,
+                            .data = tx.data,
+                        } }, base_fee);
 
-                    const nonce: u64 = unprepared_envelope.nonce orelse blk: {
-                        if (self.nonce_manager) |*manager| {
-                            const nonce = try manager.updateNonce(self.rpc_client);
-
-                            break :blk nonce;
-                        } else {
-                            const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
-                            defer nonce.deinit();
-
-                            break :blk nonce.response;
-                        }
+                        break :blk fees.legacy.gas_price;
                     };
-
-                    if (unprepared_envelope.gasPrice == null) {
-                        const fees = try self.rpc_client.estimateFeesPerGas(.{ .legacy = request }, base_fee);
-                        request.gasPrice = fees.legacy.gas_price;
-                    }
-
-                    if (unprepared_envelope.gas == null) {
-                        const gas = try self.rpc_client.estimateGas(.{ .legacy = request }, .{});
+                    tx.gas = unprepared_envelope.gas orelse blk: {
+                        const gas = try self.rpc_client.estimateGas(.{
+                            .legacy = .{
+                                .to = unprepared_envelope.to,
+                                .from = self.signer.address_bytes,
+                                .value = tx.value,
+                                .data = tx.data,
+                                .gasPrice = tx.gasPrice,
+                            },
+                        }, .{});
                         defer gas.deinit();
 
-                        request.gas = gas.response;
-                    }
-
-                    return .{
-                        .legacy = .{
-                            .chainId = chain_id,
-                            .nonce = nonce,
-                            .gas = request.gas.?,
-                            .gasPrice = request.gasPrice.?,
-                            .to = request.to,
-                            .data = request.data,
-                            .value = request.value.?,
-                        },
+                        break :blk gas.response;
                     };
+
+                    return .{ .legacy = tx };
                 },
                 .eip7702 => {
-                    var request: LondonEthCall = .{
-                        .to = unprepared_envelope.to,
-                        .from = address,
-                        .gas = unprepared_envelope.gas,
-                        .maxFeePerGas = unprepared_envelope.maxFeePerGas,
-                        .maxPriorityFeePerGas = unprepared_envelope.maxPriorityFeePerGas,
-                        .data = unprepared_envelope.data,
-                        .value = unprepared_envelope.value orelse 0,
+                    var tx: Eip7702TransactionEnvelope = undefined;
+
+                    tx.chainId = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
+                    tx.accessList = unprepared_envelope.accessList orelse &.{};
+                    tx.authorizationList = unprepared_envelope.authList orelse &.{};
+                    tx.to = unprepared_envelope.to;
+                    tx.value = unprepared_envelope.value orelse 0;
+                    tx.data = unprepared_envelope.data;
+                    tx.nonce = unprepared_envelope.nonce orelse blk: {
+                        if (self.nonce_manager) |*manager| {
+                            const nonce = try manager.updateNonce(self.rpc_client);
+
+                            break :blk nonce;
+                        } else {
+                            const nonce = try self.rpc_client.getAddressTransactionCount(.{
+                                .address = self.signer.address_bytes,
+                                .tag = .pending,
+                            });
+                            defer nonce.deinit();
+
+                            break :blk nonce.response;
+                        }
                     };
 
                     const curr_block = try self.rpc_client.getBlockByNumber(.{});
@@ -763,54 +781,41 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         inline else => |block_info| block_info.baseFeePerGas,
                     };
 
-                    const chain_id = unprepared_envelope.chainId orelse @intFromEnum(self.rpc_client.network_config.chain_id);
-                    const accessList: []const AccessList = unprepared_envelope.accessList orelse &.{};
-                    const authList: []const AuthorizationPayload = unprepared_envelope.authList orelse &.{};
+                    const fees = try self.rpc_client.estimateFeesPerGas(.{ .london = .{
+                        .to = unprepared_envelope.to,
+                        .from = self.signer.address_bytes,
+                        .value = tx.value,
+                        .data = tx.data,
+                    } }, base_fee);
 
-                    const nonce: u64 = unprepared_envelope.nonce orelse blk: {
-                        if (self.nonce_manager) |*manager| {
-                            const nonce = try manager.updateNonce(self.rpc_client);
+                    tx.maxPriorityFeePerGas = blk: {
+                        if (unprepared_envelope.maxFeePerGas) |gas| {
+                            if (gas < fees.london.max_priority_fee)
+                                return error.MaxFeePerGasUnderflow;
 
-                            break :blk nonce;
-                        } else {
-                            const nonce = try self.rpc_client.getAddressTransactionCount(.{ .address = self.signer.address_bytes, .tag = .pending });
-                            defer nonce.deinit();
-
-                            break :blk nonce.response;
+                            break :blk gas;
                         }
+
+                        break :blk fees.london.max_priority_fee;
                     };
-
-                    if (unprepared_envelope.maxFeePerGas == null or unprepared_envelope.maxPriorityFeePerGas == null) {
-                        const fees = try self.rpc_client.estimateFeesPerGas(.{ .london = request }, base_fee);
-                        request.maxPriorityFeePerGas = unprepared_envelope.maxPriorityFeePerGas orelse fees.london.max_priority_fee;
-                        request.maxFeePerGas = unprepared_envelope.maxFeePerGas orelse fees.london.max_fee_gas;
-
-                        if (unprepared_envelope.maxFeePerGas) |fee| {
-                            if (fee < fees.london.max_priority_fee) return error.MaxFeePerGasUnderflow;
-                        }
-                    }
-
-                    if (unprepared_envelope.gas == null) {
-                        const gas = try self.rpc_client.estimateGas(.{ .london = request }, .{});
+                    tx.maxFeePerGas = unprepared_envelope.maxFeePerGas orelse fees.london.max_fee_gas;
+                    tx.gas = unprepared_envelope.gas orelse blk: {
+                        const gas = try self.rpc_client.estimateGas(.{
+                            .london = .{
+                                .to = unprepared_envelope.to,
+                                .from = self.signer.address_bytes,
+                                .value = tx.value,
+                                .data = tx.data,
+                                .maxFeePerGas = tx.maxFeePerGas,
+                                .maxPriorityFeePerGas = tx.maxPriorityFeePerGas,
+                            },
+                        }, .{});
                         defer gas.deinit();
 
-                        request.gas = gas.response;
-                    }
-
-                    return .{
-                        .eip7702 = .{
-                            .chainId = chain_id,
-                            .nonce = nonce,
-                            .gas = request.gas.?,
-                            .maxFeePerGas = request.maxFeePerGas.?,
-                            .maxPriorityFeePerGas = request.maxPriorityFeePerGas.?,
-                            .to = request.to,
-                            .data = request.data,
-                            .value = request.value.?,
-                            .accessList = accessList,
-                            .authorizationList = authList,
-                        },
+                        break :blk gas.response;
                     };
+
+                    return .{ .eip7702 = tx };
                 },
                 .deposit => return error.UnsupportedTransactionType,
                 _ => return error.UnsupportedTransactionType,
@@ -915,7 +920,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Signs, serializes and send the transaction via `eth_sendRawTransaction`.
         ///
         /// Returns the transaction hash.
-        pub fn sendSignedTransaction(self: *WalletSelf, tx: TransactionEnvelope) SendSignedTransactionErrors!RPCResponse(Hash) {
+        pub fn sendSignedTransaction(
+            self: *WalletSelf,
+            tx: TransactionEnvelope,
+        ) SendSignedTransactionErrors!RPCResponse(Hash) {
             const serialized = try serialize.serializeTransaction(self.allocator, tx, null);
             defer self.allocator.free(serialized);
 
@@ -1008,7 +1016,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         /// Signs an ethereum message with the specified prefix.
         ///
         /// The Signatures recoverId doesn't include the chain_id.
-        pub fn signEthereumMessage(self: *WalletSelf, message: []const u8) (Signer.SigningErrors || Allocator.Error)!Signature {
+        pub fn signEthereumMessage(
+            self: *WalletSelf,
+            message: []const u8,
+        ) (Signer.SigningErrors || Allocator.Error)!Signature {
             const start = "\x19Ethereum Signed Message:\n";
             const concated_message = try std.fmt.allocPrint(self.allocator, "{s}{d}{s}", .{ start, message.len, message });
             defer self.allocator.free(concated_message);

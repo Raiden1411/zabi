@@ -401,6 +401,7 @@ test "Tstore" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = plain.host();
+    interpreter.is_static = false;
 
     {
         interpreter.spec = .LATEST;

@@ -147,7 +147,7 @@ pub fn Multicall(comptime client: Clients) type {
             comptime targets: []const MulticallTargets,
             function_arguments: MulticallArguments(targets),
             allow_failure: bool,
-        ) Self.Error!AbiDecoded([]const Result) {
+        ) Error!AbiDecoded([]const Result) {
             comptime std.debug.assert(targets.len == function_arguments.len);
 
             var abi_list = try std.ArrayList(Call3).initCapacity(self.rpc_client.allocator, targets.len);

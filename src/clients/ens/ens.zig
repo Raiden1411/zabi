@@ -85,6 +85,7 @@ pub fn ENSClient(comptime client_type: Clients) type {
         pub fn deinit(self: *ENS) void {
             self.rpc_client.deinit();
             const allocator = self.allocator;
+
             allocator.destroy(self);
         }
         /// Gets the ENS address associated with the ENS name.
@@ -93,7 +94,11 @@ pub fn ENSClient(comptime client_type: Clients) type {
         /// Calls the resolver address and decodes with address resolver.
         ///
         /// The names are not normalized so make sure that the names are normalized before hand.
-        pub fn getEnsAddress(self: *ENS, name: []const u8, opts: BlockNumberRequest) EnsErrors!AbiDecoded(Address) {
+        pub fn getEnsAddress(
+            self: *ENS,
+            name: []const u8,
+            opts: BlockNumberRequest,
+        ) EnsErrors!AbiDecoded(Address) {
             const contracts = self.rpc_client.network_config.ens_contracts orelse return error.ExpectedEnsContracts;
 
             const hash = try ens_utils.hashName(name);
@@ -116,13 +121,23 @@ pub fn ENSClient(comptime client_type: Clients) type {
             if (value.response.len == 0)
                 return error.EvmFailedToExecute;
 
-            const decoded = try decoder.decodeAbiParameter(struct { []u8, [20]u8 }, self.allocator, value.response, .{ .allow_junk_data = true, .allocate_when = .alloc_always });
+            const decoded = try decoder.decodeAbiParameter(
+                struct { []u8, Address },
+                self.allocator,
+                value.response,
+                .{ .allow_junk_data = true, .allocate_when = .alloc_always },
+            );
             defer decoded.deinit();
 
             if (decoded.result[0].len == 0)
                 return error.FailedToDecodeResponse;
 
-            const decoded_result = try decoder.decodeAbiParameter([20]u8, self.allocator, decoded.result[0], .{ .allow_junk_data = true, .allocate_when = .alloc_always });
+            const decoded_result = try decoder.decodeAbiParameter(
+                Address,
+                self.allocator,
+                decoded.result[0],
+                .{ .allow_junk_data = true, .allocate_when = .alloc_always },
+            );
 
             if (decoded_result.result.len == 0)
                 return error.FailedToDecodeResponse;
@@ -135,7 +150,11 @@ pub fn ENSClient(comptime client_type: Clients) type {
         /// Calls the reverse resolver and decodes with the same.
         ///
         /// This will fail if its not a valid checksumed address.
-        pub fn getEnsName(self: *ENS, address: []const u8, opts: BlockNumberRequest) EnsErrors!RPCResponse([]const u8) {
+        pub fn getEnsName(
+            self: *ENS,
+            address: []const u8,
+            opts: BlockNumberRequest,
+        ) EnsErrors!RPCResponse([]const u8) {
             const contracts = self.rpc_client.network_config.ens_contracts orelse return error.ExpectedEnsContracts;
 
             if (!utils.isAddress(address))
@@ -166,14 +185,14 @@ pub fn ENSClient(comptime client_type: Clients) type {
                 return error.EvmFailedToExecute;
 
             const decoded = try decoder.decodeAbiParameter(
-                struct { []u8, [20]u8, [20]u8, [20]u8 },
+                struct { []u8, Address, Address, Address },
                 self.allocator,
                 value.response,
                 .{ .allocate_when = .alloc_always },
             );
             errdefer decoded.deinit();
 
-            if (!std.mem.eql(u8, &address_bytes, &decoded.result[1]))
+            if (!(@as(u160, @bitCast(address_bytes)) == @as(u160, @bitCast(address_bytes))))
                 return error.InvalidAddress;
 
             return RPCResponse([]const u8).fromJson(decoded.arena, decoded.result[0]);

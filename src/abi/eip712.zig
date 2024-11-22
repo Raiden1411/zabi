@@ -455,7 +455,11 @@ pub fn encodeStructField(
     }
 }
 /// Hash the main types and it's nested children
-pub fn hashType(allocator: Allocator, comptime types_fields: anytype, comptime primary_type: []const u8) EncodeTypeErrors![Keccak256.digest_length]u8 {
+pub fn hashType(
+    allocator: Allocator,
+    comptime types_fields: anytype,
+    comptime primary_type: []const u8,
+) EncodeTypeErrors![Keccak256.digest_length]u8 {
     var list = std.ArrayList(u8).init(allocator);
     errdefer list.deinit();
 
@@ -535,7 +539,11 @@ pub fn encodeType(
     }
 }
 /// Finds the main type child type and recursivly checks their children as well.
-pub fn findTypeDependencies(comptime types_fields: anytype, comptime primary_type: []const u8, result: *std.StringArrayHashMap(void)) Allocator.Error!void {
+pub fn findTypeDependencies(
+    comptime types_fields: anytype,
+    comptime primary_type: []const u8,
+    result: *std.StringArrayHashMap(void),
+) Allocator.Error!void {
     if (result.getKey(primary_type) != null)
         return;
 

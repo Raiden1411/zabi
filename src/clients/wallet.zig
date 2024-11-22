@@ -57,12 +57,16 @@ pub const WalletWsClient = Wallet(.websocket);
 /// Wallet instance with rpc ipc client.
 pub const WalletIpcClient = Wallet(.ipc);
 
+/// Pool of prepared transaciton envelopes.
 pub const TransactionEnvelopePool = struct {
     mutex: Mutex = .{},
+    /// DoublyLinkedList queue. Iterate from last to first (LIFO)
     pooled_envelopes: TransactionEnvelopeQueue,
 
+    /// LinkedList node.
     pub const Node = TransactionEnvelopeQueue.Node;
 
+    /// Search criteria used to find the required parameter.
     const SearchCriteria = struct {
         type: transaction.TransactionTypes,
         nonce: u64,
@@ -390,10 +394,12 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         return error.CreateBlobTransaction;
                 },
                 .berlin => |tx_eip2930| {
-                    if (tx_eip2930.chainId != @intFromEnum(self.rpc_client.network_config.chain_id)) return error.InvalidChainId;
+                    if (tx_eip2930.chainId != @intFromEnum(self.rpc_client.network_config.chain_id))
+                        return error.InvalidChainId;
                 },
                 .legacy => |tx_legacy| {
-                    if (tx_legacy.chainId != 0 and tx_legacy.chainId != @intFromEnum(self.rpc_client.network_config.chain_id)) return error.InvalidChainId;
+                    if (tx_legacy.chainId != 0 and tx_legacy.chainId != @intFromEnum(self.rpc_client.network_config.chain_id))
+                        return error.InvalidChainId;
                 },
             }
         }
@@ -1010,7 +1016,6 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             };
 
             const hash = try self.hashAuthorityEip7702(authority, nonce_from);
-
             const signature = try self.signer.sign(hash);
 
             return .{

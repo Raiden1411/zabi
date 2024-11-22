@@ -816,7 +816,11 @@ pub fn sendRequest(self: *Explorer, comptime T: type, uri: Uri) SendRequestError
     }
 }
 /// The internal fetch `GET` request.
-fn internalRequest(self: *Explorer, uri: Uri, list: *ArrayList(u8)) FetchErrors!HttpClient.FetchResult {
+fn internalRequest(
+    self: *Explorer,
+    uri: Uri,
+    list: *ArrayList(u8),
+) FetchErrors!HttpClient.FetchResult {
     const result = try self.client.fetch(.{
         .method = .GET,
         .response_storage = .{ .dynamic = list },
@@ -827,7 +831,11 @@ fn internalRequest(self: *Explorer, uri: Uri, list: *ArrayList(u8)) FetchErrors!
     return result;
 }
 /// Parses the response from the server as `ExplorerRequestResponse(T)`
-fn parseExplorerResponse(self: *Explorer, comptime T: type, request: []const u8) error{ UnexpectedErrorFound, InvalidRequest }!ExplorerResponse(T) {
+fn parseExplorerResponse(
+    self: *Explorer,
+    comptime T: type,
+    request: []const u8,
+) error{ UnexpectedErrorFound, InvalidRequest }!ExplorerResponse(T) {
     const parsed = std.json.parseFromSlice(
         ExplorerRequestResponse(T),
         self.allocator,

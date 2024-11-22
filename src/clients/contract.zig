@@ -83,9 +83,8 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             const self = try opts.wallet_opts.allocator.create(ContractComptime(client_type));
             errdefer opts.wallet_opts.allocator.destroy(self);
 
-            self.* = .{
-                .wallet = try Wallet(client_type).init(opts.private_key, opts.wallet_opts, opts.nonce_manager),
-            };
+            const wallet = try Wallet(client_type).init(opts.private_key, opts.wallet_opts, opts.nonce_manager);
+            self.* = .{ .wallet = wallet };
 
             return self;
         }
@@ -93,6 +92,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         pub fn deinit(self: *ContractComptime(client_type)) void {
             const allocator = self.wallet.allocator;
             self.wallet.deinit();
+
             allocator.destroy(self);
         }
         /// Creates a contract on the network.
@@ -105,7 +105,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             var copy = opts.overrides;
 
             const encoded = try constructor.encode(self.wallet.allocator, opts.args);
-            defer encoded.deinit();
+            defer self.wallet.allocator.free(encoded);
 
             const concated = try std.mem.concat(self.wallet.allocator, u8, &.{ opts.bytecode, encoded.data });
             defer self.wallet.allocator.free(concated);
@@ -130,7 +130,11 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         /// for a variety of reasons including EVM mechanics and node performance.
         ///
         /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
-        pub fn estimateGas(self: *ContractComptime(client_type), call_object: EthCall, opts: BlockNumberRequest) WalletClient.Error!RPCResponse(Gwei) {
+        pub fn estimateGas(
+            self: *ContractComptime(client_type),
+            call_object: EthCall,
+            opts: BlockNumberRequest,
+        ) WalletClient.Error!RPCResponse(Gwei) {
             return self.wallet.rpc_client.estimateGas(call_object, opts);
         }
         /// Uses eth_call to query an contract information.
@@ -243,14 +247,6 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
         ) (SendErrors || error{ InvalidFunctionMutability, InvalidRequestTarget, ValueInNonPayableFunction })!RPCResponse(Hash) {
             var copy = opts.overrides;
 
-            switch (func.stateMutability) {
-                .nonpayable, .payable => {},
-                inline else => return error.InvalidFunctionMutability,
-            }
-
-            const encoded = try func.encode(self.wallet.allocator, opts.args);
-            defer self.wallet.allocator.free(encoded);
-
             if (copy.to == null)
                 return error.InvalidRequestTarget;
 
@@ -261,6 +257,9 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
                 .payable => {},
                 inline else => return error.InvalidFunctionMutability,
             }
+
+            const encoded = try func.encode(self.wallet.allocator, opts.args);
+            defer self.wallet.allocator.free(encoded);
 
             copy.data = encoded;
 
@@ -273,7 +272,7 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
 pub fn Contract(comptime client_type: ClientType) type {
     return struct {
         /// The inital settings depending on the client type.
-        const InitOpts = switch (client_type) {
+        const ClientInitOptions = switch (client_type) {
             .http => InitOptsHttp,
             .websocket => InitOptsWs,
             .ipc => InitOptsIpc,
@@ -283,7 +282,7 @@ pub fn Contract(comptime client_type: ClientType) type {
         const ContractInitOpts = struct {
             abi: Abi,
             private_key: ?Hash,
-            wallet_opts: InitOpts,
+            wallet_opts: ClientInitOptions,
             nonce_manager: bool,
         };
 
@@ -306,9 +305,10 @@ pub fn Contract(comptime client_type: ClientType) type {
             const self = try opts.wallet_opts.allocator.create(Contract(client_type));
             errdefer opts.wallet_opts.allocator.destroy(self);
 
+            const wallet = try Wallet(client_type).init(opts.private_key, opts.wallet_opts, opts.nonce_manager);
             self.* = .{
                 .abi = opts.abi,
-                .wallet = try Wallet(client_type).init(opts.private_key, opts.wallet_opts, opts.nonce_manager),
+                .wallet = wallet,
             };
 
             return self;
@@ -317,6 +317,7 @@ pub fn Contract(comptime client_type: ClientType) type {
         pub fn deinit(self: *Contract(client_type)) void {
             const allocator = self.wallet.allocator;
             self.wallet.deinit();
+
             allocator.destroy(self);
         }
         /// Creates a contract on the network.
@@ -330,12 +331,6 @@ pub fn Contract(comptime client_type: ClientType) type {
             var copy = overrides;
             const constructor = try getAbiItem(self.abi, .constructor, null);
 
-            const encoded = try constructor.abiConstructor.encodeFromReflection(self.wallet.allocator, constructor_args);
-            defer self.wallet.allocator.free(encoded);
-
-            const concated = try std.mem.concat(self.wallet.allocator, u8, &.{ bytecode, encoded });
-            defer self.wallet.allocator.free(concated);
-
             if (copy.to != null)
                 return error.CreatingContractToKnowAddress;
 
@@ -345,6 +340,12 @@ pub fn Contract(comptime client_type: ClientType) type {
                     return error.ValueInNonPayableConstructor,
                 .payable => {},
             }
+
+            const encoded = try constructor.abiConstructor.encodeFromReflection(self.wallet.allocator, constructor_args);
+            defer self.wallet.allocator.free(encoded);
+
+            const concated = try std.mem.concat(self.wallet.allocator, u8, &.{ bytecode, encoded });
+            defer self.wallet.allocator.free(concated);
 
             copy.data = concated;
 
@@ -426,7 +427,10 @@ pub fn Contract(comptime client_type: ClientType) type {
 
             const address = self.wallet.getWalletAddress();
             const call: EthCall = switch (copy.type) {
-                .cancun, .london, .eip7702 => .{ .london = .{
+                .cancun,
+                .london,
+                .eip7702,
+                => .{ .london = .{
                     .from = address,
                     .to = copy.to,
                     .data = copy.data,
@@ -435,7 +439,9 @@ pub fn Contract(comptime client_type: ClientType) type {
                     .maxPriorityFeePerGas = copy.maxPriorityFeePerGas,
                     .gas = copy.gas,
                 } },
-                .berlin, .legacy => .{ .legacy = .{
+                .berlin,
+                .legacy,
+                => .{ .legacy = .{
                     .from = address,
                     .value = copy.value,
                     .to = copy.to,

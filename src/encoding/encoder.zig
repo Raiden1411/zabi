@@ -63,9 +63,15 @@ pub const AbiEncodedValues = union(enum) {
     }
 };
 
+// The possible value types.
+const ParameterType = enum {
+    dynamic,
+    static,
+};
+
 /// The encoded values inner structure representation.
 pub const PreEncodedStructure = struct {
-    dynamic: bool,
+    type: ParameterType,
     encoded: []const u8,
 
     pub fn deinit(self: @This(), allocator: Allocator) void {
@@ -308,13 +314,14 @@ pub const AbiEncoder = struct {
         try self.tails.ensureUnusedCapacity(allocator, self.tails_size);
 
         for (slice) |param| {
-            if (param.dynamic) {
-                const size = encodeNumber(u256, self.tails.items.len + self.heads_size);
+            switch (param.type) {
+                .dynamic => {
+                    const size = encodeNumber(u256, self.tails.items.len + self.heads_size);
 
-                self.heads.appendSliceAssumeCapacity(size[0..]);
-                self.tails.appendSliceAssumeCapacity(param.encoded);
-            } else {
-                self.heads.appendSliceAssumeCapacity(param.encoded);
+                    self.heads.appendSliceAssumeCapacity(size[0..]);
+                    self.tails.appendSliceAssumeCapacity(param.encoded);
+                },
+                .static => self.heads.appendSliceAssumeCapacity(param.encoded),
             }
         }
 
@@ -354,7 +361,7 @@ pub const AbiEncoder = struct {
                 self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
-                    .dynamic = false,
+                    .type = .static,
                 });
             },
             .int => {
@@ -363,7 +370,7 @@ pub const AbiEncoder = struct {
                 self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
-                    .dynamic = false,
+                    .type = .static,
                 });
             },
             .uint => {
@@ -372,7 +379,7 @@ pub const AbiEncoder = struct {
                 self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
-                    .dynamic = false,
+                    .type = .static,
                 });
             },
             .address => {
@@ -381,7 +388,7 @@ pub const AbiEncoder = struct {
                 self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
-                    .dynamic = false,
+                    .type = .static,
                 });
             },
             .fixedBytes => |bytes| {
@@ -390,7 +397,7 @@ pub const AbiEncoder = struct {
                 self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
-                    .dynamic = false,
+                    .type = .static,
                 });
             },
             .string,
@@ -402,7 +409,7 @@ pub const AbiEncoder = struct {
                 self.tails_size += @intCast(32 + encoded.len);
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = encoded,
-                    .dynamic = true,
+                    .type = .dynamic,
                 });
             },
             .fixedArray => |arr_info| {
@@ -426,7 +433,7 @@ pub const AbiEncoder = struct {
                     self.heads_size += 32;
                     self.tails_size += @intCast(32 + slice.len);
                     return self.pre_encoded.appendAssumeCapacity(.{
-                        .dynamic = true,
+                        .type = .dynamic,
                         .encoded = slice,
                     });
                 }
@@ -466,7 +473,7 @@ pub const AbiEncoder = struct {
                 recursize.heads.appendSliceAssumeCapacity(slice);
 
                 self.pre_encoded.appendAssumeCapacity(.{
-                    .dynamic = true,
+                    .type = .dynamic,
                     .encoded = try recursize.heads.toOwnedSlice(allocator),
                 });
             },
@@ -487,7 +494,7 @@ pub const AbiEncoder = struct {
                         self.heads_size += 32;
                         self.tails_size += @intCast(32 + slice.len);
                         return self.pre_encoded.appendAssumeCapacity(.{
-                            .dynamic = true,
+                            .type = .dynamic,
                             .encoded = slice,
                         });
                     }
@@ -530,7 +537,7 @@ pub const AbiEncoder = struct {
                 self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
-                    .dynamic = false,
+                    .type = .static,
                 });
             },
             .int => |val| {
@@ -539,7 +546,7 @@ pub const AbiEncoder = struct {
                 self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
-                    .dynamic = false,
+                    .type = .static,
                 });
             },
             .uint => |val| {
@@ -548,7 +555,7 @@ pub const AbiEncoder = struct {
                 self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
-                    .dynamic = false,
+                    .type = .static,
                 });
             },
             .address => |val| {
@@ -557,7 +564,7 @@ pub const AbiEncoder = struct {
                 self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
-                    .dynamic = false,
+                    .type = .static,
                 });
             },
             .fixed_bytes => |val| {
@@ -569,7 +576,7 @@ pub const AbiEncoder = struct {
                 self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, buffer[0..]),
-                    .dynamic = false,
+                    .type = .static,
                 });
             },
             .string,
@@ -581,7 +588,7 @@ pub const AbiEncoder = struct {
                 self.tails_size += @intCast(32 + encoded.len);
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = encoded,
-                    .dynamic = true,
+                    .type = .dynamic,
                 });
             },
             .fixed_array => |arr_values| {
@@ -603,7 +610,7 @@ pub const AbiEncoder = struct {
                     self.heads_size += 32;
                     self.tails_size += @intCast(32 + slice.len);
                     return self.pre_encoded.appendAssumeCapacity(.{
-                        .dynamic = true,
+                        .type = .dynamic,
                         .encoded = slice,
                     });
                 }
@@ -641,7 +648,7 @@ pub const AbiEncoder = struct {
                 recursize.heads.appendSliceAssumeCapacity(slice);
 
                 self.pre_encoded.appendAssumeCapacity(.{
-                    .dynamic = true,
+                    .type = .dynamic,
                     .encoded = try recursize.heads.toOwnedSlice(allocator),
                 });
             },
@@ -659,7 +666,7 @@ pub const AbiEncoder = struct {
                     self.heads_size += 32;
                     self.tails_size += @intCast(32 + slice.len);
                     return self.pre_encoded.appendAssumeCapacity(.{
-                        .dynamic = true,
+                        .type = .dynamic,
                         .encoded = slice,
                     });
                 }
@@ -697,7 +704,7 @@ pub const AbiEncoder = struct {
                 self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
-                    .dynamic = false,
+                    .type = .static,
                 });
             },
             .int => |int_info| {
@@ -709,7 +716,7 @@ pub const AbiEncoder = struct {
                 self.heads_size += 32;
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = try allocator.dupe(u8, encoded[0..]),
-                    .dynamic = false,
+                    .type = .static,
                 });
             },
             .comptime_int => {
@@ -730,7 +737,7 @@ pub const AbiEncoder = struct {
 
                 self.pre_encoded.appendAssumeCapacity(.{
                     .encoded = encoded,
-                    .dynamic = true,
+                    .type = .dynamic,
                 });
             },
             .array => |arr_info| {
@@ -741,7 +748,7 @@ pub const AbiEncoder = struct {
                         self.heads_size += 32;
                         return self.pre_encoded.appendAssumeCapacity(.{
                             .encoded = try allocator.dupe(u8, encoded[0..]),
-                            .dynamic = false,
+                            .type = .static,
                         });
                     }
 
@@ -750,7 +757,7 @@ pub const AbiEncoder = struct {
                     self.heads_size += 32;
                     return self.pre_encoded.appendAssumeCapacity(.{
                         .encoded = try allocator.dupe(u8, encoded[0..]),
-                        .dynamic = false,
+                        .type = .static,
                     });
                 }
 
@@ -767,7 +774,7 @@ pub const AbiEncoder = struct {
                     self.heads_size += 32;
                     self.tails_size += @intCast(32 + slice.len);
                     return self.pre_encoded.appendAssumeCapacity(.{
-                        .dynamic = true,
+                        .type = .dynamic,
                         .encoded = slice,
                     });
                 }
@@ -797,7 +804,7 @@ pub const AbiEncoder = struct {
 
                             return self.pre_encoded.appendAssumeCapacity(.{
                                 .encoded = encoded,
-                                .dynamic = true,
+                                .type = .dynamic,
                             });
                         }
 
@@ -822,7 +829,7 @@ pub const AbiEncoder = struct {
                         recursize.heads.appendSliceAssumeCapacity(slice);
 
                         self.pre_encoded.appendAssumeCapacity(.{
-                            .dynamic = true,
+                            .type = .dynamic,
                             .encoded = try recursize.heads.toOwnedSlice(allocator),
                         });
                     },
@@ -844,7 +851,7 @@ pub const AbiEncoder = struct {
                     self.tails_size += @intCast(32 + slice.len);
 
                     return self.pre_encoded.appendAssumeCapacity(.{
-                        .dynamic = true,
+                        .type = .dynamic,
                         .encoded = slice,
                     });
                 }
@@ -862,12 +869,6 @@ pub const AbiEncoder = struct {
 
 /// Similar to `AbiEncoder` but used for packed encoding.
 pub const EncodePacked = struct {
-    /// The possible value types.
-    const ParameterType = enum {
-        dynamic,
-        static,
-    };
-
     /// Changes the encoder behaviour based on the type of the parameter.
     param_type: ParameterType,
     /// List that is used to write the encoded values too.

@@ -13,14 +13,17 @@ test "Receive and Fallback" {
         \\ struct AdditionalRecipient { uint256 amount; }
         \\ function fallback() external
         \\ fallback(address bar) external
+        \\ fallback(address bar) public
+        \\ fallback(address bar) public payable
         \\ fallback(address bar, uint baz) external
+        \\ fallback(address bar, uint baz) public payable
         \\ receive() external payable
     ;
 
     const parsed = try parseHumanReadable(testing.allocator, slice);
     defer parsed.deinit();
 
-    try testing.expectEqual(parsed.value.len, 4);
+    try testing.expectEqual(parsed.value.len, 7);
 }
 
 test "Tuples" {
@@ -29,14 +32,17 @@ test "Tuples" {
         \\ function bar((address baz, uint jazz) memory hello) public view returns(address)
         \\ function baz(((((((((address bar))))))))) public pure returns(address)
         \\ event world((string bar) dsa, (string hello, address baz) asd) 
-        \\ constructor(address conduitController, bool bar)
+        \\ constructor(address conduitController, bool bar) public
+        \\ constructor(address conduitController, bool bar) public payable
+        \\ constructor(address bar) public
+        \\ constructor(address bar) public payable
         \\ function getCounter(address offerer, uint bar) public
     ;
 
     const parsed = try parseHumanReadable(testing.allocator, slice);
     defer parsed.deinit();
 
-    try testing.expectEqual(parsed.value.len, 6);
+    try testing.expectEqual(parsed.value.len, 9);
 }
 
 test "Seaport" {

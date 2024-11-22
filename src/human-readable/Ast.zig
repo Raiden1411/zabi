@@ -287,11 +287,6 @@ pub fn receiveProto(self: Ast, node: Node.Index) ast.ReceiveDecl {
 
     for (self.extra_data[specifiers.start..specifiers.end]) |index| {
         switch (self.tokens.items(.tag)[index]) {
-            .Virtual => result.virtual = index,
-            .Override => result.override = index,
-            .Pure => result.pure = index,
-            .Public => result.public = index,
-            .View => result.view = index,
             .Payable => result.payable = index,
             .External => result.external = index,
             else => unreachable, // Unexpected token
@@ -328,11 +323,7 @@ pub fn fallbackProtoMulti(self: Ast, node: Node.Index) ast.FallbackDecl {
 
     for (self.extra_data[specifiers.start..specifiers.end]) |index| {
         switch (self.tokens.items(.tag)[index]) {
-            .Virtual => result.virtual = index,
-            .Override => result.override = index,
-            .Pure => result.pure = index,
             .Public => result.public = index,
-            .View => result.view = index,
             .Payable => result.payable = index,
             .External => result.external = index,
             else => unreachable, // Unexpected token
@@ -369,11 +360,7 @@ pub fn fallbackProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.In
 
     for (self.extra_data[specifiers.start..specifiers.end]) |index| {
         switch (self.tokens.items(.tag)[index]) {
-            .Virtual => result.virtual = index,
-            .Override => result.override = index,
-            .Pure => result.pure = index,
             .Public => result.public = index,
-            .View => result.view = index,
             .Payable => result.payable = index,
             .External => result.external = index,
             else => unreachable, // Unexpected token
@@ -410,13 +397,8 @@ pub fn constructorProtoMulti(self: Ast, node: Node.Index) ast.ConstructorDecl {
 
     for (self.extra_data[specifiers.start..specifiers.end]) |index| {
         switch (self.tokens.items(.tag)[index]) {
-            .Virtual => result.virtual = index,
-            .Override => result.override = index,
-            .Pure => result.pure = index,
             .Public => result.public = index,
-            .View => result.view = index,
             .Payable => result.payable = index,
-            .External => result.external = index,
             else => unreachable, // Unexpected token
         }
     }
@@ -451,13 +433,8 @@ pub fn constructorProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node
 
     for (self.extra_data[specifiers.start..specifiers.end]) |index| {
         switch (self.tokens.items(.tag)[index]) {
-            .Virtual => result.virtual = index,
-            .Override => result.override = index,
-            .Pure => result.pure = index,
             .Public => result.public = index,
-            .View => result.view = index,
             .Payable => result.payable = index,
-            .External => result.external = index,
             else => unreachable, // Unexpected token
         }
     }

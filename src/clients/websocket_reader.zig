@@ -1,10 +1,12 @@
+const builtin = @import("builtin");
 const std = @import("std");
 const testing = std.testing;
 
 const Allocator = std.mem.Allocator;
 const Base64Encoder = std.base64.standard.Encoder;
-const Header = std.http.WebSocket.Header0;
-const Header1 = std.http.WebSocket.Header1;
+const OpcodeHeader = std.http.WebSocket.Header0;
+const PayloadHeader = std.http.WebSocket.Header1;
+const LinearFifo = std.fifo.LinearFifo(u8, .Dynamic);
 const Opcodes = std.http.WebSocket.Opcode;
 const RecvFromError = std.posix.RecvFromError;
 const Sha1 = std.crypto.hash.Sha1;
@@ -23,10 +25,15 @@ pub const Checks = union(enum) {
 pub const AssertionError = error{ DuplicateHandshakeHeader, InvalidHandshakeMessage, InvalidHandshakeKey };
 pub const SendHandshakeError = Stream.WriteError || error{NoSpaceLeft};
 pub const ReadHandshakeError = RecvFromError || Stream.ReadError || error{NoSpaceLeft} || AssertionError;
+pub const SocketReadError = Stream.ReadError || Allocator.Error || error{EndOfStream};
 
 const WebsocketClient = @This();
 
+// TODO: Add init method and deinit.
+// Add tls support.
 stream: Stream,
+recv_fifo: *LinearFifo,
+over_read: usize,
 
 pub fn generateHandshakeKey() [24]u8 {
     var nonce: [16]u8 = undefined;
@@ -41,14 +48,14 @@ pub fn generateHandshakeKey() [24]u8 {
 pub fn writeHeaderFrame(self: *WebsocketClient, message: []const u8, opcode: Opcodes) Stream.WriteError![4]u8 {
     var buffer: [14]u8 = undefined;
 
-    buffer[0] = @bitCast(@as(Header, .{
+    buffer[0] = @bitCast(@as(OpcodeHeader, .{
         .opcode = opcode,
         .fin = true,
     }));
 
     switch (message.len) {
         0...125 => {
-            buffer[1] = @bitCast(@as(Header1, .{
+            buffer[1] = @bitCast(@as(PayloadHeader, .{
                 .payload_len = @enumFromInt(message.len),
                 .mask = true,
             }));
@@ -58,7 +65,7 @@ pub fn writeHeaderFrame(self: *WebsocketClient, message: []const u8, opcode: Opc
             return buffer[2..6].*;
         },
         126...0xFFFF => {
-            buffer[1] = @bitCast(@as(Header1, .{
+            buffer[1] = @bitCast(@as(PayloadHeader, .{
                 .payload_len = .len16,
                 .mask = true,
             }));
@@ -70,7 +77,7 @@ pub fn writeHeaderFrame(self: *WebsocketClient, message: []const u8, opcode: Opc
             return buffer[4..8].*;
         },
         else => {
-            buffer[1] = @bitCast(@as(Header1, .{
+            buffer[1] = @bitCast(@as(PayloadHeader, .{
                 .payload_len = .len64,
                 .mask = true,
             }));
@@ -86,6 +93,7 @@ pub fn writeHeaderFrame(self: *WebsocketClient, message: []const u8, opcode: Opc
 pub fn writeFrame(self: *WebsocketClient, message: []u8, opcode: Opcodes) !void {
     const mask = try self.writeHeaderFrame(message, opcode);
 
+    // TODO: Use simd to generate the mask
     for (message, 0..) |*char, i| {
         char.* ^= mask[i & 3];
     }
@@ -213,26 +221,113 @@ pub fn parseHandshakeResponse(key: [24]u8, response: []const u8) AssertionError!
     return message_len + 2; // add the final \r\n
 }
 
+pub fn readFromSocket(self: *WebsocketClient, size: usize) SocketReadError![]const u8 {
+    self.recv_fifo.discard(self.over_read);
+
+    if (size > self.recv_fifo.count) {
+        const amount = size - self.recv_fifo.count;
+        const buffer = self.recv_fifo.writableSlice(0);
+
+        const writable_buf = if (buffer.len > amount) buffer else blk: {
+            const new_buffer = try self.recv_fifo.writableWithSize(amount);
+            self.recv_fifo.realign();
+
+            break :blk new_buffer;
+        };
+
+        const read = try self.stream.readAtLeast(writable_buf, amount);
+
+        if (read < amount)
+            return error.EndOfStream;
+
+        self.recv_fifo.update(read);
+    }
+
+    self.over_read = size;
+
+    return self.recv_fifo.readableSliceOfLen(size);
+}
+
+// TODO: Parse the reply as json and send it to FIFO queue.
+pub fn readMessage(self: *WebsocketClient) ![]const u8 {
+    while (true) {
+        const headers = (try self.readFromSocket(2))[0..2];
+
+        const head: OpcodeHeader = @bitCast(headers[0]);
+        const head1: PayloadHeader = @bitCast(headers[1]);
+
+        switch (head.opcode) {
+            .text => {},
+            // Doesn't get handled.
+            .ping,
+            .pong,
+            .binary,
+            => continue,
+            // Not yet supported.
+            .continuation => return error.UnexpectedContinuationOpcode,
+            .connection_close => return error.UnexpectedCloseOpcode,
+            _ => return error.UnsupportedOpcode,
+        }
+
+        if (!head.fin)
+            return error.InvalidFin;
+
+        if (head1.mask)
+            return error.MaskedServerMessage;
+
+        const total = switch (head1.payload_len) {
+            .len16 => blk: {
+                const size = (try self.readFromSocket(@sizeOf(u16)))[0..@sizeOf(u16)];
+
+                break :blk std.mem.readInt(u16, size, .big);
+            },
+            .len64 => blk: {
+                const size = (try self.readFromSocket(@sizeOf(u64)))[0..@sizeOf(u64)];
+                const int = std.mem.readInt(u64, size, .big);
+
+                break :blk std.math.cast(usize, int) orelse return error.MessageSizeOverflow;
+            },
+            _ => @intFromEnum(head1.payload_len),
+        };
+
+        const payload = try self.readFromSocket(total);
+
+        return payload;
+    }
+}
+
 test "Connection" {
     const stream = try std.net.tcpConnectToHost(testing.allocator, "localhost", 6969);
     defer stream.close();
 
+    var fifo = LinearFifo.init(testing.allocator);
+    defer fifo.deinit();
+
     var client: WebsocketClient = .{
         .stream = stream,
+        .over_read = 0,
+        .recv_fifo = &fifo,
     };
 
     try client.handshake("localhost");
-    var message =
-        \\{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":"0x1"}
-    .*;
+    {
+        var message =
+            \\{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":"0x1"}
+        .*;
 
-    try client.writeFrame(message[0..], .text);
-    var read_buffer: [1024]u8 = undefined;
-    const size = try stream.read(&read_buffer);
+        try client.writeFrame(message[0..], .text);
+        const messages = try client.readMessage();
 
-    std.debug.print("Foo: {any}\n", .{size});
-    std.debug.print("Foo: {s}\n", .{read_buffer[0..size]});
-    std.debug.print("Foo: {any}\n", .{read_buffer[0..2]});
-    const a = read_buffer[1];
-    std.debug.print("Foo: {s}\n", .{read_buffer[2 .. a + 2]});
+        std.debug.print("Foo: {s}\n", .{messages});
+    }
+    {
+        var message =
+            \\{"jsonrpc": "2.0", "id": 31337, "method": "eth_getBlockByNumber", "params": ["latest", false]}
+        .*;
+
+        try client.writeFrame(message[0..], .text);
+        const messages = try client.readMessage();
+
+        std.debug.print("Foo: {s}\n", .{messages});
+    }
 }

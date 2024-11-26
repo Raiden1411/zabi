@@ -28,12 +28,9 @@ pub fn main() !void {
     const id = try socket.watchTransactions();
     defer id.deinit();
 
-    std.debug.print("Sub id: 0x{x}\n", .{id.response});
-    // There is currently a bug on the tls client that will cause index out of bound errors
-    // https://github.com/ziglang/zig/issues/15226
-    // Make sure that for now the data you are using is not big enough to cause these crashes.
     while (true) {
         const event = try socket.getPendingTransactionsSubEvent();
+        std.debug.print("Sub id: 0x{x}\n", .{id.response});
         defer event.deinit();
 
         const hash = event.response.params.result;
@@ -51,7 +48,7 @@ pub fn main() !void {
 
                     if (casted_to == expected) {
                         std.debug.print("Found usdc transaction in the value of {d} wei\n", .{tx_london.value});
-                        break;
+                        // break;
                     }
                 }
             },

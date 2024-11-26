@@ -63,6 +63,22 @@ pub fn Channel(comptime T: type) type {
                 continue;
             };
         }
+        /// Gets item from the channel.
+        ///
+        /// Wait with a maximum of 1ms to get a message.
+        /// If it cannot get the it fails.
+        pub fn tryGet(self: *Self) error{Timeout}!T {
+            self.lock.lock();
+            defer {
+                self.lock.unlock();
+                self.writeable.signal();
+            }
+
+            while (true) return self.fifo.readItem() orelse {
+                try self.readable.timedWait(&self.lock, std.time.ns_per_s);
+                continue;
+            };
+        }
         /// Tries to get item from the channel.
         /// Returns null if there are no items.
         pub fn getOrNull(self: *Self) ?T {

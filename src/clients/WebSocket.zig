@@ -137,6 +137,8 @@ onError: ?*const fn (args: []const u8) anyerror!void,
 /// The underlaying websocket client
 ws_client: WsClient,
 
+close_client: bool = false,
+
 /// Populates the WebSocketHandler pointer.
 /// Starts the connection in a seperate process.
 pub fn init(opts: InitOptions) InitErrors!*WebSocketHandler {
@@ -169,19 +171,16 @@ pub fn init(opts: InitOptions) InitErrors!*WebSocketHandler {
 /// If you are using the subscription channel this operation can take time
 /// as it will need to cleanup each node.
 pub fn deinit(self: *WebSocketHandler) void {
-    while (@atomicRmw(bool, &self.ws_client.closed, .Xchg, true, .seq_cst)) {
-        std.time.sleep(10 * std.time.ns_per_ms);
-    }
+    while (!@atomicLoad(bool, &self.close_client, .acquire))
+        @atomicStore(bool, &self.close_client, true, .release);
 
     // There may be lingering memory from the json parsed data
     // in the channels so we must clean then up.
-    while (self.sub_channel.getOrNull()) |node| {
+    while (self.sub_channel.getOrNull()) |node|
         node.deinit();
-    }
 
-    while (self.rpc_channel.popOrNull()) |node| {
+    while (self.rpc_channel.popOrNull()) |node|
         node.deinit();
-    }
 
     // Deinits client and destroys any created pointers.
     self.sub_channel.deinit();
@@ -544,6 +543,8 @@ pub fn getFilterOrLogChanges(
     filter_id: u128,
     method: EthereumRpcMethods,
 ) (BasicRequestErrors || error{ InvalidFilterId, InvalidRpcMethod })!RPCResponse(Logs) {
+    // errdefer @atomicStore(bool, &self.close_client, true, .seq_cst);
+
     var request_buffer: [1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
@@ -1208,28 +1209,26 @@ pub fn parseSubscriptionEvent(self: *WebSocketHandler, comptime T: type) ParseFr
     return RPCResponse(EthereumSubscribeResponse(T)).fromJson(event.arena, parsed);
 }
 pub fn readLoopOwned(self: *WebSocketHandler) !void {
-    // errdefer self.deinit();
     pipe.maybeIgnoreSigpipe();
 
     return self.readLoop() catch |err| {
-        wslog.err("Read loop reported error: {s}", .{@errorName(err)});
+        wslog.debug("Read loop reported error: {s}", .{@errorName(err)});
     };
 }
 /// This is a blocking operation.
 /// Best to call this in a seperate thread.
 pub fn readLoop(self: *WebSocketHandler) !void {
     while (true) {
+        if (@atomicLoad(bool, &self.close_client, .acquire))
+            return error.ClientConnectionClosed;
+
         const message = self.ws_client.readMessage() catch |err| {
-            wslog.debug("Failed to read message! Error: {s}", .{@errorName(err)});
             switch (err) {
                 error.NotOpenForReading,
                 error.ConnectionResetByPeer,
                 error.BrokenPipe,
-                => {
-                    @atomicStore(bool, &self.ws_client.closed, true, .release);
-                    return error.Closed;
-                },
-                error.Closed => return err,
+                error.ConnectionAlreadyClosed,
+                => return error.Closed,
                 else => {
                     try self.ws_client.writeCloseFrame(1002);
                     return err;

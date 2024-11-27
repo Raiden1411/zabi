@@ -49,7 +49,7 @@ pub const PayloadErrors = error{
     ConnectionClosedByServer,
     UnexpectedFragment,
     MaskedServerMessage,
-    Closed,
+    ConnectionAlreadyClosed,
 };
 
 pub const ReadMessageError = SocketReadError || ParsedError(Scanner) || PayloadErrors;
@@ -116,7 +116,9 @@ pub fn connect(allocator: Allocator, uri: Uri) !WebsocketClient {
 }
 
 pub fn deinit(self: *WebsocketClient) void {
-    wsclient_log.debug("Got complete fragmented websocket message: {s}", .{"I was called"});
+    if (@atomicRmw(bool, &self.closed, .Xchg, true, .seq_cst) == true)
+        return;
+
     self.recieve_fifo.deinit();
     self.fragment_fifo.deinit();
     self.stream.close();
@@ -387,9 +389,6 @@ pub fn readFromSocket(self: *WebsocketClient, size: usize) SocketReadError![]con
 }
 
 pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
-    if (@atomicLoad(bool, &self.closed, .acquire))
-        return error.Closed;
-
     while (true) {
         const headers = (try self.readFromSocket(2))[0..2];
 
@@ -456,9 +455,6 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
                     .opcode = op_head.opcode,
                     .data = @constCast(payload),
                 };
-                // const parsed = try std.json.parseFromSlice(Value, self.allocator, payload, .{ .allocate = .alloc_always });
-                //
-                // return parsed;
             },
             .continuation,
             => {
@@ -474,19 +470,11 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
                     .opcode = op_head.opcode,
                     .data = @constCast(slice),
                 };
-                // const parsed = try std.json.parseFromSlice(Value, self.allocator, slice, .{ .allocate = .alloc_always });
-                //
-                // return parsed;
             },
             .ping => return .{
                 .opcode = .ping,
                 .data = @constCast(payload),
             },
-            //{
-            // try self.writeFrame(@constCast(payload), .pong);
-            // continue;
-            // },
-            // We ignore unsolicited pong messages.
             .pong => return .{
                 .opcode = .pong,
                 .data = @constCast(""),
@@ -495,10 +483,6 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
                 .opcode = .ping,
                 .data = @constCast(payload),
             },
-            // .connection_close => {
-            //     try self.writeCloseFrame(@bitCast(payload[0..2].*));
-            //     return error.ConnectionClosedByServer;
-            // },
             _ => return error.UnsupportedOpcode,
         }
     }

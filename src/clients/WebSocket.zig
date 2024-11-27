@@ -621,11 +621,11 @@ pub fn getLogs(
     };
 }
 /// Parses the `Value` in the sub-channel as a log event
-pub fn getLogsSubEvent(self: *WebSocketHandler) (ParseFromValueError || error{Timeout})!RPCResponse(EthereumSubscribeResponse(Log)) {
+pub fn getLogsSubEvent(self: *WebSocketHandler) ParseFromValueError!RPCResponse(EthereumSubscribeResponse(Log)) {
     return self.parseSubscriptionEvent(Log);
 }
 /// Parses the `Value` in the sub-channel as a new heads block event
-pub fn getNewHeadsBlockSubEvent(self: *WebSocketHandler) (ParseFromValueError || error{Timeout})!RPCResponse(EthereumSubscribeResponse(Block)) {
+pub fn getNewHeadsBlockSubEvent(self: *WebSocketHandler) ParseFromValueError!RPCResponse(EthereumSubscribeResponse(Block)) {
     return self.parseSubscriptionEvent(Block);
 }
 /// Returns true if client is actively listening for network connections.
@@ -647,7 +647,7 @@ pub fn getNetworkVersionId(self: *WebSocketHandler) BasicRequestErrors!RPCRespon
     return self.sendBasicRequest(usize, .net_version);
 }
 /// Parses the `Value` in the sub-channel as a pending transaction hash event
-pub fn getPendingTransactionsSubEvent(self: *WebSocketHandler) (ParseFromValueError || error{Timeout})!RPCResponse(EthereumSubscribeResponse(Hash)) {
+pub fn getPendingTransactionsSubEvent(self: *WebSocketHandler) ParseFromValueError!RPCResponse(EthereumSubscribeResponse(Hash)) {
     return self.parseSubscriptionEvent(Hash);
 }
 /// Returns the account and storage values, including the Merkle proof, of the specified account
@@ -1194,8 +1194,8 @@ pub fn newPendingTransactionFilter(self: *WebSocketHandler) BasicRequestErrors!R
 }
 /// Parses a subscription event `Value` into `T`.
 /// Usefull for events that currently zabi doesn't have custom support.
-pub fn parseSubscriptionEvent(self: *WebSocketHandler, comptime T: type) (ParseFromValueError || error{Timeout})!RPCResponse(EthereumSubscribeResponse(T)) {
-    const event = try self.sub_channel.tryGet();
+pub fn parseSubscriptionEvent(self: *WebSocketHandler, comptime T: type) ParseFromValueError!RPCResponse(EthereumSubscribeResponse(T)) {
+    const event = self.sub_channel.get();
     errdefer event.deinit();
 
     const parsed = try std.json.parseFromValueLeaky(
@@ -1207,34 +1207,29 @@ pub fn parseSubscriptionEvent(self: *WebSocketHandler, comptime T: type) (ParseF
 
     return RPCResponse(EthereumSubscribeResponse(T)).fromJson(event.arena, parsed);
 }
-pub fn readLoopOwned(self: *WebSocketHandler) void {
-    errdefer self.deinit();
+pub fn readLoopOwned(self: *WebSocketHandler) !void {
+    // errdefer self.deinit();
     pipe.maybeIgnoreSigpipe();
 
-    self.readLoop() catch |err| {
-        wslog.debug("Read loop reported error: {s}", .{@errorName(err)});
-        return;
+    return self.readLoop() catch |err| {
+        wslog.err("Read loop reported error: {s}", .{@errorName(err)});
     };
 }
 /// This is a blocking operation.
 /// Best to call this in a seperate thread.
 pub fn readLoop(self: *WebSocketHandler) !void {
     while (true) {
-        if (@atomicLoad(bool, &self.ws_client.closed, .acquire)) {
-            wslog.debug("Connection already closed", .{});
-            return error.Closed;
-        }
-
-        const parsed = self.ws_client.readMessage() catch |err| {
+        const message = self.ws_client.readMessage() catch |err| {
+            wslog.debug("Failed to read message! Error: {s}", .{@errorName(err)});
             switch (err) {
                 error.NotOpenForReading,
                 error.ConnectionResetByPeer,
                 error.BrokenPipe,
-                error.ConnectionClosedByServer,
                 => {
                     @atomicStore(bool, &self.ws_client.closed, true, .release);
                     return error.Closed;
                 },
+                error.Closed => return err,
                 else => {
                     try self.ws_client.writeCloseFrame(1002);
                     return err;
@@ -1242,26 +1237,48 @@ pub fn readLoop(self: *WebSocketHandler) !void {
             }
         };
 
-        if (parsed.value != .object) {
-            wslog.err("Invalid message type. Expected `object` type. Continuing the loop", .{});
-            continue;
-        }
+        switch (message.opcode) {
+            .binary,
+            .text,
+            .continuation,
+            => {
+                defer if (message.opcode == .continuation) {
+                    self.ws_client.fragment_fifo.discard(self.ws_client.fragment_fifo.count);
+                    self.ws_client.fragment_fifo.realign();
+                };
 
-        // You need to check what type of event it is.
-        if (self.onEvent) |onEvent| {
-            onEvent(parsed) catch |err| {
-                wslog.err("Failed to process `onEvent` callback. Error found: {s}", .{@errorName(err)});
-                return error.UnexpectedErrorFound;
-            };
-            continue;
-        }
+                const parsed = try std.json.parseFromSlice(Value, self.allocator, message.data, .{ .allocate = .alloc_always });
+                errdefer parsed.deinit();
 
-        if (parsed.value.object.getKey("params") != null) {
-            self.sub_channel.put(parsed);
-            continue;
-        }
+                if (parsed.value != .object) {
+                    wslog.debug("Invalid message type. Expected `object` type. Exitting the loop", .{});
+                    return error.InvalidMessageType;
+                }
 
-        self.rpc_channel.push(parsed);
+                // You need to check what type of event it is.
+                if (self.onEvent) |onEvent| {
+                    onEvent(parsed) catch |err| {
+                        wslog.debug("Failed to process `onEvent` callback. Error found: {s}", .{@errorName(err)});
+                        return error.UnexpectedError;
+                    };
+                }
+
+                if (parsed.value.object.getKey("params") != null) {
+                    self.sub_channel.put(parsed);
+                    continue;
+                }
+
+                self.rpc_channel.push(parsed);
+            },
+            .ping => try self.ws_client.writeFrame(message.data, .pong),
+            // Ignore unsolicited pong messages.
+            .pong => continue,
+            .connection_close => {
+                try self.ws_client.writeCloseFrame(@bitCast(message.data[0..2].*));
+                return error.ConnectionClosedByServer;
+            },
+            _ => return error.UnexpectedOpcode,
+        }
     }
 }
 /// Executes a new message call immediately without creating a transaction on the block chain.

@@ -19,6 +19,7 @@ const Stream = std.net.Stream;
 const TlsClient = std.crypto.tls.Client;
 const Uri = std.Uri;
 const Value = std.json.Value;
+const WebsocketMessage = std.http.WebSocket.SmallMessage;
 
 const wsclient_log = std.log.scoped(.ws_client);
 
@@ -29,7 +30,6 @@ pub const Checks = union(enum) {
     checked_upgrade,
     checked_connection,
     checked_key,
-    duplicate,
 };
 
 pub const AssertionError = error{ DuplicateHandshakeHeader, InvalidHandshakeMessage, InvalidHandshakeKey };
@@ -40,8 +40,19 @@ pub const ReadHandshakeError = RecvFromError || Stream.ReadError || error{ NoSpa
 
 pub const SocketReadError = Stream.ReadError || Allocator.Error || error{ EndOfStream, Overflow, TlsBadLength } || TlsClient.InitError(Stream);
 
-pub const ReadMessageError = SocketReadError || ParsedError(Scanner) ||
-    error{ Closed, UnfragmentedContinue, MessageSizeOverflow, UnsupportedOpcode, ConnectionClosedByServer, UnexpectedFragment, MaskedServerMessage };
+pub const PayloadErrors = error{
+    UnnegociatedReservedBits,
+    ControlFrameTooBig,
+    UnfragmentedContinue,
+    MessageSizeOverflow,
+    UnsupportedOpcode,
+    ConnectionClosedByServer,
+    UnexpectedFragment,
+    MaskedServerMessage,
+    Closed,
+};
+
+pub const ReadMessageError = SocketReadError || ParsedError(Scanner) || PayloadErrors;
 
 const WebsocketClient = @This();
 
@@ -52,8 +63,6 @@ const protocol_map = std.StaticStringMap(Protocol).initComptime(.{
     .{ "wss", .tls },
 });
 
-// TODO:
-// Add tls support.
 allocator: Allocator,
 stream: NetStream,
 recieve_fifo: LinearFifo,
@@ -107,6 +116,7 @@ pub fn connect(allocator: Allocator, uri: Uri) !WebsocketClient {
 }
 
 pub fn deinit(self: *WebsocketClient) void {
+    wsclient_log.debug("Got complete fragmented websocket message: {s}", .{"I was called"});
     self.recieve_fifo.deinit();
     self.fragment_fifo.deinit();
     self.stream.close();
@@ -227,6 +237,7 @@ pub fn handshake(self: *WebsocketClient, host: []const u8) (ReadHandshakeError |
 pub fn readHandshake(self: *WebsocketClient, handshake_key: [24]u8) ReadHandshakeError!void {
     // Handshake shouldn't exceed this.
     var read_buffer: [4096]u8 = undefined;
+    // TODO: Find workaround for this.
     // const size = try std.posix.recv(self.stream.net_stream.handle, &read_buffer, std.os.linux.MSG.PEEK);
 
     const read = try self.stream.read(&read_buffer);
@@ -263,19 +274,17 @@ pub fn parseHandshakeResponse(key: [24]u8, response: []const u8) AssertionError!
     var iter = std.mem.tokenizeAny(u8, response, "\r\n");
     var websocket_key: ?[]const u8 = null;
 
-    var checks: usize = 0;
+    var checks: Checks = .none;
     var message_len: usize = 0;
 
-    wsclient_log.debug("Handshake message: {s}", .{response});
     while (iter.next()) |header| {
         const index = std.mem.indexOfScalar(u8, header, ':') orelse {
             if (std.ascii.startsWithIgnoreCase(header, "HTTP/1.1 101")) {
-                // checks = switch (checks) {
-                //     .none => .checked_protocol,
-                //     .duplicate => return error.DuplicateHandshakeHeader,
-                //     else => return error.InvalidHandshakeMessage,
-                // };
-                checks |= 1;
+                checks = switch (checks) {
+                    .none => .checked_protocol,
+                    .checked_protocol => return error.DuplicateHandshakeHeader,
+                    else => return error.InvalidHandshakeMessage,
+                };
 
                 message_len += header.len + 2; // adds the \r\n
             }
@@ -287,12 +296,13 @@ pub fn parseHandshakeResponse(key: [24]u8, response: []const u8) AssertionError!
             const trimmed = std.mem.trim(u8, header[index + 1 ..], " ");
             websocket_key = trimmed;
 
-            checks |= 8;
-            // checks = switch (checks) {
-            //     .checked_upgrade => .checked_key,
-            //     .duplicate => return error.DuplicateHandshakeHeader,
-            //     else => return error.InvalidHandshakeMessage,
-            // };
+            checks = switch (checks) {
+                .checked_upgrade,
+                .checked_connection,
+                => .checked_key,
+                .checked_key => return error.DuplicateHandshakeHeader,
+                else => return error.InvalidHandshakeMessage,
+            };
         }
 
         if (std.ascii.eqlIgnoreCase(header[0..index], "connection")) {
@@ -300,12 +310,13 @@ pub fn parseHandshakeResponse(key: [24]u8, response: []const u8) AssertionError!
             if (!std.ascii.eqlIgnoreCase(trimmed, "upgrade"))
                 return error.InvalidHandshakeMessage;
 
-            checks |= 2;
-            // checks = switch (checks) {
-            //     .checked_protocol => .checked_connection,
-            //     .duplicate => return error.DuplicateHandshakeHeader,
-            //     else => return error.InvalidHandshakeMessage,
-            // };
+            checks = switch (checks) {
+                .checked_protocol,
+                .checked_upgrade,
+                => .checked_connection,
+                .checked_connection => return error.DuplicateHandshakeHeader,
+                else => return error.InvalidHandshakeMessage,
+            };
         }
 
         if (std.ascii.eqlIgnoreCase(header[0..index], "upgrade")) {
@@ -313,21 +324,20 @@ pub fn parseHandshakeResponse(key: [24]u8, response: []const u8) AssertionError!
             if (!std.ascii.eqlIgnoreCase(trimmed, "websocket"))
                 return error.InvalidHandshakeMessage;
 
-            checks |= 4;
-            // checks = switch (checks) {
-            //     .checked_connection => .checked_upgrade,
-            //     .duplicate => return error.DuplicateHandshakeHeader,
-            //     else => return error.InvalidHandshakeMessage,
-            // };
+            checks = switch (checks) {
+                .checked_protocol,
+                .checked_connection,
+                => .checked_upgrade,
+                .checked_upgrade => return error.DuplicateHandshakeHeader,
+                else => return error.InvalidHandshakeMessage,
+            };
         }
 
         message_len += header.len + 2; // adds the \r\n
     }
 
-    if (checks != 15) {
-        wsclient_log.debug("Here: {d}", .{checks});
+    if (checks != .checked_key)
         return error.InvalidHandshakeMessage;
-    }
 
     const ws_key = websocket_key orelse return error.InvalidHandshakeKey;
     var hash: [Sha1.digest_length]u8 = undefined;
@@ -376,31 +386,23 @@ pub fn readFromSocket(self: *WebsocketClient, size: usize) SocketReadError![]con
     return self.recieve_fifo.readableSliceOfLen(size);
 }
 
-pub fn readMessage(self: *WebsocketClient) ReadMessageError!Parsed(Value) {
+pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
+    if (@atomicLoad(bool, &self.closed, .acquire))
+        return error.Closed;
+
     while (true) {
         const headers = (try self.readFromSocket(2))[0..2];
 
         const op_head: OpcodeHeader = @bitCast(headers[0]);
         const payload_head: PayloadHeader = @bitCast(headers[1]);
 
-        switch (op_head.opcode) {
-            .text,
-            .continuation,
-            => {},
-            // Doesn't get handled.
-            .ping,
-            .pong,
-            .binary,
-            => continue,
-            .connection_close => {
-                try self.close(0);
-                return error.ConnectionClosedByServer;
-            },
-            _ => return error.UnsupportedOpcode,
+        if (payload_head.mask) {
+            try self.writeCloseFrame(1002);
+            return error.MaskedServerMessage;
         }
 
-        if (payload_head.mask)
-            return error.MaskedServerMessage;
+        if (@bitCast(op_head.rsv1) or @bitCast(op_head.rsv2) or @bitCast(op_head.rsv3))
+            return error.UnnegociatedReservedBits;
 
         const total = switch (payload_head.payload_len) {
             .len16 => blk: {
@@ -414,50 +416,92 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!Parsed(Value) {
 
                 break :blk std.math.cast(usize, int) orelse return error.MessageSizeOverflow;
             },
-            _ => @intFromEnum(payload_head.payload_len),
+            _ => blk: {
+                const size = @intFromEnum(payload_head.payload_len);
+
+                switch (op_head.opcode) {
+                    .ping,
+                    .pong,
+                    .connection_close,
+                    => {
+                        if (size > 125 and !op_head.fin)
+                            return error.ControlFrameTooBig;
+
+                        break :blk size;
+                    },
+                    else => break :blk size,
+                }
+            },
         };
 
         const payload = try self.readFromSocket(total);
 
-        if (!op_head.fin) {
-            wsclient_log.debug("Incomplete message... Expecting continuation opcode next!", .{});
+        switch (op_head.opcode) {
+            .text,
+            .binary,
+            => {
+                if (!op_head.fin) {
+                    wsclient_log.debug("Incomplete message... Expecting continuation opcode next!", .{});
 
-            try self.fragment_fifo.write(payload);
-            continue;
+                    try self.fragment_fifo.write(payload);
+                    continue;
+                }
+
+                if (self.fragment_fifo.count != 0)
+                    return error.UnexpectedFragment;
+
+                wsclient_log.debug("Got websocket message: {s}", .{payload});
+
+                return .{
+                    .opcode = op_head.opcode,
+                    .data = @constCast(payload),
+                };
+                // const parsed = try std.json.parseFromSlice(Value, self.allocator, payload, .{ .allocate = .alloc_always });
+                //
+                // return parsed;
+            },
+            .continuation,
+            => {
+                if (self.fragment_fifo.count == 0)
+                    return error.UnfragmentedContinue;
+
+                try self.fragment_fifo.write(payload);
+
+                const slice = self.fragment_fifo.buf[0..self.fragment_fifo.readableLength()];
+
+                wsclient_log.debug("Got complete fragmented websocket message: {s}", .{slice});
+                return .{
+                    .opcode = op_head.opcode,
+                    .data = @constCast(slice),
+                };
+                // const parsed = try std.json.parseFromSlice(Value, self.allocator, slice, .{ .allocate = .alloc_always });
+                //
+                // return parsed;
+            },
+            .ping => return .{
+                .opcode = .ping,
+                .data = @constCast(payload),
+            },
+            //{
+            // try self.writeFrame(@constCast(payload), .pong);
+            // continue;
+            // },
+            // We ignore unsolicited pong messages.
+            .pong => return .{
+                .opcode = .pong,
+                .data = @constCast(""),
+            },
+            .connection_close => return .{
+                .opcode = .ping,
+                .data = @constCast(payload),
+            },
+            // .connection_close => {
+            //     try self.writeCloseFrame(@bitCast(payload[0..2].*));
+            //     return error.ConnectionClosedByServer;
+            // },
+            _ => return error.UnsupportedOpcode,
         }
-
-        if (op_head.opcode == .continuation) {
-            if (self.fragment_fifo.count == 0)
-                return error.UnfragmentedContinue;
-
-            try self.fragment_fifo.write(payload);
-
-            const slice = try self.fragment_fifo.toOwnedSlice();
-            defer self.allocator.free(slice);
-
-            wsclient_log.debug("Got complete fragmented websocket message: {s}", .{slice});
-            const parsed = try std.json.parseFromSlice(Value, self.allocator, slice, .{ .allocate = .alloc_always });
-
-            return parsed;
-        }
-
-        if (self.fragment_fifo.count != 0)
-            return error.UnexpectedFragment;
-
-        // wsclient_log.debug("Got websocket message: {s}", .{payload});
-        const parsed = try std.json.parseFromSlice(Value, self.allocator, payload, .{ .allocate = .alloc_always });
-
-        return parsed;
     }
-}
-
-pub fn close(self: *WebsocketClient, error_code: u16) !void {
-    if (@atomicLoad(bool, &self.closed, .acquire))
-        return;
-
-    defer self.stream.close();
-
-    try self.writeCloseFrame(error_code);
 }
 
 pub const NetStream = struct {

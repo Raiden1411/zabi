@@ -10,7 +10,7 @@ const Options = std.Options;
 const TestFn = std.builtin.TestFn;
 
 pub const std_options: Options = .{
-    .log_level = .err,
+    .log_level = .info,
 };
 
 /// Wraps the stderr with our color stream.

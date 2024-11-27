@@ -15,7 +15,6 @@ const testing = std.testing;
 const transaction = zabi_types.transactions;
 const types = zabi_types.ethereum;
 const txpool = zabi_types.txpool;
-const WsClient = @import("websocket_reader.zig");
 const zabi_meta = @import("zabi-meta");
 const zabi_types = @import("zabi-types");
 const zabi_utils = @import("zabi-utils");
@@ -68,6 +67,7 @@ const Result = multicall.Result;
 const RPCResponse = types.RPCResponse;
 const Scanner = std.json.Scanner;
 const Stack = zabi_utils.stack.Stack;
+const Subscriptions = types.Subscriptions;
 const SyncProgress = sync.SyncStatus;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
@@ -78,8 +78,8 @@ const TxPoolStatus = txpool.TxPoolStatus;
 const Uri = std.Uri;
 const Value = std.json.Value;
 const WatchLogsRequest = log.WatchLogsRequest;
-const Subscriptions = types.Subscriptions;
 const Wei = types.Wei;
+const WsClient = @import("WebSocketClient.zig");
 
 const WebSocketHandler = @This();
 
@@ -171,8 +171,7 @@ pub fn init(opts: InitOptions) InitErrors!*WebSocketHandler {
 /// If you are using the subscription channel this operation can take time
 /// as it will need to cleanup each node.
 pub fn deinit(self: *WebSocketHandler) void {
-    while (!@atomicLoad(bool, &self.close_client, .acquire))
-        @atomicStore(bool, &self.close_client, true, .release);
+    _ = @atomicRmw(bool, &self.close_client, .Xchg, true, .acq_rel);
 
     // There may be lingering memory from the json parsed data
     // in the channels so we must clean then up.
@@ -1220,14 +1219,13 @@ pub fn readLoopOwned(self: *WebSocketHandler) !void {
 pub fn readLoop(self: *WebSocketHandler) !void {
     while (true) {
         if (@atomicLoad(bool, &self.close_client, .acquire))
-            return error.ClientConnectionClosed;
+            return;
 
         const message = self.ws_client.readMessage() catch |err| {
             switch (err) {
                 error.NotOpenForReading,
                 error.ConnectionResetByPeer,
                 error.BrokenPipe,
-                error.ConnectionAlreadyClosed,
                 => return error.Closed,
                 else => {
                     try self.ws_client.writeCloseFrame(1002);

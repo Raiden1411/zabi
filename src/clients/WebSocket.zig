@@ -1217,20 +1217,14 @@ pub fn readLoopOwned(self: *WebSocketHandler) !void {
 /// This is a blocking operation.
 /// Best to call this in a seperate thread.
 pub fn readLoop(self: *WebSocketHandler) !void {
-    while (true) {
-        if (@atomicLoad(bool, &self.close_client, .acquire))
-            return;
-
+    while (!@atomicLoad(bool, &self.close_client, .acquire)) {
         const message = self.ws_client.readMessage() catch |err| {
             switch (err) {
                 error.NotOpenForReading,
                 error.ConnectionResetByPeer,
                 error.BrokenPipe,
                 => return error.Closed,
-                else => {
-                    try self.ws_client.writeCloseFrame(1002);
-                    return err;
-                },
+                else => return err,
             }
         };
 

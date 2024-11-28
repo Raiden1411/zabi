@@ -10,7 +10,6 @@ const OpcodeHeader = std.http.WebSocket.Header0;
 const Opcodes = std.http.WebSocket.Opcode;
 const PayloadHeader = std.http.WebSocket.Header1;
 const Protocol = std.http.Client.Connection.Protocol;
-const RecvFromError = std.posix.RecvFromError;
 const Scanner = std.json.Scanner;
 const Sha1 = std.crypto.hash.Sha1;
 const Stream = std.net.Stream;
@@ -42,7 +41,7 @@ pub const AssertionError = error{ DuplicateHandshakeHeader, InvalidHandshakeMess
 pub const SendHandshakeError = TlsClient.InitError(Stream) || Stream.WriteError || error{NoSpaceLeft};
 
 /// Set of possible errors when reading a handshake response.
-pub const ReadHandshakeError = RecvFromError || Stream.ReadError || error{ NoSpaceLeft, Overflow, TlsBadLength } || AssertionError || TlsClient.InitError(Stream);
+pub const ReadHandshakeError = std.posix.RecvFromError || Stream.ReadError || error{ NoSpaceLeft, Overflow, TlsBadLength } || AssertionError || TlsClient.InitError(Stream);
 
 /// Set of possible errors when trying to read values directly from the socket.
 pub const SocketReadError = Stream.ReadError || Allocator.Error || error{ EndOfStream, Overflow, TlsBadLength } || TlsClient.InitError(Stream);
@@ -56,6 +55,8 @@ pub const PayloadErrors = error{
     UnsupportedOpcode,
     UnexpectedFragment,
     MaskedServerMessage,
+    InvalidUtf8Payload,
+    NonFinContinueFragment,
 };
 
 /// Possible errors when reading a websocket frame.
@@ -99,7 +100,9 @@ pub fn connect(allocator: Allocator, uri: Uri) !WebsocketClient {
         .percent_encoded => |host| host,
     };
 
-    const fifo: LinearFifo = .init(allocator);
+    var fifo: LinearFifo = .init(allocator);
+    try fifo.ensureTotalCapacity(4096);
+
     const fragment_fifo: LinearFifo = .init(allocator);
     const stream = try std.net.tcpConnectToHost(allocator, hostname, port);
 
@@ -130,6 +133,8 @@ pub fn connect(allocator: Allocator, uri: Uri) !WebsocketClient {
 
 /// Clears the inner fifo data structures and closes the connection.
 pub fn deinit(self: *WebsocketClient) void {
+    self.writeFrame("", .connection_close) catch unreachable;
+
     self.recieve_fifo.deinit();
     self.fragment_fifo.deinit();
     self.stream.close();
@@ -219,8 +224,8 @@ pub fn writeCloseFrame(self: *WebsocketClient, exit_code: u16) !void {
         .fin = true,
     }));
     buffer[1] = @bitCast(@as(PayloadHeader, .{
-        .payload_len = .len16,
-        .mask = false,
+        .payload_len = @enumFromInt(0),
+        .mask = true,
     }));
 
     std.mem.writeInt(u16, buffer[2..4], exit_code, .big);
@@ -270,12 +275,13 @@ pub fn handshake(self: *WebsocketClient, host: []const u8) (ReadHandshakeError |
 /// Read the handshake message from the socket and asserts that we got a valid server response.
 pub fn readHandshake(self: *WebsocketClient, handshake_key: [24]u8) ReadHandshakeError!void {
     // Handshake shouldn't exceed this.
+    // TODO: Fix this for tls.
     var read_buffer: [4096]u8 = undefined;
-    // TODO: Find workaround for this.
-    // const size = try std.posix.recv(self.stream.net_stream.handle, &read_buffer, std.os.linux.MSG.PEEK);
+    const read = try std.posix.recv(self.stream.net_stream.handle, &read_buffer, std.os.linux.MSG.PEEK);
 
-    const read = try self.stream.read(&read_buffer);
-    _ = try parseHandshakeResponse(handshake_key, read_buffer[0..read]);
+    const parsed = try parseHandshakeResponse(handshake_key, read_buffer[0..read]);
+
+    _ = try self.stream.read(read_buffer[0..parsed]);
 }
 /// Send the handshake message to the server. Doesn't support url's higher than 4096 bits.
 pub fn sendHandshake(self: *WebsocketClient, host: []const u8, key: [24]u8) SendHandshakeError!void {
@@ -289,8 +295,17 @@ pub fn sendHandshake(self: *WebsocketClient, host: []const u8, key: [24]u8) Send
         .raw => |raw| raw,
         .percent_encoded => |encoded| encoded,
     };
+    const query_bytes: ?[]const u8 = if (self.uri.query) |query| switch (query) {
+        .percent_encoded => |percent_encoded| percent_encoded,
+        .raw => |raw| raw,
+    } else null;
 
-    try writer.print("GET {s} HTTP/1.1\r\n", .{path});
+    try writer.print("GET {s}", .{path});
+
+    if (query_bytes) |query|
+        try writer.print("?{s}", .{query});
+
+    try writer.writeAll(" HTTP/1.1\r\n");
     try writer.print("Host: {s}\r\n", .{host});
     try writer.writeAll("Content-length: 0\r\n");
     try writer.writeAll("Upgrade: websocket\r\n");
@@ -427,6 +442,7 @@ pub fn readFromSocket(self: *WebsocketClient, size: usize) SocketReadError![]u8 
 ///
 /// More info here: https://www.rfc-editor.org/rfc/rfc6455#section-6.2
 pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
+    var message_type: Opcodes = .continuation;
     while (true) {
         const headers = (try self.readFromSocket(2))[0..2];
 
@@ -453,22 +469,7 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
 
                 break :blk std.math.cast(usize, int) orelse return error.MessageSizeOverflow;
             },
-            _ => blk: {
-                const size = @intFromEnum(payload_head.payload_len);
-
-                switch (op_head.opcode) {
-                    .ping,
-                    .pong,
-                    .connection_close,
-                    => {
-                        if (size > 125 and !op_head.fin)
-                            return error.ControlFrameTooBig;
-
-                        break :blk size;
-                    },
-                    else => break :blk size,
-                }
-            },
+            _ => @intFromEnum(payload_head.payload_len),
         };
 
         const payload = try self.readFromSocket(total);
@@ -477,6 +478,7 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
             .text,
             .binary,
             => {
+                message_type = op_head.opcode;
                 if (!op_head.fin) {
                     wsclient_log.debug("Incomplete message... Expecting continuation opcode next!", .{});
 
@@ -487,6 +489,9 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
                 if (self.fragment_fifo.count != 0)
                     return error.UnexpectedFragment;
 
+                if (op_head.opcode == .text and !std.unicode.utf8ValidateSlice(payload))
+                    return error.InvalidUtf8Payload;
+
                 wsclient_log.debug("Got websocket message: {s}", .{payload});
 
                 return .{
@@ -496,30 +501,43 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
             },
             .continuation,
             => {
-                if (self.fragment_fifo.count == 0)
-                    return error.UnfragmentedContinue;
+                if (self.fragment_fifo.count == 0 and message_type == .continuation)
+                    return error.UnexpectedFragment;
+
+                if (!op_head.fin) {
+                    wsclient_log.debug("Incomplete message... Expecting continuation opcode next!", .{});
+                    try self.fragment_fifo.write(payload);
+
+                    continue;
+                }
 
                 try self.fragment_fifo.write(payload);
 
                 const slice = self.fragment_fifo.buf[0..self.fragment_fifo.readableLength()];
 
+                if (message_type == .text and !std.unicode.utf8ValidateSlice(slice))
+                    return error.InvalidUtf8Payload;
+
                 wsclient_log.debug("Got complete fragmented websocket message: {s}", .{slice});
+
                 return .{
                     .opcode = op_head.opcode,
                     .data = @constCast(slice),
                 };
             },
-            .ping => return .{
-                .opcode = .ping,
-                .data = payload,
-            },
-            .pong => return .{
-                .opcode = .pong,
-                .data = @constCast(""),
-            },
-            .connection_close => return .{
-                .opcode = .ping,
-                .data = payload,
+            .ping,
+            .pong,
+            .connection_close,
+            => {
+                message_type = op_head.opcode;
+
+                if (total > 125 or !op_head.fin)
+                    return error.ControlFrameTooBig;
+
+                return .{
+                    .opcode = op_head.opcode,
+                    .data = payload,
+                };
             },
             _ => return error.UnsupportedOpcode,
         }

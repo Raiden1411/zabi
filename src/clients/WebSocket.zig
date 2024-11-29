@@ -137,8 +137,6 @@ onError: ?*const fn (args: []const u8) anyerror!void,
 /// The underlaying websocket client
 ws_client: WsClient,
 
-close_client: bool = false,
-
 /// Populates the WebSocketHandler pointer.
 /// Starts the connection in a seperate process.
 pub fn init(opts: InitOptions) InitErrors!*WebSocketHandler {
@@ -171,8 +169,6 @@ pub fn init(opts: InitOptions) InitErrors!*WebSocketHandler {
 /// If you are using the subscription channel this operation can take time
 /// as it will need to cleanup each node.
 pub fn deinit(self: *WebSocketHandler) void {
-    _ = @atomicRmw(bool, &self.close_client, .Xchg, true, .acq_rel);
-
     // There may be lingering memory from the json parsed data
     // in the channels so we must clean then up.
     while (self.sub_channel.getOrNull()) |node|
@@ -1207,6 +1203,7 @@ pub fn parseSubscriptionEvent(self: *WebSocketHandler, comptime T: type) ParseFr
 
     return RPCResponse(EthereumSubscribeResponse(T)).fromJson(event.arena, parsed);
 }
+/// ReadLoop used mainly to run in seperate threads.
 pub fn readLoopOwned(self: *WebSocketHandler) !void {
     pipe.maybeIgnoreSigpipe();
 
@@ -1217,27 +1214,28 @@ pub fn readLoopOwned(self: *WebSocketHandler) !void {
 /// This is a blocking operation.
 /// Best to call this in a seperate thread.
 pub fn readLoop(self: *WebSocketHandler) !void {
-    while (!@atomicLoad(bool, &self.close_client, .acquire)) {
+    while (!@atomicLoad(bool, &self.ws_client.closed_connection, .acquire)) {
         const message = self.ws_client.readMessage() catch |err| {
             switch (err) {
                 error.NotOpenForReading,
                 error.ConnectionResetByPeer,
                 error.BrokenPipe,
-                => return error.Closed,
-                else => return err,
+                error.EndOfStream,
+                => return err,
+                error.InvalidUtf8Payload => {
+                    self.ws_client.close(1007);
+                    return err;
+                },
+                else => {
+                    self.ws_client.close(1002);
+                    return err;
+                },
             }
         };
 
         switch (message.opcode) {
-            .binary,
             .text,
-            .continuation,
             => {
-                defer if (message.opcode == .continuation) {
-                    self.ws_client.fragment_fifo.discard(self.ws_client.fragment_fifo.count);
-                    self.ws_client.fragment_fifo.realign();
-                };
-
                 const parsed = try std.json.parseFromSlice(Value, self.allocator, message.data, .{ .allocate = .alloc_always });
                 errdefer parsed.deinit();
 
@@ -1262,12 +1260,12 @@ pub fn readLoop(self: *WebSocketHandler) !void {
                 self.rpc_channel.push(parsed);
             },
             .ping => try self.ws_client.writeFrame(message.data, .pong),
-            // Ignore unsolicited pong messages.
-            .pong => continue,
-            .connection_close => {
-                try self.ws_client.writeCloseFrame(@bitCast(message.data[0..2].*));
-                return error.ConnectionClosedByServer;
-            },
+            // Ignore any other messages.
+            .binary,
+            .pong,
+            .continuation,
+            => continue,
+            .connection_close => return self.ws_client.close(0),
             _ => return error.UnexpectedOpcode,
         }
     }

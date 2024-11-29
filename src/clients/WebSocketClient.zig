@@ -22,14 +22,8 @@ const WebsocketMessage = std.http.WebSocket.SmallMessage;
 /// Inner websocket client logger.
 const wsclient_log = std.log.scoped(.ws_client);
 
-// State for checking a handshake response.
-pub const Checks = union(enum) {
-    none,
-    checked_protocol,
-    checked_upgrade,
-    checked_connection,
-    checked_key,
-};
+// Reference to self.
+const WebsocketClient = @This();
 
 /// Set of possible error's when trying to perform the initial connection to the host.
 pub const ConnectionErrors = TlsClient.InitError(Stream) || TcpConnectToHostError || CertificateBundle.RescanError;
@@ -56,13 +50,11 @@ pub const PayloadErrors = error{
     UnexpectedFragment,
     MaskedServerMessage,
     InvalidUtf8Payload,
-    NonFinContinueFragment,
+    FragmentedControl,
 };
 
 /// Possible errors when reading a websocket frame.
 pub const ReadMessageError = SocketReadError || PayloadErrors;
-
-const WebsocketClient = @This();
 
 /// Comptime map that is used to get the connection type.
 const protocol_map = std.StaticStringMap(Protocol).initComptime(.{
@@ -72,16 +64,101 @@ const protocol_map = std.StaticStringMap(Protocol).initComptime(.{
     .{ "wss", .tls },
 });
 
+// State for checking a handshake response.
+pub const Checks = union(enum) {
+    none,
+    checked_protocol,
+    checked_upgrade,
+    checked_connection,
+    checked_key,
+};
+
+/// Wrapper around a websocket fragmented frame.
+pub const Fragment = struct {
+    const Self = @This();
+
+    /// FIFO stream of all fragments.
+    fragment_fifo: LinearFifo,
+    /// The type of message that the fragment is. Control fragment's are not supported.
+    message_type: ?Opcodes,
+
+    /// Clears any allocated memory.
+    pub fn deinit(self: *Self) void {
+        self.fragment_fifo.deinit();
+    }
+    /// Writes the payload into the stream.
+    pub fn writeAll(self: *Self, payload: []u8) Allocator.Error!void {
+        try self.fragment_fifo.ensureUnusedCapacity(payload.len);
+        return self.fragment_fifo.writeAssumeCapacity(payload);
+    }
+    /// Reset the fragment but keeps the allocated memory.
+    /// Also reset the message type back to null.
+    pub fn reset(self: *Self) void {
+        self.fragment_fifo.count = 0;
+        self.fragment_fifo.head = 0;
+        self.message_type = null;
+    }
+    /// Returns a slice of the currently written values on the buffer.
+    pub fn slice(self: Self) []u8 {
+        return self.fragment_fifo.buf[0..self.fragment_fifo.readableLength()];
+    }
+    /// Returns the total amount of bytes that were written.
+    pub fn size(self: Self) usize {
+        return self.fragment_fifo.count;
+    }
+};
+
+/// Wrapper stream around a `std.net.Stream` and a `TlsClient`.
+pub const NetStream = struct {
+    /// The connection to the socket that will be used by the
+    /// client or the tls_stream if available.
+    net_stream: Stream,
+    /// Null by default since we might want to connect
+    /// locally and don't want to enforce it.
+    tls_stream: ?TlsClient = null,
+
+    /// Depending on if the tls_stream is not null it will use that instead.
+    pub fn writeAll(self: *NetStream, message: []const u8) !void {
+        if (self.tls_stream) |*tls_stream|
+            return tls_stream.writeAll(self.net_stream, message);
+
+        return self.net_stream.writeAll(message);
+    }
+    /// Depending on if the tls_stream is not null it will use that instead.
+    pub fn readAtLeast(self: *NetStream, buffer: []u8, size: usize) !usize {
+        if (self.tls_stream) |*tls_stream|
+            return tls_stream.readAtLeast(self.net_stream, buffer, size);
+
+        return self.net_stream.readAtLeast(buffer, size);
+    }
+    /// Depending on if the tls_stream is not null it will use that instead.
+    pub fn read(self: *NetStream, buffer: []u8) !usize {
+        if (self.tls_stream) |*tls_stream|
+            return tls_stream.read(self.net_stream, buffer);
+
+        return self.net_stream.read(buffer);
+    }
+    /// Close the tls client if it's not null and the stream.
+    pub fn close(self: *NetStream) void {
+        if (self.tls_stream) |*tls_stream|
+            _ = tls_stream.writeEnd(self.net_stream, "", true) catch {};
+
+        self.net_stream.close();
+    }
+};
+
 /// Wrapper stream of a `std.net.Stream` and a `std.crypto.tls.Client`.
 stream: NetStream,
 /// Fifo structure that is used as the buffer to read from the socket.
 recieve_fifo: LinearFifo,
 /// Fifo structure that builds websocket frames that are fragmeneted.
-fragment_fifo: LinearFifo,
+fragment: Fragment,
 /// Bytes to discard on the next read.
 over_read: usize,
 /// The uri that this client is connected too.
 uri: Uri,
+/// Closes the net stream. This value should only be changed atomically.
+closed_connection: bool,
 
 /// Connects to the specficed uri. Creates a tls connection depending on the `uri.scheme`
 ///
@@ -100,10 +177,12 @@ pub fn connect(allocator: Allocator, uri: Uri) !WebsocketClient {
         .percent_encoded => |host| host,
     };
 
-    var fifo: LinearFifo = .init(allocator);
-    try fifo.ensureTotalCapacity(4096);
+    const fifo: LinearFifo = .init(allocator);
+    const fragment: Fragment = .{
+        .fragment_fifo = .init(allocator),
+        .message_type = null,
+    };
 
-    const fragment_fifo: LinearFifo = .init(allocator);
     const stream = try std.net.tcpConnectToHost(allocator, hostname, port);
 
     var tls_client: ?TlsClient = null;
@@ -121,23 +200,29 @@ pub fn connect(allocator: Allocator, uri: Uri) !WebsocketClient {
 
     return .{
         .recieve_fifo = fifo,
-        .fragment_fifo = fragment_fifo,
+        .fragment = fragment,
         .stream = .{
             .net_stream = stream,
             .tls_stream = tls_client,
         },
         .over_read = 0,
         .uri = uri,
+        .closed_connection = false,
     };
 }
 
 /// Clears the inner fifo data structures and closes the connection.
 pub fn deinit(self: *WebsocketClient) void {
-    self.writeFrame("", .connection_close) catch unreachable;
-
+    self.close(0);
     self.recieve_fifo.deinit();
-    self.fragment_fifo.deinit();
-    self.stream.close();
+    self.fragment.deinit();
+}
+/// Send close handshake and closes the net stream.
+pub fn close(self: *WebsocketClient, exit_code: u16) void {
+    if (@atomicRmw(bool, &self.closed_connection, .Xchg, true, .acq_rel) == false) {
+        self.writeCloseFrame(exit_code) catch {};
+        self.stream.close();
+    }
 }
 /// Generate a base64 set of random bytes.
 pub fn generateHandshakeKey() [24]u8 {
@@ -148,6 +233,24 @@ pub fn generateHandshakeKey() [24]u8 {
     _ = Base64Encoder.encode(&base_64, &nonce);
 
     return base_64;
+}
+/// Masks a websocket message. Uses simd when possible.
+pub fn maskMessage(message: []u8, mask: [4]u8) void {
+    const vec_size = std.simd.suggestVectorLength(u8) orelse @sizeOf(usize);
+    const Vector = @Vector(vec_size, u8);
+
+    var remainder = message;
+
+    while (true) {
+        if (remainder.len < vec_size) return for (remainder, 0..) |*char, i| {
+            char.* ^= mask[i & 3];
+        };
+        const slice = remainder[0..vec_size];
+        const mask_vector = std.simd.repeat(vec_size, @as(@Vector(4, u8), mask));
+
+        slice.* = @as(Vector, slice.*) ^ mask_vector;
+        remainder = remainder[vec_size..];
+    }
 }
 /// Generates the websocket header frame based on the message len and the opcode provided.
 ///
@@ -217,20 +320,13 @@ pub fn writeHeaderFrame(self: *WebsocketClient, message: []const u8, opcode: Opc
 ///
 /// For more details please see: https://www.rfc-editor.org/rfc/rfc6455#section-5.5.1
 pub fn writeCloseFrame(self: *WebsocketClient, exit_code: u16) !void {
-    var buffer: [4]u8 = undefined;
+    if (exit_code == 0)
+        return self.writeFrame("", .connection_close);
 
-    buffer[0] = @bitCast(@as(OpcodeHeader, .{
-        .opcode = .connection_close,
-        .fin = true,
-    }));
-    buffer[1] = @bitCast(@as(PayloadHeader, .{
-        .payload_len = @enumFromInt(0),
-        .mask = true,
-    }));
+    var buffer: [2]u8 = undefined;
+    std.mem.writeInt(u16, buffer[0..2], exit_code, .big);
 
-    std.mem.writeInt(u16, buffer[2..4], exit_code, .big);
-
-    try self.stream.writeAll(buffer[0..]);
+    return self.writeFrame(buffer[0..], .connection_close);
 }
 /// Writes a websocket frame directly to the socket.
 ///
@@ -245,25 +341,8 @@ pub fn writeFrame(self: *WebsocketClient, message: []u8, opcode: Opcodes) !void 
         try self.stream.writeAll(message);
     }
 }
-/// Masks a websocket message. Uses simd when possible.
-pub fn maskMessage(message: []u8, mask: [4]u8) void {
-    const vec_size = std.simd.suggestVectorLength(u8) orelse @sizeOf(usize);
-    const Vector = @Vector(vec_size, u8);
-
-    var remainder = message;
-
-    while (true) {
-        if (remainder.len < vec_size) return for (remainder, 0..) |*char, i| {
-            char.* ^= mask[i & 3];
-        };
-        const slice = remainder[0..vec_size];
-        const mask_vector = std.simd.repeat(vec_size, @as(@Vector(4, u8), mask));
-
-        slice.* = @as(Vector, slice.*) ^ mask_vector;
-        remainder = remainder[vec_size..];
-    }
-}
 /// Performs the websocket handshake and validates that it got a valid response.
+///
 /// More info here: https://www.rfc-editor.org/rfc/rfc6455#section-1.2
 pub fn handshake(self: *WebsocketClient, host: []const u8) (ReadHandshakeError || SendHandshakeError)!void {
     const key = generateHandshakeKey();
@@ -273,17 +352,20 @@ pub fn handshake(self: *WebsocketClient, host: []const u8) (ReadHandshakeError |
     try self.readHandshake(key);
 }
 /// Read the handshake message from the socket and asserts that we got a valid server response.
+///
+/// Places the amount of parsed bytes from the handshake to be discarded on the next socket read.
 pub fn readHandshake(self: *WebsocketClient, handshake_key: [24]u8) ReadHandshakeError!void {
     // Handshake shouldn't exceed this.
-    // TODO: Fix this for tls.
-    var read_buffer: [4096]u8 = undefined;
-    const read = try std.posix.recv(self.stream.net_stream.handle, &read_buffer, std.os.linux.MSG.PEEK);
+    const read_buffer = try self.recieve_fifo.writableWithSize(4096);
+    const read = try self.stream.read(read_buffer);
 
     const parsed = try parseHandshakeResponse(handshake_key, read_buffer[0..read]);
-
-    _ = try self.stream.read(read_buffer[0..parsed]);
+    self.recieve_fifo.update(read);
+    self.over_read = parsed;
 }
 /// Send the handshake message to the server. Doesn't support url's higher than 4096 bits.
+///
+/// Also writes the query of the path if the `uri` was able to parse it.
 pub fn sendHandshake(self: *WebsocketClient, host: []const u8, key: [24]u8) SendHandshakeError!void {
     // Dont support paths that exceed this.
     var buffer: [4096]u8 = undefined;
@@ -319,6 +401,8 @@ pub fn sendHandshake(self: *WebsocketClient, host: []const u8, key: [24]u8) Send
     try self.stream.writeAll(written);
 }
 /// Validates that the handshake response is valid and returns the amount of bytes read.
+///
+/// The return bytes are then used to discard in case where we read more than handshake from the stream.
 pub fn parseHandshakeResponse(key: [24]u8, response: []const u8) AssertionError!usize {
     var iter = std.mem.tokenizeAny(u8, response, "\r\n");
     var websocket_key: ?[]const u8 = null;
@@ -408,6 +492,9 @@ pub fn parseHandshakeResponse(key: [24]u8, response: []const u8) AssertionError!
     return message_len + 2; // add the final \r\n
 }
 /// Read data directly from the socket and return that data.
+///
+/// Returns end of stream if the amount requested is higher than the
+/// amount of bytes that were actually read.
 pub fn readFromSocket(self: *WebsocketClient, size: usize) SocketReadError![]u8 {
     self.recieve_fifo.discard(self.over_read);
 
@@ -417,7 +504,6 @@ pub fn readFromSocket(self: *WebsocketClient, size: usize) SocketReadError![]u8 
 
         const writable_buf = if (buffer.len > amount) buffer else blk: {
             const new_buffer = try self.recieve_fifo.writableWithSize(amount);
-            self.recieve_fifo.realign();
 
             break :blk new_buffer;
         };
@@ -442,17 +528,14 @@ pub fn readFromSocket(self: *WebsocketClient, size: usize) SocketReadError![]u8 
 ///
 /// More info here: https://www.rfc-editor.org/rfc/rfc6455#section-6.2
 pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
-    var message_type: Opcodes = .continuation;
     while (true) {
         const headers = (try self.readFromSocket(2))[0..2];
 
         const op_head: OpcodeHeader = @bitCast(headers[0]);
         const payload_head: PayloadHeader = @bitCast(headers[1]);
 
-        if (payload_head.mask) {
-            try self.writeCloseFrame(1002);
+        if (payload_head.mask)
             return error.MaskedServerMessage;
-        }
 
         if (@bitCast(op_head.rsv1) or @bitCast(op_head.rsv2) or @bitCast(op_head.rsv3))
             return error.UnnegociatedReservedBits;
@@ -478,15 +561,14 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
             .text,
             .binary,
             => {
-                message_type = op_head.opcode;
                 if (!op_head.fin) {
-                    wsclient_log.debug("Incomplete message... Expecting continuation opcode next!", .{});
+                    try self.fragment.writeAll(payload);
+                    self.fragment.message_type = op_head.opcode;
 
-                    try self.fragment_fifo.write(payload);
                     continue;
                 }
 
-                if (self.fragment_fifo.count != 0)
+                if (self.fragment.size() != 0)
                     return error.UnexpectedFragment;
 
                 if (op_head.opcode == .text and !std.unicode.utf8ValidateSlice(payload))
@@ -501,19 +583,16 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
             },
             .continuation,
             => {
-                if (self.fragment_fifo.count == 0 and message_type == .continuation)
-                    return error.UnexpectedFragment;
-
+                const message_type = self.fragment.message_type orelse return error.FragmentedControl;
                 if (!op_head.fin) {
-                    wsclient_log.debug("Incomplete message... Expecting continuation opcode next!", .{});
-                    try self.fragment_fifo.write(payload);
-
+                    try self.fragment.writeAll(payload);
                     continue;
                 }
 
-                try self.fragment_fifo.write(payload);
+                try self.fragment.writeAll(payload);
+                defer self.fragment.reset();
 
-                const slice = self.fragment_fifo.buf[0..self.fragment_fifo.readableLength()];
+                const slice = self.fragment.slice();
 
                 if (message_type == .text and !std.unicode.utf8ValidateSlice(slice))
                     return error.InvalidUtf8Payload;
@@ -521,7 +600,7 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
                 wsclient_log.debug("Got complete fragmented websocket message: {s}", .{slice});
 
                 return .{
-                    .opcode = op_head.opcode,
+                    .opcode = message_type,
                     .data = @constCast(slice),
                 };
             },
@@ -529,8 +608,6 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
             .pong,
             .connection_close,
             => {
-                message_type = op_head.opcode;
-
                 if (total > 125 or !op_head.fin)
                     return error.ControlFrameTooBig;
 
@@ -543,42 +620,3 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
         }
     }
 }
-
-/// Wrapper stream around a `std.net.Stream` and a `TlsClient`.
-pub const NetStream = struct {
-    /// The connection to the socket that will be used by the
-    /// client or the tls_stream if available.
-    net_stream: Stream,
-    /// Null by default since we might want to connect
-    /// locally and don't want to enforce it.
-    tls_stream: ?TlsClient = null,
-
-    /// Depending on if the tls_stream is not null it will use that instead.
-    pub fn writeAll(self: *NetStream, message: []const u8) !void {
-        if (self.tls_stream) |*tls_stream|
-            return tls_stream.writeAll(self.net_stream, message);
-
-        return self.net_stream.writeAll(message);
-    }
-    /// Depending on if the tls_stream is not null it will use that instead.
-    pub fn readAtLeast(self: *NetStream, buffer: []u8, size: usize) !usize {
-        if (self.tls_stream) |*tls_stream|
-            return tls_stream.readAtLeast(self.net_stream, buffer, size);
-
-        return self.net_stream.readAtLeast(buffer, size);
-    }
-    /// Depending on if the tls_stream is not null it will use that instead.
-    pub fn read(self: *NetStream, buffer: []u8) !usize {
-        if (self.tls_stream) |*tls_stream|
-            return tls_stream.read(self.net_stream, buffer);
-
-        return self.net_stream.read(buffer);
-    }
-    /// Close the tls client if it's not null and the stream.
-    pub fn close(self: *NetStream) void {
-        if (self.tls_stream) |*tls_stream|
-            _ = tls_stream.writeEnd(self.net_stream, "", true) catch {};
-
-        self.net_stream.close();
-    }
-};

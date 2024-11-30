@@ -75,7 +75,7 @@ pub fn Channel(comptime T: type) type {
             }
 
             while (true) return self.fifo.readItem() orelse {
-                try self.readable.timedWait(&self.lock, std.time.ns_per_s);
+                try self.readable.timedWait(&self.lock, 5 * std.time.ns_per_s);
                 continue;
             };
         }

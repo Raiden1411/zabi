@@ -617,11 +617,11 @@ pub fn getLogs(
     };
 }
 /// Parses the `Value` in the sub-channel as a log event
-pub fn getLogsSubEvent(self: *WebSocketHandler) ParseFromValueError!RPCResponse(EthereumSubscribeResponse(Log)) {
+pub fn getLogsSubEvent(self: *WebSocketHandler) (error{Timeout} || ParseFromValueError)!RPCResponse(EthereumSubscribeResponse(Log)) {
     return self.parseSubscriptionEvent(Log);
 }
 /// Parses the `Value` in the sub-channel as a new heads block event
-pub fn getNewHeadsBlockSubEvent(self: *WebSocketHandler) ParseFromValueError!RPCResponse(EthereumSubscribeResponse(Block)) {
+pub fn getNewHeadsBlockSubEvent(self: *WebSocketHandler) (error{Timeout} || ParseFromValueError)!RPCResponse(EthereumSubscribeResponse(Block)) {
     return self.parseSubscriptionEvent(Block);
 }
 /// Returns true if client is actively listening for network connections.
@@ -643,7 +643,7 @@ pub fn getNetworkVersionId(self: *WebSocketHandler) BasicRequestErrors!RPCRespon
     return self.sendBasicRequest(usize, .net_version);
 }
 /// Parses the `Value` in the sub-channel as a pending transaction hash event
-pub fn getPendingTransactionsSubEvent(self: *WebSocketHandler) ParseFromValueError!RPCResponse(EthereumSubscribeResponse(Hash)) {
+pub fn getPendingTransactionsSubEvent(self: *WebSocketHandler) (error{Timeout} || ParseFromValueError)!RPCResponse(EthereumSubscribeResponse(Hash)) {
     return self.parseSubscriptionEvent(Hash);
 }
 /// Returns the account and storage values, including the Merkle proof, of the specified account
@@ -1190,8 +1190,8 @@ pub fn newPendingTransactionFilter(self: *WebSocketHandler) BasicRequestErrors!R
 }
 /// Parses a subscription event `Value` into `T`.
 /// Usefull for events that currently zabi doesn't have custom support.
-pub fn parseSubscriptionEvent(self: *WebSocketHandler, comptime T: type) ParseFromValueError!RPCResponse(EthereumSubscribeResponse(T)) {
-    const event = self.sub_channel.get();
+pub fn parseSubscriptionEvent(self: *WebSocketHandler, comptime T: type) (error{Timeout} || ParseFromValueError)!RPCResponse(EthereumSubscribeResponse(T)) {
+    const event = try self.sub_channel.tryGet();
     errdefer event.deinit();
 
     const parsed = try std.json.parseFromValueLeaky(

@@ -48,8 +48,7 @@ pub fn main() !void {
 
                     if (casted_to == expected) {
                         std.debug.print("Found usdc transaction in the value of {d} wei\n", .{tx_london.value});
-                        continue;
-                        // break;
+                        break;
                     }
                 }
             },

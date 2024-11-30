@@ -15,7 +15,6 @@ const testing = std.testing;
 const transaction = zabi_types.transactions;
 const types = zabi_types.ethereum;
 const txpool = zabi_types.txpool;
-const ws = @import("ws");
 const zabi_meta = @import("zabi-meta");
 const zabi_types = @import("zabi-types");
 const zabi_utils = @import("zabi-utils");
@@ -68,6 +67,7 @@ const Result = multicall.Result;
 const RPCResponse = types.RPCResponse;
 const Scanner = std.json.Scanner;
 const Stack = zabi_utils.stack.Stack;
+const Subscriptions = types.Subscriptions;
 const SyncProgress = sync.SyncStatus;
 const Transaction = transaction.Transaction;
 const TransactionReceipt = transaction.TransactionReceipt;
@@ -78,8 +78,8 @@ const TxPoolStatus = txpool.TxPoolStatus;
 const Uri = std.Uri;
 const Value = std.json.Value;
 const WatchLogsRequest = log.WatchLogsRequest;
-const Subscriptions = types.Subscriptions;
 const Wei = types.Wei;
+const WsClient = @import("WebSocketClient.zig");
 
 const WebSocketHandler = @This();
 
@@ -129,66 +129,19 @@ rpc_channel: Stack(JsonParsed(Value)),
 /// The chains config
 network_config: NetworkConfig,
 /// Callback function for when the connection is closed.
-onClose: ?*const fn () void = null,
+onClose: ?*const fn () void,
 /// Callback function that will run once a socket event is parsed
 onEvent: ?*const fn (args: JsonParsed(Value)) anyerror!void,
 /// Callback function that will run once a error is parsed.
 onError: ?*const fn (args: []const u8) anyerror!void,
 /// The underlaying websocket client
-ws_client: ws.Client,
-
-const protocol_map = std.StaticStringMap(std.http.Client.Connection.Protocol).initComptime(.{
-    .{ "http", .plain },
-    .{ "ws", .plain },
-    .{ "https", .tls },
-    .{ "wss", .tls },
-});
-
-/// This will get run everytime a socket message is found.
-/// All messages are parsed and put into the handlers channel.
-/// All callbacks will only affect this function.
-pub fn serverMessage(
-    self: *WebSocketHandler,
-    message: []u8,
-    message_type: ws.MessageTextType,
-) (Stack(JsonParsed(Value)).Error || error{ FailedToJsonParseResponse, InvalidTypeMessage, UnexpectedError })!void {
-    wslog.debug("Got message: {s}", .{message});
-    switch (message_type) {
-        .text => {
-            const parsed = self.parseRPCEvent(message) catch {
-                if (self.onError) |onError| {
-                    onError(message) catch return error.UnexpectedError;
-                }
-
-                return error.FailedToJsonParseResponse;
-            };
-
-            if (parsed.value != .object)
-                return error.InvalidTypeMessage;
-
-            // You need to check what type of event it is.
-            if (self.onEvent) |onEvent| {
-                onEvent(parsed) catch return error.UnexpectedError;
-            }
-
-            if (parsed.value.object.getKey("params") != null) {
-                return self.sub_channel.put(parsed);
-            }
-
-            return self.rpc_channel.push(parsed);
-        },
-        else => {},
-    }
-}
+ws_client: WsClient,
 
 /// Populates the WebSocketHandler pointer.
 /// Starts the connection in a seperate process.
 pub fn init(opts: InitOptions) InitErrors!*WebSocketHandler {
     const self = try opts.allocator.create(WebSocketHandler);
     errdefer opts.allocator.destroy(self);
-
-    if (opts.network_config.endpoint != .uri)
-        return error.InvalidNetworkConfig;
 
     self.* = .{
         .allocator = opts.allocator,
@@ -213,23 +166,16 @@ pub fn init(opts: InitOptions) InitErrors!*WebSocketHandler {
 
     return self;
 }
-/// All future interactions will deadlock
 /// If you are using the subscription channel this operation can take time
 /// as it will need to cleanup each node.
 pub fn deinit(self: *WebSocketHandler) void {
-    while (@atomicRmw(bool, &self.ws_client._closed, .Xchg, true, .seq_cst)) {
-        std.time.sleep(10 * std.time.ns_per_ms);
-    }
-
     // There may be lingering memory from the json parsed data
     // in the channels so we must clean then up.
-    while (self.sub_channel.getOrNull()) |node| {
+    while (self.sub_channel.getOrNull()) |node|
         node.deinit();
-    }
 
-    while (self.rpc_channel.popOrNull()) |node| {
+    while (self.rpc_channel.popOrNull()) |node|
         node.deinit();
-    }
 
     // Deinits client and destroys any created pointers.
     self.sub_channel.deinit();
@@ -240,14 +186,8 @@ pub fn deinit(self: *WebSocketHandler) void {
     allocator.destroy(self);
 }
 /// Connects to a socket client. This is a blocking operation.
-pub fn connect(self: *WebSocketHandler) ConnectionErrors!ws.Client {
+pub fn connect(self: *WebSocketHandler) ConnectionErrors!WsClient {
     const uri = self.network_config.getNetworkUri() orelse return error.InvalidNetworkConfig;
-
-    const scheme = protocol_map.get(uri.scheme) orelse return error.UnsupportedSchema;
-    const port: u16 = uri.port orelse switch (scheme) {
-        .plain => 80,
-        .tls => 443,
-    };
 
     var retries: u8 = 0;
     const client = while (true) : (retries += 1) {
@@ -267,30 +207,13 @@ pub fn connect(self: *WebSocketHandler) ConnectionErrors!ws.Client {
             .percent_encoded => |host| host,
         };
 
-        var client = ws.Client.init(self.allocator, .{
-            .tls = scheme == .tls,
-            .port = port,
-            .host = hostname,
-            .max_size = std.math.maxInt(u32),
-            .buffer_size = 10 * std.math.maxInt(u16),
-        }) catch |err| {
+        var client = WsClient.connect(self.allocator, uri) catch |err| {
             wslog.debug("Connection failed: {s}", .{@errorName(err)});
             continue;
         };
         errdefer client.deinit();
 
-        const headers = try std.fmt.allocPrint(self.allocator, "Host: {s}", .{hostname});
-        defer self.allocator.free(headers);
-
-        if (uri.path.isEmpty())
-            return error.MissingUrlPath;
-
-        const path = switch (uri.path) {
-            .raw => |raw| raw,
-            .percent_encoded => |host| host,
-        };
-
-        client.handshake(path, .{ .headers = headers, .timeout_ms = 5_000 }) catch |err| {
+        client.handshake(hostname) catch |err| {
             wslog.debug("Handshake failed: {s}", .{@errorName(err)});
             continue;
         };
@@ -299,12 +222,6 @@ pub fn connect(self: *WebSocketHandler) ConnectionErrors!ws.Client {
     };
 
     return client;
-}
-/// Runs the callback once the handler close method gets called by the ws_client
-pub fn close(self: *WebSocketHandler) void {
-    if (self.onClose) |onClose| {
-        return onClose();
-    }
 }
 /// Grabs the current base blob fee.
 ///
@@ -621,6 +538,8 @@ pub fn getFilterOrLogChanges(
     filter_id: u128,
     method: EthereumRpcMethods,
 ) (BasicRequestErrors || error{ InvalidFilterId, InvalidRpcMethod })!RPCResponse(Logs) {
+    // errdefer @atomicStore(bool, &self.close_client, true, .seq_cst);
+
     var request_buffer: [1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
@@ -1284,16 +1203,72 @@ pub fn parseSubscriptionEvent(self: *WebSocketHandler, comptime T: type) ParseFr
 
     return RPCResponse(EthereumSubscribeResponse(T)).fromJson(event.arena, parsed);
 }
-/// This is a blocking operation.
-/// Best to call this in a seperate thread.
-pub fn readLoopOwned(self: *WebSocketHandler) void {
-    errdefer self.deinit();
+/// ReadLoop used mainly to run in seperate threads.
+pub fn readLoopOwned(self: *WebSocketHandler) !void {
     pipe.maybeIgnoreSigpipe();
 
-    self.ws_client.readLoop(self) catch |err| {
+    return self.readLoop() catch |err| {
         wslog.debug("Read loop reported error: {s}", .{@errorName(err)});
-        return;
     };
+}
+/// This is a blocking operation.
+/// Best to call this in a seperate thread.
+pub fn readLoop(self: *WebSocketHandler) !void {
+    while (!@atomicLoad(bool, &self.ws_client.closed_connection, .acquire)) {
+        const message = self.ws_client.readMessage() catch |err| {
+            switch (err) {
+                error.NotOpenForReading,
+                error.ConnectionResetByPeer,
+                error.BrokenPipe,
+                error.EndOfStream,
+                => return err,
+                error.InvalidUtf8Payload => {
+                    self.ws_client.close(1007);
+                    return err;
+                },
+                else => {
+                    self.ws_client.close(1002);
+                    return err;
+                },
+            }
+        };
+
+        switch (message.opcode) {
+            .text,
+            => {
+                const parsed = try std.json.parseFromSlice(Value, self.allocator, message.data, .{ .allocate = .alloc_always });
+                errdefer parsed.deinit();
+
+                if (parsed.value != .object) {
+                    wslog.debug("Invalid message type. Expected `object` type. Exitting the loop", .{});
+                    return error.InvalidMessageType;
+                }
+
+                // You need to check what type of event it is.
+                if (self.onEvent) |onEvent| {
+                    onEvent(parsed) catch |err| {
+                        wslog.debug("Failed to process `onEvent` callback. Error found: {s}", .{@errorName(err)});
+                        return error.UnexpectedError;
+                    };
+                }
+
+                if (parsed.value.object.getKey("params") != null) {
+                    self.sub_channel.put(parsed);
+                    continue;
+                }
+
+                self.rpc_channel.push(parsed);
+            },
+            .ping => try self.ws_client.writeFrame(message.data, .pong),
+            // Ignore any other messages.
+            .binary,
+            .pong,
+            .continuation,
+            => continue,
+            .connection_close => return self.ws_client.close(0),
+            _ => return error.UnexpectedOpcode,
+        }
+    }
 }
 /// Executes a new message call immediately without creating a transaction on the block chain.
 /// Often used for executing read-only smart contract functions,
@@ -1665,7 +1640,7 @@ pub fn waitForTransactionReceiptType(self: *WebSocketHandler, comptime T: type, 
 }
 /// Write messages to the websocket server.
 pub fn writeSocketMessage(self: *WebSocketHandler, data: []u8) SocketWriteErrors!void {
-    return self.ws_client.write(data);
+    return self.ws_client.writeFrame(data, .text);
 }
 
 // Internal

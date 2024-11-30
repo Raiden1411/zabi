@@ -312,10 +312,8 @@ fn addDependencies(
         .target = target,
         .optimize = optimize,
     });
-    const ws = b.dependency("ws", .{ .target = target, .optimize = optimize });
 
     mod.addImport("c-kzg-4844", c_kzg_4844_dep.module("c-kzg-4844"));
-    mod.addImport("ws", ws.module("websocket"));
     mod.linkLibrary(c_kzg_4844_dep.artifact("c-kzg-4844"));
 }
 /// Builds and runs the benchmarks

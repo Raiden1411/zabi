@@ -357,9 +357,11 @@ pub fn handshake(self: *WebsocketClient, host: []const u8) (ReadHandshakeError |
 pub fn readHandshake(self: *WebsocketClient, handshake_key: [24]u8) ReadHandshakeError!void {
     // Handshake shouldn't exceed this.
     const read_buffer = try self.recieve_fifo.writableWithSize(4096);
-    const read = try self.stream.read(read_buffer);
+    self.recieve_fifo.realign();
 
+    const read = try self.stream.read(read_buffer);
     const parsed = try parseHandshakeResponse(handshake_key, read_buffer[0..read]);
+
     self.recieve_fifo.update(read);
     self.over_read = parsed;
 }
@@ -497,6 +499,7 @@ pub fn parseHandshakeResponse(key: [24]u8, response: []const u8) AssertionError!
 /// amount of bytes that were actually read.
 pub fn readFromSocket(self: *WebsocketClient, size: usize) SocketReadError![]u8 {
     self.recieve_fifo.discard(self.over_read);
+    self.recieve_fifo.realign();
 
     if (size > self.recieve_fifo.count) {
         const amount = size - self.recieve_fifo.count;

@@ -116,11 +116,11 @@ const AutoBanh = struct {
 
             switch (message.opcode) {
                 .binary,
-                => try self.client.writeFrame(message.data, .binary),
+                => try self.client.writeFrame(@constCast(message.data), .binary),
                 .text,
-                => try self.client.writeFrame(message.data, .text),
+                => try self.client.writeFrame(@constCast(message.data), .text),
                 .ping,
-                => try self.client.writeFrame(message.data, .pong),
+                => try self.client.writeFrame(@constCast(message.data), .pong),
                 .connection_close,
                 => return self.client.close(0),
                 // Ignore unsolicited pong messages.

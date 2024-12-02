@@ -1259,7 +1259,7 @@ pub fn readLoop(self: *WebSocketHandler) !void {
 
                 self.rpc_channel.push(parsed);
             },
-            .ping => try self.ws_client.writeFrame(message.data, .pong),
+            .ping => try self.ws_client.writeFrame(@constCast(message.data), .pong),
             // Ignore any other messages.
             .binary,
             .pong,

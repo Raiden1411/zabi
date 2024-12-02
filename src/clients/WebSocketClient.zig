@@ -2,6 +2,7 @@ const builtin = @import("builtin");
 const std = @import("std");
 const testing = std.testing;
 
+const TlsAlertErrors = std.crypto.tls.AlertDescription.Error;
 const Allocator = std.mem.Allocator;
 const Base64Encoder = std.base64.standard.Encoder;
 const CertificateBundle = std.crypto.Certificate.Bundle;
@@ -17,7 +18,6 @@ const TcpConnectToHostError = std.net.TcpConnectToHostError;
 const TlsClient = std.crypto.tls.Client;
 const Uri = std.Uri;
 const Value = std.json.Value;
-const WebsocketMessage = std.http.WebSocket.SmallMessage;
 
 /// Inner websocket client logger.
 const wsclient_log = std.log.scoped(.ws_client);
@@ -26,19 +26,19 @@ const wsclient_log = std.log.scoped(.ws_client);
 const WebsocketClient = @This();
 
 /// Set of possible error's when trying to perform the initial connection to the host.
-pub const ConnectionErrors = TlsClient.InitError(Stream) || TcpConnectToHostError || CertificateBundle.RescanError;
+pub const ConnectionErrors = TlsClient.InitError(Stream) || TcpConnectToHostError || CertificateBundle.RescanError || error{ UnsupportedSchema, UnspecifiedHostName };
 
 /// Set of possible errors when asserting a handshake response.
 pub const AssertionError = error{ DuplicateHandshakeHeader, InvalidHandshakeMessage, InvalidHandshakeKey };
 
 /// Set of possible errors when sending a handshake response.
-pub const SendHandshakeError = TlsClient.InitError(Stream) || Stream.WriteError || error{NoSpaceLeft};
+pub const SendHandshakeError = Stream.WriteError || error{NoSpaceLeft} || TlsAlertErrors;
 
 /// Set of possible errors when reading a handshake response.
-pub const ReadHandshakeError = std.posix.RecvFromError || Stream.ReadError || error{ NoSpaceLeft, Overflow, TlsBadLength } || AssertionError || TlsClient.InitError(Stream);
+pub const ReadHandshakeError = Allocator.Error || Stream.ReadError || AssertionError || TlsError;
 
 /// Set of possible errors when trying to read values directly from the socket.
-pub const SocketReadError = Stream.ReadError || Allocator.Error || error{ EndOfStream, Overflow, TlsBadLength } || TlsClient.InitError(Stream);
+pub const SocketReadError = Stream.ReadError || Allocator.Error || error{EndOfStream} || TlsError;
 
 /// RFC Compliant set of errors.
 pub const PayloadErrors = error{
@@ -52,6 +52,18 @@ pub const PayloadErrors = error{
     InvalidUtf8Payload,
     FragmentedControl,
 };
+
+/// Set of Tls errors outside of alerts.
+pub const TlsError = error{
+    Overflow,
+    TlsUnexpectedMessage,
+    TlsIllegalParameter,
+    TlsRecordOverflow,
+    TlsBadRecordMac,
+    TlsConnectionTruncated,
+    TlsDecodeError,
+    TlsBadLength,
+} || TlsAlertErrors;
 
 /// Possible errors when reading a websocket frame.
 pub const ReadMessageError = SocketReadError || PayloadErrors;
@@ -73,6 +85,14 @@ pub const Checks = union(enum) {
     checked_key,
 };
 
+/// Structure of a websocket message.
+pub const WebsocketMessage = struct {
+    /// Websocket valid opcodes.
+    opcode: Opcodes,
+    /// Payload data read.
+    data: []const u8,
+};
+
 /// Wrapper around a websocket fragmented frame.
 pub const Fragment = struct {
     const Self = @This();
@@ -87,7 +107,7 @@ pub const Fragment = struct {
         self.fragment_fifo.deinit();
     }
     /// Writes the payload into the stream.
-    pub fn writeAll(self: *Self, payload: []u8) Allocator.Error!void {
+    pub fn writeAll(self: *Self, payload: []const u8) Allocator.Error!void {
         try self.fragment_fifo.ensureUnusedCapacity(payload.len);
         return self.fragment_fifo.writeAssumeCapacity(payload);
     }
@@ -99,7 +119,7 @@ pub const Fragment = struct {
         self.message_type = null;
     }
     /// Returns a slice of the currently written values on the buffer.
-    pub fn slice(self: Self) []u8 {
+    pub fn slice(self: Self) []const u8 {
         return self.fragment_fifo.buf[0..self.fragment_fifo.readableLength()];
     }
     /// Returns the total amount of bytes that were written.
@@ -164,7 +184,7 @@ closed_connection: bool,
 ///
 /// Check out `protocol_map` to see when tls is enable. For now this doesn't respect zig's
 /// `disable_tls` option.
-pub fn connect(allocator: Allocator, uri: Uri) !WebsocketClient {
+pub fn connect(allocator: Allocator, uri: Uri) ConnectionErrors!WebsocketClient {
     const scheme = protocol_map.get(uri.scheme) orelse return error.UnsupportedSchema;
 
     const port: u16 = uri.port orelse switch (scheme) {
@@ -319,7 +339,7 @@ pub fn writeHeaderFrame(self: *WebsocketClient, message: []const u8, opcode: Opc
 /// Writes to the server a close frame with a provided `exit_code`.
 ///
 /// For more details please see: https://www.rfc-editor.org/rfc/rfc6455#section-5.5.1
-pub fn writeCloseFrame(self: *WebsocketClient, exit_code: u16) !void {
+pub fn writeCloseFrame(self: *WebsocketClient, exit_code: u16) Stream.WriteError!void {
     if (exit_code == 0)
         return self.writeFrame("", .connection_close);
 
@@ -332,7 +352,7 @@ pub fn writeCloseFrame(self: *WebsocketClient, exit_code: u16) !void {
 ///
 /// The message is masked according to the websocket RFC.
 /// More details here: https://www.rfc-editor.org/rfc/rfc6455#section-6.1
-pub fn writeFrame(self: *WebsocketClient, message: []u8, opcode: Opcodes) !void {
+pub fn writeFrame(self: *WebsocketClient, message: []u8, opcode: Opcodes) Stream.WriteError!void {
     const mask = try self.writeHeaderFrame(message, opcode);
 
     if (message.len > 0) {
@@ -497,7 +517,7 @@ pub fn parseHandshakeResponse(key: [24]u8, response: []const u8) AssertionError!
 ///
 /// Returns end of stream if the amount requested is higher than the
 /// amount of bytes that were actually read.
-pub fn readFromSocket(self: *WebsocketClient, size: usize) SocketReadError![]u8 {
+pub fn readFromSocket(self: *WebsocketClient, size: usize) SocketReadError![]const u8 {
     self.recieve_fifo.discard(self.over_read);
     self.recieve_fifo.realign();
 
@@ -521,7 +541,7 @@ pub fn readFromSocket(self: *WebsocketClient, size: usize) SocketReadError![]u8 
 
     self.over_read = size;
 
-    return @constCast(self.recieve_fifo.readableSliceOfLen(size));
+    return self.recieve_fifo.readableSliceOfLen(size);
 }
 /// Reads a websocket frame from the socket and decodes it based on
 /// the frames headers.

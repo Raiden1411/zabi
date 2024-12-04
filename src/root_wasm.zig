@@ -5,6 +5,7 @@ const builtin = @import("builtin");
 
 comptime {
     _ = @import("wasm/wasm.zig");
+    _ = @import("wasm/evm.zig");
     _ = @import("wasm/utils.zig");
 }
 

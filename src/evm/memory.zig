@@ -91,7 +91,7 @@ pub const Memory = struct {
     }
     /// Copies elements from one part of the buffer to another part of itself.
     /// Asserts that the provided indexes are not out of bound.
-    pub fn memoryCopy(self: *Memory, destination: u64, source: u64, length: u64) void {
+    pub fn memoryCopy(self: *Memory, destination: usize, source: usize, length: usize) void {
         const slice = self.getSlice();
 
         std.debug.assert(slice.len >= destination + length); // Indexing out of bound.
@@ -210,8 +210,8 @@ pub const Memory = struct {
 
 /// Returns number of words what would fit to provided number of bytes,
 /// It rounds up the number bytes to number of words.
-pub inline fn availableWords(size: u64) u64 {
+pub inline fn availableWords(size: u64) usize {
     const new_size: u64 = size +| 31;
 
-    return @divFloor(new_size, 32);
+    return @intCast(@divFloor(new_size, 32));
 }

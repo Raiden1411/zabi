@@ -1,5 +1,5 @@
 const std = @import("std");
-const utils = @import("../utils/utils.zig");
+const utils = @import("zabi-utils").utils;
 const wasm = @import("wasm.zig");
 
 const String = wasm.String;

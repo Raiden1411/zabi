@@ -298,7 +298,49 @@ pub fn build(b: *std.Build) void {
     buildDocs(b, target);
 
     // Build the wasm file. Always build in `ReleaseSmall` on `wasm32-freestanding.
-    buildWasm(b);
+    {
+        const wasm_crosstarget: std.Target.Query = .{
+            .cpu_arch = .wasm32,
+            .os_tag = .freestanding,
+            .cpu_model = .{ .explicit = &std.Target.wasm.cpu.mvp },
+            .cpu_features_add = std.Target.wasm.featureSet(&.{
+                // We use this to explicitly request shared memory.
+                .atomics,
+
+                // Not explicitly used but compiler could use them if they want.
+                .bulk_memory,
+                .reference_types,
+                .sign_ext,
+            }),
+        };
+
+        const wasm = b.addExecutable(.{
+            .name = "zabi_wasm",
+            .root_source_file = b.path("src/root_wasm.zig"),
+            .target = b.resolveTargetQuery(wasm_crosstarget),
+            .optimize = .ReleaseSmall,
+            .link_libc = true,
+        });
+
+        addDependencies(b, &wasm.root_module, b.resolveTargetQuery(wasm_crosstarget), .ReleaseSmall);
+        wasm.root_module.addImport("zabi-evm", zabi_evm);
+        wasm.root_module.addImport("zabi-utils", zabi_utils);
+
+        // Browser target
+        wasm.entry = .disabled;
+        wasm.rdynamic = true;
+
+        // Memory defaults.
+        wasm.initial_memory = 65536 * 32;
+        wasm.max_memory = 65536 * 65336;
+
+        wasm.root_module.stack_protector = true;
+
+        const wasm_install = b.addInstallArtifact(wasm, .{});
+        const wasm_step = b.step("wasm", "Build wasm library");
+
+        wasm_step.dependOn(&wasm_install.step);
+    }
 }
 
 /// Adds zabi project dependencies.

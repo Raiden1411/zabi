@@ -110,14 +110,14 @@ pub fn logInstruction(self: *Interpreter, size: u8) (HostInstructionErrors || Me
     const offset = try self.stack.tryPopUnsafe();
     const length = try self.stack.tryPopUnsafe();
 
-    const len = std.math.cast(u64, length) orelse return error.Overflow;
+    const len = std.math.cast(usize, length) orelse return error.Overflow;
     try self.gas_tracker.updateTracker(gas.calculateLogCost(size, len) orelse return error.GasOverflow);
 
     const bytes: []u8 = blk: {
         if (len == 0)
             break :blk &[_]u8{};
 
-        const off = std.math.cast(u64, offset) orelse return error.Overflow;
+        const off = std.math.cast(usize, offset) orelse return error.Overflow;
         try self.resize(off +| len);
         break :blk self.memory.getSlice()[off .. off + len];
     };

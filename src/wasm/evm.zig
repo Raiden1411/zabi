@@ -1,5 +1,5 @@
 const std = @import("std");
-const evm = @import("zabi-evm");
+const evm = @import("zabi").evm;
 const wasm = @import("wasm.zig");
 
 const Contract = evm.contract.Contract;

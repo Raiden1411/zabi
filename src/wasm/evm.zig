@@ -39,10 +39,10 @@ pub export fn runCode(
     interpreter.init(wasm.allocator, contract_instance, plain.host(), .{}) catch wasm.panic("Failed to start interpreter", null, null);
 
     const result = interpreter.run() catch |err| {
-        std.log.err("Run result from zig: {s}\n", .{@errorName(err)});
+        std.log.err("Failed to execute: {s}", .{@errorName(err)});
         @trap();
     };
     defer result.deinit(wasm.allocator);
 
-    std.log.err("Run result from zig: {}\n", .{result});
+    std.log.info("Run result from zig: {}\n", .{result});
 }

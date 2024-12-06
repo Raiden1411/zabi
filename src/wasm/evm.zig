@@ -66,7 +66,7 @@ pub export fn runCode(
     var interpreter: Interpreter = undefined;
     defer interpreter.deinit();
 
-    interpreter.init(wasm.allocator, contract.*, host.*, .{ .gas_limit = 161088532 }) catch
+    interpreter.init(wasm.allocator, contract.*, host.*, .{ .gas_limit = 300_000_000 }) catch
         wasm.panic("Failed to start interpreter", null, null);
 
     const result = interpreter.run() catch |err| {

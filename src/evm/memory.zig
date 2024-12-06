@@ -87,7 +87,7 @@ pub const Memory = struct {
     pub fn getSlice(self: Memory) []u8 {
         std.debug.assert(self.buffer.len > self.last_checkpoint);
 
-        return self.buffer[self.last_checkpoint..self.buffer.len];
+        return self.buffer[self.last_checkpoint..];
     }
     /// Copies elements from one part of the buffer to another part of itself.
     /// Asserts that the provided indexes are not out of bound.

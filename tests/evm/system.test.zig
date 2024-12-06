@@ -343,7 +343,7 @@ test "Keccak256" {
 
         try evm.instructions.system.keccakInstruction(&interpreter);
 
-        try testing.expectEqual(0x29045a592007d0c246ef02c2223570da9522d0cf0f73282c79a1bc8f0bb2c238, @byteSwap(interpreter.stack.popUnsafe().?));
+        try testing.expectEqual(0x29045a592007d0c246ef02c2223570da9522d0cf0f73282c79a1bc8f0bb2c238, interpreter.stack.popUnsafe().?);
         try testing.expectEqual(36, interpreter.gas_tracker.used_amount);
     }
     {

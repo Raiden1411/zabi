@@ -129,7 +129,7 @@ pub fn keccakInstruction(self: *Interpreter) (Interpreter.InstructionErrors || M
 
         Keccak256.hash(slice[offset_usize .. offset_usize + len], &buffer, .{});
         try self.resize(offset_usize + len);
-        try self.stack.pushUnsafe(@bitCast(buffer));
+        try self.stack.pushUnsafe(std.mem.readInt(u256, &buffer, .big));
     }
 }
 /// Runs the returndatasize instructions opcodes for the interpreter.

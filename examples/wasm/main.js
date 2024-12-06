@@ -35,23 +35,39 @@
 	}
 
 	// Unwraps the string type produced from zig.
-	// function unwrapString(bigint) {
-	// 	const ptr = Number(bigint & 0xffffffffn);
-	// 	const len = Number(bigint >> 32n);
-	// 	return decodeString(ptr, len);
-	// }
+	function unwrapHexString(bigint) {
+		const ptr = Number(bigint & 0xffffffffn);
+		const len = Number(bigint >> 32n);
+		const buffer = new Uint8Array(wasm_exports.memory.buffer, ptr, len);
+
+		return byteArrayToHex(buffer);
+	}
+
+	function byteArrayToHex(byteArray) {
+		return byteArray.map((byte) => byte.toString(16).padStart(2, "0")).join("");
+	}
 
 	function runInterpreter() {
 		const code = contract_code.value;
 		const call = calldata.textContent;
 
-		console.log(code);
-		const [ptr, len, capacity] = encodeString(code);
-		const [pointer, length, cap] = encodeString(call ? call : "");
+		const [ptr, len] = encodeString(code);
+		const [pointer, length] = encodeString(call ? call : "");
 
-		wasm_exports.runCode(pointer, length, ptr, len);
-		wasm_exports.free(ptr, capacity);
-		wasm_exports.free(pointer, cap);
+		const contract = wasm_exports.instanciateContract(
+			pointer,
+			length,
+			ptr,
+			len,
+		);
+		const host = wasm_exports.generateHost(wasm_exports.getPlainHost());
+
+		const result = wasm_exports.runCode(contract, host);
+		const str = unwrapHexString(result);
+		document.getElementById("result").textContent = str;
+
+		wasm_exports.free(ptr);
+		wasm_exports.free(pointer);
 	}
 
 	// Instantiate WASM module and run our test code.
@@ -60,7 +76,6 @@
 			// We export this function to WASM land.
 			log: (ptr, len) => {
 				const msg = decodeString(ptr, len);
-				document.querySelector("#log").textContent = msg;
 				console.log(msg);
 			},
 		},

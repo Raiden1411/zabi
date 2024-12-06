@@ -35,7 +35,7 @@ test "SnailTracer" {
     var interpreter: Interpreter = undefined;
     defer interpreter.deinit();
 
-    try interpreter.init(testing.allocator, contract_instance, plain.host(), .{ .gas_limit = 161088532 });
+    try interpreter.init(testing.allocator, contract_instance, plain.host(), .{ .gas_limit = 165_102_640 });
 
     const result = try interpreter.run();
     defer result.deinit(testing.allocator);

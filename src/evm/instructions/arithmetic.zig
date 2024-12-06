@@ -24,7 +24,7 @@ pub fn divInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPopUnsafe();
 
-    try self.stack.pushUnsafe(if (second == 0) 0 else @divFloor(first, second));
+    try self.stack.pushUnsafe(if (second == 0) 0 else @divTrunc(first, second));
 }
 /// Performs exponent instruction for the interpreter.
 /// EXP -> 0x0A

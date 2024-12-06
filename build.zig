@@ -233,27 +233,50 @@ pub fn build(b: *std.Build) void {
         zabi_utils.addImport("zabi-types", zabi_types);
     }
 
+    // Runs the tests or coverage steps.
+    buildTestOrCoverage(b, target, optimize, zabi);
+
+    // Runs the benchmark
+    buildBenchmark(b, target, optimize, zabi);
+
+    // Build and generate docs for zabi. Uses the `doc_comments` spread across the codebase.
+    // Always build in `ReleaseFast`.
+    buildDocs(b, target);
+
+    // Build the wasm file. Always build in `ReleaseSmall` on `wasm32-freestanding`.
+    buildWasm(b, zabi);
+}
+
+// Builds and runs the main tests of zabi or the coverage from kcov.
+fn buildTestOrCoverage(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    module: *std.Build.Module,
+) void {
     const load_variables = b.option(bool, "load_variables", "Load enviroment variables from a \"env\" file.") orelse false;
     const env_file_path = b.option([]const u8, "env_file_path", "Specify the location of a env variables file") orelse ".env";
 
     // Builds and runs the main tests of zabi.
-    const lib_unit_tests = b.addTest(.{
-        .name = "zabi-tests",
-        .root_source_file = b.path("tests/root.zig"),
-        .target = target,
-        .optimize = optimize,
-        .test_runner = b.path("build/test_runner.zig"),
-    });
-    lib_unit_tests.root_module.addImport("zabi", zabi);
-    addDependencies(b, &lib_unit_tests.root_module, target, optimize);
+    {
+        const lib_unit_tests = b.addTest(.{
+            .name = "zabi-tests",
+            .root_source_file = b.path("tests/root.zig"),
+            .target = target,
+            .optimize = optimize,
+            .test_runner = b.path("build/test_runner.zig"),
+        });
+        lib_unit_tests.root_module.addImport("zabi", module);
+        addDependencies(b, &lib_unit_tests.root_module, target, optimize);
 
-    var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
+        var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_lib_unit_tests.step);
+        const test_step = b.step("test", "Run unit tests");
+        test_step.dependOn(&run_lib_unit_tests.step);
 
-    if (load_variables)
-        loadVariables(b, env_file_path, run_lib_unit_tests);
+        if (load_variables)
+            loadVariables(b, env_file_path, run_lib_unit_tests);
+    }
 
     // Build and run coverage test runner if `zig build coverage` was ran
     {
@@ -264,7 +287,7 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .test_runner = b.path("build/test_runner.zig"),
         });
-        coverage_lib_unit_tests.root_module.addImport("zabi", zabi);
+        coverage_lib_unit_tests.root_module.addImport("zabi", module);
         const test_step_coverage = b.step("coverage", "Run unit tests with kcov coverage");
 
         const kcov_collect = std.Build.Step.Run.create(b, "collect coverage");
@@ -289,16 +312,44 @@ pub fn build(b: *std.Build) void {
         });
         test_step_coverage.dependOn(&install_coverage.step);
     }
+}
 
-    // Runs the benchmark
-    buildBenchmark(b, target, optimize, zabi);
+/// Build the wasm binary.
+fn buildWasm(b: *std.Build, module: *std.Build.Module) void {
+    const wasm_crosstarget: std.Target.Query = .{
+        .cpu_arch = .wasm32,
+        .os_tag = .freestanding,
+        .cpu_model = .{ .explicit = &std.Target.wasm.cpu.mvp },
+        .cpu_features_add = std.Target.wasm.featureSet(&.{
+            .atomics,
+            .bulk_memory,
+            .reference_types,
+            .sign_ext,
+        }),
+    };
 
-    // Build and generate docs for zabi. Uses the `doc_comments` spread across the codebase.
-    // Always build in `ReleaseFast`.
-    buildDocs(b, target);
+    const wasm = b.addExecutable(.{
+        .name = "zabi_wasm",
+        .root_source_file = b.path("src/root_wasm.zig"),
+        .target = b.resolveTargetQuery(wasm_crosstarget),
+        .optimize = .ReleaseSmall,
+    });
+    wasm.root_module.addImport("zabi", module);
 
-    // Build the wasm file. Always build in `ReleaseSmall` on `wasm32-freestanding.
-    buildWasm(b);
+    // Browser target
+    wasm.entry = .disabled;
+    wasm.rdynamic = true;
+
+    // Memory defaults.
+    wasm.initial_memory = 65536 * 32;
+    wasm.max_memory = 65536 * 65336;
+
+    wasm.root_module.stack_protector = true;
+
+    const wasm_install = b.addInstallArtifact(wasm, .{});
+    const wasm_step = b.step("wasm", "Build wasm library");
+
+    wasm_step.dependOn(&wasm_install.step);
 }
 
 /// Adds zabi project dependencies.
@@ -354,49 +405,6 @@ fn buildDocs(b: *std.Build, target: std.Build.ResolvedTarget) void {
     const docs_step = b.step("docs", "Generate documentation based on the source code.");
     docs_step.dependOn(&docs_run.step);
 }
-/// Builds for wasm32-freestanding target.
-fn buildWasm(b: *std.Build) void {
-    const wasm_crosstarget: std.Target.Query = .{
-        .cpu_arch = .wasm32,
-        .os_tag = .freestanding,
-        .cpu_model = .{ .explicit = &std.Target.wasm.cpu.mvp },
-        .cpu_features_add = std.Target.wasm.featureSet(&.{
-            // We use this to explicitly request shared memory.
-            .atomics,
-
-            // Not explicitly used but compiler could use them if they want.
-            .bulk_memory,
-            .reference_types,
-            .sign_ext,
-        }),
-    };
-
-    const wasm = b.addExecutable(.{
-        .name = "zabi_wasm",
-        .root_source_file = b.path("src/root_wasm.zig"),
-        .target = b.resolveTargetQuery(wasm_crosstarget),
-        .optimize = .ReleaseSmall,
-        .link_libc = true,
-    });
-
-    // Browser target
-    wasm.entry = .disabled;
-    wasm.rdynamic = true;
-
-    // Memory defaults.
-    wasm.initial_memory = 65536 * 32;
-    wasm.max_memory = 65536 * 65336;
-
-    wasm.root_module.stack_protector = true;
-
-    addDependencies(b, &wasm.root_module, b.resolveTargetQuery(wasm_crosstarget), .ReleaseSmall);
-
-    const wasm_install = b.addInstallArtifact(wasm, .{});
-    const wasm_step = b.step("wasm", "Build wasm library");
-
-    wasm_step.dependOn(&wasm_install.step);
-}
-
 /// Loads enviroment variables from a `.env` file in case they aren't already present.
 fn loadVariables(b: *std.Build, env_path: []const u8, exe: *std.Build.Step.Run) void {
     var file = std.fs.cwd().openFile(env_path, .{}) catch |err|

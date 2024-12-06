@@ -251,7 +251,7 @@ pub inline fn calculateCall(self: *Interpreter, values_transfered: bool, is_cold
 }
 /// Gets the memory slice and the ranges used to grab it.
 /// This also resizes the interpreter's memory.
-pub fn getMemoryInputsAndRanges(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!struct { []u8, struct { u64, u64 } } {
+pub fn getMemoryInputsAndRanges(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!struct { []u8, struct { usize, usize } } {
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPopUnsafe();
     const third = try self.stack.tryPopUnsafe();
@@ -259,7 +259,7 @@ pub fn getMemoryInputsAndRanges(self: *Interpreter) (Interpreter.InstructionErro
 
     const offset, const len = try resizeMemoryAndGetRange(self, first, second);
 
-    const buffer = try self.allocator.alloc(u8, len);
+    const buffer = try self.allocator.alloc(u8, @intCast(len));
     errdefer self.allocator.free(buffer);
 
     if (offset != 0 and len != 0)
@@ -270,13 +270,17 @@ pub fn getMemoryInputsAndRanges(self: *Interpreter) (Interpreter.InstructionErro
     return .{ buffer, result };
 }
 /// Resizes the memory as gets the offset ranges.
-pub fn resizeMemoryAndGetRange(self: *Interpreter, offset: u256, len: u256) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!struct { u64, u64 } {
-    const length = std.math.cast(u64, len) orelse std.math.maxInt(u64);
-    const offset_len = std.math.cast(u64, offset) orelse return error.Overflow;
+pub fn resizeMemoryAndGetRange(
+    self: *Interpreter,
+    offset: u256,
+    len: u256,
+) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!struct { usize, usize } {
+    const length = std.math.cast(usize, len) orelse std.math.maxInt(usize);
+    const offset_len = std.math.cast(usize, offset) orelse return error.Overflow;
 
-    const end: u64 = blk: {
+    const end: usize = blk: {
         if (len == 0)
-            break :blk comptime std.math.maxInt(u64);
+            break :blk comptime std.math.maxInt(usize);
 
         try self.resize(length +| offset_len);
 

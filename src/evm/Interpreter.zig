@@ -44,6 +44,17 @@ pub const InterpreterRunErrors = AllInstructionErrors || error{
     CreateCodeSizeLimit,
 };
 
+/// Set of possible errors that can be returned depending on the interpreter's current state.
+pub const InterpreterStatusErrors = error{
+    OpcodeNotFound,
+    CallWithValueNotAllowedInStaticCall,
+    InvalidInstructionOpcode,
+    InterpreterReverted,
+    CreateCodeSizeLimit,
+    InvalidOffset,
+    InvalidJump,
+};
+
 /// The set of next interpreter actions.
 pub const InterpreterActions = union(enum) {
     /// Call action.
@@ -110,7 +121,7 @@ memory: Memory,
 /// The next interpreter action.
 next_action: InterpreterActions,
 /// The interpreter's counter.
-program_counter: u64,
+program_counter: usize,
 /// The spec for this interpreter.
 spec: SpecId,
 /// The stack of the interpreter with 1024 max size.
@@ -228,10 +239,9 @@ pub fn runInstruction(self: *Interpreter) AllInstructionErrors!void {
 /// const result = try interpreter.run();
 /// defer result.deinit(testing.allocator);
 /// ```
-pub fn run(self: *Interpreter) !InterpreterActions {
-    while (self.status == .running) : (self.advanceProgramCounter()) {
+pub fn run(self: *Interpreter) (AllInstructionErrors || InterpreterStatusErrors)!InterpreterActions {
+    while (self.status == .running) : (self.advanceProgramCounter())
         try self.runInstruction();
-    }
 
     // Handles the different status of the interperter after it's finished
     switch (self.status) {
@@ -256,7 +266,7 @@ pub fn run(self: *Interpreter) !InterpreterActions {
 }
 /// Resizes the inner memory size. Adds gas expansion cost to
 /// the gas tracker.
-pub fn resize(self: *Interpreter, new_size: u64) (Allocator.Error || GasTracker.Error || Memory.Error)!void {
+pub fn resize(self: *Interpreter, new_size: usize) (Allocator.Error || GasTracker.Error || Memory.Error)!void {
     if (new_size > self.memory.getCurrentMemorySize()) {
         const count = mem.availableWords(new_size);
         const mem_cost = gas.calculateMemoryCost(count);

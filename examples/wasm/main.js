@@ -59,8 +59,9 @@
 
 	function runInterpreter() {
 		const code = contract_code.value;
-		const call = calldata.textContent;
+		const call = calldata.value;
 
+		console.log(`Calldata file: ${call}`);
 		const [ptr, len] = encodeString(code);
 		const [pointer, length] = encodeString(call ? call : "");
 

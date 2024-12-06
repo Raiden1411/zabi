@@ -55,7 +55,9 @@ pub fn callDataLoadInstruction(self: *Interpreter) (Interpreter.InstructionError
         @memcpy(buffer[0..count], slice);
     }
 
-    try self.stack.pushUnsafe(@byteSwap(@as(u256, @bitCast(buffer))));
+    const as_int = std.mem.readInt(u256, &buffer, .big);
+
+    try self.stack.pushUnsafe(as_int);
 }
 /// Runs the calldatasize instructions opcodes for the interpreter.
 /// 0x36 -> CALLDATASIZE

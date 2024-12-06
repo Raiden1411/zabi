@@ -17,17 +17,22 @@ pub export fn instanciateContract(
     const contract = wasm.allocator.create(Contract) catch wasm.panic("Failed to allocate memory", null, null);
     errdefer wasm.allocator.destroy(contract);
 
-    if (contract_len % 2 != 0)
-        wasm.panic("Contract length must follow two's complement", null, null);
+    if (contract_len % 2 != 0 or calldata_len % 2 != 0)
+        wasm.panic("Contract length and calldata length must follow two's complement", null, null);
 
     const alloced = wasm.allocator.alloc(u8, contract_len / 2) catch wasm.panic("Failed to allocate memory", null, null);
     defer wasm.allocator.free(alloced);
 
     _ = std.fmt.hexToBytes(alloced, contract_code[0..contract_len]) catch wasm.panic("Failed to decode contract_code", null, null);
 
+    const alloced_calldata = wasm.allocator.alloc(u8, calldata_len / 2) catch wasm.panic("Failed to allocate memory", null, null);
+    defer wasm.allocator.free(alloced_calldata);
+
+    _ = std.fmt.hexToBytes(alloced_calldata, calldata[0..calldata_len]) catch wasm.panic("Failed to decode contract_code", null, null);
+
     contract.* = Contract.init(
         wasm.allocator,
-        calldata[0..calldata_len],
+        alloced_calldata,
         .{ .raw = alloced },
         null,
         0,
@@ -61,7 +66,7 @@ pub export fn runCode(
     var interpreter: Interpreter = undefined;
     defer interpreter.deinit();
 
-    interpreter.init(wasm.allocator, contract.*, host.*, .{}) catch
+    interpreter.init(wasm.allocator, contract.*, host.*, .{ .gas_limit = 161088532 }) catch
         wasm.panic("Failed to start interpreter", null, null);
 
     const result = interpreter.run() catch |err| {

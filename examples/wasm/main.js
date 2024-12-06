@@ -40,12 +40,22 @@
 		const len = Number(bigint >> 32n);
 		const buffer = new Uint8Array(wasm_exports.memory.buffer, ptr, len);
 
-		return byteArrayToHex(buffer);
+		return byteToHex(buffer);
 	}
 
-	function byteArrayToHex(byteArray) {
-		return byteArray.map((byte) => byte.toString(16).padStart(2, "0")).join("");
-	}
+	const byteToHex = (byte) => {
+		const key = "0123456789abcdef";
+		let bytes = new Uint8Array(byte);
+		let newHex = "";
+		let currentChar = 0;
+		for (let i = 0; i < bytes.length; i++) {
+			currentChar = bytes[i] >> 4;
+			newHex += key[currentChar];
+			currentChar = bytes[i] & 15;
+			newHex += key[currentChar];
+		}
+		return newHex;
+	};
 
 	function runInterpreter() {
 		const code = contract_code.value;

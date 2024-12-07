@@ -18,20 +18,17 @@ pub fn popInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
 }
 /// Runs the push instructions opcodes for the interpreter.
 /// 0x60 .. 0x7F -> PUSH1 .. PUSH32
-pub fn pushInstruction(self: *Interpreter, size: u8) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
+pub fn pushInstruction(self: *Interpreter, comptime size: u8) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
     if (!self.spec.enabled(.SHANGHAI))
         return error.InstructionNotEnabled;
 
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
-    std.debug.assert(size <= 32); // Size higher than expected.
+    comptime std.debug.assert(size <= 32); // Size higher than expected.
 
-    const slice = self.code[self.program_counter + 1 .. self.program_counter + 1 + size];
+    const slice: [size]u8 = self.code[self.program_counter + 1 .. self.program_counter + 1 + size][0..size].*;
 
-    var buffer: [32]u8 = [_]u8{0} ** 32;
-    @memcpy(buffer[32 - size ..], slice[0..]);
-
-    try self.stack.pushUnsafe(std.mem.readInt(u256, &buffer, .big));
+    try self.stack.pushUnsafe(std.mem.readInt(std.meta.Int(.unsigned, @as(u16, @intCast(size)) * 8), &slice, .big));
 
     self.program_counter += size;
 }

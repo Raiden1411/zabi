@@ -10,11 +10,11 @@ pub fn addInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPeek();
 
-    const addition = first +% second;
+    const addition = first +% second.*;
 
-    try self.stack.pushUnsafe(addition);
+    second.* = addition;
 }
 /// Performs div instruction for the interpreter.
 /// DIV -> 0x04
@@ -22,21 +22,22 @@ pub fn divInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPeek();
 
-    try self.stack.pushUnsafe(if (second == 0) 0 else @divTrunc(first, second));
+    second.* = if (second.* == 0) 0 else first / second.*;
 }
 /// Performs exponent instruction for the interpreter.
 /// EXP -> 0x0A
 pub fn exponentInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{Overflow})!void {
     const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPeek();
 
-    const exp_gas = try gas.calculateExponentCost(second, self.spec);
+    const exp_gas = try gas.calculateExponentCost(second.*, self.spec);
     try self.gas_tracker.updateTracker(exp_gas);
 
-    const exp = std.math.pow(u256, first, second);
-    try self.stack.pushUnsafe(exp);
+    const exp = std.math.pow(u256, first, second.*);
+
+    second.* = exp;
 }
 /// Performs addition + mod instruction for the interpreter.
 /// ADDMOD -> 0x08
@@ -45,13 +46,11 @@ pub fn modAdditionInstruction(self: *Interpreter) Interpreter.InstructionErrors!
 
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPopUnsafe();
-    const third = try self.stack.tryPopUnsafe();
-
-    std.debug.assert(third != 0); // remainder division by 0
+    const third = try self.stack.tryPeek();
 
     const add = first +% second;
 
-    try self.stack.pushUnsafe(if (third == 0) add else @mod(add, third));
+    third.* = if (third.* == 0) add else @mod(add, third.*);
 }
 /// Performs mod instruction for the interpreter.
 /// MOD -> 0x06
@@ -59,9 +58,9 @@ pub fn modInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPeek();
 
-    try self.stack.pushUnsafe(if (second == 0) 0 else @mod(first, second));
+    second.* = if (second.* == 0) 0 else @mod(first, second.*);
 }
 /// Performs mul + mod instruction for the interpreter.
 /// MULMOD -> 0x09
@@ -70,11 +69,11 @@ pub fn modMultiplicationInstruction(self: *Interpreter) Interpreter.InstructionE
 
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPopUnsafe();
-    const third = try self.stack.tryPopUnsafe();
+    const third = try self.stack.tryPeek();
 
     const mul = first *% second;
 
-    try self.stack.pushUnsafe(if (third == 0) mul else @mod(mul, third));
+    third.* = if (third.* == 0) mul else @mod(mul, third.*);
 }
 /// Performs mul instruction for the interpreter.
 /// MUL -> 0x02
@@ -82,11 +81,11 @@ pub fn mulInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPeek();
 
-    const mul = first *% second;
+    const mul = first *% second.*;
 
-    try self.stack.pushUnsafe(mul);
+    second.* = mul;
 }
 /// Performs signed division instruction for the interpreter.
 /// SDIV -> 0x05
@@ -94,12 +93,18 @@ pub fn signedDivInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPeek();
+
+    if (second.* == 0) {
+        second.* = 0;
+        return;
+    }
 
     const casted_first: i256 = @bitCast(first);
-    const casted_second: i256 = @bitCast(second);
+    const casted_second: i256 = @bitCast(second.*);
+    const div = @divTrunc(casted_first, casted_second);
 
-    try self.stack.pushUnsafe(if (casted_second == 0) 0 else @bitCast(@divTrunc(casted_first, casted_second)));
+    second.* = @bitCast(div);
 }
 /// Performs signextend instruction for the interpreter.
 /// SIGNEXTEND -> 0x0B
@@ -126,12 +131,16 @@ pub fn signedModInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
     try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPeek();
+
+    if (second.* == 0)
+        return self.stack.pushUnsafe(0);
 
     const casted_first: i256 = @bitCast(first);
-    const casted_second: i256 = @bitCast(second);
+    const casted_second: i256 = @bitCast(second.*);
+    const rem = @rem(casted_first, casted_second);
 
-    try self.stack.pushUnsafe(if (casted_second == 0) 0 else @bitCast(@rem(casted_first, casted_second)));
+    second.* = @bitCast(rem);
 }
 /// Performs sub instruction for the interpreter.
 /// SUB -> 0x03
@@ -139,9 +148,9 @@ pub fn subInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPopUnsafe();
+    const second = try self.stack.tryPeek();
 
-    const sub = first -% second;
+    const sub = first -% second.*;
 
-    try self.stack.pushUnsafe(sub);
+    second.* = sub;
 }

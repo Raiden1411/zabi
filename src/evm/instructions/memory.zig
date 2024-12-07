@@ -36,15 +36,15 @@ pub fn mcopyInstruction(self: *Interpreter) (MemoryInstructionErrors || error{In
 /// Runs the mload opcode for the interpreter.
 /// 0x51 -> MLOAD
 pub fn mloadInstruction(self: *Interpreter) MemoryInstructionErrors!void {
-    const offset = try self.stack.tryPopUnsafe();
+    const offset = try self.stack.tryPeek();
 
-    const as_usize = std.math.cast(usize, offset) orelse return error.Overflow;
+    const as_usize = std.math.cast(usize, offset.*) orelse return error.Overflow;
 
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
     const new_size = as_usize +| 32;
     try self.resize(new_size);
 
-    try self.stack.pushUnsafe(self.memory.wordToInt(as_usize));
+    offset.* = self.memory.wordToInt(as_usize);
 }
 /// Runs the msize opcode for the interpreter.
 /// 0x59 -> MSIZE

@@ -255,6 +255,19 @@ pub fn BoundedStack(comptime size: usize) type {
 
             return item;
         }
+        /// Peek the last element of the stack and returns it's pointer.
+        /// Returns null if len is 0;
+        pub fn peek(self: *Self) ?*u256 {
+            if (self.len == 0)
+                return null;
+
+            return &self.inner[self.len - 1];
+        }
+        /// Peek the last element of the stack and returns it's pointer.
+        /// Returns `StackUnderflow` if len is 0;
+        pub fn tryPeek(self: *Self) error{StackUnderflow}!*u256 {
+            return self.peek() orelse error.StackUnderflow;
+        }
         /// Returns the current stack size.
         pub fn stackHeight(self: *Self) usize {
             return self.len;

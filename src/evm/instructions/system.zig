@@ -163,8 +163,9 @@ pub fn returnDataCopyInstruction(self: *Interpreter) (Interpreter.InstructionErr
 
     if (length != 0) {
         const memory_offset = std.math.cast(usize, offset) orelse return error.Overflow;
-
         try self.resize(memory_offset + len);
+
+        std.debug.assert(self.return_data.len <= return_end);
         self.memory.write(memory_offset, self.return_data[return_offset..return_end]);
     }
 }

@@ -78,10 +78,7 @@ pub const Memory = struct {
         const slice = self.getSlice();
         std.debug.assert(slice.len >= offset + 32);
 
-        var buffer: [32]u8 = undefined;
-        @memcpy(buffer[0..], slice[offset .. offset + 32]);
-
-        return buffer;
+        return slice[offset .. offset + 32][0..32].*;
     }
     /// Gets a memory slice based on the last checkpoints until the end of the buffer.
     pub fn getSlice(self: Memory) []u8 {
@@ -102,6 +99,7 @@ pub const Memory = struct {
     /// Prepares the memory for a new context.
     pub fn newContext(self: *Memory) Allocator.Error!void {
         const new_checkpoint = self.buffer.len;
+
         try self.checkpoints.append(new_checkpoint);
         self.last_checkpoint = new_checkpoint;
     }

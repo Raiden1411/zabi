@@ -56,7 +56,7 @@ pub const EVMEnviroment = struct {
     /// <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md#execution-layer-validation>
     pub fn calculateDataFee(self: EVMEnviroment) ?u256 {
         if (self.block.blob_excess_gas_and_price) |fees| {
-            return @truncate(fees.blob_gasprice * self.tx.getTotalBlobGas());
+            return fees.blob_gasprice * self.tx.getTotalBlobGas();
         } else return null;
     }
     /// Calculates the max `data_fee` of the transaction.

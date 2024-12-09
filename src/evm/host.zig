@@ -235,7 +235,7 @@ pub const PlainHost = struct {
         const result: SStoreResult = blk: {
             if (entry) |entry_value| {
                 try self.storage.put(index, value);
-                break :blk SStoreResult{
+                break :blk .{
                     .is_cold = false,
                     .new_value = value,
                     .present_value = entry_value,
@@ -244,7 +244,7 @@ pub const PlainHost = struct {
             }
 
             try self.storage.put(index, value);
-            break :blk SStoreResult{
+            break :blk .{
                 .is_cold = true,
                 .new_value = value,
                 .present_value = 0,

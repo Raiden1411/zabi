@@ -41,17 +41,16 @@ pub const AnalyzedBytecode = struct {
 
     /// Creates an instance of `AnalyzedBytecode`.
     pub fn init(allocator: Allocator, raw: []u8) Allocator.Error!AnalyzedBytecode {
-        const size = raw.len;
-        var list = try std.ArrayList(u8).initCapacity(allocator, size + 33);
-        try list.appendSlice(raw);
-        try list.writer().writeByteNTimes(0, 33);
+        var list = try std.ArrayList(u8).initCapacity(allocator, raw.len + 33);
+        list.appendSliceAssumeCapacity(raw);
+        list.appendSliceAssumeCapacity(&[_]u8{0} ** 33);
 
         const slice = try list.toOwnedSlice();
         const jump_table = try analysis.createJumpTable(allocator, slice);
 
         return .{
             .bytecode = slice,
-            .original_length = size,
+            .original_length = raw.len,
             .jump_table = jump_table,
         };
     }

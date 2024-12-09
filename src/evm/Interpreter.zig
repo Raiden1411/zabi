@@ -257,11 +257,13 @@ pub fn run(self: *Interpreter) (AllInstructionErrors || InterpreterStatusErrors)
     if (self.next_action != .no_action)
         return self.next_action;
 
-    return .{ .return_action = .{
-        .gas = self.gas_tracker,
-        .output = try self.allocator.dupe(u8, self.return_data),
-        .result = self.status,
-    } };
+    return .{
+        .return_action = .{
+            .gas = self.gas_tracker,
+            .output = try self.allocator.dupe(u8, self.return_data),
+            .result = self.status,
+        },
+    };
 }
 /// Resizes the inner memory size. Adds gas expansion cost to
 /// the gas tracker.

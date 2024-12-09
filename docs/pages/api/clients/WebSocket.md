@@ -64,21 +64,6 @@ struct {
 }
 ```
 
-## ServerMessage
-This will get run everytime a socket message is found.
-All messages are parsed and put into the handlers channel.
-All callbacks will only affect this function.
-
-### Signature
-
-```zig
-pub fn serverMessage(
-    self: *WebSocketHandler,
-    message: []u8,
-    message_type: ws.MessageTextType,
-) (Stack(JsonParsed(Value)).Error || error{ FailedToJsonParseResponse, InvalidTypeMessage, UnexpectedError })!void
-```
-
 ## Init
 Populates the WebSocketHandler pointer.
 Starts the connection in a seperate process.
@@ -90,7 +75,6 @@ pub fn init(opts: InitOptions) InitErrors!*WebSocketHandler
 ```
 
 ## Deinit
-All future interactions will deadlock
 If you are using the subscription channel this operation can take time
 as it will need to cleanup each node.
 
@@ -106,16 +90,7 @@ Connects to a socket client. This is a blocking operation.
 ### Signature
 
 ```zig
-pub fn connect(self: *WebSocketHandler) ConnectionErrors!ws.Client
-```
-
-## Close
-Runs the callback once the handler close method gets called by the ws_client
-
-### Signature
-
-```zig
-pub fn close(self: *WebSocketHandler) void
+pub fn connect(self: *WebSocketHandler) ConnectionErrors!WsClient
 ```
 
 ## BlobBaseFee
@@ -949,13 +924,22 @@ pub fn parseSubscriptionEvent(self: *WebSocketHandler, comptime T: type) ParseFr
 ```
 
 ## ReadLoopOwned
+ReadLoop used mainly to run in seperate threads.
+
+### Signature
+
+```zig
+pub fn readLoopOwned(self: *WebSocketHandler) !void
+```
+
+## ReadLoop
 This is a blocking operation.
 Best to call this in a seperate thread.
 
 ### Signature
 
 ```zig
-pub fn readLoopOwned(self: *WebSocketHandler) void
+pub fn readLoop(self: *WebSocketHandler) !void
 ```
 
 ## SendEthCall

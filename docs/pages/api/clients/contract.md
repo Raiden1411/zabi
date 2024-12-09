@@ -66,7 +66,11 @@ RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-
 ### Signature
 
 ```zig
-pub fn estimateGas(self: *ContractComptime(client_type), call_object: EthCall, opts: BlockNumberRequest) WalletClient.Error!RPCResponse(Gwei)
+pub fn estimateGas(
+    self: *ContractComptime(client_type),
+    call_object: EthCall,
+    opts: BlockNumberRequest,
+) WalletClient.Error!RPCResponse(Gwei)
 ```
 
 ## ReadContractFunction

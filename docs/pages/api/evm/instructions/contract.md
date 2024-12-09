@@ -65,7 +65,7 @@ This also resizes the interpreter's memory.
 ### Signature
 
 ```zig
-pub fn getMemoryInputsAndRanges(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!struct { []u8, struct { u64, u64 } }
+pub fn getMemoryInputsAndRanges(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!struct { []u8, struct { usize, usize } }
 ```
 
 ## ResizeMemoryAndGetRange
@@ -74,6 +74,10 @@ Resizes the memory as gets the offset ranges.
 ### Signature
 
 ```zig
-pub fn resizeMemoryAndGetRange(self: *Interpreter, offset: u256, len: u256) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!struct { u64, u64 }
+pub fn resizeMemoryAndGetRange(
+    self: *Interpreter,
+    offset: u256,
+    len: u256,
+) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!struct { usize, usize }
 ```
 

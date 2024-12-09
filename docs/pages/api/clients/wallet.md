@@ -38,16 +38,21 @@ Wallet(.ipc)
 
 ## TransactionEnvelopePool
 
+Pool of prepared transaciton envelopes.
+
 ### Properties
 
 ```zig
 struct {
   mutex: Mutex = .{}
+  /// DoublyLinkedList queue. Iterate from last to first (LIFO)
   pooled_envelopes: TransactionEnvelopeQueue
 }
 ```
 
 ## Node
+
+LinkedList node.
 
 ```zig
 TransactionEnvelopeQueue.Node
@@ -123,6 +128,8 @@ pub fn deinit(pool: *TransactionEnvelopePool, allocator: Allocator) void
 ```
 
 ## Node
+
+LinkedList node.
 
 ```zig
 TransactionEnvelopeQueue.Node

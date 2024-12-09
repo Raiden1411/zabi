@@ -110,7 +110,7 @@ Asserts that the provided indexes are not out of bound.
 ### Signature
 
 ```zig
-pub fn memoryCopy(self: *Memory, destination: u64, source: u64, length: u64) void
+pub fn memoryCopy(self: *Memory, destination: usize, source: usize, length: usize) void
 ```
 
 ### NewContext
@@ -217,6 +217,6 @@ It rounds up the number bytes to number of words.
 ### Signature
 
 ```zig
-pub inline fn availableWords(size: u64) u64
+pub inline fn availableWords(size: u64) usize
 ```
 

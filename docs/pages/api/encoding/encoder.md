@@ -44,7 +44,7 @@ The encoded values inner structure representation.
 
 ```zig
 struct {
-  dynamic: bool
+  type: ParameterType
   encoded: []const u8
 }
 ```

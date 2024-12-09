@@ -28,7 +28,15 @@ This will also prepare the provided bytecode in case it's given in a `raw` state
 ### Signature
 
 ```zig
-pub fn init(allocator: Allocator, data: []u8, bytecode: Bytecode, hash: ?Hash, value: u256, caller: Address, target_address: Address) !Contract
+pub fn init(
+    allocator: Allocator,
+    data: []u8,
+    bytecode: Bytecode,
+    hash: ?Hash,
+    value: u256,
+    caller: Address,
+    target_address: Address,
+) Allocator.Error!Contract
 ```
 
 ### InitFromEnviroment

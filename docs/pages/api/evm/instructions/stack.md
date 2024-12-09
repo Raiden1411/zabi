@@ -25,7 +25,7 @@ Runs the push instructions opcodes for the interpreter.
 ### Signature
 
 ```zig
-pub fn pushInstruction(self: *Interpreter, size: u8) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void
+pub fn pushInstruction(self: *Interpreter, comptime size: u8) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void
 ```
 
 ## PushZeroInstruction

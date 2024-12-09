@@ -283,6 +283,26 @@ Pops item from the stack.
 pub fn pop(self: *Self) u256
 ```
 
+## Peek
+Peek the last element of the stack and returns it's pointer.
+Returns null if len is 0;
+
+### Signature
+
+```zig
+pub fn peek(self: *Self) ?*u256
+```
+
+## TryPeek
+Peek the last element of the stack and returns it's pointer.
+Returns `StackUnderflow` if len is 0;
+
+### Signature
+
+```zig
+pub fn tryPeek(self: *Self) error{StackUnderflow}!*u256
+```
+
 ## StackHeight
 Returns the current stack size.
 

@@ -54,7 +54,11 @@ The names are not normalized so make sure that the names are normalized before h
 ### Signature
 
 ```zig
-pub fn getEnsAddress(self: *ENS, name: []const u8, opts: BlockNumberRequest) EnsErrors!AbiDecoded(Address)
+pub fn getEnsAddress(
+    self: *ENS,
+    name: []const u8,
+    opts: BlockNumberRequest,
+) EnsErrors!AbiDecoded(Address)
 ```
 
 ## GetEnsName
@@ -68,7 +72,11 @@ This will fail if its not a valid checksumed address.
 ### Signature
 
 ```zig
-pub fn getEnsName(self: *ENS, address: []const u8, opts: BlockNumberRequest) EnsErrors!RPCResponse([]const u8)
+pub fn getEnsName(
+    self: *ENS,
+    address: []const u8,
+    opts: BlockNumberRequest,
+) EnsErrors!RPCResponse([]const u8)
 ```
 
 ## GetEnsResolver

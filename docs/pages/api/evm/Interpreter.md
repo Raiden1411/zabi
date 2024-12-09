@@ -3,7 +3,7 @@
 Set of common errors when running indivual instructions.
 
 ```zig
-Allocator.Error || error{ StackUnderflow, StackOverflow } || GasTracker.Error
+Allocator.Error || error{ StackUnderflow, StackOverflow, Overflow } || GasTracker.Error
 ```
 
 ## AllInstructionErrors
@@ -12,7 +12,6 @@ Set of all possible errors of interpreter instructions.
 
 ```zig
 InstructionErrors || Memory.Error || error{
-    Overflow,
     UnexpectedError,
     InvalidJump,
     InstructionNotEnabled,
@@ -31,6 +30,22 @@ AllInstructionErrors || error{
     InvalidOffset,
     CallWithValueNotAllowedInStaticCall,
     CreateCodeSizeLimit,
+}
+```
+
+## InterpreterStatusErrors
+
+Set of possible errors that can be returned depending on the interpreter's current state.
+
+```zig
+error{
+    OpcodeNotFound,
+    CallWithValueNotAllowedInStaticCall,
+    InvalidInstructionOpcode,
+    InterpreterReverted,
+    CreateCodeSizeLimit,
+    InvalidOffset,
+    InvalidJump,
 }
 ```
 
@@ -200,7 +215,7 @@ defer result.deinit(testing.allocator);
 ### Signature
 
 ```zig
-pub fn run(self: *Interpreter) !InterpreterActions
+pub fn run(self: *Interpreter) (AllInstructionErrors || InterpreterStatusErrors)!InterpreterActions
 ```
 
 ## Resize
@@ -210,6 +225,6 @@ the gas tracker.
 ### Signature
 
 ```zig
-pub fn resize(self: *Interpreter, new_size: u64) (Allocator.Error || GasTracker.Error || Memory.Error)!void
+pub fn resize(self: *Interpreter, new_size: usize) (Allocator.Error || GasTracker.Error || Memory.Error)!void
 ```
 

@@ -154,6 +154,6 @@ pub fn multicall3(
     comptime targets: []const MulticallTargets,
     function_arguments: MulticallArguments(targets),
     allow_failure: bool,
-) Self.Error!AbiDecoded([]const Result)
+) Error!AbiDecoded([]const Result)
 ```
 

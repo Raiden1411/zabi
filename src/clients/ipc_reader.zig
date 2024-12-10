@@ -24,11 +24,11 @@ pub const IpcReader = struct {
     /// The growth rate of the message buffer.
     growth_rate: usize,
     /// The end of a json message.
-    message_end: Atomic = Atomic.init(0),
+    message_end: usize,
     /// The start of the json message.
-    message_start: Atomic = Atomic.init(0),
+    message_start: usize,
     /// The current position in the buffer.
-    position: Atomic = Atomic.init(0),
+    position: usize,
     /// The stream used to read or write.
     stream: Stream,
     /// If the stream is closed for reading.
@@ -49,15 +49,17 @@ pub const IpcReader = struct {
             .buffer = try allocator.alloc(u8, growth_rate orelse std.math.maxInt(u16)),
             .stream = stream,
             .growth_rate = growth_rate orelse std.math.maxInt(u16),
+            .message_start = 0,
+            .message_end = 0,
+            .position = 0,
         };
     }
     /// Frees the buffer and closes the stream.
-    pub fn deinit(self: Self) void {
-        if (@atomicLoad(bool, &self.closed, .acquire))
-            return;
-
-        self.allocator.free(self.buffer);
-        self.stream.close();
+    pub fn deinit(self: *Self) void {
+        if (@atomicRmw(bool, &self.closed, .Xchg, true, .acq_rel) == false) {
+            self.allocator.free(self.buffer);
+            self.stream.close();
+        }
     }
     /// Reads the bytes directly from the socket. Will allocate more memory as needed.
     pub fn read(self: *Self) Self.ReadError!void {
@@ -67,7 +69,7 @@ pub const IpcReader = struct {
         if (size == 0)
             return error.Closed;
 
-        const position = self.position.load(.acquire);
+        const position = self.position;
 
         if (position + size > self.buffer.len)
             try self.grow(size);
@@ -75,7 +77,7 @@ pub const IpcReader = struct {
         std.debug.assert(self.buffer.len >= position + size);
 
         @memcpy(self.buffer[position .. position + size], result[0..size]);
-        self.position.store(position + size, .release);
+        self.position += size;
     }
     /// Grows the reader buffer based on the growth rate. Will use the `allocator` resize
     /// method if available.
@@ -94,8 +96,8 @@ pub const IpcReader = struct {
     pub fn jsonMessage(self: *@This()) usize {
         var depth: usize = 0;
 
-        var message_end = self.message_end.load(.acquire);
-        const position = self.position.load(.acquire);
+        var message_end = self.message_end;
+        const position = self.position;
 
         while (message_end < position) : (message_end += 1) {
             switch (self.buffer[message_end]) {
@@ -106,8 +108,8 @@ pub const IpcReader = struct {
 
             // Check if we read a message or not.
             if (depth == 0) {
-                self.message_end.store(message_end + 1, .release);
-                return (message_end + 1) - self.message_start.load(.acquire);
+                self.message_end = message_end + 1;
+                return self.message_end - self.message_start;
             }
         }
 
@@ -127,18 +129,15 @@ pub const IpcReader = struct {
                 continue;
             }
 
-            const message_start = self.message_start.load(.acquire);
-            const message_end = self.message_end.load(.acquire);
+            std.debug.assert(self.message_start < self.buffer.len);
+            std.debug.assert(self.message_end < self.buffer.len);
 
-            std.debug.assert(message_start < self.buffer.len);
-            std.debug.assert(message_end < self.buffer.len);
-
-            return self.buffer[message_start..message_end];
+            return self.buffer[self.message_start..self.message_end];
         }
     }
     /// Prepares the reader for the next message.
     pub fn prepareForRead(self: *Self) void {
-        self.message_start.store(self.message_end.load(.acquire), .release);
+        self.message_start = self.message_end;
     }
     /// Writes a message to the socket stream.
     pub fn writeMessage(self: *Self, message: []u8) Stream.WriteError!void {

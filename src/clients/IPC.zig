@@ -175,6 +175,9 @@ pub fn init(opts: InitOptions) InitErrors!*IPC {
         .growth_rate = opts.growth_rate orelse std.math.maxInt(u16),
         .stream = undefined,
         .closed = false,
+        .message_end = 0,
+        .position = 0,
+        .message_start = 0,
     };
 
     self.ipc_reader.stream = try self.connect(opts.network_config.endpoint.path);
@@ -1185,19 +1188,13 @@ pub fn newPendingTransactionFilter(self: *IPC) BasicRequestErrors!RPCResponse(u1
 /// Creates a read loop to read the socket messages.
 /// If a message is too long it will double the buffer size to read the message.
 pub fn readLoop(self: *IPC) ReadLoopErrors!void {
-    while (true) {
-        if (@atomicLoad(bool, &self.ipc_reader.closed, .acquire))
-            return;
-
+    while (!@atomicLoad(bool, &self.ipc_reader.closed, .acquire)) {
         const message = self.ipc_reader.readMessage() catch |err| switch (err) {
             error.Closed,
             error.ConnectionResetByPeer,
             error.BrokenPipe,
             error.NotOpenForReading,
-            => {
-                @atomicStore(bool, &self.ipc_reader.closed, true, .release);
-                return error.Closed;
-            },
+            => return error.Closed,
             else => return,
         };
 
@@ -1235,7 +1232,6 @@ pub fn readLoop(self: *IPC) ReadLoopErrors!void {
 }
 /// Function prepared to start the read loop in a seperate thread.
 pub fn readLoopOwnedThread(self: *IPC) void {
-    errdefer self.deinit();
     pipe.maybeIgnoreSigpipe();
 
     self.readLoop() catch |err| {

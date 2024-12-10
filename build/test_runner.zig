@@ -122,6 +122,7 @@ const Runner = struct {
 
 /// Main test runner.
 pub fn main() !void {
+    @disableInstrumentation();
     const test_funcs: []const TestFn = builtin.test_functions;
 
     // Return if we don't have any tests.

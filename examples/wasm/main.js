@@ -61,7 +61,6 @@
 		const code = contract_code.value;
 		const call = calldata.value;
 
-		console.log(`Calldata file: ${call}`);
 		const [ptr, len] = encodeString(code);
 		const [pointer, length] = encodeString(call ? call : "");
 
@@ -88,6 +87,10 @@
 			log: (ptr, len) => {
 				const msg = decodeString(ptr, len);
 				console.log(msg);
+			},
+			panic: function (ptr, len) {
+				const msg = decodeString(ptr, len);
+				throw new Error("panic: " + msg);
 			},
 		},
 	}).then((wasm_binary) => {

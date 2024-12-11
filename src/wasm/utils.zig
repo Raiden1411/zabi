@@ -6,7 +6,7 @@ const String = wasm.String;
 
 /// Convert a value to ethereum's `Gwei` value.
 pub export fn parseGwei(value: usize) u64 {
-    return utils.parseGwei(value) catch @panic("Overflow");
+    return utils.parseGwei(value) catch wasm.panic("Overflow", null, null);
 }
 /// Converts and address to its underlaying bytes.
 ///

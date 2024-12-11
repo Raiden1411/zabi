@@ -29,4 +29,5 @@ pub fn log(
 // Avoids collision with zig's namespace `log`
 pub const JS = struct {
     extern "env" fn log(ptr: [*]const u8, len: usize) void;
+    extern "env" fn panic(ptr: [*]const u8, len: usize) noreturn;
 };

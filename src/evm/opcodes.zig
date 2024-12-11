@@ -344,7 +344,7 @@ pub const InstructionTable = struct {
     inner: [256]Operations,
 
     /// Generates the instruction opcode table.
-    /// This is a similiar implementation to `std.enums.directEnumArray`
+    /// This is a similar implementation to `std.enums.directEnumArray`
     pub fn generateTable(fields: EnumFieldStruct(Opcodes, Operations, null)) InstructionTable {
         const info = @typeInfo(@TypeOf(fields));
 

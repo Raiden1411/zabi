@@ -341,7 +341,7 @@ struct {
 
 ### GenerateTable
 Generates the instruction opcode table.
-This is a similiar implementation to `std.enums.directEnumArray`
+This is a similar implementation to `std.enums.directEnumArray`
 
 ### Signature
 

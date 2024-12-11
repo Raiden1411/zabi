@@ -40,7 +40,7 @@ const PublicKeyAndScalar = struct {
 pub const EthereumSchorrSigner = struct {
     const Self = @This();
 
-    /// Similiar to "BIP0340/xxxxx"
+    /// Similar to "BIP0340/xxxxx"
     const context = "ETHEREUM-SCHNORR-SECP256K1-KECCAK256";
 
     /// Set of possible errors when signing a message.

@@ -59,7 +59,7 @@ pub fn BenchmarkRunner(
 
         /// Internal color stream used to send ansi codes to the terminal.
         color_stream: ColorWriterStream,
-        /// Array containing the the time per run.
+        /// Array containing the time per run.
         samples: [max_samples]u64 = undefined,
         /// PriorityDequeue used to keep track of the slowest tests.
         dequeue: Queue,

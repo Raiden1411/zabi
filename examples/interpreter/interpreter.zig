@@ -52,5 +52,5 @@ pub fn main() !void {
     const result = try interpreter.run();
     defer result.deinit(allocator);
 
-    // std.debug.print("Interpreter result: {any}", .{result});
+    std.debug.print("Interpreter result: {any}", .{result});
 }

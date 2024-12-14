@@ -96,15 +96,23 @@ pub fn signedDivInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
     const second = try self.stack.tryPeek();
 
     if (second.* == 0) {
+        @branchHint(.unlikely);
         second.* = 0;
+
         return;
     }
 
     const casted_first: i256 = @bitCast(first);
     const casted_second: i256 = @bitCast(second.*);
-    const div = @divTrunc(casted_first, casted_second);
 
-    second.* = @bitCast(div);
+    const sign: u256 = @bitCast((casted_first ^ casted_second) >> 255);
+
+    const abs_n = (casted_first ^ (casted_first >> 255)) -% (casted_first >> 255);
+    const abs_d = (casted_second ^ (casted_second >> 255)) -% (casted_second >> 255);
+
+    const res = @as(u256, @bitCast(abs_n)) / @as(u256, @bitCast(abs_d));
+
+    second.* = (res ^ sign) -% sign;
 }
 /// Performs signextend instruction for the interpreter.
 /// SIGNEXTEND -> 0x0B

@@ -194,8 +194,10 @@ pub fn BoundedStack(comptime size: usize) type {
         /// Swaps the top value of the stack with the different position.
         /// This is not thread safe.
         pub fn swapToTopUnsafe(self: *Self, position_swap: usize) error{StackUnderflow}!void {
-            if (self.inner.len < position_swap)
+            if (self.inner.len < position_swap) {
+                @branchHint(.unlikely);
                 return error.StackUnderflow;
+            }
 
             const top = self.len - 1;
             const second = top - position_swap;
@@ -230,6 +232,7 @@ pub fn BoundedStack(comptime size: usize) type {
         /// Otherwise it returns `StackOverflow`.
         pub fn ensureUnusedCapacity(self: Self, grow: usize) error{StackOverflow}!void {
             if (self.len + grow > size) {
+                @branchHint(.unlikely);
                 return error.StackOverflow;
             }
         }

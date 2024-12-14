@@ -2,6 +2,7 @@ const std = @import("std");
 const bytecode = @import("bytecode.zig");
 const types = @import("zabi-types");
 const spec = @import("specification.zig");
+const host = @import("host.zig");
 
 const Address = types.ethereum.Address;
 const Allocator = std.mem.Allocator;
@@ -14,6 +15,7 @@ const Hash = types.ethereum.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Log = types.log.Log;
 const SpecId = spec.SpecId;
+const SStoreResult = host.SStoreResult;
 const TransientStorage = AutoHashMapUnmanaged(struct { Address, u256 }, u256);
 
 pub const AccountStatus = packed struct(u6) {
@@ -265,9 +267,8 @@ pub const JournaledState = struct {
         var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
         try reference.append(self.allocator, .{ .account_created = target_address });
 
-        if (self.spec.enabled(.SPURIOUS_DRAGON)) {
+        if (self.spec.enabled(.SPURIOUS_DRAGON))
             target_acc.info.nonce = 1;
-        }
 
         try self.touchAccount(target_address);
         const add, const overflow = @addWithOverflow(target_acc.info.balance, balance);
@@ -423,5 +424,142 @@ pub const JournaledState = struct {
             .cold = cold,
             .data = db_account,
         };
+    }
+
+    pub fn sload(self: *JournaledState, address: Address, key: u256) StateLoaded(u256) {
+        const account = self.state.get(address).?;
+
+        const state: StateLoaded(u256) = state: {
+            if (account.storage.get(key)) |*value| {
+                const cold = blk: {
+                    if (value.is_cold) {
+                        value.is_cold = false;
+                        break :blk true;
+                    }
+
+                    break :blk false;
+                };
+
+                break :state StateLoaded(u256){
+                    .cold = cold,
+                    .data = value.present_value,
+                };
+            }
+            const value = if (account.status.created != 0) 0 else self.database.storage(address, key);
+
+            try account.storage.put(key, StorageSlot{
+                .is_cold = true,
+                .present_value = value,
+                .original_value = value,
+            });
+
+            break :state StateLoaded(u256){
+                .cold = true,
+                .data = value.present_value,
+            };
+        };
+
+        if (state.cold) {
+            var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
+            try reference.append(self.allocator, .{
+                .storage_warmed = .{
+                    .address = address,
+                    .key = key,
+                },
+            });
+        }
+
+        return state;
+    }
+
+    pub fn sstore(
+        self: *JournaledState,
+        address: Address,
+        key: u256,
+        new: u256,
+    ) !StateLoaded(SStoreResult) {
+        // assume that acc exists and load the slot.
+        const present = try self.sload(address, key);
+        var account = self.state.get(address).?;
+
+        // if there is no original value in dirty return present value, that is our original.
+        var slot = account.storage.get(key).?;
+
+        // new value is same as present, we don't need to do anything
+        if (present.data == new) {
+            return StateLoaded(SStoreResult){
+                .data = SStoreResult{
+                    .original_value = slot.original_value,
+                    .present_value = present.data,
+                    .new_value = new,
+                    .is_cold = present.is_cold,
+                },
+                .cold = present.is_cold,
+            };
+        }
+
+        var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
+        try reference.append(self.allocator, .{
+            .storage_changed = .{
+                .address = address,
+                .key = key,
+                .had_value = present.data,
+            },
+        });
+
+        slot.present_value = new;
+        return StateLoaded(SStoreResult){
+            .data = SStoreResult{
+                .original_value = slot.original_value,
+                .present_value = present.data,
+                .new_value = new,
+                .is_cold = present.is_cold,
+            },
+            .cold = present.is_cold,
+        };
+    }
+
+    pub fn tload(self: *JournaledState, address: Address, key: u256) u256 {
+        return self.transient_storage.get(.{ address, key }) orelse 0;
+    }
+
+    pub fn tstore(
+        self: *JournaledState,
+        address: Address,
+        key: u256,
+        value: u256,
+    ) !void {
+        const had_value: ?u256 = blk: {
+            if (value == 0) {
+                const val = self.transient_storage.get(.{ address, key });
+
+                if (val != null)
+                    self.transient_storage.remove(.{ address, key });
+
+                break :blk val;
+            } else {
+                const entry = try self.transient_storage.getOrPutValue(self.allocator, .{ address, key }, value);
+
+                if (entry.value_ptr.* != value)
+                    break :blk entry.value_ptr.*;
+
+                break :blk null;
+            }
+        };
+
+        if (had_value) |val| {
+            var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
+            try reference.append(self.allocator, .{
+                .transient_storage_changed = .{
+                    .address = address,
+                    .key = key,
+                    .had_value = val,
+                },
+            });
+        }
+    }
+
+    pub fn log(self: *JournaledState, event: Log) !void {
+        return self.log_storage.append(self.allocator, event);
     }
 };

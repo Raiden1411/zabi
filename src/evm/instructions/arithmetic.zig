@@ -60,7 +60,14 @@ pub fn modInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPeek();
 
-    second.* = if (second.* == 0) 0 else @mod(first, second.*);
+    if (second.* == 0) {
+        @branchHint(.cold);
+        second.* = 0;
+
+        return;
+    }
+
+    second.* = @mod(first, second.*);
 }
 /// Performs mul + mod instruction for the interpreter.
 /// MULMOD -> 0x09
@@ -73,7 +80,14 @@ pub fn modMultiplicationInstruction(self: *Interpreter) Interpreter.InstructionE
 
     const mul = first *% second;
 
-    third.* = if (third.* == 0) mul else @mod(mul, third.*);
+    if (third.* == 0) {
+        @branchHint(.cold);
+        third.* = mul;
+
+        return;
+    }
+
+    third.* = @mod(mul, third.*);
 }
 /// Performs mul instruction for the interpreter.
 /// MUL -> 0x02
@@ -96,7 +110,7 @@ pub fn signedDivInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
     const second = try self.stack.tryPeek();
 
     if (second.* == 0) {
-        @branchHint(.unlikely);
+        @branchHint(.cold);
         second.* = 0;
 
         return;
@@ -141,8 +155,12 @@ pub fn signedModInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPeek();
 
-    if (second.* == 0)
-        return self.stack.pushUnsafe(0);
+    if (second.* == 0) {
+        @branchHint(.cold);
+        second.* = 0;
+
+        return;
+    }
 
     const casted_first: i256 = @bitCast(first);
     const casted_second: i256 = @bitCast(second.*);

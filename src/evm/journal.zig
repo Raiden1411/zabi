@@ -15,6 +15,7 @@ const Hash = types.ethereum.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Log = types.log.Log;
 const SpecId = spec.SpecId;
+const SelfDestructResult = host.SelfDestructResult;
 const SStoreResult = host.SStoreResult;
 const TransientStorage = AutoHashMapUnmanaged(struct { Address, u256 }, u256);
 
@@ -49,6 +50,16 @@ pub const Account = struct {
     info: AccountInfo,
     storage: AutoHashMap(Address, StorageSlot),
     status: AccountStatus,
+
+    pub fn isEmpty(self: Account, spec_id: SpecId) bool {
+        if (spec_id.enabled(.SPURIOUS_DRAGON)) {
+            const empty_hash = @as(u256, @bitCast(self.info.code_hash)) != 0;
+
+            return empty_hash and self.info.balance == 0 and self.info.nonce == 0;
+        }
+
+        return self.status.non_existent != 0 and self.status.touched == 0;
+    }
 };
 
 pub fn StateLoaded(comptime T: type) type {
@@ -388,7 +399,7 @@ pub const JournaledState = struct {
             try reference.append(self.allocator, .{ .account_warmed = address });
         }
 
-        if (state.data.info.code_hash == [_]u8{0} ** 32) {
+        if (@as(u256, @bitCast(state.data.info.code_hash)) == 0) {
             state.data.info.code = null;
         } else {
             const code = self.database.getCodeByHash(state.data.info.code_hash);
@@ -423,6 +434,67 @@ pub const JournaledState = struct {
         return StateLoaded(Account){
             .cold = cold,
             .data = db_account,
+        };
+    }
+
+    pub fn selfdestruct(self: *JournaledState, address: Address, target: Address) !StateLoaded(SelfDestructResult) {
+        const account = self.loadAccount(address);
+        const empty = account.data.isEmpty(self.spec);
+
+        if (@as(u160, @bitCast(address)) != @as(u160, @bitCast(target))) {
+            const account_balance = self.state.get(address).?.info.balance;
+            var target_account = self.state.get(target).?;
+
+            try self.touchAccount(target);
+
+            target_account.info.balance += account_balance;
+        }
+
+        var acc = self.state.get(address).?;
+        const balance = acc.info.balance;
+        const was_destroyed = acc.status.self_destructed;
+
+        const entry: ?JournalEntry = entry: {
+            if (acc.status.created != 0 and !self.spec.enabled(.CANCUN)) {
+                acc.status.self_destructed = 1;
+                acc.info.balance = 0;
+
+                break :entry .{
+                    .account_destroyed = .{
+                        .target = target,
+                        .address = address,
+                        .had_balance = balance,
+                        .was_destroyed = was_destroyed,
+                    },
+                };
+            }
+
+            if (@as(u160, @bitCast(address)) != @as(u160, @bitCast(target))) {
+                acc.info.balance = 0;
+
+                break :entry .{ .balance_transfer = .{
+                    .from = address,
+                    .to = target,
+                    .balance = balance,
+                } };
+            }
+
+            break :entry null;
+        };
+
+        if (entry) |journal_entry| {
+            var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
+            try reference.append(self.allocator, journal_entry);
+        }
+
+        return .{
+            .cold = account.cold,
+            .data = SelfDestructResult{
+                .had_value = balance,
+                .is_cold = account.cold,
+                .target_exists = !empty,
+                .previously_destroyed = was_destroyed,
+            },
         };
     }
 
@@ -478,14 +550,11 @@ pub const JournaledState = struct {
         key: u256,
         new: u256,
     ) !StateLoaded(SStoreResult) {
-        // assume that acc exists and load the slot.
         const present = try self.sload(address, key);
         var account = self.state.get(address).?;
 
-        // if there is no original value in dirty return present value, that is our original.
         var slot = account.storage.get(key).?;
 
-        // new value is same as present, we don't need to do anything
         if (present.data == new) {
             return StateLoaded(SStoreResult){
                 .data = SStoreResult{

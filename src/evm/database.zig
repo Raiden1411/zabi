@@ -3,6 +3,7 @@ const journal = @import("journal.zig");
 const std = @import("std");
 const types = @import("zabi-types");
 
+const Account = journal.Account;
 const AccountInfo = journal.AccountInfo;
 const Address = types.ethereum.Address;
 const Allocator = std.mem.Allocator;
@@ -11,9 +12,10 @@ const AutoHashMap = std.AutoHashMap;
 const AutoHashMapUnmanaged = std.AutoHashMapUnmanaged;
 const Bytecode = bytecode.Bytecode;
 const Hash = types.ethereum.Hash;
+const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Log = types.log.Log;
 
-const EMPTY_HASH = [_]u8{ 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c, 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0, 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b, 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70 };
+pub const EMPTY_HASH = [_]u8{ 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c, 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0, 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b, 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70 };
 
 pub const Database = struct {
     const Self = @This();
@@ -68,8 +70,13 @@ pub const MemoryDatabase = struct {
     db: Database,
     logs: ArrayListUnmanaged(Log),
 
-    pub fn init(self: *Self, allocator: Allocator, db: Database) Allocator.Error!void {
+    pub fn init(
+        self: *Self,
+        allocator: Allocator,
+        db: Database,
+    ) Allocator.Error!void {
         var contracts: AutoHashMapUnmanaged(Hash, Bytecode) = .empty;
+        errdefer contracts.deinit(allocator);
 
         try contracts.put(allocator, [_]u8{0} ** 32, .{ .raw = "" });
         try contracts.put(allocator, EMPTY_HASH, .{ .raw = "" });
@@ -85,6 +92,14 @@ pub const MemoryDatabase = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        var iter_acc = self.account.valueIterator();
+        while (iter_acc.next()) |entries|
+            entries.storage.deinit();
+
+        var code_iter = self.contracts.valueIterator();
+        while (code_iter.next()) |entries|
+            entries.deinit(self.allocator);
+
         self.account.deinit(self.allocator);
         self.block_hashes.deinit(self.allocator);
         self.contracts.deinit(self.allocator);
@@ -94,7 +109,7 @@ pub const MemoryDatabase = struct {
     pub fn database(self: *Self) Database {
         return .{
             .ptr = self,
-            .vtable = .{
+            .vtable = &.{
                 .blockHash = blockHash,
                 .storage = storage,
                 .basic = basic,
@@ -103,17 +118,20 @@ pub const MemoryDatabase = struct {
         };
     }
 
-    pub fn addContract(self: *Self, account: *AccountInfo) !void {
+    pub fn addContract(
+        self: *Self,
+        account: *AccountInfo,
+    ) !void {
         if (account.code) |code| {
             if (code.getCodeBytes().len != 0) {
                 if (@as(u256, @bitCast(account.code_hash)) == @as(u256, @bitCast(EMPTY_HASH))) {
                     var hash: Hash = undefined;
-                    std.crypto.hash.sha3.Keccak256.hash(code.getCodeBytes(), &hash, .{});
+                    Keccak256.hash(code.getCodeBytes(), &hash, .{});
 
                     account.code_hash = hash;
                 }
-                // TODO: Take ownership of the memory here.
-                try self.contracts.put(account.code_hash, code);
+
+                try self.contracts.put(self.allocator, account.code_hash, code);
             }
         }
 
@@ -121,12 +139,26 @@ pub const MemoryDatabase = struct {
             account.code_hash = EMPTY_HASH;
     }
 
-    pub fn addAccountInfo(self: *Self, address: Address, account: *AccountInfo) !void {
+    pub fn addAccountInfo(
+        self: *Self,
+        address: Address,
+        account: *AccountInfo,
+    ) !void {
         try self.addContract(account);
-        const db_account = self.account.get(address);
+        const db_account = self.account.getPtr(address);
 
-        if (db_account) |*acc|
+        if (db_account) |acc| {
             acc.info = account.*;
+            return;
+        }
+
+        const new_db_account: DatabaseAccount = .{
+            .info = account.*,
+            .account_state = .none,
+            .storage = .init(self.allocator),
+        };
+
+        try self.account.put(self.allocator, address, new_db_account);
     }
 
     pub fn addAccountStorage(
@@ -136,20 +168,26 @@ pub const MemoryDatabase = struct {
         value: u256,
     ) !void {
         var db_acc = try self.loadAccount(address);
+
         try db_acc.storage.put(slot, value);
     }
 
-    pub fn basic(self: *Self, address: Address) !AccountInfo {
-        if (self.account.get(address)) |acc|
+    pub fn basic(
+        self: *anyopaque,
+        address: Address,
+    ) !?AccountInfo {
+        const db_self: *MemoryDatabase = @ptrCast(@alignCast(self));
+
+        if (db_self.account.get(address)) |acc|
             return acc.info;
 
-        const db_info = try self.db.basic(address);
+        const db_info = try db_self.db.basic(address);
 
-        const account_info: AccountInfo = if (db_info) |info|
+        const account_info: DatabaseAccount = if (db_info) |info|
             .{
                 .info = info,
                 .account_state = .none,
-                .storage = .init(self.allocator),
+                .storage = .init(db_self.allocator),
             }
         else
             .{
@@ -157,31 +195,37 @@ pub const MemoryDatabase = struct {
                     .balance = 0,
                     .nonce = 0,
                     .code_hash = [_]u8{0} ** 32,
-                    .bytecode = null,
+                    .code = null,
                 },
                 .account_state = .not_existing,
-                .storage = .init(self.allocator),
+                .storage = .init(db_self.allocator),
             };
 
-        try self.account.put(self.allocator, address, account_info);
+        try db_self.account.put(db_self.allocator, address, account_info);
 
-        return account_info;
+        return account_info.info;
     }
 
-    pub fn codeByHash(self: *Self, code_hash: Hash) !Bytecode {
-        if (self.contracts.get(code_hash)) |code| {
-            // TODO: Make the caller own this memory
+    pub fn codeByHash(
+        self: *anyopaque,
+        code_hash: Hash,
+    ) !Bytecode {
+        const db_self: *MemoryDatabase = @ptrCast(@alignCast(self));
+
+        if (db_self.contracts.get(code_hash)) |code|
             return code;
-        }
 
-        const db_bytecode = try self.db.codeByHash(code_hash);
-
-        // TODO: Make the caller own this memory
-        return db_bytecode;
+        return db_self.db.codeByHash(code_hash);
     }
 
-    pub fn storage(self: *Self, address: Address, index: u256) !u256 {
-        if (self.account.get(address)) |account| {
+    pub fn storage(
+        self: *anyopaque,
+        address: Address,
+        index: u256,
+    ) !u256 {
+        const db_self: *MemoryDatabase = @ptrCast(@alignCast(self));
+
+        if (db_self.account.getPtr(address)) |account| {
             if (account.storage.get(index)) |value|
                 return value;
 
@@ -190,7 +234,7 @@ pub const MemoryDatabase = struct {
                 .not_existing,
                 => return 0,
                 else => {
-                    const slot = try self.db.storage(address, index);
+                    const slot = try db_self.db.storage(address, index);
 
                     try account.storage.put(index, slot);
 
@@ -199,19 +243,19 @@ pub const MemoryDatabase = struct {
             }
         }
 
-        const db_info = try self.db.basic(address);
+        const db_info = try db_self.db.basic(address);
 
         if (db_info) |info| {
-            const slot = try self.db.storage(address, index);
+            const slot = try db_self.db.storage(address, index);
 
-            const db_account: DatabaseAccount = .{
+            var db_account: DatabaseAccount = .{
                 .info = info,
                 .account_state = .none,
-                .storage = .init(self.allocator),
+                .storage = .init(db_self.allocator),
             };
 
             try db_account.storage.put(index, slot);
-            try self.account.put(self.allocator, address, db_account);
+            try db_self.account.put(db_self.allocator, address, db_account);
 
             return slot;
         }
@@ -221,28 +265,36 @@ pub const MemoryDatabase = struct {
                 .balance = 0,
                 .nonce = 0,
                 .code_hash = [_]u8{0} ** 32,
-                .bytecode = null,
+                .code = null,
             },
             .account_state = .not_existing,
-            .storage = .init(self.allocator),
+            .storage = .init(db_self.allocator),
         };
 
-        try self.account.put(self.allocator, address, db_account);
+        try db_self.account.put(db_self.allocator, address, db_account);
 
         return 0;
     }
 
-    pub fn blockHash(self: *Self, number: u64) !Hash {
-        if (self.block_hashes.get(number)) |hash|
+    pub fn blockHash(
+        self: *anyopaque,
+        number: u64,
+    ) !Hash {
+        const db_self: *MemoryDatabase = @ptrCast(@alignCast(self));
+
+        if (db_self.block_hashes.get(number)) |hash|
             return hash;
 
-        const db_hash = try self.db.blockHash(number);
-        try self.block_hashes.put(self.allocator, number, db_hash);
+        const db_hash = try db_self.db.blockHash(number);
+        try db_self.block_hashes.put(db_self.allocator, number, db_hash);
 
         return db_hash;
     }
 
-    pub fn commit(self: *Self, changes: AutoHashMapUnmanaged(Address, journal.Account)) !void {
+    pub fn commit(
+        self: *Self,
+        changes: AutoHashMapUnmanaged(Address, Account),
+    ) !void {
         const iter = changes.iterator();
 
         while (iter.next()) |entry| {
@@ -268,21 +320,21 @@ pub const MemoryDatabase = struct {
             var db_acc = try self.loadAccount(entry.key_ptr.*);
             db_acc.info = entry.value_ptr.info;
 
-            db_acc.account_state = blk: {
+            db_acc.account_state = state: {
                 if (entry.value_ptr.status.created != 0) {
                     db_acc.storage.clearAndFree();
-                    break :blk .storage_cleared;
+                    break :state .storage_cleared;
                 }
 
                 if (db_acc.account_state != .storage_cleared)
-                    break :blk .touched;
+                    break :state .touched;
 
-                break :blk .storage_cleared;
+                break :state .storage_cleared;
             };
 
             try db_acc.storage.ensureUnusedCapacity(entry.value_ptr.storage.capacity());
+
             const iter_storage = entry.value_ptr.storage.iterator();
-            // TODO: Check if it's necessary to deinit here.
             defer entry.value_ptr.storage.deinit();
 
             while (iter_storage.next()) |entries|
@@ -290,25 +342,73 @@ pub const MemoryDatabase = struct {
         }
     }
 
-    pub fn updateAccountStorage(self: *Self, allocator: Allocator, address: Address, account_storage: AutoHashMap(u256, u256)) !void {
-        var db_acc = try self.loadAccount(allocator, address);
+    pub fn updateAccountStorage(
+        self: *Self,
+        address: Address,
+        account_storage: AutoHashMap(u256, u256),
+    ) !void {
+        var db_acc = try self.loadAccount(address);
+        // Clear the previously allocated memory.
+        db_acc.storage.deinit();
+
         db_acc.storage = account_storage;
         db_acc.account_state = .storage_cleared;
     }
 
-    pub fn loadAccount(self: *Self, address: Address) !DatabaseAccount {
-        if (self.account.get(address)) |db_acc|
-            return db_acc;
+    pub fn loadAccount(
+        self: *Self,
+        address: Address,
+    ) !*DatabaseAccount {
+        if (self.account.getEntry(address)) |db_acc|
+            return db_acc.value_ptr;
 
-        const basic_acc = try self.db.basic(address) orelse return error.AccountNonExisten;
-        const db_acc = DatabaseAccount{
-            .info = basic_acc,
-            .storage = AutoHashMap(u256, u256).init(self.allocator),
+        const account_info = try self.db.basic(address) orelse return error.AccountNonExistent;
+        const db_acc: DatabaseAccount = .{
+            .info = account_info,
+            .storage = .init(self.allocator),
             .account_state = .none,
         };
 
-        try self.account.put(self.allocator, db_acc);
+        try self.account.put(self.allocator, address, db_acc);
 
-        return db_acc;
+        return self.account.getEntry(address).?.value_ptr;
+    }
+};
+
+/// Empty database used only for testing.
+pub const PlainDatabase = struct {
+    empty: void = {},
+
+    pub fn basic(_: *anyopaque, _: Address) !?AccountInfo {
+        return null;
+    }
+
+    pub fn codeByHash(_: *anyopaque, _: Hash) !Bytecode {
+        return .{ .raw = "" };
+    }
+
+    pub fn storage(_: *anyopaque, _: Address, _: u256) !u256 {
+        return 0;
+    }
+
+    pub fn blockHash(_: *anyopaque, number: u64) !Hash {
+        var buffer: [@sizeOf(u64)]u8 = undefined;
+        const slice = try std.fmt.bufPrint(&buffer, "{d}", .{number});
+
+        var hash: Hash = undefined;
+        Keccak256.hash(slice, &hash, .{});
+        return hash;
+    }
+
+    pub fn database(self: *@This()) Database {
+        return .{
+            .ptr = self,
+            .vtable = &.{
+                .basic = basic,
+                .codeByHash = codeByHash,
+                .storage = storage,
+                .blockHash = blockHash,
+            },
+        };
     }
 };

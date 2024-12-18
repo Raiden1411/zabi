@@ -1,4 +1,5 @@
 const bytecode = @import("bytecode.zig");
+const constants = @import("constants.zig");
 const journal = @import("journal.zig");
 const std = @import("std");
 const types = @import("zabi-types");
@@ -14,8 +15,6 @@ const Bytecode = bytecode.Bytecode;
 const Hash = types.ethereum.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Log = types.log.Log;
-
-pub const EMPTY_HASH = [_]u8{ 0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c, 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0, 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b, 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70 };
 
 pub const Database = struct {
     const Self = @This();
@@ -79,7 +78,7 @@ pub const MemoryDatabase = struct {
         errdefer contracts.deinit(allocator);
 
         try contracts.put(allocator, [_]u8{0} ** 32, .{ .raw = "" });
-        try contracts.put(allocator, EMPTY_HASH, .{ .raw = "" });
+        try contracts.put(allocator, constants.EMPTY_HASH, .{ .raw = "" });
 
         self.* = .{
             .account = .empty,
@@ -104,6 +103,8 @@ pub const MemoryDatabase = struct {
         self.block_hashes.deinit(self.allocator);
         self.contracts.deinit(self.allocator);
         self.logs.deinit(self.allocator);
+
+        self.* = undefined;
     }
 
     pub fn database(self: *Self) Database {
@@ -124,7 +125,7 @@ pub const MemoryDatabase = struct {
     ) !void {
         if (account.code) |code| {
             if (code.getCodeBytes().len != 0) {
-                if (@as(u256, @bitCast(account.code_hash)) == @as(u256, @bitCast(EMPTY_HASH))) {
+                if (@as(u256, @bitCast(account.code_hash)) == @as(u256, @bitCast(constants.EMPTY_HASH))) {
                     var hash: Hash = undefined;
                     Keccak256.hash(code.getCodeBytes(), &hash, .{});
 
@@ -136,7 +137,7 @@ pub const MemoryDatabase = struct {
         }
 
         if (@as(u256, @bitCast(account.code_hash)) == 0)
-            account.code_hash = EMPTY_HASH;
+            account.code_hash = constants.EMPTY_HASH;
     }
 
     pub fn addAccountInfo(
@@ -194,8 +195,8 @@ pub const MemoryDatabase = struct {
                 .info = .{
                     .balance = 0,
                     .nonce = 0,
-                    .code_hash = [_]u8{0} ** 32,
-                    .code = null,
+                    .code_hash = constants.EMPTY_HASH,
+                    .code = .{ .raw = @constCast("") },
                 },
                 .account_state = .not_existing,
                 .storage = .init(db_self.allocator),
@@ -264,8 +265,8 @@ pub const MemoryDatabase = struct {
             .info = .{
                 .balance = 0,
                 .nonce = 0,
-                .code_hash = [_]u8{0} ** 32,
-                .code = null,
+                .code_hash = constants.EMPTY_HASH,
+                .code = .{ .raw = @constCast("") },
             },
             .account_state = .not_existing,
             .storage = .init(db_self.allocator),
@@ -306,8 +307,8 @@ pub const MemoryDatabase = struct {
                 db_acc.storage.clearAndFree();
                 db_acc.account_state = .not_existing;
                 db_acc.info = .{
-                    .code_hash = [_]u8{0} ** 32,
-                    .code = null,
+                    .code_hash = constants.EMPTY_HASH,
+                    .code = .{ .raw = @constCast("") },
                     .nonce = 0,
                     .balance = 0,
                 };

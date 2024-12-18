@@ -1,8 +1,10 @@
+const constants = evm.constants;
 const database = evm.database;
 const evm = @import("zabi").evm;
 const std = @import("std");
 const testing = std.testing;
 
+const Account = evm.database.DatabaseAccount;
 const AccountInfo = evm.journal.AccountInfo;
 const MemoryDatabase = database.MemoryDatabase;
 const PlainDatabase = database.PlainDatabase;
@@ -31,7 +33,7 @@ test "Add contract" {
         .code = .{ .raw = @constCast("6001") },
         .nonce = 69,
         .balance = 0,
-        .code_hash = database.EMPTY_HASH,
+        .code_hash = constants.EMPTY_HASH,
     };
 
     try db.addContract(&account_info);
@@ -131,7 +133,7 @@ test "Storage" {
 
         try db.init(testing.allocator, plain_db.database());
 
-        const db_account: database.DatabaseAccount = .{
+        const db_account: Account = .{
             .info = .{
                 .balance = 0,
                 .nonce = 0,
@@ -168,7 +170,7 @@ test "Add account info" {
 
     try db.init(testing.allocator, plain_db.database());
 
-    const db_account: database.DatabaseAccount = .{
+    const db_account: Account = .{
         .info = .{
             .balance = 0,
             .nonce = 0,

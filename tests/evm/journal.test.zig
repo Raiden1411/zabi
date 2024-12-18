@@ -611,3 +611,134 @@ test "Tload/Tstore" {
         try testing.expectEqual(null, journal_db.transient_storage.get(.{ [_]u8{2} ** 20, 69 }));
     }
 }
+
+test "Self destruct" {
+    {
+        var plain: PlainDatabase = .{};
+
+        var journal_db: JournaledState = undefined;
+        defer journal_db.deinit();
+
+        journal_db.init(testing.allocator, .LATEST, plain.database());
+
+        try journal_db.journal.append(testing.allocator, .empty);
+        try journal_db.state.put(testing.allocator, [_]u8{2} ** 20, .{
+            .status = .{ .non_existent = 1 },
+            .storage = .init(testing.allocator),
+            .info = .{
+                .code_hash = constants.EMPTY_HASH,
+                .nonce = 0,
+                .code = .{ .raw = @constCast("") },
+                .balance = 0,
+            },
+        });
+
+        const value = try journal_db.selfDestruct([_]u8{1} ** 20, [_]u8{2} ** 20);
+
+        try testing.expectEqual(false, value.data.had_value);
+        try testing.expectEqual(false, value.data.previously_destroyed);
+        try testing.expectEqual(false, value.data.target_exists);
+    }
+    {
+        var plain: PlainDatabase = .{};
+
+        var journal_db: JournaledState = undefined;
+        defer journal_db.deinit();
+
+        journal_db.init(testing.allocator, .LONDON, plain.database());
+
+        try journal_db.journal.append(testing.allocator, .empty);
+        try journal_db.state.put(testing.allocator, [_]u8{1} ** 20, .{
+            .status = .{ .created = 1 },
+            .storage = .init(testing.allocator),
+            .info = .{
+                .code_hash = constants.EMPTY_HASH,
+                .nonce = 1,
+                .code = .{ .raw = @constCast("") },
+                .balance = 0,
+            },
+        });
+        try journal_db.state.put(testing.allocator, [_]u8{2} ** 20, .{
+            .status = .{ .non_existent = 1 },
+            .storage = .init(testing.allocator),
+            .info = .{
+                .code_hash = constants.EMPTY_HASH,
+                .nonce = 1,
+                .code = .{ .raw = @constCast("") },
+                .balance = 0,
+            },
+        });
+
+        const value = try journal_db.selfDestruct([_]u8{1} ** 20, [_]u8{2} ** 20);
+
+        try testing.expectEqual(false, value.data.had_value);
+        try testing.expectEqual(false, value.data.previously_destroyed);
+        try testing.expectEqual(true, value.data.target_exists);
+    }
+    {
+        var plain: PlainDatabase = .{};
+
+        var journal_db: JournaledState = undefined;
+        defer journal_db.deinit();
+
+        journal_db.init(testing.allocator, .LONDON, plain.database());
+
+        try journal_db.journal.append(testing.allocator, .empty);
+
+        const value = try journal_db.selfDestruct([_]u8{1} ** 20, [_]u8{1} ** 20);
+
+        try testing.expectEqual(false, value.data.had_value);
+        try testing.expectEqual(false, value.data.previously_destroyed);
+        try testing.expectEqual(false, value.data.target_exists);
+    }
+}
+
+test "Revert" {
+    var plain: PlainDatabase = .{};
+
+    var journal_db: JournaledState = undefined;
+    defer journal_db.deinit();
+
+    journal_db.init(testing.allocator, .LATEST, plain.database());
+    try journal_db.state.put(testing.allocator, [_]u8{1} ** 20, .{
+        .status = .{ .loaded = 1 },
+        .storage = .init(testing.allocator),
+        .info = .{
+            .code_hash = constants.EMPTY_HASH,
+            .nonce = 0,
+            .code = .{ .raw = @constCast("") },
+            .balance = 69420,
+        },
+    });
+    try journal_db.state.put(testing.allocator, [_]u8{2} ** 20, .{
+        .status = .{ .non_existent = 1 },
+        .storage = .init(testing.allocator),
+        .info = .{
+            .code_hash = constants.EMPTY_HASH,
+            .nonce = 0,
+            .code = .{ .raw = @constCast("") },
+            .balance = 0,
+        },
+    });
+    try journal_db.transient_storage.put(testing.allocator, .{ [_]u8{1} ** 20, 1 }, 45);
+
+    const checkpoint = try journal_db.checkpoint();
+
+    {
+        try journal_db.tstore([_]u8{1} ** 20, 1, 69);
+        try journal_db.transfer([_]u8{1} ** 20, [_]u8{2} ** 20, 100);
+        _ = try journal_db.sload([_]u8{1} ** 20, 0);
+        _ = try journal_db.sstore([_]u8{1} ** 20, 1, 69);
+        _ = try journal_db.createAccountCheckpoint([_]u8{2} ** 20, [_]u8{1} ** 20, 100);
+        try journal_db.setCode([_]u8{1} ** 20, .{ .raw = @constCast("6001") });
+        _ = try journal_db.incrementAccountNonce([_]u8{1} ** 20);
+        _ = try journal_db.selfDestruct([_]u8{2} ** 20, [_]u8{1} ** 20);
+    }
+
+    const list = journal_db.journal.items[0];
+    try testing.expectEqual(7, list.items.len);
+
+    try journal_db.revertCheckpoint(checkpoint);
+    try testing.expectEqual(1, journal_db.depth);
+    try testing.expectEqual(0, journal_db.journal.items.len);
+}

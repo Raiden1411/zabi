@@ -699,7 +699,7 @@ test "Revert" {
     var journal_db: JournaledState = undefined;
     defer journal_db.deinit();
 
-    journal_db.init(testing.allocator, .LATEST, plain.database());
+    journal_db.init(testing.allocator, .LONDON, plain.database());
     try journal_db.state.put(testing.allocator, [_]u8{1} ** 20, .{
         .status = .{ .loaded = 1 },
         .storage = .init(testing.allocator),
@@ -732,7 +732,7 @@ test "Revert" {
         _ = try journal_db.createAccountCheckpoint([_]u8{2} ** 20, [_]u8{1} ** 20, 100);
         try journal_db.setCode([_]u8{1} ** 20, .{ .raw = @constCast("6001") });
         _ = try journal_db.incrementAccountNonce([_]u8{1} ** 20);
-        _ = try journal_db.selfDestruct([_]u8{2} ** 20, [_]u8{1} ** 20);
+        _ = try journal_db.selfDestruct([_]u8{1} ** 20, [_]u8{2} ** 20);
     }
 
     const list = journal_db.journal.items[0];

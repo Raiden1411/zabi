@@ -217,6 +217,7 @@ pub const JournaledState = struct {
             return null;
 
         std.debug.assert(self.journal.items.len > 0);
+
         var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
         try reference.append(self.allocator, .{ .nonce_changed = .{ .address = address } });
 
@@ -281,6 +282,7 @@ pub const JournaledState = struct {
         }
 
         std.debug.assert(self.journal.items.len > 0);
+
         var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
         try reference.append(self.allocator, .{
             .balance_transfer = .{
@@ -316,6 +318,7 @@ pub const JournaledState = struct {
         }
 
         std.debug.assert(self.journal.items.len > 0);
+
         var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
         try reference.append(self.allocator, .{ .account_created = .{ .address = target_address } });
 
@@ -397,11 +400,12 @@ pub const JournaledState = struct {
                         account.status.self_destructed = 0;
                     }
 
-                    std.debug.assert(account.info.balance + info.had_balance <= std.math.maxInt(u256));
                     account.info.balance += info.had_balance;
 
                     if (@as(u160, @bitCast(info.address)) != @as(u160, @bitCast(info.target))) {
-                        var target_acc = self.state.get(info.target).?;
+                        var target_acc = self.state.getPtr(info.target) orelse return error.NonExistentAccount;
+
+                        std.debug.assert(target_acc.info.balance >= info.had_balance);
                         target_acc.info.balance -= info.had_balance;
                     }
                 },
@@ -591,6 +595,7 @@ pub const JournaledState = struct {
 
         if (entry) |journal_entry| {
             std.debug.assert(self.journal.items.len > 0);
+
             var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
             try reference.append(self.allocator, journal_entry);
         }
@@ -645,6 +650,7 @@ pub const JournaledState = struct {
 
         if (state.cold) {
             std.debug.assert(self.journal.items.len > 0);
+
             var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
             try reference.append(self.allocator, .{
                 .storage_warmed = .{
@@ -681,6 +687,7 @@ pub const JournaledState = struct {
         }
 
         std.debug.assert(self.journal.items.len > 0);
+
         var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
         try reference.append(self.allocator, .{
             .storage_changed = .{
@@ -736,6 +743,7 @@ pub const JournaledState = struct {
 
         if (had_value) |val| {
             std.debug.assert(self.journal.items.len > 0);
+
             var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
             try reference.append(self.allocator, .{
                 .transient_storage_changed = .{

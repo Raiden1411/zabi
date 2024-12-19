@@ -63,6 +63,7 @@ pub const Memory = struct {
     }
     /// Gets the current size of the `Memory` range.
     pub fn getCurrentMemorySize(self: Memory) u64 {
+        std.debug.assert(self.buffer.len >= self.last_checkpoint);
         return self.buffer.len - self.last_checkpoint;
     }
     /// Gets a byte from the list's buffer.
@@ -109,12 +110,15 @@ pub const Memory = struct {
     pub fn resize(self: *Memory, new_len: usize) (Allocator.Error || Memory.Error)!void {
         const new_capacity = self.last_checkpoint + new_len;
 
-        if (new_capacity > self.memory_limit)
+        if (new_capacity > self.memory_limit) {
+            @branchHint(.cold);
             return error.MaxMemoryReached;
+        }
 
         // Extends to new len within capacity.
         if (self.total_capacity >= new_capacity) {
             self.buffer.len = new_capacity;
+
             return;
         }
 
@@ -200,8 +204,10 @@ pub const Memory = struct {
         var new = current;
         while (true) {
             new +|= new + 32;
-            if (new > minimum)
+            if (new > minimum) {
+                @branchHint(.likely);
                 return new;
+            }
         }
     }
 };

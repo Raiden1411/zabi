@@ -194,8 +194,10 @@ pub fn BoundedStack(comptime size: usize) type {
         /// Swaps the top value of the stack with the different position.
         /// This is not thread safe.
         pub fn swapToTopUnsafe(self: *Self, position_swap: usize) error{StackUnderflow}!void {
-            if (self.inner.len < position_swap)
+            if (self.inner.len < position_swap) {
+                @branchHint(.cold);
                 return error.StackUnderflow;
+            }
 
             const top = self.len - 1;
             const second = top - position_swap;
@@ -207,8 +209,10 @@ pub fn BoundedStack(comptime size: usize) type {
         /// Duplicates an item from the stack. Appends it to the top.
         /// This is not thread safe.
         pub fn dupUnsafe(self: *Self, position: usize) Self.Error!void {
-            if (self.inner.len < position)
+            if (self.inner.len < position) {
+                @branchHint(.cold);
                 return error.StackUnderflow;
+            }
 
             const item = self.inner[self.len - position];
             try self.pushUnsafe(item);
@@ -230,6 +234,7 @@ pub fn BoundedStack(comptime size: usize) type {
         /// Otherwise it returns `StackOverflow`.
         pub fn ensureUnusedCapacity(self: Self, grow: usize) error{StackOverflow}!void {
             if (self.len + grow > size) {
+                @branchHint(.cold);
                 return error.StackOverflow;
             }
         }
@@ -246,7 +251,12 @@ pub fn BoundedStack(comptime size: usize) type {
         /// Pops item from the stack.
         /// Returns null if the `len` is 0.
         pub fn popOrNull(self: *Self) ?u256 {
-            return if (self.len == 0) null else self.pop();
+            if (self.len == 0) {
+                @branchHint(.cold);
+                return null;
+            }
+
+            return self.pop();
         }
         /// Pops item from the stack.
         pub fn pop(self: *Self) u256 {
@@ -258,8 +268,10 @@ pub fn BoundedStack(comptime size: usize) type {
         /// Peek the last element of the stack and returns it's pointer.
         /// Returns null if len is 0;
         pub fn peek(self: *Self) ?*u256 {
-            if (self.len == 0)
+            if (self.len == 0) {
+                @branchHint(.cold);
                 return null;
+            }
 
             return &self.inner[self.len - 1];
         }
@@ -274,6 +286,7 @@ pub fn BoundedStack(comptime size: usize) type {
         }
         /// Returns number of items available in the stack
         pub fn availableSize(self: Self) usize {
+            std.debug.assert(self.inner.len > self.len);
             return self.inner.len - self.len;
         }
     };

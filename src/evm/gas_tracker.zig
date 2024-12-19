@@ -84,11 +84,15 @@ pub const GasTracker = struct {
     pub inline fn updateTracker(self: *GasTracker, cost: u64) GasTracker.Error!void {
         const total, const overflow = @addWithOverflow(self.used_amount, cost);
 
-        if (@bitCast(overflow))
+        if (@bitCast(overflow)) {
+            @branchHint(.cold);
             return error.GasOverflow;
+        }
 
-        if (total > self.gas_limit)
+        if (total > self.gas_limit) {
+            @branchHint(.cold);
             return error.OutOfGas;
+        }
 
         self.used_amount = total;
     }

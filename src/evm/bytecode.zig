@@ -67,7 +67,11 @@ pub const JumpTable = struct {
     bytes: []u8,
 
     /// Creates the jump table. Provided size must follow the two's complement.
-    pub fn init(allocator: Allocator, value: bool, size: usize) Allocator.Error!JumpTable {
+    pub fn init(
+        allocator: Allocator,
+        value: bool,
+        size: usize,
+    ) Allocator.Error!JumpTable {
         // Essentially `divCeil`
         const buffer = try allocator.alloc(u8, @divFloor(size - 1, 8) + 1);
         @memset(buffer, @intFromBool(value));
@@ -81,7 +85,11 @@ pub const JumpTable = struct {
     }
 
     /// Sets or unset a bit at the given position.
-    pub fn set(self: @This(), position: usize, value: bool) void {
+    pub fn set(
+        self: @This(),
+        position: usize,
+        value: bool,
+    ) void {
         const byte_index = position >> 3;
         const bit_index: u3 = @intCast(position & 7);
 

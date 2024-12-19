@@ -20,9 +20,6 @@ pub fn popInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
 /// 0x60 .. 0x7F -> PUSH1 .. PUSH32
 pub fn pushInstruction(self: *Interpreter, comptime size: u8) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
     comptime std.debug.assert(size <= 32); // Size higher than expected.
-    if (!self.spec.enabled(.SHANGHAI))
-        return error.InstructionNotEnabled;
-
     try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
 
     std.debug.assert(self.code.len >= self.program_counter + size);

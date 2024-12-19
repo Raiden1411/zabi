@@ -23,3 +23,7 @@ pub const specification = @import("specification.zig");
 
 /// The EVM interpreter implementation.
 pub const Interpreter = @import("Interpreter.zig");
+
+pub const journal = @import("journal.zig");
+pub const database = @import("database.zig");
+pub const constants = @import("constants.zig");

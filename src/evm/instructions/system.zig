@@ -109,28 +109,29 @@ pub fn gasInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
 /// 0x20 -> KECCAK
 pub fn keccakInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
     const offset = try self.stack.tryPopUnsafe();
-    const length = try self.stack.tryPopUnsafe();
+    const length = try self.stack.tryPeek();
 
-    const len = std.math.cast(usize, length) orelse return error.Overflow;
+    const len = std.math.cast(usize, length.*) orelse return error.Overflow;
     const offset_usize = std.math.cast(usize, offset) orelse return error.Overflow;
 
     const cost = gas.calculateKeccakCost(len);
     try self.gas_tracker.updateTracker(cost orelse return error.GasOverflow);
 
-    var buffer: [32]u8 = undefined;
+    if (length.* == 0) {
+        @branchHint(.cold);
 
-    if (length == 0) {
-        buffer = [_]u8{0} ** 32;
-        try self.stack.pushUnsafe(@bitCast(buffer));
-    } else {
-        const slice = self.memory.getSlice();
-
-        std.debug.assert(slice.len > offset_usize + len); // Indexing out of bounds;
-
-        Keccak256.hash(slice[offset_usize .. offset_usize + len], &buffer, .{});
-        try self.resize(offset_usize + len);
-        try self.stack.pushUnsafe(std.mem.readInt(u256, &buffer, .big));
+        return;
     }
+
+    var buffer: [32]u8 = undefined;
+    const slice = self.memory.getSlice();
+
+    std.debug.assert(slice.len > offset_usize + len); // Indexing out of bounds;
+
+    Keccak256.hash(slice[offset_usize .. offset_usize + len], &buffer, .{});
+    try self.resize(offset_usize + len);
+
+    length.* = std.mem.readInt(u256, &buffer, .big);
 }
 /// Runs the returndatasize instructions opcodes for the interpreter.
 /// 0x3D -> RETURNDATACOPY

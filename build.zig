@@ -267,7 +267,7 @@ fn buildTestOrCoverage(
             .test_runner = b.path("build/test_runner.zig"),
         });
         lib_unit_tests.root_module.addImport("zabi", module);
-        addDependencies(b, &lib_unit_tests.root_module, target, optimize);
+        addDependencies(b, lib_unit_tests.root_module, target, optimize);
 
         var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
@@ -382,7 +382,7 @@ fn buildBenchmark(
         .test_runner = b.path("build/benchmark.zig"),
     });
     bench.root_module.addImport("zabi", dependency);
-    addDependencies(b, &bench.root_module, target, optimize);
+    addDependencies(b, bench.root_module, target, optimize);
 
     var bench_run = b.addRunArtifact(bench);
 

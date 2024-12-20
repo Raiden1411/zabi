@@ -273,7 +273,10 @@ pub fn run(self: *Interpreter) (AllInstructionErrors || InterpreterStatusErrors)
 }
 /// Resizes the inner memory size. Adds gas expansion cost to
 /// the gas tracker.
-pub fn resize(self: *Interpreter, new_size: usize) (Allocator.Error || GasTracker.Error || Memory.Error)!void {
+pub fn resize(
+    self: *Interpreter,
+    new_size: usize,
+) (Allocator.Error || GasTracker.Error || Memory.Error)!void {
     if (new_size > self.memory.getCurrentMemorySize()) {
         const count = mem.availableWords(new_size);
         const mem_cost = gas.calculateMemoryCost(count);

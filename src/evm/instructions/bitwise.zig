@@ -1,3 +1,4 @@
+const constants = @import("zabi-utils").constants;
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 
@@ -6,7 +7,7 @@ const Interpreter = @import("../Interpreter.zig");
 /// Performs and instruction for the interpreter.
 /// AND -> 0x15
 pub fn andInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPeek();
@@ -16,7 +17,7 @@ pub fn andInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
 /// Performs byte instruction for the interpreter.
 /// AND -> 0x1A
 pub fn byteInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPeek();
@@ -35,7 +36,7 @@ pub fn byteInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
 /// Performs equal instruction for the interpreter.
 /// EQ -> 0x14
 pub fn equalInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPeek();
@@ -45,7 +46,7 @@ pub fn equalInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
 /// Performs equal instruction for the interpreter.
 /// GT -> 0x11
 pub fn greaterThanInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPeek();
@@ -55,7 +56,7 @@ pub fn greaterThanInstruction(self: *Interpreter) Interpreter.InstructionErrors!
 /// Performs iszero instruction for the interpreter.
 /// ISZERO -> 0x15
 pub fn isZeroInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
     const first = try self.stack.tryPeek();
     first.* = @intFromBool(first.* == 0);
@@ -63,7 +64,7 @@ pub fn isZeroInstruction(self: *Interpreter) Interpreter.InstructionErrors!void 
 /// Performs LT instruction for the interpreter.
 /// LT -> 0x10
 pub fn lowerThanInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPeek();
@@ -73,7 +74,7 @@ pub fn lowerThanInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
 /// Performs NOT instruction for the interpreter.
 /// NOT -> 0x19
 pub fn notInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
     const first = try self.stack.tryPeek();
     first.* = ~first.*;
@@ -81,7 +82,7 @@ pub fn notInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
 /// Performs OR instruction for the interpreter.
 /// OR -> 0x17
 pub fn orInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPeek();
@@ -91,7 +92,7 @@ pub fn orInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
 /// Performs shl instruction for the interpreter.
 /// SHL -> 0x1B
 pub fn shiftLeftInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.FAST_STEP);
+    try self.gas_tracker.updateTracker(constants.FAST_STEP);
 
     const shift = try self.stack.tryPopUnsafe();
     const value = try self.stack.tryPeek();
@@ -101,7 +102,7 @@ pub fn shiftLeftInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
 /// Performs shr instruction for the interpreter.
 /// SHR -> 0x1C
 pub fn shiftRightInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.FAST_STEP);
+    try self.gas_tracker.updateTracker(constants.FAST_STEP);
 
     const shift = try self.stack.tryPopUnsafe();
     const value = try self.stack.tryPeek();
@@ -111,7 +112,7 @@ pub fn shiftRightInstruction(self: *Interpreter) Interpreter.InstructionErrors!v
 /// Performs SGT instruction for the interpreter.
 /// SGT -> 0x12
 pub fn signedGreaterThanInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPeek();
@@ -124,7 +125,7 @@ pub fn signedGreaterThanInstruction(self: *Interpreter) Interpreter.InstructionE
 /// Performs SLT instruction for the interpreter.
 /// SLT -> 0x12
 pub fn signedLowerThanInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPeek();
@@ -137,7 +138,7 @@ pub fn signedLowerThanInstruction(self: *Interpreter) Interpreter.InstructionErr
 /// Performs SAR instruction for the interpreter.
 /// SAR -> 0x1D
 pub fn signedShiftRightInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.FAST_STEP);
+    try self.gas_tracker.updateTracker(constants.FAST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPeek();
@@ -168,7 +169,7 @@ pub fn signedShiftRightInstruction(self: *Interpreter) Interpreter.InstructionEr
 /// Performs XOR instruction for the interpreter.
 /// XOR -> 0x18
 pub fn xorInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPeek();

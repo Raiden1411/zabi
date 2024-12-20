@@ -1,3 +1,4 @@
+const constants = @import("zabi-utils").constants;
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 const utils = @import("zabi-utils").utils;
@@ -10,7 +11,7 @@ const Memory = @import("../memory.zig").Memory;
 /// Runs the jumpi instruction opcode for the interpreter.
 /// 0x57 -> JUMPI
 pub fn conditionalJumpInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InvalidJump})!void {
-    try self.gas_tracker.updateTracker(gas.MID_STEP);
+    try self.gas_tracker.updateTracker(constants.MID_STEP);
 
     const target = try self.stack.tryPopUnsafe();
     const condition = try self.stack.tryPopUnsafe();
@@ -33,13 +34,13 @@ pub fn conditionalJumpInstruction(self: *Interpreter) (Interpreter.InstructionEr
 /// Runs the pc instruction opcode for the interpreter.
 /// 0x58 -> PC
 pub fn programCounterInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(self.program_counter);
 }
 /// Runs the jump instruction opcode for the interpreter.
 /// 0x56 -> JUMP
 pub fn jumpInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InvalidJump})!void {
-    try self.gas_tracker.updateTracker(gas.MID_STEP);
+    try self.gas_tracker.updateTracker(constants.MID_STEP);
     const target = try self.stack.tryPopUnsafe();
 
     const as_usize = std.math.cast(usize, target) orelse return error.InvalidJump;
@@ -57,7 +58,7 @@ pub fn jumpInstruction(self: *Interpreter) (Interpreter.InstructionErrors || err
 /// Runs the jumpdest instruction opcode for the interpreter.
 /// 0x5B -> JUMPDEST
 pub fn jumpDestInstruction(self: *Interpreter) GasTracker.Error!void {
-    try self.gas_tracker.updateTracker(gas.JUMPDEST);
+    try self.gas_tracker.updateTracker(constants.JUMPDEST);
 }
 /// Runs the invalid instruction opcode for the interpreter.
 /// 0xFE -> INVALID

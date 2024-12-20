@@ -1,3 +1,4 @@
+const constants = @import("zabi-utils").constants;
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 const utils = @import("zabi-utils").utils;
@@ -10,13 +11,13 @@ const Memory = @import("../memory.zig").Memory;
 /// Runs the address instructions opcodes for the interpreter.
 /// 0x30 -> ADDRESS
 pub fn addressInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(@as(u160, @bitCast(self.contract.target_address)));
 }
 /// Runs the caller instructions opcodes for the interpreter.
 /// 0x33 -> CALLER
 pub fn callerInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(@as(u160, @bitCast(self.contract.caller)));
 }
 /// Runs the calldatacopy instructions opcodes for the interpreter.
@@ -41,7 +42,7 @@ pub fn callDataCopyInstruction(self: *Interpreter) (Interpreter.InstructionError
 /// Runs the calldataload instructions opcodes for the interpreter.
 /// 0x37 -> CALLDATALOAD
 pub fn callDataLoadInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{Overflow})!void {
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
     const first = try self.stack.tryPopUnsafe();
     const offset = std.math.cast(usize, first) orelse return error.Overflow;
@@ -62,14 +63,14 @@ pub fn callDataLoadInstruction(self: *Interpreter) (Interpreter.InstructionError
 /// Runs the calldatasize instructions opcodes for the interpreter.
 /// 0x36 -> CALLDATASIZE
 pub fn callDataSizeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
 
     try self.stack.pushUnsafe(self.contract.input.len);
 }
 /// Runs the calldatasize instructions opcodes for the interpreter.
 /// 0x34 -> CALLVALUE
 pub fn callValueInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
 
     try self.stack.pushUnsafe(self.contract.value);
 }
@@ -95,13 +96,13 @@ pub fn codeCopyInstruction(self: *Interpreter) (Interpreter.InstructionErrors ||
 /// Runs the codesize instructions opcodes for the interpreter.
 /// 0x38 -> CODESIZE
 pub fn codeSizeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(self.contract.bytecode.getCodeBytes().len);
 }
 /// Runs the gas instructions opcodes for the interpreter.
 /// 0x3A -> GAS
 pub fn gasInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
 
     try self.stack.pushUnsafe(self.gas_tracker.availableGas());
 }
@@ -139,7 +140,7 @@ pub fn returnDataSizeInstruction(self: *Interpreter) (Interpreter.InstructionErr
     if (!self.spec.enabled(.BYZANTIUM))
         return error.InstructionNotEnabled;
 
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(self.return_data.len);
 }
 /// Runs the returndatasize instructions opcodes for the interpreter.

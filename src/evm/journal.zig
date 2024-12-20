@@ -85,19 +85,17 @@ pub const JournaledState = struct {
         self.* = undefined;
     }
 
-    /// Sets an account as touched.
-    pub fn touchAccount(
-        self: *JournaledState,
-        address: Address,
-    ) !void {
-        if (self.state.getPtr(address)) |account| {
-            if (account.status.touched == 0) {
-                var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-                try reference.append(self.allocator, .{ .account_touched = .{ .address = address } });
+    /// Creates a new checkpoint and increase the call depth.
+    pub fn checkpoint(self: *JournaledState) !JournalCheckpoint {
+        const point: JournalCheckpoint = .{
+            .journal_checkpoint = self.journal.items.len,
+            .logs_checkpoint = self.log_storage.items.len,
+        };
 
-                account.status.touched = 1;
-            }
-        }
+        self.depth += 1;
+        try self.journal.append(self.allocator, .empty);
+
+        return point;
     }
     /// Commits the checkpoint
     pub fn commitCheckpoint(self: *JournaledState) void {
@@ -233,229 +231,6 @@ pub const JournaledState = struct {
     pub fn log(self: *JournaledState, event: Log) !void {
         return self.log_storage.append(self.allocator, event);
     }
-    /// Performs the self destruct action
-    ///
-    /// Transfer the balance to the target address.
-    ///
-    /// Balance will be lost if address and target are the same BUT when
-    /// current spec enables Cancun, this happens only when the account associated to address
-    /// is created in the same transaction.
-    pub fn selfDestruct(
-        self: *JournaledState,
-        address: Address,
-        target: Address,
-    ) !StateLoaded(SelfDestructResult) {
-        const account = try self.loadAccount(address);
-        const empty = account.data.isEmpty(self.spec);
-
-        if (@as(u160, @bitCast(address)) != @as(u160, @bitCast(target))) {
-            var target_account = self.state.getPtr(target) orelse return error.NonExistentAccount;
-
-            try self.touchAccount(target);
-
-            target_account.info.balance += account.data.info.balance;
-        }
-
-        var acc = self.state.getPtr(address) orelse return error.NonExistentAccount;
-        const balance = acc.info.balance;
-        const was_destroyed = acc.status.self_destructed;
-
-        const entry: ?JournalEntry = entry: {
-            if (acc.status.created != 0 and !self.spec.enabled(.CANCUN)) {
-                acc.status.self_destructed = 1;
-                acc.info.balance = 0;
-
-                break :entry .{
-                    .account_destroyed = .{
-                        .target = target,
-                        .address = address,
-                        .had_balance = balance,
-                        .was_destroyed = was_destroyed != 0,
-                    },
-                };
-            }
-
-            if (@as(u160, @bitCast(address)) != @as(u160, @bitCast(target))) {
-                acc.info.balance = 0;
-
-                break :entry .{
-                    .balance_transfer = .{
-                        .from = address,
-                        .to = target,
-                        .balance = balance,
-                    },
-                };
-            }
-
-            break :entry null;
-        };
-
-        if (entry) |journal_entry| {
-            std.debug.assert(self.journal.items.len > 0);
-
-            var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-            try reference.append(self.allocator, journal_entry);
-        }
-
-        return .{
-            .cold = account.cold,
-            .data = .{
-                .had_value = balance != 0,
-                .is_cold = account.cold,
-                .target_exists = !empty,
-                .previously_destroyed = was_destroyed != 0,
-            },
-        };
-    }
-    /// Loads a value from the account storage based on the provided key.
-    ///
-    /// Returns if the load was cold or not.
-    pub fn sload(
-        self: *JournaledState,
-        address: Address,
-        key: u256,
-    ) !StateLoaded(u256) {
-        var account = self.state.getPtr(address) orelse return error.NonExistentAccount;
-
-        const state: StateLoaded(u256) = state: {
-            if (account.storage.getPtr(key)) |value| {
-                const cold = blk: {
-                    if (value.is_cold) {
-                        value.is_cold = false;
-                        break :blk true;
-                    }
-
-                    break :blk false;
-                };
-
-                break :state .{
-                    .cold = cold,
-                    .data = value.present_value,
-                };
-            }
-            const value = if (account.status.created != 0) 0 else try self.database.storage(address, key);
-
-            try account.storage.put(key, .{
-                .is_cold = true,
-                .present_value = value,
-                .original_value = value,
-            });
-
-            break :state .{
-                .cold = true,
-                .data = value,
-            };
-        };
-
-        if (state.cold) {
-            std.debug.assert(self.journal.items.len > 0);
-
-            var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-            try reference.append(self.allocator, .{
-                .storage_warmed = .{
-                    .address = address,
-                    .key = key,
-                },
-            });
-        }
-
-        return state;
-    }
-    /// Stores a value to the account's storage based on the provided index.
-    ///
-    /// Returns if store was cold or not.
-    pub fn sstore(
-        self: *JournaledState,
-        address: Address,
-        key: u256,
-        new: u256,
-    ) !StateLoaded(SStoreResult) {
-        const present = try self.sload(address, key);
-
-        var account = self.state.getPtr(address) orelse return error.NonExistentAccount;
-        var slot = account.storage.getPtr(key) orelse return error.InvalidStorageKey;
-
-        if (present.data == new) {
-            return .{
-                .data = .{
-                    .original_value = slot.original_value,
-                    .present_value = present.data,
-                    .new_value = new,
-                    .is_cold = present.cold,
-                },
-                .cold = present.cold,
-            };
-        }
-
-        std.debug.assert(self.journal.items.len > 0);
-
-        var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-        try reference.append(self.allocator, .{
-            .storage_changed = .{
-                .address = address,
-                .key = key,
-                .had_value = present.data,
-            },
-        });
-
-        slot.present_value = new;
-        return .{
-            .data = .{
-                .original_value = slot.original_value,
-                .present_value = present.data,
-                .new_value = new,
-                .is_cold = present.cold,
-            },
-            .cold = present.cold,
-        };
-    }
-    /// Sets the bytecode for an account and generates the associated Keccak256 hash for that bytecode.
-    ///
-    /// A `code_changed` entry will be emitted.
-    pub fn setCode(
-        self: *JournaledState,
-        address: Address,
-        code: Bytecode,
-    ) !void {
-        const bytes = code.getCodeBytes();
-
-        var buffer: Hash = undefined;
-        Keccak256.hash(bytes, &buffer, .{});
-
-        return self.setCodeAndHash(address, code, buffer);
-    }
-    /// Sets the bytecode and the Keccak256 hash for an associated account.
-    ///
-    /// A `code_changed` entry will be emitted.
-    pub fn setCodeAndHash(
-        self: *JournaledState,
-        address: Address,
-        code: Bytecode,
-        hash: Hash,
-    ) !void {
-        var account = self.state.getPtr(address) orelse return error.NonExistentAccount;
-        try self.touchAccount(address);
-
-        std.debug.assert(self.journal.items.len > 0);
-
-        var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-        try reference.append(self.allocator, .{ .code_changed = .{ .address = address } });
-
-        account.info.code = code;
-        account.info.code_hash = hash;
-    }
-    /// Creates a new checkpoint and increase the call depth.
-    pub fn checkpoint(self: *JournaledState) !JournalCheckpoint {
-        const point: JournalCheckpoint = .{
-            .journal_checkpoint = self.journal.items.len,
-            .logs_checkpoint = self.log_storage.items.len,
-        };
-
-        self.depth += 1;
-        try self.journal.append(self.allocator, .empty);
-
-        return point;
-    }
     /// Reverts a checkpoint and uncommit's all of the journal entries.
     pub fn revertCheckpoint(
         self: *JournaledState,
@@ -559,6 +334,217 @@ pub const JournaledState = struct {
             }
         }
     }
+    /// Performs the self destruct action
+    ///
+    /// Transfer the balance to the target address.
+    ///
+    /// Balance will be lost if address and target are the same BUT when
+    /// current spec enables Cancun, this happens only when the account associated to address
+    /// is created in the same transaction.
+    pub fn selfDestruct(
+        self: *JournaledState,
+        address: Address,
+        target: Address,
+    ) !StateLoaded(SelfDestructResult) {
+        const account = try self.loadAccount(address);
+        const empty = account.data.isEmpty(self.spec);
+
+        if (@as(u160, @bitCast(address)) != @as(u160, @bitCast(target))) {
+            var target_account = self.state.getPtr(target) orelse return error.NonExistentAccount;
+
+            try self.touchAccount(target);
+
+            target_account.info.balance += account.data.info.balance;
+        }
+
+        var acc = self.state.getPtr(address) orelse return error.NonExistentAccount;
+        const balance = acc.info.balance;
+        const was_destroyed = acc.status.self_destructed;
+
+        const entry: ?JournalEntry = entry: {
+            if (acc.status.created != 0 and !self.spec.enabled(.CANCUN)) {
+                acc.status.self_destructed = 1;
+                acc.info.balance = 0;
+
+                break :entry .{
+                    .account_destroyed = .{
+                        .target = target,
+                        .address = address,
+                        .had_balance = balance,
+                        .was_destroyed = was_destroyed != 0,
+                    },
+                };
+            }
+
+            if (@as(u160, @bitCast(address)) != @as(u160, @bitCast(target))) {
+                acc.info.balance = 0;
+
+                break :entry .{
+                    .balance_transfer = .{
+                        .from = address,
+                        .to = target,
+                        .balance = balance,
+                    },
+                };
+            }
+
+            break :entry null;
+        };
+
+        if (entry) |journal_entry| {
+            std.debug.assert(self.journal.items.len > 0);
+
+            var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
+            try reference.append(self.allocator, journal_entry);
+        }
+
+        return .{
+            .cold = account.cold,
+            .data = .{
+                .had_value = balance != 0,
+                .is_cold = account.cold,
+                .target_exists = !empty,
+                .previously_destroyed = was_destroyed != 0,
+            },
+        };
+    }
+    /// Sets the bytecode for an account and generates the associated Keccak256 hash for that bytecode.
+    ///
+    /// A `code_changed` entry will be emitted.
+    pub fn setCode(
+        self: *JournaledState,
+        address: Address,
+        code: Bytecode,
+    ) !void {
+        const bytes = code.getCodeBytes();
+
+        var buffer: Hash = undefined;
+        Keccak256.hash(bytes, &buffer, .{});
+
+        return self.setCodeAndHash(address, code, buffer);
+    }
+    /// Sets the bytecode and the Keccak256 hash for an associated account.
+    ///
+    /// A `code_changed` entry will be emitted.
+    pub fn setCodeAndHash(
+        self: *JournaledState,
+        address: Address,
+        code: Bytecode,
+        hash: Hash,
+    ) !void {
+        var account = self.state.getPtr(address) orelse return error.NonExistentAccount;
+        try self.touchAccount(address);
+
+        std.debug.assert(self.journal.items.len > 0);
+
+        var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
+        try reference.append(self.allocator, .{ .code_changed = .{ .address = address } });
+
+        account.info.code = code;
+        account.info.code_hash = hash;
+    }
+    /// Loads a value from the account storage based on the provided key.
+    ///
+    /// Returns if the load was cold or not.
+    pub fn sload(
+        self: *JournaledState,
+        address: Address,
+        key: u256,
+    ) !StateLoaded(u256) {
+        var account = self.state.getPtr(address) orelse return error.NonExistentAccount;
+
+        const state: StateLoaded(u256) = state: {
+            if (account.storage.getPtr(key)) |value| {
+                const cold = blk: {
+                    if (value.is_cold) {
+                        value.is_cold = false;
+                        break :blk true;
+                    }
+
+                    break :blk false;
+                };
+
+                break :state .{
+                    .cold = cold,
+                    .data = value.present_value,
+                };
+            }
+            const value = if (account.status.created != 0) 0 else try self.database.storage(address, key);
+
+            try account.storage.put(key, .{
+                .is_cold = true,
+                .present_value = value,
+                .original_value = value,
+            });
+
+            break :state .{
+                .cold = true,
+                .data = value,
+            };
+        };
+
+        if (state.cold) {
+            std.debug.assert(self.journal.items.len > 0);
+
+            var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
+            try reference.append(self.allocator, .{
+                .storage_warmed = .{
+                    .address = address,
+                    .key = key,
+                },
+            });
+        }
+
+        return state;
+    }
+    /// Stores a value to the account's storage based on the provided index.
+    ///
+    /// Returns if store was cold or not.
+    pub fn sstore(
+        self: *JournaledState,
+        address: Address,
+        key: u256,
+        new: u256,
+    ) !StateLoaded(SStoreResult) {
+        const present = try self.sload(address, key);
+
+        var account = self.state.getPtr(address) orelse return error.NonExistentAccount;
+        var slot = account.storage.getPtr(key) orelse return error.InvalidStorageKey;
+
+        if (present.data == new) {
+            return .{
+                .data = .{
+                    .original_value = slot.original_value,
+                    .present_value = present.data,
+                    .new_value = new,
+                    .is_cold = present.cold,
+                },
+                .cold = present.cold,
+            };
+        }
+
+        std.debug.assert(self.journal.items.len > 0);
+
+        var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
+        try reference.append(self.allocator, .{
+            .storage_changed = .{
+                .address = address,
+                .key = key,
+                .had_value = present.data,
+            },
+        });
+
+        slot.present_value = new;
+        return .{
+            .data = .{
+                .original_value = slot.original_value,
+                .present_value = present.data,
+                .new_value = new,
+                .is_cold = present.cold,
+            },
+            .cold = present.cold,
+        };
+    }
     /// Read transient storage tied to the account.
     ///
     /// EIP-1153: Transient storage opcodes
@@ -568,6 +554,20 @@ pub const JournaledState = struct {
         key: u256,
     ) u256 {
         return self.transient_storage.get(.{ address, key }) orelse 0;
+    }
+    /// Sets an account as touched.
+    pub fn touchAccount(
+        self: *JournaledState,
+        address: Address,
+    ) !void {
+        if (self.state.getPtr(address)) |account| {
+            if (account.status.touched == 0) {
+                var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
+                try reference.append(self.allocator, .{ .account_touched = .{ .address = address } });
+
+                account.status.touched = 1;
+            }
+        }
     }
     /// Transfers the value from one account to other another account.
     ///

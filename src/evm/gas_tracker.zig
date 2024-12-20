@@ -241,29 +241,39 @@ pub inline fn calculateSstoreCost(spec: SpecId, original: u256, current: u256, n
 /// Calculate the refund of an `SSTORE` opcode.
 pub inline fn calculateSstoreRefund(spec: SpecId, original: u256, current: u256, new: u256) i64 {
     if (spec.enabled(.ISTANBUL)) {
+        const sstore_clears_schedule: i64 = if (spec.enabled(.LONDON))
+            constants.SSTORE_RESET - constants.COLD_SLOAD_COST + constants.ACCESS_LIST_STORAGE_KEY
+        else
+            constants.REFUND_SSTORE_CLEARS;
+
         if (current == new)
             return 0;
 
         if (original == current and new == 0)
-            return constants.sstore_clears_schedule;
+            return sstore_clears_schedule;
 
         var refund: i64 = 0;
 
         if (original != 0) {
-            if (current == 0) {
-                refund -= constants.sstore_clears_schedule;
-            } else refund += constants.sstore_clears_schedule;
+            if (current == 0)
+                refund -= sstore_clears_schedule
+            else
+                refund += sstore_clears_schedule;
         }
 
         if (original == new) {
-            const result: struct { i64, i64 } = if (spec.enabled(.BERLIN)) .{ constants.SSTORE_RESET - constants.COLD_SLOAD_COST, constants.WARM_STORAGE_READ_COST } else .{
+            const result: struct { i64, i64 } = if (spec.enabled(.BERLIN)) .{
+                constants.SSTORE_RESET - constants.COLD_SLOAD_COST,
+                constants.WARM_STORAGE_READ_COST,
+            } else .{
                 constants.SSTORE_RESET,
                 @intCast(calculateSloadCost(spec, false)),
             };
 
-            if (original == 0) {
-                refund += @as(i64, @intCast(constants.SSTORE_RESET)) - result[1];
-            } else refund += result[0] - result[1];
+            if (original == 0)
+                refund += @as(i64, @intCast(constants.SSTORE_RESET)) - result[1]
+            else
+                refund += result[0] - result[1];
         }
 
         return refund;

@@ -1,3 +1,4 @@
+const constants = @import("zabi-utils").constants;
 const gas = @import("../gas_tracker.zig");
 const host = @import("../host.zig");
 const log_types = @import("zabi-types").log;
@@ -39,10 +40,11 @@ pub fn balanceInstruction(self: *Interpreter) HostInstructionErrors!void {
 /// 0x40 -> BLOCKHASH
 pub fn blockHashInstruction(self: *Interpreter) HostInstructionErrors!void {
     const number = try self.stack.tryPopUnsafe();
+    const as_u64 = std.math.cast(u64, number) orelse return error.Overflow;
 
-    const hash = self.host.blockHash(number) orelse return error.UnexpectedError;
+    const hash = self.host.blockHash(as_u64) orelse return error.UnexpectedError;
 
-    try self.gas_tracker.updateTracker(gas.BLOCKHASH);
+    try self.gas_tracker.updateTracker(constants.BLOCKHASH);
 
     try self.stack.pushUnsafe(@bitCast(hash));
 }
@@ -151,8 +153,8 @@ pub fn selfBalanceInstruction(self: *Interpreter) (HostInstructionErrors || erro
         return error.InstructionNotEnabled;
 
     const bal, _ = self.host.balance(self.contract.target_address) orelse return error.UnexpectedError;
-    try self.gas_tracker.updateTracker(gas.FAST_STEP);
 
+    try self.gas_tracker.updateTracker(constants.FAST_STEP);
     try self.stack.pushUnsafe(bal);
 }
 /// Runs the selfbalance opcode for the interpreter.
@@ -163,10 +165,10 @@ pub fn selfDestructInstruction(self: *Interpreter) HostInstructionErrors!void {
     const address = try self.stack.tryPopUnsafe();
     const result = self.host.selfDestruct(self.contract.target_address, @bitCast(@as(u160, @intCast(address)))) catch return error.UnexpectedError;
 
-    if (self.spec.enabled(.LONDON) and !result.previously_destroyed)
+    if (self.spec.enabled(.LONDON) and !result.data.previously_destroyed)
         self.gas_tracker.refund_amount += 24000;
 
-    const gas_usage = gas.calculateSelfDestructCost(self.spec, result);
+    const gas_usage = gas.calculateSelfDestructCost(self.spec, result.data);
     try self.gas_tracker.updateTracker(gas_usage);
 
     self.status = .self_destructed;
@@ -176,12 +178,12 @@ pub fn selfDestructInstruction(self: *Interpreter) HostInstructionErrors!void {
 pub fn sloadInstruction(self: *Interpreter) HostInstructionErrors!void {
     const index = try self.stack.tryPopUnsafe();
 
-    const value, const is_cold = self.host.sload(self.contract.target_address, index) catch return error.UnexpectedError;
+    const value = self.host.sload(self.contract.target_address, index) catch return error.UnexpectedError;
 
-    const gas_usage = gas.calculateSloadCost(self.spec, is_cold);
+    const gas_usage = gas.calculateSloadCost(self.spec, value.cold);
     try self.gas_tracker.updateTracker(gas_usage);
 
-    try self.stack.pushUnsafe(value);
+    try self.stack.pushUnsafe(value.data);
 }
 /// Runs the sstore opcode for the interpreter.
 /// 0x55 -> SSTORE
@@ -194,10 +196,22 @@ pub fn sstoreInstruction(self: *Interpreter) HostInstructionErrors!void {
     const result = self.host.sstore(self.contract.target_address, index, value) catch return error.UnexpectedError;
     const gas_remaining = self.gas_tracker.availableGas();
 
-    const gas_cost = gas.calculateSstoreCost(self.spec, result.original_value, result.present_value, result.new_value, gas_remaining, result.is_cold);
+    const gas_cost = gas.calculateSstoreCost(
+        self.spec,
+        result.data.original_value,
+        result.data.present_value,
+        result.data.new_value,
+        gas_remaining,
+        result.cold,
+    );
 
     try self.gas_tracker.updateTracker(gas_cost orelse return error.OutOfGas);
-    self.gas_tracker.refund_amount = gas.calculateSstoreRefund(self.spec, result.original_value, result.present_value, result.new_value);
+    self.gas_tracker.refund_amount = gas.calculateSstoreRefund(
+        self.spec,
+        result.data.original_value,
+        result.data.present_value,
+        result.data.new_value,
+    );
 }
 /// Runs the tload opcode for the interpreter.
 /// 0x5C -> TLOAD
@@ -208,7 +222,7 @@ pub fn tloadInstruction(self: *Interpreter) (Interpreter.InstructionErrors || er
     const index = try self.stack.tryPopUnsafe();
 
     const load = self.host.tload(self.contract.target_address, index);
-    try self.gas_tracker.updateTracker(gas.WARM_STORAGE_READ_COST);
+    try self.gas_tracker.updateTracker(constants.WARM_STORAGE_READ_COST);
 
     try self.stack.pushUnsafe(load orelse 0);
 }
@@ -224,5 +238,5 @@ pub fn tstoreInstruction(self: *Interpreter) (HostInstructionErrors || error{Ins
     const value = try self.stack.tryPopUnsafe();
 
     self.host.tstore(self.contract.target_address, index, value) catch return error.UnexpectedError;
-    try self.gas_tracker.updateTracker(gas.WARM_STORAGE_READ_COST);
+    try self.gas_tracker.updateTracker(constants.WARM_STORAGE_READ_COST);
 }

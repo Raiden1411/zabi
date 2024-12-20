@@ -17,6 +17,7 @@ const Hash = types.ethereum.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Log = types.log.Log;
 
+/// Generic interface for implementing a database.
 pub const Database = struct {
     const Self = @This();
 
@@ -24,6 +25,7 @@ pub const Database = struct {
     vtable: *const VTable,
 
     pub const VTable = struct {
+        /// Loads the account information associated to an address.
         basic: *const fn (self: *anyopaque, address: Address) anyerror!?AccountInfo,
         /// Gets the block hash from a given block number
         codeByHash: *const fn (self: *anyopaque, code_hash: Hash) anyerror!Bytecode,
@@ -33,20 +35,25 @@ pub const Database = struct {
         blockHash: *const fn (self: *anyopaque, number: u64) anyerror!Hash,
     };
 
+    /// Loads the account information associated to an address.
     pub inline fn basic(self: Self, address: Address) anyerror!?AccountInfo {
         return self.vtable.basic(self.ptr, address);
     }
+    /// Gets the block hash from a given block number
     pub inline fn codeByHash(self: Self, code_hash: Hash) anyerror!Bytecode {
         return self.vtable.codeByHash(self.ptr, code_hash);
     }
+    /// Gets the code of an `address` and if that address is cold.
     pub inline fn storage(self: Self, address: Address, index: u256) anyerror!u256 {
         return self.vtable.storage(self.ptr, address, index);
     }
+    /// Gets the code hash of an `address` and if that address is cold.
     pub inline fn blockHash(self: Self, number: u64) anyerror!Hash {
         return self.vtable.blockHash(self.ptr, number);
     }
 };
 
+/// The state of the database account.
 pub const AccountState = enum {
     not_existing,
     touched,
@@ -54,22 +61,34 @@ pub const AccountState = enum {
     none,
 };
 
+/// Representation of an account in the database.
 pub const DatabaseAccount = struct {
     info: AccountInfo,
     account_state: AccountState,
     storage: AutoHashMap(u256, u256),
 };
 
+/// A implementation of the `Database` interface.
+///
+/// This stores all changes in memory all clears all changes once a
+/// program exits execution.
 pub const MemoryDatabase = struct {
     const Self = @This();
 
+    /// Hashmap of account associated with their addresses.
     account: AutoHashMapUnmanaged(Address, DatabaseAccount),
+    /// The allocator that managed any allocated memory.
     allocator: Allocator,
+    /// Hashmap of block numbers and block_hashes.
     block_hashes: AutoHashMapUnmanaged(u256, Hash),
+    /// Hashmap of block_hashes and their associated bytecode.
     contracts: AutoHashMapUnmanaged(Hash, Bytecode),
+    /// Inner fallback database.
     db: Database,
+    /// List of emitted logs.
     logs: ArrayListUnmanaged(Log),
 
+    /// Sets the initial state of the database.
     pub fn init(
         self: *Self,
         allocator: Allocator,
@@ -91,6 +110,8 @@ pub const MemoryDatabase = struct {
         };
     }
 
+    /// Clears any allocated memory by this database
+    /// and the storage accounts.
     pub fn deinit(self: *Self) void {
         var iter_acc = self.account.valueIterator();
         while (iter_acc.next()) |entries|
@@ -108,6 +129,7 @@ pub const MemoryDatabase = struct {
         self.* = undefined;
     }
 
+    /// Returns the implementation of the `Database` interface.
     pub fn database(self: *Self) Database {
         return .{
             .ptr = self,
@@ -119,7 +141,7 @@ pub const MemoryDatabase = struct {
             },
         };
     }
-
+    /// Adds the contract code of an account into the `contracts` hashmap.
     pub fn addContract(
         self: *Self,
         account: *AccountInfo,
@@ -140,7 +162,7 @@ pub const MemoryDatabase = struct {
         if (@as(u256, @bitCast(account.code_hash)) == 0)
             account.code_hash = constants.EMPTY_HASH;
     }
-
+    /// Adds the account information to the account associated with the provided address.
     pub fn addAccountInfo(
         self: *Self,
         address: Address,
@@ -162,7 +184,7 @@ pub const MemoryDatabase = struct {
 
         try self.account.put(self.allocator, address, new_db_account);
     }
-
+    /// Updates the account storage for the given slot index with the provided value.
     pub fn addAccountStorage(
         self: *Self,
         address: Address,
@@ -173,7 +195,7 @@ pub const MemoryDatabase = struct {
 
         try db_acc.storage.put(slot, value);
     }
-
+    /// Loads the account information from the database.
     pub fn basic(
         self: *anyopaque,
         address: Address,
@@ -207,7 +229,7 @@ pub const MemoryDatabase = struct {
 
         return account_info.info;
     }
-
+    /// Gets the associated bytecode to the provided `code_hash`.
     pub fn codeByHash(
         self: *anyopaque,
         code_hash: Hash,
@@ -219,7 +241,9 @@ pub const MemoryDatabase = struct {
 
         return db_self.db.codeByHash(code_hash);
     }
-
+    /// Get the value in an account's storage slot.
+    ///
+    /// It is assumed that account is already loaded.
     pub fn storage(
         self: *anyopaque,
         address: Address,
@@ -277,7 +301,7 @@ pub const MemoryDatabase = struct {
 
         return 0;
     }
-
+    /// Gets the associated block_hashes from the provided number.
     pub fn blockHash(
         self: *anyopaque,
         number: u64,
@@ -292,7 +316,7 @@ pub const MemoryDatabase = struct {
 
         return db_hash;
     }
-
+    /// Commits all of the changes to the database.
     pub fn commit(
         self: *Self,
         changes: AutoHashMapUnmanaged(Address, Account),
@@ -343,7 +367,7 @@ pub const MemoryDatabase = struct {
                 db_acc.storage.putAssumeCapacity(entries.key_ptr.*, entries.value_ptr.*);
         }
     }
-
+    /// Updates the storage from a given account.
     pub fn updateAccountStorage(
         self: *Self,
         address: Address,
@@ -356,7 +380,7 @@ pub const MemoryDatabase = struct {
         db_acc.storage = account_storage;
         db_acc.account_state = .storage_cleared;
     }
-
+    /// Loads an account from the database.
     pub fn loadAccount(
         self: *Self,
         address: Address,

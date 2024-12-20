@@ -1,11 +1,11 @@
-const constants = evm.constants;
+const constants = @import("zabi").utils.constants;
 const database = evm.database;
 const evm = @import("zabi").evm;
 const journal = evm.journal;
 const std = @import("std");
 const testing = std.testing;
 
-const AccountInfo = journal.AccountInfo;
+const AccountInfo = evm.host.AccountInfo;
 const JournaledState = journal.JournaledState;
 const MemoryDatabase = database.MemoryDatabase;
 const PlainDatabase = database.PlainDatabase;
@@ -505,7 +505,7 @@ test "Sload/Sstore" {
 
         journal_db.init(testing.allocator, .LATEST, plain.database());
 
-        var storage = std.AutoHashMap(u256, journal.StorageSlot).init(testing.allocator);
+        var storage = std.AutoHashMap(u256, evm.host.StorageSlot).init(testing.allocator);
         try storage.put(0, .{ .is_cold = true, .present_value = 69, .original_value = 69 });
         try storage.put(1, .{ .is_cold = false, .present_value = 69, .original_value = 69 });
 

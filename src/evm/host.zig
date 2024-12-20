@@ -1,5 +1,7 @@
+const constants = @import("zabi-utils").constants;
 const env = @import("enviroment.zig");
 const log_types = zabi_types.log;
+const spec = @import("specification.zig");
 const std = @import("std");
 const types = zabi_types.ethereum;
 const zabi_types = @import("zabi-types");
@@ -7,11 +9,78 @@ const zabi_types = @import("zabi-types");
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
+const AutoHashMap = std.AutoHashMap;
 const Bytecode = @import("bytecode.zig").Bytecode;
 const EVMEnviroment = env.EVMEnviroment;
 const Hash = types.Hash;
 const Log = log_types.Log;
 const Storage = std.AutoHashMap(u256, u256);
+const SpecId = spec.SpecId;
+
+/// The current status of an account.
+pub const AccountStatus = packed struct(u6) {
+    cold: u1 = 0,
+    self_destructed: u1 = 0,
+    touched: u1 = 0,
+    created: u1 = 0,
+    loaded: u1 = 0,
+    non_existent: u1 = 0,
+};
+
+/// Representation of the storage of an evm account.
+pub const StorageSlot = struct {
+    original_value: u256,
+    present_value: u256,
+    is_cold: bool,
+};
+
+/// Information associated with an evm account.
+pub const AccountInfo = struct {
+    balance: u256,
+    nonce: u64,
+    code_hash: Hash,
+    code: ?Bytecode,
+};
+
+/// Representation of an EVM account.
+pub const Account = struct {
+    info: AccountInfo,
+    storage: AutoHashMap(u256, StorageSlot),
+    status: AccountStatus,
+
+    pub fn isEmpty(self: Account, spec_id: SpecId) bool {
+        if (spec_id.enabled(.SPURIOUS_DRAGON)) {
+            const empty_hash = @as(u256, @bitCast(self.info.code_hash)) != 0;
+            const keccak_empty = @as(u256, @bitCast(constants.EMPTY_HASH)) != 0;
+
+            return (empty_hash or keccak_empty) and self.info.balance == 0 and self.info.nonce == 0;
+        }
+
+        return self.status.non_existent != 0 and self.status.touched == 0;
+    }
+};
+
+/// Result for loding and account from state.
+pub const AccountResult = struct {
+    is_cold: bool,
+    is_new_account: bool,
+};
+
+/// Result of a sstore of code.
+pub const SStoreResult = struct {
+    original_value: u256,
+    present_value: u256,
+    new_value: u256,
+    is_cold: bool,
+};
+
+/// Result of a self destruct opcode
+pub const SelfDestructResult = struct {
+    had_value: bool,
+    target_exists: bool,
+    is_cold: bool,
+    previously_destroyed: bool,
+};
 
 /// Representation of an EVM context host.
 pub const Host = struct {
@@ -95,26 +164,6 @@ pub const Host = struct {
     pub inline fn tstore(self: SelfHost, address: Address, index: u256, value: u256) anyerror!void {
         return self.vtable.tstore(self.ptr, address, index, value);
     }
-};
-
-/// Result for loding and account from state.
-pub const AccountResult = struct {
-    is_cold: bool,
-    is_new_account: bool,
-};
-/// Result of a sstore of code.
-pub const SStoreResult = struct {
-    original_value: u256,
-    present_value: u256,
-    new_value: u256,
-    is_cold: bool,
-};
-/// Result of a self destruct opcode
-pub const SelfDestructResult = struct {
-    had_value: bool,
-    target_exists: bool,
-    is_cold: bool,
-    previously_destroyed: bool,
 };
 
 /// Mainly serves as a basic implementation of an evm host.

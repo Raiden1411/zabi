@@ -1,11 +1,11 @@
-const constants = evm.constants;
+const constants = @import("zabi").utils.constants;
 const database = evm.database;
 const evm = @import("zabi").evm;
 const std = @import("std");
 const testing = std.testing;
 
 const Account = evm.database.DatabaseAccount;
-const AccountInfo = evm.journal.AccountInfo;
+const AccountInfo = evm.host.AccountInfo;
 const MemoryDatabase = database.MemoryDatabase;
 const PlainDatabase = database.PlainDatabase;
 

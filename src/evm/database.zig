@@ -1,11 +1,12 @@
 const bytecode = @import("bytecode.zig");
-const constants = @import("constants.zig");
+const constants = @import("zabi-utils").constants;
+const host = @import("host.zig");
 const journal = @import("journal.zig");
 const std = @import("std");
 const types = @import("zabi-types");
 
-const Account = journal.Account;
-const AccountInfo = journal.AccountInfo;
+const Account = host.Account;
+const AccountInfo = host.AccountInfo;
 const Address = types.ethereum.Address;
 const Allocator = std.mem.Allocator;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;

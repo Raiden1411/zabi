@@ -26,6 +26,24 @@ const SStoreResult = host.SStoreResult;
 /// On each additional call, the depth of the journaled state is increased and a new journal is added.
 /// The journal contains every state change that happens within that call, making it possible to revert changes made in a specific call.
 pub const JournaledState = struct {
+    /// Set of basic error when interacting with this journal.
+    pub const BasicErrors = Allocator.Error || error{UnexpectedError};
+
+    /// Set of errors when performing revert actions.
+    pub const RevertCheckpointError = Allocator.Error || error{ NonExistentAccount, InvalidStorageKey };
+
+    /// Set of errors when performing load or storage store.
+    pub const LoadErrors = BasicErrors || error{ NonExistentAccount, InvalidStorageKey };
+
+    /// Set of errors when performing a value transfer.
+    pub const TransferErrors = BasicErrors || error{ NonExistentAccount, OutOfFunds, OverflowPayment };
+
+    /// Set of possible basic database errors.
+    pub const CreateAccountErrors = TransferErrors || LoadErrors || error{
+        CreateCollision,
+        BalanceOverflow,
+    };
+
     /// The allocator used by the journal.
     allocator: Allocator,
     /// The database used to grab information in case the journal doesn't have it.
@@ -86,7 +104,7 @@ pub const JournaledState = struct {
     }
 
     /// Creates a new checkpoint and increase the call depth.
-    pub fn checkpoint(self: *JournaledState) !JournalCheckpoint {
+    pub fn checkpoint(self: *JournaledState) Allocator.Error!JournalCheckpoint {
         const point: JournalCheckpoint = .{
             .journal_checkpoint = self.journal.items.len,
             .logs_checkpoint = self.log_storage.items.len,
@@ -111,7 +129,7 @@ pub const JournaledState = struct {
         caller: Address,
         target_address: Address,
         balance: u256,
-    ) !JournalCheckpoint {
+    ) CreateAccountErrors!JournalCheckpoint {
         const point = try self.checkpoint();
 
         var caller_acc = self.state.getPtr(caller) orelse return error.NonExistentAccount;
@@ -166,7 +184,7 @@ pub const JournaledState = struct {
     pub fn incrementAccountNonce(
         self: *JournaledState,
         address: Address,
-    ) !?u64 {
+    ) Allocator.Error!?u64 {
         var account = self.state.getPtr(address) orelse return null;
 
         const add, const overflow = @addWithOverflow(account.info.nonce, 1);
@@ -189,7 +207,7 @@ pub const JournaledState = struct {
     pub fn loadAccount(
         self: *JournaledState,
         address: Address,
-    ) !StateLoaded(Account) {
+    ) BasicErrors!StateLoaded(Account) {
         const state = try self.load(address);
 
         if (state.cold) {
@@ -208,7 +226,7 @@ pub const JournaledState = struct {
     pub fn loadCode(
         self: *JournaledState,
         address: Address,
-    ) !StateLoaded(Account) {
+    ) BasicErrors!StateLoaded(Account) {
         var state = try self.load(address);
 
         if (state.cold) {
@@ -221,21 +239,21 @@ pub const JournaledState = struct {
         if (@as(u256, @bitCast(state.data.info.code_hash)) == @as(u256, @bitCast(constants.EMPTY_HASH))) {
             state.data.info.code = .{ .raw = @constCast("") };
         } else {
-            const code = try self.database.codeByHash(state.data.info.code_hash);
+            const code = self.database.codeByHash(state.data.info.code_hash) catch return error.UnexpectedError;
             state.data.info.code = code;
         }
 
         return state;
     }
     /// Appends the log to the log event list.
-    pub fn log(self: *JournaledState, event: Log) !void {
+    pub fn log(self: *JournaledState, event: Log) Allocator.Error!void {
         return self.log_storage.append(self.allocator, event);
     }
     /// Reverts a checkpoint and uncommit's all of the journal entries.
     pub fn revertCheckpoint(
         self: *JournaledState,
         point: JournalCheckpoint,
-    ) !void {
+    ) RevertCheckpointError!void {
         self.commitCheckpoint();
 
         const length = self.journal.items.len - point.journal_checkpoint;
@@ -254,7 +272,7 @@ pub const JournaledState = struct {
     pub fn revertJournal(
         self: *JournaledState,
         journal_entry: *ArrayListUnmanaged(JournalEntry),
-    ) !void {
+    ) RevertCheckpointError!void {
         while (journal_entry.popOrNull()) |entry| {
             switch (entry) {
                 .account_warmed => |address| {
@@ -345,7 +363,7 @@ pub const JournaledState = struct {
         self: *JournaledState,
         address: Address,
         target: Address,
-    ) !StateLoaded(SelfDestructResult) {
+    ) LoadErrors!StateLoaded(SelfDestructResult) {
         const account = try self.loadAccount(address);
         const empty = account.data.isEmpty(self.spec);
 
@@ -415,7 +433,7 @@ pub const JournaledState = struct {
         self: *JournaledState,
         address: Address,
         code: Bytecode,
-    ) !void {
+    ) (Allocator.Error || error{NonExistentAccount})!void {
         const bytes = code.getCodeBytes();
 
         var buffer: Hash = undefined;
@@ -431,7 +449,7 @@ pub const JournaledState = struct {
         address: Address,
         code: Bytecode,
         hash: Hash,
-    ) !void {
+    ) (Allocator.Error || error{NonExistentAccount})!void {
         var account = self.state.getPtr(address) orelse return error.NonExistentAccount;
         try self.touchAccount(address);
 
@@ -450,7 +468,7 @@ pub const JournaledState = struct {
         self: *JournaledState,
         address: Address,
         key: u256,
-    ) !StateLoaded(u256) {
+    ) LoadErrors!StateLoaded(u256) {
         var account = self.state.getPtr(address) orelse return error.NonExistentAccount;
 
         const state: StateLoaded(u256) = state: {
@@ -469,7 +487,7 @@ pub const JournaledState = struct {
                     .data = value.present_value,
                 };
             }
-            const value = if (account.status.created != 0) 0 else try self.database.storage(address, key);
+            const value = if (account.status.created != 0) 0 else self.database.storage(address, key) catch return error.UnexpectedError;
 
             try account.storage.put(key, .{
                 .is_cold = true,
@@ -505,7 +523,7 @@ pub const JournaledState = struct {
         address: Address,
         key: u256,
         new: u256,
-    ) !StateLoaded(SStoreResult) {
+    ) LoadErrors!StateLoaded(SStoreResult) {
         const present = try self.sload(address, key);
 
         var account = self.state.getPtr(address) orelse return error.NonExistentAccount;
@@ -559,7 +577,7 @@ pub const JournaledState = struct {
     pub fn touchAccount(
         self: *JournaledState,
         address: Address,
-    ) !void {
+    ) Allocator.Error!void {
         if (self.state.getPtr(address)) |account| {
             if (account.status.touched == 0) {
                 var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
@@ -577,7 +595,7 @@ pub const JournaledState = struct {
         from: Address,
         to: Address,
         value: u256,
-    ) !void {
+    ) TransferErrors!void {
         if (value == 0) {
             _ = try self.loadAccount(to);
             return self.touchAccount(to);
@@ -632,7 +650,7 @@ pub const JournaledState = struct {
         address: Address,
         key: u256,
         value: u256,
-    ) !void {
+    ) Allocator.Error!void {
         const had_value: ?u256 = blk: {
             if (value == 0) {
                 const val = self.transient_storage.get(.{ address, key });
@@ -678,7 +696,7 @@ pub const JournaledState = struct {
     fn load(
         self: *JournaledState,
         address: Address,
-    ) !StateLoaded(Account) {
+    ) BasicErrors!StateLoaded(Account) {
         const account = self.state.getPtr(address);
 
         if (account) |acc| {
@@ -698,7 +716,7 @@ pub const JournaledState = struct {
         }
 
         const db_account: Account = account: {
-            const account_info = try self.database.basic(address);
+            const account_info = self.database.basic(address) catch return error.UnexpectedError;
 
             if (account_info) |info|
                 break :account .{

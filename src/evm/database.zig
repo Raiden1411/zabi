@@ -75,6 +75,12 @@ pub const DatabaseAccount = struct {
 pub const MemoryDatabase = struct {
     const Self = @This();
 
+    /// Set of possible error when loading an account.
+    pub const AccountLoadError = BasicErrors || error{AccountNonExistent};
+
+    /// Set of possible basic database errors.
+    pub const BasicErrors = Allocator.Error || error{UnexpectedError};
+
     /// Hashmap of account associated with their addresses.
     account: AutoHashMapUnmanaged(Address, DatabaseAccount),
     /// The allocator that managed any allocated memory.
@@ -145,7 +151,7 @@ pub const MemoryDatabase = struct {
     pub fn addContract(
         self: *Self,
         account: *AccountInfo,
-    ) !void {
+    ) Allocator.Error!void {
         if (account.code) |code| {
             if (code.getCodeBytes().len != 0) {
                 if (@as(u256, @bitCast(account.code_hash)) == @as(u256, @bitCast(constants.EMPTY_HASH))) {
@@ -167,7 +173,7 @@ pub const MemoryDatabase = struct {
         self: *Self,
         address: Address,
         account: *AccountInfo,
-    ) !void {
+    ) Allocator.Error!void {
         try self.addContract(account);
         const db_account = self.account.getPtr(address);
 
@@ -190,7 +196,7 @@ pub const MemoryDatabase = struct {
         address: Address,
         slot: u256,
         value: u256,
-    ) !void {
+    ) AccountLoadError!void {
         var db_acc = try self.loadAccount(address);
 
         try db_acc.storage.put(slot, value);
@@ -199,13 +205,13 @@ pub const MemoryDatabase = struct {
     pub fn basic(
         self: *anyopaque,
         address: Address,
-    ) !?AccountInfo {
+    ) BasicErrors!?AccountInfo {
         const db_self: *MemoryDatabase = @ptrCast(@alignCast(self));
 
         if (db_self.account.get(address)) |acc|
             return acc.info;
 
-        const db_info = try db_self.db.basic(address);
+        const db_info = db_self.db.basic(address) catch return error.UnexpectedError;
 
         const account_info: DatabaseAccount = if (db_info) |info|
             .{
@@ -233,13 +239,13 @@ pub const MemoryDatabase = struct {
     pub fn codeByHash(
         self: *anyopaque,
         code_hash: Hash,
-    ) !Bytecode {
+    ) error{UnexpectedError}!Bytecode {
         const db_self: *MemoryDatabase = @ptrCast(@alignCast(self));
 
         if (db_self.contracts.get(code_hash)) |code|
             return code;
 
-        return db_self.db.codeByHash(code_hash);
+        return db_self.db.codeByHash(code_hash) catch error.UnexpectedError;
     }
     /// Get the value in an account's storage slot.
     ///
@@ -248,7 +254,7 @@ pub const MemoryDatabase = struct {
         self: *anyopaque,
         address: Address,
         index: u256,
-    ) !u256 {
+    ) BasicErrors!u256 {
         const db_self: *MemoryDatabase = @ptrCast(@alignCast(self));
 
         if (db_self.account.getPtr(address)) |account| {
@@ -260,7 +266,7 @@ pub const MemoryDatabase = struct {
                 .not_existing,
                 => return 0,
                 else => {
-                    const slot = try db_self.db.storage(address, index);
+                    const slot = db_self.db.storage(address, index) catch return error.UnexpectedError;
 
                     try account.storage.put(index, slot);
 
@@ -269,10 +275,10 @@ pub const MemoryDatabase = struct {
             }
         }
 
-        const db_info = try db_self.db.basic(address);
+        const db_info = db_self.db.basic(address) catch return error.UnexpectedError;
 
         if (db_info) |info| {
-            const slot = try db_self.db.storage(address, index);
+            const slot = db_self.db.storage(address, index) catch return error.UnexpectedError;
 
             var db_account: DatabaseAccount = .{
                 .info = info,
@@ -305,13 +311,13 @@ pub const MemoryDatabase = struct {
     pub fn blockHash(
         self: *anyopaque,
         number: u64,
-    ) !Hash {
+    ) BasicErrors!Hash {
         const db_self: *MemoryDatabase = @ptrCast(@alignCast(self));
 
         if (db_self.block_hashes.get(number)) |hash|
             return hash;
 
-        const db_hash = try db_self.db.blockHash(number);
+        const db_hash = db_self.db.blockHash(number) catch return error.UnexpectedError;
         try db_self.block_hashes.put(db_self.allocator, number, db_hash);
 
         return db_hash;
@@ -320,7 +326,7 @@ pub const MemoryDatabase = struct {
     pub fn commit(
         self: *Self,
         changes: AutoHashMapUnmanaged(Address, Account),
-    ) !void {
+    ) AccountLoadError!void {
         const iter = changes.iterator();
 
         while (iter.next()) |entry| {
@@ -372,7 +378,7 @@ pub const MemoryDatabase = struct {
         self: *Self,
         address: Address,
         account_storage: AutoHashMap(u256, u256),
-    ) !void {
+    ) AccountLoadError!void {
         var db_acc = try self.loadAccount(address);
         // Clear the previously allocated memory.
         db_acc.storage.deinit();
@@ -384,11 +390,11 @@ pub const MemoryDatabase = struct {
     pub fn loadAccount(
         self: *Self,
         address: Address,
-    ) !*DatabaseAccount {
+    ) AccountLoadError!*DatabaseAccount {
         if (self.account.getEntry(address)) |db_acc|
             return db_acc.value_ptr;
 
-        const account_info = try self.db.basic(address) orelse return error.AccountNonExistent;
+        const account_info = (self.db.basic(address) catch return error.UnexpectedError) orelse return error.AccountNonExistent;
         const db_acc: DatabaseAccount = .{
             .info = account_info,
             .storage = .init(self.allocator),

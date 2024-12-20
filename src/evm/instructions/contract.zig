@@ -1,4 +1,5 @@
 const actions = @import("../actions.zig");
+const constants = @import("zabi-utils").constants;
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 const utils = @import("zabi-utils").utils;
@@ -32,19 +33,21 @@ pub fn callInstruction(self: *Interpreter) (error{FailedToLoadAccount} || Interp
     try self.gas_tracker.updateTracker(calc_limit);
 
     if (value != 0)
-        calc_limit +|= gas.CALL_STIPEND;
+        calc_limit +|= constants.CALL_STIPEND;
 
-    self.next_action = .{ .call_action = .{
-        .value = .{ .transfer = value },
-        .inputs = input,
-        .caller = self.contract.target_address,
-        .gas_limit = calc_limit,
-        .bytecode_address = @bitCast(@as(u160, @intCast(to))),
-        .target_address = @bitCast(@as(u160, @intCast(to))),
-        .scheme = .call,
-        .is_static = self.is_static,
-        .return_memory_offset = range,
-    } };
+    self.next_action = .{
+        .call_action = .{
+            .value = .{ .transfer = value },
+            .inputs = input,
+            .caller = self.contract.target_address,
+            .gas_limit = calc_limit,
+            .bytecode_address = @bitCast(@as(u160, @intCast(to))),
+            .target_address = @bitCast(@as(u160, @intCast(to))),
+            .scheme = .call,
+            .is_static = self.is_static,
+            .return_memory_offset = range,
+        },
+    };
 
     self.status = .call_or_create;
 }
@@ -69,19 +72,21 @@ pub fn callCodeInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
     try self.gas_tracker.updateTracker(calc_limit);
 
     if (value != 0)
-        calc_limit +|= gas.CALL_STIPEND;
+        calc_limit +|= constants.CALL_STIPEND;
 
-    self.next_action = .{ .call_action = .{
-        .value = .{ .transfer = value },
-        .inputs = input,
-        .caller = self.contract.target_address,
-        .gas_limit = calc_limit,
-        .bytecode_address = self.contract.target_address,
-        .target_address = @bitCast(@as(u160, @intCast(to))),
-        .scheme = .callcode,
-        .is_static = self.is_static,
-        .return_memory_offset = range,
-    } };
+    self.next_action = .{
+        .call_action = .{
+            .value = .{ .transfer = value },
+            .inputs = input,
+            .caller = self.contract.target_address,
+            .gas_limit = calc_limit,
+            .bytecode_address = self.contract.target_address,
+            .target_address = @bitCast(@as(u160, @intCast(to))),
+            .scheme = .callcode,
+            .is_static = self.is_static,
+            .return_memory_offset = range,
+        },
+    };
 
     self.status = .call_or_create;
 }
@@ -134,7 +139,7 @@ pub fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ Instruct
 
             break :blk .{ .create2 = salt };
         }
-        try self.gas_tracker.updateTracker(gas.CREATE);
+        try self.gas_tracker.updateTracker(constants.CREATE);
 
         break :blk .{ .create = {} };
     };
@@ -179,17 +184,19 @@ pub fn delegateCallInstruction(self: *Interpreter) (error{InstructionNotEnabled}
 
     try self.gas_tracker.updateTracker(calc_limit);
 
-    self.next_action = .{ .call_action = .{
-        .value = .{ .limbo = self.contract.value },
-        .inputs = input,
-        .caller = self.contract.caller,
-        .gas_limit = calc_limit,
-        .bytecode_address = @bitCast(@as(u160, @intCast(to))),
-        .target_address = self.contract.target_address,
-        .scheme = .delegate,
-        .is_static = self.is_static,
-        .return_memory_offset = range,
-    } };
+    self.next_action = .{
+        .call_action = .{
+            .value = .{ .limbo = self.contract.value },
+            .inputs = input,
+            .caller = self.contract.caller,
+            .gas_limit = calc_limit,
+            .bytecode_address = @bitCast(@as(u160, @intCast(to))),
+            .target_address = self.contract.target_address,
+            .scheme = .delegate,
+            .is_static = self.is_static,
+            .return_memory_offset = range,
+        },
+    };
 
     self.status = .call_or_create;
 }
@@ -214,17 +221,19 @@ pub fn staticCallInstruction(self: *Interpreter) (error{InstructionNotEnabled} |
 
     try self.gas_tracker.updateTracker(calc_limit);
 
-    self.next_action = .{ .call_action = .{
-        .value = .{ .transfer = 0 },
-        .inputs = input,
-        .caller = self.contract.target_address,
-        .gas_limit = calc_limit,
-        .bytecode_address = @bitCast(@as(u160, @intCast(to))),
-        .target_address = @bitCast(@as(u160, @intCast(to))),
-        .scheme = .static,
-        .is_static = true,
-        .return_memory_offset = range,
-    } };
+    self.next_action = .{
+        .call_action = .{
+            .value = .{ .transfer = 0 },
+            .inputs = input,
+            .caller = self.contract.target_address,
+            .gas_limit = calc_limit,
+            .bytecode_address = @bitCast(@as(u160, @intCast(to))),
+            .target_address = @bitCast(@as(u160, @intCast(to))),
+            .scheme = .static,
+            .is_static = true,
+            .return_memory_offset = range,
+        },
+    };
 
     self.status = .call_or_create;
 }

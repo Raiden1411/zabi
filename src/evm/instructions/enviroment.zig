@@ -1,3 +1,4 @@
+const constants = @import("zabi-utils").constants;
 const enviroment = @import("../enviroment.zig");
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
@@ -12,7 +13,7 @@ pub fn baseFeeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
     const env = self.host.getEnviroment();
     const fee = env.block.base_fee;
 
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(fee);
 }
 /// Performs the blobbasefee instruction for the interpreter.
@@ -21,9 +22,9 @@ pub fn blobBaseFeeInstruction(self: *Interpreter) (Interpreter.InstructionErrors
     if (!self.spec.enabled(.CANCUN))
         return error.InstructionNotEnabled;
 
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
 
-    const blob_price = self.host.getEnviroment().block.blob_excess_gas_and_price orelse BlobExcessGasAndPrice{
+    const blob_price: BlobExcessGasAndPrice = self.host.getEnviroment().block.blob_excess_gas_and_price orelse .{
         .blob_gasprice = 0,
         .blob_excess_gas = 0,
     };
@@ -37,7 +38,7 @@ pub fn blobHashInstruction(self: *Interpreter) (Interpreter.InstructionErrors ||
         return error.InstructionNotEnabled;
 
     const index = try self.stack.tryPopUnsafe();
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
     if (index >= self.host.getEnviroment().tx.blob_hashes.len) {
         try self.stack.pushUnsafe(0);
@@ -53,7 +54,7 @@ pub fn blobHashInstruction(self: *Interpreter) (Interpreter.InstructionErrors ||
 pub fn blockNumberInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const number = self.host.getEnviroment().block.number;
 
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(number);
 }
 /// Performs the chainid instruction for the interpreter.
@@ -64,7 +65,7 @@ pub fn chainIdInstruction(self: *Interpreter) (Interpreter.InstructionErrors || 
 
     const chainId = self.host.getEnviroment().config.chain_id;
 
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(chainId);
 }
 /// Performs the coinbase instruction for the interpreter.
@@ -72,7 +73,7 @@ pub fn chainIdInstruction(self: *Interpreter) (Interpreter.InstructionErrors || 
 pub fn coinbaseInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const coinbase = self.host.getEnviroment().block.coinbase;
 
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(@as(u160, @bitCast(coinbase)));
 }
 /// Performs the prevrandao/difficulty instruction for the interpreter.
@@ -81,7 +82,7 @@ pub fn difficultyInstruction(self: *Interpreter) Interpreter.InstructionErrors!v
     const env = self.host.getEnviroment();
     const difficulty = if (self.spec.enabled(.MERGE)) env.block.prevrandao orelse 0 else env.block.difficulty;
 
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(difficulty);
 }
 /// Performs the gaslimit instruction for the interpreter.
@@ -89,7 +90,7 @@ pub fn difficultyInstruction(self: *Interpreter) Interpreter.InstructionErrors!v
 pub fn gasLimitInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const gas_price = self.host.getEnviroment().block.gas_limit;
 
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(gas_price);
 }
 /// Performs the gasprice instruction for the interpreter.
@@ -97,7 +98,7 @@ pub fn gasLimitInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
 pub fn gasPriceInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const gas_price = self.host.getEnviroment().effectiveGasPrice();
 
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(gas_price);
 }
 /// Performs the origin instruction for the interpreter.
@@ -105,7 +106,7 @@ pub fn gasPriceInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
 pub fn originInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const origin = self.host.getEnviroment().tx.caller;
 
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(@as(u160, @bitCast(origin)));
 }
 /// Performs the timestamp instruction for the interpreter.
@@ -113,6 +114,6 @@ pub fn originInstruction(self: *Interpreter) Interpreter.InstructionErrors!void 
 pub fn timestampInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const timestamp = self.host.getEnviroment().block.timestamp;
 
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(timestamp);
 }

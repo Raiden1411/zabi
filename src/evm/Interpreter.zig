@@ -201,8 +201,10 @@ pub fn runInstruction(self: *Interpreter) AllInstructionErrors!void {
 
     const operation = opcode.instruction_table.getInstruction(opcode_bit);
 
-    if (self.stack.stackHeight() > operation.max_stack)
+    if (self.stack.stackHeight() > operation.max_stack) {
+        @branchHint(.cold);
         return error.StackOverflow;
+    }
 
     return @errorCast(operation.execution(self));
 }
@@ -254,20 +256,27 @@ pub fn run(self: *Interpreter) (AllInstructionErrors || InterpreterStatusErrors)
         else => {},
     }
 
-    if (self.next_action != .no_action)
-        return self.next_action;
-
-    return .{
-        .return_action = .{
-            .gas = self.gas_tracker,
-            .output = try self.allocator.dupe(u8, self.return_data),
-            .result = self.status,
+    switch (self.next_action) {
+        .return_action,
+        .call_action,
+        .create_action,
+        => return self.next_action,
+        .no_action,
+        => return .{
+            .return_action = .{
+                .gas = self.gas_tracker,
+                .output = try self.allocator.dupe(u8, self.return_data),
+                .result = self.status,
+            },
         },
-    };
+    }
 }
 /// Resizes the inner memory size. Adds gas expansion cost to
 /// the gas tracker.
-pub fn resize(self: *Interpreter, new_size: usize) (Allocator.Error || GasTracker.Error || Memory.Error)!void {
+pub fn resize(
+    self: *Interpreter,
+    new_size: usize,
+) (Allocator.Error || GasTracker.Error || Memory.Error)!void {
     if (new_size > self.memory.getCurrentMemorySize()) {
         const count = mem.availableWords(new_size);
         const mem_cost = gas.calculateMemoryCost(count);

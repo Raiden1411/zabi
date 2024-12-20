@@ -11,4 +11,6 @@ test "EVM Interpreter root" {
     _ = @import("memory.test.zig");
     _ = @import("stack.test.zig");
     _ = @import("system.test.zig");
+    _ = @import("database.test.zig");
+    _ = @import("journal.test.zig");
 }

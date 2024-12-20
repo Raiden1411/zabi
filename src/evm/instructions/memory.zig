@@ -1,3 +1,4 @@
+const constants = @import("zabi-utils").constants;
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 const utils = @import("zabi-utils").utils;
@@ -40,7 +41,7 @@ pub fn mloadInstruction(self: *Interpreter) MemoryInstructionErrors!void {
 
     const as_usize = std.math.cast(usize, offset.*) orelse return error.Overflow;
 
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
     const new_size = as_usize +| 32;
     try self.resize(new_size);
 
@@ -49,7 +50,7 @@ pub fn mloadInstruction(self: *Interpreter) MemoryInstructionErrors!void {
 /// Runs the msize opcode for the interpreter.
 /// 0x59 -> MSIZE
 pub fn msizeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(gas.QUICK_STEP);
+    try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(self.memory.getCurrentMemorySize());
 }
 /// Runs the mstore opcode for the interpreter.
@@ -60,7 +61,7 @@ pub fn mstoreInstruction(self: *Interpreter) MemoryInstructionErrors!void {
 
     const as_usize = std.math.cast(usize, offset) orelse return error.Overflow;
 
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
     const new_size = as_usize +| 32;
     try self.resize(new_size);
 
@@ -74,7 +75,7 @@ pub fn mstore8Instruction(self: *Interpreter) MemoryInstructionErrors!void {
 
     const as_usize = std.math.cast(usize, offset) orelse return error.Overflow;
 
-    try self.gas_tracker.updateTracker(gas.FASTEST_STEP);
+    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
     const new_size = as_usize +| 1;
     try self.resize(new_size);
 

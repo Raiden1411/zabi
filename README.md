@@ -89,7 +89,7 @@ You can install the latest version of zig [here](https://ziglang.org/download/) 
 - Ability to translate solidity source code to zig.
 - ABI to zig types.
 - Support for EIP712.
-- Support for EIP3074 authorization message.
+- Support for EIP3074 authorization message. Also supports EIP7702 transactions.
 - Parsing of human readable ABIs into zig types with custom Parser and Lexer.
 - HD Wallet and Mnemonic passphrases.
 - RLP Encoding/Decoding.
@@ -100,7 +100,6 @@ You can install the latest version of zig [here](https://ziglang.org/download/) 
 - Support for OPStack and ENS.
 - Custom meta programming functions to translate ABI's into zig types.
 - Support for interacting with test chains such as Anvil or Hardhat.
-- Custom RPC server used to fuzz data. Support http, ws and ipc.
 - Custom cli args parser that translates commands to zig types and can be used to pass data to methods.
 - Custom data generator usefull for fuzzing.
 

@@ -2,7 +2,7 @@ const args_parser = @import("zabi-utils").args;
 const std = @import("std");
 const clients = @import("zabi-clients");
 
-const Wallet = clients.wallet.Wallet(.http);
+const Wallet = clients.wallet.Wallet(.websocket);
 
 const CliOptions = struct {
     priv_key: [32]u8,

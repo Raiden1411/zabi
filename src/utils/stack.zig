@@ -195,7 +195,7 @@ pub fn BoundedStack(comptime size: usize) type {
         /// This is not thread safe.
         pub fn swapToTopUnsafe(self: *Self, position_swap: usize) error{StackUnderflow}!void {
             if (self.inner.len < position_swap) {
-                @branchHint(.cold);
+                @branchHint(.unlikely);
                 return error.StackUnderflow;
             }
 
@@ -210,7 +210,7 @@ pub fn BoundedStack(comptime size: usize) type {
         /// This is not thread safe.
         pub fn dupUnsafe(self: *Self, position: usize) Self.Error!void {
             if (self.inner.len < position) {
-                @branchHint(.cold);
+                @branchHint(.unlikely);
                 return error.StackUnderflow;
             }
 
@@ -234,7 +234,7 @@ pub fn BoundedStack(comptime size: usize) type {
         /// Otherwise it returns `StackOverflow`.
         pub fn ensureUnusedCapacity(self: Self, grow: usize) error{StackOverflow}!void {
             if (self.len + grow > size) {
-                @branchHint(.cold);
+                @branchHint(.unlikely);
                 return error.StackOverflow;
             }
         }
@@ -252,7 +252,7 @@ pub fn BoundedStack(comptime size: usize) type {
         /// Returns null if the `len` is 0.
         pub fn popOrNull(self: *Self) ?u256 {
             if (self.len == 0) {
-                @branchHint(.cold);
+                @branchHint(.unlikely);
                 return null;
             }
 
@@ -269,7 +269,7 @@ pub fn BoundedStack(comptime size: usize) type {
         /// Returns null if len is 0;
         pub fn peek(self: *Self) ?*u256 {
             if (self.len == 0) {
-                @branchHint(.cold);
+                @branchHint(.unlikely);
                 return null;
             }
 

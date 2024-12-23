@@ -2,7 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
+const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Word = [32]u8;
 
 /// A extendable memory used by the evm interpreter.
@@ -15,7 +15,7 @@ pub const Memory = struct {
     /// The underlaying memory buffer.
     buffer: []u8,
     /// Set of memory checkpoints
-    checkpoints: ArrayList(usize),
+    checkpoints: ArrayListUnmanaged(usize),
     /// The last memory checkpoint
     last_checkpoint: usize,
     /// The max memory size
@@ -29,7 +29,7 @@ pub const Memory = struct {
         return .{
             .allocator = allocator,
             .buffer = &[_]u8{},
-            .checkpoints = ArrayList(usize).init(allocator),
+            .checkpoints = .empty,
             .last_checkpoint = 0,
             .memory_limit = limit orelse comptime std.math.maxInt(u64),
             .total_capacity = 0,
@@ -42,7 +42,7 @@ pub const Memory = struct {
     /// Creates the memory with `capacity`.
     pub fn initWithCapacity(allocator: Allocator, capacity: usize, limit: ?u64) Allocator.Error!Memory {
         var buffer = try allocator.alloc(u8, capacity);
-        const checkpoints = try ArrayList(usize).initCapacity(allocator, 32);
+        const checkpoints = try ArrayListUnmanaged(usize).initCapacity(allocator, 32);
 
         buffer.len = 0;
 
@@ -54,6 +54,11 @@ pub const Memory = struct {
             .total_capacity = capacity,
             .memory_limit = limit orelse comptime std.math.maxInt(u64),
         };
+    }
+    /// Frees the underlaying memory buffers.
+    pub fn deinit(self: *Memory) void {
+        self.allocator.free(self.buffer.ptr[0..self.total_capacity]);
+        self.checkpoints.deinit(self.allocator);
     }
     /// Prepares the memory for returning to the previous context.
     pub fn freeContext(self: *Memory) void {
@@ -101,7 +106,7 @@ pub const Memory = struct {
     pub fn newContext(self: *Memory) Allocator.Error!void {
         const new_checkpoint = self.buffer.len;
 
-        try self.checkpoints.append(new_checkpoint);
+        try self.checkpoints.append(self.allocator, new_checkpoint);
         self.last_checkpoint = new_checkpoint;
     }
     /// Resizes the underlaying memory buffer.
@@ -193,11 +198,6 @@ pub const Memory = struct {
         const range_end = range_start + (len - data_len);
         // Zero out the remainder of the memory.
         @memset(memory_slice[range_start..range_end], 0);
-    }
-    /// Frees the underlaying memory buffers.
-    pub fn deinit(self: Memory) void {
-        self.allocator.free(self.buffer.ptr[0..self.total_capacity]);
-        self.checkpoints.deinit();
     }
     /// Adapted from `ArrayList` growCapacity function.
     fn growCapacity(current: usize, minimum: usize) usize {

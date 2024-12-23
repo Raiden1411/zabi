@@ -164,12 +164,9 @@ pub fn init(
     evm_host: Host,
     opts: InterpreterInitOptions,
 ) Allocator.Error!void {
-    const bytecode = try allocator.dupe(u8, contract_instance.bytecode.getCodeBytes());
-    errdefer allocator.free(bytecode);
-
     self.* = .{
         .allocator = allocator,
-        .code = bytecode,
+        .code = contract_instance.bytecode.getCodeBytes(),
         .contract = contract_instance,
         .memory = try Memory.initWithDefaultCapacity(allocator, null),
         .gas_tracker = GasTracker.init(opts.gas_limit),
@@ -187,7 +184,6 @@ pub fn init(
 pub fn deinit(self: *Interpreter) void {
     self.memory.deinit();
 
-    self.allocator.free(self.code);
     self.allocator.free(self.return_data.ptr[0..self.return_data.len]);
 }
 /// Moves the `program_counter` by one.
@@ -202,7 +198,7 @@ pub fn runInstruction(self: *Interpreter) AllInstructionErrors!void {
     const operation = opcode.instruction_table.getInstruction(opcode_bit);
 
     if (self.stack.stackHeight() > operation.max_stack) {
-        @branchHint(.cold);
+        @branchHint(.unlikely);
         return error.StackOverflow;
     }
 

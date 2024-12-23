@@ -111,7 +111,7 @@ pub fn signedDivInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
     const second = try self.stack.tryPeek();
 
     if (second.* == 0) {
-        @branchHint(.cold);
+        @branchHint(.unlikely);
         second.* = 0;
 
         return;

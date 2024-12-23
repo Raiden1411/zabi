@@ -33,7 +33,7 @@ pub const JournaledState = struct {
     pub const RevertCheckpointError = Allocator.Error || error{ NonExistentAccount, InvalidStorageKey };
 
     /// Set of errors when performing load or storage store.
-    pub const LoadErrors = BasicErrors || error{ NonExistentAccount, InvalidStorageKey };
+    pub const LoadErrors = RevertCheckpointError || error{UnexpectedError};
 
     /// Set of errors when performing a value transfer.
     pub const TransferErrors = BasicErrors || error{ NonExistentAccount, OutOfFunds, OverflowPayment };
@@ -141,9 +141,7 @@ pub const JournaledState = struct {
 
         var target_acc = self.state.getPtr(target_address) orelse return error.NonExistentAccount;
 
-        if (@as(u256, @bitCast(target_acc.info.code_hash)) != @as(u256, @bitCast(constants.EMPTY_HASH)) or
-            target_acc.info.nonce != 0)
-        {
+        if (@as(u256, @bitCast(target_acc.info.code_hash)) != @as(u256, @bitCast(constants.EMPTY_HASH)) or target_acc.info.nonce != 0) {
             try self.revertCheckpoint(point);
             return error.CreateCollision;
         }

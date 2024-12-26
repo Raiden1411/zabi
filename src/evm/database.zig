@@ -1,7 +1,6 @@
 const bytecode = @import("bytecode.zig");
 const constants = @import("zabi-utils").constants;
 const host = @import("host.zig");
-const journal = @import("journal.zig");
 const std = @import("std");
 const types = @import("zabi-types");
 

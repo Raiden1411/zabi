@@ -354,9 +354,8 @@ pub const JournaledState = struct {
     ///
     /// Transfer the balance to the target address.
     ///
-    /// Balance will be lost if address and target are the same BUT when
-    /// current spec enables Cancun, this happens only when the account associated to address
-    /// is created in the same transaction.
+    /// Balance will be lost if address and target are the same BUT when current spec enables Cancun,
+    /// this happens only when the account associated to address is created in the same transaction.
     pub fn selfDestruct(
         self: *JournaledState,
         address: Address,
@@ -485,7 +484,10 @@ pub const JournaledState = struct {
                     .data = value.present_value,
                 };
             }
-            const value = if (account.status.created != 0) 0 else self.database.storage(address, key) catch return error.UnexpectedError;
+            const value = if (account.status.created != 0)
+                0
+            else
+                self.database.storage(address, key) catch return error.UnexpectedError;
 
             try account.storage.put(key, .{
                 .is_cold = true,
@@ -501,8 +503,8 @@ pub const JournaledState = struct {
 
         if (state.cold) {
             std.debug.assert(self.journal.items.len > 0);
-
             var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
+
             try reference.append(self.allocator, .{
                 .storage_warmed = .{
                     .address = address,
@@ -540,8 +542,8 @@ pub const JournaledState = struct {
         }
 
         std.debug.assert(self.journal.items.len > 0);
-
         var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
+
         try reference.append(self.allocator, .{
             .storage_changed = .{
                 .address = address,
@@ -602,33 +604,32 @@ pub const JournaledState = struct {
         _ = try self.loadAccount(to);
         _ = try self.loadAccount(from);
 
-        {
-            var from_acc = self.state.getPtr(from) orelse return error.NonExistentAccount;
-            try self.touchAccount(from);
+        // Substract value from account
+        var from_acc = self.state.getPtr(from) orelse return error.NonExistentAccount;
+        try self.touchAccount(from);
 
-            const sub, const overflow = @subWithOverflow(from_acc.info.balance, value);
+        const sub, const overflow_sub = @subWithOverflow(from_acc.info.balance, value);
 
-            if (overflow != 0)
-                return error.OutOfFunds;
+        if (overflow_sub != 0)
+            return error.OutOfFunds;
 
-            from_acc.info.balance = sub;
-        }
+        from_acc.info.balance = sub;
 
-        {
-            var to_acc = self.state.getPtr(to) orelse return error.NonExistentAccount;
-            try self.touchAccount(to);
+        // Add value to the account
+        var to_acc = self.state.getPtr(to) orelse return error.NonExistentAccount;
+        try self.touchAccount(to);
 
-            const add, const overflow = @addWithOverflow(to_acc.info.balance, value);
+        const add, const overflow_add = @addWithOverflow(to_acc.info.balance, value);
 
-            if (overflow != 0)
-                return error.OverflowPayment;
+        if (overflow_add != 0)
+            return error.OverflowPayment;
 
-            to_acc.info.balance = add;
-        }
+        to_acc.info.balance = add;
 
+        // Append journal_entry to the list.
         std.debug.assert(self.journal.items.len > 0);
-
         var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
+
         try reference.append(self.allocator, .{
             .balance_transfer = .{
                 .from = from,
@@ -669,8 +670,8 @@ pub const JournaledState = struct {
 
         if (had_value) |val| {
             std.debug.assert(self.journal.items.len > 0);
-
             var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
+
             try reference.append(self.allocator, .{
                 .transient_storage_changed = .{
                     .address = address,

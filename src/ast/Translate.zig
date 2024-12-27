@@ -32,6 +32,7 @@ pub fn init(solidity_ast: SolidityAst, list: *PuncAndIndenStream) Translator {
     };
 }
 
+/// Translates a solidity array type to a zig type.
 pub fn translateArrayType(self: Translator, node: Node.Index) TranslateErrors!void {
     const nodes = self.ast.nodes.items(.tag);
     const node_tag = nodes[node];

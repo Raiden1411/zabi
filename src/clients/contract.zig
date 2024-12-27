@@ -83,7 +83,11 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
             const self = try opts.wallet_opts.allocator.create(ContractComptime(client_type));
             errdefer opts.wallet_opts.allocator.destroy(self);
 
-            const wallet = try Wallet(client_type).init(opts.private_key, opts.wallet_opts, opts.nonce_manager);
+            const wallet = try Wallet(client_type).init(
+                opts.private_key,
+                opts.wallet_opts,
+                opts.nonce_manager,
+            );
             self.* = .{ .wallet = wallet };
 
             return self;
@@ -195,23 +199,32 @@ pub fn ContractComptime(comptime client_type: ClientType) type {
 
             const address = self.wallet.getWalletAddress();
             const call: EthCall = switch (copy.type) {
-                .cancun, .london, .eip7702 => .{ .london = .{
-                    .from = address,
-                    .to = copy.to,
-                    .data = copy.data,
-                    .value = copy.value,
-                    .maxFeePerGas = copy.maxFeePerGas,
-                    .maxPriorityFeePerGas = copy.maxPriorityFeePerGas,
-                    .gas = copy.gas,
-                } },
-                .berlin, .legacy => .{ .legacy = .{
-                    .from = address,
-                    .value = copy.value,
-                    .to = copy.to,
-                    .data = copy.data,
-                    .gas = copy.gas,
-                    .gasPrice = copy.gasPrice,
-                } },
+                .cancun,
+                .london,
+                .eip7702,
+                => .{
+                    .london = .{
+                        .from = address,
+                        .to = copy.to,
+                        .data = copy.data,
+                        .value = copy.value,
+                        .maxFeePerGas = copy.maxFeePerGas,
+                        .maxPriorityFeePerGas = copy.maxPriorityFeePerGas,
+                        .gas = copy.gas,
+                    },
+                },
+                .berlin,
+                .legacy,
+                => .{
+                    .legacy = .{
+                        .from = address,
+                        .value = copy.value,
+                        .to = copy.to,
+                        .data = copy.data,
+                        .gas = copy.gas,
+                        .gasPrice = copy.gasPrice,
+                    },
+                },
                 .deposit => return error.UnsupportedTransactionType,
                 _ => return error.UnsupportedTransactionType,
             };
@@ -305,7 +318,12 @@ pub fn Contract(comptime client_type: ClientType) type {
             const self = try opts.wallet_opts.allocator.create(Contract(client_type));
             errdefer opts.wallet_opts.allocator.destroy(self);
 
-            const wallet = try Wallet(client_type).init(opts.private_key, opts.wallet_opts, opts.nonce_manager);
+            const wallet = try Wallet(client_type).init(
+                opts.private_key,
+                opts.wallet_opts,
+                opts.nonce_manager,
+            );
+
             self.* = .{
                 .abi = opts.abi,
                 .wallet = wallet,
@@ -512,56 +530,37 @@ pub fn Contract(comptime client_type: ClientType) type {
     };
 }
 
+// TODO: Refactor this function.
 /// Grabs the first match in the `Contract` abi
-fn getAbiItem(abi: Abi, abi_type: Abitype, name: ?[]const u8) error{ NotSupported, AbiItemNotFound }!AbiItem {
+fn getAbiItem(
+    abi: Abi,
+    abi_type: Abitype,
+    name: ?[]const u8,
+) error{ NotSupported, AbiItemNotFound }!AbiItem {
     switch (abi_type) {
-        .constructor => {
-            for (abi) |abi_item| {
-                switch (abi_item) {
-                    .abiConstructor => return abi_item,
-                    inline else => continue,
-                }
-            }
-        },
-        .function => {
-            for (abi) |abi_item| {
-                switch (abi_item) {
-                    .abiFunction => |function| {
-                        if (std.mem.eql(u8, name.?, function.name))
-                            return abi_item;
-
-                        continue;
-                    },
-                    inline else => continue,
-                }
-            }
-        },
-        .event => {
-            for (abi) |abi_item| {
-                switch (abi_item) {
-                    .abiEvent => |event| {
-                        if (std.mem.eql(u8, name.?, event.name))
-                            return abi_item;
-
-                        continue;
-                    },
-                    inline else => continue,
-                }
-            }
-        },
-        .@"error" => {
-            for (abi) |abi_item| {
-                switch (abi_item) {
-                    .abiError => |err| {
-                        if (std.mem.eql(u8, name.?, err.name))
-                            return abi_item;
-
-                        continue;
-                    },
-                    inline else => continue,
-                }
-            }
-        },
+        .constructor => for (abi) |abi_item|
+            switch (abi_item) {
+                .abiConstructor => return abi_item,
+                inline else => continue,
+            },
+        .function => for (abi) |abi_item|
+            switch (abi_item) {
+                .abiFunction => |function| if (std.mem.eql(u8, name.?, function.name))
+                    return abi_item,
+                inline else => continue,
+            },
+        .event => for (abi) |abi_item|
+            switch (abi_item) {
+                .abiEvent => |event| if (std.mem.eql(u8, name.?, event.name))
+                    return abi_item,
+                inline else => continue,
+            },
+        .@"error" => for (abi) |abi_item|
+            switch (abi_item) {
+                .abiError => |err| if (std.mem.eql(u8, name.?, err.name))
+                    return abi_item,
+                inline else => continue,
+            },
         inline else => return error.NotSupported,
     }
 

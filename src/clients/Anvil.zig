@@ -170,7 +170,10 @@ pub const AnvilStartOptions = struct {
 
     /// Converts `self` into a list of slices that will be used by the `anvil process.`
     /// If `self` is set with default value only the `anvil` command will be set in the list.
-    pub fn parseToArgumentsSlice(self: AnvilStartOptions, allocator: Allocator) (Allocator.Error || error{NoSpaceLeft})![]const []const u8 {
+    pub fn parseToArgumentsSlice(
+        self: AnvilStartOptions,
+        allocator: Allocator,
+    ) (Allocator.Error || error{NoSpaceLeft})![]const []const u8 {
         var list = try std.ArrayList([]const u8).initCapacity(allocator, 1);
         errdefer list.deinit();
 
@@ -240,7 +243,10 @@ http_client: Client,
 
 /// Inits the client but doesn't start a seperate process.
 /// Use this if you already have an `anvil` instance running
-pub fn initClient(self: *Anvil, options: InitOptions) void {
+pub fn initClient(
+    self: *Anvil,
+    options: InitOptions,
+) void {
     const uri: std.Uri = .{
         .port = options.port,
         .host = .{ .percent_encoded = "localhost" },
@@ -257,7 +263,10 @@ pub fn initClient(self: *Anvil, options: InitOptions) void {
 /// `AnvilStartOptions`. This will need to allocate memory since it will create the list.
 ///
 /// If `options` are set to their default value it will only start with `anvil` and no arguments.
-pub fn initProcess(allocator: Allocator, options: AnvilStartOptions) (Allocator.Error || error{NoSpaceLeft} || Child.SpawnError)!Child {
+pub fn initProcess(
+    allocator: Allocator,
+    options: AnvilStartOptions,
+) (Allocator.Error || error{NoSpaceLeft} || Child.SpawnError)!Child {
     const args_slice = try options.parseToArgumentsSlice(allocator);
     defer allocator.free(args_slice);
 
@@ -275,7 +284,11 @@ pub fn deinit(self: *Anvil) void {
     self.http_client.deinit();
 }
 /// Sets the balance of a anvil account
-pub fn setBalance(self: *Anvil, address: Address, balance: u256) FetchErrors!void {
+pub fn setBalance(
+    self: *Anvil,
+    address: Address,
+    balance: u256,
+) FetchErrors!void {
     const request: AnvilRequest(struct { Address, u256 }) = .{ .params = .{ address, balance }, .method = .anvil_setBalance };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -284,7 +297,11 @@ pub fn setBalance(self: *Anvil, address: Address, balance: u256) FetchErrors!voi
     return self.sendRpcRequest(req_body);
 }
 /// Changes the contract code of a address.
-pub fn setCode(self: *Anvil, address: Address, code: Hex) FetchErrors!void {
+pub fn setCode(
+    self: *Anvil,
+    address: Address,
+    code: Hex,
+) FetchErrors!void {
     const request: AnvilRequest(struct { Address, Hex }) = .{ .params = .{ address, code }, .method = .anvil_setCode };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -293,7 +310,10 @@ pub fn setCode(self: *Anvil, address: Address, code: Hex) FetchErrors!void {
     return self.sendRpcRequest(req_body);
 }
 /// Changes the rpc of the anvil connection
-pub fn setRpcUrl(self: *Anvil, rpc_url: []const u8) FetchErrors!void {
+pub fn setRpcUrl(
+    self: *Anvil,
+    rpc_url: []const u8,
+) FetchErrors!void {
     const request: AnvilRequest(struct { []const u8 }) = .{ .params = .{rpc_url}, .method = .anvil_setRpcUrl };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -302,7 +322,10 @@ pub fn setRpcUrl(self: *Anvil, rpc_url: []const u8) FetchErrors!void {
     return self.sendRpcRequest(req_body);
 }
 /// Changes the coinbase address
-pub fn setCoinbase(self: *Anvil, address: Address) FetchErrors!void {
+pub fn setCoinbase(
+    self: *Anvil,
+    address: Address,
+) FetchErrors!void {
     const request: AnvilRequest(struct { Address }) = .{ .params = .{address}, .method = .anvil_setCoinbase };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -320,7 +343,10 @@ pub fn setLoggingEnable(self: *Anvil) FetchErrors!void {
     return self.sendRpcRequest(req_body);
 }
 /// Changes the min gasprice from the anvil fork
-pub fn setMinGasPrice(self: *Anvil, new_price: u64) FetchErrors!void {
+pub fn setMinGasPrice(
+    self: *Anvil,
+    new_price: u64,
+) FetchErrors!void {
     const request: AnvilRequest(struct { u64 }) = .{ .params = .{new_price}, .method = .anvil_setMinGasPrice };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -329,7 +355,10 @@ pub fn setMinGasPrice(self: *Anvil, new_price: u64) FetchErrors!void {
     return self.sendRpcRequest(req_body);
 }
 /// Changes the block base fee from the anvil fork
-pub fn setNextBlockBaseFeePerGas(self: *Anvil, new_price: u64) FetchErrors!void {
+pub fn setNextBlockBaseFeePerGas(
+    self: *Anvil,
+    new_price: u64,
+) FetchErrors!void {
     const request: AnvilRequest(struct { u64 }) = .{ .params = .{new_price}, .method = .anvil_setNextBlockBaseFeePerGas };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -338,7 +367,10 @@ pub fn setNextBlockBaseFeePerGas(self: *Anvil, new_price: u64) FetchErrors!void 
     return self.sendRpcRequest(req_body);
 }
 /// Changes the networks chainId
-pub fn setChainId(self: *Anvil, new_id: u64) FetchErrors!void {
+pub fn setChainId(
+    self: *Anvil,
+    new_id: u64,
+) FetchErrors!void {
     const request: AnvilRequest(struct { u64 }) = .{ .params = .{new_id}, .method = .anvil_setChainId };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -347,7 +379,11 @@ pub fn setChainId(self: *Anvil, new_id: u64) FetchErrors!void {
     return self.sendRpcRequest(req_body);
 }
 /// Changes the nonce of a account
-pub fn setNonce(self: *Anvil, address: Address, new_nonce: u64) FetchErrors!void {
+pub fn setNonce(
+    self: *Anvil,
+    address: Address,
+    new_nonce: u64,
+) FetchErrors!void {
     const request: AnvilRequest(struct { Address, u64 }) = .{ .params = .{ address, new_nonce }, .method = .anvil_setNonce };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -356,7 +392,10 @@ pub fn setNonce(self: *Anvil, address: Address, new_nonce: u64) FetchErrors!void
     return self.sendRpcRequest(req_body);
 }
 /// Drops a pending transaction from the mempool
-pub fn dropTransaction(self: *Anvil, tx_hash: Hash) FetchErrors!void {
+pub fn dropTransaction(
+    self: *Anvil,
+    tx_hash: Hash,
+) FetchErrors!void {
     const request: AnvilRequest(struct { Hash }) = .{ .params = .{tx_hash}, .method = .anvil_dropTransaction };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -365,7 +404,11 @@ pub fn dropTransaction(self: *Anvil, tx_hash: Hash) FetchErrors!void {
     return self.sendRpcRequest(req_body);
 }
 /// Mine a pending transaction
-pub fn mine(self: *Anvil, amount: u64, time_in_seconds: ?u64) FetchErrors!void {
+pub fn mine(
+    self: *Anvil,
+    amount: u64,
+    time_in_seconds: ?u64,
+) FetchErrors!void {
     const request: AnvilRequest(struct { u64, ?u64 }) = .{ .params = .{ amount, time_in_seconds }, .method = .anvil_mine };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -374,7 +417,10 @@ pub fn mine(self: *Anvil, amount: u64, time_in_seconds: ?u64) FetchErrors!void {
     return self.sendRpcRequest(req_body);
 }
 /// Reset the fork
-pub fn reset(self: *Anvil, reset_config: Reset) FetchErrors!void {
+pub fn reset(
+    self: *Anvil,
+    reset_config: Reset,
+) FetchErrors!void {
     const request: AnvilRequest(struct { Reset }) = .{ .params = .{reset_config}, .method = .anvil_reset };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -383,7 +429,10 @@ pub fn reset(self: *Anvil, reset_config: Reset) FetchErrors!void {
     return self.sendRpcRequest(req_body);
 }
 /// Impersonate a EOA or contract. Call `stopImpersonatingAccount` after.
-pub fn impersonateAccount(self: *Anvil, address: Address) FetchErrors!void {
+pub fn impersonateAccount(
+    self: *Anvil,
+    address: Address,
+) FetchErrors!void {
     const request: AnvilRequest(struct { Address }) = .{ .params = .{address}, .method = .anvil_impersonateAccount };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -392,7 +441,10 @@ pub fn impersonateAccount(self: *Anvil, address: Address) FetchErrors!void {
     return self.sendRpcRequest(req_body);
 }
 /// Stops impersonating a EOA or contract.
-pub fn stopImpersonatingAccount(self: *Anvil, address: Address) FetchErrors!void {
+pub fn stopImpersonatingAccount(
+    self: *Anvil,
+    address: Address,
+) FetchErrors!void {
     const request: AnvilRequest(struct { Address }) = .{ .params = .{address}, .method = .anvil_impersonateAccount };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
@@ -401,7 +453,10 @@ pub fn stopImpersonatingAccount(self: *Anvil, address: Address) FetchErrors!void
     return self.sendRpcRequest(req_body);
 }
 /// Internal only. Discards the body from the response.
-fn sendRpcRequest(self: *Anvil, req_body: []u8) FetchErrors!void {
+pub fn sendRpcRequest(
+    self: *Anvil,
+    req_body: []u8,
+) FetchErrors!void {
     const req = try self.http_client.fetch(.{
         .headers = .{ .content_type = .{ .override = "application/json" } },
         .payload = req_body,

@@ -506,6 +506,8 @@ pub fn parseHandshakeResponse(key: [24]u8, response: []const u8) AssertionError!
     _ = Base64Encoder.encode(&buffer, &hash);
 
     const encoded_int: u224 = @bitCast(buffer);
+
+    std.debug.assert(ws_key.len == 28); // Invalid websocket_key
     const reponse_int: u224 = @bitCast(ws_key[0..28].*);
 
     if (encoded_int != reponse_int)

@@ -80,9 +80,9 @@ Zabi supports `version 0.13.0` of zig in seperate branches. You can checkout eac
 
 ### Running the test suite
 
-Before running the tests you will need to either remove the client tests if you dont't want to start the anvil instances or you will need to start 3 anvil instances for Mainnet ethereum, Mainnet Sepolia and Optimism Sepolia in order to run the tests successfully.
+Before running the tests you will need add the url's to a `.env` file. Zabi has a `.env.local` example that you can use for this. After updating that file you will need to run this command to successfully run the tests `zig build test -freference-trace -Dload_variables` so that the executable has the necessary enviroment variables it needs so that it can reset the anvil instance that must be running.
 
-Then you can run `zig build test -freference-trace` to run our test suite to ensure that you don't have any issues when making changes.
+You can also run `zig build coverage` for running a seperate set of tests that then get analized with kcov (make sure you have it installed.) or you can run `zig build bench` to run the coverage tests as a benchmark.
 
 When adding new features or fixing bugs, it's important to add test cases to cover the new/updated behavior.
 
@@ -102,6 +102,8 @@ pnpm dev
 
 Zabi use mostly auto-generated documentation from its source code. If you make a change to the code make sure that to run `zig build docs` in order to update any changes.
 If you create a new file and want to add it to the website make to update `docs/sidebar.ts` to include it.
+
+This is expected to be changed in the future.
 
 <div align="right">
   <a href="#basic-guide">&uarr; back to top</a></b>

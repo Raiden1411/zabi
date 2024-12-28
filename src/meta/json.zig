@@ -16,7 +16,12 @@ const Value = std.json.Value;
 /// the ability to parse hex string values into native `int` types,
 /// since parsing hex values is not part of the JSON RFC we need to rely on
 /// the hability of zig to create a custom jsonParse method for structs.
-pub fn jsonParse(comptime T: type, allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!T {
+pub fn jsonParse(
+    comptime T: type,
+    allocator: Allocator,
+    source: anytype,
+    options: ParseOptions,
+) ParseError(@TypeOf(source.*))!T {
     const json_value = try Value.jsonParse(allocator, source, options);
     return try jsonParseFromValue(T, allocator, json_value, options);
 }
@@ -25,7 +30,12 @@ pub fn jsonParse(comptime T: type, allocator: Allocator, source: anytype, option
 /// the ability to parse hex string values into native `int` types,
 /// since parsing hex values is not part of the JSON RFC we need to rely on
 /// the hability of zig to create a custom jsonParseFromValue method for structs.
-pub fn jsonParseFromValue(comptime T: type, allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!T {
+pub fn jsonParseFromValue(
+    comptime T: type,
+    allocator: Allocator,
+    source: Value,
+    options: ParseOptions,
+) ParseFromValueError!T {
     const info = @typeInfo(T);
     if (source != .object) return error.UnexpectedToken;
 
@@ -85,7 +95,11 @@ pub fn jsonParseFromValue(comptime T: type, allocator: Allocator, source: Value,
 ///
 /// Parsing hex values or dealing with strings like this is not part of the JSON RFC we need to rely on
 /// the hability of zig to create a custom jsonStringify method for structs
-pub fn jsonStringify(comptime T: type, self: T, writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+pub fn jsonStringify(
+    comptime T: type,
+    self: T,
+    writer_stream: anytype,
+) @TypeOf(writer_stream.*).Error!void {
     const info = @typeInfo(T);
 
     try valueStart(writer_stream);
@@ -120,7 +134,12 @@ pub fn jsonStringify(comptime T: type, self: T, writer_stream: anytype) @TypeOf(
 ///
 /// We don't use the `innerParse` from slice because the slice gets parsed
 /// as a json dynamic `Value`.
-pub fn innerParseValueRequest(comptime T: type, allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!T {
+pub fn innerParseValueRequest(
+    comptime T: type,
+    allocator: Allocator,
+    source: Value,
+    options: ParseOptions,
+) ParseFromValueError!T {
     const info = @typeInfo(T);
 
     switch (info) {
@@ -238,7 +257,10 @@ pub fn innerParseValueRequest(comptime T: type, allocator: Allocator, source: Va
     }
 }
 /// Inner stringifier that enables the behaviour described above.
-pub fn innerStringify(value: anytype, stream_writer: anytype) !void {
+pub fn innerStringify(
+    value: anytype,
+    stream_writer: anytype,
+) !void {
     const info = @typeInfo(@TypeOf(value));
 
     switch (info) {
@@ -335,7 +357,7 @@ pub fn innerStringify(value: anytype, stream_writer: anytype) !void {
                 stream_writer.next_punctuation = .comma;
             } else {
                 stream_writer.next_punctuation = .none;
-                return try innerStringify(&value, stream_writer);
+                return innerStringify(&value, stream_writer);
             }
         },
         .pointer => |ptr_info| {

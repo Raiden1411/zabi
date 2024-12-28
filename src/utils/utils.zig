@@ -69,7 +69,10 @@ pub inline fn isDynamicType(comptime T: type) bool {
     }
 }
 /// Converts ethereum address to checksum
-pub fn toChecksum(allocator: Allocator, address: []const u8) (Allocator.Error || error{ Overflow, InvalidCharacter })![]u8 {
+pub fn toChecksum(
+    allocator: Allocator,
+    address: []const u8,
+) (Allocator.Error || error{ Overflow, InvalidCharacter })![]u8 {
     var buf: [40]u8 = undefined;
     const lower = std.ascii.lowerString(&buf, if (std.mem.startsWith(u8, address, "0x")) address[2..] else address);
 
@@ -126,7 +129,9 @@ pub fn isAddress(addr: []const u8) bool {
     return std.mem.eql(u8, addr, checksum[0..]);
 }
 /// Convert address to its representing bytes
-pub fn addressToBytes(address: []const u8) error{ InvalidAddress, NoSpaceLeft, InvalidLength, InvalidCharacter }!Address {
+pub fn addressToBytes(
+    address: []const u8,
+) error{ InvalidAddress, NoSpaceLeft, InvalidLength, InvalidCharacter }!Address {
     const addr = if (std.mem.startsWith(u8, address, "0x")) address[2..] else address;
 
     if (addr.len != 40)

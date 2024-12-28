@@ -155,13 +155,12 @@ pub const TransactionEnvelopePool = struct {
     }
 };
 
-/// Creates a wallet instance based on which type of client defined in
-/// `WalletClients`. Depending on the type of client the underlaying methods
-/// of `rpc_client` can be changed. The http and websocket client do not
-/// mirror 100% in terms of their methods.
+/// Creates a wallet instance based on which type of client defined in `WalletClients`.
 ///
-/// The client's methods can all be accessed under `rpc_client`.
-/// The same goes for the signer.
+/// Depending on the type of client the underlaying methods of `rpc_client` can be changed.
+/// The http and websocket client do not mirror 100% in terms of their methods.
+///
+/// The client's methods can all be accessed under `rpc_client`. The same goes for the signer.
 pub fn Wallet(comptime client_type: WalletClients) type {
     return struct {
         /// The wallet underlaying rpc client type (ws, http or ipc)
@@ -235,7 +234,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             ///
             /// Resets the `manager` nonce value and the `cache` if the nonce value from the network
             /// is higher than one from the `cache`.
-            pub fn getNonce(self: *Self, rpc_client: *ClientType) ClientType.BasicRequestErrors!u64 {
+            pub fn getNonce(
+                self: *Self,
+                rpc_client: *ClientType,
+            ) ClientType.BasicRequestErrors!u64 {
                 const nonce: u64 = nonce: {
                     const nonce = try rpc_client.getAddressTransactionCount(.{
                         .address = self.address,
@@ -265,7 +267,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             ///
             /// Resets the `manager` nonce value and the `cache` if the nonce value from the network
             /// is higher than one from the `cache`.
-            pub fn updateNonce(self: *Self, rpc_client: *ClientType) ClientType.BasicRequestErrors!u64 {
+            pub fn updateNonce(
+                self: *Self,
+                rpc_client: *ClientType,
+            ) ClientType.BasicRequestErrors!u64 {
                 self.incrementNonce();
                 const nonce: u64 = nonce: {
                     const nonce = try rpc_client.getAddressTransactionCount(.{
@@ -450,7 +455,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             return message;
         }
         /// Find a specific prepared envelope from the pool based on the given search criteria.
-        pub fn findTransactionEnvelopeFromPool(self: *WalletSelf, search: TransactionEnvelopePool.SearchCriteria) ?TransactionEnvelope {
+        pub fn findTransactionEnvelopeFromPool(
+            self: *WalletSelf,
+            search: TransactionEnvelopePool.SearchCriteria,
+        ) ?TransactionEnvelope {
             return self.envelopes_pool.findTransactionEnvelope(self.allocator, search);
         }
         /// Generates the authorization hash based on the eip7702 specification.
@@ -681,12 +689,14 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     };
 
                     tx.gasPrice = unprepared_envelope.gasPrice orelse blk: {
-                        const fees = try self.rpc_client.estimateFeesPerGas(.{ .legacy = .{
-                            .to = unprepared_envelope.to,
-                            .from = self.signer.address_bytes,
-                            .value = tx.value,
-                            .data = tx.data,
-                        } }, base_fee);
+                        const fees = try self.rpc_client.estimateFeesPerGas(.{
+                            .legacy = .{
+                                .to = unprepared_envelope.to,
+                                .from = self.signer.address_bytes,
+                                .value = tx.value,
+                                .data = tx.data,
+                            },
+                        }, base_fee);
 
                         break :blk fees.legacy.gas_price;
                     };
@@ -796,12 +806,14 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         inline else => |block_info| block_info.baseFeePerGas,
                     };
 
-                    const fees = try self.rpc_client.estimateFeesPerGas(.{ .london = .{
-                        .to = unprepared_envelope.to,
-                        .from = self.signer.address_bytes,
-                        .value = tx.value,
-                        .data = tx.data,
-                    } }, base_fee);
+                    const fees = try self.rpc_client.estimateFeesPerGas(.{
+                        .london = .{
+                            .to = unprepared_envelope.to,
+                            .from = self.signer.address_bytes,
+                            .value = tx.value,
+                            .data = tx.data,
+                        },
+                    }, base_fee);
 
                     tx.maxPriorityFeePerGas = blk: {
                         if (unprepared_envelope.maxFeePerGas) |gas| {

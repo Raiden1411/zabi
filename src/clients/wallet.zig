@@ -20,6 +20,7 @@ const Allocator = std.mem.Allocator;
 const AuthorizationPayload = transaction.AuthorizationPayload;
 const BerlinTransactionEnvelope = transaction.BerlinTransactionEnvelope;
 const Blob = ckzg4844.KZG4844.Blob;
+const CancunSerializeErrors = serialize.CancunSerializeErrors;
 const CancunTransactionEnvelope = transaction.CancunTransactionEnvelope;
 const Chains = types.PublicChains;
 const EIP712Errors = eip712.EIP712Errors;
@@ -78,7 +79,11 @@ pub const TransactionEnvelopePool = struct {
     /// transaction type and it's nonce in case there are transactions with the same type. This is thread safe.
     ///
     /// Returns null if no transaction was found
-    pub fn findTransactionEnvelope(pool: *TransactionEnvelopePool, allocator: Allocator, search: SearchCriteria) ?TransactionEnvelope {
+    pub fn findTransactionEnvelope(
+        pool: *TransactionEnvelopePool,
+        allocator: Allocator,
+        search: SearchCriteria,
+    ) ?TransactionEnvelope {
         pool.mutex.lock();
         defer pool.mutex.unlock();
 
@@ -86,10 +91,13 @@ pub const TransactionEnvelopePool = struct {
 
         while (last_tx_node) |tx_node| : (last_tx_node = tx_node.prev) {
             switch (tx_node.data) {
-                inline else => |pooled_tx| if (pooled_tx.nonce != search.nonce) continue,
+                inline else => |pooled_tx| if (pooled_tx.nonce != search.nonce)
+                    continue,
             }
 
-            if (!std.mem.eql(u8, @tagName(tx_node.data), @tagName(search.type))) continue;
+            if (!std.mem.eql(u8, @tagName(tx_node.data), @tagName(search.type)))
+                continue;
+
             defer allocator.destroy(tx_node);
 
             pool.unsafeReleaseEnvelopeFromPool(tx_node);
@@ -99,18 +107,27 @@ pub const TransactionEnvelopePool = struct {
         return null;
     }
     /// Adds a new node into the pool. This is thread safe.
-    pub fn addEnvelopeToPool(pool: *TransactionEnvelopePool, node: *Node) void {
+    pub fn addEnvelopeToPool(
+        pool: *TransactionEnvelopePool,
+        node: *Node,
+    ) void {
         pool.mutex.lock();
         defer pool.mutex.unlock();
 
         pool.pooled_envelopes.append(node);
     }
     /// Removes a node from the pool. This is not thread safe.
-    pub fn unsafeReleaseEnvelopeFromPool(pool: *TransactionEnvelopePool, node: *Node) void {
+    pub fn unsafeReleaseEnvelopeFromPool(
+        pool: *TransactionEnvelopePool,
+        node: *Node,
+    ) void {
         pool.pooled_envelopes.remove(node);
     }
     /// Removes a node from the pool. This is thread safe.
-    pub fn releaseEnvelopeFromPool(pool: *TransactionEnvelopePool, node: *Node) void {
+    pub fn releaseEnvelopeFromPool(
+        pool: *TransactionEnvelopePool,
+        node: *Node,
+    ) void {
         pool.mutex.lock();
         defer pool.mutex.unlock();
 
@@ -118,7 +135,10 @@ pub const TransactionEnvelopePool = struct {
     }
     /// Gets the last node from the pool and removes it.
     /// This is thread safe.
-    pub fn getFirstElementFromPool(pool: *TransactionEnvelopePool, allocator: Allocator) ?TransactionEnvelope {
+    pub fn getFirstElementFromPool(
+        pool: *TransactionEnvelopePool,
+        allocator: Allocator,
+    ) ?TransactionEnvelope {
         pool.mutex.lock();
         defer pool.mutex.unlock();
 
@@ -130,7 +150,10 @@ pub const TransactionEnvelopePool = struct {
     }
     /// Gets the last node from the pool and removes it.
     /// This is thread safe.
-    pub fn getLastElementFromPool(pool: *TransactionEnvelopePool, allocator: Allocator) ?TransactionEnvelope {
+    pub fn getLastElementFromPool(
+        pool: *TransactionEnvelopePool,
+        allocator: Allocator,
+    ) ?TransactionEnvelope {
         pool.mutex.lock();
         defer pool.mutex.unlock();
 
@@ -142,7 +165,10 @@ pub const TransactionEnvelopePool = struct {
     }
     /// Destroys all created pointer. All future operations will deadlock.
     /// This is thread safe.
-    pub fn deinit(pool: *TransactionEnvelopePool, allocator: Allocator) void {
+    pub fn deinit(
+        pool: *TransactionEnvelopePool,
+        allocator: Allocator,
+    ) void {
         pool.mutex.lock();
 
         var first = pool.pooled_envelopes.first;
@@ -186,7 +212,12 @@ pub fn Wallet(comptime client_type: WalletClients) type {
         pub const Error = ClientType.BasicRequestErrors;
 
         /// Set of errors when preparing a transaction
-        pub const PrepareError = Error || error{ InvalidBlockNumber, UnableToFetchFeeInfoFromBlock, MaxFeePerGasUnderflow, UnsupportedTransactionType };
+        pub const PrepareError = Error || error{
+            InvalidBlockNumber,
+            UnableToFetchFeeInfoFromBlock,
+            MaxFeePerGasUnderflow,
+            UnsupportedTransactionType,
+        };
 
         /// Set of errors that can be returned on the `assertTransaction` method.
         pub const AssertionErrors = error{
@@ -301,22 +332,26 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
         /// Allocator used by the wallet implementation
         allocator: Allocator,
-        /// Pool to store all prepated transaction envelopes.\
+        /// Pool to store all prepated transaction envelopes.
+        ///
         /// This is thread safe.
         envelopes_pool: TransactionEnvelopePool,
-        /// Internall nonce manager.\
+        /// Internal nonce manager.
+        ///
         /// Set it null to just use the network to update nonce values.
         nonce_manager: ?NonceManager,
         /// JSON-RPC client used to make request. Supports almost all `eth_` rpc methods.
         rpc_client: *ClientType,
-        /// Signer that will sign transactions or ethereum messages.\
+        /// Signer that will sign transactions or ethereum messages.
+        ///
         /// Its based on a custom implementation meshed with zig's source code.
         signer: Signer,
 
         /// Sets the wallet initial state.
         ///
-        /// The init opts will depend on the [client_type](/api/clients/wallet#walletclients).\
-        /// Also add the hability to use a nonce manager or to use the network directly.
+        /// The init opts will depend on the [client_type](/api/clients/wallet#walletclients).
+        ///
+        /// Also adds the hability to use a nonce manager or to use the network directly.
         ///
         /// **Example**
         /// ```zig
@@ -347,7 +382,9 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 .allocator = opts.allocator,
                 .rpc_client = undefined,
                 .signer = signer,
-                .envelopes_pool = .{ .pooled_envelopes = .{} },
+                .envelopes_pool = .{
+                    .pooled_envelopes = .{},
+                },
                 .nonce_manager = if (nonce_manager) NonceManager.initManager(signer.address_bytes) else null,
             };
 
@@ -355,10 +392,48 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             return self;
         }
+        /// Creates a wallet instance where this wallet client doesn't own the
+        /// pointer to the rpc client.
+        ///
+        /// Use this if you don't want the rpc client lifetime to be the same
+        /// as this wallet instance. Once you are done make sure to use `deinitUnowned`
+        /// instead of the normal `deinit` method.
+        pub fn initUnownedRpcClient(
+            allocator: Allocator,
+            private_key: ?Hash,
+            client: *ClientType,
+            nonce_manager: bool,
+        ) error{IdentityElement}!WalletSelf {
+            const self = try allocator.create(WalletSelf);
+            errdefer allocator.destroy(self);
+
+            const signer = try Signer.init(private_key);
+
+            self.* = .{
+                .allocator = allocator,
+                .rpc_client = client,
+                .signer = signer,
+                .envelopes_pool = .{
+                    .pooled_envelopes = .{},
+                },
+                .nonce_manager = if (nonce_manager) NonceManager.initManager(signer.address_bytes) else null,
+            };
+
+            return self;
+        }
         /// Clears memory and destroys any created pointers
         pub fn deinit(self: *WalletSelf) void {
             self.envelopes_pool.deinit(self.allocator);
             self.rpc_client.deinit();
+
+            const allocator = self.allocator;
+            allocator.destroy(self);
+        }
+        /// Clears memory and destroys any created pointers
+        ///
+        /// Doesn't deinit the rpc client.
+        pub fn deinitUnowned(self: *WalletSelf) void {
+            self.envelopes_pool.deinit(self.allocator);
 
             const allocator = self.allocator;
             allocator.destroy(self);
@@ -398,14 +473,10 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                     if (tx_eip4844.to == null)
                         return error.CreateBlobTransaction;
                 },
-                .berlin => |tx_eip2930| {
-                    if (tx_eip2930.chainId != @intFromEnum(self.rpc_client.network_config.chain_id))
-                        return error.InvalidChainId;
-                },
-                .legacy => |tx_legacy| {
-                    if (tx_legacy.chainId != 0 and tx_legacy.chainId != @intFromEnum(self.rpc_client.network_config.chain_id))
-                        return error.InvalidChainId;
-                },
+                .berlin => |tx_eip2930| if (tx_eip2930.chainId != @intFromEnum(self.rpc_client.network_config.chain_id))
+                    return error.InvalidChainId,
+                .legacy => |tx_legacy| if (tx_legacy.chainId != 0 and tx_legacy.chainId != @intFromEnum(self.rpc_client.network_config.chain_id))
+                    return error.InvalidChainId,
             }
         }
         /// Converts to a message that the contracts executing `AUTH` opcodes can understand.\
@@ -476,15 +547,14 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 nonce,
             };
 
-            const encoded = try zabi_encoding.rlp.encodeRlp(self.allocator, envelope);
-            defer self.allocator.free(encoded);
+            var list: std.ArrayList(u8) = .init(self.allocator);
+            errdefer list.deinit();
 
-            var serialized = try self.allocator.alloc(u8, encoded.len + 1);
+            try list.writer().writeByte(0x05);
+            try zabi_encoding.rlp.encodeRlpFromArrayListWriter(self.allocator, envelope, list.writer());
+
+            const serialized = try list.toOwnedSlice();
             defer self.allocator.free(serialized);
-
-            // Add the transaction type
-            serialized[0] = 0x05;
-            @memcpy(serialized[1..], encoded);
 
             var buffer: Hash = undefined;
             Keccak256.hash(serialized, &buffer, .{});
@@ -895,7 +965,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             blobs: []const Blob,
             unprepared_envelope: UnpreparedTransactionEnvelope,
             trusted_setup: *KZG4844,
-        ) !RPCResponse(Hash) {
+        ) (SendSignedTransactionErrors || CancunSerializeErrors || error{ InvalidTransactionType, TrustedSetupNotLoaded })!RPCResponse(Hash) {
             if (unprepared_envelope.type != .cancun)
                 return error.InvalidTransactionType;
 
@@ -924,7 +994,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             self: *WalletSelf,
             sidecars: []const Sidecar,
             unprepared_envelope: UnpreparedTransactionEnvelope,
-        ) !RPCResponse(Hash) {
+        ) SendSignedTransactionErrors!RPCResponse(Hash) {
             if (unprepared_envelope.type != .cancun)
                 return error.InvalidTransactionType;
 

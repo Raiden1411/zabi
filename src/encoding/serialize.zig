@@ -47,6 +47,13 @@ const Tuple = std.meta.Tuple;
 /// Set of possible errors when serializing a transaction.
 pub const SerializeErrors = RlpEncodeErrors || error{InvalidRecoveryId};
 
+/// Set of possible errors when serializing cancun blobs.
+pub const CancunSerializeErrors = RlpEncodeErrors || Allocator.Error || error{
+    SetupMustBeInitialized,
+    FailedToConvertBlobToCommitment,
+    FailedToComputeBlobKZGProof,
+};
+
 /// Main function to serialize transactions.
 ///
 /// Supports cancun, london, berlin and legacy transaction envelopes.\
@@ -70,7 +77,11 @@ pub const SerializeErrors = RlpEncodeErrors || error{InvalidRecoveryId};
 /// }, null);
 /// defer testing.allocator.free(base_legacy);
 /// ```
-pub fn serializeTransaction(allocator: Allocator, tx: TransactionEnvelope, sig: ?Signature) SerializeErrors![]u8 {
+pub fn serializeTransaction(
+    allocator: Allocator,
+    tx: TransactionEnvelope,
+    sig: ?Signature,
+) SerializeErrors![]u8 {
     return switch (tx) {
         .berlin => |val| try serializeTransactionEIP2930(allocator, val, sig),
         .cancun => |val| try serializeCancunTransaction(allocator, val, sig),
@@ -81,7 +92,11 @@ pub fn serializeTransaction(allocator: Allocator, tx: TransactionEnvelope, sig: 
 }
 /// Function to serialize eip7702 transactions.
 /// Caller ownes the memory
-pub fn serializeTransactionEIP7702(allocator: Allocator, tx: Eip7702TransactionEnvelope, sig: ?Signature) SerializeErrors![]u8 {
+pub fn serializeTransactionEIP7702(
+    allocator: Allocator,
+    tx: Eip7702TransactionEnvelope,
+    sig: ?Signature,
+) SerializeErrors![]u8 {
     const prep_access = try prepareAccessList(allocator, tx.accessList);
     defer allocator.free(prep_access);
 
@@ -142,7 +157,11 @@ pub fn serializeTransactionEIP7702(allocator: Allocator, tx: Eip7702TransactionE
 /// Please use `serializeCancunTransactionWithSidecars` or
 /// `serializeCancunTransactionWithBlobs` if you want to
 /// serialize them as a wrapper.
-pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8 {
+pub fn serializeCancunTransaction(
+    allocator: Allocator,
+    tx: CancunTransactionEnvelope,
+    sig: ?Signature,
+) SerializeErrors![]u8 {
     const prep_access = try prepareAccessList(allocator, tx.accessList);
     defer allocator.free(prep_access);
 
@@ -200,7 +219,13 @@ pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnv
     return serialized;
 }
 /// Serializes a cancun sidecars into the eip4844 wrapper.
-pub fn serializeCancunTransactionWithBlobs(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature, blobs: []const Blob, trusted_setup: *KZG4844) ![]u8 {
+pub fn serializeCancunTransactionWithBlobs(
+    allocator: Allocator,
+    tx: CancunTransactionEnvelope,
+    sig: ?Signature,
+    blobs: []const Blob,
+    trusted_setup: *KZG4844,
+) CancunSerializeErrors![]u8 {
     const prep_access = try prepareAccessList(allocator, tx.accessList);
     defer allocator.free(prep_access);
 
@@ -270,16 +295,20 @@ pub fn serializeCancunTransactionWithBlobs(allocator: Allocator, tx: CancunTrans
     return serialized;
 }
 /// Serializes a cancun sidecars into the eip4844 wrapper.
-pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature, sidecars: Sidecars) ![]u8 {
+pub fn serializeCancunTransactionWithSidecars(
+    allocator: Allocator,
+    tx: CancunTransactionEnvelope,
+    sig: ?Signature,
+    sidecars: Sidecars,
+) SerializeErrors![]u8 {
     const prep_access = try prepareAccessList(allocator, tx.accessList);
     defer allocator.free(prep_access);
 
     var list_sidecar: std.MultiArrayList(Sidecar) = .{};
     defer list_sidecar.deinit(allocator);
 
-    for (sidecars) |sidecar| {
+    for (sidecars) |sidecar|
         try list_sidecar.append(allocator, .{ .proof = sidecar.proof, .commitment = sidecar.commitment, .blob = sidecar.blob });
-    }
 
     const commitments = list_sidecar.items(.commitment);
 
@@ -345,7 +374,11 @@ pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTr
 }
 /// Function to serialize eip1559 transactions.
 /// Caller ownes the memory
-pub fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8 {
+pub fn serializeTransactionEIP1559(
+    allocator: Allocator,
+    tx: LondonTransactionEnvelope,
+    sig: ?Signature,
+) SerializeErrors![]u8 {
     const prep_access = try prepareAccessList(allocator, tx.accessList);
     defer allocator.free(prep_access);
 
@@ -398,7 +431,11 @@ pub fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEn
 }
 /// Function to serialize eip2930 transactions.
 /// Caller ownes the memory
-pub fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8 {
+pub fn serializeTransactionEIP2930(
+    allocator: Allocator,
+    tx: BerlinTransactionEnvelope,
+    sig: ?Signature,
+) SerializeErrors![]u8 {
     const prep_access = try prepareAccessList(allocator, tx.accessList);
     defer allocator.free(prep_access);
 
@@ -449,7 +486,11 @@ pub fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEn
 }
 /// Function to serialize legacy transactions.
 /// Caller ownes the memory
-pub fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8 {
+pub fn serializeTransactionLegacy(
+    allocator: Allocator,
+    tx: LegacyTransactionEnvelope,
+    sig: ?Signature,
+) SerializeErrors![]u8 {
     if (sig) |signature| {
         const v: usize = chainId: {
             if (tx.chainId > 0) break :chainId @intCast((tx.chainId * 2) + (35 + @as(u8, @intCast(signature.v))));
@@ -521,7 +562,10 @@ pub fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnv
     return encoded;
 }
 /// Serializes the access list into a slice of tuples of hex values.
-pub fn prepareAccessList(allocator: Allocator, access_list: []const AccessList) Allocator.Error![]const StructToTupleType(AccessList) {
+pub fn prepareAccessList(
+    allocator: Allocator,
+    access_list: []const AccessList,
+) Allocator.Error![]const StructToTupleType(AccessList) {
     var tuple_list = try std.ArrayList(StructToTupleType(AccessList)).initCapacity(allocator, access_list.len);
     errdefer tuple_list.deinit();
 
@@ -532,7 +576,10 @@ pub fn prepareAccessList(allocator: Allocator, access_list: []const AccessList) 
     return tuple_list.toOwnedSlice();
 }
 /// Serializes the authorization list into a slice of tuples of hex values.
-pub fn prepareAuthorizationList(allocator: Allocator, authorization_list: []const AuthorizationPayload) Allocator.Error![]const StructToTupleType(AuthorizationPayload) {
+pub fn prepareAuthorizationList(
+    allocator: Allocator,
+    authorization_list: []const AuthorizationPayload,
+) Allocator.Error![]const StructToTupleType(AuthorizationPayload) {
     var tuple_list = try std.ArrayList(StructToTupleType(AuthorizationPayload)).initCapacity(allocator, authorization_list.len);
     errdefer tuple_list.deinit();
 

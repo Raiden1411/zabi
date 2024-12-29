@@ -30,15 +30,26 @@ pub const Log = struct {
     transactionLogIndex: ?usize = null,
     blockTimestamp: ?u64 = null,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -54,15 +65,26 @@ pub const LogRequest = struct {
     topics: ?[]const ?Hex = null,
     blockHash: ?Hash = null,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -75,15 +97,26 @@ pub const LogTagRequest = struct {
     topics: ?[]const ?Hex = null,
     blockHash: ?Hash = null,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -92,15 +125,26 @@ pub const WatchLogsRequest = struct {
     address: Address,
     topics: ?[]const ?Hex = null,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };

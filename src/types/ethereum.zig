@@ -27,12 +27,18 @@ const TxPoolInspect = txpool.TxPoolInspect;
 const TxPoolStatus = txpool.TxPoolStatus;
 const Value = std.json.Value;
 
+/// Ethereum hex string types in zabi.
 pub const Hex = []u8;
+/// Ethereum gwei type in zabi.
 pub const Gwei = u64;
+/// Ethereum wei value in zabi.
 pub const Wei = u256;
+/// Ethereum hash type in zabi.
 pub const Hash = [32]u8;
+/// Ethereum address type in zabi.
 pub const Address = [20]u8;
 
+/// RPC subscription calls.
 pub const Subscriptions = enum {
     newHeads,
     logs,
@@ -121,6 +127,7 @@ pub const PublicChains = enum(usize) {
     sepolia = 11155111,
     op_sepolia = 11155420,
 };
+
 /// Wrapper around std.json.Parsed(T). Response for any of the RPC clients
 pub fn RPCResponse(comptime T: type) type {
     return struct {
@@ -143,6 +150,7 @@ pub fn RPCResponse(comptime T: type) type {
         }
     };
 }
+
 /// Zig struct representation of a RPC Request
 pub fn EthereumRequest(comptime T: type) type {
     return struct {
@@ -164,6 +172,8 @@ pub fn EthereumRequest(comptime T: type) type {
         }
     };
 }
+
+/// RPC response from an ethereum node. Can be either a success or error response.
 pub fn EthereumResponse(comptime T: type) type {
     return union(enum) {
         success: EthereumRpcResponse(T),
@@ -196,6 +206,7 @@ pub fn EthereumResponse(comptime T: type) type {
         }
     };
 }
+
 /// Zig struct representation of a RPC Response
 pub fn EthereumRpcResponse(comptime T: type) type {
     return struct {
@@ -216,6 +227,7 @@ pub fn EthereumRpcResponse(comptime T: type) type {
         }
     };
 }
+
 /// Zig struct representation of a RPC subscribe response
 pub fn EthereumSubscribeResponse(comptime T: type) type {
     return struct {
@@ -251,6 +263,7 @@ pub fn EthereumSubscribeResponse(comptime T: type) type {
         }
     };
 }
+
 /// Zig struct representation of a RPC error message
 pub const ErrorResponse = struct {
     code: EthereumErrorCodes,
@@ -269,12 +282,14 @@ pub const ErrorResponse = struct {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
+
 /// Zig struct representation of a contract error response
 pub const ContractErrorResponse = struct {
     code: EthereumErrorCodes,
     message: []const u8,
     data: []const u8,
 };
+
 /// Ethereum RPC error codes.
 /// https://eips.ethereum.org/EIPS/eip-1474#error-codes
 pub const EthereumErrorCodes = enum(i64) {
@@ -303,6 +318,7 @@ pub const EthereumErrorCodes = enum(i64) {
         try stream.write(@intFromEnum(code));
     }
 };
+
 /// RPC errors in zig format
 pub const EthereumZigErrors = error{
     EvmFailedToExecute,
@@ -326,6 +342,7 @@ pub const EthereumZigErrors = error{
     Disconnected,
     ChainDisconnected,
 };
+
 /// Zig struct representation of a RPC error response
 pub const EthereumErrorResponse = struct {
     jsonrpc: []const u8 = "2.0",

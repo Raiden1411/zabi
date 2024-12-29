@@ -22,15 +22,26 @@ pub const TxPoolStatus = struct {
     pending: u64,
     queued: u64,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -39,15 +50,26 @@ pub const TxPoolContent = struct {
     pending: Subpool,
     queued: Subpool,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -55,15 +77,26 @@ pub const TxPoolInspect = struct {
     pending: InspectSubpool,
     queued: InspectSubpool,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -72,7 +105,11 @@ pub const Subpool = struct {
     address: AddressHashMap,
 
     /// Parses as a dynamic value and then uses that value to json parse
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!Subpool {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!Subpool {
         var result = AddressHashMap.init(allocator);
 
         const parsed = try Value.jsonParse(allocator, source, options);
@@ -92,7 +129,10 @@ pub const Subpool = struct {
         return .{ .address = result };
     }
     /// Address are checksumed on stringify.
-    pub fn jsonStringify(value: Subpool, source: anytype) !void {
+    pub fn jsonStringify(
+        value: Subpool,
+        source: anytype,
+    ) !void {
         try source.beginObject();
         var iter = value.address.iterator();
 
@@ -129,7 +169,11 @@ pub const Subpool = struct {
     }
     /// Uses similar approach as `jsonParse` but the value is already pre parsed from
     /// a dynamic `Value`
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!Subpool {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!Subpool {
         var result = AddressHashMap.init(allocator);
         var iter = source.object.iterator();
 
@@ -151,7 +195,11 @@ pub const InspectSubpool = struct {
     address: InspectAddressHashMap,
 
     /// Parses as a dynamic value and then uses that value to json parse
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!InspectSubpool {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!InspectSubpool {
         var result = InspectAddressHashMap.init(allocator);
 
         const parsed = try Value.jsonParse(allocator, source, options);
@@ -171,7 +219,10 @@ pub const InspectSubpool = struct {
         return .{ .address = result };
     }
     /// Address are checksumed on stringify.
-    pub fn jsonStringify(value: InspectSubpool, source: anytype) !void {
+    pub fn jsonStringify(
+        value: InspectSubpool,
+        source: anytype,
+    ) @TypeOf(source.*).Error!void {
         try source.beginObject();
         var iter = value.address.iterator();
 
@@ -208,7 +259,11 @@ pub const InspectSubpool = struct {
     }
     /// Uses similar approach as `jsonParse` but the value is already pre parsed from
     /// a dynamic `Value`
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!InspectSubpool {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!InspectSubpool {
         var result = InspectAddressHashMap.init(allocator);
         var iter = source.object.iterator();
 
@@ -230,7 +285,11 @@ pub const InspectPoolTransactionByNonce = struct {
     nonce: InspectPoolPendingTransactionHashMap,
 
     /// Parses as a dynamic value and then uses that value to json parse
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!InspectPoolTransactionByNonce {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!InspectPoolTransactionByNonce {
         var result = InspectPoolPendingTransactionHashMap.init(allocator);
 
         const parsed = try Value.jsonParse(allocator, source, options);
@@ -251,7 +310,11 @@ pub const InspectPoolTransactionByNonce = struct {
     }
     /// Uses similar approach as `jsonParse` but the value is already pre parsed from
     /// a dynamic `Value`
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!InspectPoolTransactionByNonce {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!InspectPoolTransactionByNonce {
         _ = options;
 
         var result = InspectPoolPendingTransactionHashMap.init(allocator);
@@ -270,7 +333,10 @@ pub const InspectPoolTransactionByNonce = struct {
         return .{ .nonce = result };
     }
     /// Converts the nonces into strings.
-    pub fn jsonStringify(value: InspectPoolTransactionByNonce, source: anytype) !void {
+    pub fn jsonStringify(
+        value: InspectPoolTransactionByNonce,
+        source: anytype,
+    ) @TypeOf(source.*).Error!void {
         try source.beginObject();
         var iter = value.nonce.iterator();
 
@@ -291,7 +357,11 @@ pub const PoolTransactionByNonce = struct {
     nonce: PoolPendingTransactionHashMap,
 
     /// Parses as a dynamic value and then uses that value to json parse
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!PoolTransactionByNonce {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!PoolTransactionByNonce {
         var result = PoolPendingTransactionHashMap.init(allocator);
 
         const parsed = try Value.jsonParse(allocator, source, options);
@@ -311,7 +381,11 @@ pub const PoolTransactionByNonce = struct {
     }
     /// Uses similar approach as `jsonParse` but the value is already pre parsed from
     /// a dynamic `Value`
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!PoolTransactionByNonce {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!PoolTransactionByNonce {
         var result = PoolPendingTransactionHashMap.init(allocator);
         var iter = source.object.iterator();
 
@@ -327,7 +401,10 @@ pub const PoolTransactionByNonce = struct {
         return .{ .nonce = result };
     }
     /// Converts the nonces into strings.
-    pub fn jsonStringify(value: PoolTransactionByNonce, source: anytype) !void {
+    pub fn jsonStringify(
+        value: PoolTransactionByNonce,
+        source: anytype,
+    ) @TypeOf(source.*).Error!void {
         try source.beginObject();
         var iter = value.nonce.iterator();
 

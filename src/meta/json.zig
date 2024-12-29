@@ -260,7 +260,7 @@ pub fn innerParseValueRequest(
 pub fn innerStringify(
     value: anytype,
     stream_writer: anytype,
-) !void {
+) @TypeOf(stream_writer.*).Error!void {
     const info = @typeInfo(@TypeOf(value));
 
     switch (info) {
@@ -456,7 +456,7 @@ pub fn innerStringify(
     }
 }
 
-fn valueStart(stream_writer: anytype) !void {
+fn valueStart(stream_writer: anytype) @TypeOf(stream_writer.*).Error!void {
     switch (stream_writer.next_punctuation) {
         .the_beginning, .none => {},
         .comma => try stream_writer.stream.writeByte(','),

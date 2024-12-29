@@ -21,7 +21,13 @@ const Value = std.json.Value;
 const Wei = types.Wei;
 
 /// Block tag used for RPC requests.
-pub const BlockTag = enum { latest, earliest, pending, safe, finalized };
+pub const BlockTag = enum {
+    latest,
+    earliest,
+    pending,
+    safe,
+    finalized,
+};
 /// Specific tags used in some RPC requests
 pub const BalanceBlockTag = Extract(BlockTag, "latest,pending,earliest");
 /// Specific tags used in some RPC requests
@@ -57,15 +63,26 @@ pub const Withdrawal = struct {
     address: Address,
     amount: Wei,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -96,15 +113,26 @@ pub const LegacyBlock = struct {
     transactionsRoot: Hash,
     uncles: ?[]const Hash = null,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -138,15 +166,26 @@ pub const ArbitrumBlock = struct {
     sendCount: u64,
     sendRoot: Hash,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -156,12 +195,20 @@ pub const BlockTransactions = union(enum) {
     hashes: []const Hash,
     objects: []const Transaction,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
         return try jsonParseFromValue(allocator, json_value, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         if (source != .array)
             return error.UnexpectedToken;
 
@@ -189,7 +236,10 @@ pub const BlockTransactions = union(enum) {
         }
     }
 
-    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        stream: anytype,
+    ) @TypeOf(stream.*).Error!void {
         switch (self) {
             inline else => |value| try meta.json.innerStringify(value, stream),
         }
@@ -223,15 +273,26 @@ pub const BeaconBlock = struct {
     withdrawalsRoot: Hash,
     withdrawals: []const Withdrawal,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -266,15 +327,26 @@ pub const BlobBlock = struct {
     withdrawalsRoot: ?Hash = null,
     withdrawals: ?[]const Withdrawal = null,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -285,12 +357,20 @@ pub const Block = union(enum) {
     cancun: BlobBlock,
     arbitrum: ArbitrumBlock,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
         return try jsonParseFromValue(allocator, json_value, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         if (source != .object)
             return error.UnexpectedToken;
 
@@ -306,7 +386,10 @@ pub const Block = union(enum) {
         return @unionInit(@This(), "legacy", try std.json.parseFromValueLeaky(LegacyBlock, allocator, source, options));
     }
 
-    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        stream: anytype,
+    ) @TypeOf(stream.*).Error!void {
         switch (self) {
             inline else => |value| try stream.write(value),
         }

@@ -50,15 +50,26 @@ pub fn ExplorerSuccessResponse(comptime T: type) type {
         message: enum { OK } = .OK,
         result: T,
 
-        pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        pub fn jsonParse(
+            allocator: Allocator,
+            source: anytype,
+            options: ParseOptions,
+        ) ParseError(@TypeOf(source.*))!@This() {
             return meta.json.jsonParse(@This(), allocator, source, options);
         }
 
-        pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        pub fn jsonParseFromValue(
+            allocator: Allocator,
+            source: Value,
+            options: ParseOptions,
+        ) ParseFromValueError!@This() {
             return meta.json.jsonParseFromValue(@This(), allocator, source, options);
         }
 
-        pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        pub fn jsonStringify(
+            self: @This(),
+            writer_stream: anytype,
+        ) @TypeOf(writer_stream.*).Error!void {
             return meta.json.jsonStringify(@This(), self, writer_stream);
         }
     };
@@ -70,15 +81,26 @@ pub const ExplorerErrorResponse = struct {
     message: []const u8,
     result: []const u8,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -90,12 +112,20 @@ pub fn ExplorerRequestResponse(comptime T: type) type {
         success: ExplorerSuccessResponse(T),
         @"error": ExplorerErrorResponse,
 
-        pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        pub fn jsonParse(
+            allocator: Allocator,
+            source: anytype,
+            options: ParseOptions,
+        ) ParseError(@TypeOf(source.*))!@This() {
             const json_value = try Value.jsonParse(allocator, source, options);
             return try jsonParseFromValue(allocator, json_value, options);
         }
 
-        pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        pub fn jsonParseFromValue(
+            allocator: Allocator,
+            source: Value,
+            options: ParseOptions,
+        ) ParseFromValueError!@This() {
             if (source != .object)
                 return error.UnexpectedToken;
 
@@ -112,7 +142,10 @@ pub fn ExplorerRequestResponse(comptime T: type) type {
             return @unionInit(@This(), "error", try std.json.parseFromValueLeaky(ExplorerErrorResponse, allocator, source, options));
         }
 
-        pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
+        pub fn jsonStringify(
+            self: @This(),
+            stream: anytype,
+        ) @TypeOf(stream.*).Error!void {
             switch (self) {
                 inline else => |value| try stream.write(value),
             }
@@ -174,15 +207,26 @@ pub const MultiAddressBalance = struct {
     /// The balance of the account.
     balance: u256,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -230,12 +274,20 @@ pub const TokenExplorerTransaction = struct {
     /// The total number of confirmations
     confirmations: usize,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
         return try jsonParseFromValue(allocator, json_value, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         if (source != .object)
             return error.UnexpectedToken;
 
@@ -348,12 +400,20 @@ pub const InternalExplorerTransaction = struct {
     /// The error code in case it exists.
     errCode: ?i64,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
         return try jsonParseFromValue(allocator, json_value, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         if (source != .object)
             return error.UnexpectedToken;
 
@@ -499,12 +559,20 @@ pub const ExplorerTransaction = struct {
     /// The contract address in case it exists.
     contractAddress: ?Address = null,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
         return try jsonParseFromValue(allocator, json_value, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         if (source != .object)
             return error.UnexpectedToken;
 
@@ -663,12 +731,20 @@ pub const GetSourceResult = struct {
     /// The bzzr swarm source.
     SwarmSource: Uri,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
         return try jsonParseFromValue(allocator, json_value, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         if (source != .object)
             return error.UnexpectedToken;
 
@@ -824,7 +900,11 @@ pub const ContractCreationResult = struct {
     /// The creation transaction hash
     txHash: Hash,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
         return try jsonParseFromValue(allocator, json_value, options);
     }
@@ -869,12 +949,20 @@ pub const TransactionStatus = struct {
     /// The error message in case it reverted.
     errDescription: ?[]const u8,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
         return try jsonParseFromValue(allocator, json_value, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         if (source != .object)
             return error.UnexpectedToken;
 
@@ -902,12 +990,20 @@ pub const ReceiptStatus = struct {
     /// The receipt status
     status: ?u1,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
         return try jsonParseFromValue(allocator, json_value, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         if (source != .object)
             return error.UnexpectedToken;
 
@@ -939,12 +1035,20 @@ pub const BlockRewards = struct {
     /// The reward value included in uncle blocks.
     uncleInclusionReward: u256,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
         return try jsonParseFromValue(allocator, json_value, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         if (source != .object)
             return error.UnexpectedToken;
 
@@ -1029,15 +1133,26 @@ pub const ExplorerLog = struct {
     /// The transaction index in the memory pool location.
     transactionIndex: ?usize,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -1052,15 +1167,26 @@ pub const BlockCountdown = struct {
     /// The seconds until `CountdownBlock` is reached.
     EstimateTimeInSec: f64,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -1069,7 +1195,10 @@ pub const BlocktimeRequest = struct {
     /// Unix timestamp in seconds
     timestamp: u64,
     /// The tag to choose for finding the closest block based on the timestamp.
-    closest: enum { before, after },
+    closest: enum {
+        before,
+        after,
+    },
 };
 
 pub const TokenBalanceRequest = struct {
@@ -1091,15 +1220,26 @@ pub const EtherPriceResponse = struct {
     /// The ETH-USD price timestamp.
     ethusd_timestamp: u64,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta.json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta.json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -1118,12 +1258,20 @@ pub const GasOracle = struct {
     /// Gas used ratio.
     gasUsedRatio: []const f64,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
         return try jsonParseFromValue(allocator, json_value, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         if (source != .object)
             return error.UnexpectedToken;
 

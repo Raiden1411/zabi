@@ -25,9 +25,8 @@ pub fn AbiEventParametersDataToPrimative(comptime paramters: []const AbiEventPar
     var count: usize = 0;
 
     for (paramters) |param| {
-        const EventType = AbiEventParameterToPrimativeType(param);
-
-        if (EventType != void) count += 1;
+        if (AbiEventParameterToPrimativeType(param) != void)
+            count += 1;
     }
 
     var fields: [count]std.builtin.Type.StructField = undefined;
@@ -64,8 +63,24 @@ pub fn AbiEventParameterDataToPrimative(comptime param: AbiEventParameter) type 
         .address => [20]u8,
         .fixedBytes => |fixed| [fixed]u8,
         .bool => bool,
-        .int => |val| if (val % 8 != 0 or val > 256) @compileError("Invalid bits passed in to int type") else @Type(.{ .int = .{ .signedness = .signed, .bits = val } }),
-        .uint => |val| if (val % 8 != 0 or val > 256) @compileError("Invalid bits passed in to int type") else @Type(.{ .int = .{ .signedness = .unsigned, .bits = val } }),
+        .int => |val| if (val % 8 != 0 or val > 256)
+            @compileError("Invalid bits passed in to int type")
+        else
+            @Type(.{
+                .int = .{
+                    .signedness = .signed,
+                    .bits = val,
+                },
+            }),
+        .uint => |val| if (val % 8 != 0 or val > 256)
+            @compileError("Invalid bits passed in to int type")
+        else
+            @Type(.{
+                .int = .{
+                    .signedness = .unsigned,
+                    .bits = val,
+                },
+            }),
         .dynamicArray => []const AbiParameterToPrimative(.{
             .type = param.type.dynamicArray.*,
             .name = param.name,
@@ -92,7 +107,14 @@ pub fn AbiEventParameterDataToPrimative(comptime param: AbiEventParameter) type 
                     };
                 }
 
-                return @Type(.{ .@"struct" = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
+                return @Type(.{
+                    .@"struct" = .{
+                        .layout = .auto,
+                        .fields = &fields,
+                        .decls = &.{},
+                        .is_tuple = false,
+                    },
+                });
             } else @compileError("Expected components to not be null");
         },
         inline else => void,
@@ -114,7 +136,14 @@ pub fn AbiEventParametersToPrimativeType(comptime event_params: []const AbiEvent
             .alignment = @alignOf([32]u8),
         };
 
-        return @Type(.{ .@"struct" = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+        return @Type(.{
+            .@"struct" = .{
+                .layout = .auto,
+                .fields = &fields,
+                .decls = &.{},
+                .is_tuple = true,
+            },
+        });
     }
 
     var count: usize = 0;
@@ -148,7 +177,14 @@ pub fn AbiEventParametersToPrimativeType(comptime event_params: []const AbiEvent
         }
     }
 
-    return @Type(.{ .@"struct" = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = true } });
+    return @Type(.{
+        .@"struct" = .{
+            .layout = .auto,
+            .fields = &fields,
+            .decls = &.{},
+            .is_tuple = true,
+        },
+    });
 }
 /// Converts the abi event parameters into native zig types
 /// This is intended to be used for log topic data or in
@@ -169,11 +205,21 @@ pub fn AbiEventParameterToPrimativeType(comptime param: AbiEventParameter) type 
         .int => |val| if (val % 8 != 0 or val > 256)
             @compileError("Invalid bits passed in to int type")
         else
-            @Type(.{ .int = .{ .signedness = .signed, .bits = val } }),
+            @Type(.{
+                .int = .{
+                    .signedness = .signed,
+                    .bits = val,
+                },
+            }),
         .uint => |val| if (val % 8 != 0 or val > 256)
             @compileError("Invalid bits passed in to int type")
         else
-            @Type(.{ .int = .{ .signedness = .unsigned, .bits = val } }),
+            @Type(.{
+                .int = .{
+                    .signedness = .unsigned,
+                    .bits = val,
+                },
+            }),
         inline else => void,
     };
 }
@@ -231,8 +277,24 @@ pub fn AbiParameterToPrimative(comptime param: AbiParameter) type {
         .address => [20]u8,
         .fixedBytes => |fixed| [fixed]u8,
         .bool => bool,
-        .int => |val| if (val % 8 != 0 or val > 256) @compileError("Invalid bits passed in to int type") else @Type(.{ .int = .{ .signedness = .signed, .bits = val } }),
-        .uint => |val| if (val % 8 != 0 or val > 256) @compileError("Invalid bits passed in to int type") else @Type(.{ .int = .{ .signedness = .unsigned, .bits = val } }),
+        .int => |val| if (val % 8 != 0 or val > 256)
+            @compileError("Invalid bits passed in to int type")
+        else
+            @Type(.{
+                .int = .{
+                    .signedness = .signed,
+                    .bits = val,
+                },
+            }),
+        .uint => |val| if (val % 8 != 0 or val > 256)
+            @compileError("Invalid bits passed in to int type")
+        else
+            @Type(.{
+                .int = .{
+                    .signedness = .unsigned,
+                    .bits = val,
+                },
+            }),
         .dynamicArray => []const AbiParameterToPrimative(.{
             .type = param.type.dynamicArray.*,
             .name = param.name,
@@ -259,7 +321,14 @@ pub fn AbiParameterToPrimative(comptime param: AbiParameter) type {
                     };
                 }
 
-                return @Type(.{ .@"struct" = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
+                return @Type(.{
+                    .@"struct" = .{
+                        .layout = .auto,
+                        .fields = &fields,
+                        .decls = &.{},
+                        .is_tuple = false,
+                    },
+                });
             } else @compileError("Expected components to not be null");
         },
         inline else => void,

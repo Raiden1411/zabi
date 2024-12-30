@@ -21,7 +21,7 @@ const Node = Ast.Node;
 const ParamErrors = param_types.ParamErrors;
 const ParamType = param_types.ParamType;
 const Parser = @import("Parser.zig");
-const StateMutability = zabi_abi.state_mutability.StateMutability;
+const StateMutability = zabi_abi.abitypes.StateMutability;
 
 /// Set of errors when converting to the abi
 pub const HumanAbiErrors = ParamErrors || Allocator.Error || error{ NoSpaceLeft, MissingTypeDeclaration };

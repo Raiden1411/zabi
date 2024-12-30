@@ -19,12 +19,14 @@ pub fn ConvertToEnum(comptime T: type) type {
         count += 1;
     }
 
-    return @Type(.{ .@"enum" = .{
-        .tag_type = usize,
-        .fields = &enum_fields,
-        .decls = &.{},
-        .is_exhaustive = true,
-    } });
+    return @Type(.{
+        .@"enum" = .{
+            .tag_type = usize,
+            .fields = &enum_fields,
+            .decls = &.{},
+            .is_exhaustive = true,
+        },
+    });
 }
 /// Type function use to extract enum members from any enum.
 ///
@@ -63,12 +65,14 @@ pub fn Extract(comptime T: type, comptime needle: []const u8) type {
         }
     }
 
-    return @Type(.{ .@"enum" = .{
-        .tag_type = info.tag_type,
-        .fields = &enumFields,
-        .decls = &.{},
-        .is_exhaustive = true,
-    } });
+    return @Type(.{
+        .@"enum" = .{
+            .tag_type = info.tag_type,
+            .fields = &enumFields,
+            .decls = &.{},
+            .is_exhaustive = true,
+        },
+    });
 }
 /// Merge structs into a single one
 pub fn MergeStructs(comptime T: type, comptime K: type) type {
@@ -94,7 +98,14 @@ pub fn MergeStructs(comptime T: type, comptime K: type) type {
         counter += 1;
     }
 
-    return @Type(.{ .@"struct" = .{ .layout = .auto, .fields = &fields, .decls = &.{}, .is_tuple = false } });
+    return @Type(.{
+        .@"struct" = .{
+            .layout = .auto,
+            .fields = &fields,
+            .decls = &.{},
+            .is_tuple = false,
+        },
+    });
 }
 /// Merge tuple structs
 pub fn MergeTupleStructs(comptime T: type, comptime K: type) type {
@@ -126,12 +137,14 @@ pub fn MergeTupleStructs(comptime T: type, comptime K: type) type {
         counter += 1;
     }
 
-    return @Type(.{ .@"struct" = .{
-        .layout = .auto,
-        .fields = &fields,
-        .decls = &.{},
-        .is_tuple = true,
-    } });
+    return @Type(.{
+        .@"struct" = .{
+            .layout = .auto,
+            .fields = &fields,
+            .decls = &.{},
+            .is_tuple = true,
+        },
+    });
 }
 /// Convert a struct into a tuple type.
 pub fn StructToTupleType(comptime T: type) type {
@@ -214,12 +227,14 @@ pub fn StructToTupleType(comptime T: type) type {
         }
     }
 
-    return @Type(.{ .@"struct" = .{
-        .layout = .auto,
-        .fields = &fields,
-        .decls = &.{},
-        .is_tuple = true,
-    } });
+    return @Type(.{
+        .@"struct" = .{
+            .layout = .auto,
+            .fields = &fields,
+            .decls = &.{},
+            .is_tuple = true,
+        },
+    });
 }
 /// Omits the selected keys from struct types.
 pub fn Omit(comptime T: type, comptime keys: []const []const u8) type {
@@ -238,19 +253,21 @@ pub fn Omit(comptime T: type, comptime keys: []const []const u8) type {
     var counter: usize = 0;
     outer: inline for (info.@"struct".fields) |field| {
         for (keys) |key| {
-            if (std.mem.eql(u8, key, field.name)) {
+            if (std.mem.eql(u8, key, field.name))
                 continue :outer;
-            }
         }
+
         fields[counter] = field;
         fields_seen[counter] = true;
         counter += 1;
     }
 
-    return @Type(.{ .@"struct" = .{
-        .layout = .auto,
-        .fields = &fields,
-        .decls = &.{},
-        .is_tuple = false,
-    } });
+    return @Type(.{
+        .@"struct" = .{
+            .layout = .auto,
+            .fields = &fields,
+            .decls = &.{},
+            .is_tuple = false,
+        },
+    });
 }

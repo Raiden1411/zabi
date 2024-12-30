@@ -143,7 +143,9 @@ pub fn addressToBytes(
     return addr_bytes;
 }
 /// Convert a hash to its representing bytes
-pub fn hashToBytes(hash: []const u8) error{ InvalidHash, NoSpaceLeft, InvalidLength, InvalidCharacter }!Hash {
+pub fn hashToBytes(
+    hash: []const u8,
+) error{ InvalidHash, NoSpaceLeft, InvalidLength, InvalidCharacter }!Hash {
     const hash_value = if (std.mem.startsWith(u8, hash, "0x")) hash[2..] else hash;
 
     if (hash_value.len != 64)
@@ -156,14 +158,10 @@ pub fn hashToBytes(hash: []const u8) error{ InvalidHash, NoSpaceLeft, InvalidLen
 }
 /// Checks if a given string is a hex string;
 pub fn isHexString(value: []const u8) bool {
-    for (value) |char| {
-        switch (char) {
-            '0'...'9', 'a'...'f', 'A'...'F' => continue,
-            else => return false,
-        }
-    }
-
-    return true;
+    for (value) |char| switch (char) {
+        '0'...'9', 'a'...'f', 'A'...'F' => continue,
+        else => return false,
+    } else return true;
 }
 /// Checks if the given hash is a valid 32 bytes hash
 pub fn isHash(hash: []const u8) bool {
@@ -176,14 +174,10 @@ pub fn isHash(hash: []const u8) bool {
 }
 /// Check if a string is a hash string
 pub fn isHashString(hash: []const u8) bool {
-    for (hash) |char| {
-        switch (char) {
-            '0'...'9', 'a'...'f' => continue,
-            else => return false,
-        }
-    }
-
-    return true;
+    for (hash) |char| switch (char) {
+        '0'...'9', 'a'...'f' => continue,
+        else => return false,
+    } else return true;
 }
 /// Convert value into u256 representing ether value
 /// Ex: 1 * 10 ** 18 = 1 ETH

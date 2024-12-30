@@ -113,9 +113,8 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
                 const active_field = union_info.fields[index];
 
                 for (union_info.fields) |field| {
-                    if (std.mem.eql(u8, field.name, active_field.name)) {
+                    if (std.mem.eql(u8, field.name, active_field.name))
                         break :field active_field;
-                    }
                 } else @compileError("Invalid union type");
             };
 

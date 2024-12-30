@@ -1,7 +1,9 @@
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
+const ArgIterator = std.process.ArgIterator;
 const ConvertToEnum = @import("zabi-meta").utils.ConvertToEnum;
+const EnumFieldStruct = std.enums.EnumFieldStruct;
 
 const assert = std.debug.assert;
 
@@ -11,7 +13,11 @@ const assert = std.debug.assert;
 ///
 /// Allocations are only made for slices and pointer types.
 /// Slice or arrays that aren't u8 are expected to be comma seperated.
-pub fn parseArgs(comptime T: type, allocator: Allocator, args: *std.process.ArgIterator) T {
+pub fn parseArgs(
+    comptime T: type,
+    allocator: Allocator,
+    args: *ArgIterator,
+) T {
     const info = @typeInfo(T);
 
     assert(info == .@"struct");
@@ -29,7 +35,7 @@ pub fn parseArgs(comptime T: type, allocator: Allocator, args: *std.process.ArgI
     }
 
     var result: T = undefined;
-    var seen: std.enums.EnumFieldStruct(ConvertToEnum(T), u32, 0) = .{};
+    var seen: EnumFieldStruct(ConvertToEnum(T), u32, 0) = .{};
 
     assert(args.skip());
 
@@ -59,7 +65,12 @@ pub fn parseArgs(comptime T: type, allocator: Allocator, args: *std.process.ArgI
     return result;
 }
 /// Parses a argument string like --foo=69
-fn parseArgument(comptime T: type, allocator: Allocator, expected: [:0]const u8, arg: []const u8) T {
+fn parseArgument(
+    comptime T: type,
+    allocator: Allocator,
+    expected: [:0]const u8,
+    arg: []const u8,
+) T {
     if (T == bool) {
         if (!std.mem.eql(u8, expected, arg))
             failWithMessage("Bool flags do not require values. Consider using just '{s}'", .{expected});
@@ -72,7 +83,10 @@ fn parseArgument(comptime T: type, allocator: Allocator, expected: [:0]const u8,
     return parseArgValue(T, allocator, value);
 }
 /// Parses a argument string like --foo=
-fn parseArgString(expected: [:0]const u8, arg: []const u8) []const u8 {
+fn parseArgString(
+    expected: [:0]const u8,
+    arg: []const u8,
+) []const u8 {
     assert(arg[0] == '-' and arg[1] == '-');
 
     assert(std.mem.startsWith(u8, arg, expected));
@@ -93,7 +107,11 @@ fn parseArgString(expected: [:0]const u8, arg: []const u8) []const u8 {
 }
 /// Parses the value of the provided argument.
 /// Compilation will fail if an unsupported argument is passed.
-fn parseArgValue(comptime T: type, allocator: Allocator, value: []const u8) T {
+fn parseArgValue(
+    comptime T: type,
+    allocator: Allocator,
+    value: []const u8,
+) T {
     assert(value.len > 0);
 
     if (T == []const u8 or T == [:0]const u8)
@@ -185,7 +203,10 @@ fn convertDefaultValueType(comptime field: std.builtin.Type.StructField) ?field.
         null;
 }
 /// Fails with message and exit's the process.
-fn failWithMessage(comptime message: []const u8, values: anytype) noreturn {
+fn failWithMessage(
+    comptime message: []const u8,
+    values: anytype,
+) noreturn {
     assert(@typeInfo(@TypeOf(values)) == .@"struct");
     assert(@typeInfo(@TypeOf(values)).@"struct".is_tuple);
 

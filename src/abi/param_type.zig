@@ -150,7 +150,10 @@ pub const ParamType = union(enum) {
 
     /// User must call this if the union type contains a fixedArray or dynamicArray field.
     /// They create pointers so they must be destroyed after.
-    pub fn freeArrayParamType(self: @This(), alloc: Allocator) void {
+    pub fn freeArrayParamType(
+        self: @This(),
+        alloc: Allocator,
+    ) void {
         switch (self) {
             .dynamicArray => |val| {
                 val.freeArrayParamType(alloc);
@@ -169,7 +172,11 @@ pub const ParamType = union(enum) {
     ///
     /// But since we are expecting a string that contains the type value
     /// we override this so we handle the parsing properly and still leverage the union type.
-    pub fn jsonParse(alloc: Allocator, source: *Scanner, opts: ParserOptions) ParseError(@TypeOf(source.*))!ParamType {
+    pub fn jsonParse(
+        alloc: Allocator,
+        source: *Scanner,
+        opts: ParserOptions,
+    ) ParseError(@TypeOf(source.*))!ParamType {
         const name_token: ?Token = try source.nextAllocMax(alloc, .alloc_if_needed, opts.max_value_len.?);
         const field_name = switch (name_token.?) {
             inline .string, .allocated_string => |slice| slice,
@@ -179,14 +186,21 @@ pub const ParamType = union(enum) {
         return typeToUnion(field_name, alloc);
     }
 
-    pub fn jsonParseFromValue(alloc: Allocator, source: std.json.Value, opts: ParserOptions) ParseFromValueError!ParamType {
+    pub fn jsonParseFromValue(
+        alloc: Allocator,
+        source: std.json.Value,
+        opts: ParserOptions,
+    ) ParseFromValueError!ParamType {
         _ = opts;
 
         const field_name = source.string;
         return typeToUnion(field_name, alloc);
     }
 
-    pub fn jsonStringify(self: @This(), stream: anytype) @TypeOf(stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        stream: anytype,
+    ) @TypeOf(stream.*).Error!void {
         // Cursed hack. There should be a better way
         var out_buf: [256]u8 = undefined;
         var slice_stream = std.io.fixedBufferStream(&out_buf);
@@ -197,7 +211,10 @@ pub const ParamType = union(enum) {
     }
 
     /// Converts the tagname of `self` into a writer.
-    pub fn typeToJsonStringify(self: @This(), writer: anytype) @TypeOf(writer).Error!void {
+    pub fn typeToJsonStringify(
+        self: @This(),
+        writer: anytype,
+    ) @TypeOf(writer).Error!void {
         switch (self) {
             .string,
             .bytes,
@@ -221,7 +238,10 @@ pub const ParamType = union(enum) {
         }
     }
     /// Converts `self` into its tagname.
-    pub fn typeToString(self: @This(), writer: anytype) @TypeOf(writer).Error!void {
+    pub fn typeToString(
+        self: @This(),
+        writer: anytype,
+    ) @TypeOf(writer).Error!void {
         switch (self) {
             .string,
             .bytes,
@@ -249,7 +269,10 @@ pub const ParamType = union(enum) {
     ///
     /// Consider using `freeArrayParamType` to destroy the pointers
     /// or call the destroy method on your allocator manually
-    pub fn typeToUnion(abitype: []const u8, alloc: Allocator) ParamErrors!ParamType {
+    pub fn typeToUnion(
+        abitype: []const u8,
+        alloc: Allocator,
+    ) ParamErrors!ParamType {
         if (abitype.len == 0) return error.InvalidEnumTag;
 
         if (abitype[abitype.len - 1] == ']') {
@@ -320,7 +343,11 @@ pub const ParamType = union(enum) {
         return error.InvalidEnumTag;
     }
 
-    pub fn typeToUnionWithTag(allocator: Allocator, abitype: []const u8, token_tag: TokenTags) ParamErrors!ParamType {
+    pub fn typeToUnionWithTag(
+        allocator: Allocator,
+        abitype: []const u8,
+        token_tag: TokenTags,
+    ) ParamErrors!ParamType {
         if (abitype.len == 0) return error.InvalidEnumTag;
 
         if (abitype[abitype.len - 1] == ']') {

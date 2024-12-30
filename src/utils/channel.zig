@@ -20,7 +20,9 @@ pub fn Channel(comptime T: type) type {
 
         /// Inits the channel.
         pub fn init(alloc: Allocator) Self {
-            return .{ .fifo = Fifo.init(alloc) };
+            return .{
+                .fifo = .init(alloc),
+            };
         }
         /// Frees the channel.
         /// If the list still has items with allocated
@@ -30,7 +32,10 @@ pub fn Channel(comptime T: type) type {
         }
         /// Puts an item in the channel.
         /// Blocks thread until it can add the item.
-        pub fn put(self: *Self, item: T) void {
+        pub fn put(
+            self: *Self,
+            item: T,
+        ) void {
             self.lock.lock();
             defer {
                 self.lock.unlock();
@@ -42,7 +47,10 @@ pub fn Channel(comptime T: type) type {
             };
         }
         /// Tries to put in the channel. Will error if it can't.
-        pub fn tryPut(self: *Self, item: T) !void {
+        pub fn tryPut(
+            self: *Self,
+            item: T,
+        ) Allocator.Error!void {
             self.lock.lock();
             defer self.lock.unlock();
 

@@ -1,6 +1,6 @@
 const std = @import("std");
-const zabi_evm = @import("zabi-evm");
-const zabi_utils = @import("zabi-utils");
+const zabi_evm = @import("zabi").evm;
+const zabi_utils = @import("zabi").utils;
 
 const Contract = zabi_evm.contract.Contract;
 const Interpreter = zabi_evm.Interpreter;

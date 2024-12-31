@@ -11,7 +11,6 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-13]
-        examples: [wallet, transfer, contract, watch, interpreter, block_explorer]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
@@ -22,10 +21,5 @@ jobs:
         with:
           version: master
 
-      - name: Run zig fmt
-        working-directory: ./examples/${{matrix.examples}}
-        run: zig fmt --check .
-
       - name: Build examples
-        working-directory: ./examples/${{matrix.examples}}
-        run: zig build
+        run: zig build examples

@@ -1,6 +1,6 @@
-const args_parser = @import("zabi-utils").args;
+const args_parser = @import("zabi").utils.args;
 const std = @import("std");
-const clients = @import("zabi-clients");
+const clients = @import("zabi").clients;
 
 const Wallet = clients.wallet.Wallet(.websocket);
 
@@ -32,7 +32,7 @@ pub fn main() !void {
 
     const hash = try wallet.sendTransaction(.{
         .type = .london,
-        .to = comptime try @import("zabi-utils").utils.addressToBytes("0x0000000000000000000000000000000000000000"),
+        .to = comptime @import("zabi").utils.utils.addressToBytes("0x0000000000000000000000000000000000000000") catch unreachable,
         .value = 42069,
     });
     defer hash.deinit();

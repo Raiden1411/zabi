@@ -1,6 +1,6 @@
-const args_parser = @import("zabi-utils").args;
+const args_parser = @import("zabi").utils.args;
 const std = @import("std");
-const clients = @import("zabi-clients");
+const clients = @import("zabi").clients;
 
 const BlockExplorer = clients.BlockExplorer;
 

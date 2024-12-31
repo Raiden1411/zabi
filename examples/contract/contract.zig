@@ -1,9 +1,9 @@
-const abi = @import("zabi-abi").abitypes;
-const args_parser = @import("zabi-utils").args;
-const clients = @import("zabi-clients");
-const human = @import("zabi-human").parsing;
+const abi = @import("zabi").abi.abitypes;
+const args_parser = @import("zabi").utils.args;
+const clients = @import("zabi").clients;
+const human = @import("zabi").human_readable.parsing;
 const std = @import("std");
-const utils = @import("zabi-utils").utils;
+const utils = @import("zabi").utils.utils;
 
 const Abi = abi.Abi;
 const Contract = clients.contract.Contract(.http);

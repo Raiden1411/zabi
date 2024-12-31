@@ -239,6 +239,9 @@ pub fn build(b: *std.Build) void {
     // Runs the benchmark
     buildBenchmark(b, target, optimize, zabi);
 
+    // Builds the examples.
+    buildExamples(b, target, optimize, zabi);
+
     // Build and generate docs for zabi. Uses the `doc_comments` spread across the codebase.
     // Always build in `ReleaseFast`.
     buildDocs(b, target);
@@ -388,6 +391,40 @@ fn buildBenchmark(
 
     const bench_step = b.step("bench", "Benchmark zabi");
     bench_step.dependOn(&bench_run.step);
+}
+/// Builds all of zabi examples so that we can leverage this also for CI
+fn buildExamples(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    dependency: *std.Build.Module,
+) void {
+    const examples_step = b.step("examples", "Build all of zabi's examples");
+
+    const examples: []const []const u8 = &.{
+        "examples/watch/watch.zig",
+        "examples/watch/logs.zig",
+        "examples/transfer/transfer.zig",
+        "examples/interpreter/interpreter.zig",
+        "examples/block_explorer/explorer.zig",
+        "examples/wallet/wallet.zig",
+        "examples/contract/contract.zig",
+    };
+
+    inline for (examples) |example| {
+        const index = std.mem.lastIndexOfScalar(u8, example, '/').?;
+        const example_exe = b.addExecutable(.{
+            .name = example[index + 1 ..],
+            .root_source_file = b.path(example),
+            .target = target,
+            .optimize = optimize,
+        });
+        example_exe.root_module.addImport("zabi", dependency);
+        addDependencies(b, example_exe.root_module, target, optimize);
+
+        b.installArtifact(example_exe);
+    }
+    examples_step.dependOn(b.getInstallStep());
 }
 /// Builds and runs a runner to generate documentation based on the `doc_comments` tokens in the codebase.
 fn buildDocs(b: *std.Build, target: std.Build.ResolvedTarget) void {

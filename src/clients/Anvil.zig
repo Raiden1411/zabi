@@ -29,15 +29,26 @@ pub const Forking = struct {
     jsonRpcUrl: []const u8,
     blockNumber: ?u64 = null,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta_json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta_json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta_json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -46,15 +57,26 @@ pub const Forking = struct {
 pub const Reset = struct {
     forking: Forking,
 
-    pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
         return meta_json.jsonParse(@This(), allocator, source, options);
     }
 
-    pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
         return meta_json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
-    pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
         return meta_json.jsonStringify(@This(), self, writer_stream);
     }
 };
@@ -67,15 +89,26 @@ pub fn AnvilRequest(comptime T: type) type {
         params: T,
         id: usize = 1,
 
-        pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This() {
+        pub fn jsonParse(
+            allocator: Allocator,
+            source: anytype,
+            options: ParseOptions,
+        ) ParseError(@TypeOf(source.*))!@This() {
             return meta_json.jsonParse(@This(), allocator, source, options);
         }
 
-        pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This() {
+        pub fn jsonParseFromValue(
+            allocator: Allocator,
+            source: Value,
+            options: ParseOptions,
+        ) ParseFromValueError!@This() {
             return meta_json.jsonParseFromValue(@This(), allocator, source, options);
         }
 
-        pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void {
+        pub fn jsonStringify(
+            self: @This(),
+            writer_stream: anytype,
+        ) @TypeOf(writer_stream.*).Error!void {
             return meta_json.jsonStringify(@This(), self, writer_stream);
         }
     };
@@ -289,7 +322,10 @@ pub fn setBalance(
     address: Address,
     balance: u256,
 ) FetchErrors!void {
-    const request: AnvilRequest(struct { Address, u256 }) = .{ .params = .{ address, balance }, .method = .anvil_setBalance };
+    const request: AnvilRequest(struct { Address, u256 }) = .{
+        .params = .{ address, balance },
+        .method = .anvil_setBalance,
+    };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -302,7 +338,10 @@ pub fn setCode(
     address: Address,
     code: Hex,
 ) FetchErrors!void {
-    const request: AnvilRequest(struct { Address, Hex }) = .{ .params = .{ address, code }, .method = .anvil_setCode };
+    const request: AnvilRequest(struct { Address, Hex }) = .{
+        .params = .{ address, code },
+        .method = .anvil_setCode,
+    };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -314,7 +353,10 @@ pub fn setRpcUrl(
     self: *Anvil,
     rpc_url: []const u8,
 ) FetchErrors!void {
-    const request: AnvilRequest(struct { []const u8 }) = .{ .params = .{rpc_url}, .method = .anvil_setRpcUrl };
+    const request: AnvilRequest(struct { []const u8 }) = .{
+        .params = .{rpc_url},
+        .method = .anvil_setRpcUrl,
+    };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -326,7 +368,10 @@ pub fn setCoinbase(
     self: *Anvil,
     address: Address,
 ) FetchErrors!void {
-    const request: AnvilRequest(struct { Address }) = .{ .params = .{address}, .method = .anvil_setCoinbase };
+    const request: AnvilRequest(struct { Address }) = .{
+        .params = .{address},
+        .method = .anvil_setCoinbase,
+    };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -335,7 +380,10 @@ pub fn setCoinbase(
 }
 /// Enable anvil verbose logging for anvil.
 pub fn setLoggingEnable(self: *Anvil) FetchErrors!void {
-    const request: AnvilRequest(std.meta.Tuple(&[_]type{})) = .{ .params = .{}, .method = .anvil_setLoggingEnabled };
+    const request: AnvilRequest(std.meta.Tuple(&[_]type{})) = .{
+        .params = .{},
+        .method = .anvil_setLoggingEnabled,
+    };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -347,7 +395,10 @@ pub fn setMinGasPrice(
     self: *Anvil,
     new_price: u64,
 ) FetchErrors!void {
-    const request: AnvilRequest(struct { u64 }) = .{ .params = .{new_price}, .method = .anvil_setMinGasPrice };
+    const request: AnvilRequest(struct { u64 }) = .{
+        .params = .{new_price},
+        .method = .anvil_setMinGasPrice,
+    };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -359,7 +410,10 @@ pub fn setNextBlockBaseFeePerGas(
     self: *Anvil,
     new_price: u64,
 ) FetchErrors!void {
-    const request: AnvilRequest(struct { u64 }) = .{ .params = .{new_price}, .method = .anvil_setNextBlockBaseFeePerGas };
+    const request: AnvilRequest(struct { u64 }) = .{
+        .params = .{new_price},
+        .method = .anvil_setNextBlockBaseFeePerGas,
+    };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -371,7 +425,10 @@ pub fn setChainId(
     self: *Anvil,
     new_id: u64,
 ) FetchErrors!void {
-    const request: AnvilRequest(struct { u64 }) = .{ .params = .{new_id}, .method = .anvil_setChainId };
+    const request: AnvilRequest(struct { u64 }) = .{
+        .params = .{new_id},
+        .method = .anvil_setChainId,
+    };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -384,7 +441,10 @@ pub fn setNonce(
     address: Address,
     new_nonce: u64,
 ) FetchErrors!void {
-    const request: AnvilRequest(struct { Address, u64 }) = .{ .params = .{ address, new_nonce }, .method = .anvil_setNonce };
+    const request: AnvilRequest(struct { Address, u64 }) = .{
+        .params = .{ address, new_nonce },
+        .method = .anvil_setNonce,
+    };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -396,7 +456,10 @@ pub fn dropTransaction(
     self: *Anvil,
     tx_hash: Hash,
 ) FetchErrors!void {
-    const request: AnvilRequest(struct { Hash }) = .{ .params = .{tx_hash}, .method = .anvil_dropTransaction };
+    const request: AnvilRequest(struct { Hash }) = .{
+        .params = .{tx_hash},
+        .method = .anvil_dropTransaction,
+    };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -409,7 +472,10 @@ pub fn mine(
     amount: u64,
     time_in_seconds: ?u64,
 ) FetchErrors!void {
-    const request: AnvilRequest(struct { u64, ?u64 }) = .{ .params = .{ amount, time_in_seconds }, .method = .anvil_mine };
+    const request: AnvilRequest(struct { u64, ?u64 }) = .{
+        .params = .{ amount, time_in_seconds },
+        .method = .anvil_mine,
+    };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -421,7 +487,10 @@ pub fn reset(
     self: *Anvil,
     reset_config: Reset,
 ) FetchErrors!void {
-    const request: AnvilRequest(struct { Reset }) = .{ .params = .{reset_config}, .method = .anvil_reset };
+    const request: AnvilRequest(struct { Reset }) = .{
+        .params = .{reset_config},
+        .method = .anvil_reset,
+    };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -433,7 +502,10 @@ pub fn impersonateAccount(
     self: *Anvil,
     address: Address,
 ) FetchErrors!void {
-    const request: AnvilRequest(struct { Address }) = .{ .params = .{address}, .method = .anvil_impersonateAccount };
+    const request: AnvilRequest(struct { Address }) = .{
+        .params = .{address},
+        .method = .anvil_impersonateAccount,
+    };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
@@ -445,7 +517,10 @@ pub fn stopImpersonatingAccount(
     self: *Anvil,
     address: Address,
 ) FetchErrors!void {
-    const request: AnvilRequest(struct { Address }) = .{ .params = .{address}, .method = .anvil_impersonateAccount };
+    const request: AnvilRequest(struct { Address }) = .{
+        .params = .{address},
+        .method = .anvil_impersonateAccount,
+    };
 
     const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);

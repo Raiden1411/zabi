@@ -90,25 +90,33 @@ pub const NetworkConfig = struct {
 
 /// The chain configuration for arbitrum mainnet.
 pub const arbitrum: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://arb1.arbitrum.io/rpc") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://arb1.arbitrum.io/rpc") catch unreachable,
+    },
     .chain_id = .arbitrum,
 };
 
 /// The chain configuration for arbitrum_nova mainnet.
 pub const arbitrum_nova: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://nova.arbitrum.io/rpc") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://nova.arbitrum.io/rpc") catch unreachable,
+    },
     .chain_id = .arbitrum_nova,
 };
 
 /// The chain configuration for avalanche c-chain mainnet.
 pub const avalanche: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://api.avax.network/ext/bc/C/rpc") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://api.avax.network/ext/bc/C/rpc") catch unreachable,
+    },
     .chain_id = .avalanche,
 };
 
 /// The chain configuration for base mainnet.
 pub const base: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://mainnet.base.org") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://mainnet.base.org") catch unreachable,
+    },
     .chain_id = .base,
     .op_stack_contracts = .{
         .portalAddress = utils.addressToBytes("0x56315b90c40730925ec5485cf004d835058518A0") catch unreachable,
@@ -119,56 +127,74 @@ pub const base: NetworkConfig = .{
 
 /// The chain configuration for boba mainnet.
 pub const boba: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://mainnet.boba.network") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://mainnet.boba.network") catch unreachable,
+    },
     .chain_id = .boba,
 };
 
 /// The chain configuration for bsc mainnet.
 pub const bnb: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://rpc.ankr.com/bsc") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://rpc.ankr.com/bsc") catch unreachable,
+    },
     .chain_id = .bnb,
 };
 
 /// The chain configuration for celo mainnet.
 pub const celo: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://forno.celo.org") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://forno.celo.org") catch unreachable,
+    },
     .chain_id = .celo,
 };
 
 /// The chain configuration for cronos mainnet.
 pub const cronos: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://evm.cronos.org") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://evm.cronos.org") catch unreachable,
+    },
     .chain_id = .cronos,
 };
 
 /// The chain configuration for ethereum mainnet.
 pub const ethereum_mainet: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://cloudflare-eth.com") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://cloudflare-eth.com") catch unreachable,
+    },
     .ens_contracts = .{},
 };
 
 /// The chain configuration for fantom mainnet.
 pub const fantom: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://rpc.ankr.com/fantom") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://rpc.ankr.com/fantom") catch unreachable,
+    },
     .chain_id = .fantom,
 };
 
 /// The chain configuration for gnosis mainnet.
 pub const gnosis: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://rpc.gnosischain.com") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://rpc.gnosischain.com") catch unreachable,
+    },
     .chain_id = .gnosis,
 };
 
 /// The chain configuration for optimism mainnet.
 pub const optimism: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://mainnet.optimism.io") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://mainnet.optimism.io") catch unreachable,
+    },
     .chain_id = .op_mainnet,
     .op_stack_contracts = .{},
 };
 
 /// The chain configuration for optimism sepolia testnet.
 pub const optimism_sepolia: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://sepolia.optimism.io") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://sepolia.optimism.io") catch unreachable,
+    },
     .chain_id = .op_sepolia,
     .op_stack_contracts = .{
         .disputeGameFactory = utils.addressToBytes("0x05F9613aDB30026FFd634f38e5C4dFd30a197Fa1") catch unreachable,
@@ -180,13 +206,17 @@ pub const optimism_sepolia: NetworkConfig = .{
 
 /// The chain configuration for polygon mainnet.
 pub const polygon: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://polygon-rpc.com") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://polygon-rpc.com") catch unreachable,
+    },
     .chain_id = .polygon,
 };
 
 /// The chain configuration for sepolia testnet.
 pub const sepolia_mainet_testnet: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://rpc.sepolia.org") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://rpc.sepolia.org") catch unreachable,
+    },
     .chain_id = .sepolia,
     .ens_contracts = .{
         .ensUniversalResolver = utils.addressToBytes("0xc8Af999e38273D658BE1b921b88A9Ddf005769cC") catch unreachable,
@@ -195,7 +225,9 @@ pub const sepolia_mainet_testnet: NetworkConfig = .{
 
 /// The chain configuration for zora mainnet.
 pub const zora: NetworkConfig = .{
-    .endpoint = .{ .uri = Uri.parse("https://rpc.zora.energy") catch unreachable },
+    .endpoint = .{
+        .uri = Uri.parse("https://rpc.zora.energy") catch unreachable,
+    },
     .chain_id = .zora,
     .op_stack_contracts = .{
         .l1StandardBridge = utils.addressToBytes("0x3e2Ea9B92B7E48A52296fD261dc26fd995284631") catch unreachable,

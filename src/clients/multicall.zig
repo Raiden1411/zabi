@@ -12,6 +12,8 @@ const Allocator = std.mem.Allocator;
 const Address = types.Address;
 const Chains = types.PublicChains;
 const Clients = @import("wallet.zig").WalletClients;
+const DecoderErrors = decoder.DecoderErrors;
+const EncodeErrors = encoder.EncodeErrors;
 const Function = abitypes.Function;
 const Hex = types.Hex;
 const IpcClient = @import("IPC.zig");
@@ -126,7 +128,7 @@ pub fn Multicall(comptime client: Clients) type {
         const Self = @This();
 
         /// Set of possible errors when running the multicall client.
-        pub const Error = Client.BasicRequestErrors || encoder.EncodeErrors || decoder.DecoderErrors;
+        pub const Error = Client.BasicRequestErrors || EncodeErrors || DecoderErrors;
 
         /// The underlaying rpc client used by this.
         rpc_client: *Client,

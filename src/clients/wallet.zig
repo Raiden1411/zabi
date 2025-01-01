@@ -44,12 +44,17 @@ const Signer = zabi_crypto.Signer;
 const Signature = zabi_crypto.signature.Signature;
 const TransactionEnvelope = transaction.TransactionEnvelope;
 const TransactionReceipt = transaction.TransactionReceipt;
+const TransactionTypes = transaction.TransactionTypes;
 const TypedDataDomain = eip712.TypedDataDomain;
 const UnpreparedTransactionEnvelope = transaction.UnpreparedTransactionEnvelope;
 const WebSocketClient = @import("WebSocket.zig");
 
 /// The type of client used by the wallet instance.
-pub const WalletClients = enum { http, websocket, ipc };
+pub const WalletClients = enum {
+    http,
+    websocket,
+    ipc,
+};
 
 /// Wallet instance with rpc http/s client.
 pub const WalletHttpClient = Wallet(.http);
@@ -69,7 +74,7 @@ pub const TransactionEnvelopePool = struct {
 
     /// Search criteria used to find the required parameter.
     const SearchCriteria = struct {
-        type: transaction.TransactionTypes,
+        type: TransactionTypes,
         nonce: u64,
     };
 

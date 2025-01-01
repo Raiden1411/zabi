@@ -14,6 +14,9 @@ pub const IpcReader = struct {
     /// Set of possible errors when reading from the socket.
     pub const ReadError = Stream.ReadError || Allocator.Error || error{Closed};
 
+    /// Set of possible error when writting to the stream.
+    pub const WriteError = Stream.WriteError;
+
     /// Reference to self.
     const Self = @This();
 

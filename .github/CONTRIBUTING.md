@@ -20,10 +20,10 @@ This guide is intended to help you get started with contributing. By following t
 2. [Installing zig](#installing-zig)
 3. [Installing Foundry](#installing-foundry)
 4. [Setting up Foundry](#setting-up-foundry)
-4. [Building Zabi](#building)
-5. [Running the test suite](#running-the-test-suite)
-6. [Writing documentation](#writing-documentation)
-7. [Submitting a pull request](#submitting-a-pull-request)
+5. [Building Zabi](#building)
+6. [Running the test suite](#running-the-test-suite)
+7. [Writing documentation](#writing-documentation)
+8. [Submitting a pull request](#submitting-a-pull-request)
 
 ---
 

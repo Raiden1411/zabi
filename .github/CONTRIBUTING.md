@@ -19,10 +19,11 @@ This guide is intended to help you get started with contributing. By following t
 1. [Cloning the repository](#cloning-the-repository)
 2. [Installing zig](#installing-zig)
 3. [Installing Foundry](#installing-foundry)
-4. [Building Zabi](#building)
-5. [Running the test suite](#running-the-test-suite)
-6. [Writing documentation](#writing-documentation)
-7. [Submitting a pull request](#submitting-a-pull-request)
+4. [Setting up Foundry](#setting-up-foundry)
+5. [Building Zabi](#building)
+6. [Running the test suite](#running-the-test-suite)
+7. [Writing documentation](#writing-documentation)
+8. [Submitting a pull request](#submitting-a-pull-request)
 
 ---
 
@@ -63,6 +64,17 @@ Install Foundry using the following command:
 ```bash
 curl -L https://foundry.paradigm.xyz | bash
 ```
+
+---
+
+### Setting up Foundry
+
+To fork an Ethereum node, in a new terminal, run the following command:
+
+```bash
+anvil --fork-url https://<your-ethereum-rpc-node-endpoint> -p 6969
+```
+which will start the service on https://127.0.0.1:6969, the default address for the Zabi library test suite.
 
 <div align="right">
   <a href="#basic-guide">&uarr; back to top</a></b>

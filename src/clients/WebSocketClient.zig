@@ -599,7 +599,7 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
                 if (op_head.opcode == .text and !std.unicode.utf8ValidateSlice(payload))
                     return error.InvalidUtf8Payload;
 
-                wsclient_log.debug("Got websocket message: {s}", .{payload});
+                wsclient_log.debug("Got websocket message: {s}", .{if (payload < 100) payload else payload[0..100]});
 
                 return .{
                     .opcode = op_head.opcode,
@@ -622,7 +622,7 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
                 if (message_type == .text and !std.unicode.utf8ValidateSlice(slice))
                     return error.InvalidUtf8Payload;
 
-                wsclient_log.debug("Got complete fragmented websocket message: {s}", .{slice});
+                wsclient_log.debug("Got complete fragmented websocket message: {s}", .{if (slice < 100) slice else slice[0..100]});
 
                 return .{
                     .opcode = message_type,

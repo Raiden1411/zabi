@@ -193,7 +193,8 @@ pub fn deinit(self: *PubClient) void {
 /// In case of failure this will retry the connect by the amount of times defined in the `network_config`.\
 /// This also increments the waiting period by the `pooling_interval` set in the initial config.
 pub fn connectRpcServer(self: *PubClient) error{ InvalidEndpointConfig, UnsupportedSchema, FailedToConnect }!*HttpConnection {
-    const uri = self.network_config.getNetworkUri() orelse return error.InvalidEndpointConfig;
+    const uri = self.network_config.getNetworkUri() orelse
+        return error.InvalidEndpointConfig;
 
     const scheme = protocol_map.get(uri.scheme) orelse return error.UnsupportedSchema;
     const port: u16 = uri.port orelse switch (scheme) {
@@ -319,7 +320,8 @@ pub fn estimateFeesPerGas(
     base_fee_per_gas: ?Gwei,
 ) (BasicRequestErrors || error{ UnableToFetchFeeInfoFromBlock, InvalidBlockNumber })!EstimateFeeReturn {
     const current_fee: ?Gwei = block: {
-        if (base_fee_per_gas) |fee| break :block fee;
+        if (base_fee_per_gas) |fee|
+            break :block fee;
 
         const rpc_block = try self.getBlockByNumber(.{});
         rpc_block.deinit();
@@ -400,7 +402,8 @@ pub fn estimateMaxFeePerGasManual(
     base_fee_per_gas: ?Gwei,
 ) (BasicRequestErrors || error{ UnableToFetchFeeInfoFromBlock, InvalidBlockNumber })!Gwei {
     const current_fee: ?Gwei = block: {
-        if (base_fee_per_gas) |fee| break :block fee;
+        if (base_fee_per_gas) |fee|
+            break :block fee;
 
         const rpc_block = try self.getBlockByNumber(.{});
         rpc_block.deinit();
@@ -463,19 +466,28 @@ pub fn getAccounts(self: *PubClient) BasicRequestErrors!RPCResponse([]const Addr
 /// Returns the balance of the account of given address.
 ///
 /// RPC Method: [eth_getBalance](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getbalance)
-pub fn getAddressBalance(self: *PubClient, opts: BalanceRequest) BasicRequestErrors!RPCResponse(Wei) {
+pub fn getAddressBalance(
+    self: *PubClient,
+    opts: BalanceRequest,
+) BasicRequestErrors!RPCResponse(Wei) {
     return self.sendAddressRequest(Wei, opts, .eth_getBalance);
 }
 /// Returns the number of transactions sent from an address.
 ///
 /// RPC Method: [eth_getTransactionCount](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactioncount)
-pub fn getAddressTransactionCount(self: *PubClient, opts: BalanceRequest) BasicRequestErrors!RPCResponse(u64) {
+pub fn getAddressTransactionCount(
+    self: *PubClient,
+    opts: BalanceRequest,
+) BasicRequestErrors!RPCResponse(u64) {
     return self.sendAddressRequest(u64, opts, .eth_getTransactionCount);
 }
 /// Returns information about a block by hash.
 ///
 /// RPC Method: [eth_getBlockByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblockbyhash)
-pub fn getBlockByHash(self: *PubClient, opts: BlockHashRequest) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(Block) {
+pub fn getBlockByHash(
+    self: *PubClient,
+    opts: BlockHashRequest,
+) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(Block) {
     return self.getBlockByHashType(Block, opts);
 }
 /// Returns information about a block by hash.
@@ -484,7 +496,11 @@ pub fn getBlockByHash(self: *PubClient, opts: BlockHashRequest) (BasicRequestErr
 /// you know extractly the shape of the data that the block is expected to be like.
 ///
 /// RPC Method: [eth_getBlockByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblockbyhash)
-pub fn getBlockByHashType(self: *PubClient, comptime T: type, opts: BlockHashRequest) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(T) {
+pub fn getBlockByHashType(
+    self: *PubClient,
+    comptime T: type,
+    opts: BlockHashRequest,
+) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(T) {
     const include = opts.include_transaction_objects orelse false;
 
     const request: EthereumRequest(struct { Hash, bool }) = .{
@@ -511,7 +527,10 @@ pub fn getBlockByHashType(self: *PubClient, comptime T: type, opts: BlockHashReq
 /// Returns information about a block by number.
 ///
 /// RPC Method: [eth_getBlockByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblockbynumber)
-pub fn getBlockByNumber(self: *PubClient, opts: BlockRequest) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(Block) {
+pub fn getBlockByNumber(
+    self: *PubClient,
+    opts: BlockRequest,
+) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(Block) {
     return self.getBlockByNumberType(Block, opts);
 }
 /// Returns information about a block by number.
@@ -520,7 +539,11 @@ pub fn getBlockByNumber(self: *PubClient, opts: BlockRequest) (BasicRequestError
 /// you know extractly the shape of the data that the block is expected to be like.
 ///
 /// RPC Method: [eth_getBlockByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblockbynumber)
-pub fn getBlockByNumberType(self: *PubClient, comptime T: type, opts: BlockRequest) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(T) {
+pub fn getBlockByNumberType(
+    self: *PubClient,
+    comptime T: type,
+    opts: BlockRequest,
+) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(T) {
     const tag: BlockTag = opts.tag orelse .latest;
     const include = opts.include_transaction_objects orelse false;
 
@@ -564,13 +587,19 @@ pub fn getBlockNumber(self: *PubClient) BasicRequestErrors!RPCResponse(u64) {
 /// Returns the number of transactions in a block from a block matching the given block hash.
 ///
 /// RPC Method: [eth_getBlockTransactionCountByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbyhash)
-pub fn getBlockTransactionCountByHash(self: *PubClient, block_hash: Hash) BasicRequestErrors!RPCResponse(usize) {
+pub fn getBlockTransactionCountByHash(
+    self: *PubClient,
+    block_hash: Hash,
+) BasicRequestErrors!RPCResponse(usize) {
     return self.sendBlockHashRequest(block_hash, .eth_getBlockTransactionCountByHash);
 }
 /// Returns the number of transactions in a block from a block matching the given block number.
 ///
 /// RPC Method: [eth_getBlockTransactionCountByNumber](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getblocktransactioncountbynumber)
-pub fn getBlockTransactionCountByNumber(self: *PubClient, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(usize) {
+pub fn getBlockTransactionCountByNumber(
+    self: *PubClient,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(usize) {
     return self.sendBlockNumberRequest(opts, .eth_getBlockTransactionCountByNumber);
 }
 /// Returns the chain ID used for signing replay-protected transactions.
@@ -588,7 +617,10 @@ pub fn getClientVersion(self: *PubClient) BasicRequestErrors!RPCResponse([]const
 /// Returns code at a given address.
 ///
 /// RPC Method: [eth_getCode](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getcode)
-pub fn getContractCode(self: *PubClient, opts: BalanceRequest) !RPCResponse(Hex) {
+pub fn getContractCode(
+    self: *PubClient,
+    opts: BalanceRequest,
+) !RPCResponse(Hex) {
     return self.sendAddressRequest(Hex, opts, .eth_getCode);
 }
 /// Polling method for a filter, which returns an array of logs which occurred since last poll or
@@ -635,7 +667,11 @@ pub fn getGasPrice(self: *PubClient) BasicRequestErrors!RPCResponse(Gwei) {
 /// Returns an array of all logs matching a given filter object.
 ///
 /// RPC Method: [eth_getLogs](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getlogs)
-pub fn getLogs(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) (BasicRequestErrors || error{InvalidLogRequestParams})!RPCResponse(Logs) {
+pub fn getLogs(
+    self: *PubClient,
+    opts: LogRequest,
+    tag: ?BalanceBlockTag,
+) (BasicRequestErrors || error{InvalidLogRequestParams})!RPCResponse(Logs) {
     var request_buffer: [4 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
@@ -694,7 +730,11 @@ pub fn getNetworkVersionId(self: *PubClient) BasicRequestErrors!RPCResponse(usiz
 /// Returns the account and storage values, including the Merkle proof, of the specified account
 ///
 /// RPC Method: [eth_getProof](https://docs.infura.io/api/networks/ethereum/json-rpc-methods/eth_getproof)
-pub fn getProof(self: *PubClient, opts: ProofRequest, tag: ?ProofBlockTag) (BasicRequestErrors || error{ExpectBlockNumberOrTag})!RPCResponse(ProofResult) {
+pub fn getProof(
+    self: *PubClient,
+    opts: ProofRequest,
+    tag: ?ProofBlockTag,
+) (BasicRequestErrors || error{ExpectBlockNumberOrTag})!RPCResponse(ProofResult) {
     var request_buffer: [2 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
@@ -723,13 +763,16 @@ pub fn getProof(self: *PubClient, opts: ProofRequest, tag: ?ProofBlockTag) (Basi
 /// Returns the current Ethereum protocol version.
 ///
 /// RPC Method: [eth_protocolVersion](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_protocolversion)
-pub fn getProtocolVersion(self: *PubClient) !RPCResponse(u64) {
+pub fn getProtocolVersion(self: *PubClient) BasicRequestErrors!RPCResponse(u64) {
     return self.sendBasicRequest(u64, .eth_protocolVersion);
 }
 /// Returns the raw transaction data as a hexadecimal string for a given transaction hash
 ///
 /// RPC Method: [eth_getRawTransactionByHash](https://docs.chainstack.com/reference/base-getrawtransactionbyhash)
-pub fn getRawTransactionByHash(self: *PubClient, tx_hash: Hash) BasicRequestErrors!RPCResponse(Hex) {
+pub fn getRawTransactionByHash(
+    self: *PubClient,
+    tx_hash: Hash,
+) BasicRequestErrors!RPCResponse(Hex) {
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{tx_hash},
         .method = .eth_getRawTransactionByHash,
@@ -747,7 +790,10 @@ pub fn getRawTransactionByHash(self: *PubClient, tx_hash: Hash) BasicRequestErro
 /// This converts the message into to hex values.
 ///
 /// RPC Method: [web_sha3](https://ethereum.org/en/developers/docs/apis/json-rpc#web3_sha3)
-pub fn getSha3Hash(self: *PubClient, message: []const u8) (BasicRequestErrors || error{ InvalidCharacter, InvalidLength })!RPCResponse(Hash) {
+pub fn getSha3Hash(
+    self: *PubClient,
+    message: []const u8,
+) (BasicRequestErrors || error{ InvalidCharacter, InvalidLength })!RPCResponse(Hash) {
     const message_hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(message)});
     defer self.allocator.free(message_hex);
 
@@ -767,7 +813,12 @@ pub fn getSha3Hash(self: *PubClient, message: []const u8) (BasicRequestErrors ||
 /// Returns the value from a storage position at a given address.
 ///
 /// RPC Method: [eth_getStorageAt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getstorageat)
-pub fn getStorage(self: *PubClient, address: Address, storage_key: Hash, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(Hash) {
+pub fn getStorage(
+    self: *PubClient,
+    address: Address,
+    storage_key: Hash,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(Hash) {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
@@ -803,7 +854,11 @@ pub fn getSyncStatus(self: *PubClient) ?RPCResponse(SyncProgress) {
 /// Returns information about a transaction by block hash and transaction index position.
 ///
 /// RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyblockhashandindex)
-pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: usize) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction) {
+pub fn getTransactionByBlockHashAndIndex(
+    self: *PubClient,
+    block_hash: Hash,
+    index: usize,
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction) {
     return self.getTransactionByBlockHashAndIndexType(Transaction, block_hash, index);
 }
 /// Returns information about a transaction by block hash and transaction index position.
@@ -894,7 +949,10 @@ pub fn getTransactionByBlockNumberAndIndexType(
 /// Returns the information about a transaction requested by transaction hash.
 ///
 /// RPC Method: [eth_getTransactionByHash](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionbyhash)
-pub fn getTransactionByHash(self: *PubClient, transaction_hash: Hash) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction) {
+pub fn getTransactionByHash(
+    self: *PubClient,
+    transaction_hash: Hash,
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction) {
     return self.getTransactionByHashType(Transaction, transaction_hash);
 }
 /// Returns the information about a transaction requested by transaction hash.
@@ -931,7 +989,10 @@ pub fn getTransactionByHashType(self: *PubClient, comptime T: type, transaction_
 /// you know extractly the shape of the data that the receipt is expected to be like.
 ///
 /// RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_gettransactionreceipt)
-pub fn getTransactionReceipt(self: *PubClient, transaction_hash: Hash) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt) {
+pub fn getTransactionReceipt(
+    self: *PubClient,
+    transaction_hash: Hash,
+) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt) {
     return self.getTransactionReceiptType(TransactionReceipt, transaction_hash);
 }
 /// Returns the receipt of a transaction by transaction hash.
@@ -978,7 +1039,10 @@ pub fn getTxPoolContent(self: *PubClient) BasicRequestErrors!RPCResponse(TxPoolC
 /// returning pending as well as queued transactions of this address, grouped by nonce
 ///
 /// RPC Method: [txpool_contentFrom](https://geth.ethereum.org/docs/interacting-with-geth/rpc/ns-txpool)
-pub fn getTxPoolContentFrom(self: *PubClient, from: Address) BasicRequestErrors!RPCResponse([]const PoolTransactionByNonce) {
+pub fn getTxPoolContentFrom(
+    self: *PubClient,
+    from: Address,
+) BasicRequestErrors!RPCResponse([]const PoolTransactionByNonce) {
     const request: EthereumRequest(struct { Address }) = .{
         .params = .{from},
         .method = .txpool_contentFrom,
@@ -1052,7 +1116,11 @@ pub fn getUncleByBlockHashAndIndexType(
 /// Returns information about a uncle of a block by number and uncle index position.
 ///
 /// RPC Method: [eth_getUncleByBlockNumberAndIndex](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclebyblocknumberandindex)
-pub fn getUncleByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRequest, index: usize) (BasicRequestErrors || error{InvalidBlockNumberOrIndex})!RPCResponse(Block) {
+pub fn getUncleByBlockNumberAndIndex(
+    self: *PubClient,
+    opts: BlockNumberRequest,
+    index: usize,
+) (BasicRequestErrors || error{InvalidBlockNumberOrIndex})!RPCResponse(Block) {
     return self.getUncleByBlockNumberAndIndexType(Block, opts, index);
 }
 /// Returns information about a uncle of a block by number and uncle index position.
@@ -1103,13 +1171,19 @@ pub fn getUncleByBlockNumberAndIndexType(
 /// Returns the number of uncles in a block from a block matching the given block hash.
 ///
 /// RPC Method: [`eth_getUncleCountByBlockHash`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclecountbyblockhash)
-pub fn getUncleCountByBlockHash(self: *PubClient, block_hash: Hash) BasicRequestErrors!RPCResponse(usize) {
+pub fn getUncleCountByBlockHash(
+    self: *PubClient,
+    block_hash: Hash,
+) BasicRequestErrors!RPCResponse(usize) {
     return self.sendBlockHashRequest(block_hash, .eth_getUncleCountByBlockHash);
 }
 /// Returns the number of uncles in a block from a block matching the given block number.
 ///
 /// RPC Method: [`eth_getUncleCountByBlockNumber`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getunclecountbyblocknumber)
-pub fn getUncleCountByBlockNumber(self: *PubClient, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(usize) {
+pub fn getUncleCountByBlockNumber(
+    self: *PubClient,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(usize) {
     return self.sendBlockNumberRequest(opts, .eth_getUncleCountByBlockNumber);
 }
 /// Runs the selected multicall3 contracts.
@@ -1170,7 +1244,11 @@ pub fn newBlockFilter(self: *PubClient) BasicRequestErrors!RPCResponse(u128) {
 /// To check if the state has changed, call `getFilterOrLogChanges`.
 ///
 /// RPC Method: [`eth_newFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newfilter)
-pub fn newLogFilter(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) BasicRequestErrors!RPCResponse(u128) {
+pub fn newLogFilter(
+    self: *PubClient,
+    opts: LogRequest,
+    tag: ?BalanceBlockTag,
+) BasicRequestErrors!RPCResponse(u128) {
     var request_buffer: [8 * 1024]u8 = undefined;
     var buf_writter = std.io.fixedBufferStream(&request_buffer);
 
@@ -1235,14 +1313,21 @@ pub fn newPendingTransactionFilter(self: *PubClient) BasicRequestErrors!RPCRespo
 ///
 /// const gas = try client.sendEthCall(.{ .london = .{ .value = 10 } }, .{});
 /// defer gas.deinit();
-pub fn sendEthCall(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(Hex) {
+pub fn sendEthCall(
+    self: *PubClient,
+    call_object: EthCall,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(Hex) {
     return self.sendEthCallRequest(Hex, call_object, opts, .eth_call);
 }
 /// Creates new message call transaction or a contract creation for signed transactions.
 /// Transaction must be serialized and signed before hand.
 ///
 /// RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_sendrawtransaction)
-pub fn sendRawTransaction(self: *PubClient, serialized_tx: Hex) BasicRequestErrors!RPCResponse(Hash) {
+pub fn sendRawTransaction(
+    self: *PubClient,
+    serialized_tx: Hex,
+) BasicRequestErrors!RPCResponse(Hash) {
     const request: EthereumRequest(struct { Hex }) = .{
         .params = .{serialized_tx},
         .method = .eth_sendRawTransaction,
@@ -1440,7 +1525,10 @@ pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash
 /// Additionally Filters timeout when they aren't requested with `getFilterOrLogChanges` for a period of time.
 ///
 /// RPC Method: [`eth_uninstallFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_uninstallfilter)
-pub fn uninstallFilter(self: *PubClient, id: usize) !RPCResponse(bool) {
+pub fn uninstallFilter(
+    self: *PubClient,
+    id: usize,
+) !RPCResponse(bool) {
     const request: EthereumRequest(struct { usize }) = .{
         .params = .{id},
         .method = .eth_uninstallFilter,
@@ -1456,7 +1544,11 @@ pub fn uninstallFilter(self: *PubClient, id: usize) !RPCResponse(bool) {
 }
 /// Writes request to RPC server and parses the response according to the provided type.
 /// Handles 429 errors but not the rest.
-pub fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) SendRpcRequestErrors!RPCResponse(T) {
+pub fn sendRpcRequest(
+    self: *PubClient,
+    comptime T: type,
+    request: []const u8,
+) SendRpcRequestErrors!RPCResponse(T) {
     httplog.debug("Preparing to send request body: {s}", .{if (request < 100) request else request[0..100] ++ "..."});
 
     var body = std.ArrayList(u8).init(self.allocator);
@@ -1497,7 +1589,11 @@ pub fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) S
     }
 }
 // Sends specific block_number requests.
-fn sendBlockNumberRequest(self: *PubClient, opts: BlockNumberRequest, method: EthereumRpcMethods) BasicRequestErrors!RPCResponse(usize) {
+fn sendBlockNumberRequest(
+    self: *PubClient,
+    opts: BlockNumberRequest,
+    method: EthereumRpcMethods,
+) BasicRequestErrors!RPCResponse(usize) {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
@@ -1524,7 +1620,11 @@ fn sendBlockNumberRequest(self: *PubClient, opts: BlockNumberRequest, method: Et
     return self.sendRpcRequest(usize, buf_writter.getWritten());
 }
 // Sends specific block_hash requests.
-fn sendBlockHashRequest(self: *PubClient, block_hash: Hash, method: EthereumRpcMethods) BasicRequestErrors!RPCResponse(usize) {
+fn sendBlockHashRequest(
+    self: *PubClient,
+    block_hash: Hash,
+    method: EthereumRpcMethods,
+) BasicRequestErrors!RPCResponse(usize) {
     const request: EthereumRequest(struct { Hash }) = .{
         .params = .{block_hash},
         .method = method,
@@ -1539,7 +1639,12 @@ fn sendBlockHashRequest(self: *PubClient, block_hash: Hash, method: EthereumRpcM
     return self.sendRpcRequest(usize, buf_writter.getWritten());
 }
 // Sends request specific for addresses.
-fn sendAddressRequest(self: *PubClient, comptime T: type, opts: BalanceRequest, method: EthereumRpcMethods) BasicRequestErrors!RPCResponse(T) {
+fn sendAddressRequest(
+    self: *PubClient,
+    comptime T: type,
+    opts: BalanceRequest,
+    method: EthereumRpcMethods,
+) BasicRequestErrors!RPCResponse(T) {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
@@ -1566,7 +1671,11 @@ fn sendAddressRequest(self: *PubClient, comptime T: type, opts: BalanceRequest, 
     return self.sendRpcRequest(T, buf_writter.getWritten());
 }
 // Sends requests where the params are empty.
-fn sendBasicRequest(self: *PubClient, comptime T: type, method: EthereumRpcMethods) BasicRequestErrors!RPCResponse(T) {
+fn sendBasicRequest(
+    self: *PubClient,
+    comptime T: type,
+    method: EthereumRpcMethods,
+) BasicRequestErrors!RPCResponse(T) {
     const request: EthereumRequest(Tuple(&[_]type{})) = .{
         .params = .{},
         .method = method,
@@ -1581,7 +1690,13 @@ fn sendBasicRequest(self: *PubClient, comptime T: type, method: EthereumRpcMetho
     return self.sendRpcRequest(T, buf_writter.getWritten());
 }
 // Sends eth_call request
-fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, opts: BlockNumberRequest, method: EthereumRpcMethods) BasicRequestErrors!RPCResponse(T) {
+fn sendEthCallRequest(
+    self: *PubClient,
+    comptime T: type,
+    call_object: EthCall,
+    opts: BlockNumberRequest,
+    method: EthereumRpcMethods,
+) BasicRequestErrors!RPCResponse(T) {
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [8 * 1024]u8 = undefined;
@@ -1608,7 +1723,11 @@ fn sendEthCallRequest(self: *PubClient, comptime T: type, call_object: EthCall, 
     return self.sendRpcRequest(T, buf_writter.getWritten());
 }
 /// Internal PubClient fetch. Optimized for our use case.
-fn internalFetch(self: *PubClient, payload: []const u8, body: *std.ArrayList(u8)) FetchErrors!FetchResult {
+fn internalFetch(
+    self: *PubClient,
+    payload: []const u8,
+    body: *std.ArrayList(u8),
+) FetchErrors!FetchResult {
     var server_header_buffer: [16 * 1024]u8 = undefined;
     const uri = self.network_config.getNetworkUri() orelse return error.InvalidEndpointConfig;
 
@@ -1644,7 +1763,11 @@ fn internalFetch(self: *PubClient, payload: []const u8, body: *std.ArrayList(u8)
     };
 }
 
-fn parseRPCEvent(self: *PubClient, comptime T: type, request: []const u8) ParseEventErrors!RPCResponse(T) {
+fn parseRPCEvent(
+    self: *PubClient,
+    comptime T: type,
+    request: []const u8,
+) ParseEventErrors!RPCResponse(T) {
     const parsed = std.json.parseFromSlice(
         EthereumResponse(T),
         self.allocator,

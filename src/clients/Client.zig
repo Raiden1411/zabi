@@ -1457,7 +1457,7 @@ pub fn uninstallFilter(self: *PubClient, id: usize) !RPCResponse(bool) {
 /// Writes request to RPC server and parses the response according to the provided type.
 /// Handles 429 errors but not the rest.
 pub fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) SendRpcRequestErrors!RPCResponse(T) {
-    httplog.debug("Preparing to send request body: {s}", .{if (request < 100) request else request[0..100]});
+    httplog.debug("Preparing to send request body: {s}", .{if (request < 100) request else request[0..100] ++ "..."});
 
     var body = std.ArrayList(u8).init(self.allocator);
     defer body.deinit();
@@ -1474,7 +1474,7 @@ pub fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) S
                 const res_body = try body.toOwnedSlice();
                 defer self.allocator.free(res_body);
 
-                httplog.debug("Got response from server: {s}", .{if (res_body < 100) res_body else res_body[0..100]});
+                httplog.debug("Got response from server: {s}", .{if (res_body < 100) res_body else res_body[0..100] ++ "..."});
 
                 return self.parseRPCEvent(T, res_body);
             },

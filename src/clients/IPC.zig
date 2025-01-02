@@ -1251,7 +1251,7 @@ pub fn readLoop(self: *IPC) ReadLoopErrors!void {
             else => return,
         };
 
-        ipclog.debug("Got message: {s}", .{if (message < 100) message else message[0..100]});
+        ipclog.debug("Got message: {s}", .{if (message < 100) message else message[0..100] ++ "..."});
 
         const parsed = self.parseRPCEvent(message) catch {
             if (self.onError) |onError| {

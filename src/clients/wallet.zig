@@ -957,7 +957,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             self: *WalletSelf,
             search_opts: TransactionEnvelopePool.SearchCriteria,
         ) (SendSignedTransactionErrors || AssertionErrors || error{TransactionNotFoundInPool})!RPCResponse(Hash) {
-            const prepared = self.envelopes_pool.findTransactionEnvelope(self.allocator, search_opts) orelse return error.TransactionNotFoundInPool;
+            const prepared = self.envelopes_pool.findTransactionEnvelope(self.allocator, search_opts) orelse
+                return error.TransactionNotFoundInPool;
 
             try self.assertTransaction(prepared);
 
@@ -977,7 +978,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             if (!trusted_setup.loaded)
                 return error.TrustedSetupNotLoaded;
 
-            const prepared = self.envelopes_pool.getLastElementFromPool(self.allocator) orelse try self.prepareTransaction(unprepared_envelope);
+            const prepared = self.envelopes_pool.getLastElementFromPool(self.allocator) orelse
+                try self.prepareTransaction(unprepared_envelope);
 
             try self.assertTransaction(prepared);
 
@@ -1003,7 +1005,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             if (unprepared_envelope.type != .cancun)
                 return error.InvalidTransactionType;
 
-            const prepared = self.envelopes_pool.getLastElementFromPool(self.allocator) orelse try self.prepareTransaction(unprepared_envelope);
+            const prepared = self.envelopes_pool.getLastElementFromPool(self.allocator) orelse
+                try self.prepareTransaction(unprepared_envelope);
 
             try self.assertTransaction(prepared);
 
@@ -1046,7 +1049,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             self: *WalletSelf,
             unprepared_envelope: UnpreparedTransactionEnvelope,
         ) (SendSignedTransactionErrors || AssertionErrors || PrepareError)!RPCResponse(Hash) {
-            const prepared = self.envelopes_pool.getLastElementFromPool(self.allocator) orelse try self.prepareTransaction(unprepared_envelope);
+            const prepared = self.envelopes_pool.getLastElementFromPool(self.allocator) orelse
+                try self.prepareTransaction(unprepared_envelope);
 
             try self.assertTransaction(prepared);
 
@@ -1089,9 +1093,8 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                 if (nonce) |nonce_unwrapped|
                     break :nonce nonce_unwrapped;
 
-                if (self.nonce_manager) |*manager| {
+                if (self.nonce_manager) |*manager|
                     break :nonce try manager.getNonce(self.rpc_client);
-                }
 
                 const rpc_nonce = try self.rpc_client.getAddressTransactionCount(.{
                     .tag = .pending,
@@ -1157,7 +1160,13 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             domain: ?TypedDataDomain,
             message: anytype,
         ) (Signer.SigningErrors || EIP712Errors)!Signature {
-            return self.signer.sign(try eip712.hashTypedData(self.allocator, eip_types, primary_type, domain, message));
+            return self.signer.sign(try eip712.hashTypedData(
+                self.allocator,
+                eip_types,
+                primary_type,
+                domain,
+                message,
+            ));
         }
         /// Verifies if the auth message was signed by the provided address.\
         /// To reconstruct the message use `authMessageEip3074`.
@@ -1225,7 +1234,13 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             domain: ?TypedDataDomain,
             message: anytype,
         ) (EIP712Errors || Signer.RecoverPubKeyErrors)!bool {
-            const hash = try eip712.hashTypedData(self.allocator, eip712_types, primary_type, domain, message);
+            const hash = try eip712.hashTypedData(
+                self.allocator,
+                eip712_types,
+                primary_type,
+                domain,
+                message,
+            );
 
             const address: u160 = @bitCast(try Signer.recoverAddress(sig, hash));
             const wallet_address: u160 = @bitCast(self.getWalletAddress());

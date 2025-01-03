@@ -72,9 +72,9 @@ curl -L https://foundry.paradigm.xyz | bash
 To fork an Ethereum node, in a new terminal, run the following command:
 
 ```bash
-anvil --fork-url https://<your-ethereum-rpc-node-endpoint> -p 6969
+anvil --fork-url https://<your-ethereum-rpc-node-endpoint> -p 6969 --ipc
 ```
-which will start the service on https://127.0.0.1:6969, the default address for the Zabi library test suite.
+which will start the service on `https://127.0.0.1:6969` and `/tmp/anvil.ipc`, which are the default addresses for the Zabi library test suite.
 
 <div align="right">
   <a href="#basic-guide">&uarr; back to top</a></b>

@@ -150,9 +150,9 @@ pub fn main() !void {
         var iter = std.mem.splitScalar(u8, test_runner.name, '.');
 
         try runner.writeModuleName(iter.first());
-        if (iter.next()) |file_name| 
+        if (iter.next()) |file_name|
             try runner.writeFileName(file_name);
-        
+
         try runner.writeTestName(iter.rest());
 
         if (test_runner.func()) |_| try runner.writeSuccess() else |err| switch (err) {

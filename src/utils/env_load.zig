@@ -60,10 +60,13 @@ pub const Tokenizer = struct {
     }
     /// Advances the tokenizer's state and produces a single token.
     pub fn next(self: *Tokenizer) Token {
-        var result: Token = .{ .token = undefined, .location = .{
-            .start = self.index,
-            .end = undefined,
-        } };
+        var result: Token = .{
+            .token = undefined,
+            .location = .{
+                .start = self.index,
+                .end = undefined,
+            },
+        };
 
         state: switch (State.start) {
             .start => switch (self.buffer[self.index]) {
@@ -171,8 +174,8 @@ pub const Tokenizer = struct {
                 0,
                 '\'',
                 '"',
-                => {},
                 '\n',
+                => {},
                 '\r',
                 '\t',
                 ' ',
@@ -223,7 +226,7 @@ pub const ParserEnv = struct {
         const identifier_index = try self.parseIdentifier();
         _ = try self.parseValue();
 
-        var tokenizer = Tokenizer{
+        var tokenizer: Tokenizer = .{
             .buffer = self.source,
             .index = self.token_starts[identifier_index],
         };

@@ -506,6 +506,7 @@ const Runner = struct {
     }
 };
 
+// Run the docs generation.
 pub fn main() RunnerErrors!void {
     const allocator = std.heap.c_allocator;
     const runner = Runner.init(allocator);

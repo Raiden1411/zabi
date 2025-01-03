@@ -61,7 +61,7 @@ const Runner = struct {
         try self.color_stream.applyReset();
     }
     /// Writes the test object name.
-    pub fn writeObjectName(self: *Self, object: []const u8) ColorWriterStream.Error!void {
+    pub fn writeFileName(self: *Self, object: []const u8) ColorWriterStream.Error!void {
         self.color_stream.setNextColor(.blue);
         try self.color_stream.writer().print("|{s}|", .{object});
         try self.color_stream.applyReset();
@@ -150,9 +150,9 @@ pub fn main() !void {
         var iter = std.mem.splitScalar(u8, test_runner.name, '.');
 
         try runner.writeModuleName(iter.first());
-        if (iter.next()) |n| {
-            try runner.writeObjectName(n);
-        }
+        if (iter.next()) |file_name| 
+            try runner.writeFileName(file_name);
+        
         try runner.writeTestName(iter.rest());
 
         if (test_runner.func()) |_| try runner.writeSuccess() else |err| switch (err) {

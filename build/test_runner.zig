@@ -150,8 +150,6 @@ pub fn main() !void {
                 try runner.writeFail();
                 if (@errorReturnTrace()) |trace|
                     std.debug.dumpStackTrace(trace.*);
-
-                break;
             },
         }
 

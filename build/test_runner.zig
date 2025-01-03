@@ -170,8 +170,7 @@ fn startAnvilInstances(allocator: std.mem.Allocator) !void {
 
     anvil.initClient(.{ .allocator = allocator });
 
-    try anvil.reset(.{ .forking = .{
-        .jsonRpcUrl = mainnet,
-        .blockNumber = 19062632,
-    } });
+    try anvil.reset(.{
+        .forking = .{ .jsonRpcUrl = mainnet },
+    });
 }

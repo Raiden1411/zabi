@@ -4,6 +4,26 @@ const testing = std.testing;
 const utils = @import("zabi").utils.utils;
 
 const ENSClient = @import("zabi").ens.client.ENSClient;
+const Anvil = @import("zabi").clients.Anvil;
+
+test "Reset Anvil" {
+    const mainnet = try std.process.getEnvVarOwned(testing.allocator, "ANVIL_FORK_URL");
+    defer testing.allocator.free(mainnet);
+
+    var anvil: Anvil = undefined;
+    defer anvil.deinit();
+
+    anvil.initClient(.{
+        .allocator = testing.allocator,
+    });
+
+    try anvil.reset(.{
+        .forking = .{
+            .jsonRpcUrl = mainnet,
+            .blockNumber = 19062632,
+        },
+    });
+}
 
 test "ENS Text" {
     var ens = try ENSClient(.http).init(

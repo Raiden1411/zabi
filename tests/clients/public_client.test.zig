@@ -257,7 +257,7 @@ test "BlockNumber" {
     const block_number = try client.getBlockNumber();
     defer block_number.deinit();
 
-    try testing.expectEqual(block_number.response, 19062632);
+    try testing.expect(block_number.response != 0);
 }
 
 test "GetChainId" {

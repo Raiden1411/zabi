@@ -50,6 +50,8 @@ const Runner = struct {
             try self.color_stream.writer().writeAll("warning: ");
             self.color_stream.setNextColor(.bold);
             try self.color_stream.writer().writeAll("Test will run but client tests might fail\n\n");
+
+            std.time.sleep(std.time.ns_per_s);
         };
     }
     /// Writes the test module name.

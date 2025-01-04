@@ -35,7 +35,10 @@ pub fn AbiParsed(comptime T: type) type {
 /// The return value will depend on the abi type selected.
 /// The function will return an error if the provided type doesn't match the
 /// tokens from the provided signature
-pub fn parseHumanReadable(alloc: Allocator, source: [:0]const u8) HumanAbi.Errors!AbiParsed(Abi) {
+pub fn parseHumanReadable(
+    alloc: Allocator,
+    source: [:0]const u8,
+) HumanAbi.Errors!AbiParsed(Abi) {
     std.debug.assert(source.len > 0);
 
     var abi_parsed = AbiParsed(Abi){

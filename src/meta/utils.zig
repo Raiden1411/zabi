@@ -33,7 +33,10 @@ pub fn ConvertToEnum(comptime T: type) type {
 /// The needle can be just the tagName of a single member or a comma seperated value.
 ///
 /// Compilation will fail if a invalid needle is provided.
-pub fn Extract(comptime T: type, comptime needle: []const u8) type {
+pub fn Extract(
+    comptime T: type,
+    comptime needle: []const u8,
+) type {
     if (std.meta.activeTag(@typeInfo(T)) != .@"enum")
         @compileError("Only supported for enum types");
 
@@ -75,7 +78,10 @@ pub fn Extract(comptime T: type, comptime needle: []const u8) type {
     });
 }
 /// Merge structs into a single one
-pub fn MergeStructs(comptime T: type, comptime K: type) type {
+pub fn MergeStructs(
+    comptime T: type,
+    comptime K: type,
+) type {
     const info_t = @typeInfo(T);
     const info_k = @typeInfo(K);
 
@@ -108,7 +114,10 @@ pub fn MergeStructs(comptime T: type, comptime K: type) type {
     });
 }
 /// Merge tuple structs
-pub fn MergeTupleStructs(comptime T: type, comptime K: type) type {
+pub fn MergeTupleStructs(
+    comptime T: type,
+    comptime K: type,
+) type {
     const info_t = @typeInfo(T);
     const info_k = @typeInfo(K);
 
@@ -237,7 +246,10 @@ pub fn StructToTupleType(comptime T: type) type {
     });
 }
 /// Omits the selected keys from struct types.
-pub fn Omit(comptime T: type, comptime keys: []const []const u8) type {
+pub fn Omit(
+    comptime T: type,
+    comptime keys: []const []const u8,
+) type {
     const info = @typeInfo(T);
 
     if (info != .@"struct" and info.@"struct".is_tuple)

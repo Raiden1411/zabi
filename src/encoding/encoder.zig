@@ -85,7 +85,7 @@ pub fn encodeAbiFunction(
     comptime func: Function,
     allocator: Allocator,
     values: AbiParametersToPrimative(func.inputs),
-) EncodeErrors![]u8 {
+) (AbiEncoder.Errors || error{NoSpaceLeft})![]u8 {
     var buffer: [256]u8 = undefined;
 
     var stream = std.io.fixedBufferStream(&buffer);
@@ -107,7 +107,7 @@ pub fn encodeAbiFunctionOutputs(
     comptime func: Function,
     allocator: Allocator,
     values: AbiParametersToPrimative(func.outputs),
-) Allocator.Error![]u8 {
+) AbiEncoder.Errors![]u8 {
     return encodeAbiParameters(func.outputs, allocator, values);
 }
 /// Encode an Solidity `Error` type with the signature and the values encoded.
@@ -116,7 +116,7 @@ pub fn encodeAbiError(
     comptime err: Error,
     allocator: Allocator,
     values: AbiParametersToPrimative(err.inputs),
-) EncodeErrors![]u8 {
+) (AbiEncoder.Errors || error{NoSpaceLeft})![]u8 {
     var buffer: [256]u8 = undefined;
 
     var stream = std.io.fixedBufferStream(&buffer);
@@ -137,7 +137,7 @@ pub fn encodeAbiConstructor(
     comptime constructor: Constructor,
     allocator: Allocator,
     values: AbiParametersToPrimative(constructor.inputs),
-) Allocator.Error![]u8 {
+) AbiEncoder.Errors![]u8 {
     return encodeAbiParameters(constructor.inputs, allocator, values);
 }
 /// Encodes the `values` based on the [specification](https://docs.soliditylang.org/en/develop/abi-spec.html#use-of-dynamic-types)
@@ -147,7 +147,7 @@ pub fn encodeAbiParameters(
     comptime params: []const AbiParameter,
     allocator: Allocator,
     values: AbiParametersToPrimative(params),
-) Allocator.Error![]u8 {
+) AbiEncoder.Errors![]u8 {
     var encoder: AbiEncoder = .empty;
     try encoder.preEncodeAbiParameters(params, allocator, values);
 
@@ -162,7 +162,7 @@ pub fn encodeAbiParameters(
 pub fn encodeAbiParametersValues(
     allocator: Allocator,
     values: []const AbiEncodedValues,
-) (Allocator.Error || error{InvalidType})![]u8 {
+) (AbiEncoder.Errors || error{InvalidType})![]u8 {
     var encoder: AbiEncoder = .empty;
     try encoder.preEncodeRuntimeValues(allocator, values);
 
@@ -192,7 +192,7 @@ pub fn encodeAbiParametersValues(
 pub fn encodeAbiParametersFromReflection(
     allocator: Allocator,
     values: anytype,
-) Allocator.Error![]u8 {
+) AbiEncoder.Errors![]u8 {
     var encoder: AbiEncoder = .empty;
     try encoder.preEncodeValuesFromReflection(allocator, values);
 
@@ -222,7 +222,7 @@ pub fn encodeAbiParametersFromReflection(
 pub fn encodePacked(
     allocator: Allocator,
     value: anytype,
-) Allocator.Error![]u8 {
+) EncodePacked.Errors![]u8 {
     var encoder: EncodePacked = .init(allocator, .static);
     errdefer encoder.list.deinit();
 
@@ -240,6 +240,9 @@ pub fn encodePacked(
 /// ```
 pub const AbiEncoder = struct {
     pub const Self = @This();
+
+    /// Set of possible error when running this encoder.
+    pub const Errors = error{ DivisionByZero, Overflow } || Allocator.Error;
 
     /// Sets the initial state of the encoder.
     pub const empty: Self = .{
@@ -271,7 +274,7 @@ pub const AbiEncoder = struct {
         self: *Self,
         allocator: Allocator,
         values: anytype,
-    ) Allocator.Error![]u8 {
+    ) Errors![]u8 {
         try self.preEncodeValuesFromReflection(allocator, values);
 
         return self.encodePointers(allocator);
@@ -283,7 +286,7 @@ pub const AbiEncoder = struct {
         self: *Self,
         allocator: Allocator,
         values: []const AbiEncodedValues,
-    ) Allocator.Error![]u8 {
+    ) Errors![]u8 {
         try self.preEncodeRuntimeValues(allocator, values);
 
         return self.encodePointers(allocator);
@@ -296,14 +299,17 @@ pub const AbiEncoder = struct {
         comptime params: []const AbiParameter,
         allocator: Allocator,
         values: AbiParametersToPrimative(params),
-    ) Allocator.Error![]u8 {
+    ) Errors![]u8 {
         try self.preEncodeAbiParameters(params, allocator, values);
 
         return self.encodePointers(allocator);
     }
     /// Re-arranges the inner stack based on if the value that it's dealing with is either dynamic or now.
     /// Places those values in the `heads` or `tails` streams based on that.
-    pub fn encodePointers(self: *Self, allocator: Allocator) Allocator.Error![]u8 {
+    pub fn encodePointers(
+        self: *Self,
+        allocator: Allocator,
+    ) Allocator.Error![]u8 {
         const slice = try self.pre_encoded.toOwnedSlice(allocator);
         defer {
             for (slice) |elem| elem.deinit(allocator);
@@ -337,15 +343,14 @@ pub const AbiEncoder = struct {
         comptime params: []const AbiParameter,
         allocator: Allocator,
         values: AbiParametersToPrimative(params),
-    ) Allocator.Error!void {
+    ) Errors!void {
         if (@TypeOf(values) == void)
             return;
 
         try self.pre_encoded.ensureUnusedCapacity(allocator, values.len);
 
-        inline for (params, values) |param, value| {
+        inline for (params, values) |param, value|
             try self.preEncodeAbiParameter(param, allocator, value);
-        }
     }
     /// Encodes a single value and places them on the `inner` stack.
     pub fn preEncodeAbiParameter(
@@ -353,7 +358,7 @@ pub const AbiEncoder = struct {
         comptime param: AbiParameter,
         allocator: Allocator,
         value: AbiParameterToPrimative(param),
-    ) Allocator.Error!void {
+    ) Errors!void {
         switch (param.type) {
             .bool => {
                 const encoded = encodeBoolean(value);
@@ -514,12 +519,11 @@ pub const AbiEncoder = struct {
         self: *Self,
         allocator: Allocator,
         values: []const AbiEncodedValues,
-    ) (error{InvalidType} || Allocator.Error)!void {
+    ) (Errors || error{InvalidType})!void {
         try self.pre_encoded.ensureUnusedCapacity(allocator, values.len);
 
-        for (values) |value| {
+        for (values) |value|
             try self.preEncodeRuntimeValue(allocator, value);
-        }
     }
     /// Pre encodes the parameter value according to the specification and places it on `pre_encoded` arraylist.
     ///
@@ -529,7 +533,7 @@ pub const AbiEncoder = struct {
         self: *Self,
         allocator: Allocator,
         value: AbiEncodedValues,
-    ) (error{InvalidType} || Allocator.Error)!void {
+    ) (Errors || error{InvalidType})!void {
         switch (value) {
             .bool => |val| {
                 const encoded = encodeBoolean(val);
@@ -681,7 +685,11 @@ pub const AbiEncoder = struct {
     }
     /// This will use zig's ability to provide compile time reflection based on the `values` provided.
     /// The `values` must be a tuple struct. Otherwise it will trigger a compile error.
-    pub fn preEncodeValuesFromReflection(self: *Self, allocator: Allocator, values: anytype) Allocator.Error!void {
+    pub fn preEncodeValuesFromReflection(
+        self: *Self,
+        allocator: Allocator,
+        values: anytype,
+    ) Errors!void {
         const info = @typeInfo(@TypeOf(values));
 
         if (info != .@"struct" or !info.@"struct".is_tuple)
@@ -694,7 +702,11 @@ pub const AbiEncoder = struct {
         }
     }
     /// This will use zig's ability to provide compile time reflection based on the `value` provided.
-    pub fn preEncodeReflection(self: *Self, allocator: Allocator, value: anytype) Allocator.Error!void {
+    pub fn preEncodeReflection(
+        self: *Self,
+        allocator: Allocator,
+        value: anytype,
+    ) Errors!void {
         const info = @typeInfo(@TypeOf(value));
 
         switch (info) {
@@ -869,13 +881,19 @@ pub const AbiEncoder = struct {
 
 /// Similar to `AbiEncoder` but used for packed encoding.
 pub const EncodePacked = struct {
+    /// Set of possible error when running this encoder.
+    pub const Errors = error{ DivisionByZero, Overflow } || Allocator.Error;
+
     /// Changes the encoder behaviour based on the type of the parameter.
     param_type: ParameterType,
     /// List that is used to write the encoded values too.
     list: ArrayList(u8),
 
     /// Sets the initial state of the encoder.
-    pub fn init(allocator: Allocator, param_type: ParameterType) EncodePacked {
+    pub fn init(
+        allocator: Allocator,
+        param_type: ParameterType,
+    ) EncodePacked {
         const list = ArrayList(u8).init(allocator);
 
         return .{
@@ -885,14 +903,20 @@ pub const EncodePacked = struct {
     }
     /// Abi encodes the values. If the values are dynamic all of the child values
     /// will be encoded as 32 sized values with the expection of []u8 slices.
-    pub fn encodePacked(self: *EncodePacked, value: anytype) Allocator.Error![]u8 {
+    pub fn encodePacked(
+        self: *EncodePacked,
+        value: anytype,
+    ) Errors![]u8 {
         try self.list.ensureUnusedCapacity(@sizeOf(@TypeOf(value)));
         try self.encodePackedValue(value);
 
         return self.list.toOwnedSlice();
     }
     /// Handles the encoding based on the value type and writes them to the list.
-    pub fn encodePackedValue(self: *EncodePacked, value: anytype) Allocator.Error!void {
+    pub fn encodePackedValue(
+        self: *EncodePacked,
+        value: anytype,
+    ) Errors!void {
         const info = @typeInfo(@TypeOf(value));
         const writer = self.list.writer();
 
@@ -965,7 +989,10 @@ pub const EncodePacked = struct {
         }
     }
     /// Used to change the type of value it's dealing with.
-    pub fn changeParameterType(self: *EncodePacked, param_type: ParameterType) void {
+    pub fn changeParameterType(
+        self: *EncodePacked,
+        param_type: ParameterType,
+    ) void {
         self.param_type = param_type;
     }
 };
@@ -995,7 +1022,10 @@ pub fn encodeAddress(address: Address) [32]u8 {
     return buffer;
 }
 /// Encodes an bytes1..32 value according to the abi encoding specification.
-pub fn encodeFixedBytes(comptime size: usize, payload: [size]u8) [32]u8 {
+pub fn encodeFixedBytes(
+    comptime size: usize,
+    payload: [size]u8,
+) [32]u8 {
     assert(size <= 32);
     const IntType = std.meta.Int(.unsigned, size * 8);
 
@@ -1005,9 +1035,12 @@ pub fn encodeFixedBytes(comptime size: usize, payload: [size]u8) [32]u8 {
     return buffer;
 }
 /// Encodes an solidity string or bytes value according to the abi encoding specification.
-pub fn encodeString(allocator: Allocator, payload: []const u8) Allocator.Error![]u8 {
-    const ceil: usize = @intFromFloat(@ceil(@as(f32, @floatFromInt(payload.len))) / 32);
-    const padded_size = (ceil + 1) * 32;
+pub fn encodeString(
+    allocator: Allocator,
+    payload: []const u8,
+) (error{ DivisionByZero, Overflow } || Allocator.Error)![]u8 {
+    const ceil = try std.math.divCeil(usize, payload.len, 32);
+    const padded_size = ceil * 32;
 
     var list = try std.ArrayList(u8).initCapacity(allocator, padded_size + 32);
     errdefer list.deinit();

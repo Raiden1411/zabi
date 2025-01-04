@@ -31,7 +31,10 @@ pub const CallAction = struct {
     is_static: bool,
 
     /// Creates an instance for this action.
-    pub fn init(tx_env: TxEnviroment, gas_limit: u64) ?CallAction {
+    pub fn init(
+        tx_env: TxEnviroment,
+        gas_limit: u64,
+    ) ?CallAction {
         const target = switch (tx_env.transact_to) {
             .call => |address| address,
             .create => return null,
@@ -89,7 +92,10 @@ pub const CreateAction = struct {
     gas_limit: u64,
 
     /// Creates an instance for this action.
-    pub fn init(tx_env: TxEnviroment, gas_limit: u64) ?CallAction {
+    pub fn init(
+        tx_env: TxEnviroment,
+        gas_limit: u64,
+    ) ?CallAction {
         switch (tx_env.transact_to) {
             .call => {},
             .create => return null,

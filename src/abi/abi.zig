@@ -103,7 +103,7 @@ pub const Function = struct {
         comptime self: @This(),
         allocator: Allocator,
         values: AbiParametersToPrimative(self.inputs),
-    ) EncodeErrors![]u8 {
+    ) (AbiEncoder.Errors || error{NoSpaceLeft})![]u8 {
         return encoder.encodeAbiFunction(self, allocator, values);
     }
     /// Encode the struct signature based on the values provided.
@@ -116,7 +116,7 @@ pub const Function = struct {
         comptime self: @This(),
         allocator: Allocator,
         values: AbiParametersToPrimative(self.outputs),
-    ) Allocator.Error![]u8 {
+    ) AbiEncoder.Errors![]u8 {
         return encoder.encodeAbiFunctionOutputs(self, allocator, values);
     }
 
@@ -341,7 +341,7 @@ pub const Error = struct {
         comptime self: @This(),
         allocator: Allocator,
         values: AbiParametersToPrimative(self.inputs),
-    ) EncodeErrors![]u8 {
+    ) (AbiEncoder.Errors || error{NoSpaceLeft})![]u8 {
         return encoder.encodeAbiError(self, allocator, values);
     }
     /// Decode a encoded error based on itself.
@@ -444,7 +444,7 @@ pub const Constructor = struct {
         comptime self: @This(),
         allocator: Allocator,
         values: AbiParametersToPrimative(self.inputs),
-    ) EncodeErrors![]u8 {
+    ) AbiEncoder.Errors![]u8 {
         return encoder.encodeAbiParameters(self.inputs, allocator, values);
     }
     /// Decode a encoded constructor arguments based on itself.

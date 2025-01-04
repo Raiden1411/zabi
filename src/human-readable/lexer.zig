@@ -32,12 +32,20 @@ pub const Lexer = struct {
         };
     }
 
-    pub fn reset(self: *Lexer, newText: []const u8, pos: ?u32) void {
+    pub fn reset(
+        self: *Lexer,
+        newText: []const u8,
+        pos: ?u32,
+    ) void {
         self.currentText = newText;
         self.position = pos orelse 0;
     }
 
-    pub fn tokenSlice(self: *Lexer, start: usize, end: usize) []const u8 {
+    pub fn tokenSlice(
+        self: *Lexer,
+        start: usize,
+        end: usize,
+    ) []const u8 {
         return self.currentText[start..end];
     }
 

@@ -50,7 +50,12 @@ pub const Contract = struct {
 
     /// Creates a contract instance from a given enviroment.
     /// This will also prepare the provided bytecode in case it's given in a `raw` state.
-    pub fn initFromEnviroment(allocator: Allocator, env: EVMEnviroment, bytecode: Bytecode, hash: ?Hash) Allocator.Error!Contract {
+    pub fn initFromEnviroment(
+        allocator: Allocator,
+        env: EVMEnviroment,
+        bytecode: Bytecode,
+        hash: ?Hash,
+    ) Allocator.Error!Contract {
         const analyzed = try analysis.analyzeBytecode(allocator, bytecode);
         const contract_address = switch (env.tx.transact_to) {
             .call => |addr| addr,
@@ -68,12 +73,18 @@ pub const Contract = struct {
     }
 
     /// Clears the bytecode in case it's analyzed.
-    pub fn deinit(self: @This(), allocator: Allocator) void {
+    pub fn deinit(
+        self: @This(),
+        allocator: Allocator,
+    ) void {
         self.bytecode.deinit(allocator);
     }
 
     /// Returns if the provided target result in a valid jump dest.
-    pub fn isValidJump(self: Contract, target: usize) bool {
+    pub fn isValidJump(
+        self: Contract,
+        target: usize,
+    ) bool {
         const jump_table = self.bytecode.getJumpTable() orelse return false;
 
         return jump_table.isValid(target);

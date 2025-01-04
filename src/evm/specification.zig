@@ -27,7 +27,10 @@ pub const SpecId = enum(u8) {
     LATEST = std.math.maxInt(u8),
 
     /// Checks if a given specification id is enabled.
-    pub fn enabled(self: SpecId, other: SpecId) bool {
+    pub fn enabled(
+        self: SpecId,
+        other: SpecId,
+    ) bool {
         return @intFromEnum(self) >= @intFromEnum(other);
     }
     /// Converts an `u8` to a specId. Return error if the u8 is not valid.
@@ -63,7 +66,10 @@ pub const OptimismSpecId = enum(u8) {
     LATEST = std.math.maxInt(u8),
 
     /// Checks if a given specification id is enabled.
-    pub fn enabled(self: OptimismSpecId, other: OptimismSpecId) bool {
+    pub fn enabled(
+        self: OptimismSpecId,
+        other: OptimismSpecId,
+    ) bool {
         return @intFromEnum(self) >= @intFromEnum(other);
     }
     /// Converts an `u8` to a specId. Return error if the u8 is not valid.

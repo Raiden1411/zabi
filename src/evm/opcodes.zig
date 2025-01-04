@@ -417,6 +417,10 @@ pub fn makeCreateInstruction(comptime is_create2: bool) *const fn (ctx: *Interpr
     }.log;
 }
 /// Callculates the max avaliable size of the stack for the operation to execute.
-pub fn maxStack(comptime limit: comptime_int, comptime pop: comptime_int, comptime push: comptime_int) usize {
+pub fn maxStack(
+    comptime limit: comptime_int,
+    comptime pop: comptime_int,
+    comptime push: comptime_int,
+) usize {
     return @intCast(limit + pop - push);
 }

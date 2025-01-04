@@ -129,9 +129,12 @@ When you're ready to submit a pull request, you can follow these naming conventi
 
 - Pull request titles use the [Imperative Mood](https://en.wikipedia.org/wiki/Imperative_mood) (e.g., `Add something`, `Fix something`).
 
-When you submit a pull request, GitHub will automatically lint, build, and test your changes. If you see an ❌, it's most likely a bug in your code. Please, inspect the logs through the GitHub UI to find the cause.
+- Example of a PR title `chore: update readme`. 
 
-The CI might also fail sometimes when it comes to the test runner. If running doesn't fix the problem then it's most likely a bug in your code.
+- It's also prefered that the commit messages also follow the format above. If the commit affect a specific module of zabi the start of the commit should reflect that.
+For example `evm: update something`. For build changes since since zabi has several build runners this should be referenced in the commit like so `build(test-runner): changed something`.
+
+When you submit a pull request, GitHub will automatically build, check formatting and test your changes. If you see an ❌, it's most likely a bug in your code. Please, inspect the logs through the GitHub UI to find the cause.
 
 <div align="right">
   <a href="#basic-guide">&uarr; back to top</a></b>

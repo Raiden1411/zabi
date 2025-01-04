@@ -139,7 +139,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             self: *L1,
             limit: usize,
             block_number: ?u256,
-        ) (L1Errors || error{ FaultProofsNotEnabled, Overflow, InvalidVersion })![]const GameResult {
+        ) (L1Errors || error{ FaultProofsNotEnabled, Overflow, InvalidVersion, DivisionByZero })![]const GameResult {
             const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
 
             const version = try self.getPortalVersion();

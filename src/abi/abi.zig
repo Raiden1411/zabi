@@ -79,7 +79,7 @@ pub const Function = struct {
         self: @This(),
         allocator: Allocator,
         values: anytype,
-    ) EncodeErrors![]u8 {
+    ) (AbiEncoder.Errors || error{NoSpaceLeft})![]u8 {
         var buffer: [256]u8 = undefined;
 
         var stream = std.io.fixedBufferStream(&buffer);
@@ -431,7 +431,7 @@ pub const Constructor = struct {
         self: @This(),
         allocator: Allocator,
         values: anytype,
-    ) EncodeErrors![]u8 {
+    ) AbiEncoder.Errors![]u8 {
         _ = self;
 
         return encoder.encodeAbiParametersFromReflection(allocator, values);

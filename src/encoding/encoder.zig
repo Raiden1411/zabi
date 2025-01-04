@@ -24,7 +24,7 @@ const Function = zabi_abi.abitypes.Function;
 const ParamType = zabi_abi.param_type.ParamType;
 
 /// Set of errors while perfoming abi encoding.
-pub const EncodeErrors = Allocator.Error || error{NoSpaceLeft};
+pub const EncodeErrors = AbiEncoder.Errors || error{NoSpaceLeft};
 
 /// Runtime value representation for abi encoding.
 pub const AbiEncodedValues = union(enum) {

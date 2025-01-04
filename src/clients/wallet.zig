@@ -14,6 +14,7 @@ const zabi_types = @import("zabi-types");
 const zabi_utils = @import("zabi-utils");
 
 // Types
+const AbiEncoder = encoder.AbiEncoder;
 const AccessList = transaction.AccessList;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
@@ -497,7 +498,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             invoker_address: Address,
             nonce: ?u64,
             commitment: Hash,
-        ) ClientType.BasicRequestErrors![]u8 {
+        ) (AbiEncoder.Errors || ClientType.BasicRequestErrors)![]u8 {
             const nonce_from: u256 = nonce: {
                 if (nonce) |nonce_unwrapped|
                     break :nonce @intCast(nonce_unwrapped);
@@ -1068,7 +1069,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             invoker_address: Address,
             nonce: ?u64,
             commitment: Hash,
-        ) (ClientType.BasicRequestErrors || Signer.SigningErrors)!Signature {
+        ) (AbiEncoder.Errors || ClientType.BasicRequestErrors || Signer.SigningErrors)!Signature {
             const message = try self.authMessageEip3074(invoker_address, nonce, commitment);
             defer self.allocator.free(message);
 

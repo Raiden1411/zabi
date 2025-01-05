@@ -177,18 +177,23 @@ pub fn stateVariableDecl(self: Ast, node: Node.Index) ast.StateVariableDecl {
 
     std.debug.assert(token_tags.len > state);
 
-    switch (token_tags[state]) {
-        .keyword_public => result.public = state,
-        .keyword_private => result.private = state,
-        .keyword_internal => result.internal = state,
-        .keyword_constant => result.constant = state,
-        .keyword_immutable => result.immutable = state,
-        .keyword_override => result.override = state,
-        else => {
-            if (nodes.len > state and nodes[state] == .override_specifier) {
-                result.override = self.nodes.items(.main_token)[state];
-            }
-        },
+    const modifier_range = self.extraData(state, Node.Range);
+    const modifier_node = self.extra_data[modifier_range.start..modifier_range.end];
+
+    for (modifier_node) |state_mod| {
+        switch (token_tags[state_mod]) {
+            .keyword_public => result.public = state_mod,
+            .keyword_private => result.private = state_mod,
+            .keyword_internal => result.internal = state_mod,
+            .keyword_constant => result.constant = state_mod,
+            .keyword_immutable => result.immutable = state_mod,
+            .keyword_override => result.override = state_mod,
+            else => {
+                if (nodes.len > state and nodes[state] == .override_specifier) {
+                    result.override = self.nodes.items(.main_token)[state];
+                }
+            },
+        }
     }
 
     return result;
@@ -1076,6 +1081,7 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
             => current_node = data[current_node].lhs,
             .modifier_specifiers,
             .specifiers,
+            .state_modifiers,
             => {
                 const extra = self.extraData(main_token[current_node], Node.Range);
 
@@ -1539,6 +1545,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
             .specifiers,
             .modifier_specifiers,
+            .state_modifiers,
             => {
                 const extra = self.extraData(main_token[current_node], Node.Range);
 
@@ -2375,6 +2382,9 @@ pub const Node = struct {
         /// rhs is the expression or null_node.
         state_variable_decl,
         constant_variable_decl,
+        /// main token is the state keywords range.
+        /// lhs and rhs are undefined.
+        state_modifiers,
     };
 
     /// Range used for params and others

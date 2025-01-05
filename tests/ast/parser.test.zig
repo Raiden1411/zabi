@@ -873,8 +873,8 @@ test "Uniswap V3" {
         \\}
         \\
         \\contract UniswapV3Liquidity is IERC721Receiver {
-        \\    IERC20 private dai = IERC20(DAI);
-        \\    IWETH private weth = IWETH(WETH);
+        \\    IERC20 private immutable dai = IERC20(DAI);
+        \\    IWETH private constant weth = IWETH(WETH);
         \\
         \\    int24 private MIN_TICK = -887272;
         \\    int24 private MAX_TICK = -MIN_TICK;

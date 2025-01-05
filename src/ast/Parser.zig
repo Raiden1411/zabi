@@ -749,16 +749,7 @@ pub fn parseStateVariableDecl(self: *Parser) ParserErrors!Node.Index {
     if (type_decl == 0)
         return null_node;
 
-    const state = switch (self.token_tags[self.token_index]) {
-        .keyword_public,
-        .keyword_private,
-        .keyword_internal,
-        .keyword_constant,
-        .keyword_immutable,
-        => self.nextToken(),
-        .keyword_override => try self.parseOverrideSpecifier(),
-        else => return null_node,
-    };
+    const state = try self.parseStateModifier();
 
     _ = try self.expectToken(.identifier);
 
@@ -792,6 +783,40 @@ pub fn parseStateVariableDecl(self: *Parser) ParserErrors!Node.Index {
         },
         else => return self.fail(.expected_semicolon),
     }
+}
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.stateVariableDeclaration)
+///
+/// Parses specifically the state modifiers since solidity can have multiple
+pub fn parseStateModifier(self: *Parser) ParserErrors!Node.Index {
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
+
+    while (true) {
+        switch (self.token_tags[self.token_index]) {
+            .keyword_public,
+            .keyword_private,
+            .keyword_internal,
+            .keyword_constant,
+            .keyword_immutable,
+            => try self.scratch.append(self.allocator, self.nextToken()),
+            .keyword_override => try self.scratch.append(
+                self.allocator,
+                try self.parseOverrideSpecifier(),
+            ),
+            else => break,
+        }
+    }
+
+    const slice = self.scratch.items[scratch..];
+
+    return self.addNode(.{
+        .tag = .state_modifiers,
+        .main_token = try self.addExtraData(try self.listToSpan(slice)),
+        .data = .{
+            .lhs = undefined,
+            .rhs = undefined,
+        },
+    });
 }
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionDefinition)
 pub fn parseFunctionSpecifiers(self: *Parser) ParserErrors!Node.Index {
@@ -876,7 +901,8 @@ pub fn parseModifierSpecifiers(self: *Parser) ParserErrors!Node.Index {
 }
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.overrideSpecifier)
 pub fn parseOverrideSpecifier(self: *Parser) ParserErrors!Node.Index {
-    const override = self.consumeToken(.keyword_override) orelse null_node;
+    const override = self.consumeToken(.keyword_override) orelse
+        return null_node;
 
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);

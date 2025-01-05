@@ -203,7 +203,10 @@ pub fn L1Client(comptime client_type: Clients) type {
             return list.toOwnedSlice();
         }
         /// Returns if a withdrawal has finalized or not.
-        pub fn getFinalizedWithdrawals(self: *L1, withdrawal_hash: Hash) (EncodeErrors || ClientType.BasicRequestErrors || error{ExpectOpStackContracts})!bool {
+        pub fn getFinalizedWithdrawals(
+            self: *L1,
+            withdrawal_hash: Hash,
+        ) (EncodeErrors || ClientType.BasicRequestErrors || error{ExpectOpStackContracts})!bool {
             const contracts = self.rpc_client.network_config.op_stack_contracts orelse return error.ExpectOpStackContracts;
 
             const encoded = try abi_items.get_finalized_withdrawal.encode(self.allocator, .{withdrawal_hash});

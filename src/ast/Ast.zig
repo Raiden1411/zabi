@@ -980,6 +980,7 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
             .@"return",
             .@"try",
             .@"catch",
+            .leave,
             .do_while,
             .user_defined_type,
             .mapping_decl,
@@ -1105,16 +1106,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
         switch (node_tags[current_node]) {
             .root => return @as(TokenIndex, @intCast(self.tokens.len - 1)),
 
-            .string_literal,
-            .number_literal,
-            .unreachable_node,
-            .increment,
-            .identifier,
-            .decrement,
-            .elementary_type,
-            .@"continue",
-            .@"break",
-            => return main_token[current_node] + end_offset,
+            .string_literal, .number_literal, .unreachable_node, .increment, .identifier, .decrement, .elementary_type, .@"continue", .@"break", .leave => return main_token[current_node] + end_offset,
 
             .number_literal_sub_denomination,
             => return data[current_node].lhs + end_offset,
@@ -2011,6 +2003,7 @@ pub const Node = struct {
         assign_bit_xor,
         /// `lhs := rhs`
         yul_assign,
+        yul_assign_multi,
         /// `lhs + rhs`
         add,
         /// `lhs - rhs`
@@ -2154,6 +2147,9 @@ pub const Node = struct {
         /// main token is keyword.
         /// both rhs and lhs are unused.
         @"continue",
+        /// main token is keyword.
+        /// both rhs and lhs are unused.
+        leave,
         /// main token is keyword.
         /// lhs is the expression to a call or call_one node.
         /// rhs is unused.
@@ -2385,6 +2381,17 @@ pub const Node = struct {
         /// main token is the state keywords range.
         /// lhs and rhs are undefined.
         state_modifiers,
+
+        assembly_decl,
+        assembly_flags,
+        asm_block,
+        asm_block_two,
+        yul_call,
+        yul_call_one,
+        yul_var_decl,
+        yul_var_decl_multi,
+        yul_if,
+        yul_for,
     };
 
     /// Range used for params and others
@@ -2597,5 +2604,9 @@ pub const Error = struct {
         expected_source_unit_expr,
         expected_operator,
         expected_return_type,
+        expected_yul_statement,
+        expected_yul_assignment,
+        expected_yul_expression,
+        expected_yul_function_call,
     };
 };

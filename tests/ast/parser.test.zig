@@ -468,6 +468,41 @@ test "Error" {
     }
 }
 
+test "EVM ASM" {
+    {
+        var tokens: Ast.TokenList = .{};
+        defer tokens.deinit(testing.allocator);
+
+        var parser: Parser = undefined;
+        defer parser.deinit();
+
+        const slice =
+            \\ assembly "evmasm" ("gooo") {
+            \\  fooo := 0x69
+            \\  bar, jazz := sload(0x60)
+            \\  let lol := 0x69
+            \\  let lol, bar := sload(0x69)
+            \\  if iszero(temp) { break }
+            \\  for { let temp := value } 1 {} {
+            \\  result := add(result, w)
+            \\  mstore8(add(result, 1), mload(and(temp, 15)))
+            \\  mstore8(result, mload(and(shr(4, temp), 15)))
+            \\  temp := shr(8, temp)
+            \\  if iszero(temp) { break }
+            \\  }
+            \\}
+        ;
+        try buildParser(slice, &tokens, &parser);
+
+        _ = try parser.parseAssemblyStatement();
+
+        for (parser.errors.items) |err|
+            std.debug.print("Foo: {}\n", .{err});
+
+        std.debug.print("FOOO: {any}\n", .{parser.nodes.items(.tag)});
+    }
+}
+
 test "It can parse a contract without errors" {
     const slice =
         \\   struct Voter {

@@ -944,6 +944,19 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
 
     while (true) {
         switch (node_tags[current_node]) {
+            .yul_if,
+            .yul_assign_multi,
+            .yul_var_decl,
+            .yul_var_decl_multi,
+            .yul_call,
+            .yul_call_one,
+            .yul_for,
+            .assembly_decl,
+            .assembly_flags,
+            .asm_block,
+            .asm_block_two,
+            => @panic("TODO"),
+
             .root => return 0,
 
             .using_directive,
@@ -1104,9 +1117,32 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
     while (true) {
         switch (node_tags[current_node]) {
+            .yul_if,
+            .yul_assign_multi,
+            .yul_var_decl,
+            .yul_var_decl_multi,
+            .yul_call,
+            .yul_call_one,
+            .yul_for,
+            .assembly_decl,
+            .assembly_flags,
+            .asm_block,
+            .asm_block_two,
+            => @panic("TODO"),
+
             .root => return @as(TokenIndex, @intCast(self.tokens.len - 1)),
 
-            .string_literal, .number_literal, .unreachable_node, .increment, .identifier, .decrement, .elementary_type, .@"continue", .@"break", .leave => return main_token[current_node] + end_offset,
+            .string_literal,
+            .number_literal,
+            .unreachable_node,
+            .increment,
+            .identifier,
+            .decrement,
+            .elementary_type,
+            .@"continue",
+            .@"break",
+            .leave,
+            => return main_token[current_node] + end_offset,
 
             .number_literal_sub_denomination,
             => return data[current_node].lhs + end_offset,
@@ -1614,6 +1650,18 @@ pub fn renderError(self: Ast, parsing_error: Error, writer: anytype) @TypeOf(wri
         .chained_comparison_operators => return writer.writeAll("comparison operators cannot be chained"),
         .already_seen_specifier => return writer.writeAll("specifier cannot be repeated"),
         .expected_expr => return writer.print("expected an expression but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_yul_expression => return writer.print("expected an yul expression but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_yul_function_call => return writer.print("expected an yul function call but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_yul_statement => return writer.print("expected an yul statement but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_yul_assignment => return writer.print("expected an yul assignment but found '{s}'", .{
             token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
         }),
         .expected_suffix => return writer.print("expected 'field_access' but found '{s}'", .{

@@ -170,9 +170,9 @@ pub fn expectSourceUnit(self: *Parser) ParserErrors!Node.Index {
 
     if (units == 0) {
         switch (self.token_tags[self.token_index]) {
-            .eof, .r_brace => {
-                return error.ParsingError;
-            },
+            .eof,
+            .r_brace,
+            => return error.ParsingError,
             else => return self.fail(.expected_source_unit_expr),
         }
     }
@@ -378,7 +378,7 @@ pub fn parseContractBlock(self: *Parser) ParserErrors!Node.Index {
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
     while (true) {
-        _ = self.consumeToken(.doc_comment_container);
+        while (self.consumeToken(.doc_comment_container)) |_| {}
         while (try self.consumeDocComments()) |_| {}
 
         if (self.token_tags[self.token_index] == .r_brace)
@@ -1213,7 +1213,7 @@ pub fn parseBlock(self: *Parser) ParserErrors!Node.Index {
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
     while (true) {
-        _ = self.consumeToken(.doc_comment_container);
+        while (self.consumeToken(.doc_comment_container)) |_| {}
         while (try self.consumeDocComments()) |_| {}
 
         if (self.token_tags[self.token_index] == .r_brace)
@@ -2308,10 +2308,9 @@ pub fn parseErrorParamDecls(self: *Parser) ParserErrors!Span {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
-    while (self.consumeToken(.doc_comment_container)) |_| {}
-
     while (true) {
-        _ = try self.consumeDocComments();
+        while (self.consumeToken(.doc_comment_container)) |_| {}
+        while (try self.consumeDocComments()) |_| {}
 
         if (self.consumeToken(.r_paren)) |_| break;
         const field = try self.expectErrorParam();
@@ -2423,7 +2422,7 @@ pub fn parseEventParamDecls(self: *Parser) ParserErrors!Span {
 
     while (true) {
         while (self.consumeToken(.doc_comment_container)) |_| {}
-        _ = try self.consumeDocComments();
+        while (try self.consumeDocComments()) |_| {}
 
         if (self.consumeToken(.r_paren)) |_| break;
         const field = try self.expectEventParam();
@@ -2523,10 +2522,9 @@ pub fn parseStructFields(self: *Parser) ParserErrors!Span {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
-    while (self.consumeToken(.doc_comment_container)) |_| {}
-
     while (true) {
-        _ = try self.consumeDocComments();
+        while (self.consumeToken(.doc_comment_container)) |_| {}
+        while (try self.consumeDocComments()) |_| {}
 
         if (self.consumeToken(.r_brace)) |_| break;
 
@@ -2580,10 +2578,9 @@ pub fn parseParseDeclList(self: *Parser) ParserErrors!Span {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
-    while (self.consumeToken(.doc_comment_container)) |_| {}
-
     while (true) {
-        _ = try self.consumeDocComments();
+        while (self.consumeToken(.doc_comment_container)) |_| {}
+        while (try self.consumeDocComments()) |_| {}
 
         if (self.consumeToken(.r_paren)) |_| break;
 
@@ -2943,10 +2940,9 @@ pub fn parseIdentifierBlock(self: *Parser) ParserErrors!Span {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
-    while (self.consumeToken(.doc_comment_container)) |_| {}
-
     while (true) {
-        _ = try self.consumeDocComments();
+        while (self.consumeToken(.doc_comment_container)) |_| {}
+        while (try self.consumeDocComments()) |_| {}
 
         const identifier = try self.expectToken(.identifier);
         try self.scratch.append(self.allocator, identifier);
@@ -3385,7 +3381,7 @@ pub fn parseAssemblyBlock(self: *Parser) ParserErrors!Node.Index {
     const scratch = self.scratch.items.len;
 
     while (true) {
-        _ = self.consumeToken(.doc_comment_container);
+        while (self.consumeToken(.doc_comment_container)) |_| {}
         while (try self.consumeDocComments()) |_| {}
 
         if (self.consumeToken(.r_brace)) |_| break;
@@ -3618,6 +3614,30 @@ pub fn parseYulExpr(self: *Parser) ParserErrors!Node.Index {
                 .lhs = undefined,
             },
         }),
+        .reserved_byte,
+        .keyword_return,
+        => switch (self.token_tags[self.token_index + 1]) {
+            .l_paren => {
+                const node = try self.addNode(.{
+                    .tag = .identifier,
+                    .main_token = self.nextToken(),
+                    .data = .{
+                        .rhs = undefined,
+                        .lhs = undefined,
+                    },
+                });
+
+                return self.parseYulCallExpression(node);
+            },
+            else => return self.addNode(.{
+                .tag = .identifier,
+                .main_token = self.nextToken(),
+                .data = .{
+                    .rhs = undefined,
+                    .lhs = undefined,
+                },
+            }),
+        },
         else => return null_node,
     }
 }

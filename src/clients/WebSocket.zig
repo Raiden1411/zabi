@@ -99,7 +99,7 @@ pub const ConnectionErrors = error{
 pub const InitErrors = ConnectionErrors || Allocator.Error || std.Thread.SpawnError;
 
 /// Set of possible errors when writting to a socket.
-pub const SocketWriteErrors = std.net.Stream.WriteError || std.crypto.tls.Client.StreamInterface.WriteError || Allocator.Error;
+pub const SocketWriteErrors = WsClient.NetStream.WriteError;
 
 /// Set of possible errors when sending a rpc request.
 pub const SendRpcRequestErrors = EthereumZigErrors || SocketWriteErrors || ParseFromValueError || error{ReachedMaxRetryLimit};
@@ -232,7 +232,11 @@ pub fn blobBaseFee(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(Gwei)
 /// Create an accessList of addresses and storageKeys for a transaction to access
 ///
 /// RPC Method: [eth_createAccessList](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_createaccesslist)
-pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(AccessListResult) {
+pub fn createAccessList(
+    self: *WebSocketHandler,
+    call_object: EthCall,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(AccessListResult) {
     return self.sendEthCallRequest(AccessListResult, call_object, opts, .eth_createAccessList);
 }
 /// Estimate the gas used for blobs
@@ -302,7 +306,11 @@ pub fn estimateFeesPerGas(
 /// for a variety of reasons including EVM mechanics and node performance.
 ///
 /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
-pub fn estimateGas(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(Gwei) {
+pub fn estimateGas(
+    self: *WebSocketHandler,
+    call_object: EthCall,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(Gwei) {
     return self.sendEthCallRequest(Gwei, call_object, opts, .eth_estimateGas);
 }
 /// Estimates maxPriorityFeePerGas manually. If the node you are currently using
@@ -375,7 +383,10 @@ pub fn getAccounts(self: *WebSocketHandler) BasicRequestErrors!RPCResponse([]con
 /// Returns the balance of the account of given address.
 ///
 /// RPC Method: [eth_getBalance](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_getbalance)
-pub fn getAddressBalance(self: *WebSocketHandler, opts: BalanceRequest) BasicRequestErrors!RPCResponse(Wei) {
+pub fn getAddressBalance(
+    self: *WebSocketHandler,
+    opts: BalanceRequest,
+) BasicRequestErrors!RPCResponse(Wei) {
     return self.sendAddressRequest(Wei, opts, .eth_getBalance);
 }
 /// Returns the number of transactions sent from an address.
@@ -1639,7 +1650,10 @@ pub fn waitForTransactionReceiptType(self: *WebSocketHandler, comptime T: type, 
     return if (receipt) |tx_receipt| tx_receipt else error.FailedToGetReceipt;
 }
 /// Write messages to the websocket server.
-pub fn writeSocketMessage(self: *WebSocketHandler, data: []u8) SocketWriteErrors!void {
+pub fn writeSocketMessage(
+    self: *WebSocketHandler,
+    data: []u8,
+) SocketWriteErrors!void {
     return self.ws_client.writeFrame(data, .text);
 }
 

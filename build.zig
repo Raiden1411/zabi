@@ -422,9 +422,9 @@ fn buildExamples(
         example_exe.root_module.addImport("zabi", dependency);
         addDependencies(b, example_exe.root_module, target, optimize);
 
-        b.installArtifact(example_exe);
+        var install_artifact = b.addInstallArtifact(example_exe, .{});
+        examples_step.dependOn(&install_artifact.step);
     }
-    examples_step.dependOn(b.getInstallStep());
 }
 /// Builds and runs a runner to generate documentation based on the `doc_comments` tokens in the codebase.
 fn buildDocs(b: *std.Build, target: std.Build.ResolvedTarget) void {

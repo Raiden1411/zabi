@@ -26,13 +26,18 @@ const wsclient_log = std.log.scoped(.ws_client);
 const WebsocketClient = @This();
 
 /// Set of possible error's when trying to perform the initial connection to the host.
-pub const ConnectionErrors = TlsClient.InitError(Stream) || TcpConnectToHostError || CertificateBundle.RescanError || error{ UnsupportedSchema, UnspecifiedHostName };
+pub const ConnectionErrors = TlsClient.InitError(Stream) || TcpConnectToHostError ||
+    CertificateBundle.RescanError || error{ UnsupportedSchema, UnspecifiedHostName };
 
 /// Set of possible errors when asserting a handshake response.
-pub const AssertionError = error{ DuplicateHandshakeHeader, InvalidHandshakeMessage, InvalidHandshakeKey };
+pub const AssertionError = error{
+    DuplicateHandshakeHeader,
+    InvalidHandshakeMessage,
+    InvalidHandshakeKey,
+};
 
 /// Set of possible errors when sending a handshake response.
-pub const SendHandshakeError = Stream.WriteError || error{NoSpaceLeft} || TlsAlertErrors;
+pub const SendHandshakeError = NetStream.WriteError || error{NoSpaceLeft};
 
 /// Set of possible errors when reading a handshake response.
 pub const ReadHandshakeError = Allocator.Error || Stream.ReadError || AssertionError || TlsError;
@@ -130,29 +135,44 @@ pub const Fragment = struct {
 
 /// Wrapper stream around a `std.net.Stream` and a `TlsClient`.
 pub const NetStream = struct {
+    /// Set of possible errors when writting to the stream.
+    pub const WriteError = Stream.WriteError;
+    /// Set of possible errors when reading from the stream.
+    pub const ReadError = Stream.ReadError || TlsError;
+
     /// The connection to the socket that will be used by the
     /// client or the tls_stream if available.
     net_stream: Stream,
     /// Null by default since we might want to connect
     /// locally and don't want to enforce it.
-    tls_stream: ?TlsClient = null,
+    tls_stream: ?TlsClient,
 
     /// Depending on if the tls_stream is not null it will use that instead.
-    pub fn writeAll(self: *NetStream, message: []const u8) !void {
+    pub fn writeAll(
+        self: *NetStream,
+        message: []const u8,
+    ) WriteError!void {
         if (self.tls_stream) |*tls_stream|
             return tls_stream.writeAll(self.net_stream, message);
 
         return self.net_stream.writeAll(message);
     }
     /// Depending on if the tls_stream is not null it will use that instead.
-    pub fn readAtLeast(self: *NetStream, buffer: []u8, size: usize) !usize {
+    pub fn readAtLeast(
+        self: *NetStream,
+        buffer: []u8,
+        size: usize,
+    ) ReadError!usize {
         if (self.tls_stream) |*tls_stream|
             return tls_stream.readAtLeast(self.net_stream, buffer, size);
 
         return self.net_stream.readAtLeast(buffer, size);
     }
     /// Depending on if the tls_stream is not null it will use that instead.
-    pub fn read(self: *NetStream, buffer: []u8) !usize {
+    pub fn read(
+        self: *NetStream,
+        buffer: []u8,
+    ) ReadError!usize {
         if (self.tls_stream) |*tls_stream|
             return tls_stream.read(self.net_stream, buffer);
 
@@ -184,7 +204,10 @@ closed_connection: bool,
 ///
 /// Check out `protocol_map` to see when tls is enable. For now this doesn't respect zig's
 /// `disable_tls` option.
-pub fn connect(allocator: Allocator, uri: Uri) ConnectionErrors!WebsocketClient {
+pub fn connect(
+    allocator: Allocator,
+    uri: Uri,
+) ConnectionErrors!WebsocketClient {
     const scheme = protocol_map.get(uri.scheme) orelse return error.UnsupportedSchema;
 
     const port: u16 = uri.port orelse switch (scheme) {
@@ -205,18 +228,20 @@ pub fn connect(allocator: Allocator, uri: Uri) ConnectionErrors!WebsocketClient 
 
     const stream = try std.net.tcpConnectToHost(allocator, hostname, port);
 
-    var tls_client: ?TlsClient = null;
-    if (scheme == .tls) {
+    const tls_client: ?TlsClient = tls: {
+        if (scheme != .tls)
+            break :tls null;
+
         var bundle: CertificateBundle = .{};
         defer bundle.deinit(allocator);
 
         try bundle.rescan(allocator);
 
-        tls_client = try TlsClient.init(stream, .{
+        break :tls try TlsClient.init(stream, .{
             .host = .{ .explicit = hostname },
             .ca = .{ .bundle = bundle },
         });
-    }
+    };
 
     return .{
         .recieve_fifo = fifo,
@@ -238,7 +263,10 @@ pub fn deinit(self: *WebsocketClient) void {
     self.fragment.deinit();
 }
 /// Send close handshake and closes the net stream.
-pub fn close(self: *WebsocketClient, exit_code: u16) void {
+pub fn close(
+    self: *WebsocketClient,
+    exit_code: u16,
+) void {
     if (@atomicRmw(bool, &self.closed_connection, .Xchg, true, .acq_rel) == false) {
         self.writeCloseFrame(exit_code) catch {};
         self.stream.close();
@@ -255,7 +283,10 @@ pub fn generateHandshakeKey() [24]u8 {
     return base_64;
 }
 /// Masks a websocket message. Uses simd when possible.
-pub fn maskMessage(message: []u8, mask: [4]u8) void {
+pub fn maskMessage(
+    message: []u8,
+    mask: [4]u8,
+) void {
     const vec_size = std.simd.suggestVectorLength(u8) orelse @sizeOf(usize);
     const Vector = @Vector(vec_size, u8);
 
@@ -292,7 +323,11 @@ pub fn maskMessage(message: []u8, mask: [4]u8) void {
 /// + - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - +
 /// |                     Payload Data continued ...                |
 /// +---------------------------------------------------------------+
-pub fn writeHeaderFrame(self: *WebsocketClient, message: []const u8, opcode: Opcodes) Stream.WriteError![4]u8 {
+pub fn writeHeaderFrame(
+    self: *WebsocketClient,
+    message: []const u8,
+    opcode: Opcodes,
+) NetStream.WriteError![4]u8 {
     var buffer: [14]u8 = undefined;
 
     buffer[0] = @bitCast(@as(OpcodeHeader, .{
@@ -339,7 +374,10 @@ pub fn writeHeaderFrame(self: *WebsocketClient, message: []const u8, opcode: Opc
 /// Writes to the server a close frame with a provided `exit_code`.
 ///
 /// For more details please see: https://www.rfc-editor.org/rfc/rfc6455#section-5.5.1
-pub fn writeCloseFrame(self: *WebsocketClient, exit_code: u16) Stream.WriteError!void {
+pub fn writeCloseFrame(
+    self: *WebsocketClient,
+    exit_code: u16,
+) NetStream.WriteError!void {
     if (exit_code == 0)
         return self.writeFrame("", .connection_close);
 
@@ -352,7 +390,11 @@ pub fn writeCloseFrame(self: *WebsocketClient, exit_code: u16) Stream.WriteError
 ///
 /// The message is masked according to the websocket RFC.
 /// More details here: https://www.rfc-editor.org/rfc/rfc6455#section-6.1
-pub fn writeFrame(self: *WebsocketClient, message: []u8, opcode: Opcodes) Stream.WriteError!void {
+pub fn writeFrame(
+    self: *WebsocketClient,
+    message: []u8,
+    opcode: Opcodes,
+) NetStream.WriteError!void {
     const mask = try self.writeHeaderFrame(message, opcode);
 
     if (message.len > 0) {
@@ -364,7 +406,10 @@ pub fn writeFrame(self: *WebsocketClient, message: []u8, opcode: Opcodes) Stream
 /// Performs the websocket handshake and validates that it got a valid response.
 ///
 /// More info here: https://www.rfc-editor.org/rfc/rfc6455#section-1.2
-pub fn handshake(self: *WebsocketClient, host: []const u8) (ReadHandshakeError || SendHandshakeError)!void {
+pub fn handshake(
+    self: *WebsocketClient,
+    host: []const u8,
+) (ReadHandshakeError || SendHandshakeError)!void {
     const key = generateHandshakeKey();
     errdefer self.deinit();
 
@@ -374,7 +419,10 @@ pub fn handshake(self: *WebsocketClient, host: []const u8) (ReadHandshakeError |
 /// Read the handshake message from the socket and asserts that we got a valid server response.
 ///
 /// Places the amount of parsed bytes from the handshake to be discarded on the next socket read.
-pub fn readHandshake(self: *WebsocketClient, handshake_key: [24]u8) ReadHandshakeError!void {
+pub fn readHandshake(
+    self: *WebsocketClient,
+    handshake_key: [24]u8,
+) ReadHandshakeError!void {
     // Handshake shouldn't exceed this.
     const read_buffer = try self.recieve_fifo.writableWithSize(4096);
     self.recieve_fifo.realign();
@@ -388,7 +436,11 @@ pub fn readHandshake(self: *WebsocketClient, handshake_key: [24]u8) ReadHandshak
 /// Send the handshake message to the server. Doesn't support url's higher than 4096 bits.
 ///
 /// Also writes the query of the path if the `uri` was able to parse it.
-pub fn sendHandshake(self: *WebsocketClient, host: []const u8, key: [24]u8) SendHandshakeError!void {
+pub fn sendHandshake(
+    self: *WebsocketClient,
+    host: []const u8,
+    key: [24]u8,
+) SendHandshakeError!void {
     // Dont support paths that exceed this.
     var buffer: [4096]u8 = undefined;
 
@@ -425,7 +477,10 @@ pub fn sendHandshake(self: *WebsocketClient, host: []const u8, key: [24]u8) Send
 /// Validates that the handshake response is valid and returns the amount of bytes read.
 ///
 /// The return bytes are then used to discard in case where we read more than handshake from the stream.
-pub fn parseHandshakeResponse(key: [24]u8, response: []const u8) AssertionError!usize {
+pub fn parseHandshakeResponse(
+    key: [24]u8,
+    response: []const u8,
+) AssertionError!usize {
     var iter = std.mem.tokenizeAny(u8, response, "\r\n");
     var websocket_key: ?[]const u8 = null;
 
@@ -519,7 +574,10 @@ pub fn parseHandshakeResponse(key: [24]u8, response: []const u8) AssertionError!
 ///
 /// Returns end of stream if the amount requested is higher than the
 /// amount of bytes that were actually read.
-pub fn readFromSocket(self: *WebsocketClient, size: usize) SocketReadError![]const u8 {
+pub fn readFromSocket(
+    self: *WebsocketClient,
+    size: usize,
+) SocketReadError![]const u8 {
     self.recieve_fifo.discard(self.over_read);
     self.recieve_fifo.realign();
 

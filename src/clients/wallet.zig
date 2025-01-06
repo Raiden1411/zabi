@@ -470,10 +470,9 @@ pub fn Wallet(comptime client_type: WalletClients) type {
                         if (blob_hashes.len > constants.MAX_BLOB_NUMBER_PER_BLOCK)
                             return error.TooManyBlobs;
 
-                        for (blob_hashes) |hashes| {
+                        for (blob_hashes) |hashes|
                             if (hashes[0] != constants.VERSIONED_HASH_VERSION_KZG)
                                 return error.BlobVersionNotSupported;
-                        }
                     }
 
                     if (tx_eip4844.to == null)
@@ -583,7 +582,9 @@ pub fn Wallet(comptime client_type: WalletClients) type {
             const envelope = try self.allocator.create(TransactionEnvelopePool.Node);
             errdefer self.allocator.destroy(envelope);
 
-            envelope.* = .{ .data = undefined };
+            envelope.* = .{
+                .data = undefined,
+            };
 
             envelope.data = try self.prepareTransaction(unprepared_envelope);
             self.envelopes_pool.addEnvelopeToPool(envelope);

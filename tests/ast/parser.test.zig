@@ -1283,6 +1283,61 @@ test "Fallback" {
     try testing.expectEqual(0, ast.errors.len);
 }
 
+test "Simple Assembly Contract" {
+    const slice =
+        \\// SPDX-License-Identifier: MIT
+        \\pragma solidity ^0.8.26;
+        \\
+        \\contract AssemblyLoop {
+        \\    function yul_for_loop() public pure returns (uint256 z) {
+        \\        assembly {
+        \\            for { let i := 0 } lt(i, 10) { i := add(i, 1) } { z := add(z, 1) }
+        \\        }
+        \\    }
+        \\
+        \\    function yul_while_loop() public pure returns (uint256 z) {
+        \\        assembly {
+        \\            let i := 0
+        \\            for {} lt(i, 5) {} {
+        \\                i := add(i, 1)
+        \\                z := add(z, 1)
+        \\            }
+        \\        }
+        \\ assembly  {
+        \\  fooo := 0x69
+        \\  bar, jazz := sload(0x60)
+        \\  let lol := 0x69
+        \\  let lol, bar := sload(0x69)
+        \\  if iszero(temp) { break }
+        \\  for { let temp := value } 1 {} {
+        \\  result := add(result, w)
+        \\  mstore8(add(result, 1), mload(and(temp, 15)))
+        \\  mstore8(result, mload(and(shr(4, temp), 15)))
+        \\  temp := shr(8, temp)
+        \\  if iszero(temp) { break }
+        \\  }
+        \\  switch lol(69)
+        \\  case 69 {mload(0x80)}
+        \\  case 0x40 {mload(0x80)}
+        \\  case "FOOOOOOO" {mload(0x80)}
+        \\  case bar {mload(0x80, 69)}
+        \\  default {sload(0x80)}
+        \\  function foo (bar, baz) -> fizz, buzz {mload(0x80)}
+        \\  function foo (bar, baz) {mload(0x80)}
+        \\}
+        \\    }
+        \\}
+    ;
+
+    var ast = try Ast.parse(testing.allocator, slice);
+    defer ast.deinit(testing.allocator);
+
+    for (ast.nodes.items(.tag), 0..) |_, i|
+        _ = ast.getNodeSource(@intCast(i));
+
+    try testing.expectEqual(0, ast.errors.len);
+}
+
 test "Solady" {
     const slice =
         \\// SPDX-License-Identifier: MIT

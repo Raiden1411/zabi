@@ -955,6 +955,11 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
             .assembly_flags,
             .asm_block,
             .asm_block_two,
+            .yul_switch,
+            .yul_switch_case,
+            .yul_switch_default,
+            .yul_function_decl,
+            .yul_full_function_decl,
             => @panic("TODO"),
 
             .root => return 0,
@@ -1128,6 +1133,11 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .assembly_flags,
             .asm_block,
             .asm_block_two,
+            .yul_switch,
+            .yul_switch_case,
+            .yul_switch_default,
+            .yul_function_decl,
+            .yul_full_function_decl,
             => @panic("TODO"),
 
             .root => return @as(TokenIndex, @intCast(self.tokens.len - 1)),
@@ -2440,6 +2450,11 @@ pub const Node = struct {
         yul_var_decl_multi,
         yul_if,
         yul_for,
+        yul_switch,
+        yul_switch_case,
+        yul_switch_default,
+        yul_function_decl,
+        yul_full_function_decl,
     };
 
     /// Range used for params and others
@@ -2536,6 +2551,24 @@ pub const Node = struct {
         params_start: Index,
         params_end: Index,
         specifiers: Index,
+        identifier: Index,
+    };
+
+    /// Yul Function definition extra data.
+    /// Mostly used if the function doesn't have a return type definition
+    pub const YulFnProto = struct {
+        params_start: Index,
+        params_end: Index,
+        identifier: Index,
+    };
+
+    /// Yul Function definition extra data.
+    /// Mostly used if the function has a return type.
+    pub const YulFullFnProto = struct {
+        returns_start: Index,
+        returns_end: Index,
+        params_start: Index,
+        params_end: Index,
         identifier: Index,
     };
 
@@ -2656,5 +2689,6 @@ pub const Error = struct {
         expected_yul_assignment,
         expected_yul_expression,
         expected_yul_function_call,
+        expected_yul_literal,
     };
 };

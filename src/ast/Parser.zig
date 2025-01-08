@@ -1064,10 +1064,13 @@ pub fn parseFullFunctionProto(self: *Parser) ParserErrors!Node.Index {
                         .identifier = identifier,
                     }),
                     .rhs = switch (return_params) {
-                        .zero_one => |r_param| if (r_param == 0) return self.fail(.expected_return_type) else try self.addExtraData(Node.Range{
-                            .start = r_param,
-                            .end = r_param,
-                        }),
+                        .zero_one => |r_param| if (r_param == 0)
+                            return self.fail(.expected_return_type)
+                        else
+                            try self.addExtraData(Node.Range{
+                                .start = r_param,
+                                .end = r_param,
+                            }),
                         .multi => |r_params| try self.addExtraData(r_params),
                     },
                 },
@@ -1083,10 +1086,13 @@ pub fn parseFullFunctionProto(self: *Parser) ParserErrors!Node.Index {
                         .params_end = params.end,
                     }),
                     .rhs = switch (return_params) {
-                        .zero_one => |r_param| if (r_param == 0) return self.fail(.expected_return_type) else try self.addExtraData(Node.Range{
-                            .start = r_param,
-                            .end = r_param,
-                        }),
+                        .zero_one => |r_param| if (r_param == 0)
+                            return self.fail(.expected_return_type)
+                        else
+                            try self.addExtraData(Node.Range{
+                                .start = r_param,
+                                .end = r_param,
+                            }),
                         .multi => |r_params| try self.addExtraData(r_params),
                     },
                 },

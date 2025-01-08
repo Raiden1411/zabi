@@ -1123,6 +1123,9 @@ test "Uniswap V3" {
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 
+    for (ast.nodes.items(.tag), 0..) |_, i|
+        _ = ast.getNodeSource(@intCast(i));
+
     try testing.expectEqual(0, ast.errors.len);
 }
 
@@ -1235,6 +1238,9 @@ test "Owner Contract" {
 
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
+
+    for (ast.nodes.items(.tag), 0..) |_, i|
+        _ = ast.getNodeSource(@intCast(i));
 
     try testing.expectEqual(0, ast.errors.len);
 }
@@ -2315,6 +2321,9 @@ test "Solady" {
 
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
+
+    for (ast.nodes.items(.tag), 0..) |_, i|
+        _ = ast.getNodeSource(@intCast(i));
 
     try testing.expectEqual(0, ast.errors.len);
 }

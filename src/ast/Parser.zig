@@ -170,9 +170,9 @@ pub fn expectSourceUnit(self: *Parser) ParserErrors!Node.Index {
 
     if (units == 0) {
         switch (self.token_tags[self.token_index]) {
-            .eof, .r_brace => {
-                return error.ParsingError;
-            },
+            .eof,
+            .r_brace,
+            => return error.ParsingError,
             else => return self.fail(.expected_source_unit_expr),
         }
     }
@@ -378,7 +378,7 @@ pub fn parseContractBlock(self: *Parser) ParserErrors!Node.Index {
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
     while (true) {
-        _ = self.consumeToken(.doc_comment_container);
+        while (self.consumeToken(.doc_comment_container)) |_| {}
         while (try self.consumeDocComments()) |_| {}
 
         if (self.token_tags[self.token_index] == .r_brace)
@@ -1064,10 +1064,13 @@ pub fn parseFullFunctionProto(self: *Parser) ParserErrors!Node.Index {
                         .identifier = identifier,
                     }),
                     .rhs = switch (return_params) {
-                        .zero_one => |r_param| if (r_param == 0) return self.fail(.expected_return_type) else try self.addExtraData(Node.Range{
-                            .start = r_param,
-                            .end = r_param,
-                        }),
+                        .zero_one => |r_param| if (r_param == 0)
+                            return self.fail(.expected_return_type)
+                        else
+                            try self.addExtraData(Node.Range{
+                                .start = r_param,
+                                .end = r_param,
+                            }),
                         .multi => |r_params| try self.addExtraData(r_params),
                     },
                 },
@@ -1083,10 +1086,13 @@ pub fn parseFullFunctionProto(self: *Parser) ParserErrors!Node.Index {
                         .params_end = params.end,
                     }),
                     .rhs = switch (return_params) {
-                        .zero_one => |r_param| if (r_param == 0) return self.fail(.expected_return_type) else try self.addExtraData(Node.Range{
-                            .start = r_param,
-                            .end = r_param,
-                        }),
+                        .zero_one => |r_param| if (r_param == 0)
+                            return self.fail(.expected_return_type)
+                        else
+                            try self.addExtraData(Node.Range{
+                                .start = r_param,
+                                .end = r_param,
+                            }),
                         .multi => |r_params| try self.addExtraData(r_params),
                     },
                 },
@@ -1213,7 +1219,7 @@ pub fn parseBlock(self: *Parser) ParserErrors!Node.Index {
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
     while (true) {
-        _ = self.consumeToken(.doc_comment_container);
+        while (self.consumeToken(.doc_comment_container)) |_| {}
         while (try self.consumeDocComments()) |_| {}
 
         if (self.token_tags[self.token_index] == .r_brace)
@@ -1508,10 +1514,14 @@ pub fn expectReturnStatement(self: *Parser) ParserErrors!Node.Index {
     });
 }
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.breakStatement)
-pub fn expectBreakStatement(self: *Parser) ParserErrors!Node.Index {
+pub fn expectBreakStatement(
+    self: *Parser,
+    is_yul: bool,
+) ParserErrors!Node.Index {
     const break_token = try self.expectToken(.keyword_break);
 
-    try self.expectSemicolon();
+    if (!is_yul)
+        try self.expectSemicolon();
 
     return self.addNode(.{
         .tag = .@"break",
@@ -1523,13 +1533,30 @@ pub fn expectBreakStatement(self: *Parser) ParserErrors!Node.Index {
     });
 }
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.continueStatement)
-pub fn expectContinueStatement(self: *Parser) ParserErrors!Node.Index {
+pub fn expectContinueStatement(
+    self: *Parser,
+    is_yul: bool,
+) ParserErrors!Node.Index {
     const continue_token = try self.expectToken(.keyword_continue);
 
-    try self.expectSemicolon();
+    if (!is_yul)
+        try self.expectSemicolon();
 
     return self.addNode(.{
         .tag = .@"continue",
+        .main_token = continue_token,
+        .data = .{
+            .lhs = undefined,
+            .rhs = undefined,
+        },
+    });
+}
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.continueStatement)
+pub fn expectLeaveStatement(self: *Parser) ParserErrors!Node.Index {
+    const continue_token = try self.expectToken(.keyword_leave);
+
+    return self.addNode(.{
+        .tag = .leave,
         .main_token = continue_token,
         .data = .{
             .lhs = undefined,
@@ -1566,8 +1593,8 @@ pub fn expectStatement(self: *Parser) ParserErrors!Node.Index {
         .keyword_try => return self.expectTryStatement(),
         .keyword_emit => return self.expectEmitStatement(),
         .keyword_return => return self.expectReturnStatement(),
-        .keyword_continue => return self.expectContinueStatement(),
-        .keyword_break => return self.expectBreakStatement(),
+        .keyword_continue => return self.expectContinueStatement(false),
+        .keyword_break => return self.expectBreakStatement(false),
         .keyword_unchecked => {
             const token = self.nextToken();
 
@@ -1584,7 +1611,7 @@ pub fn expectStatement(self: *Parser) ParserErrors!Node.Index {
 
             return unchecked;
         },
-        .keyword_assembly => unreachable, // Not implemented
+        .keyword_assembly => return self.expectAssemblyStatement(), // Not implemented
         else => {},
     }
 
@@ -1630,7 +1657,8 @@ pub fn parseAssignExpr(self: *Parser) ParserErrors!Node.Index {
         break :decl try self.parseVariableDeclaration();
     };
 
-    const tag = assignOperationNode(self.token_tags[self.token_index]) orelse return decl;
+    const tag = assignOperationNode(self.token_tags[self.token_index]) orelse
+        return decl;
 
     const node = try self.addNode(.{
         .tag = tag,
@@ -1700,7 +1728,10 @@ pub fn parseSuffixExpr(self: *Parser) ParserErrors!Node.Index {
     }
 }
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.callArgumentList)
-pub fn parseCallExpression(self: *Parser, lhs: Node.Index) ParserErrors!Node.Index {
+pub fn parseCallExpression(
+    self: *Parser,
+    lhs: Node.Index,
+) ParserErrors!Node.Index {
     const l_paren = self.consumeToken(.l_paren) orelse return null_node;
 
     const scratch = self.scratch.items.len;
@@ -1773,7 +1804,10 @@ pub fn parseCallExpression(self: *Parser, lhs: Node.Index) ParserErrors!Node.Ind
 ///      / .minus_minus
 ///      / .plus_plus
 ///      / .l_brace, struct elems, r_brace
-pub fn parseSuffix(self: *Parser, lhs: Node.Index) ParserErrors!Node.Index {
+pub fn parseSuffix(
+    self: *Parser,
+    lhs: Node.Index,
+) ParserErrors!Node.Index {
     switch (self.token_tags[self.token_index]) {
         .l_bracket => {
             const bracket = self.nextToken();
@@ -1914,7 +1948,10 @@ pub fn parseExpr(self: *Parser) ParserErrors!Node.Index {
 /// Parses expression based on precedence.
 ///
 /// Example: foo + bar * baz
-pub fn parseExprPrecedence(self: *Parser, min_precedence: i32) ParserErrors!Node.Index {
+pub fn parseExprPrecedence(
+    self: *Parser,
+    min_precedence: i32,
+) ParserErrors!Node.Index {
     std.debug.assert(min_precedence >= 0);
 
     var node = try self.parsePrefixExpr();
@@ -2277,11 +2314,7 @@ pub fn parseErrorParamDecls(self: *Parser) ParserErrors!Span {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
-    while (self.consumeToken(.doc_comment_container)) |_| {}
-
     while (true) {
-        _ = try self.consumeDocComments();
-
         if (self.consumeToken(.r_paren)) |_| break;
         const field = try self.expectErrorParam();
 
@@ -2391,9 +2424,6 @@ pub fn parseEventParamDecls(self: *Parser) ParserErrors!Span {
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
     while (true) {
-        while (self.consumeToken(.doc_comment_container)) |_| {}
-        _ = try self.consumeDocComments();
-
         if (self.consumeToken(.r_paren)) |_| break;
         const field = try self.expectEventParam();
 
@@ -2492,10 +2522,9 @@ pub fn parseStructFields(self: *Parser) ParserErrors!Span {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
-    while (self.consumeToken(.doc_comment_container)) |_| {}
-
     while (true) {
-        _ = try self.consumeDocComments();
+        while (self.consumeToken(.doc_comment_container)) |_| {}
+        while (try self.consumeDocComments()) |_| {}
 
         if (self.consumeToken(.r_brace)) |_| break;
 
@@ -2549,11 +2578,7 @@ pub fn parseParseDeclList(self: *Parser) ParserErrors!Span {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
-    while (self.consumeToken(.doc_comment_container)) |_| {}
-
     while (true) {
-        _ = try self.consumeDocComments();
-
         if (self.consumeToken(.r_paren)) |_| break;
 
         const param = try self.expectVariableParamDeclaration();
@@ -2815,7 +2840,10 @@ pub fn parseImportDirective(self: *Parser) ParserErrors!Node.Index {
     }
 }
 /// .asterisk <- keyword_as <- identifier <- identifier (from) <- string_literal (path)
-pub fn parseImportAsterisk(self: *Parser, import: TokenIndex) ParserErrors!Node.Index {
+pub fn parseImportAsterisk(
+    self: *Parser,
+    import: TokenIndex,
+) ParserErrors!Node.Index {
     _ = self.consumeToken(.asterisk);
 
     _ = try self.expectToken(.keyword_as);
@@ -2866,7 +2894,10 @@ pub fn parseImportPath(self: *Parser, import: TokenIndex) ParserErrors!Node.Inde
     }
 }
 /// Symbols <- .identifier <- .string_literal
-pub fn parseImportSymbol(self: *Parser, import: Node.Index) ParserErrors!Node.Index {
+pub fn parseImportSymbol(
+    self: *Parser,
+    import: Node.Index,
+) ParserErrors!Node.Index {
     const span = try self.parseIdentifierBlock();
 
     const from = try self.expectToken(.identifier);
@@ -2906,11 +2937,7 @@ pub fn parseIdentifierBlock(self: *Parser) ParserErrors!Span {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
-    while (self.consumeToken(.doc_comment_container)) |_| {}
-
     while (true) {
-        _ = try self.consumeDocComments();
-
         const identifier = try self.expectToken(.identifier);
         try self.scratch.append(self.allocator, identifier);
 
@@ -2975,7 +3002,10 @@ pub fn parseEnum(self: *Parser) ParserErrors!Node.Index {
 /// .identifier (.period)*
 ///
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.identifierPath)
-pub fn parseIdentifierPath(self: *Parser, lhs: Node.Index) Allocator.Error!Node.Index {
+pub fn parseIdentifierPath(
+    self: *Parser,
+    lhs: Node.Index,
+) Allocator.Error!Node.Index {
     switch (self.token_tags[self.token_index]) {
         .period => switch (self.token_tags[self.token_index + 1]) {
             .identifier => return self.addNode(.{
@@ -3249,14 +3279,766 @@ pub fn consumeDocComments(self: *Parser) Allocator.Error!?TokenIndex {
     return null;
 }
 
+// Yul parser
+
+/// Expects to parse a assembly statement. Fails if it can't
+pub fn expectAssemblyStatement(self: *Parser) ParserErrors!Node.Index {
+    const node = try self.parseAssemblyStatement();
+
+    if (node == 0)
+        return self.fail(.expected_statement);
+
+    return node;
+}
+/// Parses a solidity assembly_decl with the evm flags if present and the yul statements.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.assemblyStatement)
+pub fn parseAssemblyStatement(self: *Parser) ParserErrors!Node.Index {
+    const evm_asm = self.consumeToken(.keyword_assembly) orelse
+        return null_node;
+
+    // Consume "evmasm" string_literal
+    _ = self.consumeToken(.string_literal);
+
+    const asm_flags = try self.parseAssemblyFlags();
+
+    const block = try self.parseAssemblyBlock();
+
+    return self.addNode(.{
+        .tag = .assembly_decl,
+        .main_token = evm_asm,
+        .data = .{
+            .lhs = asm_flags,
+            .rhs = block,
+        },
+    });
+}
+/// Parses the assembly string flags.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.assemblyFlags)
+pub fn parseAssemblyFlags(self: *Parser) ParserErrors!Node.Index {
+    const l_paren = self.consumeToken(.l_paren) orelse
+        return null_node;
+
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
+
+    while (true) {
+        const flag = try self.expectToken(.string_literal);
+        try self.scratch.append(self.allocator, flag);
+
+        switch (self.token_tags[self.token_index]) {
+            .comma => {
+                if (self.token_tags[self.token_index + 1] == .r_paren)
+                    try self.warn(.trailing_comma);
+
+                self.token_index += 1;
+            },
+            .r_paren => break,
+            .colon, .r_bracket, .r_brace => return self.failMsg(.{
+                .tag = .expected_token,
+                .token = self.token_index,
+                .extra = .{ .expected_tag = .r_paren },
+            }),
+            else => try self.warn(.expected_comma_after),
+        }
+    }
+
+    const r_paren = try self.expectToken(.r_paren);
+    const slice = self.scratch.items[scratch..];
+
+    return self.addNode(.{
+        .main_token = l_paren,
+        .tag = .assembly_flags,
+        .data = .{
+            .lhs = try self.addExtraData(try self.listToSpan(slice)),
+            .rhs = r_paren,
+        },
+    });
+}
+/// Expects to parse an assembly block if not it will fail.
+pub fn expectAssemblyBlock(self: *Parser) ParserErrors!Node.Index {
+    const node = try self.parseAssemblyBlock();
+
+    if (node == 0)
+        return self.fail(.expected_yul_statement);
+
+    return node;
+}
+/// Parses an assembly block statement.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulBlock)
+pub fn parseAssemblyBlock(self: *Parser) ParserErrors!Node.Index {
+    const l_brace = self.consumeToken(.l_brace) orelse
+        return null_node;
+
+    const scratch = self.scratch.items.len;
+
+    while (true) {
+        if (self.consumeToken(.r_brace)) |_| break;
+
+        const statement = try self.expectYulStatementRecoverable();
+
+        if (statement == 0)
+            break;
+
+        try self.scratch.append(self.allocator, statement);
+    }
+
+    const statements = self.scratch.items[scratch..];
+
+    switch (statements.len) {
+        0 => return self.addNode(.{
+            .tag = .asm_block_two,
+            .main_token = l_brace,
+            .data = .{
+                .lhs = 0,
+                .rhs = 0,
+            },
+        }),
+        1 => return self.addNode(.{
+            .tag = .asm_block_two,
+            .main_token = l_brace,
+            .data = .{
+                .lhs = statements[0],
+                .rhs = 0,
+            },
+        }),
+        2 => return self.addNode(.{
+            .tag = .asm_block_two,
+            .main_token = l_brace,
+            .data = .{
+                .lhs = statements[0],
+                .rhs = statements[1],
+            },
+        }),
+        else => {
+            const span = try self.listToSpan(statements);
+
+            return self.addNode(.{
+                .tag = .asm_block,
+                .main_token = l_brace,
+                .data = .{
+                    .lhs = span.start,
+                    .rhs = span.end,
+                },
+            });
+        },
+    }
+}
+/// Parses the statement and if it finds a `ParserError` it will try to continue parsing
+/// by trying to find the next statement.
+pub fn expectYulStatementRecoverable(self: *Parser) ParserErrors!Node.Index {
+    while (true) {
+        return self.expectYulStatement() catch |err| switch (err) {
+            error.OutOfMemory => return err,
+            error.ParsingError => {
+                self.findNextStatement();
+                switch (self.token_tags[self.token_index]) {
+                    .r_brace => return null_node,
+                    .eof => return err,
+                    else => continue,
+                }
+            },
+        };
+    }
+}
+/// Expects a `yul_statement` or it fails.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulStatement)
+pub fn expectYulStatement(self: *Parser) ParserErrors!Node.Index {
+    switch (self.token_tags[self.token_index]) {
+        .keyword_if => return self.expectYulIfStatement(),
+        .keyword_for => return self.expectYulForStatement(),
+        .reserved_switch => return self.expectYulSwitchStatement(),
+        .reserved_let => return self.expectYulVariableDeclaration(),
+        .keyword_leave => return self.expectLeaveStatement(),
+        .keyword_continue => return self.expectContinueStatement(true),
+        .keyword_break => return self.expectBreakStatement(true),
+        .keyword_function => return self.expectYulFunctionDecl(),
+        else => {},
+    }
+
+    const block = try self.parseAssemblyBlock();
+
+    if (block != 0)
+        return block;
+
+    const assign = try self.expectYulAssignExpr();
+
+    return assign;
+}
+/// Expects to find an yul assignment statement or it will fail.
+pub fn expectYulAssignExpr(self: *Parser) ParserErrors!Node.Index {
+    const expr = try self.parseYulAssignExpr();
+
+    if (expr == 0)
+        return self.fail(.expected_yul_statement);
+
+    return expr;
+}
+/// Parses a yul assignment statement.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulExpression)
+pub fn parseYulAssignExpr(self: *Parser) ParserErrors!Node.Index {
+    const decl = try self.parseYulExpr();
+
+    switch (self.token_tags[self.token_index]) {
+        .comma => {
+            const scratch = self.scratch.items.len;
+            defer self.scratch.shrinkRetainingCapacity(scratch);
+
+            try self.scratch.append(self.allocator, decl);
+            _ = self.nextToken();
+
+            while (true) {
+                const yul_path = try self.consumeIdentifierPath();
+
+                if (yul_path == 0)
+                    return self.fail(.expected_yul_expression);
+
+                try self.scratch.append(self.allocator, yul_path);
+
+                switch (self.token_tags[self.token_index]) {
+                    .comma => self.token_index += 1,
+                    else => break,
+                }
+            }
+
+            const main = self.nextToken();
+            const tag = assignOperationNode(self.token_tags[main]) orelse
+                return self.fail(.expected_yul_assignment);
+
+            if (tag != .yul_assign)
+                return self.fail(.expected_yul_assignment);
+
+            const identifier = self.consumeToken(.identifier) orelse
+                return self.fail(.expected_yul_function_call);
+
+            const node = try self.addNode(.{
+                .tag = .identifier,
+                .main_token = identifier,
+                .data = .{
+                    .rhs = undefined,
+                    .lhs = undefined,
+                },
+            });
+
+            const slice = self.scratch.items[scratch..];
+
+            return self.addNode(.{
+                .tag = .yul_assign_multi,
+                .main_token = main,
+                .data = .{
+                    .lhs = try self.addExtraData(try self.listToSpan(slice)),
+                    .rhs = try self.parseYulCallExpression(node),
+                },
+            });
+        },
+        else => {
+            const tag = assignOperationNode(self.token_tags[self.token_index]) orelse
+                return decl;
+
+            if (tag != .yul_assign)
+                return self.fail(.expected_yul_assignment);
+
+            return self.addNode(.{
+                .tag = tag,
+                .main_token = self.nextToken(),
+                .data = .{
+                    .lhs = decl,
+                    .rhs = try self.expectYulExpr(),
+                },
+            });
+        },
+    }
+}
+/// Expects to find a yul expression
+pub fn expectYulExpr(self: *Parser) ParserErrors!Node.Index {
+    const node = try self.parseYulExpr();
+
+    if (node == 0)
+        return self.fail(.expected_yul_expression);
+
+    return node;
+}
+/// Parses a yul expression.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulExpression)
+pub fn parseYulExpr(self: *Parser) ParserErrors!Node.Index {
+    switch (self.token_tags[self.token_index]) {
+        .identifier => switch (self.token_tags[self.token_index + 1]) {
+            .period => return self.consumeIdentifierPath(),
+            .l_paren => {
+                const node = try self.addNode(.{
+                    .tag = .identifier,
+                    .main_token = self.nextToken(),
+                    .data = .{
+                        .rhs = undefined,
+                        .lhs = undefined,
+                    },
+                });
+
+                return self.parseYulCallExpression(node);
+            },
+            else => return self.addNode(.{
+                .tag = .identifier,
+                .main_token = self.nextToken(),
+                .data = .{
+                    .rhs = undefined,
+                    .lhs = undefined,
+                },
+            }),
+        },
+        .number_literal => return self.addNode(.{
+            .tag = .number_literal,
+            .main_token = self.nextToken(),
+            .data = .{
+                .rhs = undefined,
+                .lhs = undefined,
+            },
+        }),
+        .string_literal => return self.addNode(.{
+            .tag = .string_literal,
+            .main_token = self.nextToken(),
+            .data = .{
+                .rhs = undefined,
+                .lhs = undefined,
+            },
+        }),
+        .reserved_byte,
+        .keyword_return,
+        => switch (self.token_tags[self.token_index + 1]) {
+            .l_paren => {
+                const node = try self.addNode(.{
+                    .tag = .identifier,
+                    .main_token = self.nextToken(),
+                    .data = .{
+                        .rhs = undefined,
+                        .lhs = undefined,
+                    },
+                });
+
+                return self.parseYulCallExpression(node);
+            },
+            else => return self.addNode(.{
+                .tag = .identifier,
+                .main_token = self.nextToken(),
+                .data = .{
+                    .rhs = undefined,
+                    .lhs = undefined,
+                },
+            }),
+        },
+        else => return null_node,
+    }
+}
+/// Parses a yul function call expression.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulFunctionCall)
+pub fn parseYulCallExpression(
+    self: *Parser,
+    lhs: Node.Index,
+) ParserErrors!Node.Index {
+    const l_paren = self.consumeToken(.l_paren) orelse return null_node;
+
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
+
+    while (true) {
+        if (self.consumeToken(.r_paren)) |_| break;
+
+        try self.scratch.append(self.allocator, try self.expectYulExpr());
+
+        switch (self.token_tags[self.token_index]) {
+            .comma => {
+                if (self.token_tags[self.token_index + 1] == .r_paren)
+                    try self.warn(.trailing_comma);
+
+                self.token_index += 1;
+            },
+            .r_paren => {
+                self.token_index += 1;
+                break;
+            },
+            .colon,
+            .r_brace,
+            .r_bracket,
+            => return self.failMsg(.{
+                .tag = .expected_token,
+                .token = self.token_index,
+                .extra = .{ .expected_tag = .r_paren },
+            }),
+            else => try self.warn(.expected_comma_after),
+        }
+    }
+
+    const params = self.scratch.items[scratch..];
+
+    switch (params.len) {
+        0 => return self.addNode(.{
+            .tag = .yul_call_one,
+            .main_token = l_paren,
+            .data = .{
+                .lhs = lhs,
+                .rhs = 0,
+            },
+        }),
+        1 => return self.addNode(.{
+            .tag = .yul_call_one,
+            .main_token = l_paren,
+            .data = .{
+                .lhs = lhs,
+                .rhs = params[0],
+            },
+        }),
+        else => return self.addNode(.{
+            .tag = .yul_call,
+            .main_token = l_paren,
+            .data = .{
+                .lhs = lhs,
+                .rhs = try self.addExtraData(try self.listToSpan(params)),
+            },
+        }),
+    }
+}
+/// Expects to parse a yul variable declaration.
+pub fn expectYulVariableDeclaration(self: *Parser) ParserErrors!Node.Index {
+    const node = try self.parseYulVariableDeclaration();
+
+    if (node == 0)
+        return self.fail(.expected_yul_statement);
+
+    return node;
+}
+/// Parses a yul variable declaration expression.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulVariableDeclaration)
+pub fn parseYulVariableDeclaration(self: *Parser) ParserErrors!Node.Index {
+    const let = self.consumeToken(.reserved_let) orelse
+        return null_node;
+
+    const decl = try self.consumeIdentifierPath();
+
+    if (decl == 0)
+        return self.fail(.expected_yul_expression);
+
+    switch (self.token_tags[self.token_index]) {
+        .comma => {
+            const scratch = self.scratch.items.len;
+            defer self.scratch.shrinkRetainingCapacity(scratch);
+
+            try self.scratch.append(self.allocator, decl);
+            _ = self.nextToken();
+
+            while (true) {
+                const yul_path = try self.consumeIdentifierPath();
+
+                if (yul_path == 0)
+                    return self.fail(.expected_yul_expression);
+
+                try self.scratch.append(self.allocator, yul_path);
+
+                switch (self.token_tags[self.token_index]) {
+                    .comma => self.token_index += 1,
+                    else => break,
+                }
+            }
+
+            const main = self.nextToken();
+            const slice = self.scratch.items[scratch..];
+
+            const tag = assignOperationNode(self.token_tags[main]) orelse {
+                return self.addNode(.{
+                    .tag = .yul_var_decl_multi,
+                    .main_token = let,
+                    .data = .{
+                        .lhs = try self.addExtraData(try self.listToSpan(slice)),
+                        .rhs = 0,
+                    },
+                });
+            };
+
+            if (tag != .yul_assign)
+                return self.fail(.expected_yul_assignment);
+
+            const identifier = self.consumeToken(.identifier) orelse
+                return self.fail(.expected_yul_function_call);
+
+            const node = try self.addNode(.{
+                .tag = .identifier,
+                .main_token = identifier,
+                .data = .{
+                    .rhs = undefined,
+                    .lhs = undefined,
+                },
+            });
+
+            return self.addNode(.{
+                .tag = .yul_var_decl_multi,
+                .main_token = let,
+                .data = .{
+                    .lhs = try self.addExtraData(try self.listToSpan(slice)),
+                    .rhs = try self.parseYulCallExpression(node),
+                },
+            });
+        },
+        else => {
+            const tag = assignOperationNode(self.token_tags[self.nextToken()]) orelse
+                return self.addNode(.{
+                .tag = .yul_var_decl,
+                .main_token = let,
+                .data = .{
+                    .lhs = decl,
+                    .rhs = 0,
+                },
+            });
+
+            if (tag != .yul_assign)
+                return self.fail(.expected_yul_assignment);
+
+            return self.addNode(.{
+                .tag = .yul_var_decl,
+                .main_token = let,
+                .data = .{
+                    .lhs = decl,
+                    .rhs = try self.expectYulExpr(),
+                },
+            });
+        },
+    }
+}
+/// Parses a yul if statement.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulIfStatement)
+pub fn expectYulIfStatement(self: *Parser) ParserErrors!Node.Index {
+    const if_ident = try self.expectToken(.keyword_if);
+
+    const expression = try self.expectYulExpr();
+    const block = try self.expectAssemblyBlock();
+
+    return self.addNode(
+        .{
+            .tag = .yul_if,
+            .main_token = if_ident,
+            .data = .{
+                .lhs = expression,
+                .rhs = block,
+            },
+        },
+    );
+}
+/// Parses a yul for statement.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulIfStatement)
+pub fn expectYulForStatement(self: *Parser) ParserErrors!Node.Index {
+    const for_iden = try self.expectToken(.keyword_for);
+
+    const block_1 = try self.expectAssemblyBlock();
+    const expression = try self.expectYulExpr();
+    const block_2 = try self.expectAssemblyBlock();
+    const block_3 = try self.expectAssemblyBlock();
+
+    return self.addNode(
+        .{
+            .tag = .yul_for,
+            .main_token = for_iden,
+            .data = .{
+                .lhs = try self.addExtraData(Node.For{
+                    .condition_one = block_1,
+                    .condition_two = expression,
+                    .condition_three = block_2,
+                }),
+                .rhs = block_3,
+            },
+        },
+    );
+}
+/// Parses a yul switch statement fails if it's not possible.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulSwitchStatement)
+pub fn expectYulSwitchStatement(self: *Parser) ParserErrors!Node.Index {
+    const switch_iden = try self.expectToken(.reserved_switch);
+    const expression = try self.expectYulExpr();
+
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
+
+    while (true) {
+        switch (self.token_tags[self.token_index]) {
+            .reserved_default => {
+                const token = self.nextToken();
+                const node = try self.addNode(.{
+                    .tag = .yul_switch_default,
+                    .main_token = token,
+                    .data = .{
+                        .lhs = 0,
+                        .rhs = try self.expectAssemblyBlock(),
+                    },
+                });
+
+                try self.scratch.append(self.allocator, node);
+                break;
+            },
+            .reserved_case => {
+                const token = self.nextToken();
+                const literal = self.nextToken();
+
+                switch (self.token_tags[literal]) {
+                    .number_literal,
+                    .string_literal,
+                    .identifier,
+                    => {},
+                    else => return self.fail(.expected_yul_literal),
+                }
+
+                const node = try self.addNode(.{
+                    .tag = .yul_switch_case,
+                    .main_token = token,
+                    .data = .{
+                        .lhs = literal,
+                        .rhs = try self.expectAssemblyBlock(),
+                    },
+                });
+
+                try self.scratch.append(self.allocator, node);
+            },
+            else => break,
+        }
+    }
+
+    const slice = self.scratch.items[scratch..];
+
+    return self.addNode(.{
+        .tag = .yul_switch,
+        .main_token = switch_iden,
+        .data = .{
+            .lhs = expression,
+            .rhs = try self.addExtraData(try self.listToSpan(slice)),
+        },
+    });
+}
+/// Parses a yul function definition. Fails if it cannot.
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulFunctionDefinition)
+pub fn expectYulFunctionDecl(self: *Parser) ParserErrors!Node.Index {
+    const func = try self.expectToken(.keyword_function);
+    const name = try self.expectToken(.identifier);
+
+    const params = try self.parseYulFunctionParams();
+
+    if (self.consumeToken(.arrow)) |_| {
+        const returns = try self.parseYulReturnType();
+        const body = try self.expectAssemblyBlock();
+
+        return self.addNode(.{
+            .tag = .yul_full_function_decl,
+            .main_token = func,
+            .data = .{
+                .lhs = try self.addExtraData(Node.YulFullFnProto{
+                    .identifier = name,
+                    .params_start = params.start,
+                    .params_end = params.end,
+                    .returns_start = returns.start,
+                    .returns_end = returns.end,
+                }),
+                .rhs = body,
+            },
+        });
+    }
+
+    const body = try self.expectAssemblyBlock();
+
+    return self.addNode(.{
+        .tag = .yul_function_decl,
+        .main_token = func,
+        .data = .{
+            .lhs = try self.addExtraData(Node.YulFnProto{
+                .identifier = name,
+                .params_start = params.start,
+                .params_end = params.end,
+            }),
+            .rhs = body,
+        },
+    });
+}
+/// .l_paren, .identifier, .r_paren
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulFunctionDefinition)
+pub fn parseYulFunctionParams(self: *Parser) ParserErrors!Node.Range {
+    _ = try self.expectToken(.l_paren);
+
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
+
+    while (true) {
+        if (self.consumeToken(.r_paren)) |_| break;
+
+        try self.scratch.append(self.allocator, try self.expectToken(.identifier));
+
+        switch (self.token_tags[self.token_index]) {
+            .comma => {
+                if (self.token_tags[self.token_index + 1] == .r_paren)
+                    try self.warn(.trailing_comma);
+
+                self.token_index += 1;
+            },
+            .r_paren => {
+                self.token_index += 1;
+                break;
+            },
+            .colon,
+            .r_brace,
+            .r_bracket,
+            => return self.failMsg(.{
+                .tag = .expected_token,
+                .token = self.token_index,
+                .extra = .{ .expected_tag = .r_paren },
+            }),
+            else => try self.warn(.expected_comma_after),
+        }
+    }
+
+    const params = self.scratch.items[scratch..];
+
+    return self.listToSpan(params);
+}
+/// loop -> .identifier
+///
+/// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulFunctionDefinition)
+pub fn parseYulReturnType(self: *Parser) ParserErrors!Node.Range {
+    const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
+
+    while (true) {
+        try self.scratch.append(self.allocator, try self.expectToken(.identifier));
+
+        switch (self.token_tags[self.token_index]) {
+            .comma => self.token_index += 1,
+            else => break,
+        }
+    }
+
+    const params = self.scratch.items[scratch..];
+
+    return self.listToSpan(params);
+}
+
 // Internal parser actions.
 
 /// Checks if the given tokens are on the same line.
-fn tokensOnSameLine(self: *Parser, token1: TokenIndex, token2: TokenIndex) bool {
+fn tokensOnSameLine(
+    self: *Parser,
+    token1: TokenIndex,
+    token2: TokenIndex,
+) bool {
     return std.mem.indexOfScalar(u8, self.source[self.token_starts[token1]..self.token_starts[token2]], '\n') == null;
 }
 /// Same as `consumeToken` but returns error instead.
-fn expectToken(self: *Parser, token: Token.Tag) ParserErrors!TokenIndex {
+fn expectToken(
+    self: *Parser,
+    token: Token.Tag,
+) ParserErrors!TokenIndex {
     if (self.token_tags[self.token_index] != token) {
         return self.failMsg(.{
             .tag = .expected_token,
@@ -3292,7 +4074,10 @@ fn nextToken(self: *Parser) TokenIndex {
 // Node actions.
 
 /// Adds the extra data struct type into the `extra_data` arraylist.
-fn addExtraData(self: *Parser, extra: anytype) Allocator.Error!Node.Index {
+fn addExtraData(
+    self: *Parser,
+    extra: anytype,
+) Allocator.Error!Node.Index {
     const fields = std.meta.fields(@TypeOf(extra));
 
     try self.extra_data.ensureUnusedCapacity(self.allocator, fields.len);
@@ -3306,7 +4091,10 @@ fn addExtraData(self: *Parser, extra: anytype) Allocator.Error!Node.Index {
     return result;
 }
 /// Converts a slice into a `Range`
-fn listToSpan(self: *Parser, list: []const Node.Index) Allocator.Error!Node.Range {
+fn listToSpan(
+    self: *Parser,
+    list: []const Node.Index,
+) Allocator.Error!Node.Range {
     try self.extra_data.appendSlice(self.allocator, list);
 
     return Node.Range{
@@ -3468,26 +4256,39 @@ fn findNextContractElement(self: *Parser) void {
     }
 }
 /// Adds a node into the list.
-fn addNode(self: *Parser, child: Node) Allocator.Error!Node.Index {
+fn addNode(
+    self: *Parser,
+    child: Node,
+) Allocator.Error!Node.Index {
     const index = @as(Node.Index, @intCast(self.nodes.len));
     try self.nodes.append(self.allocator, child);
 
     return index;
 }
 /// Sets a node based on the provided index.
-fn setNode(self: *Parser, index: usize, child: Node) Node.Index {
+fn setNode(
+    self: *Parser,
+    index: usize,
+    child: Node,
+) Node.Index {
     self.nodes.set(index, child);
 
     return @as(Node.Index, @intCast(index));
 }
 /// Reserves a node index on the arraylist.
-fn reserveNode(self: *Parser, tag: Ast.Node.Tag) Allocator.Error!usize {
+fn reserveNode(
+    self: *Parser,
+    tag: Ast.Node.Tag,
+) Allocator.Error!usize {
     try self.nodes.resize(self.allocator, self.nodes.len + 1);
     self.nodes.items(.tag)[self.nodes.len - 1] = tag;
     return self.nodes.len - 1;
 }
 /// Unreserves the node and sets a empty node into it if the element is not in the end.
-fn unreserveNode(self: *Parser, index: usize) void {
+fn unreserveNode(
+    self: *Parser,
+    index: usize,
+) void {
     if (self.nodes.len == index) {
         self.nodes.resize(self.allocator, self.nodes.len - 1) catch unreachable;
     } else {
@@ -3496,7 +4297,10 @@ fn unreserveNode(self: *Parser, index: usize) void {
     }
 }
 /// Appends an error to the `errors` arraylist. Continue with parsing.
-fn warn(self: *Parser, fail_tag: Ast.Error.Tag) Allocator.Error!void {
+fn warn(
+    self: *Parser,
+    fail_tag: Ast.Error.Tag,
+) Allocator.Error!void {
     @branchHint(.cold);
 
     try self.warnMessage(.{
@@ -3536,6 +4340,9 @@ fn warnMessage(self: *Parser, message: Ast.Error) Allocator.Error!void {
         .expected_function_call,
         .expected_elementary_or_identifier_path,
         .expected_expr,
+        .expected_yul_assignment,
+        .expected_yul_expression,
+        .expected_yul_function_call,
         => if (message.token != 0 and !self.tokensOnSameLine(message.token - 1, message.token)) {
             var copy = message;
             copy.token_is_prev = true;
@@ -3547,7 +4354,10 @@ fn warnMessage(self: *Parser, message: Ast.Error) Allocator.Error!void {
     try self.errors.append(self.allocator, message);
 }
 /// Appends an error to the `errors` arraylist and returns the error.
-fn fail(self: *Parser, fail_tag: Ast.Error.Tag) ParserErrors {
+fn fail(
+    self: *Parser,
+    fail_tag: Ast.Error.Tag,
+) ParserErrors {
     @branchHint(.cold);
 
     return self.failMsg(.{
@@ -3556,7 +4366,10 @@ fn fail(self: *Parser, fail_tag: Ast.Error.Tag) ParserErrors {
     });
 }
 /// Appends an error to the `errors` arraylist and returns the error.
-fn failMsg(self: *Parser, message: Ast.Error) ParserErrors {
+fn failMsg(
+    self: *Parser,
+    message: Ast.Error,
+) ParserErrors {
     @branchHint(.cold);
     try self.warnMessage(message);
 

@@ -35,7 +35,10 @@ extra_data: []const Node.Index,
 errors: []const Error,
 
 /// Clears any allocated memory from the `Ast`.
-pub fn deinit(self: *Ast, allocator: Allocator) void {
+pub fn deinit(
+    self: *Ast,
+    allocator: Allocator,
+) void {
     self.tokens.deinit(allocator);
     self.nodes.deinit(allocator);
     allocator.free(self.extra_data);
@@ -43,7 +46,10 @@ pub fn deinit(self: *Ast, allocator: Allocator) void {
 }
 
 /// Parses the source code and builds the ast.
-pub fn parse(allocator: Allocator, source: [:0]const u8) Parser.ParserErrors!Ast {
+pub fn parse(
+    allocator: Allocator,
+    source: [:0]const u8,
+) Parser.ParserErrors!Ast {
     var tokens: Ast.TokenList = .{};
     defer tokens.deinit(allocator);
 
@@ -95,7 +101,10 @@ pub fn parse(allocator: Allocator, source: [:0]const u8) Parser.ParserErrors!Ast
     };
 }
 /// Ast representation of a `array_type` node.
-pub fn arrayType(self: Ast, node: Node.Index) ast.ArrayType {
+pub fn arrayType(
+    self: Ast,
+    node: Node.Index,
+) ast.ArrayType {
     std.debug.assert(self.nodes.items(.tag)[node] == .array_type);
 
     const data = self.nodes.items(.data)[node];
@@ -110,7 +119,10 @@ pub fn arrayType(self: Ast, node: Node.Index) ast.ArrayType {
     };
 }
 /// Ast representation of a `variable_decl` node.
-pub fn variableDecl(self: Ast, node: Node.Index) ast.VariableDecl {
+pub fn variableDecl(
+    self: Ast,
+    node: Node.Index,
+) ast.VariableDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .variable_decl);
 
     const data = self.nodes.items(.data)[node];
@@ -139,7 +151,10 @@ pub fn variableDecl(self: Ast, node: Node.Index) ast.VariableDecl {
     return result;
 }
 /// Ast representation of a `constant_variable_decl` node.
-pub fn constantVariableDecl(self: Ast, node: Node.Index) ast.ConstantVariableDecl {
+pub fn constantVariableDecl(
+    self: Ast,
+    node: Node.Index,
+) ast.ConstantVariableDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .constant_variable_decl);
 
     const data = self.nodes.items(.data)[node];
@@ -154,7 +169,10 @@ pub fn constantVariableDecl(self: Ast, node: Node.Index) ast.ConstantVariableDec
     };
 }
 /// Ast representation of a `state_variable_decl` node.
-pub fn stateVariableDecl(self: Ast, node: Node.Index) ast.StateVariableDecl {
+pub fn stateVariableDecl(
+    self: Ast,
+    node: Node.Index,
+) ast.StateVariableDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .state_variable_decl);
 
     const nodes = self.nodes.items(.tag);
@@ -199,7 +217,10 @@ pub fn stateVariableDecl(self: Ast, node: Node.Index) ast.StateVariableDecl {
     return result;
 }
 /// Ast representation of a `using_directive_multi` node.
-pub fn usingDirectiveMulti(self: Ast, node: Node.Index) ast.UsingDirective {
+pub fn usingDirectiveMulti(
+    self: Ast,
+    node: Node.Index,
+) ast.UsingDirective {
     std.debug.assert(self.nodes.items(.tag)[node] == .using_directive_multi);
 
     const data = self.nodes.items(.data)[node];
@@ -221,27 +242,34 @@ pub fn usingDirectiveMulti(self: Ast, node: Node.Index) ast.UsingDirective {
 /// Ast representation of a `using_directive` node.
 ///
 /// Ask for a owned buffer so that it can represent the aliases slice.
-pub fn usingDirective(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.UsingDirective {
+pub fn usingDirective(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.UsingDirective {
     std.debug.assert(self.nodes.items(.tag)[node] == .using_directive);
 
     const data = self.nodes.items(.data)[node];
     const main = self.nodes.items(.main_token)[node];
 
     const proto = self.extraData(data.lhs, Node.UsingDirective);
-    node[0] = proto.aliases;
+    node_buffer[0] = proto.aliases;
 
     return .{
         .ast = .{
             .aliases = if (proto.aliases == 0) node_buffer[0..0] else node_buffer[0..1],
-            .for_alias = proto.for_alias,
             .target_type = proto.target_type,
         },
+        .for_alias = proto.for_alias,
         .main_token = main,
         .global = data.rhs,
     };
 }
 /// Ast representation of a `do_while` node.
-pub fn doWhileStatement(self: Ast, node: Node.Index) ast.DoWhileStatement {
+pub fn doWhileStatement(
+    self: Ast,
+    node: Node.Index,
+) ast.DoWhileStatement {
     std.debug.assert(self.nodes.items(.tag)[node] == .do_while);
 
     const data = self.nodes.items(.data)[node];
@@ -256,7 +284,10 @@ pub fn doWhileStatement(self: Ast, node: Node.Index) ast.DoWhileStatement {
     };
 }
 /// Ast representation of a `while` node.
-pub fn whileStatement(self: Ast, node: Node.Index) ast.WhileStatement {
+pub fn whileStatement(
+    self: Ast,
+    node: Node.Index,
+) ast.WhileStatement {
     std.debug.assert(self.nodes.items(.tag)[node] == .@"while");
 
     const data = self.nodes.items(.data)[node];
@@ -271,7 +302,10 @@ pub fn whileStatement(self: Ast, node: Node.Index) ast.WhileStatement {
     };
 }
 /// Ast representation of a `if_simple` node.
-pub fn ifSimpleStatement(self: Ast, node: Node.Index) ast.IfStatement {
+pub fn ifSimpleStatement(
+    self: Ast,
+    node: Node.Index,
+) ast.IfStatement {
     std.debug.assert(self.nodes.items(.tag)[node] == .if_simple);
 
     const data = self.nodes.items(.data)[node];
@@ -287,7 +321,10 @@ pub fn ifSimpleStatement(self: Ast, node: Node.Index) ast.IfStatement {
     };
 }
 /// Ast representation of a `if` node.
-pub fn ifStatement(self: Ast, node: Node.Index) ast.IfStatement {
+pub fn ifStatement(
+    self: Ast,
+    node: Node.Index,
+) ast.IfStatement {
     std.debug.assert(self.nodes.items(.tag)[node] == .@"if");
 
     const data = self.nodes.items(.data)[node];
@@ -305,7 +342,10 @@ pub fn ifStatement(self: Ast, node: Node.Index) ast.IfStatement {
     };
 }
 /// Ast representation of a `for` node.
-pub fn forStatement(self: Ast, node: Node.Index) ast.ForStatement {
+pub fn forStatement(
+    self: Ast,
+    node: Node.Index,
+) ast.ForStatement {
     std.debug.assert(self.nodes.items(.tag)[node] == .@"for");
 
     const data = self.nodes.items(.data)[node];
@@ -324,7 +364,10 @@ pub fn forStatement(self: Ast, node: Node.Index) ast.ForStatement {
     };
 }
 /// Ast representation of a `modifier_proto` node.
-pub fn modifierProto(self: Ast, node: Node.Index) ast.ModifierProto {
+pub fn modifierProto(
+    self: Ast,
+    node: Node.Index,
+) ast.ModifierProto {
     std.debug.assert(self.nodes.items(.tag)[node] == .modifier_proto);
 
     const data = self.nodes.items(.data)[node];
@@ -333,7 +376,7 @@ pub fn modifierProto(self: Ast, node: Node.Index) ast.ModifierProto {
     const proto = self.extraData(data.lhs, Node.ModifierProto);
     const params = self.extra_data[proto.params_start..proto.params_end];
 
-    const specifiers_node = self.nodes.items(.main_token)[proto.specifiers];
+    const specifiers_node = self.nodes.items(.main_token)[data.rhs];
     const range = self.extraData(specifiers_node, Node.Range);
     const specifiers = self.extra_data[range.start..range.end];
 
@@ -347,7 +390,11 @@ pub fn modifierProto(self: Ast, node: Node.Index) ast.ModifierProto {
     };
 }
 /// Ast representation of a `modifier_proto_one` node.
-pub fn modifierProtoOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.ModifierProto {
+pub fn modifierProtoOne(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.ModifierProto {
     std.debug.assert(self.nodes.items(.tag)[node] == .modifier_proto_one);
 
     const data = self.nodes.items(.data)[node];
@@ -369,7 +416,10 @@ pub fn modifierProtoOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index
     };
 }
 /// Ast representation of a `user_defined_type` node.
-pub fn userDefinedTypeDecl(self: Ast, node: Node.Index) ast.UserDefinedTypeDecl {
+pub fn userDefinedTypeDecl(
+    self: Ast,
+    node: Node.Index,
+) ast.UserDefinedTypeDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .user_defined_type);
 
     const data = self.nodes.items(.data)[node];
@@ -379,12 +429,15 @@ pub fn userDefinedTypeDecl(self: Ast, node: Node.Index) ast.UserDefinedTypeDecl 
         .ast = .{
             .target_type = data.rhs,
         },
-        .main = main,
+        .main_token = main,
         .name = data.lhs,
     };
 }
 /// Ast representation of a `construct_decl_one` node.
-pub fn constructorDecl(self: Ast, node: Node.Index) ast.ConstructorDecl {
+pub fn constructorDecl(
+    self: Ast,
+    node: Node.Index,
+) ast.ConstructorDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .construct_decl);
 
     const data = self.nodes.items(.data)[node];
@@ -406,7 +459,11 @@ pub fn constructorDecl(self: Ast, node: Node.Index) ast.ConstructorDecl {
     };
 }
 /// Ast representation of a `construct_decl_one`.
-pub fn constructorDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.ConstructorDecl {
+pub fn constructorDeclOne(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.ConstructorDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .construct_decl_one);
 
     const data = self.nodes.items(.data)[node];
@@ -428,7 +485,11 @@ pub fn constructorDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Ind
     };
 }
 /// Ast representation of a `event_proto_simple` node.
-pub fn eventProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.EventProto {
+pub fn eventProtoSimple(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.EventProto {
     std.debug.assert(self.nodes.items(.tag)[node] == .event_proto_simple);
 
     const data = self.nodes.items(.data)[node];
@@ -447,7 +508,10 @@ pub fn eventProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index
     };
 }
 /// Ast representation of a `event_proto_multi` node.
-pub fn eventProtoMulti(self: Ast, node: Node.Index) ast.EventProto {
+pub fn eventProtoMulti(
+    self: Ast,
+    node: Node.Index,
+) ast.EventProto {
     std.debug.assert(self.nodes.items(.tag)[node] == .event_proto_multi);
 
     const data = self.nodes.items(.data)[node];
@@ -482,7 +546,10 @@ pub fn errorProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index
     };
 }
 /// Ast representation of a `error_proto_multi` node.
-pub fn errorProtoMulti(self: Ast, node: Node.Index) ast.ErrorProto {
+pub fn errorProtoMulti(
+    self: Ast,
+    node: Node.Index,
+) ast.ErrorProto {
     std.debug.assert(self.nodes.items(.tag)[node] == .error_proto_multi);
 
     const data = self.nodes.items(.data)[node];
@@ -514,7 +581,11 @@ pub fn enumDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast
     };
 }
 /// Ast representation of a `import_directive_symbol_one` node.
-pub fn importDeclSymbolOne(self: Ast, buffer: *[1]Node.Index, node: Node.Index) ast.ImportDecl {
+pub fn importDeclSymbolOne(
+    self: Ast,
+    buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.ImportDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .import_directive_symbol_one);
 
     const data = self.nodes.items(.data)[node];
@@ -554,7 +625,10 @@ pub fn importDeclSymbol(self: Ast, node: Node.Index) ast.ImportDecl {
     };
 }
 /// Ast representation of a `import_directive_asterisk` node.
-pub fn importDeclAsterisk(self: Ast, node: Node.Index) ast.ImportDecl {
+pub fn importDeclAsterisk(
+    self: Ast,
+    node: Node.Index,
+) ast.ImportDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .import_directive_asterisk);
 
     const data = self.nodes.items(.data)[node];
@@ -591,7 +665,10 @@ pub fn importDeclPath(self: Ast, node: Node.Index) ast.ImportDecl {
     };
 }
 /// Ast representation of a `mapping_decl` node.
-pub fn mappingDecl(self: Ast, node: Node.Index) ast.MappingDecl {
+pub fn mappingDecl(
+    self: Ast,
+    node: Node.Index,
+) ast.MappingDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .mapping_decl);
 
     const data = self.nodes.items(.data)[node];
@@ -624,7 +701,11 @@ pub fn enumDecl(self: Ast, node: Node.Index) ast.EnumDecl {
 /// Ast representation of a `function_proto` node.
 ///
 /// Asks for a owned buffer to pass as the slice of return values.
-pub fn functionProto(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.FunctionDecl {
+pub fn functionProto(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.FunctionDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .function_proto);
 
     const data = self.nodes.items(.data)[node];
@@ -653,7 +734,11 @@ pub fn functionProto(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) a
 /// Ast representation of a `function_proto_one` node.
 ///
 /// Asks for a owned buffer to pass as the slice of return and param values.
-pub fn functionProtoOne(self: Ast, node_buffer: *[2]Node.Index, node: Node.Index) ast.FunctionDecl {
+pub fn functionProtoOne(
+    self: Ast,
+    node_buffer: *[2]Node.Index,
+    node: Node.Index,
+) ast.FunctionDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .function_proto_one);
 
     const data = self.nodes.items(.data)[node];
@@ -680,7 +765,10 @@ pub fn functionProtoOne(self: Ast, node_buffer: *[2]Node.Index, node: Node.Index
     };
 }
 /// Ast representation of a `function_proto_multi` node.
-pub fn functionMulti(self: Ast, node: Node.Index) ast.FunctionDecl {
+pub fn functionMulti(
+    self: Ast,
+    node: Node.Index,
+) ast.FunctionDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .function_proto_multi);
 
     const data = self.nodes.items(.data)[node];
@@ -707,7 +795,11 @@ pub fn functionMulti(self: Ast, node: Node.Index) ast.FunctionDecl {
 /// Ast representation of a `function_proto_simple` node.
 ///
 /// Asks for a owned buffer to pass as the slice of param values.
-pub fn functionProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.FunctionDecl {
+pub fn functionProtoSimple(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.FunctionDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .function_proto_simple);
 
     const data = self.nodes.items(.data)[node];
@@ -734,7 +826,11 @@ pub fn functionProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.In
 /// Ast representation of a `function_type` node.
 ///
 /// Asks for a owned buffer to pass as the slice of return values.
-pub fn functionTypeProto(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.FunctionTypeDecl {
+pub fn functionTypeProto(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.FunctionTypeDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .function_type);
 
     const data = self.nodes.items(.data)[node];
@@ -759,7 +855,11 @@ pub fn functionTypeProto(self: Ast, node_buffer: *[1]Node.Index, node: Node.Inde
 /// Ast representation of a `function_type_one`.
 ///
 /// Asks for a owned buffer to pass as the slice of return and param values.
-pub fn functionTypeProtoOne(self: Ast, node_buffer: *[2]Node.Index, node: Node.Index) ast.FunctionTypeDecl {
+pub fn functionTypeProtoOne(
+    self: Ast,
+    node_buffer: *[2]Node.Index,
+    node: Node.Index,
+) ast.FunctionTypeDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .function_type_one);
 
     const data = self.nodes.items(.data)[node];
@@ -782,7 +882,10 @@ pub fn functionTypeProtoOne(self: Ast, node_buffer: *[2]Node.Index, node: Node.I
     };
 }
 /// Ast representation of a `function_type_multi` node.
-pub fn functionTypeMulti(self: Ast, node: Node.Index) ast.FunctionTypeDecl {
+pub fn functionTypeMulti(
+    self: Ast,
+    node: Node.Index,
+) ast.FunctionTypeDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .function_type_multi);
 
     const data = self.nodes.items(.data)[node];
@@ -805,7 +908,11 @@ pub fn functionTypeMulti(self: Ast, node: Node.Index) ast.FunctionTypeDecl {
 /// Ast representation of a `function_type_simple` node.
 ///
 /// Asks for a owned buffer to pass as the slice of return and param values.
-pub fn functionTypeProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.FunctionTypeDecl {
+pub fn functionTypeProtoSimple(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.FunctionTypeDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .function_type_simple);
 
     const data = self.nodes.items(.data)[node];
@@ -825,7 +932,11 @@ pub fn functionTypeProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Nod
     };
 }
 /// Ast representation of a `contract_decl`, `interface_decl`, `abstract_decl`
-pub fn structDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.StructDecl {
+pub fn structDeclOne(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.StructDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .struct_decl_one);
 
     const data = self.nodes.items(.data)[node];
@@ -841,7 +952,10 @@ pub fn structDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) a
     };
 }
 /// Ast representation of a `struct_decl` node.
-pub fn structDecl(self: Ast, node: Node.Index) ast.StructDecl {
+pub fn structDecl(
+    self: Ast,
+    node: Node.Index,
+) ast.StructDecl {
     std.debug.assert(self.nodes.items(.tag)[node] == .struct_decl);
 
     const data = self.nodes.items(.data)[node];
@@ -858,7 +972,10 @@ pub fn structDecl(self: Ast, node: Node.Index) ast.StructDecl {
     };
 }
 /// Ast representation of a `contract_decl`, `interface_decl`, `abstract_decl` and `library_decl`.
-pub fn contractDecl(self: Ast, node: Node.Index) ast.ContractDecl {
+pub fn contractDecl(
+    self: Ast,
+    node: Node.Index,
+) ast.ContractDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .contract_decl or
         nodes[node] == .library_decl or
@@ -871,6 +988,7 @@ pub fn contractDecl(self: Ast, node: Node.Index) ast.ContractDecl {
     return .{
         .ast = .{
             .body = data.rhs,
+            .inheritance = null,
         },
         .main_token = main,
         .name = data.lhs,
@@ -879,7 +997,11 @@ pub fn contractDecl(self: Ast, node: Node.Index) ast.ContractDecl {
 /// Ast representation of a `contract_decl_one`, `interface_decl_inheritance_one`, `abstract_decl_inheritance_one`
 ///
 /// Asks for a owned buffer so that we can use as the slice of inheritance nodes.
-pub fn contractDeclInheritanceOne(self: Ast, buffer: *[1]Node.Index, node: Node.Index) ast.ContractDecl {
+pub fn contractDeclInheritanceOne(
+    self: Ast,
+    buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.ContractDecl {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .contract_decl_inheritance_one or
         nodes[node] == .interface_decl_inheritance_one or
@@ -901,7 +1023,10 @@ pub fn contractDeclInheritanceOne(self: Ast, buffer: *[1]Node.Index, node: Node.
     };
 }
 /// Ast representation of a `contract_decl_inheritance`, `interface_decl_inheritance`, `abstract_decl_inheritance`.
-pub fn contractDeclInheritance(self: Ast, node: Node.Index) ast.ContractDeclInheritance {
+pub fn contractDeclInheritance(
+    self: Ast,
+    node: Node.Index,
+) ast.ContractDeclInheritance {
     const nodes = self.nodes.items(.tag);
     std.debug.assert(nodes[node] == .contract_decl_inheritance or
         nodes[node] == .interface_decl_inheritance or
@@ -922,9 +1047,183 @@ pub fn contractDeclInheritance(self: Ast, node: Node.Index) ast.ContractDeclInhe
         .name = extra.identifier,
     };
 }
+
+// Yul representation
+
+/// Ast representation of a `assembly_decl` node.
+pub fn assemblyDecl(
+    self: Ast,
+    node: Node.Index,
+) ast.AssemblyDecl {
+    std.debug.assert(self.nodes.items(.tag)[node] == .assembly_decl);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    return .{
+        .ast = .{
+            .flags = data.lhs,
+            .body = data.rhs,
+        },
+        .main_token = main,
+    };
+}
+/// Ast representation of a `yul_var_decl` node.
+pub fn yulFunctionDecl(
+    self: Ast,
+    node: Node.Index,
+) ast.YulFunctionDecl {
+    std.debug.assert(self.nodes.items(.tag)[node] == .yul_function_decl);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    const extra = self.extraData(data.lhs, Node.YulFnProto);
+
+    return .{
+        .ast = .{
+            .name = extra.identifier,
+            .params_start = extra.params_start,
+            .params_end = extra.params_end,
+        },
+        .main_token = main,
+    };
+}
+/// Ast representation of a `yul_var_decl` node.
+pub fn yulFullFunctionDecl(
+    self: Ast,
+    node: Node.Index,
+) ast.YulFullFunctionDecl {
+    std.debug.assert(self.nodes.items(.tag)[node] == .yul_full_function_decl);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    const extra = self.extraData(data.lhs, Node.YulFullFnProto);
+
+    return .{
+        .ast = .{
+            .name = extra.identifier,
+            .params_start = extra.params_start,
+            .params_end = extra.params_end,
+            .returns_start = extra.returns_start,
+            .returns_end = extra.returns_end,
+        },
+        .main_token = main,
+    };
+}
+/// Ast representation of a `yul_var_decl` node.
+pub fn yulVariableDecl(
+    self: Ast,
+    node: Node.Index,
+) ast.YulVariableDecl {
+    std.debug.assert(self.nodes.items(.tag)[node] == .yul_var_decl);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    return .{
+        .ast = .{
+            .name = data.lhs,
+            .expression = data.rhs,
+        },
+        .main_token = main,
+    };
+}
+/// Ast representation of a `yul_multi_var_decl` node.
+pub fn yulMultiVariableDecl(
+    self: Ast,
+    node: Node.Index,
+) ast.YulMultiVariableDecl {
+    std.debug.assert(self.nodes.items(.tag)[node] == .yul_var_decl_multi);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    const extra = self.extraData(data.lhs, Node.Range);
+
+    return .{
+        .ast = .{
+            .name_start = extra.start,
+            .name_end = extra.end,
+            .call_expression = data.rhs,
+        },
+        .main_token = main,
+    };
+}
+/// Ast representation of a `yul_for` node.
+pub fn yulForStatement(
+    self: Ast,
+    node: Node.Index,
+) ast.ForStatement {
+    const nodes = self.nodes.items(.tag);
+
+    std.debug.assert(nodes[node] == .yul_for);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    const proto = self.extraData(data.lhs, Node.For);
+
+    return .{
+        .ast = .{
+            .assign_expr = proto.condition_one,
+            .condition = proto.condition_two,
+            .increment = proto.condition_three,
+            .then_expression = data.rhs,
+        },
+        .main_token = main,
+    };
+}
+/// Ast representation of a `yul_if` node.
+pub fn yulIfStatement(
+    self: Ast,
+    node: Node.Index,
+) ast.YulIfStatement {
+    std.debug.assert(self.nodes.items(.tag)[node] == .yul_if);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    return .{
+        .ast = .{
+            .condition = data.lhs,
+            .then_expression = data.rhs,
+        },
+        .main_token = main,
+    };
+}
+/// Ast representation of a `yul_switch` node.
+pub fn yulSwitchStatement(
+    self: Ast,
+    node: Node.Index,
+) ast.yulSwitchStatement {
+    std.debug.assert(self.nodes.items(.tag)[node] == .yul_if);
+
+    const data = self.nodes.items(.data)[node];
+    const main = self.nodes.items(.main_token)[node];
+
+    const extra = self.extraData(data.rhs, Node.Range);
+
+    return .{
+        .ast = .{
+            .condition = data.lhs,
+            .case_start = extra.start,
+            .case_end = extra.end,
+        },
+        .main_token = main,
+    };
+}
+
+// Extra functions
+
 /// Converts the indexes in `extra_data` into the expected `T`
 /// `T` must be a struct and it's members must be of `Node.Index` type.
-pub fn extraData(self: Ast, index: usize, comptime T: type) T {
+pub fn extraData(
+    self: Ast,
+    index: usize,
+    comptime T: type,
+) T {
     var result: T = undefined;
 
     inline for (std.meta.fields(T), 0..) |field, i| {
@@ -935,7 +1234,10 @@ pub fn extraData(self: Ast, index: usize, comptime T: type) T {
     return result;
 }
 /// Finds the first token tag based on the node index.
-pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
+pub fn firstToken(
+    self: Ast,
+    node: Node.Index,
+) TokenIndex {
     const node_tags = self.nodes.items(.tag);
     const data = self.nodes.items(.data);
     const main_token = self.nodes.items(.main_token);
@@ -944,7 +1246,8 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
 
     while (true) {
         switch (node_tags[current_node]) {
-            .root => return 0,
+            .root,
+            => return 0,
 
             .using_directive,
             .using_directive_multi,
@@ -980,6 +1283,7 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
             .@"return",
             .@"try",
             .@"catch",
+            .leave,
             .do_while,
             .user_defined_type,
             .mapping_decl,
@@ -1028,6 +1332,20 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
             .payable_decl,
             .struct_init,
             .struct_init_one,
+            .yul_full_function_decl,
+            .yul_function_decl,
+            .yul_switch,
+            .yul_switch_case,
+            .yul_switch_default,
+            .yul_var_decl,
+            .yul_var_decl_multi,
+            .yul_for,
+            .yul_if,
+            .yul_assign_multi,
+            .assembly_decl,
+            .assembly_flags,
+            .asm_block,
+            .asm_block_two,
             => return main_token[current_node],
 
             .error_variable_decl,
@@ -1038,6 +1356,8 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
 
             .call,
             .call_one,
+            .yul_call,
+            .yul_call_one,
             .array_access,
             .field_access,
             .assign,
@@ -1079,6 +1399,7 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
             .state_variable_decl,
             .constant_variable_decl,
             => current_node = data[current_node].lhs,
+
             .modifier_specifiers,
             .specifiers,
             .state_modifiers,
@@ -1087,7 +1408,8 @@ pub fn firstToken(self: Ast, node: Node.Index) TokenIndex {
 
                 return self.extra_data[extra.start];
             },
-            .using_alias_operator => return data[current_node].rhs,
+            .using_alias_operator,
+            => return data[current_node].rhs,
         }
     }
 }
@@ -1103,7 +1425,8 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
     while (true) {
         switch (node_tags[current_node]) {
-            .root => return @as(TokenIndex, @intCast(self.tokens.len - 1)),
+            .root,
+            => return @as(TokenIndex, @intCast(self.tokens.len - 1)),
 
             .string_literal,
             .number_literal,
@@ -1114,12 +1437,14 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .elementary_type,
             .@"continue",
             .@"break",
+            .leave,
             => return main_token[current_node] + end_offset,
 
             .number_literal_sub_denomination,
             => return data[current_node].lhs + end_offset,
 
-            .@"return" => if (data[current_node].lhs != 0) {
+            .@"return",
+            => if (data[current_node].lhs != 0) {
                 current_node = data[current_node].lhs;
             } else return main_token[current_node] + end_offset,
 
@@ -1131,7 +1456,11 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                     // Main token is the state so the next are identifier and semicolon.
                 } else if (main_token[current_node] != 0) {
                     end_offset += 1;
-                    return main_token[current_node] + end_offset;
+                    const elements = self.extraData(main_token[current_node], Node.Range);
+                    std.debug.assert(elements.end - elements.start > 0);
+
+                    end_offset += 1;
+                    current_node = self.extra_data[elements.end - 1];
                 } else current_node = data[current_node].lhs;
             },
 
@@ -1143,6 +1472,18 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                     return data[current_node].rhs + end_offset;
                 } else if (data[current_node].lhs != 0) {
                     return data[current_node].lhs + end_offset;
+                } else current_node = main_token[current_node];
+            },
+
+            .yul_var_decl_multi,
+            => {
+                if (data[current_node].rhs != 0) {
+                    current_node = data[current_node].rhs;
+                } else if (data[current_node].lhs != 0) {
+                    const extra = self.extraData(data[current_node].lhs, Node.Range);
+                    std.debug.assert(extra.end > extra.start);
+
+                    current_node = self.extra_data[extra.end - 1];
                 } else current_node = main_token[current_node];
             },
 
@@ -1204,6 +1545,14 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .if_simple,
             .@"for",
             .@"catch",
+            .yul_if,
+            .yul_assign_multi,
+            .yul_for,
+            .yul_function_decl,
+            .yul_full_function_decl,
+            .yul_switch_default,
+            .yul_switch_case,
+            .assembly_decl,
             => current_node = data[current_node].rhs,
 
             .mapping_decl,
@@ -1275,6 +1624,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             },
 
             .call_one,
+            .yul_call_one,
             .array_access,
             => {
                 end_offset += 1;
@@ -1287,6 +1637,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
             .function_decl,
             .modifier_decl,
+            .yul_var_decl,
             => {
                 if (data[current_node].rhs != 0) {
                     current_node = data[current_node].rhs;
@@ -1342,6 +1693,9 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 current_node = self.extra_data[extra.end - 1];
             },
 
+            .assembly_flags,
+            => return data[current_node].rhs + end_offset,
+
             .enum_decl_one,
             => {
                 end_offset += 1;
@@ -1393,6 +1747,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
             .block,
             .contract_block,
+            .asm_block,
             => {
                 std.debug.assert(data[current_node].rhs - data[current_node].lhs > 0);
                 end_offset += 1;
@@ -1411,6 +1766,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
             .block_two,
             .contract_block_two,
+            .asm_block_two,
             => {
                 end_offset += 1;
 
@@ -1435,14 +1791,17 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 } else unreachable;
             },
 
-            .@"if" => {
+            .@"if",
+            => {
                 const extra = self.extraData(data[current_node].rhs, Node.If);
                 std.debug.assert(extra.else_expression != 0);
 
                 current_node = extra.else_expression;
             },
 
-            .@"try" => {
+            .@"try",
+            .yul_switch,
+            => {
                 const extra = self.extraData(data[current_node].rhs, Node.Range);
 
                 std.debug.assert(extra.end > extra.start);
@@ -1450,7 +1809,8 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 current_node = self.extra_data[extra.end - 1];
             },
 
-            .event_proto_simple => {
+            .event_proto_simple,
+            => {
                 end_offset += 1;
 
                 const extra = self.extraData(data[current_node].lhs, Node.EventProtoOne);
@@ -1474,7 +1834,8 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 current_node = self.extra_data[extra.params_end - 1];
             },
 
-            .error_proto_multi => {
+            .error_proto_multi,
+            => {
                 end_offset += 1;
 
                 const extra = self.extraData(data[current_node].rhs, Node.Range);
@@ -1485,14 +1846,29 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             },
 
             .function_proto_one,
-            .function_proto,
-            .function_type,
             .function_type_one,
             => {
                 end_offset += 1;
                 const returns = self.extraData(data[current_node].rhs, Node.Range);
 
-                current_node = self.extra_data[returns.end - 1];
+                if (returns.end > self.extra_data.len)
+                    current_node = returns.end
+                else
+                    current_node = self.extra_data[returns.end];
+            },
+
+            .function_proto,
+            .function_type,
+            => {
+                end_offset += 1;
+                const returns = self.extraData(data[current_node].rhs, Node.Range);
+
+                if (returns.end > self.extra_data.len)
+                    current_node = returns.end
+                else if (returns.start == returns.end)
+                    current_node = self.extra_data[returns.end - 1] + end_offset
+                else
+                    current_node = self.extra_data[returns.end - 1];
             },
 
             .function_proto_multi,
@@ -1533,7 +1909,9 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .pragma_directive,
             => return data[current_node].rhs + end_offset,
 
-            .call => {
+            .call,
+            .yul_call,
+            => {
                 end_offset += 1;
                 const extra = self.extraData(data[current_node].rhs, Node.Range);
 
@@ -1549,17 +1927,21 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             => {
                 const extra = self.extraData(main_token[current_node], Node.Range);
 
-                if (extra.end == 0)
-                    return extra.end;
+                const slice = self.extra_data[extra.start..extra.end];
 
-                if (self.extra_data[extra.end - 1] >= self.nodes.len) {
-                    return self.extra_data[extra.end - 1];
-                }
+                if (slice.len == 0)
+                    return self.extra_data[extra.end];
 
-                if (self.nodes.items(.tag)[self.extra_data[extra.end - 1]] == .override_specifier) {
-                    current_node = self.extra_data[extra.end - 1];
-                } else {
+                const tag = self.nodes.items(.tag);
+
+                if (self.extra_data[extra.end - 1] >= tag.len)
                     return self.extra_data[extra.end - 1];
+
+                switch (tag[self.extra_data[extra.end - 1]]) {
+                    .override_specifier,
+                    .identifier,
+                    => current_node = self.extra_data[extra.end - 1],
+                    else => return self.extra_data[extra.end - 1],
                 }
             },
 
@@ -1571,12 +1953,16 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 current_node = self.extra_data[extra.end - 1];
             },
 
-            .using_alias_operator => return data[current_node].lhs,
+            .using_alias_operator,
+            => return data[current_node].lhs,
         }
     }
 }
 /// Grabs the source from the provided token index.
-pub fn tokenSlice(self: Ast, token_index: TokenIndex) []const u8 {
+pub fn tokenSlice(
+    self: Ast,
+    token_index: TokenIndex,
+) []const u8 {
     const token_tag = self.tokens.items(.tag)[token_index];
     const token_start = self.tokens.items(.start)[token_index];
 
@@ -1594,7 +1980,10 @@ pub fn tokenSlice(self: Ast, token_index: TokenIndex) []const u8 {
     return self.source[token.location.start..token.location.end];
 }
 /// Gets the full node source based on the provided index.
-pub fn getNodeSource(self: Ast, node: Node.Index) []const u8 {
+pub fn getNodeSource(
+    self: Ast,
+    node: Node.Index,
+) []const u8 {
     const token_start = self.tokens.items(.start);
 
     const first = self.firstToken(node);
@@ -1606,7 +1995,11 @@ pub fn getNodeSource(self: Ast, node: Node.Index) []const u8 {
     return self.source[start..end];
 }
 /// Renders a parsing error into a more readable definition.
-pub fn renderError(self: Ast, parsing_error: Error, writer: anytype) @TypeOf(writer).Error!void {
+pub fn renderError(
+    self: Ast,
+    parsing_error: Error,
+    writer: anytype,
+) @TypeOf(writer).Error!void {
     const token_tags = self.tokens.items(.tag);
 
     switch (parsing_error.tag) {
@@ -1622,6 +2015,21 @@ pub fn renderError(self: Ast, parsing_error: Error, writer: anytype) @TypeOf(wri
         .chained_comparison_operators => return writer.writeAll("comparison operators cannot be chained"),
         .already_seen_specifier => return writer.writeAll("specifier cannot be repeated"),
         .expected_expr => return writer.print("expected an expression but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_yul_expression => return writer.print("expected an yul expression but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_yul_literal => return writer.print("expected an yul literal but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_yul_function_call => return writer.print("expected an yul function call but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_yul_statement => return writer.print("expected an yul statement but found '{s}'", .{
+            token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
+        }),
+        .expected_yul_assignment => return writer.print("expected an yul assignment but found '{s}'", .{
             token_tags[parsing_error.token + @intFromBool(parsing_error.token_is_prev)].symbol(),
         }),
         .expected_suffix => return writer.print("expected 'field_access' but found '{s}'", .{
@@ -1738,6 +2146,27 @@ pub const ast = struct {
         };
     };
 
+    pub const YulIfStatement = struct {
+        ast: Components,
+        main_token: TokenIndex,
+
+        pub const Components = struct {
+            condition: Node.Index,
+            then_expression: Node.Index,
+        };
+    };
+
+    pub const yulSwitchStatement = struct {
+        ast: Components,
+        main_token: TokenIndex,
+
+        pub const Components = struct {
+            condition: Node.Index,
+            case_start: Node.Index,
+            case_end: Node.Index,
+        };
+    };
+
     pub const ForStatement = struct {
         ast: Components,
         main_token: TokenIndex,
@@ -1778,6 +2207,27 @@ pub const ast = struct {
 
         pub const Components = struct {
             type_expr: Node.Index,
+        };
+    };
+
+    pub const YulVariableDecl = struct {
+        ast: Components,
+        main_token: TokenIndex,
+
+        pub const Components = struct {
+            name: Node.Index,
+            expression: Node.Index,
+        };
+    };
+
+    pub const YulMultiVariableDecl = struct {
+        ast: Components,
+        main_token: TokenIndex,
+
+        pub const Components = struct {
+            name_start: Node.Index,
+            name_end: Node.Index,
+            call_expression: Node.Index,
         };
     };
 
@@ -1853,6 +2303,30 @@ pub const ast = struct {
             params: []const Node.Index,
             specifiers: []const Node.Index,
             returns: ?[]const Node.Index,
+        };
+    };
+
+    pub const YulFunctionDecl = struct {
+        ast: Components,
+        main_token: TokenIndex,
+
+        pub const Components = struct {
+            name: Node.Index,
+            params_start: Node.Index,
+            params_end: Node.Index,
+        };
+    };
+
+    pub const YulFullFunctionDecl = struct {
+        ast: Components,
+        main_token: TokenIndex,
+
+        pub const Components = struct {
+            name: Node.Index,
+            params_start: Node.Index,
+            params_end: Node.Index,
+            returns_start: Node.Index,
+            returns_end: Node.Index,
         };
     };
 
@@ -1941,6 +2415,17 @@ pub const ast = struct {
 
         pub const Components = struct {
             body: Node.Index,
+            inheritance: ?[]const Node.Index,
+        };
+    };
+
+    pub const AssemblyDecl = struct {
+        main_token: TokenIndex,
+        ast: Components,
+
+        pub const Components = struct {
+            flags: Node.Index,
+            body: Node.Index,
         };
     };
 };
@@ -2011,6 +2496,7 @@ pub const Node = struct {
         assign_bit_xor,
         /// `lhs := rhs`
         yul_assign,
+        yul_assign_multi,
         /// `lhs + rhs`
         add,
         /// `lhs - rhs`
@@ -2154,6 +2640,9 @@ pub const Node = struct {
         /// main token is keyword.
         /// both rhs and lhs are unused.
         @"continue",
+        /// main token is keyword.
+        /// both rhs and lhs are unused.
+        leave,
         /// main token is keyword.
         /// lhs is the expression to a call or call_one node.
         /// rhs is unused.
@@ -2385,6 +2874,69 @@ pub const Node = struct {
         /// main token is the state keywords range.
         /// lhs and rhs are undefined.
         state_modifiers,
+
+        // Yul nodes
+
+        /// main token is the assembly keyword
+        /// lhs is the flags
+        /// rhs is the block
+        assembly_decl,
+        /// main token is the l_paren
+        /// lhs is the slice of string_literals
+        /// rhs is the r_paren
+        assembly_flags,
+        /// main token is the l_bracket
+        /// lhs is the start of the statements
+        /// rhs is the end of the statements
+        asm_block,
+        /// main token is the l_bracket
+        /// lhs is the start of the statements
+        /// rhs is the end of the statements. This can be 0.
+        asm_block_two,
+        /// main token is `l_paren`
+        /// lhs is the expression.
+        /// rhs is the index into extra_data
+        yul_call,
+        /// main token is `l_paren`
+        /// lhs is the expression.
+        /// rhs is the parameter.
+        yul_call_one,
+        /// main token is the let keyword
+        /// lhs is the type index
+        /// rhs is the expression or null_node.
+        yul_var_decl,
+        /// main token is the let keyword
+        /// lhs is the index into extra_data
+        /// rhs is the expression or a null_node.
+        yul_var_decl_multi,
+        /// main token is the if keyword
+        /// lhs is the expression
+        /// rhs is the block
+        yul_if,
+        /// main token is the for keyword
+        /// lhs is the index into extra_data
+        /// rhs is the block
+        yul_for,
+        /// main token is the switch keyword
+        /// lhs is the expression
+        /// rhs is the index into extra_data
+        yul_switch,
+        /// main token is the case keyword
+        /// lhs is the literal
+        /// rhs is the block
+        yul_switch_case,
+        /// main token is the default keyword
+        /// lhs is a null_node
+        /// rhs is the block
+        yul_switch_default,
+        /// main token is the function keyword
+        /// lhs is the index into extra_data
+        /// rhs is the block
+        yul_function_decl,
+        /// main token is the function keyword
+        /// lhs is the index into extra_data
+        /// rhs is the block
+        yul_full_function_decl,
     };
 
     /// Range used for params and others
@@ -2484,6 +3036,24 @@ pub const Node = struct {
         identifier: Index,
     };
 
+    /// Yul Function definition extra data.
+    /// Mostly used if the function doesn't have a return type definition
+    pub const YulFnProto = struct {
+        params_start: Index,
+        params_end: Index,
+        identifier: Index,
+    };
+
+    /// Yul Function definition extra data.
+    /// Mostly used if the function has a return type.
+    pub const YulFullFnProto = struct {
+        returns_start: Index,
+        returns_end: Index,
+        params_start: Index,
+        params_end: Index,
+        identifier: Index,
+    };
+
     /// Contract, Interface inheritance definition extra data.
     /// Mostly used if its a single.
     pub const ContractInheritanceOne = struct {
@@ -2566,6 +3136,7 @@ pub const Error = struct {
         expected_tag: Token.Tag,
     } = .{ .none = {} },
 
+    /// Ast error tags.
     pub const Tag = enum {
         same_line_doc_comment,
         expected_token,
@@ -2597,5 +3168,10 @@ pub const Error = struct {
         expected_source_unit_expr,
         expected_operator,
         expected_return_type,
+        expected_yul_statement,
+        expected_yul_assignment,
+        expected_yul_expression,
+        expected_yul_function_call,
+        expected_yul_literal,
     };
 };

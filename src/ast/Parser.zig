@@ -3047,7 +3047,7 @@ pub fn parseMapping(self: *Parser) ParserErrors!Node.Index {
     const child_two = try self.parseTypeExpr();
 
     if (child_two == 0)
-        return self.fail(.expected_elementary_or_identifier_path);
+        return self.fail(.expected_type_expr);
 
     _ = try self.expectToken(.r_paren);
     _ = self.consumeToken(.identifier);

@@ -91,13 +91,14 @@ pub fn IndentingStream(comptime BaseWriter: type) type {
 /// It's opinionated and for now supports minimal set of configurations.
 pub fn SolidityFormatter(
     comptime OutWriter: type,
-    // comptime indent: comptime_int,
+    comptime indent: comptime_int,
 ) type {
     return struct {
         /// Supported punctuation for this formatter.
         pub const Punctuation = enum {
             comma,
             comma_space,
+            comma_newline,
             newline,
             none,
             semicolon,
@@ -105,7 +106,14 @@ pub fn SolidityFormatter(
             skip,
         };
 
+        // Asserts that the indent level cannot be 0;
+        comptime {
+            std.debug.assert(indent != 0);
+        }
+
         /// Set of errors when running the formatter.
+        ///
+        /// These error come from the formatter type that was provided.
         pub const Error = OutWriter.Error;
 
         const Formatter = @This();
@@ -115,6 +123,84 @@ pub fn SolidityFormatter(
         /// Solidity Ast used as the base for formatting the source code.
         tree: Ast,
 
+        /// Sets the initial state with the provided indentation
+        pub fn init(
+            tree: Ast,
+            inner_stream: OutWriter,
+        ) Formatter {
+            return .{
+                .stream = .{
+                    .base_writer = inner_stream,
+                    .indentation_level = indent,
+                    .indentation_count = 0,
+                },
+                .tree = tree,
+            };
+        }
+
+        /// Formats a solidity type expression.
+        pub fn formatTypeExpression(
+            self: *Formatter,
+            node: Ast.Node.Index,
+        ) Error!void {
+            const tags: []const Ast.Node.Tag = self.tree.nodes.items(.tag);
+
+            switch (tags[node]) {
+                .elementary_type => return self.formatElementaryType(node),
+                .mapping_decl => return self.formatMappingType(node),
+                .function_type,
+                .function_type_one,
+                .function_type_simple,
+                .function_type_multi,
+                => {},
+                .identifier => {},
+                .array_type => {},
+                else => unreachable,
+            }
+        }
+        /// Formats a solidity mapping declaration
+        pub fn formatMappingType(self: *Formatter, node: Ast.Node.Index) Error!void {
+            const tokens = self.tree.tokens.items(.tag);
+            const mapping = self.tree.mappingDecl(node);
+
+            try self.formatToken(mapping.main_token, .none);
+
+            // l_paren
+            try self.formatToken(mapping.main_token + 1, .none);
+            // Initial type
+            try self.formatTypeExpression(mapping.ast.left);
+
+            const maybe_ident = self.tree.lastToken(mapping.ast.left);
+            switch (tokens[maybe_ident + 1]) {
+                .identifier => {
+                    // Applies space after the type expression.
+                    try self.applyPunctuation(.space);
+                    // .identifier
+                    try self.formatToken(maybe_ident + 1, .space);
+                    // .equal_bracket_right
+                    try self.formatToken(maybe_ident + 2, .space);
+                },
+                .equal_bracket_right => {
+                    // Applies space after the type expression.
+                    try self.applyPunctuation(.space);
+                    try self.formatToken(maybe_ident + 1, .space);
+                },
+                else => unreachable,
+            }
+
+            // Final type expression.
+            try self.formatTypeExpression(mapping.ast.right);
+
+            // r_paren
+            const last_token = self.tree.lastToken(node);
+            try self.formatToken(last_token, .none);
+        }
+        /// Formats a single solidity elementary type.
+        pub fn formatElementaryType(self: *Formatter, node: Ast.Node.Index) Error!void {
+            std.debug.assert(self.tree.nodes.items(.tag)[node] == .elementary_type);
+
+            return self.formatToken(self.tree.nodes.items(.main_token)[node], .none);
+        }
         /// Formats a single token.
         ///
         /// If the token is a `doc_comment*` it will trim the whitespace on the right.
@@ -125,12 +211,8 @@ pub fn SolidityFormatter(
         ) Error!void {
             const slice = self.tokenSlice(token_index);
 
-            try self
-                .stream
-                .writer()
-                .writeAll(slice);
-
-            return self.applyPunctuation(token_index, slice.len, punctuation);
+            try self.stream.writer().writeAll(slice);
+            return self.applyPunctuation(punctuation);
         }
         /// Grabs the associated source code from a `token`
         ///
@@ -149,6 +231,20 @@ pub fn SolidityFormatter(
             }
 
             return slice;
+        }
+        /// Applies punctuation after a token.
+        pub fn applyPunctuation(self: *Formatter, punctuation: Punctuation) Error!void {
+            return switch (punctuation) {
+                .comma => self.stream.writer().writeAll(","),
+                .comma_space => self.stream.writer().writeAll(", "),
+                .comma_newline => self.stream.writer().writeAll(",\n"),
+                .newline => self.stream.writer().writeAll("\n"),
+                .semicolon => self.stream.writer().writeAll(";"),
+                .space => self.stream.writer().writeAll(" "),
+                .none,
+                .skip,
+                => {},
+            };
         }
     };
 }

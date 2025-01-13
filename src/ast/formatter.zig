@@ -70,7 +70,7 @@ pub fn IndentingStream(comptime BaseWriter: type) type {
                 return bytes.len;
 
             if (bytes[bytes.len - 1] == '\n')
-                self.indentation_level = 0;
+                self.indentation_count = 0;
 
             try self.base_writer.writeAll(bytes);
 
@@ -138,6 +138,130 @@ pub fn SolidityFormatter(
             };
         }
 
+        pub fn formatFunctionType(
+            self: *Formatter,
+            node: Ast.Node.Index,
+        ) Error!void {
+            switch (self.tree.nodes.items(.tag)[node]) {
+                .function_type => return self.formatFunctionTypeSimple(node),
+                .function_type_one => return self.formatFunctionTypeSimple(node),
+                .function_type_simple => return self.formatFunctionTypeSimple(node),
+                .function_type_multi => return self.formatFunctionTypeMulti(node),
+                else => unreachable,
+            }
+        }
+        /// Formats a `function_type_multi` node.
+        pub fn formatFunctionTypeMulti(
+            self: *Formatter,
+            node: Ast.Node.Index,
+        ) Error!void {
+            const fn_ast = self.tree.functionTypeMulti(node);
+
+            try self.formatToken(fn_ast.main_token, .none);
+
+            // .l_paren
+            try self.formatToken(fn_ast.main_token + 1, .none);
+
+            // type_expr -> modifier? -> identifier?
+            const index = try self.formatFunctionParams(fn_ast.ast.params);
+
+            // .r_paren
+            const r_paren = if (index != 0) self.tree.lastToken(index) + 1 else fn_ast.main_token + 2;
+            try self.formatToken(r_paren, .none);
+
+            // visibility tokens.
+            if (fn_ast.visibility) |visibility| {
+                try self.applyPunctuation(.space);
+                try self.formatToken(visibility, .none);
+            }
+
+            // Mutability tokens.
+            if (fn_ast.mutability) |mutability| {
+                try self.applyPunctuation(.space);
+                try self.formatToken(mutability, .none);
+            }
+        }
+        /// Formats a `function_type_simple` node.
+        pub fn formatFunctionTypeSimple(
+            self: *Formatter,
+            node: Ast.Node.Index,
+        ) Error!void {
+            var buffer: [1]Ast.Node.Index = undefined;
+            const fn_ast = self.tree.functionTypeProtoSimple(&buffer, node);
+
+            try self.formatToken(fn_ast.main_token, .none);
+
+            // .l_paren
+            try self.formatToken(fn_ast.main_token + 1, .none);
+
+            // type_expr -> modifier? -> identifier?
+            const index = try self.formatFunctionParams(fn_ast.ast.params);
+
+            // .r_paren
+            const r_paren = if (index != 0) self.tree.lastToken(index) + 1 else fn_ast.main_token + 2;
+            try self.formatToken(r_paren, .none);
+
+            // visibility tokens.
+            if (fn_ast.visibility) |visibility| {
+                try self.applyPunctuation(.space);
+                try self.formatToken(visibility, .none);
+            }
+
+            // Mutability tokens.
+            if (fn_ast.mutability) |mutability| {
+                try self.applyPunctuation(.space);
+                try self.formatToken(mutability, .none);
+            }
+        }
+        /// Formats the multiple function parameters
+        ///
+        /// This doesn't include the `l_paren` and `r_paren` tokens.
+        pub fn formatFunctionParams(
+            self: *Formatter,
+            nodes: []const Ast.Node.Index,
+        ) Error!Ast.Node.Index {
+            var last_node: Ast.Node.Index = 0;
+
+            for (nodes, 0..) |node, i| {
+                try self.formatVariableDecl(node);
+
+                if (i < nodes.len - 1)
+                    try self.applyPunctuation(.comma_space);
+
+                last_node = node;
+            }
+
+            return last_node;
+        }
+        /// Formats a single parameter variable declaration.
+        pub fn formatVariableDecl(
+            self: *Formatter,
+            node: Ast.Node.Index,
+        ) Error!void {
+            const var_decl = self.tree.variableDecl(node);
+
+            try self.formatTypeExpression(var_decl.ast.type_expr);
+
+            if (var_decl.memory) |memory| {
+                try self.applyPunctuation(.space);
+                try self.formatToken(memory, .none);
+            }
+
+            if (var_decl.calldata) |calldata| {
+                try self.applyPunctuation(.space);
+                try self.formatToken(calldata, .none);
+            }
+
+            if (var_decl.storage) |storage| {
+                try self.applyPunctuation(.space);
+                try self.formatToken(storage, .none);
+            }
+
+            if (var_decl.name) |name| {
+                try self.applyPunctuation(.space);
+                try self.formatToken(name, .none);
+            }
+        }
         /// Formats a solidity type expression.
         pub fn formatTypeExpression(
             self: *Formatter,
@@ -152,14 +276,17 @@ pub fn SolidityFormatter(
                 .function_type_one,
                 .function_type_simple,
                 .function_type_multi,
-                => {},
+                => return self.formatFunctionType(node),
                 .identifier => {},
                 .array_type => {},
                 else => unreachable,
             }
         }
         /// Formats a solidity mapping declaration
-        pub fn formatMappingType(self: *Formatter, node: Ast.Node.Index) Error!void {
+        pub fn formatMappingType(
+            self: *Formatter,
+            node: Ast.Node.Index,
+        ) Error!void {
             const tokens = self.tree.tokens.items(.tag);
             const mapping = self.tree.mappingDecl(node);
 
@@ -193,6 +320,8 @@ pub fn SolidityFormatter(
 
             // r_paren
             const last_token = self.tree.lastToken(node);
+
+            std.debug.assert(self.tree.tokens.items(.tag)[last_token] == .r_paren);
             try self.formatToken(last_token, .none);
         }
         /// Formats a single solidity elementary type.

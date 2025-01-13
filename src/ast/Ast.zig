@@ -1725,8 +1725,8 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
                     current_node = self.extra_data[extra.params_end - 1];
                 } else if (extra.mutability == 0) {
-                    return extra.visibility;
-                } else return extra.mutability;
+                    return extra.visibility + end_offset;
+                } else return extra.mutability + end_offset;
             },
 
             .function_type_simple,
@@ -1737,12 +1737,13 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                     if (extra.param != 0) {
                         const param_end = self.extra_data[extra.param];
                         current_node = param_end;
+                    } else {
+                        end_offset += 2;
+                        return main_token[current_node];
                     }
-
-                    return main_token[current_node] + 2;
                 } else if (extra.mutability == 0) {
-                    return extra.visibility;
-                } else return extra.mutability;
+                    return extra.visibility + end_offset;
+                } else return extra.mutability + end_offset;
             },
 
             .block,

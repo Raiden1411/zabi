@@ -8,7 +8,7 @@ const Parser = @import("zabi").ast.Parser;
 
 test "Basic" {
     const slice =
-        \\   mapping(uint foo =>  function(address               bar,     uint       bar)      external    payable ) constant foo = 69;
+        \\   mapping(uint foo =>  function(address               bar, uint              bar)      external    payable   returns    (address     foo, int                              bar) ) constant foo = 69;
     ;
 
     var list = std.ArrayList(u8).init(testing.allocator);
@@ -25,5 +25,5 @@ test "Basic" {
     const fmt = try list.toOwnedSlice();
     defer testing.allocator.free(fmt);
 
-    try testing.expectEqualStrings("mapping(uint foo => function(address bar, uint bar) external payable)", fmt);
+    try testing.expectEqualStrings("mapping(uint foo => function(address bar, uint bar) external payable returns (address foo, int bar))", fmt);
 }

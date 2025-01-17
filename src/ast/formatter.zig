@@ -138,17 +138,86 @@ pub fn SolidityFormatter(
             };
         }
 
-        pub fn formatFunctionType(
+        /// Formats any `function_type*` node.
+        pub fn formatFullFunctionType(
             self: *Formatter,
             node: Ast.Node.Index,
         ) Error!void {
             switch (self.tree.nodes.items(.tag)[node]) {
-                .function_type => return self.formatFunctionTypeSimple(node),
-                .function_type_one => return self.formatFunctionTypeSimple(node),
+                .function_type => return self.formatFunctionType(node),
+                .function_type_one => return self.formatFunctionTypeOne(node),
                 .function_type_simple => return self.formatFunctionTypeSimple(node),
                 .function_type_multi => return self.formatFunctionTypeMulti(node),
                 else => unreachable,
             }
+        }
+        /// Formats a `function_type` node.
+        pub fn formatFunctionType(
+            self: *Formatter,
+            node: Ast.Node.Index,
+        ) Error!void {
+            var buffer: [1]Ast.Node.Index = undefined;
+            const fn_ast = self.tree.functionTypeProto(&buffer, node);
+
+            try self.formatToken(fn_ast.main_token, .none);
+
+            // .l_paren
+            try self.formatToken(fn_ast.main_token + 1, .none);
+
+            // type_expr -> modifier? -> identifier?
+            const index = try self.formatFunctionTypeParams(fn_ast.ast.params);
+
+            // .r_paren
+            const r_paren = if (index != 0) self.tree.lastToken(index) + 1 else fn_ast.main_token + 2;
+            try self.formatToken(r_paren, .space);
+
+            // visibility tokens.
+            if (fn_ast.visibility) |visibility|
+                try self.formatToken(visibility, .space);
+
+            // Mutability tokens.
+            if (fn_ast.mutability) |mutability|
+                try self.formatToken(mutability, .space);
+
+            try self.stream.writer().writeAll("returns (");
+            const r_index = try self.formatFunctionTypeParams(fn_ast.ast.returns.?);
+
+            const rr_paren = self.tree.lastToken(r_index) + 1;
+            try self.formatToken(rr_paren, .none);
+        }
+        /// Formats a `function_type_one` node.
+        pub fn formatFunctionTypeOne(
+            self: *Formatter,
+            node: Ast.Node.Index,
+        ) Error!void {
+            var buffer: [2]Ast.Node.Index = undefined;
+            const fn_ast = self.tree.functionTypeProtoOne(&buffer, node);
+
+            try self.formatToken(fn_ast.main_token, .none);
+
+            // .l_paren
+            try self.formatToken(fn_ast.main_token + 1, .none);
+
+            // type_expr -> modifier? -> identifier?
+            const index = try self.formatFunctionTypeParams(fn_ast.ast.params);
+
+            // .r_paren
+            const r_paren = if (index != 0) self.tree.lastToken(index) + 1 else fn_ast.main_token + 2;
+            try self.formatToken(r_paren, .space);
+
+            // visibility tokens.
+            if (fn_ast.visibility) |visibility|
+                try self.formatToken(visibility, .space);
+
+            // Mutability tokens.
+            if (fn_ast.mutability) |mutability|
+                try self.formatToken(mutability, .space);
+
+            try self.stream.writer().writeAll("returns (");
+            const r_index = try self.formatFunctionTypeParams(fn_ast.ast.returns.?);
+
+            const rr_paren = self.tree.lastToken(r_index) + 1;
+            try self.formatToken(rr_paren, .none);
         }
         /// Formats a `function_type_multi` node.
         pub fn formatFunctionTypeMulti(
@@ -163,7 +232,7 @@ pub fn SolidityFormatter(
             try self.formatToken(fn_ast.main_token + 1, .none);
 
             // type_expr -> modifier? -> identifier?
-            const index = try self.formatFunctionParams(fn_ast.ast.params);
+            const index = try self.formatFunctionTypeParams(fn_ast.ast.params);
 
             // .r_paren
             const r_paren = if (index != 0) self.tree.lastToken(index) + 1 else fn_ast.main_token + 2;
@@ -195,7 +264,7 @@ pub fn SolidityFormatter(
             try self.formatToken(fn_ast.main_token + 1, .none);
 
             // type_expr -> modifier? -> identifier?
-            const index = try self.formatFunctionParams(fn_ast.ast.params);
+            const index = try self.formatFunctionTypeParams(fn_ast.ast.params);
 
             // .r_paren
             const r_paren = if (index != 0) self.tree.lastToken(index) + 1 else fn_ast.main_token + 2;
@@ -216,7 +285,7 @@ pub fn SolidityFormatter(
         /// Formats the multiple function parameters
         ///
         /// This doesn't include the `l_paren` and `r_paren` tokens.
-        pub fn formatFunctionParams(
+        pub fn formatFunctionTypeParams(
             self: *Formatter,
             nodes: []const Ast.Node.Index,
         ) Error!Ast.Node.Index {
@@ -276,7 +345,7 @@ pub fn SolidityFormatter(
                 .function_type_one,
                 .function_type_simple,
                 .function_type_multi,
-                => return self.formatFunctionType(node),
+                => return self.formatFullFunctionType(node),
                 .identifier => {},
                 .array_type => {},
                 else => unreachable,

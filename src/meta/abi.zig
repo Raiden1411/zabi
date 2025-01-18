@@ -39,7 +39,7 @@ pub fn AbiEventParametersDataToPrimative(comptime paramters: []const AbiEventPar
             fields[count] = .{
                 .name = std.fmt.comptimePrint("{d}", .{count}),
                 .type = EventType,
-                .default_value = null,
+                .default_value_ptr = null,
                 .is_comptime = false,
                 .alignment = if (@sizeOf(EventType) > 0) @alignOf(EventType) else 0,
             };
@@ -101,7 +101,7 @@ pub fn AbiEventParameterDataToPrimative(comptime param: AbiEventParameter) type 
                     fields[i] = .{
                         .name = component.name ++ "",
                         .type = FieldType,
-                        .default_value = null,
+                        .default_value_ptr = null,
                         .is_comptime = false,
                         .alignment = if (@sizeOf(FieldType) > 0) @alignOf(FieldType) else 0,
                     };
@@ -131,7 +131,7 @@ pub fn AbiEventParametersToPrimativeType(comptime event_params: []const AbiEvent
         fields[0] = .{
             .name = std.fmt.comptimePrint("{d}", .{0}),
             .type = [32]u8,
-            .default_value = null,
+            .default_value_ptr = null,
             .is_comptime = false,
             .alignment = @alignOf([32]u8),
         };
@@ -158,7 +158,7 @@ pub fn AbiEventParametersToPrimativeType(comptime event_params: []const AbiEvent
     fields[0] = .{
         .name = std.fmt.comptimePrint("{d}", .{0}),
         .type = [32]u8,
-        .default_value = null,
+        .default_value_ptr = null,
         .is_comptime = false,
         .alignment = @alignOf([32]u8),
     };
@@ -170,7 +170,7 @@ pub fn AbiEventParametersToPrimativeType(comptime event_params: []const AbiEvent
             fields[i] = .{
                 .name = std.fmt.comptimePrint("{d}", .{i}),
                 .type = EventType,
-                .default_value = null,
+                .default_value_ptr = null,
                 .is_comptime = false,
                 .alignment = if (@sizeOf(EventType) > 0) @alignOf(EventType) else 0,
             };
@@ -238,7 +238,7 @@ pub fn AbiParametersToPrimative(comptime paramters: []const AbiParameter) type {
         fields[i] = .{
             .name = std.fmt.comptimePrint("{d}", .{i}),
             .type = FieldType,
-            .default_value = null,
+            .default_value_ptr = null,
             .is_comptime = false,
             .alignment = if (@sizeOf(FieldType) > 0) @alignOf(FieldType) else 0,
         };
@@ -315,7 +315,7 @@ pub fn AbiParameterToPrimative(comptime param: AbiParameter) type {
                     fields[i] = .{
                         .name = component.name ++ "",
                         .type = FieldType,
-                        .default_value = null,
+                        .default_value_ptr = null,
                         .is_comptime = false,
                         .alignment = if (@sizeOf(FieldType) > 0) @alignOf(FieldType) else 0,
                     };

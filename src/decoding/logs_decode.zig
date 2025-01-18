@@ -123,7 +123,7 @@ pub fn decodeLog(comptime T: type, encoded: Hash, options: LogDecoderOptions) Lo
         },
         .pointer => |ptr_info| {
             switch (ptr_info.size) {
-                .One => {
+                .one => {
                     const allocator = options.allocator orelse return error.ExpectedAllocator;
 
                     const pointer = try allocator.create(ptr_info.child);

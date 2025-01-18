@@ -61,8 +61,8 @@ fn encodeItem(value: anytype, list: *std.ArrayList(u8)) Allocator.Error!void {
         },
         .pointer => |ptr_info| {
             switch (ptr_info.size) {
-                .One => return encodeItem(value.*, list),
-                .Slice => {
+                .one => return encodeItem(value.*, list),
+                .slice => {
                     if (ptr_info.child == u8) {
                         try writer.writeAll(value);
                         return;
@@ -183,7 +183,7 @@ fn sizeOfValue(value: anytype) usize {
     switch (info) {
         .array => return value.len,
         .pointer => switch (info.pointer.size) {
-            .Slice => return value.len,
+            .slice => return value.len,
             else => return sizeOfValue(value.*),
         },
         .optional => return if (value == null)

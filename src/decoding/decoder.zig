@@ -344,7 +344,7 @@ fn decodeParameter(comptime T: type, allocator: Allocator, encoded: []u8, positi
         },
         .pointer => |ptr_info| {
             switch (ptr_info.size) {
-                .One => {
+                .one => {
                     const value = try allocator.create(ptr_info.child);
                     errdefer allocator.destroy(value);
 
@@ -357,7 +357,7 @@ fn decodeParameter(comptime T: type, allocator: Allocator, encoded: []u8, positi
                         .bytes_read = decoded.bytes_read,
                     };
                 },
-                .Slice => {
+                .slice => {
                     if (ptr_info.child == u8) {
                         const offset: usize = @truncate(std.mem.readInt(u256, @ptrCast(encoded[position .. position + 32]), .big));
                         const length: usize = @truncate(std.mem.readInt(u256, @ptrCast(encoded[offset .. offset + 32]), .big));

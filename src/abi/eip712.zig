@@ -352,8 +352,8 @@ pub fn encodeStructField(
         },
         .pointer => |ptr_info| {
             switch (ptr_info.size) {
-                .One => return try encodeStructField(allocator, types, primary_type, value.*, writer),
-                .Slice => {
+                .one => return try encodeStructField(allocator, types, primary_type, value.*, writer),
+                .slice => {
                     if (ptr_info.child == u8) {
                         const param_type = try ParamType.typeToUnion(primary_type, allocator);
                         errdefer if (param_type == .dynamicArray or param_type == .fixedArray) param_type.freeArrayParamType(allocator);

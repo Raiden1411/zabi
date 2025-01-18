@@ -72,7 +72,7 @@ pub fn jsonParseFromValue(
 
     inline for (info.@"struct".fields) |field| {
         switch (@field(seen, field.name)) {
-            0 => if (field.default_value) |default_value| {
+            0 => if (field.default_value_ptr) |default_value| {
                 @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
             } else return error.MissingField,
             1 => {},
@@ -215,12 +215,12 @@ pub fn innerParseValueRequest(
         },
         .pointer => |ptr_info| {
             switch (ptr_info.size) {
-                .One => {
+                .one => {
                     const result: *ptr_info.child = try allocator.create(ptr_info.child);
                     result.* = try innerParseValueRequest(ptr_info.child, allocator, source, options);
                     return result;
                 },
-                .Slice => {
+                .slice => {
                     switch (source) {
                         .array => |array| {
                             const arr = try allocator.alloc(ptr_info.child, array.items.len);
@@ -362,18 +362,18 @@ pub fn innerStringify(
         },
         .pointer => |ptr_info| {
             switch (ptr_info.size) {
-                .One => switch (@typeInfo(ptr_info.child)) {
+                .one => switch (@typeInfo(ptr_info.child)) {
                     .array => {
                         const Slice = []const std.meta.Elem(ptr_info.child);
                         return innerStringify(@as(Slice, value), stream_writer);
                     },
                     else => return innerStringify(value.*, stream_writer),
                 },
-                .Many, .Slice => {
-                    if (ptr_info.size == .Many and ptr_info.sentinel == null)
+                .many, .slice => {
+                    if (ptr_info.size == .many and ptr_info.sentinel == null)
                         @compileError("Unable to stringify type '" ++ @typeName(@TypeOf(value)) ++ "' without sentinel");
 
-                    const slice = if (ptr_info.size == .Many) std.mem.span(value) else value;
+                    const slice = if (ptr_info.size == .many) std.mem.span(value) else value;
 
                     try valueStart(stream_writer);
                     if (ptr_info.child == u8) {

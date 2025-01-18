@@ -25,8 +25,8 @@ pub inline fn isStaticType(comptime T: type) bool {
             }
         },
         .pointer => switch (info.pointer.size) {
-            .Many, .Slice, .C => return false,
-            .One => return isStaticType(info.pointer.child),
+            .many, .slice, .c => return false,
+            .one => return isStaticType(info.pointer.child),
         },
         else => @compileError("Unsupported type " ++ @typeName(T)),
     }
@@ -58,8 +58,8 @@ pub inline fn isDynamicType(comptime T: type) bool {
         },
         .optional => |opt_info| return isDynamicType(opt_info.child),
         .pointer => switch (info.pointer.size) {
-            .Many, .Slice, .C => return true,
-            .One => switch (@typeInfo(info.pointer.child)) {
+            .many, .slice, .c => return true,
+            .one => switch (@typeInfo(info.pointer.child)) {
                 .array => return true,
 
                 else => return isDynamicType(info.pointer.child),

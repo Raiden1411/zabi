@@ -97,8 +97,8 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
                 },
                 .pointer => |ptr_info| {
                     switch (ptr_info.size) {
-                        .One => return self.encodeNoList(payload.*),
-                        .Slice => {
+                        .one => return self.encodeNoList(payload.*),
+                        .slice => {
                             if (ptr_info.child != u8)
                                 @compileError("This method only supports u8 slices. Please use `encodeList` instead.");
 
@@ -159,8 +159,8 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
                 },
                 .pointer => |ptr_info| {
                     switch (ptr_info.size) {
-                        .One => return self.encodeList(allocator, payload.*),
-                        .Slice => {
+                        .one => return self.encodeList(allocator, payload.*),
+                        .slice => {
                             if (ptr_info.child == u8)
                                 return self.encodeString(payload);
 

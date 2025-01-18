@@ -153,7 +153,7 @@ pub const RlpDecoder = struct {
             },
             .pointer => |ptr_info| {
                 switch (ptr_info.size) {
-                    .One => {
+                    .one => {
                         const result = try allocator.create(ptr_info.child);
                         errdefer allocator.destroy(result);
 
@@ -161,7 +161,7 @@ pub const RlpDecoder = struct {
 
                         return result;
                     },
-                    .Slice => {
+                    .slice => {
                         std.debug.assert(self.position < self.encoded.len);
 
                         if (ptr_info.child == u8) {

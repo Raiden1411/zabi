@@ -352,7 +352,7 @@ pub const TokenExplorerTransaction = struct {
 
         inline for (std.meta.fields(@This())) |field| {
             switch (@field(seen, field.name)) {
-                0 => if (field.default_value) |default_value| {
+                0 => if (field.default_value_ptr) |default_value| {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
                 } else return error.MissingField,
                 1 => {},
@@ -501,7 +501,7 @@ pub const InternalExplorerTransaction = struct {
 
         inline for (std.meta.fields(@This())) |field| {
             switch (@field(seen, field.name)) {
-                0 => if (field.default_value) |default_value| {
+                0 => if (field.default_value_ptr) |default_value| {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
                 } else return error.MissingField,
                 1 => {},
@@ -686,7 +686,7 @@ pub const ExplorerTransaction = struct {
 
         inline for (std.meta.fields(@This())) |field| {
             switch (@field(seen, field.name)) {
-                0 => if (field.default_value) |default_value| {
+                0 => if (field.default_value_ptr) |default_value| {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
                 } else return error.MissingField,
                 1 => {},
@@ -824,7 +824,7 @@ pub const GetSourceResult = struct {
 
         inline for (std.meta.fields(@This())) |field| {
             switch (@field(seen, field.name)) {
-                0 => if (field.default_value) |default_value| {
+                0 => if (field.default_value_ptr) |default_value| {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
                 } else return error.MissingField,
                 1 => {},
@@ -1081,7 +1081,7 @@ pub const BlockRewards = struct {
 
         inline for (std.meta.fields(@This())) |field| {
             switch (@field(seen, field.name)) {
-                0 => if (field.default_value) |default_value| {
+                0 => if (field.default_value_ptr) |default_value| {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
                 } else return error.MissingField,
                 1 => {},
@@ -1311,7 +1311,7 @@ pub const GasOracle = struct {
 
         inline for (std.meta.fields(@This())) |field| {
             switch (@field(seen, field.name)) {
-                0 => if (field.default_value) |default_value| {
+                0 => if (field.default_value_ptr) |default_value| {
                     @field(result, field.name) = @as(*const field.type, @ptrCast(@alignCast(default_value))).*;
                 } else return error.MissingField,
                 1 => {},

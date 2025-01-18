@@ -212,18 +212,18 @@ pub fn QueryWriter(comptime OutStream: type) type {
                 },
                 .pointer => |ptr_info| {
                     switch (ptr_info.size) {
-                        .One => switch (@typeInfo(ptr_info.child)) {
+                        .one => switch (@typeInfo(ptr_info.child)) {
                             .array => {
                                 const Slice = []const std.meta.Elem(ptr_info.child);
                                 return try self.writeValue(@as(Slice, value));
                             },
                             else => return self.writeValue(value.*),
                         },
-                        .Many, .Slice => {
-                            if (ptr_info.size == .Many and ptr_info.sentinel == null)
+                        .many, .slice => {
+                            if (ptr_info.size == .many and ptr_info.sentinel == null)
                                 @compileError("Unable to stringify type '" ++ @typeName(@TypeOf(value)) ++ "' without sentinel");
 
-                            const slice = if (ptr_info.size == .Many) std.mem.span(value) else value;
+                            const slice = if (ptr_info.size == .many) std.mem.span(value) else value;
 
                             if (ptr_info.child == u8) {
                                 try self.valueOrParameterStart();

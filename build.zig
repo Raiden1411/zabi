@@ -409,12 +409,14 @@ fn buildExamples(
         "examples/block_explorer/explorer.zig",
         "examples/wallet/wallet.zig",
         "examples/contract/contract.zig",
+        "examples/autobahn/autobahn.zig",
     };
 
     inline for (examples) |example| {
         const index = std.mem.lastIndexOfScalar(u8, example, '/').?;
         const example_exe = b.addExecutable(.{
-            .name = example[index + 1 ..],
+            // example name -> filename - .zig extension
+            .name = example[index + 1 .. example.len - 4],
             .root_source_file = b.path(example),
             .target = target,
             .optimize = optimize,

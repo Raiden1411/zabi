@@ -171,7 +171,7 @@ pub const AbiLogTopicsEncoderReflection = struct {
             },
             .pointer => |ptr_info| {
                 switch (ptr_info.size) {
-                    .One => switch (@typeInfo(ptr_info.child)) {
+                    .one => switch (@typeInfo(ptr_info.child)) {
                         .array => {
                             const Slice = []const std.meta.Elem(ptr_info.child);
 
@@ -179,7 +179,7 @@ pub const AbiLogTopicsEncoderReflection = struct {
                         },
                         else => return self.encodeLogTopic(value.*),
                     },
-                    .Slice => {
+                    .slice => {
                         if (ptr_info.child != u8)
                             @compileError("Only `u8` arrays are supported!");
 

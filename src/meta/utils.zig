@@ -139,7 +139,7 @@ pub fn MergeTupleStructs(
         fields[counter] = .{
             .name = std.fmt.comptimePrint("{d}", .{counter}),
             .type = field.type,
-            .default_value = field.default_value,
+            .default_value_ptr = field.default_value_ptr,
             .alignment = field.alignment,
             .is_comptime = field.is_comptime,
         };
@@ -173,7 +173,7 @@ pub fn StructToTupleType(comptime T: type) type {
                 fields[i] = .{
                     .name = std.fmt.comptimePrint("{d}", .{i}),
                     .type = Type,
-                    .default_value = null,
+                    .default_value_ptr = null,
                     .is_comptime = false,
                     .alignment = 0,
                 };
@@ -186,7 +186,7 @@ pub fn StructToTupleType(comptime T: type) type {
                     fields[i] = .{
                         .name = std.fmt.comptimePrint("{d}", .{i}),
                         .type = [arr_info.len]Type,
-                        .default_value = null,
+                        .default_value_ptr = null,
                         .is_comptime = false,
                         .alignment = 0,
                     };
@@ -196,7 +196,7 @@ pub fn StructToTupleType(comptime T: type) type {
                 fields[i] = .{
                     .name = std.fmt.comptimePrint("{d}", .{i}),
                     .type = field.type,
-                    .default_value = field.default_value,
+                    .default_value_ptr = field.default_value_ptr,
                     .is_comptime = field.is_comptime,
                     .alignment = 0,
                 };
@@ -209,7 +209,7 @@ pub fn StructToTupleType(comptime T: type) type {
                     fields[i] = .{
                         .name = std.fmt.comptimePrint("{d}", .{i}),
                         .type = []const Type,
-                        .default_value = null,
+                        .default_value_ptr = null,
                         .is_comptime = false,
                         .alignment = 0,
                     };
@@ -219,7 +219,7 @@ pub fn StructToTupleType(comptime T: type) type {
                 fields[i] = .{
                     .name = std.fmt.comptimePrint("{d}", .{i}),
                     .type = field.type,
-                    .default_value = null,
+                    .default_value_ptr = null,
                     .is_comptime = field.is_comptime,
                     .alignment = 0,
                 };
@@ -228,7 +228,7 @@ pub fn StructToTupleType(comptime T: type) type {
                 fields[i] = .{
                     .name = std.fmt.comptimePrint("{d}", .{i}),
                     .type = field.type,
-                    .default_value = null,
+                    .default_value_ptr = null,
                     .is_comptime = field.is_comptime,
                     .alignment = 0,
                 };

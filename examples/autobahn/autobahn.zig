@@ -1,5 +1,5 @@
 const std = @import("std");
-const clients = @import("zabi-clients");
+const clients = @import("zabi").clients;
 
 const Allocator = std.mem.Allocator;
 const WebSocketClient = clients.WebSocketClient;

@@ -73,7 +73,7 @@ pub fn MulticallArguments(comptime targets: []const MulticallTargets) type {
         fields[i] = .{
             .name = std.fmt.comptimePrint("{d}", .{i}),
             .type = Arguments,
-            .default_value = null,
+            .default_value_ptr = null,
             .is_comptime = false,
             .alignment = if (@sizeOf(Arguments) > 0) @alignOf(Arguments) else 0,
         };

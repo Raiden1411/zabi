@@ -799,7 +799,7 @@ pub const AbiEncoder = struct {
             },
             .pointer => |ptr_info| {
                 switch (ptr_info.size) {
-                    .One => switch (@typeInfo(ptr_info.child)) {
+                    .one => switch (@typeInfo(ptr_info.child)) {
                         .array,
                         => {
                             const Slice = []const std.meta.Elem(ptr_info.child);
@@ -807,7 +807,7 @@ pub const AbiEncoder = struct {
                         },
                         else => return self.preEncodeReflection(allocator, value.*),
                     },
-                    .Slice => {
+                    .slice => {
                         if (ptr_info.child == u8) {
                             const encoded = try encodeString(allocator, value);
 
@@ -957,7 +957,7 @@ pub const EncodePacked = struct {
             },
             .pointer => |ptr_info| {
                 switch (ptr_info.size) {
-                    .One => switch (@typeInfo(ptr_info.child)) {
+                    .one => switch (@typeInfo(ptr_info.child)) {
                         .array => {
                             const Slice = []const std.meta.Elem(ptr_info.child);
 
@@ -965,7 +965,7 @@ pub const EncodePacked = struct {
                         },
                         else => return self.encodePackedValue(value.*),
                     },
-                    .Slice => {
+                    .slice => {
                         if (ptr_info.child == u8)
                             return writer.writeAll(value);
 

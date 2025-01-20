@@ -161,7 +161,7 @@ fn parseArgValue(
         },
         .pointer => |ptr_info| {
             switch (ptr_info.size) {
-                .One => {
+                .one => {
                     const pointer = allocator.create(ptr_info.child) catch failWithMessage("Process ran out of memory", .{});
                     errdefer allocator.destroy(pointer);
 
@@ -169,7 +169,7 @@ fn parseArgValue(
 
                     return pointer;
                 },
-                .Slice => {
+                .slice => {
                     var list = std.ArrayList(ptr_info.child).init(allocator);
                     errdefer list.deinit();
 
@@ -197,7 +197,7 @@ fn convertToArgFlag(comptime field_name: [:0]const u8) [:0]const u8 {
 }
 /// Wraps the default value into it's correct type
 fn convertDefaultValueType(comptime field: std.builtin.Type.StructField) ?field.type {
-    return if (field.default_value) |opaque_value|
+    return if (field.default_value_ptr) |opaque_value|
         @as(*const field.type, @ptrCast(@alignCast(opaque_value))).*
     else
         null;

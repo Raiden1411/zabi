@@ -138,6 +138,69 @@ pub fn SolidityFormatter(
             };
         }
 
+        pub fn formatExpression(self: *Formatter, node: Ast.Node.Index, punctuation: Punctuation) Error!void {
+            const main_token = self.tree.nodes.items(.main_token);
+            const data = self.tree.nodes.items(.data);
+            const nodes = self.tree.nodes.items(.tag);
+
+            switch (nodes[node]) {
+                .identifier,
+                .number_literal,
+                .string_literal,
+                => return self.formatToken(main_token[node], punctuation),
+
+                .field_access,
+                => {
+                    try self.formatExpression(data[node].lhs, .none);
+                    try self.formatToken(main_token[node], .none);
+
+                    return self.formatToken(data[node].rhs, punctuation);
+                },
+
+                .equal_equal,
+                .bang_equal,
+                .less_than,
+                .less_than_or_equal,
+                .greater_than,
+                .greater_than_or_equal,
+                .assign,
+                .assign_add,
+                .assign_sub,
+                .assign_mul,
+                .assing_mod,
+                .assign_div,
+                .assign_shl,
+                .assign_sar,
+                .assign_shr,
+                .assing_bit_and,
+                .assign_bit_xor,
+                .assign_bit_or,
+                .yul_assing,
+                .add,
+                .sub,
+                .mod,
+                .mul,
+                .div,
+                .shl,
+                .shr,
+                .sar,
+                .exponent,
+                .bit_and,
+                .bit_or,
+                .bit_xor,
+                .conditional_and,
+                .conditional_or,
+                => {
+                    const operator = main_token[node];
+                    const expressions = data[node];
+
+                    try self.formatExpression(expressions.lhs, .space);
+                    try self.formatToken(operator, .space);
+
+                    return self.formatExpression(expressions.rhs, punctuation);
+                },
+            }
+        }
         /// Formats any `function_type*` node.
         pub fn formatFullFunctionType(
             self: *Formatter,

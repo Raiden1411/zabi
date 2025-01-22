@@ -138,7 +138,11 @@ pub fn SolidityFormatter(
             };
         }
 
-        pub fn formatExpression(self: *Formatter, node: Ast.Node.Index, punctuation: Punctuation) Error!void {
+        pub fn formatExpression(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
             const main_token = self.tree.nodes.items(.main_token);
             const data = self.tree.nodes.items(.data);
             const nodes = self.tree.nodes.items(.tag);
@@ -199,6 +203,51 @@ pub fn SolidityFormatter(
 
                     return self.formatExpression(expressions.rhs, punctuation);
                 },
+
+                .bit_not,
+                .conditional_not,
+                .delete,
+                .increment,
+                .decrement,
+                .payable,
+                => {
+                    const operator = main_token[node];
+                    const expressions = data[node];
+
+                    try self.formatToken(operator, .none);
+
+                    return self.formatExpression(expressions.lhs, punctuation);
+                },
+
+                .number_literal_sub_denomination,
+                => {
+                    const literal = main_token[node];
+                    const denomination = data[node];
+
+                    try self.formatToken(literal, .space);
+                    try self.formatToken(denomination.lhs, .none);
+                },
+
+                .array_access,
+                .tuple_init_one,
+                .array_init_one,
+                .struct_init_one,
+                => {
+                    const token = main_token[node];
+                    const expression = data[node];
+
+                    try self.formatToken(token, .none);
+                    try self.formatExpression(expression.lhs, punctuation);
+
+                    return self.formatToken(expression.rhs, .none);
+                },
+
+                .array_init,
+                .tuple_init,
+                .struct_init,
+                => {},
+
+                else => unreachable,
             }
         }
         /// Formats any `function_type*` node.

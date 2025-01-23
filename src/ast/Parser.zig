@@ -2101,9 +2101,7 @@ pub fn parsePrimaryExpr(self: *Parser) ParserErrors!Node.Index {
                     try self.scratch.append(self.allocator, expr);
 
                 switch (self.token_tags[self.token_index]) {
-                    .comma => {
-                        self.token_index += 1;
-                    },
+                    .comma => self.token_index += 1,
                     .r_paren => {
                         self.token_index += 1;
                         break;

@@ -8,7 +8,7 @@ const Parser = @import("zabi").ast.Parser;
 
 test "Basic" {
     const slice =
-        \\   mapping(uint foo =>  function(address               bar, uint              bar)      external    payable   returns    (address     foo, int                              bar) ) constant foo = 69;
+        \\  uint256 constant foo  = 10000                   gwei;
     ;
 
     var list = std.ArrayList(u8).init(testing.allocator);
@@ -20,10 +20,10 @@ test "Basic" {
     var format: Formatter = .init(ast, list.writer());
 
     std.debug.print("Nodes: {any}\n", .{ast.nodes.items(.tag)});
-    try format.formatTypeExpression(1);
+    try format.formatExpression(@intCast(ast.nodes.len - 2), .none);
 
     const fmt = try list.toOwnedSlice();
     defer testing.allocator.free(fmt);
 
-    try testing.expectEqualStrings("mapping(uint foo => function(address bar, uint bar) external payable returns (address foo, int bar))", fmt);
+    try testing.expectEqualStrings("10000 gwei", fmt);
 }

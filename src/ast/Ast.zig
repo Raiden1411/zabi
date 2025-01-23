@@ -1566,7 +1566,10 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .payable_decl,
             .type_decl,
             .new_decl,
-            => current_node = data[current_node].lhs,
+            => {
+                end_offset += 1;
+                current_node = data[current_node].lhs;
+            },
 
             .import_directive_path,
             => {
@@ -1586,7 +1589,11 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .struct_init_one,
             => {
                 end_offset += 1;
-                current_node = data[current_node].lhs;
+
+                if (data[current_node].lhs != 0)
+                    current_node = data[current_node].lhs;
+
+                return main_token[current_node] + end_offset;
             },
 
             .struct_init,
@@ -1628,9 +1635,8 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .array_access,
             => {
                 end_offset += 1;
-                if (data[current_node].rhs == 0) {
+                if (data[current_node].rhs == 0)
                     return main_token[current_node] + end_offset;
-                }
 
                 current_node = data[current_node].rhs;
             },

@@ -27,6 +27,7 @@ const Span = union(enum) {
 
 /// Taken from zig's std.
 const Association = enum {
+    right,
     left,
     none,
 };
@@ -67,7 +68,7 @@ const oper_table = table: {
         .minus = .{ .precedence = 60, .tag = .sub },
 
         .asterisk = .{ .precedence = 70, .tag = .mul },
-        .asterisk_asterisk = .{ .precedence = 70, .tag = .exponent },
+        .asterisk_asterisk = .{ .precedence = 70, .tag = .exponent, .association = .right },
         .slash = .{ .precedence = 70, .tag = .div },
         .percent = .{ .precedence = 70, .tag = .mod },
     });
@@ -1482,7 +1483,9 @@ pub fn expectEmitStatement(self: *Parser) ParserErrors!Node.Index {
     const expr = try self.parseSuffixExpr();
 
     switch (self.nodes.items(.tag)[expr]) {
-        .call_one, .call => {},
+        .call_one,
+        .call,
+        => {},
         else => return self.fail(.expected_function_call),
     }
 
@@ -1611,7 +1614,7 @@ pub fn expectStatement(self: *Parser) ParserErrors!Node.Index {
 
             return unchecked;
         },
-        .keyword_assembly => return self.expectAssemblyStatement(), // Not implemented
+        .keyword_assembly => return self.expectAssemblyStatement(),
         else => {},
     }
 
@@ -1621,8 +1624,8 @@ pub fn expectStatement(self: *Parser) ParserErrors!Node.Index {
         return block;
 
     const assign = try self.expectAssignExpr();
-
     try self.expectSemicolon();
+
     return assign;
 }
 /// Expects to find an expression or it will fail.
@@ -1974,12 +1977,20 @@ pub fn parseExprPrecedence(
         const oper_token = self.nextToken();
 
         const rhs = try self.parseExprPrecedence(info.precedence + 1);
+
         if (rhs == 0) {
             try self.warn(.expected_expr);
             return node;
         }
 
-        node = try self.addNode(.{
+        node = if (info.association == .right) try self.addNode(.{
+            .tag = info.tag,
+            .main_token = oper_token,
+            .data = .{
+                .lhs = rhs,
+                .rhs = node,
+            },
+        }) else try self.addNode(.{
             .tag = info.tag,
             .main_token = oper_token,
             .data = .{

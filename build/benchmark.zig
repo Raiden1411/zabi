@@ -72,7 +72,10 @@ pub fn BenchmarkRunner(
             try queue.ensureTotalCapacity(max_slowest_tracker);
 
             return .{
-                .color_stream = .empty,
+                .color_stream = .{
+                    .color = .reset,
+                    .underlaying_writer = std.io.getStdErr().writer(),
+                },
                 .dequeue = queue,
             };
         }
@@ -92,9 +95,8 @@ pub fn BenchmarkRunner(
         /// ```
         pub fn run(self: *Self, runner: TestFn) anyerror!void {
             var count: usize = 0;
-            while (count < max_warmup) : (count += 1) {
+            while (count < max_warmup) : (count += 1)
                 try runner.func();
-            }
 
             var timer = try std.time.Timer.start();
             var sample_index: usize = 0;

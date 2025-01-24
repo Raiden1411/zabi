@@ -1386,7 +1386,6 @@ pub fn firstToken(
             .shr,
             .sar,
             .shl,
-            .exponent,
             .yul_assign,
             .bit_and,
             .bit_xor,
@@ -1399,6 +1398,9 @@ pub fn firstToken(
             .state_variable_decl,
             .constant_variable_decl,
             => current_node = data[current_node].lhs,
+
+            .exponent,
+            => current_node = data[current_node].rhs,
 
             .modifier_specifiers,
             .specifiers,
@@ -1518,7 +1520,6 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .shr,
             .sar,
             .shl,
-            .exponent,
             .yul_assign,
             .bit_and,
             .bit_xor,
@@ -1554,6 +1555,9 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .yul_switch_case,
             .assembly_decl,
             => current_node = data[current_node].rhs,
+
+            .exponent,
+            => current_node = data[current_node].lhs,
 
             .mapping_decl,
             .error_proto_simple,

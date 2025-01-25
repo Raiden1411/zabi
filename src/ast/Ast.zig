@@ -2005,6 +2005,16 @@ pub fn getNodeSource(
 
     return self.source[start..end];
 }
+/// Checks if the given tokens are on the same line.
+pub fn tokensOnSameLine(
+    self: Ast,
+    token1: TokenIndex,
+    token2: TokenIndex,
+) bool {
+    const token_starts = self.tokens.items(.start);
+    const source = self.source[token_starts[token1]..token_starts[token2]];
+    return std.mem.indexOfScalar(u8, source, '\n') == null;
+}
 /// Renders a parsing error into a more readable definition.
 pub fn renderError(
     self: Ast,

@@ -13,10 +13,12 @@ pub fn IndentingStream(comptime BaseWriter: type) type {
 
         /// The base writer for this wrapper
         base_writer: BaseWriter,
+        /// Current amount of indentation
+        indentation: u8,
         /// Current amount of indentation to apply
-        indentation_level: usize,
-        /// Current amount of indentation to apply
-        indentation_count: usize,
+        indentation_level: u8,
+        /// If it should apply indentation to the rest of the stream
+        apply_indentation: bool,
 
         /// Returns the writer with our writer function.
         pub fn writer(self: *Self) Writer {
@@ -35,31 +37,29 @@ pub fn IndentingStream(comptime BaseWriter: type) type {
             try self.applyIndentation();
             return self.writeSimple(bytes);
         }
-        /// Writes a new line into the stream and updates the level.
-        pub fn writeNewline(self: *Self) WriterError!void {
-            return self.writeSimple("\n");
-        }
         /// Applies indentation if the current level * count is higher than 0.
         pub fn applyIndentation(self: *Self) WriterError!void {
-            if (self.getCurrentIndentation() > 0)
-                try self.base_writer.writeByteNTimes(' ', self.indentation_level);
+            if (self.apply_indentation and self.getCurrentIndentation() > 0) {
+                try self.base_writer.writeByteNTimes(' ', self.getCurrentIndentation());
+                self.apply_indentation = false;
+            }
         }
         /// Gets the current indentation level to apply. `indentation_level` * `indentation_count`
         pub fn getCurrentIndentation(self: *Self) usize {
             var current: usize = 0;
-            if (self.indentation_count > 0)
-                current = self.indentation_level * self.indentation_count;
+            if (self.indentation > 0)
+                current = self.indentation * self.indentation_level;
 
             return current;
         }
         /// Pushes one level of indentation.
         pub fn pushIndentation(self: *Self) void {
-            self.indentation_count += 1;
+            self.indentation_level += 1;
         }
         /// Pops one level of indentation.
         pub fn popIndentation(self: *Self) void {
-            std.debug.assert(self.indentation_count > 0);
-            self.indentation_count -= 1;
+            std.debug.assert(self.indentation_level > 0);
+            self.indentation_level -= 1;
         }
         /// Writes to the base stream with no indentation and punctuation
         pub fn writeSimple(
@@ -70,18 +70,11 @@ pub fn IndentingStream(comptime BaseWriter: type) type {
                 return bytes.len;
 
             if (bytes[bytes.len - 1] == '\n')
-                self.indentation_count = 0;
+                self.apply_indentation = true;
 
             try self.base_writer.writeAll(bytes);
 
             return bytes.len;
-        }
-        /// Sets the indentation_level.
-        pub fn setIndentation(self: *Self, indent: usize) void {
-            if (self.indentation_level == indent)
-                return;
-
-            self.indentation_level = indent;
         }
     };
 }
@@ -89,10 +82,7 @@ pub fn IndentingStream(comptime BaseWriter: type) type {
 /// Solidity languange formatter.
 ///
 /// It's opinionated and for now supports minimal set of configurations.
-pub fn SolidityFormatter(
-    comptime OutWriter: type,
-    comptime indent: comptime_int,
-) type {
+pub fn SolidityFormatter(comptime OutWriter: type) type {
     return struct {
         /// Supported punctuation for this formatter.
         pub const Punctuation = enum {
@@ -105,11 +95,6 @@ pub fn SolidityFormatter(
             space,
             skip,
         };
-
-        // Asserts that the indent level cannot be 0;
-        comptime {
-            std.debug.assert(indent != 0);
-        }
 
         /// Set of errors when running the formatter.
         ///
@@ -126,13 +111,15 @@ pub fn SolidityFormatter(
         /// Sets the initial state with the provided indentation
         pub fn init(
             tree: Ast,
+            indentation: u8,
             inner_stream: OutWriter,
         ) Formatter {
             return .{
                 .stream = .{
                     .base_writer = inner_stream,
-                    .indentation_level = indent,
-                    .indentation_count = 0,
+                    .indentation = indentation,
+                    .indentation_level = 0,
+                    .apply_indentation = true,
                 },
                 .tree = tree,
             };
@@ -175,17 +162,29 @@ pub fn SolidityFormatter(
                 .if_simple,
                 => {
                     // .keyword_if
-                    try self.formatToken(main_token[node], .none);
+                    try self.formatToken(main_token[node], .space);
                     // .l_paren
                     try self.formatToken(main_token[node] + 1, .none);
+
                     // expression
                     try self.formatExpression(data[node].lhs, .none);
 
                     // .r_paren
                     const last = self.tree.lastToken(data[node].lhs);
-                    try self.formatToken(last + 1, .none);
+                    try self.formatToken(last + 1, .space);
 
-                    // then_expression
+                    if (self.tree.tokensOnSameLine(last, self.tree.firstToken(data[node].rhs)))
+                        // then_expression
+                        return self.formatStatement(data[node].rhs);
+
+                    if (self.isBlockNode(data[node].rhs))
+                        return self.formatStatement(data[node].rhs);
+
+                    self.stream.pushIndentation();
+                    defer self.stream.popIndentation();
+
+                    try self.applyPunctuation(.newline);
+
                     return self.formatStatement(data[node].rhs);
                 },
                 // TODO: Change how this node works
@@ -359,10 +358,13 @@ pub fn SolidityFormatter(
 
             try self.formatToken(main_token[node], .newline);
 
+            self.stream.pushIndentation();
+
             for (statements) |statement|
                 try self.formatStatement(statement);
 
-            try self.formatToken(self.tree.lastToken(node), .none);
+            self.stream.popIndentation();
+            try self.formatToken(self.tree.lastToken(node), .newline);
         }
         /// Formats a solidity expression.
         pub fn formatExpression(
@@ -803,25 +805,17 @@ pub fn SolidityFormatter(
 
             try self.formatTypeExpression(var_decl.ast.type_expr, punctuation);
 
-            if (var_decl.memory) |memory| {
-                try self.applyPunctuation(.space);
-                try self.formatToken(memory, .none);
-            }
+            if (var_decl.memory) |memory|
+                try self.formatToken(memory, .space);
 
-            if (var_decl.calldata) |calldata| {
-                try self.applyPunctuation(.space);
-                try self.formatToken(calldata, .none);
-            }
+            if (var_decl.calldata) |calldata|
+                try self.formatToken(calldata, .space);
 
-            if (var_decl.storage) |storage| {
-                try self.applyPunctuation(.space);
-                try self.formatToken(storage, .none);
-            }
+            if (var_decl.storage) |storage|
+                try self.formatToken(storage, .space);
 
-            if (var_decl.name) |name| {
-                try self.applyPunctuation(.space);
-                try self.formatToken(name, .none);
-            }
+            if (var_decl.name) |name|
+                try self.formatToken(name, .space);
         }
         /// Formats a solidity type expression.
         pub fn formatTypeExpression(
@@ -946,6 +940,17 @@ pub fn SolidityFormatter(
                 .none,
                 .skip,
                 => {},
+            };
+        }
+        /// Checks if the node is a block node
+        fn isBlockNode(self: Formatter, node: Ast.Node.Index) bool {
+            return switch (self.tree.nodes.items(.tag)[node]) {
+                .block_two,
+                .block_two_semicolon,
+                .block,
+                .block_semicolon,
+                => true,
+                else => false,
             };
         }
     };

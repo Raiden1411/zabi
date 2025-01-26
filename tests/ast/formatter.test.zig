@@ -14,8 +14,27 @@ test "Basic" {
         \\        emit OwnershipTransferred(oldOwner, newOwner);
         \\        if (foo > 5) 
         \\ {foo +=       bar;}
+        \\        if (foo > 5) 
+        \\  foo +=       bar;
+        \\      do {
+        \\        uint ggggg = 42;
+        \\       } while (true);
         \\
+        \\        for (uint   foo   = 0;   foo > 5; ++foo) 
+        \\ {foo +=       bar;}
+        \\        for (uint   foo   = 0;   foo > 5; ++foo) 
+        \\ foo +=       bar;
         \\ 
+        \\        while (true) 
+        \\ {foo +=       bar;}
+        \\        if (foo > 5) 
+        \\ {foo +=       bar;} else    {fooooo;}
+        \\        if (foo > 5) 
+        \\ foo +=       bar; else    {fooooo;}
+        \\ unchecked        {bar      += fooo;}
+        \\ continue;
+        \\ break;
+        \\ return           foooooo +           6;
         \\ 
         \\    }
     ;
@@ -29,7 +48,7 @@ test "Basic" {
     var format: Formatter = .init(ast, 4, list.writer());
 
     std.debug.print("Nodes: {any}\n", .{ast.nodes.items(.tag)});
-    try format.formatStatement(@intCast(ast.nodes.len - 1));
+    try format.formatStatement(@intCast(ast.nodes.len - 1), .none);
 
     const fmt = try list.toOwnedSlice();
     defer testing.allocator.free(fmt);

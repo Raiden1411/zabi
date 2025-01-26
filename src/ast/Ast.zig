@@ -330,7 +330,7 @@ pub fn ifStatement(
     const data = self.nodes.items(.data)[node];
     const main = self.nodes.items(.main_token)[node];
 
-    const proto = self.extraData(data.lhs, Node.If);
+    const proto = self.extraData(data.rhs, Node.If);
 
     return .{
         .ast = .{
@@ -1433,9 +1433,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .string_literal,
             .number_literal,
             .unreachable_node,
-            .increment,
             .identifier,
-            .decrement,
             .elementary_type,
             .@"continue",
             .@"break",
@@ -1489,10 +1487,6 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 } else current_node = main_token[current_node];
             },
 
-            .bit_not,
-            .conditional_not,
-            .delete,
-            .negation,
             .emit,
             .assign,
             .assign_add,
@@ -1542,7 +1536,6 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .user_defined_type,
             .unchecked_block,
             .@"while",
-            .do_while,
             .if_simple,
             .@"for",
             .@"catch",
@@ -1556,6 +1549,19 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .assembly_decl,
             => current_node = data[current_node].rhs,
 
+            .do_while,
+            => {
+                end_offset += 1;
+                current_node = data[current_node].rhs;
+            },
+
+            // TODO: Update this for increment and decrement
+            .bit_not,
+            .increment,
+            .decrement,
+            .conditional_not,
+            .delete,
+            .negation,
             .exponent,
             => current_node = data[current_node].lhs,
 

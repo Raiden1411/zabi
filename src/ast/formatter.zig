@@ -151,10 +151,11 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     // l_paren
                     try self.formatToken(error_decl.name + 1, .none);
 
+                    // TODO: Render doc_comment
                     for (error_decl.ast.params) |field|
                         try self.formatExpression(field, .none);
 
-                    try self.formatToken(self.tree.lastToken(node), .newline);
+                    return self.formatToken(self.tree.lastToken(node), .newline);
                 },
                 .error_proto_multi,
                 => {
@@ -166,6 +167,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     // l_paren
                     try self.formatToken(error_decl.name + 1, .none);
 
+                    // TODO: Render doc_comment
                     for (error_decl.ast.params, 0..) |field, i|
                         try self.formatExpression(
                             field,
@@ -175,17 +177,144 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                                 .none,
                         );
 
-                    try self.formatToken(self.tree.lastToken(node), .newline);
+                    return self.formatToken(self.tree.lastToken(node), .newline);
                 },
                 .event_proto_simple,
+                => {
+                    var buffer: [1]Ast.Node.Index = undefined;
+                    const event_decl = self.tree.eventProtoSimple(&buffer, node);
+
+                    try self.formatToken(event_decl.main_token, .space);
+                    try self.formatToken(event_decl.name, .none);
+
+                    // l_paren
+                    try self.formatToken(event_decl.name + 1, .none);
+
+                    // TODO: Render doc_comment
+                    for (event_decl.ast.params, 0..) |field, i|
+                        try self.formatExpression(
+                            field,
+                            if (i < event_decl.ast.params.len - 1)
+                                .comma_space
+                            else
+                                .none,
+                        );
+
+                    if (event_decl.anonymous) |anonymous| {
+                        // r_paren
+                        try self.formatToken(anonymous - 1, .space);
+                        return self.formatToken(anonymous, .newline);
+                    }
+
+                    // r_paren
+                    return self.formatToken(self.tree.lastToken(node), .newline);
+                },
                 .event_proto_multi,
-                => @panic("TODO"),
-                .constructor_decl,
-                .constructor_decl_one,
-                => @panic("TODO"),
+                => {
+                    const event_decl = self.tree.eventProtoMulti(node);
+
+                    try self.formatToken(event_decl.main_token, .space);
+                    try self.formatToken(event_decl.name, .none);
+
+                    // l_paren
+                    try self.formatToken(event_decl.name + 1, .none);
+
+                    // TODO: Render doc_comment
+                    for (event_decl.ast.params, 0..) |field, i|
+                        try self.formatExpression(
+                            field,
+                            if (i < event_decl.ast.params.len - 1)
+                                .comma_space
+                            else
+                                .none,
+                        );
+
+                    if (event_decl.anonymous) |anonymous| {
+                        // r_paren
+                        try self.formatToken(anonymous - 1, .space);
+                        return self.formatToken(anonymous, .newline);
+                    }
+
+                    return self.formatToken(self.tree.lastToken(node), .newline);
+                },
+                .construct_decl,
+                => {
+                    var buffer: [1]Ast.Node.Index = undefined;
+                    const constructor_decl = self.tree.constructorDeclOne(&buffer, node);
+
+                    try self.formatToken(constructor_decl.main_token, .space);
+                    try self.formatToken(constructor_decl.main_token + 1, .space);
+
+                    // TODO: Render doc_comment
+                    for (constructor_decl.ast.params, 0..) |field, i|
+                        try self.formatToken(
+                            field,
+                            if (i < constructor_decl.ast.params.len - 1)
+                                .comma_space
+                            else
+                                .none,
+                        );
+
+                    // TODO: Change how the node specifier works.
+
+                    return self.formatStatement(constructor_decl.ast.body, .newline);
+                },
+                .construct_decl_one,
+                => {
+                    const constructor_decl = self.tree.constructorDecl(node);
+
+                    try self.formatToken(constructor_decl.main_token, .space);
+                    try self.formatToken(constructor_decl.main_token + 1, .space);
+
+                    // TODO: Render doc_comment
+                    for (constructor_decl.ast.params, 0..) |field, i|
+                        try self.formatToken(
+                            field,
+                            if (i < constructor_decl.ast.params.len - 1)
+                                .comma_space
+                            else
+                                .none,
+                        );
+
+                    // TODO: Change how the node specifier works.
+
+                    return self.formatStatement(constructor_decl.ast.body, .newline);
+                },
                 .struct_decl,
+                => {
+                    var buffer: [1]Ast.Node.Index = undefined;
+                    const struct_decl = self.tree.structDeclOne(&buffer, node);
+
+                    try self.formatToken(struct_decl.main_token, .space);
+                    try self.formatToken(struct_decl.name, .space);
+
+                    // l_brace
+                    try self.formatToken(struct_decl.name + 1, .newline);
+
+                    // TODO: Render doc_comment
+                    for (struct_decl.ast.fields) |field|
+                        try self.formatExpression(field, .semicolon);
+
+                    // r_brace
+                    try self.formatToken(self.tree.lastToken(node), .newline);
+                },
                 .struct_decl_one,
-                => @panic("TODO"),
+                => {
+                    const struct_decl = self.tree.structDecl(node);
+
+                    try self.formatToken(struct_decl.main_token, .space);
+                    try self.formatToken(struct_decl.name, .space);
+
+                    // l_brace
+                    try self.formatToken(struct_decl.name + 1, .newline);
+
+                    // TODO: Render doc_comment
+                    for (struct_decl.ast.fields) |field|
+                        try self.formatExpression(field, .semicolon);
+
+                    // r_brace
+                    try self.formatToken(self.tree.lastToken(node), .newline);
+                },
                 .modifier_proto,
                 => @panic("TODO"),
                 .function_decl,
@@ -207,6 +336,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     // l_brace
                     try self.formatToken(enum_decl.name + 1, .newline);
 
+                    // TODO: Render doc_comment
                     for (enum_decl.fields, 0..) |field, i|
                         try self.formatToken(
                             field,
@@ -229,6 +359,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     // l_brace
                     try self.formatToken(enum_decl.name + 1, .newline);
 
+                    // TODO: Render doc_comment
                     for (enum_decl.fields) |field|
                         try self.formatToken(field, .newline);
 

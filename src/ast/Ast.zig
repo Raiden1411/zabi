@@ -433,7 +433,7 @@ pub fn userDefinedTypeDecl(
         .name = data.lhs,
     };
 }
-/// Ast representation of a `construct_decl_one` node.
+/// Ast representation of a `construct_decl` node.
 pub fn constructorDecl(
     self: Ast,
     node: Node.Index,

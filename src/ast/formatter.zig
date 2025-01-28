@@ -128,18 +128,58 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
         }
 
         /// Formats a single element of a solidity contract block
+        // TODO: Add second param for punctuation.
         pub fn formatContractBodyElement(
             self: *Formatter,
             node: Ast.Node.Index,
         ) Error!void {
             const nodes = self.tree.nodes.items(.tag);
+            const data = self.tree.nodes.items(.data);
 
             switch (nodes[node]) {
                 .function_proto_one,
-                .function_proto,
-                .function_proto_simple,
-                .function_proto_multi,
                 => @panic("TODO"),
+                .function_proto,
+                => @panic("TODO"),
+                .function_proto_simple,
+                => {
+                    var buffer: [1]Ast.Node.Index = undefined;
+                    const fn_proto = self.tree.functionProtoSimple(&buffer, node);
+
+                    try self.formatToken(fn_proto.main_token, .space);
+                    try self.formatToken(fn_proto.name, .none);
+
+                    // l_paren
+                    try self.formatToken(fn_proto.name + 1, .none);
+
+                    // TODO: Render doc_comment
+                    for (fn_proto.ast.params) |field|
+                        try self.formatExpression(field, .none);
+
+                    return self.formatToken(self.tree.lastToken(node), .newline);
+                },
+                .function_proto_multi,
+                => {
+                    const fn_proto = self.tree.functionMulti(node);
+
+                    try self.formatToken(fn_proto.main_token, .space);
+                    try self.formatToken(fn_proto.name, .none);
+
+                    // l_paren
+                    try self.formatToken(fn_proto.name + 1, .none);
+
+                    // TODO: Render doc_comment
+                    for (fn_proto.ast.params, 0..) |field, i|
+                        try self.formatExpression(
+                            field,
+                            if (i < fn_proto.ast.params.len - 1)
+                                .comma_space
+                            else
+                                .none,
+                        );
+
+                    return self.formatToken(self.tree.lastToken(node), .newline);
+                },
                 .error_proto_simple,
                 => {
                     var buffer: [1]Ast.Node.Index = undefined;
@@ -315,17 +355,96 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     // r_brace
                     try self.formatToken(self.tree.lastToken(node), .newline);
                 },
+                .modifier_proto_one,
+                => {
+                    var buffer: [1]Ast.Node.Index = undefined;
+                    const modifier_proto = self.tree.modifierProtoOne(&buffer, node);
+
+                    try self.formatToken(modifier_proto.main_token, .space);
+                    try self.formatToken(modifier_proto.name, .space);
+
+                    for (modifier_proto.ast.fields) |field|
+                        try self.formatExpression(field, .none);
+
+                    // TODO: Upadate this later
+                    return for (modifier_proto.ast.specifiers) |field|
+                        self.formatToken(field, .space);
+                },
                 .modifier_proto,
-                => @panic("TODO"),
+                => {
+                    const modifier_proto = self.tree.modifierProto(node);
+
+                    try self.formatToken(modifier_proto.main_token, .space);
+                    try self.formatToken(modifier_proto.name, .space);
+
+                    for (modifier_proto.ast.fields, 0..) |field, i|
+                        try self.formatExpression(
+                            field,
+                            if (i < modifier_proto.ast.params.len - 1)
+                                .comma_space
+                            else
+                                .none,
+                        );
+
+                    return for (modifier_proto.ast.specifiers) |field|
+                        self.formatToken(field, .space);
+                },
                 .function_decl,
-                => @panic("TODO"),
+                => {
+                    try self.formatContractBodyElement(data[node].lhs);
+                    return self.formatStatement(data[node].rhs, .newline);
+                },
                 .modifier_decl,
-                => @panic("TODO"),
+                => {
+                    try self.formatContractBodyElement(data[node].lhs);
+                    return self.formatStatement(data[node].rhs, .newline);
+                },
                 .user_defined_type,
-                => @panic("TODO"),
+                {
+                    const user_decl = self.tree.userDefinedTypeDecl(node);
+
+                    try self.formatToken(user_decl.main_token, .space);
+                    try self.formatToken(user_decl.name, .space);
+                    try self.formatToken(user_decl.name + 1, .space);
+
+                    return self.formatElementaryType(user_decl.ast.target_type, .semicolon);
+                },
                 .using_directive,
+                => {
+                    var buffer: [1]Ast.Node.Index = undefined;
+                    const using = self.tree.usingDirective(&buffer, node);
+
+                    try self.formatToken(using.main_token, .space);
+
+                    for (using.ast.aliases, 0..) |field, i|
+                        try self.formatExpression(
+                            field,
+                            if (i < using.ast.aliases.len - 1) .comma_newline else .newline,
+                        );
+
+                    try self.formatToken(using.for_alias, .space);
+                    try self.formatToken(using.ast.target_type, .space);
+
+                    return if (using.global != 0)
+                        try self.formatToken(using.global, .semicolon);
+                },
                 .using_directive_multi,
-                => @panic("TODO"),
+                => {
+                    const using = self.tree.usingDirectiveMulti(node);
+                    try self.formatToken(using.main_token, .space);
+
+                    for (using.ast.aliases, 0..) |field, i|
+                        try self.formatExpression(
+                            field,
+                            if (i < using.ast.aliases.len - 1) .comma_newline else .newline,
+                        );
+
+                    try self.formatToken(using.for_alias, .space);
+                    try self.formatToken(using.ast.target_type, .space);
+
+                    return if (using.global != 0)
+                        try self.formatToken(using.global, .semicolon);
+                },
                 .enum_decl,
                 => {
                     const enum_decl = self.tree.enumDecl(node);

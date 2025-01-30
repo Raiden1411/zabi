@@ -127,59 +127,245 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             };
         }
 
+        pub fn formatSpecifiers(
+            self: *Formatter,
+            slice: []const Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            const main = self.tree.nodes.items(.main_token);
+            const nodes = self.tree.nodes.items(.tag);
+            const data = self.tree.nodes.items(.data);
+
+            for (slice, 0..) |specifier, i|
+                switch (nodes[specifier]) {
+                    .simple_specifiers => try self.formatToken(main[specifier], if (i < slice.len - 1) .space else .none),
+                    .override_specifier => {
+                        const tokens = self.tree.tokens.items(.tag);
+                        try self.formatToken(main[specifier], .none);
+
+                        if (tokens[main[specifier] + 1] != .l_paren)
+                            continue;
+
+                        try self.formatToken(main[specifier] + 1, .none);
+
+                        const extra_values = self.tree.extraData(data[specifier].lhs, Ast.Node.Range);
+                        const slice_iden = self.tree.extra_data[extra_values.start..extra_values.end];
+
+                        for (slice_iden) |indentifiers| {
+                            const last = self.tree.lastToken(indentifiers);
+                            const punc: Punctuation = if (self.tree.tokens.items(.tag)[last] == .comma) .comma_space else .none;
+
+                            try self.formatExpression(indentifiers, punc);
+                        }
+                        const last = self.tree.lastToken(specifier);
+                        try self.formatToken(last, .none);
+                    },
+                    .identifier => try self.formatExpression(specifier, if (i < slice.len - 1) .space else .none),
+                    else => unreachable,
+                };
+
+            try self.applyPunctuation(punctuation);
+        }
+        pub fn formatFunctionProtoOne(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            var buffer: [2]Ast.Node.Index = undefined;
+            const fn_proto = self.tree.functionProtoOne(&buffer, node);
+
+            try self.formatToken(fn_proto.main_token, .space);
+            try self.formatToken(fn_proto.name, .none);
+
+            // l_paren
+            try self.formatToken(fn_proto.name + 1, .none);
+            for (fn_proto.ast.params) |field|
+                try self.formatExpression(field, .none);
+
+            try self.stream.writer().writeAll(") ");
+            if (fn_proto.ast.specifiers.len != 0)
+                try self.formatSpecifiers(fn_proto.ast.specifiers, .space);
+
+            try self.stream.writer().writeAll("returns(");
+
+            for (fn_proto.ast.returns.?, 0..) |field, i|
+                try self.formatExpression(
+                    field,
+                    if (i < fn_proto.ast.returns.?.len - 1)
+                        .comma_space
+                    else
+                        .none,
+                );
+
+            return self.formatToken(self.tree.lastToken(node), punctuation);
+        }
+        pub fn formatFunctionProto(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            const fn_proto = self.tree.functionMulti(node);
+
+            try self.formatToken(fn_proto.main_token, .space);
+            try self.formatToken(fn_proto.name, .none);
+
+            // l_paren
+            try self.formatToken(fn_proto.name + 1, .none);
+
+            // TODO: Render doc_comment
+            for (fn_proto.ast.params, 0..) |field, i|
+                try self.formatExpression(
+                    field,
+                    if (i < fn_proto.ast.params.len - 1)
+                        .comma_space
+                    else
+                        .none,
+                );
+
+            try self.stream.writer().writeAll(") ");
+            if (fn_proto.ast.specifiers.len != 0)
+                try self.formatSpecifiers(fn_proto.ast.specifiers, .space);
+
+            try self.stream.writer().writeAll("returns(");
+
+            for (fn_proto.ast.returns.?, 0..) |field, i|
+                try self.formatExpression(
+                    field,
+                    if (i < fn_proto.ast.returns.?.len - 1)
+                        .comma_space
+                    else
+                        .none,
+                );
+
+            return self.formatToken(self.tree.lastToken(node), punctuation);
+        }
+        pub fn formatFunctionProtoSimple(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            var buffer: [1]Ast.Node.Index = undefined;
+            const fn_proto = self.tree.functionProtoSimple(&buffer, node);
+
+            try self.formatToken(fn_proto.main_token, .space);
+            try self.formatToken(fn_proto.name, .none);
+
+            // l_paren
+            try self.formatToken(fn_proto.name + 1, .none);
+            for (fn_proto.ast.params) |field|
+                try self.formatExpression(field, .none);
+
+            try self.stream.writer().writeByte(')');
+
+            if (fn_proto.ast.specifiers.len != 0) {
+                try self.applyPunctuation(.space);
+                try self.formatSpecifiers(fn_proto.ast.specifiers, .none);
+            }
+
+            return self.applyPunctuation(punctuation);
+        }
+        pub fn formatFunctionProtoMulti(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            const fn_proto = self.tree.functionMulti(node);
+
+            try self.formatToken(fn_proto.main_token, .space);
+            try self.formatToken(fn_proto.name, .none);
+
+            // l_paren
+            try self.formatToken(fn_proto.name + 1, .none);
+
+            for (fn_proto.ast.params, 0..) |field, i|
+                try self.formatExpression(
+                    field,
+                    if (i < fn_proto.ast.params.len - 1)
+                        .comma_space
+                    else
+                        .none,
+                );
+
+            try self.stream.writer().writeByte(')');
+
+            if (fn_proto.ast.specifiers.len != 0) {
+                try self.applyPunctuation(.space);
+                try self.formatSpecifiers(fn_proto.ast.specifiers, .none);
+            }
+
+            return self.applyPunctuation(punctuation);
+        }
+        pub fn formatFunctionSignature(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            const nodes = self.tree.nodes.items(.tag);
+            switch (nodes[node]) {
+                .function_proto => return self.formatFunctionProto(node, punctuation),
+                .function_proto_one => return self.formatFunctionProtoOne(node, punctuation),
+                .function_proto_simple => return self.formatFunctionProtoSimple(node, punctuation),
+                .function_proto_multi => return self.formatFunctionProtoMulti(node, punctuation),
+                else => unreachable,
+            }
+        }
+        pub fn formatModifierProto(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            const nodes = self.tree.nodes.items(.tag);
+            switch (nodes[node]) {
+                .modifier_proto_one,
+                => {
+                    var buffer: [1]Ast.Node.Index = undefined;
+                    const modifier_proto = self.tree.modifierProtoOne(&buffer, node);
+
+                    try self.formatToken(modifier_proto.main_token, .space);
+                    try self.formatToken(modifier_proto.name, .space);
+
+                    for (modifier_proto.ast.params) |field|
+                        try self.formatExpression(field, .none);
+
+                    try self.formatSpecifiers(modifier_proto.ast.specifiers, punctuation);
+                },
+                .modifier_proto,
+                => {
+                    const modifier_proto = self.tree.modifierProto(node);
+
+                    try self.formatToken(modifier_proto.main_token, .space);
+                    try self.formatToken(modifier_proto.name, .space);
+
+                    for (modifier_proto.ast.params, 0..) |field, i|
+                        try self.formatExpression(
+                            field,
+                            if (i < modifier_proto.ast.params.len - 1)
+                                .comma_space
+                            else
+                                .none,
+                        );
+
+                    try self.formatSpecifiers(modifier_proto.ast.specifiers, punctuation);
+                },
+                else => unreachable,
+            }
+        }
+
         /// Formats a single element of a solidity contract block
-        // TODO: Add second param for punctuation.
         pub fn formatContractBodyElement(
             self: *Formatter,
             node: Ast.Node.Index,
         ) Error!void {
             const nodes = self.tree.nodes.items(.tag);
             const data = self.tree.nodes.items(.data);
+            const main = self.tree.nodes.items(.main_token);
 
             switch (nodes[node]) {
                 .function_proto_one,
-                => @panic("TODO"),
                 .function_proto,
-                => @panic("TODO"),
                 .function_proto_simple,
-                => {
-                    var buffer: [1]Ast.Node.Index = undefined;
-                    const fn_proto = self.tree.functionProtoSimple(&buffer, node);
-
-                    try self.formatToken(fn_proto.main_token, .space);
-                    try self.formatToken(fn_proto.name, .none);
-
-                    // l_paren
-                    try self.formatToken(fn_proto.name + 1, .none);
-
-                    // TODO: Render doc_comment
-                    for (fn_proto.ast.params) |field|
-                        try self.formatExpression(field, .none);
-
-                    return self.formatToken(self.tree.lastToken(node), .newline);
-                },
                 .function_proto_multi,
-                => {
-                    const fn_proto = self.tree.functionMulti(node);
-
-                    try self.formatToken(fn_proto.main_token, .space);
-                    try self.formatToken(fn_proto.name, .none);
-
-                    // l_paren
-                    try self.formatToken(fn_proto.name + 1, .none);
-
-                    // TODO: Render doc_comment
-                    for (fn_proto.ast.params, 0..) |field, i|
-                        try self.formatExpression(
-                            field,
-                            if (i < fn_proto.ast.params.len - 1)
-                                .comma_space
-                            else
-                                .none,
-                        );
-
-                    return self.formatToken(self.tree.lastToken(node), .newline);
-                },
+                => return self.formatFunctionSignature(node, .semicolon),
                 .error_proto_simple,
                 => {
                     var buffer: [1]Ast.Node.Index = undefined;
@@ -191,11 +377,10 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     // l_paren
                     try self.formatToken(error_decl.name + 1, .none);
 
-                    // TODO: Render doc_comment
                     for (error_decl.ast.params) |field|
                         try self.formatExpression(field, .none);
 
-                    return self.formatToken(self.tree.lastToken(node), .newline);
+                    return self.formatToken(self.tree.lastToken(node), .semicolon);
                 },
                 .error_proto_multi,
                 => {
@@ -207,7 +392,6 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     // l_paren
                     try self.formatToken(error_decl.name + 1, .none);
 
-                    // TODO: Render doc_comment
                     for (error_decl.ast.params, 0..) |field, i|
                         try self.formatExpression(
                             field,
@@ -217,7 +401,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                                 .none,
                         );
 
-                    return self.formatToken(self.tree.lastToken(node), .newline);
+                    return self.formatToken(self.tree.lastToken(node), .semicolon);
                 },
                 .event_proto_simple,
                 => {
@@ -230,7 +414,6 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     // l_paren
                     try self.formatToken(event_decl.name + 1, .none);
 
-                    // TODO: Render doc_comment
                     for (event_decl.ast.params, 0..) |field, i|
                         try self.formatExpression(
                             field,
@@ -243,11 +426,11 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     if (event_decl.anonymous) |anonymous| {
                         // r_paren
                         try self.formatToken(anonymous - 1, .space);
-                        return self.formatToken(anonymous, .newline);
+                        return self.formatToken(anonymous, .semicolon);
                     }
 
                     // r_paren
-                    return self.formatToken(self.tree.lastToken(node), .newline);
+                    return self.formatToken(self.tree.lastToken(node), .semicolon);
                 },
                 .event_proto_multi,
                 => {
@@ -259,7 +442,6 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     // l_paren
                     try self.formatToken(event_decl.name + 1, .none);
 
-                    // TODO: Render doc_comment
                     for (event_decl.ast.params, 0..) |field, i|
                         try self.formatExpression(
                             field,
@@ -272,10 +454,10 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     if (event_decl.anonymous) |anonymous| {
                         // r_paren
                         try self.formatToken(anonymous - 1, .space);
-                        return self.formatToken(anonymous, .newline);
+                        return self.formatToken(anonymous, .semicolon);
                     }
 
-                    return self.formatToken(self.tree.lastToken(node), .newline);
+                    return self.formatToken(self.tree.lastToken(node), .semicolon);
                 },
                 .construct_decl,
                 => {
@@ -285,7 +467,6 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     try self.formatToken(constructor_decl.main_token, .space);
                     try self.formatToken(constructor_decl.main_token + 1, .space);
 
-                    // TODO: Render doc_comment
                     for (constructor_decl.ast.params, 0..) |field, i|
                         try self.formatToken(
                             field,
@@ -295,7 +476,8 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                                 .none,
                         );
 
-                    // TODO: Change how the node specifier works.
+                    if (constructor_decl.ast.specifiers.len != 0)
+                        try self.formatSpecifiers(constructor_decl.ast.specifiers, .space);
 
                     return self.formatStatement(constructor_decl.ast.body, .newline);
                 },
@@ -306,7 +488,6 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     try self.formatToken(constructor_decl.main_token, .space);
                     try self.formatToken(constructor_decl.main_token + 1, .space);
 
-                    // TODO: Render doc_comment
                     for (constructor_decl.ast.params, 0..) |field, i|
                         try self.formatToken(
                             field,
@@ -316,7 +497,8 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                                 .none,
                         );
 
-                    // TODO: Change how the node specifier works.
+                    if (constructor_decl.ast.specifiers.len != 0)
+                        try self.formatSpecifiers(constructor_decl.ast.specifiers, .space);
 
                     return self.formatStatement(constructor_decl.ast.body, .newline);
                 },
@@ -331,7 +513,6 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     // l_brace
                     try self.formatToken(struct_decl.name + 1, .newline);
 
-                    // TODO: Render doc_comment
                     for (struct_decl.ast.fields) |field|
                         try self.formatExpression(field, .semicolon);
 
@@ -348,7 +529,6 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     // l_brace
                     try self.formatToken(struct_decl.name + 1, .newline);
 
-                    // TODO: Render doc_comment
                     for (struct_decl.ast.fields) |field|
                         try self.formatExpression(field, .semicolon);
 
@@ -356,51 +536,22 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     try self.formatToken(self.tree.lastToken(node), .newline);
                 },
                 .modifier_proto_one,
-                => {
-                    var buffer: [1]Ast.Node.Index = undefined;
-                    const modifier_proto = self.tree.modifierProtoOne(&buffer, node);
-
-                    try self.formatToken(modifier_proto.main_token, .space);
-                    try self.formatToken(modifier_proto.name, .space);
-
-                    for (modifier_proto.ast.fields) |field|
-                        try self.formatExpression(field, .none);
-
-                    // TODO: Upadate this later
-                    return for (modifier_proto.ast.specifiers) |field|
-                        self.formatToken(field, .space);
-                },
                 .modifier_proto,
-                => {
-                    const modifier_proto = self.tree.modifierProto(node);
-
-                    try self.formatToken(modifier_proto.main_token, .space);
-                    try self.formatToken(modifier_proto.name, .space);
-
-                    for (modifier_proto.ast.fields, 0..) |field, i|
-                        try self.formatExpression(
-                            field,
-                            if (i < modifier_proto.ast.params.len - 1)
-                                .comma_space
-                            else
-                                .none,
-                        );
-
-                    return for (modifier_proto.ast.specifiers) |field|
-                        self.formatToken(field, .space);
-                },
+                => return self.formatModifierProto(node, .semicolon),
                 .function_decl,
                 => {
-                    try self.formatContractBodyElement(data[node].lhs);
+                    try self.formatFunctionSignature(data[node].lhs, .space);
+
                     return self.formatStatement(data[node].rhs, .newline);
                 },
                 .modifier_decl,
                 => {
-                    try self.formatContractBodyElement(data[node].lhs);
+                    try self.formatModifierProto(data[node].lhs, .space);
+
                     return self.formatStatement(data[node].rhs, .newline);
                 },
                 .user_defined_type,
-                {
+                => {
                     const user_decl = self.tree.userDefinedTypeDecl(node);
 
                     try self.formatToken(user_decl.main_token, .space);
@@ -436,7 +587,10 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     for (using.ast.aliases, 0..) |field, i|
                         try self.formatExpression(
                             field,
-                            if (i < using.ast.aliases.len - 1) .comma_newline else .newline,
+                            if (i < using.ast.aliases.len - 1)
+                                .comma_newline
+                            else
+                                .newline,
                         );
 
                     try self.formatToken(using.for_alias, .space);
@@ -455,7 +609,6 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     // l_brace
                     try self.formatToken(enum_decl.name + 1, .newline);
 
-                    // TODO: Render doc_comment
                     for (enum_decl.fields, 0..) |field, i|
                         try self.formatToken(
                             field,
@@ -478,13 +631,29 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     // l_brace
                     try self.formatToken(enum_decl.name + 1, .newline);
 
-                    // TODO: Render doc_comment
                     for (enum_decl.fields) |field|
                         try self.formatToken(field, .newline);
 
                     try self.formatToken(self.tree.lastToken(node), .newline);
                 },
-                else => @panic("TODO STATE VARIABLE"),
+                else => {
+                    try self.formatTypeExpression(data[node].lhs, .space);
+
+                    const specifiers = self.tree.extraData(main[node], Ast.Node.Range);
+                    const slice = self.tree.extra_data[specifiers.start..specifiers.end];
+
+                    if (slice.len != 0)
+                        try self.formatSpecifiers(slice, .none);
+
+                    if (data[node].rhs != 0) {
+                        try self.applyPunctuation(.space);
+                        try self.formatToken(self.tree.firstToken(data[node].rhs) - 1, .none);
+
+                        return self.formatExpression(data[node].rhs, .semicolon);
+                    }
+
+                    return self.applyPunctuation(.semicolon);
+                },
             }
         }
         /// Formats a solidity statement.
@@ -1238,16 +1407,26 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             node: Ast.Node.Index,
             punctuation: Punctuation,
         ) Error!void {
-            const main = self.tree.nodes.items(.main_token);
-            const data = self.tree.nodes.items(.data);
+            const data = self.tree.nodes.items(.data)[node];
+            const type_expr = self.tree.nodes.items(.main_token)[node];
 
-            try self.formatTypeExpression(main[node], punctuation);
+            if (data.lhs == 0 and data.rhs == 0)
+                return self.formatTypeExpression(type_expr, punctuation);
 
-            if (data[node].lhs != 0)
-                try self.formatToken(data[node].lhs, .space);
+            if (data.lhs != 0 and data.rhs == 0) {
+                try self.formatTypeExpression(type_expr, .space);
+                return self.formatToken(data.lhs, punctuation);
+            }
 
-            if (data[node].rhs != 0)
-                try self.formatToken(data[node].rhs, .space);
+            if (data.lhs == 0 and data.rhs != 0) {
+                try self.formatTypeExpression(type_expr, .space);
+                return self.formatToken(data.rhs, punctuation);
+            }
+
+            try self.formatTypeExpression(type_expr, .space);
+            try self.formatToken(data.lhs, .space);
+
+            return self.formatToken(data.rhs, punctuation);
         }
         /// Formats a single parameter variable declaration.
         pub fn formatErrorVariableDecl(
@@ -1258,10 +1437,12 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             const main = self.tree.nodes.items(.main_token);
             const data = self.tree.nodes.items(.data);
 
-            try self.formatTypeExpression(main[node], punctuation);
+            if (data[node].lhs == 0)
+                return self.formatTypeExpression(main[node], punctuation);
 
-            if (data[node].lhs != 0)
-                try self.formatToken(data[node].lhs, punctuation);
+            try self.formatTypeExpression(main[node], .space);
+
+            return self.formatToken(data[node].lhs, punctuation);
         }
         /// Formats a single parameter variable declaration.
         pub fn formatVariableDecl(
@@ -1269,21 +1450,26 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             node: Ast.Node.Index,
             punctuation: Punctuation,
         ) Error!void {
-            const var_decl = self.tree.variableDecl(node);
+            const data = self.tree.nodes.items(.data)[node];
+            const type_expr = self.tree.nodes.items(.main_token)[node];
 
-            try self.formatTypeExpression(var_decl.ast.type_expr, punctuation);
+            if (data.lhs == 0 and data.rhs == 0)
+                return self.formatTypeExpression(type_expr, punctuation);
 
-            if (var_decl.memory) |memory|
-                try self.formatToken(memory, .space);
+            if (data.lhs != 0 and data.rhs == 0) {
+                try self.formatTypeExpression(type_expr, .space);
+                return self.formatToken(data.lhs, punctuation);
+            }
 
-            if (var_decl.calldata) |calldata|
-                try self.formatToken(calldata, .space);
+            if (data.lhs == 0 and data.rhs != 0) {
+                try self.formatTypeExpression(type_expr, .space);
+                return self.formatToken(data.rhs, punctuation);
+            }
 
-            if (var_decl.storage) |storage|
-                try self.formatToken(storage, .space);
+            try self.formatTypeExpression(type_expr, .space);
+            try self.formatToken(data.lhs, .space);
 
-            if (var_decl.name) |name|
-                try self.formatToken(name, punctuation);
+            return self.formatToken(data.rhs, punctuation);
         }
         /// Formats a solidity type expression.
         pub fn formatTypeExpression(

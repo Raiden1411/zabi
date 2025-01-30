@@ -799,7 +799,18 @@ pub fn parseStateModifier(self: *Parser) ParserErrors!Node.Index {
             .keyword_internal,
             .keyword_constant,
             .keyword_immutable,
-            => try self.scratch.append(self.allocator, self.nextToken()),
+            => {
+                const node = try self.addNode(.{
+                    .tag = .simple_specifiers,
+                    .main_token = self.nextToken(),
+                    .data = .{
+                        .lhs = undefined,
+                        .rhs = undefined,
+                    },
+                });
+
+                try self.scratch.append(self.allocator, node);
+            },
             .keyword_override => try self.scratch.append(
                 self.allocator,
                 try self.parseOverrideSpecifier(),
@@ -834,7 +845,18 @@ pub fn parseFunctionSpecifiers(self: *Parser) ParserErrors!Node.Index {
             .keyword_payable,
             .keyword_private,
             .keyword_internal,
-            => try self.scratch.append(self.allocator, self.nextToken()),
+            => {
+                const node = try self.addNode(.{
+                    .tag = .simple_specifiers,
+                    .main_token = self.nextToken(),
+                    .data = .{
+                        .lhs = undefined,
+                        .rhs = undefined,
+                    },
+                });
+
+                try self.scratch.append(self.allocator, node);
+            },
             .keyword_override => try self.scratch.append(self.allocator, try self.parseOverrideSpecifier()),
             .identifier => {
                 const identifier_path = try self.consumeIdentifierPath();
@@ -866,7 +888,11 @@ pub fn parseModifierSpecifiers(self: *Parser) ParserErrors!Node.Index {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
-    var state: union(enum) { seen_virtual, seen_override, none } = .none;
+    var state: union(enum) {
+        seen_virtual,
+        seen_override,
+        none,
+    } = .none;
 
     while (true) {
         switch (self.token_tags[self.token_index]) {
@@ -875,7 +901,16 @@ pub fn parseModifierSpecifiers(self: *Parser) ParserErrors!Node.Index {
                 if (state == .seen_virtual)
                     return self.fail(.already_seen_specifier);
 
-                try self.scratch.append(self.allocator, self.nextToken());
+                const node = try self.addNode(.{
+                    .tag = .simple_specifiers,
+                    .main_token = self.nextToken(),
+                    .data = .{
+                        .lhs = undefined,
+                        .rhs = undefined,
+                    },
+                });
+
+                try self.scratch.append(self.allocator, node);
                 state = .seen_virtual;
             },
             .keyword_override => {

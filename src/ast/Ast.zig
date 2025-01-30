@@ -199,18 +199,20 @@ pub fn stateVariableDecl(
     const modifier_node = self.extra_data[modifier_range.start..modifier_range.end];
 
     for (modifier_node) |state_mod| {
-        switch (token_tags[state_mod]) {
-            .keyword_public => result.public = state_mod,
-            .keyword_private => result.private = state_mod,
-            .keyword_internal => result.internal = state_mod,
-            .keyword_constant => result.constant = state_mod,
-            .keyword_immutable => result.immutable = state_mod,
-            .keyword_override => result.override = state_mod,
-            else => {
-                if (nodes.len > state and nodes[state] == .override_specifier) {
-                    result.override = self.nodes.items(.main_token)[state];
+        switch (nodes[state_mod]) {
+            .simple_specifiers => {
+                const token = self.nodes.items(.main_token)[state_mod];
+                switch (token_tags[token]) {
+                    .keyword_public => result.public = state_mod,
+                    .keyword_private => result.private = state_mod,
+                    .keyword_internal => result.internal = state_mod,
+                    .keyword_constant => result.constant = state_mod,
+                    .keyword_immutable => result.immutable = state_mod,
+                    .keyword_override => result.override = state_mod,
+                    else => unreachable,
                 }
             },
+            .override_specifier => result.override = self.nodes.items(.main_token)[state],
         }
     }
 
@@ -495,7 +497,7 @@ pub fn eventProtoSimple(
     const data = self.nodes.items(.data)[node];
     const main = self.nodes.items(.main_token)[node];
 
-    const proto = self.extraData(data.rhs, Node.EventProtoOne);
+    const proto = self.extraData(data.lhs, Node.EventProtoOne);
     node_buffer[0] = proto.params;
 
     return .{
@@ -503,7 +505,7 @@ pub fn eventProtoSimple(
             .params = if (proto.params == 0) node_buffer[0..0] else node_buffer[0..1],
         },
         .main_token = main,
-        .name = data.lhs,
+        .name = data.rhs,
         .anonymous = if (proto.anonymous != 0) proto.anonymous else null,
     };
 }
@@ -1346,6 +1348,7 @@ pub fn firstToken(
             .assembly_flags,
             .asm_block,
             .asm_block_two,
+            .simple_specifiers,
             => return main_token[current_node],
 
             .error_variable_decl,
@@ -1438,6 +1441,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .@"continue",
             .@"break",
             .leave,
+            .simple_specifiers,
             => return main_token[current_node] + end_offset,
 
             .number_literal_sub_denomination,
@@ -1949,17 +1953,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 if (slice.len == 0)
                     return self.extra_data[extra.end];
 
-                const tag = self.nodes.items(.tag);
-
-                if (self.extra_data[extra.end - 1] >= tag.len)
-                    return self.extra_data[extra.end - 1];
-
-                switch (tag[self.extra_data[extra.end - 1]]) {
-                    .override_specifier,
-                    .identifier,
-                    => current_node = self.extra_data[extra.end - 1],
-                    else => return self.extra_data[extra.end - 1],
-                }
+                current_node = self.extra_data[extra.end - 1];
             },
 
             .override_specifier,
@@ -2898,9 +2892,10 @@ pub const Node = struct {
         /// rhs is the expression or null_node.
         state_variable_decl,
         constant_variable_decl,
-        /// main token is the state keywords range.
+        /// main token is the index into extra data
         /// lhs and rhs are undefined.
         state_modifiers,
+        simple_specifiers,
 
         // Yul nodes
 

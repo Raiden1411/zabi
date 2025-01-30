@@ -54,5 +54,26 @@ test "Basic" {
     defer testing.allocator.free(fmt);
 
     std.debug.print("Formatted:\n{s}\n", .{fmt});
-    // try testing.expectEqualStrings("10000 gwei", fmt);
+}
+
+test "Element" {
+    const slice =
+        \\  event   Foo(address     indexed     bar,        uint    indexed    gar)     anonymous;
+    ;
+
+    var list = std.ArrayList(u8).init(testing.allocator);
+    errdefer list.deinit();
+
+    var ast = try Ast.parse(testing.allocator, slice);
+    defer ast.deinit(testing.allocator);
+
+    var format: Formatter = .init(ast, 4, list.writer());
+
+    std.debug.print("Nodes: {any}\n", .{ast.nodes.items(.tag)});
+    try format.formatContractBodyElement(1);
+
+    const fmt = try list.toOwnedSlice();
+    defer testing.allocator.free(fmt);
+
+    std.debug.print("Formatted:\n{s}\n", .{fmt});
 }

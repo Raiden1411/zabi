@@ -58,7 +58,7 @@ test "Basic" {
 
 test "Element" {
     const slice =
-        \\  event   Foo(address     indexed     bar,        uint    indexed    gar)     anonymous;
+        \\   using {         asdasdasdasd as +     } for              int256;
     ;
 
     var list = std.ArrayList(u8).init(testing.allocator);
@@ -70,7 +70,7 @@ test "Element" {
     var format: Formatter = .init(ast, 4, list.writer());
 
     std.debug.print("Nodes: {any}\n", .{ast.nodes.items(.tag)});
-    try format.formatContractBodyElement(1);
+    try format.formatContractBodyElement(4);
 
     const fmt = try list.toOwnedSlice();
     defer testing.allocator.free(fmt);

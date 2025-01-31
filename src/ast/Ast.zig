@@ -1400,6 +1400,7 @@ pub fn firstToken(
             .decrement,
             .state_variable_decl,
             .constant_variable_decl,
+            .using_alias_operator,
             => current_node = data[current_node].lhs,
 
             .exponent,
@@ -1413,8 +1414,6 @@ pub fn firstToken(
 
                 return self.extra_data[extra.start];
             },
-            .using_alias_operator,
-            => return data[current_node].rhs,
         }
     }
 }
@@ -1442,6 +1441,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .@"break",
             .leave,
             .simple_specifiers,
+            .using_alias_operator,
             => return main_token[current_node] + end_offset,
 
             .number_literal_sub_denomination,
@@ -1733,7 +1733,10 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .struct_field,
             => {
                 end_offset += 1;
-                return data[current_node].rhs + end_offset;
+                if (data[current_node].rhs != 0)
+                    return data[current_node].rhs + end_offset;
+
+                current_node = data[current_node].lhs;
             },
 
             .function_type_multi,
@@ -1963,9 +1966,6 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
                 current_node = self.extra_data[extra.end - 1];
             },
-
-            .using_alias_operator,
-            => return data[current_node].lhs,
         }
     }
 }

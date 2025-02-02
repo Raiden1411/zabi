@@ -356,6 +356,25 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             }
         }
 
+        /// Formats a solidity block of contract elements.
+        pub fn formatContractBlockElements(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            statements: []const Ast.Node.Index,
+        ) Error!void {
+            const main_token = self.tree.nodes.items(.main_token);
+
+            try self.formatToken(main_token[node], .newline);
+
+            self.stream.pushIndentation();
+
+            for (statements) |statement|
+                try self.formatContractBodyElement(statement);
+
+            self.stream.popIndentation();
+
+            return self.formatToken(self.tree.lastToken(node), .newline);
+        }
         /// Formats a single element of a solidity contract block
         pub fn formatContractBodyElement(
             self: *Formatter,
@@ -662,6 +681,28 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     self.stream.popIndentation();
 
                     try self.formatToken(self.tree.lastToken(node), .newline);
+                },
+                .contract_block_two,
+                .contract_block_two_semicolon,
+                => {
+                    const statements: [2]Ast.Node.Index = .{
+                        data[node].lhs,
+                        data[node].rhs,
+                    };
+
+                    if (data[node].lhs == 0)
+                        return self.formatContractBlockElements(node, statements[0..0])
+                    else if (data[node].rhs == 0)
+                        return self.formatContractBlockElements(node, statements[0..1])
+                    else
+                        return self.formatContractBlockElements(node, statements[0..2]);
+                },
+                .contract_block,
+                .contract_block_semicolon,
+                => {
+                    const statements = self.tree.extra_data[data[node].lhs..data[node].rhs];
+
+                    return self.formatContractBlockElements(node, statements);
                 },
                 else => {
                     try self.formatTypeExpression(data[node].lhs, .space);

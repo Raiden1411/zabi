@@ -27,6 +27,7 @@ const Span = union(enum) {
 
 /// Taken from zig's std.
 const Association = enum {
+    right,
     left,
     none,
 };
@@ -67,7 +68,7 @@ const oper_table = table: {
         .minus = .{ .precedence = 60, .tag = .sub },
 
         .asterisk = .{ .precedence = 70, .tag = .mul },
-        .asterisk_asterisk = .{ .precedence = 70, .tag = .exponent },
+        .asterisk_asterisk = .{ .precedence = 70, .tag = .exponent, .association = .right },
         .slash = .{ .precedence = 70, .tag = .div },
         .percent = .{ .precedence = 70, .tag = .mod },
     });
@@ -798,7 +799,18 @@ pub fn parseStateModifier(self: *Parser) ParserErrors!Node.Index {
             .keyword_internal,
             .keyword_constant,
             .keyword_immutable,
-            => try self.scratch.append(self.allocator, self.nextToken()),
+            => {
+                const node = try self.addNode(.{
+                    .tag = .simple_specifiers,
+                    .main_token = self.nextToken(),
+                    .data = .{
+                        .lhs = undefined,
+                        .rhs = undefined,
+                    },
+                });
+
+                try self.scratch.append(self.allocator, node);
+            },
             .keyword_override => try self.scratch.append(
                 self.allocator,
                 try self.parseOverrideSpecifier(),
@@ -833,7 +845,18 @@ pub fn parseFunctionSpecifiers(self: *Parser) ParserErrors!Node.Index {
             .keyword_payable,
             .keyword_private,
             .keyword_internal,
-            => try self.scratch.append(self.allocator, self.nextToken()),
+            => {
+                const node = try self.addNode(.{
+                    .tag = .simple_specifiers,
+                    .main_token = self.nextToken(),
+                    .data = .{
+                        .lhs = undefined,
+                        .rhs = undefined,
+                    },
+                });
+
+                try self.scratch.append(self.allocator, node);
+            },
             .keyword_override => try self.scratch.append(self.allocator, try self.parseOverrideSpecifier()),
             .identifier => {
                 const identifier_path = try self.consumeIdentifierPath();
@@ -865,7 +888,11 @@ pub fn parseModifierSpecifiers(self: *Parser) ParserErrors!Node.Index {
     const scratch = self.scratch.items.len;
     defer self.scratch.shrinkRetainingCapacity(scratch);
 
-    var state: union(enum) { seen_virtual, seen_override, none } = .none;
+    var state: union(enum) {
+        seen_virtual,
+        seen_override,
+        none,
+    } = .none;
 
     while (true) {
         switch (self.token_tags[self.token_index]) {
@@ -874,7 +901,16 @@ pub fn parseModifierSpecifiers(self: *Parser) ParserErrors!Node.Index {
                 if (state == .seen_virtual)
                     return self.fail(.already_seen_specifier);
 
-                try self.scratch.append(self.allocator, self.nextToken());
+                const node = try self.addNode(.{
+                    .tag = .simple_specifiers,
+                    .main_token = self.nextToken(),
+                    .data = .{
+                        .lhs = undefined,
+                        .rhs = undefined,
+                    },
+                });
+
+                try self.scratch.append(self.allocator, node);
                 state = .seen_virtual;
             },
             .keyword_override => {
@@ -1482,7 +1518,9 @@ pub fn expectEmitStatement(self: *Parser) ParserErrors!Node.Index {
     const expr = try self.parseSuffixExpr();
 
     switch (self.nodes.items(.tag)[expr]) {
-        .call_one, .call => {},
+        .call_one,
+        .call,
+        => {},
         else => return self.fail(.expected_function_call),
     }
 
@@ -1611,7 +1649,7 @@ pub fn expectStatement(self: *Parser) ParserErrors!Node.Index {
 
             return unchecked;
         },
-        .keyword_assembly => return self.expectAssemblyStatement(), // Not implemented
+        .keyword_assembly => return self.expectAssemblyStatement(),
         else => {},
     }
 
@@ -1621,8 +1659,8 @@ pub fn expectStatement(self: *Parser) ParserErrors!Node.Index {
         return block;
 
     const assign = try self.expectAssignExpr();
-
     try self.expectSemicolon();
+
     return assign;
 }
 /// Expects to find an expression or it will fail.
@@ -1974,12 +2012,20 @@ pub fn parseExprPrecedence(
         const oper_token = self.nextToken();
 
         const rhs = try self.parseExprPrecedence(info.precedence + 1);
+
         if (rhs == 0) {
             try self.warn(.expected_expr);
             return node;
         }
 
-        node = try self.addNode(.{
+        node = if (info.association == .right) try self.addNode(.{
+            .tag = info.tag,
+            .main_token = oper_token,
+            .data = .{
+                .lhs = rhs,
+                .rhs = node,
+            },
+        }) else try self.addNode(.{
             .tag = info.tag,
             .main_token = oper_token,
             .data = .{
@@ -2101,9 +2147,7 @@ pub fn parsePrimaryExpr(self: *Parser) ParserErrors!Node.Index {
                     try self.scratch.append(self.allocator, expr);
 
                 switch (self.token_tags[self.token_index]) {
-                    .comma => {
-                        self.token_index += 1;
-                    },
+                    .comma => self.token_index += 1,
                     .r_paren => {
                         self.token_index += 1;
                         break;
@@ -3047,7 +3091,7 @@ pub fn parseMapping(self: *Parser) ParserErrors!Node.Index {
     const child_two = try self.parseTypeExpr();
 
     if (child_two == 0)
-        return self.fail(.expected_elementary_or_identifier_path);
+        return self.fail(.expected_type_expr);
 
     _ = try self.expectToken(.r_paren);
     _ = self.consumeToken(.identifier);

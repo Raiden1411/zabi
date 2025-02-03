@@ -199,18 +199,20 @@ pub fn stateVariableDecl(
     const modifier_node = self.extra_data[modifier_range.start..modifier_range.end];
 
     for (modifier_node) |state_mod| {
-        switch (token_tags[state_mod]) {
-            .keyword_public => result.public = state_mod,
-            .keyword_private => result.private = state_mod,
-            .keyword_internal => result.internal = state_mod,
-            .keyword_constant => result.constant = state_mod,
-            .keyword_immutable => result.immutable = state_mod,
-            .keyword_override => result.override = state_mod,
-            else => {
-                if (nodes.len > state and nodes[state] == .override_specifier) {
-                    result.override = self.nodes.items(.main_token)[state];
+        switch (nodes[state_mod]) {
+            .simple_specifiers => {
+                const token = self.nodes.items(.main_token)[state_mod];
+                switch (token_tags[token]) {
+                    .keyword_public => result.public = state_mod,
+                    .keyword_private => result.private = state_mod,
+                    .keyword_internal => result.internal = state_mod,
+                    .keyword_constant => result.constant = state_mod,
+                    .keyword_immutable => result.immutable = state_mod,
+                    .keyword_override => result.override = state_mod,
+                    else => unreachable,
                 }
             },
+            .override_specifier => result.override = self.nodes.items(.main_token)[state],
         }
     }
 
@@ -330,7 +332,7 @@ pub fn ifStatement(
     const data = self.nodes.items(.data)[node];
     const main = self.nodes.items(.main_token)[node];
 
-    const proto = self.extraData(data.lhs, Node.If);
+    const proto = self.extraData(data.rhs, Node.If);
 
     return .{
         .ast = .{
@@ -433,7 +435,7 @@ pub fn userDefinedTypeDecl(
         .name = data.lhs,
     };
 }
-/// Ast representation of a `construct_decl_one` node.
+/// Ast representation of a `construct_decl` node.
 pub fn constructorDecl(
     self: Ast,
     node: Node.Index,
@@ -495,7 +497,7 @@ pub fn eventProtoSimple(
     const data = self.nodes.items(.data)[node];
     const main = self.nodes.items(.main_token)[node];
 
-    const proto = self.extraData(data.rhs, Node.EventProtoOne);
+    const proto = self.extraData(data.lhs, Node.EventProtoOne);
     node_buffer[0] = proto.params;
 
     return .{
@@ -503,7 +505,7 @@ pub fn eventProtoSimple(
             .params = if (proto.params == 0) node_buffer[0..0] else node_buffer[0..1],
         },
         .main_token = main,
-        .name = data.lhs,
+        .name = data.rhs,
         .anonymous = if (proto.anonymous != 0) proto.anonymous else null,
     };
 }
@@ -1346,6 +1348,7 @@ pub fn firstToken(
             .assembly_flags,
             .asm_block,
             .asm_block_two,
+            .simple_specifiers,
             => return main_token[current_node],
 
             .error_variable_decl,
@@ -1386,7 +1389,6 @@ pub fn firstToken(
             .shr,
             .sar,
             .shl,
-            .exponent,
             .yul_assign,
             .bit_and,
             .bit_xor,
@@ -1398,7 +1400,11 @@ pub fn firstToken(
             .decrement,
             .state_variable_decl,
             .constant_variable_decl,
+            .using_alias_operator,
             => current_node = data[current_node].lhs,
+
+            .exponent,
+            => current_node = data[current_node].rhs,
 
             .modifier_specifiers,
             .specifiers,
@@ -1408,8 +1414,6 @@ pub fn firstToken(
 
                 return self.extra_data[extra.start];
             },
-            .using_alias_operator,
-            => return data[current_node].rhs,
         }
     }
 }
@@ -1431,13 +1435,13 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .string_literal,
             .number_literal,
             .unreachable_node,
-            .increment,
             .identifier,
-            .decrement,
             .elementary_type,
             .@"continue",
             .@"break",
             .leave,
+            .simple_specifiers,
+            .using_alias_operator,
             => return main_token[current_node] + end_offset,
 
             .number_literal_sub_denomination,
@@ -1456,11 +1460,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                     // Main token is the state so the next are identifier and semicolon.
                 } else if (main_token[current_node] != 0) {
                     end_offset += 1;
-                    const elements = self.extraData(main_token[current_node], Node.Range);
-                    std.debug.assert(elements.end - elements.start > 0);
-
-                    end_offset += 1;
-                    current_node = self.extra_data[elements.end - 1];
+                    current_node = main_token[current_node];
                 } else current_node = data[current_node].lhs;
             },
 
@@ -1487,10 +1487,6 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 } else current_node = main_token[current_node];
             },
 
-            .bit_not,
-            .conditional_not,
-            .delete,
-            .negation,
             .emit,
             .assign,
             .assign_add,
@@ -1518,7 +1514,6 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .shr,
             .sar,
             .shl,
-            .exponent,
             .yul_assign,
             .bit_and,
             .bit_xor,
@@ -1541,7 +1536,6 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .user_defined_type,
             .unchecked_block,
             .@"while",
-            .do_while,
             .if_simple,
             .@"for",
             .@"catch",
@@ -1555,6 +1549,22 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .assembly_decl,
             => current_node = data[current_node].rhs,
 
+            .do_while,
+            => {
+                end_offset += 1;
+                current_node = data[current_node].rhs;
+            },
+
+            // TODO: Update this for increment and decrement
+            .bit_not,
+            .increment,
+            .decrement,
+            .conditional_not,
+            .delete,
+            .negation,
+            .exponent,
+            => current_node = data[current_node].lhs,
+
             .mapping_decl,
             .error_proto_simple,
             .constant_variable_decl,
@@ -1566,7 +1576,10 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .payable_decl,
             .type_decl,
             .new_decl,
-            => current_node = data[current_node].lhs,
+            => {
+                end_offset += 1;
+                current_node = data[current_node].lhs;
+            },
 
             .import_directive_path,
             => {
@@ -1586,7 +1599,11 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .struct_init_one,
             => {
                 end_offset += 1;
-                current_node = data[current_node].lhs;
+
+                if (data[current_node].lhs != 0)
+                    current_node = data[current_node].lhs;
+
+                return main_token[current_node] + end_offset;
             },
 
             .struct_init,
@@ -1628,9 +1645,8 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .array_access,
             => {
                 end_offset += 1;
-                if (data[current_node].rhs == 0) {
+                if (data[current_node].rhs == 0)
                     return main_token[current_node] + end_offset;
-                }
 
                 current_node = data[current_node].rhs;
             },
@@ -1713,7 +1729,10 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .struct_field,
             => {
                 end_offset += 1;
-                return data[current_node].rhs + end_offset;
+                if (data[current_node].rhs != 0)
+                    return data[current_node].rhs + end_offset;
+
+                current_node = data[current_node].lhs;
             },
 
             .function_type_multi,
@@ -1725,8 +1744,8 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
                     current_node = self.extra_data[extra.params_end - 1];
                 } else if (extra.mutability == 0) {
-                    return extra.visibility;
-                } else return extra.mutability;
+                    return extra.visibility + end_offset;
+                } else return extra.mutability + end_offset;
             },
 
             .function_type_simple,
@@ -1737,12 +1756,13 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                     if (extra.param != 0) {
                         const param_end = self.extra_data[extra.param];
                         current_node = param_end;
+                    } else {
+                        end_offset += 2;
+                        return main_token[current_node];
                     }
-
-                    return main_token[current_node] + 2;
                 } else if (extra.mutability == 0) {
-                    return extra.visibility;
-                } else return extra.mutability;
+                    return extra.visibility + end_offset;
+                } else return extra.mutability + end_offset;
             },
 
             .block,
@@ -1932,17 +1952,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 if (slice.len == 0)
                     return self.extra_data[extra.end];
 
-                const tag = self.nodes.items(.tag);
-
-                if (self.extra_data[extra.end - 1] >= tag.len)
-                    return self.extra_data[extra.end - 1];
-
-                switch (tag[self.extra_data[extra.end - 1]]) {
-                    .override_specifier,
-                    .identifier,
-                    => current_node = self.extra_data[extra.end - 1],
-                    else => return self.extra_data[extra.end - 1],
-                }
+                current_node = self.extra_data[extra.end - 1];
             },
 
             .override_specifier,
@@ -1952,9 +1962,6 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
                 current_node = self.extra_data[extra.end - 1];
             },
-
-            .using_alias_operator,
-            => return data[current_node].lhs,
         }
     }
 }
@@ -1993,6 +2000,16 @@ pub fn getNodeSource(
     const end = token_start[last] + self.tokenSlice(last).len;
 
     return self.source[start..end];
+}
+/// Checks if the given tokens are on the same line.
+pub fn tokensOnSameLine(
+    self: Ast,
+    token1: TokenIndex,
+    token2: TokenIndex,
+) bool {
+    const token_starts = self.tokens.items(.start);
+    const source = self.source[token_starts[token1]..token_starts[token2]];
+    return std.mem.indexOfScalar(u8, source, '\n') == null;
 }
 /// Renders a parsing error into a more readable definition.
 pub fn renderError(
@@ -2871,9 +2888,10 @@ pub const Node = struct {
         /// rhs is the expression or null_node.
         state_variable_decl,
         constant_variable_decl,
-        /// main token is the state keywords range.
+        /// main token is the index into extra data
         /// lhs and rhs are undefined.
         state_modifiers,
+        simple_specifiers,
 
         // Yul nodes
 

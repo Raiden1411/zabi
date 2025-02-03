@@ -1,3 +1,5 @@
+/// Solidity formatter.
+pub const formatter = @import("formatter.zig");
 /// Solidity tokenizer.
 pub const tokenizer = @import("tokenizer.zig");
 /// Solidity abstract syntax tree.

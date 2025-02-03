@@ -2,7 +2,7 @@ const env_parser = @import("src/utils/env_load.zig");
 const std = @import("std");
 const builtin = @import("builtin");
 
-const min_zig_string = "0.14.0-dev.2547+77c63ac36";
+const min_zig_string = "0.14.0-dev.2802+257054a14";
 
 /// Build zabi modules and test runners.
 pub fn build(b: *std.Build) void {
@@ -267,7 +267,10 @@ fn buildTestOrCoverage(
             .root_source_file = b.path("tests/root.zig"),
             .target = target,
             .optimize = optimize,
-            .test_runner = b.path("build/test_runner.zig"),
+            .test_runner = .{
+                .path = b.path("build/test_runner.zig"),
+                .mode = .simple,
+            },
         });
         lib_unit_tests.root_module.addImport("zabi", module);
         addDependencies(b, lib_unit_tests.root_module, target, optimize);
@@ -288,7 +291,10 @@ fn buildTestOrCoverage(
             .root_source_file = b.path("tests/root_benchmark.zig"),
             .target = target,
             .optimize = optimize,
-            .test_runner = b.path("build/test_runner.zig"),
+            .test_runner = .{
+                .path = b.path("build/test_runner.zig"),
+                .mode = .simple,
+            },
         });
         coverage_lib_unit_tests.root_module.addImport("zabi", module);
         const test_step_coverage = b.step("coverage", "Run unit tests with kcov coverage");
@@ -382,7 +388,10 @@ fn buildBenchmark(
         .root_source_file = b.path("tests/root_benchmark.zig"),
         .target = target,
         .optimize = optimize,
-        .test_runner = b.path("build/benchmark.zig"),
+        .test_runner = .{
+            .path = b.path("build/benchmark.zig"),
+            .mode = .simple,
+        },
     });
     bench.root_module.addImport("zabi", dependency);
     addDependencies(b, bench.root_module, target, optimize);

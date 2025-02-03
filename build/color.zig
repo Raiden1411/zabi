@@ -65,12 +65,6 @@ pub fn ColorWriter(comptime UnderlayingWriter: type) type {
         const Writer = std.io.Writer(*Self, Error, write);
         const Self = @This();
 
-        /// Initial empty state.
-        pub const empty: Self = .{
-            .color = .reset,
-            .underlaying_writer = std.io.getStdErr().writer(),
-        };
-
         /// The writer that we will use to write to.
         underlaying_writer: UnderlayingWriter,
         /// Next tty color to apply in the stream.

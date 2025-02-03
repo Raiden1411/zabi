@@ -28,11 +28,6 @@ const TestResults = struct {
 const Runner = struct {
     const Self = @This();
 
-    pub const empty: Self = .{
-        .color_stream = .empty,
-        .result = .{},
-    };
-
     /// Color stream to write outputs
     color_stream: ColorWriterStream,
     /// Test results.
@@ -137,7 +132,13 @@ pub fn main() !void {
     if (test_funcs.len <= 1)
         return;
 
-    var runner: Runner = .empty;
+    var runner: Runner = .{
+        .color_stream = .{
+            .color = .reset,
+            .underlaying_writer = std.io.getStdErr().writer(),
+        },
+        .result = .{},
+    };
     try runner.resetAnvilInstance(std.heap.page_allocator);
 
     for (test_funcs) |test_runner| {

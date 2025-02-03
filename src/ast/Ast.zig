@@ -1460,11 +1460,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                     // Main token is the state so the next are identifier and semicolon.
                 } else if (main_token[current_node] != 0) {
                     end_offset += 1;
-                    const elements = self.extraData(main_token[current_node], Node.Range);
-                    std.debug.assert(elements.end - elements.start > 0);
-
-                    end_offset += 1;
-                    current_node = self.extra_data[elements.end - 1];
+                    current_node = main_token[current_node];
                 } else current_node = data[current_node].lhs;
             },
 

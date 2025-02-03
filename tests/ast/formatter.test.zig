@@ -58,7 +58,15 @@ test "Basic" {
 
 test "Element" {
     const slice =
-        \\   using {         asdasdasdasd as +     } for              int256;
+        \\contract SendToFallback is ForBar     ,   ASFASDSADASD      {
+        \\    function transferToFallback(address payable _to) public payable {
+        \\        _to.transfer(msg.value);
+        \\    }
+        \\
+        \\      function callFallback(address payable _to) public payable {
+        \\        require(sent, "Failed to send Ether");
+        \\    }
+        \\}
     ;
 
     var list = std.ArrayList(u8).init(testing.allocator);
@@ -70,7 +78,7 @@ test "Element" {
     var format: Formatter = .init(ast, 4, list.writer());
 
     std.debug.print("Nodes: {any}\n", .{ast.nodes.items(.tag)});
-    try format.formatContractBodyElement(4);
+    try format.formatSourceUnit(@intCast(ast.nodes.len - 1));
 
     const fmt = try list.toOwnedSlice();
     defer testing.allocator.free(fmt);

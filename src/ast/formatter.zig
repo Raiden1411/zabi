@@ -356,6 +356,144 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             }
         }
 
+        /// Formats a solidity source unit.
+        pub fn formatSourceUnit(
+            self: *Formatter,
+            node: Ast.Node.Index,
+        ) Error!void {
+            const nodes = self.tree.nodes.items(.tag);
+            const data = self.tree.nodes.items(.data);
+            const main = self.tree.nodes.items(.main_token);
+
+            switch (nodes[node]) {
+                .interface_decl,
+                .library_decl,
+                .contract_decl,
+                => {
+                    try self.formatToken(main[node], .space);
+                    try self.formatToken(data[node].lhs, .space);
+
+                    return self.formatContractBodyElement(data[node].rhs);
+                },
+                .abstract_decl,
+                => {
+                    try self.formatToken(main[node], .space);
+                    try self.formatToken(main[node] + 1, .space);
+                    try self.formatToken(data[node].lhs, .space);
+
+                    return self.formatContractBodyElement(data[node].rhs);
+                },
+                .contract_decl_inheritance_one,
+                .interface_decl_inheritance_one,
+                => {
+                    var buffer: [1]Ast.Node.Index = undefined;
+                    const contract = self.tree.contractDeclInheritanceOne(&buffer, node);
+
+                    try self.formatToken(contract.main_token, .space);
+                    try self.formatToken(contract.name, .space);
+                    try self.formatToken(contract.name + 1, .space);
+
+                    if (contract.ast.inheritance) |inheritances|
+                        for (inheritances) |inheritance|
+                            try self.formatExpression(inheritance, .space);
+
+                    return self.formatContractBodyElement(contract.ast.body);
+                },
+                .abstract_decl_inheritance_one,
+                => {
+                    var buffer: [1]Ast.Node.Index = undefined;
+                    const contract = self.tree.contractDeclInheritanceOne(&buffer, node);
+
+                    try self.formatToken(contract.main_token, .space);
+                    try self.formatToken(contract.main_token + 1, .space);
+                    try self.formatToken(contract.name, .space);
+                    try self.formatToken(contract.name + 1, .space);
+
+                    if (contract.ast.inheritance) |inheritances|
+                        for (inheritances) |inheritance|
+                            try self.formatExpression(inheritance, .space);
+
+                    return self.formatContractBodyElement(contract.ast.body);
+                },
+                .contract_decl_inheritance,
+                .interface_decl_inheritance,
+                => {
+                    const contract = self.tree.contractDeclInheritance(node);
+
+                    try self.formatToken(contract.main_token, .space);
+                    try self.formatToken(contract.name, .space);
+                    try self.formatToken(contract.name + 1, .space);
+
+                    for (contract.ast.inheritance, 0..) |inheritance, i|
+                        try self.formatExpression(
+                            inheritance,
+                            if (i < contract.ast.inheritance.len - 1)
+                                .comma_space
+                            else
+                                .space,
+                        );
+
+                    return self.formatContractBodyElement(contract.ast.body);
+                },
+                .abstract_decl_inheritance,
+                => {
+                    const contract = self.tree.contractDeclInheritance(node);
+
+                    try self.formatToken(contract.main_token, .space);
+                    try self.formatToken(contract.main_token + 1, .space);
+                    try self.formatToken(contract.name, .space);
+                    try self.formatToken(contract.name + 1, .space);
+
+                    for (contract.ast.inheritance, 0..) |inheritance, i|
+                        try self.formatExpression(
+                            inheritance,
+                            if (i < contract.ast.inheritance.len - 1)
+                                .comma_space
+                            else
+                                .space,
+                        );
+
+                    return self.formatContractBodyElement(contract.ast.body);
+                },
+                .import_directive_path,
+                .import_directive_path_identifier,
+                .import_directive_symbol,
+                .import_directive_symbol_one,
+                .import_directive_asterisk,
+                .pragma_directive,
+                => unreachable,
+                .function_proto_one,
+                .function_proto,
+                .function_proto_simple,
+                .function_proto_multi,
+                .error_proto_simple,
+                .error_proto_multi,
+                .event_proto_simple,
+                .event_proto_multi,
+                .struct_decl,
+                .struct_decl_one,
+                .function_decl,
+                .user_defined_type,
+                .using_directive,
+                .using_directive_multi,
+                .enum_decl,
+                .enum_decl_one,
+                => return self.formatContractBodyElement(node),
+                else => {
+                    try self.formatTypeExpression(data[node].lhs, .space);
+
+                    // .keyword_constant
+                    try self.formatToken(main[node] - 1, .space);
+                    // .identifier
+                    try self.formatToken(main[node], .space);
+                    // .assign
+                    try self.formatToken(main[node] + 1, .space);
+
+                    // .expression
+                    return self.formatExpression(data[node].rhs, .semicolon);
+                },
+            }
+        }
         /// Formats a solidity block of contract elements.
         pub fn formatContractBlockElements(
             self: *Formatter,
@@ -1565,7 +1703,9 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                 .function_type_simple,
                 .function_type_multi,
                 => return self.formatFullFunctionType(node),
-                .identifier => return self.formatExpression(node, punctuation),
+                .identifier,
+                .field_access,
+                => return self.formatExpression(node, punctuation),
                 .array_type => {
                     const expression = data[node];
 

@@ -109,6 +109,12 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
         tree: Ast,
 
         /// Sets the initial state with the provided indentation
+        // TODO:
+        // Render doc comments.
+        // Render comments.
+        // Render max newlines
+        // Render whole tree.
+        // Render missing nodes.
         pub fn init(
             tree: Ast,
             indentation: u8,
@@ -125,235 +131,6 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                 },
                 .tree = tree,
             };
-        }
-
-        pub fn formatSpecifiers(
-            self: *Formatter,
-            slice: []const Ast.Node.Index,
-            punctuation: Punctuation,
-        ) Error!void {
-            const main = self.tree.nodes.items(.main_token);
-            const nodes = self.tree.nodes.items(.tag);
-            const data = self.tree.nodes.items(.data);
-
-            for (slice, 0..) |specifier, i|
-                switch (nodes[specifier]) {
-                    .simple_specifiers => try self.formatToken(main[specifier], if (i < slice.len - 1) .space else .none),
-                    .override_specifier => {
-                        const tokens = self.tree.tokens.items(.tag);
-                        try self.formatToken(main[specifier], .none);
-
-                        if (tokens[main[specifier] + 1] != .l_paren)
-                            continue;
-
-                        try self.formatToken(main[specifier] + 1, .none);
-
-                        const extra_values = self.tree.extraData(data[specifier].lhs, Ast.Node.Range);
-                        const slice_iden = self.tree.extra_data[extra_values.start..extra_values.end];
-
-                        for (slice_iden) |indentifiers| {
-                            const last = self.tree.lastToken(indentifiers) + 1;
-                            const punc: Punctuation = if (self.tree.tokens.items(.tag)[last] == .comma) .comma_space else .none;
-
-                            try self.formatExpression(indentifiers, punc);
-                        }
-                        const last = self.tree.lastToken(specifier);
-                        try self.formatToken(last, if (i < slice.len - 1) .space else .none);
-                    },
-                    .identifier,
-                    .field_access,
-                    .call_one,
-                    .call,
-                    => try self.formatExpression(specifier, if (i < slice.len - 1) .space else .none),
-                    else => unreachable,
-                };
-
-            try self.applyPunctuation(punctuation);
-        }
-        pub fn formatFunctionProtoOne(
-            self: *Formatter,
-            node: Ast.Node.Index,
-            punctuation: Punctuation,
-        ) Error!void {
-            var buffer: [2]Ast.Node.Index = undefined;
-            const fn_proto = self.tree.functionProtoOne(&buffer, node);
-
-            try self.formatToken(fn_proto.main_token, .space);
-            try self.formatToken(fn_proto.name, .none);
-
-            // l_paren
-            try self.formatToken(fn_proto.name + 1, .none);
-            for (fn_proto.ast.params) |field|
-                try self.formatExpression(field, .none);
-
-            try self.stream.writer().writeAll(") ");
-            if (fn_proto.ast.specifiers.len != 0)
-                try self.formatSpecifiers(fn_proto.ast.specifiers, .space);
-
-            try self.stream.writer().writeAll("returns(");
-
-            for (fn_proto.ast.returns.?, 0..) |field, i|
-                try self.formatExpression(
-                    field,
-                    if (i < fn_proto.ast.returns.?.len - 1)
-                        .comma_space
-                    else
-                        .none,
-                );
-
-            return self.formatToken(self.tree.lastToken(node), punctuation);
-        }
-        pub fn formatFunctionProto(
-            self: *Formatter,
-            node: Ast.Node.Index,
-            punctuation: Punctuation,
-        ) Error!void {
-            var buffer: [1]Ast.Node.Index = undefined;
-            const fn_proto = self.tree.functionProto(&buffer, node);
-
-            try self.formatToken(fn_proto.main_token, .space);
-            try self.formatToken(fn_proto.name, .none);
-
-            // l_paren
-            try self.formatToken(fn_proto.name + 1, .none);
-
-            // TODO: Render doc_comment
-            for (fn_proto.ast.params, 0..) |field, i|
-                try self.formatExpression(
-                    field,
-                    if (i < fn_proto.ast.params.len - 1)
-                        .comma_space
-                    else
-                        .none,
-                );
-
-            try self.stream.writer().writeAll(") ");
-            if (fn_proto.ast.specifiers.len != 0)
-                try self.formatSpecifiers(fn_proto.ast.specifiers, .space);
-
-            try self.stream.writer().writeAll("returns(");
-
-            for (fn_proto.ast.returns.?, 0..) |field, i|
-                try self.formatExpression(
-                    field,
-                    if (i < fn_proto.ast.returns.?.len - 1)
-                        .comma_space
-                    else
-                        .none,
-                );
-
-            return self.formatToken(self.tree.lastToken(node), punctuation);
-        }
-        pub fn formatFunctionProtoSimple(
-            self: *Formatter,
-            node: Ast.Node.Index,
-            punctuation: Punctuation,
-        ) Error!void {
-            var buffer: [1]Ast.Node.Index = undefined;
-            const fn_proto = self.tree.functionProtoSimple(&buffer, node);
-
-            try self.formatToken(fn_proto.main_token, .space);
-            try self.formatToken(fn_proto.name, .none);
-
-            // l_paren
-            try self.formatToken(fn_proto.name + 1, .none);
-            for (fn_proto.ast.params) |field|
-                try self.formatExpression(field, .none);
-
-            try self.stream.writer().writeByte(')');
-
-            if (fn_proto.ast.specifiers.len != 0) {
-                try self.applyPunctuation(.space);
-                try self.formatSpecifiers(fn_proto.ast.specifiers, .none);
-            }
-
-            return self.applyPunctuation(punctuation);
-        }
-        pub fn formatFunctionProtoMulti(
-            self: *Formatter,
-            node: Ast.Node.Index,
-            punctuation: Punctuation,
-        ) Error!void {
-            const fn_proto = self.tree.functionMulti(node);
-
-            try self.formatToken(fn_proto.main_token, .space);
-            try self.formatToken(fn_proto.name, .none);
-
-            // l_paren
-            try self.formatToken(fn_proto.name + 1, .none);
-
-            for (fn_proto.ast.params, 0..) |field, i|
-                try self.formatExpression(
-                    field,
-                    if (i < fn_proto.ast.params.len - 1)
-                        .comma_space
-                    else
-                        .none,
-                );
-
-            try self.stream.writer().writeByte(')');
-
-            if (fn_proto.ast.specifiers.len != 0) {
-                try self.applyPunctuation(.space);
-                try self.formatSpecifiers(fn_proto.ast.specifiers, .none);
-            }
-
-            return self.applyPunctuation(punctuation);
-        }
-        pub fn formatFunctionSignature(
-            self: *Formatter,
-            node: Ast.Node.Index,
-            punctuation: Punctuation,
-        ) Error!void {
-            const nodes = self.tree.nodes.items(.tag);
-            switch (nodes[node]) {
-                .function_proto => return self.formatFunctionProto(node, punctuation),
-                .function_proto_one => return self.formatFunctionProtoOne(node, punctuation),
-                .function_proto_simple => return self.formatFunctionProtoSimple(node, punctuation),
-                .function_proto_multi => return self.formatFunctionProtoMulti(node, punctuation),
-                else => unreachable,
-            }
-        }
-        pub fn formatModifierProto(
-            self: *Formatter,
-            node: Ast.Node.Index,
-            punctuation: Punctuation,
-        ) Error!void {
-            const nodes = self.tree.nodes.items(.tag);
-            switch (nodes[node]) {
-                .modifier_proto_one,
-                => {
-                    var buffer: [1]Ast.Node.Index = undefined;
-                    const modifier_proto = self.tree.modifierProtoOne(&buffer, node);
-
-                    try self.formatToken(modifier_proto.main_token, .space);
-                    try self.formatToken(modifier_proto.name, .space);
-
-                    for (modifier_proto.ast.params) |field|
-                        try self.formatExpression(field, .none);
-
-                    try self.formatSpecifiers(modifier_proto.ast.specifiers, punctuation);
-                },
-                .modifier_proto,
-                => {
-                    const modifier_proto = self.tree.modifierProto(node);
-
-                    try self.formatToken(modifier_proto.main_token, .space);
-                    try self.formatToken(modifier_proto.name, .space);
-
-                    for (modifier_proto.ast.params, 0..) |field, i|
-                        try self.formatExpression(
-                            field,
-                            if (i < modifier_proto.ast.params.len - 1)
-                                .comma_space
-                            else
-                                .none,
-                        );
-
-                    try self.formatSpecifiers(modifier_proto.ast.specifiers, punctuation);
-                },
-                else => unreachable,
-            }
         }
 
         /// Formats a solidity source unit.
@@ -480,17 +257,18 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                 .enum_decl_one,
                 => return self.formatContractBodyElement(node),
                 else => {
-                    try self.formatTypeExpression(data[node].lhs, .space);
+                    const variable = self.tree.constantVariableDecl(node);
 
+                    try self.formatTypeExpression(variable.ast.type_token, .space);
                     // .keyword_constant
-                    try self.formatToken(main[node] - 1, .space);
+                    try self.formatToken(variable.name - 1, .space);
                     // .identifier
-                    try self.formatToken(main[node], .space);
+                    try self.formatToken(variable.name, .space);
                     // .assign
-                    try self.formatToken(main[node] + 1, .space);
+                    try self.formatToken(variable.name + 1, .space);
 
                     // .expression
-                    return self.formatExpression(data[node].rhs, .semicolon);
+                    return self.formatExpression(variable.ast.expression_node, .semicolon);
                 },
             }
         }
@@ -1437,6 +1215,241 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     return self.formatToken(operator, punctuation);
                 },
                 else => unreachable, // invalid token
+            }
+        }
+        /// Formats all of the supported solidity specifiers.
+        pub fn formatSpecifiers(
+            self: *Formatter,
+            slice: []const Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            const main = self.tree.nodes.items(.main_token);
+            const nodes = self.tree.nodes.items(.tag);
+            const data = self.tree.nodes.items(.data);
+
+            for (slice, 0..) |specifier, i|
+                switch (nodes[specifier]) {
+                    .simple_specifiers => try self.formatToken(main[specifier], if (i < slice.len - 1) .space else .none),
+                    .override_specifier => {
+                        const tokens = self.tree.tokens.items(.tag);
+                        try self.formatToken(main[specifier], .none);
+
+                        if (tokens[main[specifier] + 1] != .l_paren)
+                            continue;
+
+                        try self.formatToken(main[specifier] + 1, .none);
+
+                        const extra_values = self.tree.extraData(data[specifier].lhs, Ast.Node.Range);
+                        const slice_iden = self.tree.extra_data[extra_values.start..extra_values.end];
+
+                        for (slice_iden) |indentifiers| {
+                            const last = self.tree.lastToken(indentifiers) + 1;
+                            const punc: Punctuation = if (self.tree.tokens.items(.tag)[last] == .comma) .comma_space else .none;
+
+                            try self.formatExpression(indentifiers, punc);
+                        }
+                        const last = self.tree.lastToken(specifier);
+                        try self.formatToken(last, if (i < slice.len - 1) .space else .none);
+                    },
+                    .identifier,
+                    .field_access,
+                    .call_one,
+                    .call,
+                    => try self.formatExpression(specifier, if (i < slice.len - 1) .space else .none),
+                    else => unreachable,
+                };
+
+            try self.applyPunctuation(punctuation);
+        }
+        /// Formats a solidity `function_proto_one`
+        pub fn formatFunctionProtoOne(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            var buffer: [2]Ast.Node.Index = undefined;
+            const fn_proto = self.tree.functionProtoOne(&buffer, node);
+
+            try self.formatToken(fn_proto.main_token, .space);
+            try self.formatToken(fn_proto.name, .none);
+
+            // l_paren
+            try self.formatToken(fn_proto.name + 1, .none);
+            for (fn_proto.ast.params) |field|
+                try self.formatExpression(field, .none);
+
+            try self.stream.writer().writeAll(") ");
+            if (fn_proto.ast.specifiers.len != 0)
+                try self.formatSpecifiers(fn_proto.ast.specifiers, .space);
+
+            try self.stream.writer().writeAll("returns(");
+
+            for (fn_proto.ast.returns.?, 0..) |field, i|
+                try self.formatExpression(
+                    field,
+                    if (i < fn_proto.ast.returns.?.len - 1)
+                        .comma_space
+                    else
+                        .none,
+                );
+
+            return self.formatToken(self.tree.lastToken(node), punctuation);
+        }
+        /// Formats a solidity `function_proto`
+        pub fn formatFunctionProto(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            var buffer: [1]Ast.Node.Index = undefined;
+            const fn_proto = self.tree.functionProto(&buffer, node);
+
+            try self.formatToken(fn_proto.main_token, .space);
+            try self.formatToken(fn_proto.name, .none);
+
+            // l_paren
+            try self.formatToken(fn_proto.name + 1, .none);
+
+            // TODO: Render doc_comment
+            for (fn_proto.ast.params, 0..) |field, i|
+                try self.formatExpression(
+                    field,
+                    if (i < fn_proto.ast.params.len - 1)
+                        .comma_space
+                    else
+                        .none,
+                );
+
+            try self.stream.writer().writeAll(") ");
+            if (fn_proto.ast.specifiers.len != 0)
+                try self.formatSpecifiers(fn_proto.ast.specifiers, .space);
+
+            try self.stream.writer().writeAll("returns(");
+
+            for (fn_proto.ast.returns.?, 0..) |field, i|
+                try self.formatExpression(
+                    field,
+                    if (i < fn_proto.ast.returns.?.len - 1)
+                        .comma_space
+                    else
+                        .none,
+                );
+
+            return self.formatToken(self.tree.lastToken(node), punctuation);
+        }
+        /// Formats a solidity `function_proto_simple`
+        pub fn formatFunctionProtoSimple(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            var buffer: [1]Ast.Node.Index = undefined;
+            const fn_proto = self.tree.functionProtoSimple(&buffer, node);
+
+            try self.formatToken(fn_proto.main_token, .space);
+            try self.formatToken(fn_proto.name, .none);
+
+            // l_paren
+            try self.formatToken(fn_proto.name + 1, .none);
+            for (fn_proto.ast.params) |field|
+                try self.formatExpression(field, .none);
+
+            try self.stream.writer().writeByte(')');
+
+            if (fn_proto.ast.specifiers.len != 0) {
+                try self.applyPunctuation(.space);
+                try self.formatSpecifiers(fn_proto.ast.specifiers, .none);
+            }
+
+            return self.applyPunctuation(punctuation);
+        }
+        /// Formats a solidity `function_proto_multi`
+        pub fn formatFunctionProtoMulti(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            const fn_proto = self.tree.functionMulti(node);
+
+            try self.formatToken(fn_proto.main_token, .space);
+            try self.formatToken(fn_proto.name, .none);
+
+            // l_paren
+            try self.formatToken(fn_proto.name + 1, .none);
+
+            for (fn_proto.ast.params, 0..) |field, i|
+                try self.formatExpression(
+                    field,
+                    if (i < fn_proto.ast.params.len - 1)
+                        .comma_space
+                    else
+                        .none,
+                );
+
+            try self.stream.writer().writeByte(')');
+
+            if (fn_proto.ast.specifiers.len != 0) {
+                try self.applyPunctuation(.space);
+                try self.formatSpecifiers(fn_proto.ast.specifiers, .none);
+            }
+
+            return self.applyPunctuation(punctuation);
+        }
+        /// Formats a solidity function proto signature.
+        pub fn formatFunctionSignature(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            const nodes = self.tree.nodes.items(.tag);
+            switch (nodes[node]) {
+                .function_proto => return self.formatFunctionProto(node, punctuation),
+                .function_proto_one => return self.formatFunctionProtoOne(node, punctuation),
+                .function_proto_simple => return self.formatFunctionProtoSimple(node, punctuation),
+                .function_proto_multi => return self.formatFunctionProtoMulti(node, punctuation),
+                else => unreachable,
+            }
+        }
+        /// Formats a solidity `function_proto_one`
+        pub fn formatModifierProto(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            const nodes = self.tree.nodes.items(.tag);
+            switch (nodes[node]) {
+                .modifier_proto_one,
+                => {
+                    var buffer: [1]Ast.Node.Index = undefined;
+                    const modifier_proto = self.tree.modifierProtoOne(&buffer, node);
+
+                    try self.formatToken(modifier_proto.main_token, .space);
+                    try self.formatToken(modifier_proto.name, .space);
+
+                    for (modifier_proto.ast.params) |field|
+                        try self.formatExpression(field, .none);
+
+                    try self.formatSpecifiers(modifier_proto.ast.specifiers, punctuation);
+                },
+                .modifier_proto,
+                => {
+                    const modifier_proto = self.tree.modifierProto(node);
+
+                    try self.formatToken(modifier_proto.main_token, .space);
+                    try self.formatToken(modifier_proto.name, .space);
+
+                    for (modifier_proto.ast.params, 0..) |field, i|
+                        try self.formatExpression(
+                            field,
+                            if (i < modifier_proto.ast.params.len - 1)
+                                .comma_space
+                            else
+                                .none,
+                        );
+
+                    try self.formatSpecifiers(modifier_proto.ast.specifiers, punctuation);
+                },
+                else => unreachable,
             }
         }
         /// Formats any `function_type*` node.

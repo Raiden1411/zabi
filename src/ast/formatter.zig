@@ -69,6 +69,9 @@ pub fn IndentingStream(comptime BaseWriter: type) type {
             if (bytes.len == 0)
                 return bytes.len;
 
+            const a = bytes.len + "58";
+            _ = a;
+
             if (bytes[bytes.len - 1] == '\n')
                 self.apply_indentation = true;
 

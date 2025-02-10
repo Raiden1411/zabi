@@ -17,11 +17,11 @@ struct {
   /// The growth rate of the message buffer.
   growth_rate: usize
   /// The end of a json message.
-  message_end: Atomic = Atomic.init(0)
+  message_end: usize
   /// The start of the json message.
-  message_start: Atomic = Atomic.init(0)
+  message_start: usize
   /// The current position in the buffer.
-  position: Atomic = Atomic.init(0)
+  position: usize
   /// The stream used to read or write.
   stream: Stream
   /// If the stream is closed for reading.
@@ -35,6 +35,14 @@ Set of possible errors when reading from the socket.
 
 ```zig
 Stream.ReadError || Allocator.Error || error{Closed}
+```
+
+## WriteError
+
+Set of possible error when writting to the stream.
+
+```zig
+Stream.WriteError
 ```
 
 ### Init
@@ -60,7 +68,7 @@ Frees the buffer and closes the stream.
 ### Signature
 
 ```zig
-pub fn deinit(self: Self) void
+pub fn deinit(self: *Self) void
 ```
 
 ### Read
@@ -127,5 +135,13 @@ Set of possible errors when reading from the socket.
 
 ```zig
 Stream.ReadError || Allocator.Error || error{Closed}
+```
+
+## WriteError
+
+Set of possible error when writting to the stream.
+
+```zig
+Stream.WriteError
 ```
 

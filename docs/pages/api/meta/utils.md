@@ -17,7 +17,10 @@ Compilation will fail if a invalid needle is provided.
 ### Signature
 
 ```zig
-pub fn Extract(comptime T: type, comptime needle: []const u8) type
+pub fn Extract(
+    comptime T: type,
+    comptime needle: []const u8,
+) type
 ```
 
 ## MergeStructs
@@ -26,7 +29,10 @@ Merge structs into a single one
 ### Signature
 
 ```zig
-pub fn MergeStructs(comptime T: type, comptime K: type) type
+pub fn MergeStructs(
+    comptime T: type,
+    comptime K: type,
+) type
 ```
 
 ## MergeTupleStructs
@@ -35,7 +41,10 @@ Merge tuple structs
 ### Signature
 
 ```zig
-pub fn MergeTupleStructs(comptime T: type, comptime K: type) type
+pub fn MergeTupleStructs(
+    comptime T: type,
+    comptime K: type,
+) type
 ```
 
 ## StructToTupleType
@@ -53,6 +62,9 @@ Omits the selected keys from struct types.
 ### Signature
 
 ```zig
-pub fn Omit(comptime T: type, comptime keys: []const []const u8) type
+pub fn Omit(
+    comptime T: type,
+    comptime keys: []const []const u8,
+) type
 ```
 

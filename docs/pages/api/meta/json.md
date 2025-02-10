@@ -7,7 +7,12 @@ the hability of zig to create a custom jsonParse method for structs.
 ### Signature
 
 ```zig
-pub fn jsonParse(comptime T: type, allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!T
+pub fn jsonParse(
+    comptime T: type,
+    allocator: Allocator,
+    source: anytype,
+    options: ParseOptions,
+) ParseError(@TypeOf(source.*))!T
 ```
 
 ## JsonParseFromValue
@@ -19,7 +24,12 @@ the hability of zig to create a custom jsonParseFromValue method for structs.
 ### Signature
 
 ```zig
-pub fn jsonParseFromValue(comptime T: type, allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!T
+pub fn jsonParseFromValue(
+    comptime T: type,
+    allocator: Allocator,
+    source: Value,
+    options: ParseOptions,
+) ParseFromValueError!T
 ```
 
 ## JsonStringify
@@ -34,7 +44,11 @@ the hability of zig to create a custom jsonStringify method for structs
 ### Signature
 
 ```zig
-pub fn jsonStringify(comptime T: type, self: T, writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
+pub fn jsonStringify(
+    comptime T: type,
+    self: T,
+    writer_stream: anytype,
+) @TypeOf(writer_stream.*).Error!void
 ```
 
 ## InnerParseValueRequest
@@ -46,7 +60,12 @@ as a json dynamic `Value`.
 ### Signature
 
 ```zig
-pub fn innerParseValueRequest(comptime T: type, allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!T
+pub fn innerParseValueRequest(
+    comptime T: type,
+    allocator: Allocator,
+    source: Value,
+    options: ParseOptions,
+) ParseFromValueError!T
 ```
 
 ## InnerStringify
@@ -55,6 +74,9 @@ Inner stringifier that enables the behaviour described above.
 ### Signature
 
 ```zig
-pub fn innerStringify(value: anytype, stream_writer: anytype) !void
+pub fn innerStringify(
+    value: anytype,
+    stream_writer: anytype,
+) @TypeOf(stream_writer.*).Error!void
 ```
 

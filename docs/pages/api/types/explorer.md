@@ -34,21 +34,32 @@ pub fn ExplorerSuccessResponse(comptime T: type) type
 ### Signature
 
 ```zig
-pub fn jsonParse(allocator: Allocator, source: anytype, options: ParseOptions) ParseError(@TypeOf(source.*))!@This()
+pub fn jsonParse(
+    allocator: Allocator,
+    source: anytype,
+    options: ParseOptions,
+) ParseError(@TypeOf(source.*))!@This()
 ```
 
 ## JsonParseFromValue
 ### Signature
 
 ```zig
-pub fn jsonParseFromValue(allocator: Allocator, source: Value, options: ParseOptions) ParseFromValueError!@This()
+pub fn jsonParseFromValue(
+    allocator: Allocator,
+    source: Value,
+    options: ParseOptions,
+) ParseFromValueError!@This()
 ```
 
 ## JsonStringify
 ### Signature
 
 ```zig
-pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_stream.*).Error!void
+pub fn jsonStringify(
+    self: @This(),
+    writer_stream: anytype,
+) @TypeOf(writer_stream.*).Error!void
 ```
 
 ## ExplorerErrorResponse
@@ -536,7 +547,10 @@ struct {
   /// Unix timestamp in seconds
   timestamp: u64
   /// The tag to choose for finding the closest block based on the timestamp.
-  closest: enum { before, after }
+  closest: enum {
+        before,
+        after,
+    }
 }
 ```
 

@@ -103,7 +103,7 @@ pub fn getGames(
     self: *L1,
     limit: usize,
     block_number: ?u256,
-) (L1Errors || error{ FaultProofsNotEnabled, Overflow, InvalidVersion })![]const GameResult
+) (L1Errors || error{ FaultProofsNotEnabled, Overflow, InvalidVersion, DivisionByZero })![]const GameResult
 ```
 
 ## GetFinalizedWithdrawals
@@ -112,7 +112,10 @@ Returns if a withdrawal has finalized or not.
 ### Signature
 
 ```zig
-pub fn getFinalizedWithdrawals(self: *L1, withdrawal_hash: Hash) (EncodeErrors || ClientType.BasicRequestErrors || error{ExpectOpStackContracts})!bool
+pub fn getFinalizedWithdrawals(
+    self: *L1,
+    withdrawal_hash: Hash,
+) (EncodeErrors || ClientType.BasicRequestErrors || error{ExpectOpStackContracts})!bool
 ```
 
 ## GetLatestProposedL2BlockNumber

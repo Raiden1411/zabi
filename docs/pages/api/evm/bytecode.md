@@ -90,7 +90,11 @@ Creates the jump table. Provided size must follow the two's complement.
 ### Signature
 
 ```zig
-pub fn init(allocator: Allocator, value: bool, size: usize) Allocator.Error!JumpTable
+pub fn init(
+    allocator: Allocator,
+    value: bool,
+    size: usize,
+) Allocator.Error!JumpTable
 ```
 
 ### Deinit
@@ -108,7 +112,11 @@ Sets or unset a bit at the given position.
 ### Signature
 
 ```zig
-pub fn set(self: @This(), position: usize, value: bool) void
+pub fn set(
+    self: @This(),
+    position: usize,
+    value: bool,
+) void
 ```
 
 ### Peek

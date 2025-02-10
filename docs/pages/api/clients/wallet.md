@@ -67,7 +67,11 @@ Returns null if no transaction was found
 ### Signature
 
 ```zig
-pub fn findTransactionEnvelope(pool: *TransactionEnvelopePool, allocator: Allocator, search: SearchCriteria) ?TransactionEnvelope
+pub fn findTransactionEnvelope(
+    pool: *TransactionEnvelopePool,
+    allocator: Allocator,
+    search: SearchCriteria,
+) ?TransactionEnvelope
 ```
 
 ### AddEnvelopeToPool
@@ -76,7 +80,10 @@ Adds a new node into the pool. This is thread safe.
 ### Signature
 
 ```zig
-pub fn addEnvelopeToPool(pool: *TransactionEnvelopePool, node: *Node) void
+pub fn addEnvelopeToPool(
+    pool: *TransactionEnvelopePool,
+    node: *Node,
+) void
 ```
 
 ### UnsafeReleaseEnvelopeFromPool
@@ -85,7 +92,10 @@ Removes a node from the pool. This is not thread safe.
 ### Signature
 
 ```zig
-pub fn unsafeReleaseEnvelopeFromPool(pool: *TransactionEnvelopePool, node: *Node) void
+pub fn unsafeReleaseEnvelopeFromPool(
+    pool: *TransactionEnvelopePool,
+    node: *Node,
+) void
 ```
 
 ### ReleaseEnvelopeFromPool
@@ -94,7 +104,10 @@ Removes a node from the pool. This is thread safe.
 ### Signature
 
 ```zig
-pub fn releaseEnvelopeFromPool(pool: *TransactionEnvelopePool, node: *Node) void
+pub fn releaseEnvelopeFromPool(
+    pool: *TransactionEnvelopePool,
+    node: *Node,
+) void
 ```
 
 ### GetFirstElementFromPool
@@ -104,7 +117,10 @@ This is thread safe.
 ### Signature
 
 ```zig
-pub fn getFirstElementFromPool(pool: *TransactionEnvelopePool, allocator: Allocator) ?TransactionEnvelope
+pub fn getFirstElementFromPool(
+    pool: *TransactionEnvelopePool,
+    allocator: Allocator,
+) ?TransactionEnvelope
 ```
 
 ### GetLastElementFromPool
@@ -114,7 +130,10 @@ This is thread safe.
 ### Signature
 
 ```zig
-pub fn getLastElementFromPool(pool: *TransactionEnvelopePool, allocator: Allocator) ?TransactionEnvelope
+pub fn getLastElementFromPool(
+    pool: *TransactionEnvelopePool,
+    allocator: Allocator,
+) ?TransactionEnvelope
 ```
 
 ### Deinit
@@ -124,7 +143,10 @@ This is thread safe.
 ### Signature
 
 ```zig
-pub fn deinit(pool: *TransactionEnvelopePool, allocator: Allocator) void
+pub fn deinit(
+    pool: *TransactionEnvelopePool,
+    allocator: Allocator,
+) void
 ```
 
 ## Node
@@ -136,13 +158,12 @@ TransactionEnvelopeQueue.Node
 ```
 
 ## Wallet
-Creates a wallet instance based on which type of client defined in
-`WalletClients`. Depending on the type of client the underlaying methods
-of `rpc_client` can be changed. The http and websocket client do not
-mirror 100% in terms of their methods.
+Creates a wallet instance based on which type of client defined in `WalletClients`.
 
-The client's methods can all be accessed under `rpc_client`.
-The same goes for the signer.
+Depending on the type of client the underlaying methods of `rpc_client` can be changed.
+The http and websocket client do not mirror 100% in terms of their methods.
+
+The client's methods can all be accessed under `rpc_client`. The same goes for the signer.
 
 ### Signature
 
@@ -171,7 +192,12 @@ ClientType.BasicRequestErrors
 Set of errors when preparing a transaction
 
 ```zig
-Error || error{ InvalidBlockNumber, UnableToFetchFeeInfoFromBlock, MaxFeePerGasUnderflow, UnsupportedTransactionType }
+Error || error{
+            InvalidBlockNumber,
+            UnableToFetchFeeInfoFromBlock,
+            MaxFeePerGasUnderflow,
+            UnsupportedTransactionType,
+        }
 ```
 
 ## AssertionErrors
@@ -249,7 +275,10 @@ is higher than one from the `cache`.
 ### Signature
 
 ```zig
-pub fn getNonce(self: *Self, rpc_client: *ClientType) ClientType.BasicRequestErrors!u64
+pub fn getNonce(
+    self: *Self,
+    rpc_client: *ClientType,
+) ClientType.BasicRequestErrors!u64
 ```
 
 ### IncrementNonce
@@ -270,7 +299,10 @@ is higher than one from the `cache`.
 ### Signature
 
 ```zig
-pub fn updateNonce(self: *Self, rpc_client: *ClientType) ClientType.BasicRequestErrors!u64
+pub fn updateNonce(
+    self: *Self,
+    rpc_client: *ClientType,
+) ClientType.BasicRequestErrors!u64
 ```
 
 ### ResetNonce
@@ -285,8 +317,9 @@ pub fn resetNonce(self: *Self) void
 ## Init
 Sets the wallet initial state.
 
-The init opts will depend on the [client_type](/api/clients/wallet#walletclients).\
-Also add the hability to use a nonce manager or to use the network directly.
+The init opts will depend on the [client_type](/api/clients/wallet#walletclients).
+
+Also adds the hability to use a nonce manager or to use the network directly.
 
 **Example**
 ```zig
@@ -312,6 +345,36 @@ pub fn init(
     opts: ClientInitOptions,
     nonce_manager: bool,
 ) (error{IdentityElement} || ClientType.InitErrors)!*WalletSelf
+```
+
+## InitUnownedRpcClient
+Creates a wallet instance where this wallet client doesn't own the
+pointer to the rpc client.
+
+Use this if you don't want the rpc client lifetime to be the same
+as this wallet instance. Once you are done make sure to use `deinitUnowned`
+instead of the normal `deinit` method.
+
+### Signature
+
+```zig
+pub fn initUnownedRpcClient(
+    allocator: Allocator,
+    private_key: ?Hash,
+    client: *ClientType,
+    nonce_manager: bool,
+) error{IdentityElement}!WalletSelf
+```
+
+## DeinitUnowned
+Clears memory and destroys any created pointers
+
+Doesn't deinit the rpc client.
+
+### Signature
+
+```zig
+pub fn deinitUnowned(self: *WalletSelf) void
 ```
 
 ## AssertTransaction
@@ -345,7 +408,7 @@ pub fn authMessageEip3074(
     invoker_address: Address,
     nonce: ?u64,
     commitment: Hash,
-) ClientType.BasicRequestErrors![]u8
+) (AbiEncoder.Errors || ClientType.BasicRequestErrors)![]u8
 ```
 
 ## FindTransactionEnvelopeFromPool
@@ -354,7 +417,10 @@ Find a specific prepared envelope from the pool based on the given search criter
 ### Signature
 
 ```zig
-pub fn findTransactionEnvelopeFromPool(self: *WalletSelf, search: TransactionEnvelopePool.SearchCriteria) ?TransactionEnvelope
+pub fn findTransactionEnvelopeFromPool(
+    self: *WalletSelf,
+    search: TransactionEnvelopePool.SearchCriteria,
+) ?TransactionEnvelope
 ```
 
 ## HashAuthorityEip7702
@@ -467,7 +533,7 @@ pub fn sendBlobTransaction(
     blobs: []const Blob,
     unprepared_envelope: UnpreparedTransactionEnvelope,
     trusted_setup: *KZG4844,
-) !RPCResponse(Hash)
+) (SendSignedTransactionErrors || CancunSerializeErrors || error{ InvalidTransactionType, TrustedSetupNotLoaded })!RPCResponse(Hash)
 ```
 
 ## SendSidecarTransaction
@@ -481,7 +547,7 @@ pub fn sendSidecarTransaction(
     self: *WalletSelf,
     sidecars: []const Sidecar,
     unprepared_envelope: UnpreparedTransactionEnvelope,
-) !RPCResponse(Hash)
+) SendSignedTransactionErrors!RPCResponse(Hash)
 ```
 
 ## SendSignedTransaction
@@ -530,7 +596,7 @@ pub fn signAuthMessageEip3074(
     invoker_address: Address,
     nonce: ?u64,
     commitment: Hash,
-) (ClientType.BasicRequestErrors || Signer.SigningErrors)!Signature
+) (AbiEncoder.Errors || ClientType.BasicRequestErrors || Signer.SigningErrors)!Signature
 ```
 
 ## SignAuthorizationEip7702

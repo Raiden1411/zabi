@@ -201,6 +201,7 @@ pub const DocsGenerator = struct {
             .keyword_enum => try out_file.writeAll("enum {\n"),
             .keyword_struct => try out_file.writeAll("struct {\n"),
             .keyword_union => try out_file.writeAll("union(enum) {\n"),
+            .keyword_packed => try out_file.writeAll("packed struct {"),
             else => std.debug.panic("Unexpected token found: {s}", .{@tagName(self.tokens[container_token])}),
         }
 

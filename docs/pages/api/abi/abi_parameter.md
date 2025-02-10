@@ -21,13 +21,6 @@ struct {
 }
 ```
 
-### Deinit
-### Signature
-
-```zig
-pub fn deinit(self: @This(), alloc: std.mem.Allocator) void
-```
-
 ### Encode
 Encode the paramters based on the values provided and `self`.
 Runtime reflection based on the provided values will occur to determine
@@ -41,7 +34,11 @@ comptime know and you want better typesafety from the compiler
 ### Signature
 
 ```zig
-pub fn encode(self: @This(), allocator: Allocator, values: anytype) EncodeErrors![]u8
+pub fn encode(
+    self: @This(),
+    allocator: Allocator,
+    values: anytype,
+) EncodeErrors![]u8
 ```
 
 ### Decode
@@ -57,7 +54,13 @@ comptime know and you want better typesafety from the compiler
 ### Signature
 
 ```zig
-pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecoderErrors!AbiDecoded(T)
+pub fn decode(
+    self: @This(),
+    comptime T: type,
+    allocator: Allocator,
+    encoded: []const u8,
+    options: DecodeOptions,
+) DecoderErrors!AbiDecoded(T)
 ```
 
 ### Prepare
@@ -67,7 +70,10 @@ Intended to use for hashing purposes.
 ### Signature
 
 ```zig
-pub fn prepare(self: @This(), writer: anytype) PrepareErrors!void
+pub fn prepare(
+    self: @This(),
+    writer: anytype,
+) PrepareErrors!void
 ```
 
 ## AbiEventParameter
@@ -86,13 +92,6 @@ struct {
 }
 ```
 
-### Deinit
-### Signature
-
-```zig
-pub fn deinit(self: @This(), alloc: std.mem.Allocator) void
-```
-
 ### Prepare
 Format the struct into a human readable string.
 Intended to use for hashing purposes.
@@ -100,6 +99,9 @@ Intended to use for hashing purposes.
 ### Signature
 
 ```zig
-pub fn prepare(self: @This(), writer: anytype) PrepareErrors!void
+pub fn prepare(
+    self: @This(),
+    writer: anytype,
+) PrepareErrors!void
 ```
 

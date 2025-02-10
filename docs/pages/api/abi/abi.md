@@ -1,3 +1,18 @@
+## StateMutability
+
+Solidity abi stat mutability definition of functions and constructors.
+
+### Properties
+
+```zig
+enum {
+  nonpayable
+  payable
+  view
+  pure
+}
+```
+
 ## Abitype
 
 Set of possible abi values according to the abi spec.
@@ -52,13 +67,6 @@ struct {
 }
 ```
 
-### Deinit
-### Signature
-
-```zig
-pub fn deinit(self: @This(), allocator: std.mem.Allocator) void
-```
-
 ### EncodeFromReflection
 Abi Encode the struct signature based on the values provided.
 
@@ -71,7 +79,7 @@ pub fn encodeFromReflection(
     self: @This(),
     allocator: Allocator,
     values: anytype,
-) EncodeErrors![]u8
+) (AbiEncoder.Errors || error{NoSpaceLeft})![]u8
 ```
 
 ### Encode
@@ -87,7 +95,7 @@ pub fn encode(
     comptime self: @This(),
     allocator: Allocator,
     values: AbiParametersToPrimative(self.inputs),
-) EncodeErrors![]u8
+) (AbiEncoder.Errors || error{NoSpaceLeft})![]u8
 ```
 
 ### EncodeOutputs
@@ -105,7 +113,7 @@ pub fn encodeOutputs(
     comptime self: @This(),
     allocator: Allocator,
     values: AbiParametersToPrimative(self.outputs),
-) Allocator.Error![]u8
+) AbiEncoder.Errors![]u8
 ```
 
 ### Decode
@@ -163,7 +171,10 @@ Caller owns the memory.
 ### Signature
 
 ```zig
-pub fn allocPrepare(self: @This(), allocator: Allocator) PrepareErrors![]u8
+pub fn allocPrepare(
+    self: @This(),
+    allocator: Allocator,
+) PrepareErrors![]u8
 ```
 
 ### Prepare
@@ -173,7 +184,10 @@ Intended to use for hashing purposes.
 ### Signature
 
 ```zig
-pub fn prepare(self: @This(), writer: anytype) PrepareErrors!void
+pub fn prepare(
+    self: @This(),
+    writer: anytype,
+) PrepareErrors!void
 ```
 
 ## Event
@@ -190,13 +204,6 @@ struct {
   inputs: []const AbiEventParameter
   anonymous: ?bool = null
 }
-```
-
-### Deinit
-### Signature
-
-```zig
-pub fn deinit(self: @This(), allocator: std.mem.Allocator) void
 ```
 
 ### Encode
@@ -218,7 +225,11 @@ Caller owns the memory.
 ### Signature
 
 ```zig
-pub fn encodeLogTopics(self: @This(), allocator: Allocator, values: anytype) EncodeLogsErrors![]const ?Hash
+pub fn encodeLogTopics(
+    self: @This(),
+    allocator: Allocator,
+    values: anytype,
+) EncodeLogsErrors![]const ?Hash
 ```
 
 ### DecodeLogTopics
@@ -229,7 +240,12 @@ Caller owns the memory.
 ### Signature
 
 ```zig
-pub fn decodeLogTopics(self: @This(), comptime T: type, encoded: []const ?Hash, options: LogDecoderOptions) LogsDecoderErrors!T
+pub fn decodeLogTopics(
+    self: @This(),
+    comptime T: type,
+    encoded: []const ?Hash,
+    options: LogDecoderOptions,
+) LogsDecoderErrors!T
 ```
 
 ### AllocPrepare
@@ -241,7 +257,10 @@ Caller owns the memory.
 ### Signature
 
 ```zig
-pub fn allocPrepare(self: @This(), allocator: Allocator) PrepareErrors![]u8
+pub fn allocPrepare(
+    self: @This(),
+    allocator: Allocator,
+) PrepareErrors![]u8
 ```
 
 ### Prepare
@@ -251,7 +270,10 @@ Intended to use for hashing purposes.
 ### Signature
 
 ```zig
-pub fn prepare(self: @This(), writer: anytype) PrepareErrors!void
+pub fn prepare(
+    self: @This(),
+    writer: anytype,
+) PrepareErrors!void
 ```
 
 ## Error
@@ -269,13 +291,6 @@ struct {
 }
 ```
 
-### Deinit
-### Signature
-
-```zig
-pub fn deinit(self: @This(), allocator: Allocator) void
-```
-
 ### Encode
 Abi Encode the struct signature based on the values provided.
 
@@ -285,7 +300,11 @@ of what the `values` should be.
 ### Signature
 
 ```zig
-pub fn encode(comptime self: @This(), allocator: Allocator, values: AbiParametersToPrimative(self.inputs)) EncodeErrors![]u8
+pub fn encode(
+    comptime self: @This(),
+    allocator: Allocator,
+    values: AbiParametersToPrimative(self.inputs),
+) (AbiEncoder.Errors || error{NoSpaceLeft})![]u8
 ```
 
 ### Decode
@@ -302,7 +321,13 @@ comptime know and you dont want to provided the return type.
 ### Signature
 
 ```zig
-pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T)
+pub fn decode(
+    self: @This(),
+    comptime T: type,
+    allocator: Allocator,
+    encoded: []const u8,
+    options: DecodeOptions,
+) DecodeErrors!AbiDecoded(T)
 ```
 
 ### AllocPrepare
@@ -314,7 +339,10 @@ Caller owns the memory.
 ### Signature
 
 ```zig
-pub fn allocPrepare(self: @This(), allocator: Allocator) PrepareErrors![]u8
+pub fn allocPrepare(
+    self: @This(),
+    allocator: Allocator,
+) PrepareErrors![]u8
 ```
 
 ### Prepare
@@ -324,7 +352,10 @@ Intended to use for hashing purposes.
 ### Signature
 
 ```zig
-pub fn prepare(self: @This(), writer: anytype) PrepareErrors!void
+pub fn prepare(
+    self: @This(),
+    writer: anytype,
+) PrepareErrors!void
 ```
 
 ## Constructor
@@ -346,13 +377,6 @@ struct {
 }
 ```
 
-### Deinit
-### Signature
-
-```zig
-pub fn deinit(self: @This(), allocator: Allocator) void
-```
-
 ### EncodeFromReflection
 Abi Encode the struct signature based on the values provided.
 
@@ -365,7 +389,7 @@ pub fn encodeFromReflection(
     self: @This(),
     allocator: Allocator,
     values: anytype,
-) EncodeErrors![]u8
+) AbiEncoder.Errors![]u8
 ```
 
 ### Encode
@@ -381,7 +405,7 @@ pub fn encode(
     comptime self: @This(),
     allocator: Allocator,
     values: AbiParametersToPrimative(self.inputs),
-) EncodeErrors![]u8
+) AbiEncoder.Errors![]u8
 ```
 
 ### Decode
@@ -398,7 +422,13 @@ comptime know and you dont want to provided the return type.
 ### Signature
 
 ```zig
-pub fn decode(self: @This(), comptime T: type, allocator: Allocator, encoded: []const u8, options: DecodeOptions) DecodeErrors!AbiDecoded(T)
+pub fn decode(
+    self: @This(),
+    comptime T: type,
+    allocator: Allocator,
+    encoded: []const u8,
+    options: DecodeOptions,
+) DecodeErrors!AbiDecoded(T)
 ```
 
 ## Fallback
@@ -448,13 +478,6 @@ union(enum) {
   abiFallback: Fallback
   abiReceive: Receive
 }
-```
-
-### Deinit
-### Signature
-
-```zig
-pub fn deinit(self: @This(), allocator: Allocator) void
 ```
 
 ## Abi

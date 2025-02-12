@@ -82,7 +82,7 @@ pub fn Stack(comptime T: type) type {
         /// Pops an item off the stack.
         /// This is not thread safe.
         pub fn popUnsafe(self: *Self) ?T {
-            return self.inner.popOrNull();
+            return self.inner.pop();
         }
         /// Appends an item to the stack.
         /// This is thread safe and blocks until it can

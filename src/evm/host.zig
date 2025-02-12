@@ -197,7 +197,7 @@ pub const PlainHost = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        while (self.log_storage.popOrNull()) |log_event| {
+        while (self.log_storage.pop()) |log_event| {
             self.log_storage.allocator.free(log_event.topics);
         }
 

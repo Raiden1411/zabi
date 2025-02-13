@@ -22,7 +22,10 @@ Converts ethereum address to checksum
 ### Signature
 
 ```zig
-pub fn toChecksum(allocator: Allocator, address: []const u8) (Allocator.Error || error{ Overflow, InvalidCharacter })![]u8
+pub fn toChecksum(
+    allocator: Allocator,
+    address: []const u8,
+) (Allocator.Error || error{ Overflow, InvalidCharacter })![]u8
 ```
 
 ## IsAddress
@@ -40,7 +43,9 @@ Convert address to its representing bytes
 ### Signature
 
 ```zig
-pub fn addressToBytes(address: []const u8) error{ InvalidAddress, NoSpaceLeft, InvalidLength, InvalidCharacter }!Address
+pub fn addressToBytes(
+    address: []const u8,
+) error{ InvalidAddress, NoSpaceLeft, InvalidLength, InvalidCharacter }!Address
 ```
 
 ## HashToBytes
@@ -49,7 +54,9 @@ Convert a hash to its representing bytes
 ### Signature
 
 ```zig
-pub fn hashToBytes(hash: []const u8) error{ InvalidHash, NoSpaceLeft, InvalidLength, InvalidCharacter }!Hash
+pub fn hashToBytes(
+    hash: []const u8,
+) error{ InvalidHash, NoSpaceLeft, InvalidLength, InvalidCharacter }!Hash
 ```
 
 ## IsHexString

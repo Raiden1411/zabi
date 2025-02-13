@@ -11,7 +11,7 @@ struct {
   /// The underlaying memory buffer.
   buffer: []u8
   /// Set of memory checkpoints
-  checkpoints: ArrayList(usize)
+  checkpoints: ArrayListUnmanaged(usize)
   /// The last memory checkpoint
   last_checkpoint: usize
   /// The max memory size
@@ -36,7 +36,10 @@ No initial capacity is set. It's essentially empty memory.
 ### Signature
 
 ```zig
-pub fn initEmpty(allocator: Allocator, limit: ?u64) Memory
+pub fn initEmpty(
+    allocator: Allocator,
+    limit: ?u64,
+) Memory
 ```
 
 ### InitWithDefaultCapacity
@@ -45,7 +48,10 @@ Creates the memory with default 4096 capacity.
 ### Signature
 
 ```zig
-pub fn initWithDefaultCapacity(allocator: Allocator, limit: ?u64) Allocator.Error!Memory
+pub fn initWithDefaultCapacity(
+    allocator: Allocator,
+    limit: ?u64,
+) Allocator.Error!Memory
 ```
 
 ### InitWithCapacity
@@ -54,7 +60,20 @@ Creates the memory with `capacity`.
 ### Signature
 
 ```zig
-pub fn initWithCapacity(allocator: Allocator, capacity: usize, limit: ?u64) Allocator.Error!Memory
+pub fn initWithCapacity(
+    allocator: Allocator,
+    capacity: usize,
+    limit: ?u64,
+) Allocator.Error!Memory
+```
+
+### Deinit
+Frees the underlaying memory buffers.
+
+### Signature
+
+```zig
+pub fn deinit(self: *Memory) void
 ```
 
 ### FreeContext
@@ -81,7 +100,10 @@ Gets a byte from the list's buffer.
 ### Signature
 
 ```zig
-pub fn getMemoryByte(self: Memory, offset: usize) u8
+pub fn getMemoryByte(
+    self: Memory,
+    offset: usize,
+) u8
 ```
 
 ### GetMemoryWord
@@ -91,7 +113,10 @@ of 32 bytes from the inner memory buffer.
 ### Signature
 
 ```zig
-pub fn getMemoryWord(self: Memory, offset: usize) Word
+pub fn getMemoryWord(
+    self: Memory,
+    offset: usize,
+) Word
 ```
 
 ### GetSlice
@@ -110,7 +135,12 @@ Asserts that the provided indexes are not out of bound.
 ### Signature
 
 ```zig
-pub fn memoryCopy(self: *Memory, destination: usize, source: usize, length: usize) void
+pub fn memoryCopy(
+    self: *Memory,
+    destination: usize,
+    source: usize,
+    length: usize,
+) void
 ```
 
 ### NewContext
@@ -130,7 +160,10 @@ If the new len is lower than the current buffer size data will be lost.
 ### Signature
 
 ```zig
-pub fn resize(self: *Memory, new_len: usize) (Allocator.Error || Memory.Error)!void
+pub fn resize(
+    self: *Memory,
+    new_len: usize,
+) (Allocator.Error || Memory.Error)!void
 ```
 
 ### WordToInt
@@ -140,7 +173,10 @@ This reads the word as `Big` endian.
 ### Signature
 
 ```zig
-pub fn wordToInt(self: Memory, offset: usize) u256
+pub fn wordToInt(
+    self: Memory,
+    offset: usize,
+) u256
 ```
 
 ### WriteByte
@@ -150,7 +186,11 @@ This can overwrite to existing memory.
 ### Signature
 
 ```zig
-pub fn writeByte(self: Memory, offset: usize, byte: u8) void
+pub fn writeByte(
+    self: Memory,
+    offset: usize,
+    byte: u8,
+) void
 ```
 
 ### WriteWord
@@ -160,7 +200,11 @@ This can overwrite existing memory.
 ### Signature
 
 ```zig
-pub fn writeWord(self: Memory, offset: usize, word: [32]u8) void
+pub fn writeWord(
+    self: Memory,
+    offset: usize,
+    word: [32]u8,
+) void
 ```
 
 ### WriteInt
@@ -170,7 +214,11 @@ This can overwrite to existing memory.
 ### Signature
 
 ```zig
-pub fn writeInt(self: Memory, offset: usize, data: u256) void
+pub fn writeInt(
+    self: Memory,
+    offset: usize,
+    data: u256,
+) void
 ```
 
 ### Write
@@ -180,7 +228,11 @@ This can overwrite to existing memory.
 ### Signature
 
 ```zig
-pub fn write(self: Memory, offset: usize, data: []const u8) void
+pub fn write(
+    self: Memory,
+    offset: usize,
+    data: []const u8,
+) void
 ```
 
 ### WriteData
@@ -190,16 +242,13 @@ This can overwrite existing memory.
 ### Signature
 
 ```zig
-pub fn writeData(self: Memory, offset: usize, data_offset: usize, len: usize, data: []u8) void
-```
-
-### Deinit
-Frees the underlaying memory buffers.
-
-### Signature
-
-```zig
-pub fn deinit(self: Memory) void
+pub fn writeData(
+    self: Memory,
+    offset: usize,
+    data_offset: usize,
+    len: usize,
+    data: []u8,
+) void
 ```
 
 ## Error

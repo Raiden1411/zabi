@@ -3,7 +3,8 @@
 Set of possible error's when trying to perform the initial connection to the host.
 
 ```zig
-TlsClient.InitError(Stream) || TcpConnectToHostError || CertificateBundle.RescanError || error{ UnsupportedSchema, UnspecifiedHostName }
+TlsClient.InitError(Stream) || TcpConnectToHostError ||
+    CertificateBundle.RescanError || error{ UnsupportedSchema, UnspecifiedHostName }
 ```
 
 ## AssertionError
@@ -11,7 +12,11 @@ TlsClient.InitError(Stream) || TcpConnectToHostError || CertificateBundle.Rescan
 Set of possible errors when asserting a handshake response.
 
 ```zig
-error{ DuplicateHandshakeHeader, InvalidHandshakeMessage, InvalidHandshakeKey }
+error{
+    DuplicateHandshakeHeader,
+    InvalidHandshakeMessage,
+    InvalidHandshakeKey,
+}
 ```
 
 ## SendHandshakeError
@@ -19,7 +24,7 @@ error{ DuplicateHandshakeHeader, InvalidHandshakeMessage, InvalidHandshakeKey }
 Set of possible errors when sending a handshake response.
 
 ```zig
-Stream.WriteError || error{NoSpaceLeft} || TlsAlertErrors
+NetStream.WriteError || error{NoSpaceLeft}
 ```
 
 ## ReadHandshakeError
@@ -184,8 +189,24 @@ struct {
   net_stream: Stream
   /// Null by default since we might want to connect
   /// locally and don't want to enforce it.
-  tls_stream: ?TlsClient = null
+  tls_stream: ?TlsClient
 }
+```
+
+## WriteError
+
+Set of possible errors when writting to the stream.
+
+```zig
+Stream.WriteError
+```
+
+## ReadError
+
+Set of possible errors when reading from the stream.
+
+```zig
+Stream.ReadError || TlsError
 ```
 
 ### WriteAll
@@ -194,7 +215,10 @@ Depending on if the tls_stream is not null it will use that instead.
 ### Signature
 
 ```zig
-pub fn writeAll(self: *NetStream, message: []const u8) !void
+pub fn writeAll(
+    self: *NetStream,
+    message: []const u8,
+) WriteError!void
 ```
 
 ### ReadAtLeast
@@ -203,7 +227,11 @@ Depending on if the tls_stream is not null it will use that instead.
 ### Signature
 
 ```zig
-pub fn readAtLeast(self: *NetStream, buffer: []u8, size: usize) !usize
+pub fn readAtLeast(
+    self: *NetStream,
+    buffer: []u8,
+    size: usize,
+) ReadError!usize
 ```
 
 ### Read
@@ -212,7 +240,10 @@ Depending on if the tls_stream is not null it will use that instead.
 ### Signature
 
 ```zig
-pub fn read(self: *NetStream, buffer: []u8) !usize
+pub fn read(
+    self: *NetStream,
+    buffer: []u8,
+) ReadError!usize
 ```
 
 ### Close
@@ -224,6 +255,22 @@ Close the tls client if it's not null and the stream.
 pub fn close(self: *NetStream) void
 ```
 
+## WriteError
+
+Set of possible errors when writting to the stream.
+
+```zig
+Stream.WriteError
+```
+
+## ReadError
+
+Set of possible errors when reading from the stream.
+
+```zig
+Stream.ReadError || TlsError
+```
+
 ## Connect
 Connects to the specficed uri. Creates a tls connection depending on the `uri.scheme`
 
@@ -233,7 +280,10 @@ Check out `protocol_map` to see when tls is enable. For now this doesn't respect
 ### Signature
 
 ```zig
-pub fn connect(allocator: Allocator, uri: Uri) ConnectionErrors!WebsocketClient
+pub fn connect(
+    allocator: Allocator,
+    uri: Uri,
+) ConnectionErrors!WebsocketClient
 ```
 
 ## GenerateHandshakeKey
@@ -251,7 +301,10 @@ Masks a websocket message. Uses simd when possible.
 ### Signature
 
 ```zig
-pub fn maskMessage(message: []u8, mask: [4]u8) void
+pub fn maskMessage(
+    message: []u8,
+    mask: [4]u8,
+) void
 ```
 
 ## WriteHeaderFrame
@@ -279,7 +332,11 @@ Generates the websocket header frame based on the message len and the opcode pro
 ### Signature
 
 ```zig
-pub fn writeHeaderFrame(self: *WebsocketClient, message: []const u8, opcode: Opcodes) Stream.WriteError![4]u8
+pub fn writeHeaderFrame(
+    self: *WebsocketClient,
+    message: []const u8,
+    opcode: Opcodes,
+) NetStream.WriteError![4]u8
 ```
 
 ## WriteCloseFrame
@@ -290,7 +347,10 @@ For more details please see: https://www.rfc-editor.org/rfc/rfc6455#section-5.5.
 ### Signature
 
 ```zig
-pub fn writeCloseFrame(self: *WebsocketClient, exit_code: u16) Stream.WriteError!void
+pub fn writeCloseFrame(
+    self: *WebsocketClient,
+    exit_code: u16,
+) NetStream.WriteError!void
 ```
 
 ## WriteFrame
@@ -302,7 +362,11 @@ More details here: https://www.rfc-editor.org/rfc/rfc6455#section-6.1
 ### Signature
 
 ```zig
-pub fn writeFrame(self: *WebsocketClient, message: []u8, opcode: Opcodes) Stream.WriteError!void
+pub fn writeFrame(
+    self: *WebsocketClient,
+    message: []u8,
+    opcode: Opcodes,
+) NetStream.WriteError!void
 ```
 
 ## Handshake
@@ -313,7 +377,10 @@ More info here: https://www.rfc-editor.org/rfc/rfc6455#section-1.2
 ### Signature
 
 ```zig
-pub fn handshake(self: *WebsocketClient, host: []const u8) (ReadHandshakeError || SendHandshakeError)!void
+pub fn handshake(
+    self: *WebsocketClient,
+    host: []const u8,
+) (ReadHandshakeError || SendHandshakeError)!void
 ```
 
 ## ReadHandshake
@@ -324,7 +391,10 @@ Places the amount of parsed bytes from the handshake to be discarded on the next
 ### Signature
 
 ```zig
-pub fn readHandshake(self: *WebsocketClient, handshake_key: [24]u8) ReadHandshakeError!void
+pub fn readHandshake(
+    self: *WebsocketClient,
+    handshake_key: [24]u8,
+) ReadHandshakeError!void
 ```
 
 ## SendHandshake
@@ -335,7 +405,11 @@ Also writes the query of the path if the `uri` was able to parse it.
 ### Signature
 
 ```zig
-pub fn sendHandshake(self: *WebsocketClient, host: []const u8, key: [24]u8) SendHandshakeError!void
+pub fn sendHandshake(
+    self: *WebsocketClient,
+    host: []const u8,
+    key: [24]u8,
+) SendHandshakeError!void
 ```
 
 ## ParseHandshakeResponse
@@ -346,7 +420,10 @@ The return bytes are then used to discard in case where we read more than handsh
 ### Signature
 
 ```zig
-pub fn parseHandshakeResponse(key: [24]u8, response: []const u8) AssertionError!usize
+pub fn parseHandshakeResponse(
+    key: [24]u8,
+    response: []const u8,
+) AssertionError!usize
 ```
 
 ## ReadFromSocket
@@ -358,7 +435,10 @@ amount of bytes that were actually read.
 ### Signature
 
 ```zig
-pub fn readFromSocket(self: *WebsocketClient, size: usize) SocketReadError![]const u8
+pub fn readFromSocket(
+    self: *WebsocketClient,
+    size: usize,
+) SocketReadError![]const u8
 ```
 
 ## ReadMessage

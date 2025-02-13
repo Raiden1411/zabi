@@ -34,7 +34,10 @@ Creates an instance for this action.
 ### Signature
 
 ```zig
-pub fn init(tx_env: TxEnviroment, gas_limit: u64) ?CallAction
+pub fn init(
+    tx_env: TxEnviroment,
+    gas_limit: u64,
+) ?CallAction
 ```
 
 ## CallValue
@@ -104,7 +107,10 @@ Creates an instance for this action.
 ### Signature
 
 ```zig
-pub fn init(tx_env: TxEnviroment, gas_limit: u64) ?CallAction
+pub fn init(
+    tx_env: TxEnviroment,
+    gas_limit: u64,
+) ?CallAction
 ```
 
 ## CreateScheme

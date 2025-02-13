@@ -22,7 +22,10 @@ It's recommend to use an `ArenaAllocator` for this.
 ### Signature
 
 ```zig
-pub fn parse(arena: Allocator, source: [:0]const u8) Errors!Abi
+pub fn parse(
+    arena: Allocator,
+    source: [:0]const u8,
+) Errors!Abi
 ```
 
 ## ToAbi
@@ -40,7 +43,10 @@ Generates an `AbiItem` based on the provided node. Not all nodes are supported.
 ### Signature
 
 ```zig
-pub fn toAbiItem(self: HumanAbi, node: Node.Index) (HumanAbiErrors || error{ UnexpectedNode, UnexpectedMutability })!AbiItem
+pub fn toAbiItem(
+    self: HumanAbi,
+    node: Node.Index,
+) (HumanAbiErrors || error{ UnexpectedNode, UnexpectedMutability })!AbiItem
 ```
 
 ## ToAbiFunction
@@ -58,7 +64,10 @@ Generates a `AbiFunction` from a `function_proto_one`.
 ### Signature
 
 ```zig
-pub fn toAbiFunctionOne(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiFunction
+pub fn toAbiFunctionOne(
+    self: HumanAbi,
+    node: Node.Index,
+) HumanAbiErrors!AbiFunction
 ```
 
 ## ToAbiFunctionMulti
@@ -67,7 +76,10 @@ Generates a `AbiFunction` from a `function_proto_multi`.
 ### Signature
 
 ```zig
-pub fn toAbiFunctionMulti(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiFunction
+pub fn toAbiFunctionMulti(
+    self: HumanAbi,
+    node: Node.Index,
+) HumanAbiErrors!AbiFunction
 ```
 
 ## ToAbiFunctionSimple
@@ -76,7 +88,10 @@ Generates a `AbiFunction` from a `function_proto_simple`.
 ### Signature
 
 ```zig
-pub fn toAbiFunctionSimple(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiFunction
+pub fn toAbiFunctionSimple(
+    self: HumanAbi,
+    node: Node.Index,
+) HumanAbiErrors!AbiFunction
 ```
 
 ## ToStructComponents
@@ -87,7 +102,10 @@ It gets generated from a `struct_decl` node.
 ### Signature
 
 ```zig
-pub fn toStructComponents(self: HumanAbi, node: Node.Index) HumanAbiErrors![]const AbiParameter
+pub fn toStructComponents(
+    self: HumanAbi,
+    node: Node.Index,
+) HumanAbiErrors![]const AbiParameter
 ```
 
 ## ToStructComponentsOne
@@ -107,7 +125,10 @@ Generates a `AbiConstructor` from a `constructor_proto_multi`.
 ### Signature
 
 ```zig
-pub fn toAbiConstructorMulti(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiConstructor
+pub fn toAbiConstructorMulti(
+    self: HumanAbi,
+    node: Node.Index,
+) HumanAbiErrors!AbiConstructor
 ```
 
 ## ToAbiConstructorSimple
@@ -116,7 +137,10 @@ Generates a `AbiConstructor` from a `constructor_proto_simple`.
 ### Signature
 
 ```zig
-pub fn toAbiConstructorSimple(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiConstructor
+pub fn toAbiConstructorSimple(
+    self: HumanAbi,
+    node: Node.Index,
+) HumanAbiErrors!AbiConstructor
 ```
 
 ## ToAbiEventMulti
@@ -125,7 +149,10 @@ Generates a `AbiEvent` from a `event_proto_multi`.
 ### Signature
 
 ```zig
-pub fn toAbiEventMulti(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiEvent
+pub fn toAbiEventMulti(
+    self: HumanAbi,
+    node: Node.Index,
+) HumanAbiErrors!AbiEvent
 ```
 
 ## ToAbiEventSimple
@@ -134,7 +161,10 @@ Generates a `AbiEvent` from a `event_proto_simple`.
 ### Signature
 
 ```zig
-pub fn toAbiEventSimple(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiEvent
+pub fn toAbiEventSimple(
+    self: HumanAbi,
+    node: Node.Index,
+) HumanAbiErrors!AbiEvent
 ```
 
 ## ToAbiErrorMulti
@@ -152,7 +182,10 @@ Generates a `AbiError` from a `error_proto_simple`.
 ### Signature
 
 ```zig
-pub fn toAbiErrorSimple(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiError
+pub fn toAbiErrorSimple(
+    self: HumanAbi,
+    node: Node.Index,
+) HumanAbiErrors!AbiError
 ```
 
 ## ToAbiParameters
@@ -161,7 +194,10 @@ Generates a `[]const AbiParameter` from a slice of `var_decl`.
 ### Signature
 
 ```zig
-pub fn toAbiParameters(self: HumanAbi, nodes: []const Node.Index) HumanAbiErrors![]const AbiParameter
+pub fn toAbiParameters(
+    self: HumanAbi,
+    nodes: []const Node.Index,
+) HumanAbiErrors![]const AbiParameter
 ```
 
 ## ToAbiParametersFromDecl
@@ -170,7 +206,10 @@ Generates a `[]const AbiEventParameter` from a slice of `struct_field` or `error
 ### Signature
 
 ```zig
-pub fn toAbiParametersFromDecl(self: HumanAbi, nodes: []const Node.Index) HumanAbiErrors![]const AbiParameter
+pub fn toAbiParametersFromDecl(
+    self: HumanAbi,
+    nodes: []const Node.Index,
+) HumanAbiErrors![]const AbiParameter
 ```
 
 ## ToAbiEventParameters
@@ -179,7 +218,10 @@ Generates a `[]const AbiEventParameter` from a slice of `event_var_decl`.
 ### Signature
 
 ```zig
-pub fn toAbiEventParameters(self: HumanAbi, nodes: []const Node.Index) HumanAbiErrors![]const AbiEventParameter
+pub fn toAbiEventParameters(
+    self: HumanAbi,
+    nodes: []const Node.Index,
+) HumanAbiErrors![]const AbiEventParameter
 ```
 
 ## ToAbiParameter
@@ -188,7 +230,10 @@ Generates a `AbiParameter` from a `var_decl`.
 ### Signature
 
 ```zig
-pub fn toAbiParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiParameter
+pub fn toAbiParameter(
+    self: HumanAbi,
+    node: Node.Index,
+) HumanAbiErrors!AbiParameter
 ```
 
 ## ToAbiComponents
@@ -199,7 +244,10 @@ It is expecting the node to be a `tuple_type` or a `tuple_type_one`.
 ### Signature
 
 ```zig
-pub fn toAbiComponents(self: HumanAbi, node: Node.Index) HumanAbiErrors![]const AbiParameter
+pub fn toAbiComponents(
+    self: HumanAbi,
+    node: Node.Index,
+) HumanAbiErrors![]const AbiParameter
 ```
 
 ## ToAbiEventParameter
@@ -208,7 +256,10 @@ Generates a `AbiEventParameter` from a `event_var_decl`.
 ### Signature
 
 ```zig
-pub fn toAbiEventParameter(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiEventParameter
+pub fn toAbiEventParameter(
+    self: HumanAbi,
+    node: Node.Index,
+) HumanAbiErrors!AbiEventParameter
 ```
 
 ## ToAbiParameterFromDecl
@@ -217,7 +268,10 @@ Generates a `AbiParameter` from a `error_var_decl` or a `struct_field`.
 ### Signature
 
 ```zig
-pub fn toAbiParameterFromDecl(self: HumanAbi, node: Node.Index) HumanAbiErrors!AbiParameter
+pub fn toAbiParameterFromDecl(
+    self: HumanAbi,
+    node: Node.Index,
+) HumanAbiErrors!AbiParameter
 ```
 
 ## ToAbiFallbackMulti
@@ -226,7 +280,10 @@ Generates a `AbiFallback` from a `fallback_proto_multi`.
 ### Signature
 
 ```zig
-pub fn toAbiFallbackMulti(self: HumanAbi, node: Node.Index) Allocator.Error!AbiFallback
+pub fn toAbiFallbackMulti(
+    self: HumanAbi,
+    node: Node.Index,
+) Allocator.Error!AbiFallback
 ```
 
 ## ToAbiFallbackSimple
@@ -235,7 +292,10 @@ Generates a `AbiFallback` from a `fallback_proto_simple`.
 ### Signature
 
 ```zig
-pub fn toAbiFallbackSimple(self: HumanAbi, node: Node.Index) Allocator.Error!AbiFallback
+pub fn toAbiFallbackSimple(
+    self: HumanAbi,
+    node: Node.Index,
+) Allocator.Error!AbiFallback
 ```
 
 ## ToAbiReceive
@@ -244,6 +304,9 @@ Generates a `AbiReceive` from a `receive_proto`.
 ### Signature
 
 ```zig
-pub fn toAbiReceive(self: HumanAbi, node: Node.Index) (Allocator.Error || error{UnexpectedMutability})!AbiReceive
+pub fn toAbiReceive(
+    self: HumanAbi,
+    node: Node.Index,
+) (Allocator.Error || error{UnexpectedMutability})!AbiReceive
 ```
 

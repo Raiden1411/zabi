@@ -127,7 +127,7 @@ pub fn Multicall(comptime client: Clients) type
 Set of possible errors when running the multicall client.
 
 ```zig
-Client.BasicRequestErrors || encoder.EncodeErrors || decoder.DecoderErrors
+Client.BasicRequestErrors || EncodeErrors || DecoderErrors
 ```
 
 ## Init

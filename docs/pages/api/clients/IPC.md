@@ -94,7 +94,10 @@ Fails when match retries are reached or a invalid ipc path is provided
 ### Signature
 
 ```zig
-pub fn connect(self: *IPC, path: []const u8) error{ InvalidIPCPath, FailedToConnect }!Stream
+pub fn connect(
+    self: *IPC,
+    path: []const u8,
+) error{ InvalidIPCPath, FailedToConnect }!Stream
 ```
 
 ## BlobBaseFee
@@ -116,7 +119,11 @@ RPC Method: [eth_createAccessList](https://ethereum.org/en/developers/docs/apis/
 ### Signature
 
 ```zig
-pub fn createAccessList(self: *IPC, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(AccessListResult)
+pub fn createAccessList(
+    self: *IPC,
+    call_object: EthCall,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(AccessListResult)
 ```
 
 ## EstimateBlobMaxFeePerGas
@@ -155,7 +162,11 @@ RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-
 ### Signature
 
 ```zig
-pub fn estimateGas(self: *IPC, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(Gwei)
+pub fn estimateGas(
+    self: *IPC,
+    call_object: EthCall,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(Gwei)
 ```
 
 ## EstimateMaxFeePerGasManual
@@ -215,7 +226,10 @@ RPC Method: [eth_getBalance](https://ethereum.org/en/developers/docs/apis/json-r
 ### Signature
 
 ```zig
-pub fn getAddressBalance(self: *IPC, opts: BalanceRequest) BasicRequestErrors!RPCResponse(Wei)
+pub fn getAddressBalance(
+    self: *IPC,
+    opts: BalanceRequest,
+) BasicRequestErrors!RPCResponse(Wei)
 ```
 
 ## GetAddressTransactionCount
@@ -226,7 +240,10 @@ RPC Method: [eth_getTransactionCount](https://ethereum.org/en/developers/docs/ap
 ### Signature
 
 ```zig
-pub fn getAddressTransactionCount(self: *IPC, opts: BalanceRequest) BasicRequestErrors!RPCResponse(u64)
+pub fn getAddressTransactionCount(
+    self: *IPC,
+    opts: BalanceRequest,
+) BasicRequestErrors!RPCResponse(u64)
 ```
 
 ## GetBlockByHash
@@ -266,7 +283,10 @@ RPC Method: [eth_getBlockByNumber](https://ethereum.org/en/developers/docs/apis/
 ### Signature
 
 ```zig
-pub fn getBlockByNumber(self: *IPC, opts: BlockRequest) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(Block)
+pub fn getBlockByNumber(
+    self: *IPC,
+    opts: BlockRequest,
+) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(Block)
 ```
 
 ## GetBlockByNumberType
@@ -309,7 +329,10 @@ RPC Method: [eth_getBlockTransactionCountByHash](https://ethereum.org/en/develop
 ### Signature
 
 ```zig
-pub fn getBlockTransactionCountByHash(self: *IPC, block_hash: Hash) BasicRequestErrors!RPCResponse(usize)
+pub fn getBlockTransactionCountByHash(
+    self: *IPC,
+    block_hash: Hash,
+) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetBlockTransactionCountByNumber
@@ -320,7 +343,10 @@ RPC Method: [eth_getBlockTransactionCountByNumber](https://ethereum.org/en/devel
 ### Signature
 
 ```zig
-pub fn getBlockTransactionCountByNumber(self: *IPC, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(usize)
+pub fn getBlockTransactionCountByNumber(
+    self: *IPC,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetChainId
@@ -353,7 +379,10 @@ RPC Method: [eth_getCode](https://ethereum.org/en/developers/docs/apis/json-rpc#
 ### Signature
 
 ```zig
-pub fn getContractCode(self: *IPC, opts: BalanceRequest) BasicRequestErrors!RPCResponse(Hex)
+pub fn getContractCode(
+    self: *IPC,
+    opts: BalanceRequest,
+) BasicRequestErrors!RPCResponse(Hex)
 ```
 
 ## GetCurrentRpcEvent
@@ -517,7 +546,10 @@ RPC Method: [eth_getRawTransactionByHash](https://docs.chainstack.com/reference/
 ### Signature
 
 ```zig
-pub fn getRawTransactionByHash(self: *IPC, tx_hash: Hash) BasicRequestErrors!RPCResponse(Hex)
+pub fn getRawTransactionByHash(
+    self: *IPC,
+    tx_hash: Hash,
+) BasicRequestErrors!RPCResponse(Hex)
 ```
 
 ## GetSha3Hash
@@ -528,7 +560,10 @@ RPC Method: [web_sha3](https://ethereum.org/en/developers/docs/apis/json-rpc#web
 ### Signature
 
 ```zig
-pub fn getSha3Hash(self: *IPC, message: []const u8) BasicRequestErrors!RPCResponse(Hash)
+pub fn getSha3Hash(
+    self: *IPC,
+    message: []const u8,
+) BasicRequestErrors!RPCResponse(Hash)
 ```
 
 ## GetStorage
@@ -539,7 +574,12 @@ RPC Method: [eth_getStorageAt](https://ethereum.org/en/developers/docs/apis/json
 ### Signature
 
 ```zig
-pub fn getStorage(self: *IPC, address: Address, storage_key: Hash, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(Hash)
+pub fn getStorage(
+    self: *IPC,
+    address: Address,
+    storage_key: Hash,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(Hash)
 ```
 
 ## GetSyncStatus
@@ -708,7 +748,10 @@ RPC Method: [txpool_contentFrom](https://geth.ethereum.org/docs/interacting-with
 ### Signature
 
 ```zig
-pub fn getTxPoolContentFrom(self: *IPC, from: Address) BasicRequestErrors!RPCResponse([]const PoolTransactionByNonce)
+pub fn getTxPoolContentFrom(
+    self: *IPC,
+    from: Address,
+) BasicRequestErrors!RPCResponse([]const PoolTransactionByNonce)
 ```
 
 ## GetTxPoolInspectStatus
@@ -744,7 +787,11 @@ RPC Method: [eth_getUncleByBlockHashAndIndex](https://ethereum.org/en/developers
 ### Signature
 
 ```zig
-pub fn getUncleByBlockHashAndIndex(self: *IPC, block_hash: Hash, index: usize) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(Block)
+pub fn getUncleByBlockHashAndIndex(
+    self: *IPC,
+    block_hash: Hash,
+    index: usize,
+) (BasicRequestErrors || error{InvalidBlockHashOrIndex})!RPCResponse(Block)
 ```
 
 ## GetUncleByBlockHashAndIndexType
@@ -808,7 +855,10 @@ RPC Method: [`eth_getUncleCountByBlockHash`](https://ethereum.org/en/developers/
 ### Signature
 
 ```zig
-pub fn getUncleCountByBlockHash(self: *IPC, block_hash: Hash) BasicRequestErrors!RPCResponse(usize)
+pub fn getUncleCountByBlockHash(
+    self: *IPC,
+    block_hash: Hash,
+) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetUncleCountByBlockNumber
@@ -819,7 +869,10 @@ RPC Method: [`eth_getUncleCountByBlockNumber`](https://ethereum.org/en/developer
 ### Signature
 
 ```zig
-pub fn getUncleCountByBlockNumber(self: *IPC, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(usize)
+pub fn getUncleCountByBlockNumber(
+    self: *IPC,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## Multicall3
@@ -931,7 +984,10 @@ Usefull for events that currently zabi doesn't have custom support.
 ### Signature
 
 ```zig
-pub fn parseSubscriptionEvent(self: *IPC, comptime T: type) ParseFromValueError!RPCResponse(EthereumSubscribeResponse(T))
+pub fn parseSubscriptionEvent(
+    self: *IPC,
+    comptime T: type,
+) ParseFromValueError!RPCResponse(EthereumSubscribeResponse(T))
 ```
 
 ## SendEthCall
@@ -947,7 +1003,11 @@ RPC Method: [`eth_call`](https://ethereum.org/en/developers/docs/apis/json-rpc#e
 ### Signature
 
 ```zig
-pub fn sendEthCall(self: *IPC, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(Hex)
+pub fn sendEthCall(
+    self: *IPC,
+    call_object: EthCall,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(Hex)
 ```
 
 ## SendRawTransaction
@@ -959,7 +1019,10 @@ RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/a
 ### Signature
 
 ```zig
-pub fn sendRawTransaction(self: *IPC, serialized_tx: Hex) BasicRequestErrors!RPCResponse(Hash)
+pub fn sendRawTransaction(
+    self: *IPC,
+    serialized_tx: Hex,
+) BasicRequestErrors!RPCResponse(Hash)
 ```
 
 ## SendRpcRequest
@@ -969,7 +1032,11 @@ This blocks until it gets the response back from the server.
 ### Signature
 
 ```zig
-pub fn sendRpcRequest(self: *IPC, comptime T: type, message: []u8) SendRpcRequestErrors!RPCResponse(T)
+pub fn sendRpcRequest(
+    self: *IPC,
+    comptime T: type,
+    message: []u8,
+) SendRpcRequestErrors!RPCResponse(T)
 ```
 
 ## UninstallFilter
@@ -981,7 +1048,10 @@ RPC Method: [`eth_uninstallFilter`](https://ethereum.org/en/developers/docs/apis
 ### Signature
 
 ```zig
-pub fn uninstallFilter(self: *IPC, id: usize) BasicRequestErrors!RPCResponse(bool)
+pub fn uninstallFilter(
+    self: *IPC,
+    id: usize,
+) BasicRequestErrors!RPCResponse(bool)
 ```
 
 ## Unsubscribe
@@ -993,7 +1063,10 @@ RPC Method: [`eth_unsubscribe`](https://docs.alchemy.com/reference/eth-unsubscri
 ### Signature
 
 ```zig
-pub fn unsubscribe(self: *IPC, sub_id: u128) BasicRequestErrors!RPCResponse(bool)
+pub fn unsubscribe(
+    self: *IPC,
+    sub_id: u128,
+) BasicRequestErrors!RPCResponse(bool)
 ```
 
 ## WatchNewBlocks
@@ -1015,7 +1088,10 @@ RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/logs)
 ### Signature
 
 ```zig
-pub fn watchLogs(self: *IPC, opts: WatchLogsRequest) BasicRequestErrors!RPCResponse(u128)
+pub fn watchLogs(
+    self: *IPC,
+    opts: WatchLogsRequest,
+) BasicRequestErrors!RPCResponse(u128)
 ```
 
 ## WatchTransactions
@@ -1040,7 +1116,10 @@ Returns the subscription Id.
 ### Signature
 
 ```zig
-pub fn watchWebsocketEvent(self: *IPC, method: []const u8) BasicRequestErrors!RPCResponse(u128)
+pub fn watchWebsocketEvent(
+    self: *IPC,
+    method: []const u8,
+) BasicRequestErrors!RPCResponse(u128)
 ```
 
 ## WaitForTransactionReceipt
@@ -1096,6 +1175,9 @@ Write messages to the websocket server.
 ### Signature
 
 ```zig
-pub fn writeSocketMessage(self: *IPC, data: []u8) !void
+pub fn writeSocketMessage(
+    self: *IPC,
+    data: []u8,
+) IpcReader.WriteError!void
 ```
 

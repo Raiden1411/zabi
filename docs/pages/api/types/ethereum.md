@@ -1,10 +1,14 @@
 ## Hex
 
+Ethereum hex string types in zabi.
+
 ```zig
 []u8
 ```
 
 ## Gwei
+
+Ethereum gwei type in zabi.
 
 ```zig
 u64
@@ -12,11 +16,15 @@ u64
 
 ## Wei
 
+Ethereum wei value in zabi.
+
 ```zig
 u256
 ```
 
 ## Hash
+
+Ethereum hash type in zabi.
 
 ```zig
 [32]u8
@@ -24,11 +32,15 @@ u256
 
 ## Address
 
+Ethereum address type in zabi.
+
 ```zig
 [20]u8
 ```
 
 ## Subscriptions
+
+RPC subscription calls.
 
 ### Properties
 
@@ -191,6 +203,8 @@ pub fn jsonStringify(self: @This(), writer_stream: anytype) @TypeOf(writer_strea
 ```
 
 ## EthereumResponse
+RPC response from an ethereum node. Can be either a success or error response.
+
 ### Signature
 
 ```zig

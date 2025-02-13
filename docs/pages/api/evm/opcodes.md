@@ -459,6 +459,10 @@ Callculates the max avaliable size of the stack for the operation to execute.
 ### Signature
 
 ```zig
-pub fn maxStack(comptime limit: comptime_int, comptime pop: comptime_int, comptime push: comptime_int) usize
+pub fn maxStack(
+    comptime limit: comptime_int,
+    comptime pop: comptime_int,
+    comptime push: comptime_int,
+) usize
 ```
 

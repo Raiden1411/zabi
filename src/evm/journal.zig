@@ -257,7 +257,7 @@ pub const JournaledState = struct {
         const length = self.journal.items.len - point.journal_checkpoint;
 
         for (0..length) |_| {
-            var reference: ArrayListUnmanaged(JournalEntry) = self.journal.pop();
+            var reference: ArrayListUnmanaged(JournalEntry) = self.journal.pop() orelse unreachable;
             defer reference.deinit(self.allocator);
 
             try self.revertJournal(&reference);
@@ -271,7 +271,7 @@ pub const JournaledState = struct {
         self: *JournaledState,
         journal_entry: *ArrayListUnmanaged(JournalEntry),
     ) RevertCheckpointError!void {
-        while (journal_entry.popOrNull()) |entry| {
+        while (journal_entry.pop()) |entry| {
             switch (entry) {
                 .account_warmed => |address| {
                     var account = self.state.getPtr(address.address) orelse return error.NonExistentAccount;

@@ -46,7 +46,12 @@ This will also prepare the provided bytecode in case it's given in a `raw` state
 ### Signature
 
 ```zig
-pub fn initFromEnviroment(allocator: Allocator, env: EVMEnviroment, bytecode: Bytecode, hash: ?Hash) !Contract
+pub fn initFromEnviroment(
+    allocator: Allocator,
+    env: EVMEnviroment,
+    bytecode: Bytecode,
+    hash: ?Hash,
+) Allocator.Error!Contract
 ```
 
 ### Deinit
@@ -55,7 +60,10 @@ Clears the bytecode in case it's analyzed.
 ### Signature
 
 ```zig
-pub fn deinit(self: @This(), allocator: Allocator) void
+pub fn deinit(
+    self: @This(),
+    allocator: Allocator,
+) void
 ```
 
 ### IsValidJump
@@ -64,6 +72,9 @@ Returns if the provided target result in a valid jump dest.
 ### Signature
 
 ```zig
-pub fn isValidJump(self: Contract, target: usize) bool
+pub fn isValidJump(
+    self: Contract,
+    target: usize,
+) bool
 ```
 

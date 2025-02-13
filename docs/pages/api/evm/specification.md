@@ -37,7 +37,10 @@ Checks if a given specification id is enabled.
 ### Signature
 
 ```zig
-pub fn enabled(self: SpecId, other: SpecId) bool
+pub fn enabled(
+    self: SpecId,
+    other: SpecId,
+) bool
 ```
 
 ### ToSpecId
@@ -88,7 +91,10 @@ Checks if a given specification id is enabled.
 ### Signature
 
 ```zig
-pub fn enabled(self: OptimismSpecId, other: OptimismSpecId) bool
+pub fn enabled(
+    self: OptimismSpecId,
+    other: OptimismSpecId,
+) bool
 ```
 
 ### ToSpecId

@@ -73,7 +73,7 @@ pub const Memory = struct {
     /// Prepares the memory for returning to the previous context.
     pub fn freeContext(self: *Memory) void {
         const checkpoint = self.checkpoints.pop();
-        self.buffer.len = checkpoint;
+        self.buffer.len = checkpoint orelse 0;
         self.last_checkpoint = self.checkpoints.getLastOrNull() orelse 0;
     }
     /// Gets the current size of the `Memory` range.

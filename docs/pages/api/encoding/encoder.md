@@ -3,7 +3,7 @@
 Set of errors while perfoming abi encoding.
 
 ```zig
-Allocator.Error || error{NoSpaceLeft}
+AbiEncoder.Errors || error{NoSpaceLeft}
 ```
 
 ## AbiEncodedValues
@@ -67,7 +67,7 @@ pub fn encodeAbiFunction(
     comptime func: Function,
     allocator: Allocator,
     values: AbiParametersToPrimative(func.inputs),
-) EncodeErrors![]u8
+) (AbiEncoder.Errors || error{NoSpaceLeft})![]u8
 ```
 
 ## EncodeAbiFunctionOutputs
@@ -81,7 +81,7 @@ pub fn encodeAbiFunctionOutputs(
     comptime func: Function,
     allocator: Allocator,
     values: AbiParametersToPrimative(func.outputs),
-) Allocator.Error![]u8
+) AbiEncoder.Errors![]u8
 ```
 
 ## EncodeAbiError
@@ -95,7 +95,7 @@ pub fn encodeAbiError(
     comptime err: Error,
     allocator: Allocator,
     values: AbiParametersToPrimative(err.inputs),
-) EncodeErrors![]u8
+) (AbiEncoder.Errors || error{NoSpaceLeft})![]u8
 ```
 
 ## EncodeAbiConstructor
@@ -108,7 +108,7 @@ pub fn encodeAbiConstructor(
     comptime constructor: Constructor,
     allocator: Allocator,
     values: AbiParametersToPrimative(constructor.inputs),
-) Allocator.Error![]u8
+) AbiEncoder.Errors![]u8
 ```
 
 ## EncodeAbiParameters
@@ -123,7 +123,7 @@ pub fn encodeAbiParameters(
     comptime params: []const AbiParameter,
     allocator: Allocator,
     values: AbiParametersToPrimative(params),
-) Allocator.Error![]u8
+) AbiEncoder.Errors![]u8
 ```
 
 ## EncodeAbiParametersValues
@@ -140,7 +140,7 @@ you cannot use it.
 pub fn encodeAbiParametersValues(
     allocator: Allocator,
     values: []const AbiEncodedValues,
-) (Allocator.Error || error{InvalidType})![]u8
+) (AbiEncoder.Errors || error{InvalidType})![]u8
 ```
 
 ## EncodeAbiParametersFromReflection
@@ -172,7 +172,7 @@ All other types are currently not supported.
 pub fn encodeAbiParametersFromReflection(
     allocator: Allocator,
     values: anytype,
-) Allocator.Error![]u8
+) AbiEncoder.Errors![]u8
 ```
 
 ## EncodePacked
@@ -204,7 +204,7 @@ the child values will be 32 bit padded.
 pub fn encodePacked(
     allocator: Allocator,
     value: anytype,
-) Allocator.Error![]u8
+) EncodePacked.Errors![]u8
 ```
 
 ## AbiEncoder
@@ -245,6 +245,14 @@ struct {
 @This()
 ```
 
+## Errors
+
+Set of possible error when running this encoder.
+
+```zig
+error{ DivisionByZero, Overflow } || Allocator.Error
+```
+
 ## empty
 
 Sets the initial state of the encoder.
@@ -271,7 +279,7 @@ pub fn encodeAbiParametersFromReflection(
     self: *Self,
     allocator: Allocator,
     values: anytype,
-) Allocator.Error![]u8
+) Errors![]u8
 ```
 
 ### EncodeAbiParametersValues
@@ -286,7 +294,7 @@ pub fn encodeAbiParametersValues(
     self: *Self,
     allocator: Allocator,
     values: []const AbiEncodedValues,
-) Allocator.Error![]u8
+) Errors![]u8
 ```
 
 ### EncodeAbiParameters
@@ -302,7 +310,7 @@ pub fn encodeAbiParameters(
     comptime params: []const AbiParameter,
     allocator: Allocator,
     values: AbiParametersToPrimative(params),
-) Allocator.Error![]u8
+) Errors![]u8
 ```
 
 ### EncodePointers
@@ -312,7 +320,10 @@ Places those values in the `heads` or `tails` streams based on that.
 ### Signature
 
 ```zig
-pub fn encodePointers(self: *Self, allocator: Allocator) Allocator.Error![]u8
+pub fn encodePointers(
+    self: *Self,
+    allocator: Allocator,
+) Allocator.Error![]u8
 ```
 
 ### PreEncodeAbiParameters
@@ -326,7 +337,7 @@ pub fn preEncodeAbiParameters(
     comptime params: []const AbiParameter,
     allocator: Allocator,
     values: AbiParametersToPrimative(params),
-) Allocator.Error!void
+) Errors!void
 ```
 
 ### PreEncodeAbiParameter
@@ -340,7 +351,7 @@ pub fn preEncodeAbiParameter(
     comptime param: AbiParameter,
     allocator: Allocator,
     value: AbiParameterToPrimative(param),
-) Allocator.Error!void
+) Errors!void
 ```
 
 ### PreEncodeRuntimeValues
@@ -353,7 +364,7 @@ pub fn preEncodeRuntimeValues(
     self: *Self,
     allocator: Allocator,
     values: []const AbiEncodedValues,
-) (error{InvalidType} || Allocator.Error)!void
+) (Errors || error{InvalidType})!void
 ```
 
 ### PreEncodeRuntimeValue
@@ -369,7 +380,7 @@ pub fn preEncodeRuntimeValue(
     self: *Self,
     allocator: Allocator,
     value: AbiEncodedValues,
-) (error{InvalidType} || Allocator.Error)!void
+) (Errors || error{InvalidType})!void
 ```
 
 ### PreEncodeValuesFromReflection
@@ -379,7 +390,11 @@ The `values` must be a tuple struct. Otherwise it will trigger a compile error.
 ### Signature
 
 ```zig
-pub fn preEncodeValuesFromReflection(self: *Self, allocator: Allocator, values: anytype) Allocator.Error!void
+pub fn preEncodeValuesFromReflection(
+    self: *Self,
+    allocator: Allocator,
+    values: anytype,
+) Errors!void
 ```
 
 ### PreEncodeReflection
@@ -388,13 +403,25 @@ This will use zig's ability to provide compile time reflection based on the `val
 ### Signature
 
 ```zig
-pub fn preEncodeReflection(self: *Self, allocator: Allocator, value: anytype) Allocator.Error!void
+pub fn preEncodeReflection(
+    self: *Self,
+    allocator: Allocator,
+    value: anytype,
+) Errors!void
 ```
 
 ## Self
 
 ```zig
 @This()
+```
+
+## Errors
+
+Set of possible error when running this encoder.
+
+```zig
+error{ DivisionByZero, Overflow } || Allocator.Error
 ```
 
 ## empty
@@ -426,13 +453,24 @@ struct {
 }
 ```
 
+## Errors
+
+Set of possible error when running this encoder.
+
+```zig
+error{ DivisionByZero, Overflow } || Allocator.Error
+```
+
 ### Init
 Sets the initial state of the encoder.
 
 ### Signature
 
 ```zig
-pub fn init(allocator: Allocator, param_type: ParameterType) EncodePacked
+pub fn init(
+    allocator: Allocator,
+    param_type: ParameterType,
+) EncodePacked
 ```
 
 ### EncodePacked
@@ -442,7 +480,10 @@ will be encoded as 32 sized values with the expection of []u8 slices.
 ### Signature
 
 ```zig
-pub fn encodePacked(self: *EncodePacked, value: anytype) Allocator.Error![]u8
+pub fn encodePacked(
+    self: *EncodePacked,
+    value: anytype,
+) Errors![]u8
 ```
 
 ### EncodePackedValue
@@ -451,7 +492,10 @@ Handles the encoding based on the value type and writes them to the list.
 ### Signature
 
 ```zig
-pub fn encodePackedValue(self: *EncodePacked, value: anytype) Allocator.Error!void
+pub fn encodePackedValue(
+    self: *EncodePacked,
+    value: anytype,
+) Errors!void
 ```
 
 ### ChangeParameterType
@@ -460,7 +504,18 @@ Used to change the type of value it's dealing with.
 ### Signature
 
 ```zig
-pub fn changeParameterType(self: *EncodePacked, param_type: ParameterType) void
+pub fn changeParameterType(
+    self: *EncodePacked,
+    param_type: ParameterType,
+) void
+```
+
+## Errors
+
+Set of possible error when running this encoder.
+
+```zig
+error{ DivisionByZero, Overflow } || Allocator.Error
 ```
 
 ## EncodeBoolean
@@ -496,7 +551,10 @@ Encodes an bytes1..32 value according to the abi encoding specification.
 ### Signature
 
 ```zig
-pub fn encodeFixedBytes(comptime size: usize, payload: [size]u8) [32]u8
+pub fn encodeFixedBytes(
+    comptime size: usize,
+    payload: [size]u8,
+) [32]u8
 ```
 
 ## EncodeString
@@ -505,7 +563,10 @@ Encodes an solidity string or bytes value according to the abi encoding specific
 ### Signature
 
 ```zig
-pub fn encodeString(allocator: Allocator, payload: []const u8) Allocator.Error![]u8
+pub fn encodeString(
+    allocator: Allocator,
+    payload: []const u8,
+) (error{ DivisionByZero, Overflow } || Allocator.Error)![]u8
 ```
 
 ## IsDynamicType

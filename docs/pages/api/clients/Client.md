@@ -293,7 +293,10 @@ RPC Method: [eth_getBalance](https://ethereum.org/en/developers/docs/apis/json-r
 ### Signature
 
 ```zig
-pub fn getAddressBalance(self: *PubClient, opts: BalanceRequest) BasicRequestErrors!RPCResponse(Wei)
+pub fn getAddressBalance(
+    self: *PubClient,
+    opts: BalanceRequest,
+) BasicRequestErrors!RPCResponse(Wei)
 ```
 
 ## GetAddressTransactionCount
@@ -304,7 +307,10 @@ RPC Method: [eth_getTransactionCount](https://ethereum.org/en/developers/docs/ap
 ### Signature
 
 ```zig
-pub fn getAddressTransactionCount(self: *PubClient, opts: BalanceRequest) BasicRequestErrors!RPCResponse(u64)
+pub fn getAddressTransactionCount(
+    self: *PubClient,
+    opts: BalanceRequest,
+) BasicRequestErrors!RPCResponse(u64)
 ```
 
 ## GetBlockByHash
@@ -315,7 +321,10 @@ RPC Method: [eth_getBlockByHash](https://ethereum.org/en/developers/docs/apis/js
 ### Signature
 
 ```zig
-pub fn getBlockByHash(self: *PubClient, opts: BlockHashRequest) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(Block)
+pub fn getBlockByHash(
+    self: *PubClient,
+    opts: BlockHashRequest,
+) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(Block)
 ```
 
 ## GetBlockByHashType
@@ -329,7 +338,11 @@ RPC Method: [eth_getBlockByHash](https://ethereum.org/en/developers/docs/apis/js
 ### Signature
 
 ```zig
-pub fn getBlockByHashType(self: *PubClient, comptime T: type, opts: BlockHashRequest) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(T)
+pub fn getBlockByHashType(
+    self: *PubClient,
+    comptime T: type,
+    opts: BlockHashRequest,
+) (BasicRequestErrors || error{InvalidBlockHash})!RPCResponse(T)
 ```
 
 ## GetBlockByNumber
@@ -340,7 +353,10 @@ RPC Method: [eth_getBlockByNumber](https://ethereum.org/en/developers/docs/apis/
 ### Signature
 
 ```zig
-pub fn getBlockByNumber(self: *PubClient, opts: BlockRequest) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(Block)
+pub fn getBlockByNumber(
+    self: *PubClient,
+    opts: BlockRequest,
+) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(Block)
 ```
 
 ## GetBlockByNumberType
@@ -354,7 +370,11 @@ RPC Method: [eth_getBlockByNumber](https://ethereum.org/en/developers/docs/apis/
 ### Signature
 
 ```zig
-pub fn getBlockByNumberType(self: *PubClient, comptime T: type, opts: BlockRequest) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(T)
+pub fn getBlockByNumberType(
+    self: *PubClient,
+    comptime T: type,
+    opts: BlockRequest,
+) (BasicRequestErrors || error{InvalidBlockNumber})!RPCResponse(T)
 ```
 
 ## GetBlockNumber
@@ -376,7 +396,10 @@ RPC Method: [eth_getBlockTransactionCountByHash](https://ethereum.org/en/develop
 ### Signature
 
 ```zig
-pub fn getBlockTransactionCountByHash(self: *PubClient, block_hash: Hash) BasicRequestErrors!RPCResponse(usize)
+pub fn getBlockTransactionCountByHash(
+    self: *PubClient,
+    block_hash: Hash,
+) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetBlockTransactionCountByNumber
@@ -387,7 +410,10 @@ RPC Method: [eth_getBlockTransactionCountByNumber](https://ethereum.org/en/devel
 ### Signature
 
 ```zig
-pub fn getBlockTransactionCountByNumber(self: *PubClient, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(usize)
+pub fn getBlockTransactionCountByNumber(
+    self: *PubClient,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetChainId
@@ -420,7 +446,10 @@ RPC Method: [eth_getCode](https://ethereum.org/en/developers/docs/apis/json-rpc#
 ### Signature
 
 ```zig
-pub fn getContractCode(self: *PubClient, opts: BalanceRequest) !RPCResponse(Hex)
+pub fn getContractCode(
+    self: *PubClient,
+    opts: BalanceRequest,
+) !RPCResponse(Hex)
 ```
 
 ## GetFilterOrLogChanges
@@ -460,7 +489,11 @@ RPC Method: [eth_getLogs](https://ethereum.org/en/developers/docs/apis/json-rpc#
 ### Signature
 
 ```zig
-pub fn getLogs(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) (BasicRequestErrors || error{InvalidLogRequestParams})!RPCResponse(Logs)
+pub fn getLogs(
+    self: *PubClient,
+    opts: LogRequest,
+    tag: ?BalanceBlockTag,
+) (BasicRequestErrors || error{InvalidLogRequestParams})!RPCResponse(Logs)
 ```
 
 ## GetNetworkListenStatus
@@ -504,7 +537,11 @@ RPC Method: [eth_getProof](https://docs.infura.io/api/networks/ethereum/json-rpc
 ### Signature
 
 ```zig
-pub fn getProof(self: *PubClient, opts: ProofRequest, tag: ?ProofBlockTag) (BasicRequestErrors || error{ExpectBlockNumberOrTag})!RPCResponse(ProofResult)
+pub fn getProof(
+    self: *PubClient,
+    opts: ProofRequest,
+    tag: ?ProofBlockTag,
+) (BasicRequestErrors || error{ExpectBlockNumberOrTag})!RPCResponse(ProofResult)
 ```
 
 ## GetProtocolVersion
@@ -515,7 +552,7 @@ RPC Method: [eth_protocolVersion](https://ethereum.org/en/developers/docs/apis/j
 ### Signature
 
 ```zig
-pub fn getProtocolVersion(self: *PubClient) !RPCResponse(u64)
+pub fn getProtocolVersion(self: *PubClient) BasicRequestErrors!RPCResponse(u64)
 ```
 
 ## GetRawTransactionByHash
@@ -526,7 +563,10 @@ RPC Method: [eth_getRawTransactionByHash](https://docs.chainstack.com/reference/
 ### Signature
 
 ```zig
-pub fn getRawTransactionByHash(self: *PubClient, tx_hash: Hash) BasicRequestErrors!RPCResponse(Hex)
+pub fn getRawTransactionByHash(
+    self: *PubClient,
+    tx_hash: Hash,
+) BasicRequestErrors!RPCResponse(Hex)
 ```
 
 ## GetSha3Hash
@@ -538,7 +578,10 @@ RPC Method: [web_sha3](https://ethereum.org/en/developers/docs/apis/json-rpc#web
 ### Signature
 
 ```zig
-pub fn getSha3Hash(self: *PubClient, message: []const u8) (BasicRequestErrors || error{ InvalidCharacter, InvalidLength })!RPCResponse(Hash)
+pub fn getSha3Hash(
+    self: *PubClient,
+    message: []const u8,
+) (BasicRequestErrors || error{ InvalidCharacter, InvalidLength })!RPCResponse(Hash)
 ```
 
 ## GetStorage
@@ -549,7 +592,12 @@ RPC Method: [eth_getStorageAt](https://ethereum.org/en/developers/docs/apis/json
 ### Signature
 
 ```zig
-pub fn getStorage(self: *PubClient, address: Address, storage_key: Hash, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(Hash)
+pub fn getStorage(
+    self: *PubClient,
+    address: Address,
+    storage_key: Hash,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(Hash)
 ```
 
 ## GetSyncStatus
@@ -572,7 +620,11 @@ RPC Method: [eth_getTransactionByBlockHashAndIndex](https://ethereum.org/en/deve
 ### Signature
 
 ```zig
-pub fn getTransactionByBlockHashAndIndex(self: *PubClient, block_hash: Hash, index: usize) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
+pub fn getTransactionByBlockHashAndIndex(
+    self: *PubClient,
+    block_hash: Hash,
+    index: usize,
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
 ```
 
 ## GetTransactionByBlockHashAndIndexType
@@ -632,7 +684,10 @@ RPC Method: [eth_getTransactionByHash](https://ethereum.org/en/developers/docs/a
 ### Signature
 
 ```zig
-pub fn getTransactionByHash(self: *PubClient, transaction_hash: Hash) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
+pub fn getTransactionByHash(
+    self: *PubClient,
+    transaction_hash: Hash,
+) (BasicRequestErrors || error{TransactionNotFound})!RPCResponse(Transaction)
 ```
 
 ## GetTransactionByHashType
@@ -660,7 +715,10 @@ RPC Method: [eth_getTransactionReceipt](https://ethereum.org/en/developers/docs/
 ### Signature
 
 ```zig
-pub fn getTransactionReceipt(self: *PubClient, transaction_hash: Hash) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt)
+pub fn getTransactionReceipt(
+    self: *PubClient,
+    transaction_hash: Hash,
+) (BasicRequestErrors || error{TransactionReceiptNotFound})!RPCResponse(TransactionReceipt)
 ```
 
 ## GetTransactionReceiptType
@@ -703,7 +761,10 @@ RPC Method: [txpool_contentFrom](https://geth.ethereum.org/docs/interacting-with
 ### Signature
 
 ```zig
-pub fn getTxPoolContentFrom(self: *PubClient, from: Address) BasicRequestErrors!RPCResponse([]const PoolTransactionByNonce)
+pub fn getTxPoolContentFrom(
+    self: *PubClient,
+    from: Address,
+) BasicRequestErrors!RPCResponse([]const PoolTransactionByNonce)
 ```
 
 ## GetTxPoolInspectStatus
@@ -773,7 +834,11 @@ RPC Method: [eth_getUncleByBlockNumberAndIndex](https://ethereum.org/en/develope
 ### Signature
 
 ```zig
-pub fn getUncleByBlockNumberAndIndex(self: *PubClient, opts: BlockNumberRequest, index: usize) (BasicRequestErrors || error{InvalidBlockNumberOrIndex})!RPCResponse(Block)
+pub fn getUncleByBlockNumberAndIndex(
+    self: *PubClient,
+    opts: BlockNumberRequest,
+    index: usize,
+) (BasicRequestErrors || error{InvalidBlockNumberOrIndex})!RPCResponse(Block)
 ```
 
 ## GetUncleByBlockNumberAndIndexType
@@ -803,7 +868,10 @@ RPC Method: [`eth_getUncleCountByBlockHash`](https://ethereum.org/en/developers/
 ### Signature
 
 ```zig
-pub fn getUncleCountByBlockHash(self: *PubClient, block_hash: Hash) BasicRequestErrors!RPCResponse(usize)
+pub fn getUncleCountByBlockHash(
+    self: *PubClient,
+    block_hash: Hash,
+) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## GetUncleCountByBlockNumber
@@ -814,7 +882,10 @@ RPC Method: [`eth_getUncleCountByBlockNumber`](https://ethereum.org/en/developer
 ### Signature
 
 ```zig
-pub fn getUncleCountByBlockNumber(self: *PubClient, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(usize)
+pub fn getUncleCountByBlockNumber(
+    self: *PubClient,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(usize)
 ```
 
 ## Multicall3
@@ -888,7 +959,11 @@ RPC Method: [`eth_newFilter`](https://ethereum.org/en/developers/docs/apis/json-
 ### Signature
 
 ```zig
-pub fn newLogFilter(self: *PubClient, opts: LogRequest, tag: ?BalanceBlockTag) BasicRequestErrors!RPCResponse(u128)
+pub fn newLogFilter(
+    self: *PubClient,
+    opts: LogRequest,
+    tag: ?BalanceBlockTag,
+) BasicRequestErrors!RPCResponse(u128)
 ```
 
 ## NewPendingTransactionFilter
@@ -936,7 +1011,11 @@ defer gas.deinit();
 ### Signature
 
 ```zig
-pub fn sendEthCall(self: *PubClient, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(Hex)
+pub fn sendEthCall(
+    self: *PubClient,
+    call_object: EthCall,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(Hex)
 ```
 
 ## SendRawTransaction
@@ -948,7 +1027,10 @@ RPC Method: [`eth_sendRawTransaction`](https://ethereum.org/en/developers/docs/a
 ### Signature
 
 ```zig
-pub fn sendRawTransaction(self: *PubClient, serialized_tx: Hex) BasicRequestErrors!RPCResponse(Hash)
+pub fn sendRawTransaction(
+    self: *PubClient,
+    serialized_tx: Hex,
+) BasicRequestErrors!RPCResponse(Hash)
 ```
 
 ## WaitForTransactionReceipt
@@ -1006,7 +1088,10 @@ RPC Method: [`eth_uninstallFilter`](https://ethereum.org/en/developers/docs/apis
 ### Signature
 
 ```zig
-pub fn uninstallFilter(self: *PubClient, id: usize) !RPCResponse(bool)
+pub fn uninstallFilter(
+    self: *PubClient,
+    id: usize,
+) !RPCResponse(bool)
 ```
 
 ## SendRpcRequest
@@ -1016,6 +1101,10 @@ Handles 429 errors but not the rest.
 ### Signature
 
 ```zig
-pub fn sendRpcRequest(self: *PubClient, comptime T: type, request: []const u8) SendRpcRequestErrors!RPCResponse(T)
+pub fn sendRpcRequest(
+    self: *PubClient,
+    comptime T: type,
+    request: []const u8,
+) SendRpcRequestErrors!RPCResponse(T)
 ```
 

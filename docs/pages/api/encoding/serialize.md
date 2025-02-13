@@ -6,6 +6,18 @@ Set of possible errors when serializing a transaction.
 RlpEncodeErrors || error{InvalidRecoveryId}
 ```
 
+## CancunSerializeErrors
+
+Set of possible errors when serializing cancun blobs.
+
+```zig
+RlpEncodeErrors || Allocator.Error || error{
+    SetupMustBeInitialized,
+    FailedToConvertBlobToCommitment,
+    FailedToComputeBlobKZGProof,
+}
+```
+
 ## SerializeTransaction
 Main function to serialize transactions.
 
@@ -34,7 +46,11 @@ defer testing.allocator.free(base_legacy);
 ### Signature
 
 ```zig
-pub fn serializeTransaction(allocator: Allocator, tx: TransactionEnvelope, sig: ?Signature) SerializeErrors![]u8
+pub fn serializeTransaction(
+    allocator: Allocator,
+    tx: TransactionEnvelope,
+    sig: ?Signature,
+) SerializeErrors![]u8
 ```
 
 ## SerializeTransactionEIP7702
@@ -44,7 +60,11 @@ Caller ownes the memory
 ### Signature
 
 ```zig
-pub fn serializeTransactionEIP7702(allocator: Allocator, tx: Eip7702TransactionEnvelope, sig: ?Signature) SerializeErrors![]u8
+pub fn serializeTransactionEIP7702(
+    allocator: Allocator,
+    tx: Eip7702TransactionEnvelope,
+    sig: ?Signature,
+) SerializeErrors![]u8
 ```
 
 ## SerializeCancunTransaction
@@ -57,7 +77,11 @@ serialize them as a wrapper.
 ### Signature
 
 ```zig
-pub fn serializeCancunTransaction(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8
+pub fn serializeCancunTransaction(
+    allocator: Allocator,
+    tx: CancunTransactionEnvelope,
+    sig: ?Signature,
+) SerializeErrors![]u8
 ```
 
 ## SerializeCancunTransactionWithBlobs
@@ -66,7 +90,13 @@ Serializes a cancun sidecars into the eip4844 wrapper.
 ### Signature
 
 ```zig
-pub fn serializeCancunTransactionWithBlobs(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature, blobs: []const Blob, trusted_setup: *KZG4844) ![]u8
+pub fn serializeCancunTransactionWithBlobs(
+    allocator: Allocator,
+    tx: CancunTransactionEnvelope,
+    sig: ?Signature,
+    blobs: []const Blob,
+    trusted_setup: *KZG4844,
+) CancunSerializeErrors![]u8
 ```
 
 ## SerializeCancunTransactionWithSidecars
@@ -75,7 +105,12 @@ Serializes a cancun sidecars into the eip4844 wrapper.
 ### Signature
 
 ```zig
-pub fn serializeCancunTransactionWithSidecars(allocator: Allocator, tx: CancunTransactionEnvelope, sig: ?Signature, sidecars: Sidecars) ![]u8
+pub fn serializeCancunTransactionWithSidecars(
+    allocator: Allocator,
+    tx: CancunTransactionEnvelope,
+    sig: ?Signature,
+    sidecars: Sidecars,
+) SerializeErrors![]u8
 ```
 
 ## SerializeTransactionEIP1559
@@ -85,7 +120,11 @@ Caller ownes the memory
 ### Signature
 
 ```zig
-pub fn serializeTransactionEIP1559(allocator: Allocator, tx: LondonTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8
+pub fn serializeTransactionEIP1559(
+    allocator: Allocator,
+    tx: LondonTransactionEnvelope,
+    sig: ?Signature,
+) SerializeErrors![]u8
 ```
 
 ## SerializeTransactionEIP2930
@@ -95,7 +134,11 @@ Caller ownes the memory
 ### Signature
 
 ```zig
-pub fn serializeTransactionEIP2930(allocator: Allocator, tx: BerlinTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8
+pub fn serializeTransactionEIP2930(
+    allocator: Allocator,
+    tx: BerlinTransactionEnvelope,
+    sig: ?Signature,
+) SerializeErrors![]u8
 ```
 
 ## SerializeTransactionLegacy
@@ -105,7 +148,11 @@ Caller ownes the memory
 ### Signature
 
 ```zig
-pub fn serializeTransactionLegacy(allocator: Allocator, tx: LegacyTransactionEnvelope, sig: ?Signature) SerializeErrors![]u8
+pub fn serializeTransactionLegacy(
+    allocator: Allocator,
+    tx: LegacyTransactionEnvelope,
+    sig: ?Signature,
+) SerializeErrors![]u8
 ```
 
 ## PrepareAccessList
@@ -114,7 +161,10 @@ Serializes the access list into a slice of tuples of hex values.
 ### Signature
 
 ```zig
-pub fn prepareAccessList(allocator: Allocator, access_list: []const AccessList) Allocator.Error![]const StructToTupleType(AccessList)
+pub fn prepareAccessList(
+    allocator: Allocator,
+    access_list: []const AccessList,
+) Allocator.Error![]const StructToTupleType(AccessList)
 ```
 
 ## PrepareAuthorizationList
@@ -123,6 +173,9 @@ Serializes the authorization list into a slice of tuples of hex values.
 ### Signature
 
 ```zig
-pub fn prepareAuthorizationList(allocator: Allocator, authorization_list: []const AuthorizationPayload) Allocator.Error![]const StructToTupleType(AuthorizationPayload)
+pub fn prepareAuthorizationList(
+    allocator: Allocator,
+    authorization_list: []const AuthorizationPayload,
+) Allocator.Error![]const StructToTupleType(AuthorizationPayload)
 ```
 

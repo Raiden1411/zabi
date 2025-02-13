@@ -9,6 +9,10 @@ Slice or arrays that aren't u8 are expected to be comma seperated.
 ### Signature
 
 ```zig
-pub fn parseArgs(comptime T: type, allocator: Allocator, args: *std.process.ArgIterator) T
+pub fn parseArgs(
+    comptime T: type,
+    allocator: Allocator,
+    args: *ArgIterator,
+) T
 ```
 

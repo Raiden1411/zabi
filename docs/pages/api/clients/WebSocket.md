@@ -26,7 +26,7 @@ ConnectionErrors || Allocator.Error || std.Thread.SpawnError
 Set of possible errors when writting to a socket.
 
 ```zig
-std.net.Stream.WriteError || std.crypto.tls.Client.StreamInterface.WriteError || Allocator.Error
+WsClient.NetStream.WriteError
 ```
 
 ## SendRpcRequestErrors
@@ -112,7 +112,11 @@ RPC Method: [eth_createAccessList](https://ethereum.org/en/developers/docs/apis/
 ### Signature
 
 ```zig
-pub fn createAccessList(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(AccessListResult)
+pub fn createAccessList(
+    self: *WebSocketHandler,
+    call_object: EthCall,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(AccessListResult)
 ```
 
 ## EstimateBlobMaxFeePerGas
@@ -151,7 +155,11 @@ RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-
 ### Signature
 
 ```zig
-pub fn estimateGas(self: *WebSocketHandler, call_object: EthCall, opts: BlockNumberRequest) BasicRequestErrors!RPCResponse(Gwei)
+pub fn estimateGas(
+    self: *WebSocketHandler,
+    call_object: EthCall,
+    opts: BlockNumberRequest,
+) BasicRequestErrors!RPCResponse(Gwei)
 ```
 
 ## EstimateMaxFeePerGasManual
@@ -211,7 +219,10 @@ RPC Method: [eth_getBalance](https://ethereum.org/en/developers/docs/apis/json-r
 ### Signature
 
 ```zig
-pub fn getAddressBalance(self: *WebSocketHandler, opts: BalanceRequest) BasicRequestErrors!RPCResponse(Wei)
+pub fn getAddressBalance(
+    self: *WebSocketHandler,
+    opts: BalanceRequest,
+) BasicRequestErrors!RPCResponse(Wei)
 ```
 
 ## GetAddressTransactionCount
@@ -1104,6 +1115,9 @@ Write messages to the websocket server.
 ### Signature
 
 ```zig
-pub fn writeSocketMessage(self: *WebSocketHandler, data: []u8) SocketWriteErrors!void
+pub fn writeSocketMessage(
+    self: *WebSocketHandler,
+    data: []u8,
+) SocketWriteErrors!void
 ```
 

@@ -39,7 +39,10 @@ Parses the source and build the Ast based on it.
 ### Signature
 
 ```zig
-pub fn parse(allocator: Allocator, source: [:0]const u8) Parser.ParserErrors!Ast
+pub fn parse(
+    allocator: Allocator,
+    source: [:0]const u8,
+) Parser.ParserErrors!Ast
 ```
 
 ## Deinit
@@ -57,7 +60,10 @@ Build the ast representation for a `function_proto` node.
 ### Signature
 
 ```zig
-pub fn functionProto(self: Ast, node: Node.Index) ast.FunctionDecl
+pub fn functionProto(
+    self: Ast,
+    node: Node.Index,
+) ast.FunctionDecl
 ```
 
 ## FunctionProtoOne
@@ -66,7 +72,11 @@ Build the ast representation for a `function_proto_one` node.
 ### Signature
 
 ```zig
-pub fn functionProtoOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.FunctionDecl
+pub fn functionProtoOne(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.FunctionDecl
 ```
 
 ## FunctionProtoMulti
@@ -75,7 +85,10 @@ Build the ast representation for a `function_proto_multi` node.
 ### Signature
 
 ```zig
-pub fn functionProtoMulti(self: Ast, node: Node.Index) ast.FunctionDecl
+pub fn functionProtoMulti(
+    self: Ast,
+    node: Node.Index,
+) ast.FunctionDecl
 ```
 
 ## FunctionProtoSimple
@@ -84,7 +97,11 @@ Build the ast representation for a `function_proto_simple` node.
 ### Signature
 
 ```zig
-pub fn functionProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.FunctionDecl
+pub fn functionProtoSimple(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.FunctionDecl
 ```
 
 ## ReceiveProto
@@ -93,7 +110,10 @@ Build the ast representation for a `receive_proto` node.
 ### Signature
 
 ```zig
-pub fn receiveProto(self: Ast, node: Node.Index) ast.ReceiveDecl
+pub fn receiveProto(
+    self: Ast,
+    node: Node.Index,
+) ast.ReceiveDecl
 ```
 
 ## FallbackProtoMulti
@@ -102,7 +122,10 @@ Build the ast representation for a `fallback_proto_multi` node.
 ### Signature
 
 ```zig
-pub fn fallbackProtoMulti(self: Ast, node: Node.Index) ast.FallbackDecl
+pub fn fallbackProtoMulti(
+    self: Ast,
+    node: Node.Index,
+) ast.FallbackDecl
 ```
 
 ## FallbackProtoSimple
@@ -111,7 +134,11 @@ Build the ast representation for a `fallback_proto_simple` node.
 ### Signature
 
 ```zig
-pub fn fallbackProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.FallbackDecl
+pub fn fallbackProtoSimple(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.FallbackDecl
 ```
 
 ## ConstructorProtoMulti
@@ -120,7 +147,10 @@ Build the ast representation for a `constructor_proto_multi` node.
 ### Signature
 
 ```zig
-pub fn constructorProtoMulti(self: Ast, node: Node.Index) ast.ConstructorDecl
+pub fn constructorProtoMulti(
+    self: Ast,
+    node: Node.Index,
+) ast.ConstructorDecl
 ```
 
 ## ConstructorProtoSimple
@@ -129,7 +159,11 @@ Build the ast representation for a `constructor_proto_simple` node.
 ### Signature
 
 ```zig
-pub fn constructorProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.ConstructorDecl
+pub fn constructorProtoSimple(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.ConstructorDecl
 ```
 
 ## EventProtoMulti
@@ -138,7 +172,10 @@ Build the ast representation for a `event_proto_multi` node.
 ### Signature
 
 ```zig
-pub fn eventProtoMulti(self: Ast, node: Node.Index) ast.EventDecl
+pub fn eventProtoMulti(
+    self: Ast,
+    node: Node.Index,
+) ast.EventDecl
 ```
 
 ## EventProtoSimple
@@ -147,7 +184,11 @@ Build the ast representation for a `event_proto_simple` node.
 ### Signature
 
 ```zig
-pub fn eventProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.EventDecl
+pub fn eventProtoSimple(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.EventDecl
 ```
 
 ## ErrorProtoMulti
@@ -156,7 +197,10 @@ Build the ast representation for a `error_proto_multi` node.
 ### Signature
 
 ```zig
-pub fn errorProtoMulti(self: Ast, node: Node.Index) ast.ErrorDecl
+pub fn errorProtoMulti(
+    self: Ast,
+    node: Node.Index,
+) ast.ErrorDecl
 ```
 
 ## ErrorProtoSimple
@@ -165,7 +209,11 @@ Build the ast representation for a `error_proto_simple` node.
 ### Signature
 
 ```zig
-pub fn errorProtoSimple(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.ErrorDecl
+pub fn errorProtoSimple(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.ErrorDecl
 ```
 
 ## StructDecl
@@ -174,7 +222,10 @@ Build the ast representation for a `struct_decl` node.
 ### Signature
 
 ```zig
-pub fn structDecl(self: Ast, node: Node.Index) ast.StructDecl
+pub fn structDecl(
+    self: Ast,
+    node: Node.Index,
+) ast.StructDecl
 ```
 
 ## StructDeclOne
@@ -183,7 +234,11 @@ Build the ast representation for a `struct_decl_one` node.
 ### Signature
 
 ```zig
-pub fn structDeclOne(self: Ast, node_buffer: *[1]Node.Index, node: Node.Index) ast.StructDecl
+pub fn structDeclOne(
+    self: Ast,
+    node_buffer: *[1]Node.Index,
+    node: Node.Index,
+) ast.StructDecl
 ```
 
 ## ExtraData
@@ -192,7 +247,11 @@ Converts the data in `extra_data` into `T`.
 ### Signature
 
 ```zig
-pub fn extraData(self: Ast, comptime T: type, node: Node.Index) T
+pub fn extraData(
+    self: Ast,
+    comptime T: type,
+    node: Node.Index,
+) T
 ```
 
 ## FirstToken
@@ -201,7 +260,10 @@ Finds the first `TokenIndex` based on the provided node.
 ### Signature
 
 ```zig
-pub fn firstToken(self: Ast, node: Node.Index) TokenIndex
+pub fn firstToken(
+    self: Ast,
+    node: Node.Index,
+) TokenIndex
 ```
 
 ## LastToken
@@ -210,7 +272,10 @@ Finds the last `TokenIndex` based on the provided node.
 ### Signature
 
 ```zig
-pub fn lastToken(self: Ast, node: Node.Index) TokenIndex
+pub fn lastToken(
+    self: Ast,
+    node: Node.Index,
+) TokenIndex
 ```
 
 ## TokenSlice
@@ -219,7 +284,10 @@ Takes the associated token slice based on the provided token index.
 ### Signature
 
 ```zig
-pub fn tokenSlice(self: Ast, token_index: TokenIndex) []const u8
+pub fn tokenSlice(
+    self: Ast,
+    token_index: TokenIndex,
+) []const u8
 ```
 
 ## GetNodeSource
@@ -228,7 +296,10 @@ Gets the source code associated with the provided node.
 ### Signature
 
 ```zig
-pub fn getNodeSource(self: Ast, node: Node.Index) []const u8
+pub fn getNodeSource(
+    self: Ast,
+    node: Node.Index,
+) []const u8
 ```
 
 ## ast

@@ -57,7 +57,10 @@ They create pointers so they must be destroyed after.
 ### Signature
 
 ```zig
-pub fn freeArrayParamType(self: @This(), alloc: Allocator) void
+pub fn freeArrayParamType(
+    self: @This(),
+    alloc: Allocator,
+) void
 ```
 
 ### TypeToJsonStringify
@@ -66,7 +69,10 @@ Converts the tagname of `self` into a writer.
 ### Signature
 
 ```zig
-pub fn typeToJsonStringify(self: @This(), writer: anytype) @TypeOf(writer).Error!void
+pub fn typeToJsonStringify(
+    self: @This(),
+    writer: anytype,
+) @TypeOf(writer).Error!void
 ```
 
 ### TypeToString
@@ -75,7 +81,10 @@ Converts `self` into its tagname.
 ### Signature
 
 ```zig
-pub fn typeToString(self: @This(), writer: anytype) @TypeOf(writer).Error!void
+pub fn typeToString(
+    self: @This(),
+    writer: anytype,
+) @TypeOf(writer).Error!void
 ```
 
 ### TypeToUnion
@@ -88,13 +97,20 @@ or call the destroy method on your allocator manually
 ### Signature
 
 ```zig
-pub fn typeToUnion(abitype: []const u8, alloc: Allocator) ParamErrors!ParamType
+pub fn typeToUnion(
+    abitype: []const u8,
+    alloc: Allocator,
+) ParamErrors!ParamType
 ```
 
 ### TypeToUnionWithTag
 ### Signature
 
 ```zig
-pub fn typeToUnionWithTag(allocator: Allocator, abitype: []const u8, token_tag: TokenTags) ParamErrors!ParamType
+pub fn typeToUnionWithTag(
+    allocator: Allocator,
+    abitype: []const u8,
+    token_tag: TokenTags,
+) ParamErrors!ParamType
 ```
 

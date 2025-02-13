@@ -39,7 +39,8 @@ pub fn recoverAddress(signature: Signature, message_hash: Hash) RecoverPubKeyErr
 ## Init
 Creates the signer state.
 
-Generates a compressed public key from the provided `private_key`.\
+Generates a compressed public key from the provided `private_key`.
+
 If a null value is provided a random key will
 be generated. This is to mimic the behaviour from zig's `KeyPair` types.
 
@@ -53,7 +54,8 @@ pub fn init(private_key: ?Hash) IdentityElementError!Signer
 Signs an ethereum or EVM like chains message.
 
 Since ecdsa signatures are malliable EVM chains only accept
-signature with low s values.\
+signature with low s values.
+
 We enforce this behaviour as well as using RFC 6979
 for generating deterministic scalars for recoverying public keys from messages.
 

@@ -85,7 +85,10 @@ Validates the inner block enviroment based on the provided `SpecId`
 ### Signature
 
 ```zig
-pub fn validateBlockEnviroment(self: EVMEnviroment, spec: SpecId) error{ PrevRandaoNotSet, ExcessBlobGasNotSet }!void
+pub fn validateBlockEnviroment(
+    self: EVMEnviroment,
+    spec: SpecId,
+) error{ PrevRandaoNotSet, ExcessBlobGasNotSet }!void
 ```
 
 ### ValidateTransaction
@@ -98,7 +101,10 @@ For before `CANCUN` checks if `blob_hashes` and `max_fee_per_blob_gas` are null 
 ### Signature
 
 ```zig
-pub fn validateTransaction(self: EVMEnviroment, spec: SpecId) ValidationErrors!void
+pub fn validateTransaction(
+    self: EVMEnviroment,
+    spec: SpecId,
+) ValidationErrors!void
 ```
 
 ## ConfigEnviroment

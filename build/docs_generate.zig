@@ -17,7 +17,7 @@ const CreateFolderErrors = Dir.MakeError || Allocator.Error || Dir.RealPathError
 const CreateFileErrors = Allocator.Error || Dir.RealPathError || File.OpenError || File.ReadError || File.WriteError;
 
 /// Set of possible errors when running the script.
-const RunnerErrors = CreateFileErrors || CreateFolderErrors;
+const RunnerErrors = CreateFileErrors || CreateFolderErrors || std.Thread.SpawnError || std.meta.IntToEnumError;
 
 /// Files and folder to be excluded from the docs generation.
 const excludes = std.StaticStringMap(void).initComptime(.{
@@ -98,7 +98,10 @@ pub const DocsGenerator = struct {
     pub const GeneratorWriter = std.ArrayList(u8).Writer;
 
     /// Starts the generaton and pre parses the source code.
-    pub fn init(allocator: Allocator, source: [:0]const u8) Allocator.Error!DocsGenerator {
+    pub fn init(
+        allocator: Allocator,
+        source: [:0]const u8,
+    ) Allocator.Error!DocsGenerator {
         const ast = try Ast.parse(allocator, source, .zig);
 
         return .{
@@ -138,7 +141,10 @@ pub const DocsGenerator = struct {
     /// Traverses the ast to find the associated doc comments.
     ///
     /// Retuns an empty string if none can be found.
-    pub fn extractDocComments(self: DocsGenerator, index: TokenIndex) Allocator.Error![]const u8 {
+    pub fn extractDocComments(
+        self: DocsGenerator,
+        index: TokenIndex,
+    ) Allocator.Error![]const u8 {
         const tokens = self.ast.tokens.items(.tag);
 
         const start_index: usize = start_index: for (0..index) |i| {
@@ -201,6 +207,7 @@ pub const DocsGenerator = struct {
             .keyword_enum => try out_file.writeAll("enum {\n"),
             .keyword_struct => try out_file.writeAll("struct {\n"),
             .keyword_union => try out_file.writeAll("union(enum) {\n"),
+            .keyword_packed => try out_file.writeAll("packed struct {"),
             else => std.debug.panic("Unexpected token found: {s}", .{@tagName(self.tokens[container_token])}),
         }
 
@@ -228,7 +235,11 @@ pub const DocsGenerator = struct {
         }
     }
     /// Writes a container field from a `struct`, `union` or `enum` with their `doc_comment` tokens.
-    pub fn extractFromContainerField(self: *DocsGenerator, out_file: GeneratorWriter, member: NodeIndex) Allocator.Error!void {
+    pub fn extractFromContainerField(
+        self: *DocsGenerator,
+        out_file: GeneratorWriter,
+        member: NodeIndex,
+    ) Allocator.Error!void {
         const field = self.ast.containerFieldInit(member);
         const first_token = field.firstToken();
 
@@ -369,7 +380,11 @@ pub const DocsGenerator = struct {
         }
     }
     /// Extracts the name from the token and writes it as H2 markdown file.
-    pub fn extractNameFromVariable(self: *DocsGenerator, out_file: GeneratorWriter, first_token: TokenIndex) Allocator.Error!void {
+    pub fn extractNameFromVariable(
+        self: *DocsGenerator,
+        out_file: GeneratorWriter,
+        first_token: TokenIndex,
+    ) Allocator.Error!void {
         try out_file.writeAll("## ");
         // Format -> .keyword_pub, .keyword_const, .identifier
         // So we move ahead by 2 tokens
@@ -383,7 +398,11 @@ pub const DocsGenerator = struct {
         try out_file.writeAll(comments);
     }
     /// Format function with 4 space indent for arguments if necessary.
-    pub fn formatFnProtoSignature(self: *DocsGenerator, index: NodeIndex, writer: GeneratorWriter) !void {
+    pub fn formatFnProtoSignature(
+        self: *DocsGenerator,
+        index: NodeIndex,
+        writer: GeneratorWriter,
+    ) !void {
         const source = self.ast.getNodeSource(index);
         var iter = std.mem.tokenizeScalar(u8, source, '\n');
 
@@ -423,13 +442,15 @@ const Runner = struct {
     pub fn run(self: Runner) RunnerErrors!void {
         // Makes it easier if we want to add a new root folder to search from.
         inline for (@typeInfo(RootFolders).@"enum".fields) |field| {
-
-            // Creates the documentation tree based on the current `RootFolders`.
-            try self.generateDocumentationFromFolder(@enumFromInt(field.value));
+            const thread = try std.Thread.spawn(.{}, generateDocumentationFromFolder, .{ self, try std.meta.intToEnum(RootFolders, field.value) });
+            thread.detach();
         }
     }
     /// Creates the folder that will contain the `md` files.
-    pub fn createFolders(self: Runner, sub_path: Dir.Walker.Entry) CreateFolderErrors!void {
+    pub fn createFolders(
+        self: Runner,
+        sub_path: Dir.Walker.Entry,
+    ) CreateFolderErrors!void {
         var buffer: [std.fs.max_path_bytes]u8 = undefined;
 
         const joined = try std.fmt.allocPrint(self.allocator, "{s}{s}{s}", .{
@@ -442,7 +463,10 @@ const Runner = struct {
         try std.fs.makeDirAbsolute(joined);
     }
     /// Generates the `md` files on the `docs/pages/api` folder location.
-    pub fn createMarkdownFile(self: Runner, sub_path: Dir.Walker.Entry) CreateFileErrors!void {
+    pub fn createMarkdownFile(
+        self: Runner,
+        sub_path: Dir.Walker.Entry,
+    ) CreateFileErrors!void {
         var buffer: [std.fs.max_path_bytes]u8 = undefined;
         const real_path = try sub_path.dir.realpath(sub_path.basename, &buffer);
 
@@ -472,7 +496,10 @@ const Runner = struct {
         try out_file.writeAll(slice);
     }
     /// Generates the documentation based on a `RootFolders` member.
-    pub fn generateDocumentationFromFolder(self: Runner, search_root_folder: RootFolders) RunnerErrors!void {
+    pub fn generateDocumentationFromFolder(
+        self: Runner,
+        search_root_folder: RootFolders,
+    ) RunnerErrors!void {
         var dir = try std.fs.cwd().openDir(@tagName(search_root_folder), .{ .iterate = true });
         defer dir.close();
 

@@ -26,7 +26,10 @@ This is best to use when you would like a dymanic size stack.
 ### Signature
 
 ```zig
-pub fn init(allocator: Allocator, max_size: ?usize) Self
+pub fn init(
+    allocator: Allocator,
+    max_size: ?usize,
+) Self
 ```
 
 ## InitWithCapacity
@@ -36,7 +39,10 @@ This is best to use when you would like a static size stack.
 ### Signature
 
 ```zig
-pub fn initWithCapacity(allocator: Allocator, max_size: usize) !Self
+pub fn initWithCapacity(
+    allocator: Allocator,
+    max_size: usize,
+) !Self
 ```
 
 ## Deinit
@@ -55,7 +61,10 @@ This is not thread safe.
 ### Signature
 
 ```zig
-pub fn dupUnsafe(self: *Self, position: usize) Self.Error!void
+pub fn dupUnsafe(
+    self: *Self,
+    position: usize,
+) Self.Error!void
 ```
 
 ## PushUnsafe
@@ -65,7 +74,10 @@ This is not thread safe.
 ### Signature
 
 ```zig
-pub fn pushUnsafe(self: *Self, item: T) (Allocator.Error || error{StackOverflow})!void
+pub fn pushUnsafe(
+    self: *Self,
+    item: T,
+) (Allocator.Error || error{StackOverflow})!void
 ```
 
 ## PopUnsafe
@@ -86,7 +98,10 @@ append the item.
 ### Signature
 
 ```zig
-pub fn push(self: *Self, item: T) void
+pub fn push(
+    self: *Self,
+    item: T,
+) void
 ```
 
 ## Pop
@@ -117,7 +132,10 @@ This is not thread safe.
 ### Signature
 
 ```zig
-pub fn swapToTopUnsafe(self: *Self, position_swap: usize) error{StackUnderflow}!void
+pub fn swapToTopUnsafe(
+    self: *Self,
+    position_swap: usize,
+) error{StackUnderflow}!void
 ```
 
 ## SwapUnsafe
@@ -127,7 +145,11 @@ This is not thread safe.
 ### Signature
 
 ```zig
-pub fn swapUnsafe(self: *Self, position: usize, swap: usize) error{StackUnderflow}!void
+pub fn swapUnsafe(
+    self: *Self,
+    position: usize,
+    swap: usize,
+) error{StackUnderflow}!void
 ```
 
 ## TryPopUnsafe
@@ -137,7 +159,9 @@ This is not thread safe,
 ### Signature
 
 ```zig
-pub fn tryPopUnsafe(self: *Self) error{StackUnderflow}!T
+pub fn tryPopUnsafe(
+    self: *Self,
+) error{StackUnderflow}!T
 ```
 
 ## TryPop
@@ -147,7 +171,10 @@ This is thread safe,
 ### Signature
 
 ```zig
-pub fn tryPop(self: *Self, item: T) error{StackUnderflow}!T
+pub fn tryPop(
+    self: *Self,
+    item: T,
+) error{StackUnderflow}!T
 ```
 
 ## TryPush
@@ -157,7 +184,10 @@ This is thread safe,
 ### Signature
 
 ```zig
-pub fn tryPush(self: *Self, item: T) !void
+pub fn tryPush(
+    self: *Self,
+    item: T,
+) !void
 ```
 
 ## StackHeight
@@ -202,27 +232,38 @@ This is not thread safe.
 ### Signature
 
 ```zig
-pub fn swapToTopUnsafe(self: *Self, position_swap: usize) error{StackUnderflow}!void
+pub fn swapToTopUnsafe(
+    self: *Self,
+    position_swap: usize,
+) error{StackUnderflow}!void
 ```
 
 ## DupUnsafe
 Duplicates an item from the stack. Appends it to the top.
+
 This is not thread safe.
 
 ### Signature
 
 ```zig
-pub fn dupUnsafe(self: *Self, position: usize) Self.Error!void
+pub fn dupUnsafe(
+    self: *Self,
+    position: usize,
+) Self.Error!void
 ```
 
 ## PushUnsafe
 Pops item from the stack. Returns `StackUnderflow` if it cannot.
+
 This is not thread safe,
 
 ### Signature
 
 ```zig
-pub fn pushUnsafe(self: *Self, item: u256) error{StackOverflow}!void
+pub fn pushUnsafe(
+    self: *Self,
+    item: u256,
+) error{StackOverflow}!void
 ```
 
 ## AppendAssumeCapacity
@@ -231,7 +272,10 @@ Appends item to the inner buffer. Increments the `len` of this array.
 ### Signature
 
 ```zig
-pub fn appendAssumeCapacity(self: *Self, item: u256) void
+pub fn appendAssumeCapacity(
+    self: *Self,
+    item: u256,
+) void
 ```
 
 ## EnsureUnusedCapacity
@@ -241,7 +285,10 @@ Otherwise it returns `StackOverflow`.
 ### Signature
 
 ```zig
-pub fn ensureUnusedCapacity(self: Self, grow: usize) error{StackOverflow}!void
+pub fn ensureUnusedCapacity(
+    self: Self,
+    grow: usize,
+) error{StackOverflow}!void
 ```
 
 ## PopUnsafe
@@ -285,6 +332,7 @@ pub fn pop(self: *Self) u256
 
 ## Peek
 Peek the last element of the stack and returns it's pointer.
+
 Returns null if len is 0;
 
 ### Signature
@@ -295,6 +343,7 @@ pub fn peek(self: *Self) ?*u256
 
 ## TryPeek
 Peek the last element of the stack and returns it's pointer.
+
 Returns `StackUnderflow` if len is 0;
 
 ### Signature

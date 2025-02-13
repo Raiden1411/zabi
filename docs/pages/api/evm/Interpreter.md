@@ -225,6 +225,9 @@ the gas tracker.
 ### Signature
 
 ```zig
-pub fn resize(self: *Interpreter, new_size: usize) (Allocator.Error || GasTracker.Error || Memory.Error)!void
+pub fn resize(
+    self: *Interpreter,
+    new_size: usize,
+) (Allocator.Error || GasTracker.Error || Memory.Error)!void
 ```
 

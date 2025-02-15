@@ -660,7 +660,7 @@ pub fn importDeclPath(self: Ast, node: Node.Index) ast.ImportDecl {
         .ast = .{
             .symbols = null,
         },
-        .name = if (data.rhs == 0) null else data.lhs,
+        .name = if (data.rhs == 0) null else data.rhs,
         .path = data.lhs,
         .main_token = main,
         .from = null,

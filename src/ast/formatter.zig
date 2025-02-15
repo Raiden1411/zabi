@@ -69,9 +69,6 @@ pub fn IndentingStream(comptime BaseWriter: type) type {
             if (bytes.len == 0)
                 return bytes.len;
 
-            const a = bytes.len + "58";
-            _ = a;
-
             if (bytes[bytes.len - 1] == '\n')
                 self.apply_indentation = true;
 
@@ -235,13 +232,76 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
 
                     return self.formatContractBodyElement(contract.ast.body);
                 },
-                .import_directive_path,
-                .import_directive_path_identifier,
                 .import_directive_symbol,
+                => {
+                    const import = self.tree.importDeclSymbol(node);
+
+                    try self.formatToken(import.main_token, .space);
+                    try self.formatToken(import.main_token + 1, .space);
+
+                    const symbols = import.ast.symbols.?;
+                    for (symbols, 0..) |symbol, i|
+                        try self.formatToken(
+                            symbol,
+                            if (i < symbols.len - 1)
+                                .comma_space
+                            else
+                                .space,
+                        );
+
+                    try self.formatToken(import.path - 1, .space);
+
+                    return self.formatToken(import.path, .semicolon);
+                },
                 .import_directive_symbol_one,
+                => {
+                    var buffer: [1]Ast.Node.Index = undefined;
+                    const import = self.tree.importDeclSymbolOne(&buffer, node);
+
+                    try self.formatToken(import.main_token, .space);
+                    try self.formatToken(import.main_token + 1, .space);
+
+                    for (import.ast.symbols.?) |symbol|
+                        try self.formatToken(symbol, .space);
+
+                    try self.formatToken(import.path - 1, .space);
+
+                    return self.formatToken(import.path, .semicolon);
+                },
                 .import_directive_asterisk,
+                => {
+                    const import = self.tree.importDeclAsterisk(node);
+
+                    try self.formatToken(import.main_token, .space);
+                    try self.formatToken(import.main_token + 1, .space);
+                    try self.formatToken(import.main_token + 2, .space);
+
+                    if (import.name) |name|
+                        try self.formatToken(name, .space);
+
+                    if (import.from) |from|
+                        try self.formatToken(from, .space);
+
+                    return self.formatToken(import.path, .semicolon);
+                },
                 .pragma_directive,
                 => unreachable,
+                .import_directive_path,
+                .import_directive_path_identifier,
+                => {
+                    const import = self.tree.importDeclPath(node);
+
+                    try self.formatToken(import.main_token, .space);
+
+                    if (import.name) |name| {
+                        try self.formatToken(import.path, .space);
+                        try self.formatToken(name - 1, .space);
+
+                        return self.formatToken(name, .semicolon);
+                    }
+
+                    return self.formatToken(import.path, .semicolon);
+                },
                 .function_proto_one,
                 .function_proto,
                 .function_proto_simple,

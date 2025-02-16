@@ -100,6 +100,13 @@ pub fn parse(
         .errors = try parser.errors.toOwnedSlice(allocator),
     };
 }
+/// Returns a slice of all of the root nodes of the AST
+pub fn rootDecls(self: Ast) []const Node.Index {
+    std.debug.assert(self.nodes.len > 0);
+    const root = self.nodes.items(.data)[0];
+
+    return self.extra_data[root.lhs..root.rhs];
+}
 /// Ast representation of a `array_type` node.
 pub fn arrayType(
     self: Ast,

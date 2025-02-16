@@ -78,7 +78,7 @@ test "Element" {
     var format: Formatter = .init(ast, 4, list.writer());
 
     std.debug.print("Nodes: {any}\n", .{ast.nodes.items(.tag)});
-    try format.formatSourceUnit(@intCast(ast.nodes.len - 1));
+    try format.format();
 
     const fmt = try list.toOwnedSlice();
     defer testing.allocator.free(fmt);

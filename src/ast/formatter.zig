@@ -133,6 +133,13 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             };
         }
 
+        /// Formats a solidity file.
+        pub fn format(self: *Formatter) Error!void {
+            const nodes = self.tree.rootDecls();
+
+            return for (nodes) |node|
+                try self.formatSourceUnit(node);
+        }
         /// Formats a solidity source unit.
         pub fn formatSourceUnit(
             self: *Formatter,

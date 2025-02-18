@@ -2840,7 +2840,10 @@ pub fn parsePragmaDirective(self: *Parser) ParserErrors!Node.Index {
     return self.addNode(.{
         .tag = .pragma_directive,
         .main_token = pragma,
-        .data = .{ .lhs = start, .rhs = end },
+        .data = .{
+            .lhs = start,
+            .rhs = end,
+        },
     });
 }
 /// Parses the pragma version. Breaks instantly if version is just the number literal.

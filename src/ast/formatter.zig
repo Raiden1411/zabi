@@ -292,7 +292,17 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     return self.formatToken(import.path, .semicolon);
                 },
                 .pragma_directive,
-                => unreachable,
+                => {
+                    try self.formatToken(main[node], .space);
+                    try self.formatToken(main[node] + 1, .space);
+
+                    const start = data[node].lhs;
+                    const end = data[node].lhs;
+
+                    var i: usize = start;
+                    while (i <= end) : (i += 1)
+                        try self.formatToken(i, if (i != end) .space else .semicolon);
+                },
                 .import_directive_path,
                 .import_directive_path_identifier,
                 => {

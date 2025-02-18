@@ -301,7 +301,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
 
                     var i: usize = start;
                     while (i <= end) : (i += 1)
-                        try self.formatToken(i, if (i != end) .space else .semicolon);
+                        try self.formatToken(@intCast(i), if (i != end) .space else .semicolon);
                 },
                 .import_directive_path,
                 .import_directive_path_identifier,

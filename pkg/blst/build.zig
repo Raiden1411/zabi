@@ -23,7 +23,7 @@ fn buildBlst(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.R
     var flags = std.ArrayList([]const u8).init(b.allocator);
     defer flags.deinit();
 
-    if (!target.result.isDarwin()) {
+    if (!target.result.isDarwinLibC()) {
         try flags.appendSlice(&.{"-D__BLST_PORTABLE__"});
     }
 

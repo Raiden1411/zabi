@@ -1687,17 +1687,6 @@ fn handleErrorResponse(self: *WebSocketHandler, event: ErrorResponse) EthereumZi
         _ => return error.UnexpectedRpcErrorCode,
     }
 }
-/// Internal RPC event parser.
-/// Error set is the same as std.json.
-fn parseRPCEvent(self: *WebSocketHandler, request: []const u8) ParseError(Scanner)!JsonParsed(Value) {
-    const parsed = std.json.parseFromSlice(Value, self.allocator, request, .{ .allocate = .alloc_always }) catch |err| {
-        wslog.debug("Failed to parse request: {s}", .{request});
-
-        return err;
-    };
-
-    return parsed;
-}
 /// Sends requests with empty params.
 fn sendBasicRequest(self: *WebSocketHandler, comptime T: type, method: EthereumRpcMethods) BasicRequestErrors!RPCResponse(T) {
     const request: EthereumRequest(Tuple(&[_]type{})) = .{

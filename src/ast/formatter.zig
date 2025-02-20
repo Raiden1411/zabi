@@ -110,10 +110,8 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
 
         /// Sets the initial state with the provided indentation
         // TODO:
-        // Render doc comments.
         // Render comments.
         // Render max newlines
-        // Render whole tree.
         // Render missing nodes.
         pub fn init(
             tree: Ast,
@@ -137,8 +135,10 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
         pub fn format(self: *Formatter) Error!void {
             const nodes = self.tree.rootDecls();
 
-            return for (nodes) |node|
+            for (nodes) |node| {
+                try self.formatDocComments(self.tree.firstToken(node));
                 try self.formatSourceUnit(node);
+            }
         }
         /// Formats a solidity source unit.
         pub fn formatSourceUnit(
@@ -364,8 +364,11 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
 
             self.stream.pushIndentation();
 
-            for (statements) |statement|
+            for (statements) |statement| {
+                try self.formatDocComments(self.tree.firstToken(statement));
+
                 try self.formatContractBodyElement(statement);
+            }
 
             self.stream.popIndentation();
 
@@ -1860,6 +1863,37 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             std.debug.assert(self.tree.nodes.items(.tag)[node] == .elementary_type);
 
             return self.formatToken(self.tree.nodes.items(.main_token)[node], punctuation);
+        }
+        /// Formats doc_comment tokens.
+        pub fn formatDocComments(
+            self: *Formatter,
+            last: Ast.TokenIndex,
+        ) Error!void {
+            const tokens = self.tree.tokens.items(.tag);
+
+            if (last == 0)
+                return;
+
+            var first: Ast.TokenIndex = last - 1;
+            while (tokens[first] == .doc_comment or tokens[first] == .doc_comment_container) : (first -= 1) {
+                if (first == 0)
+                    break;
+            } else first += 1;
+
+            if (first == last)
+                return;
+
+            if (first != 0) {
+                const prev = tokens[first - 1];
+
+                std.debug.assert(tokens[prev] != .l_paren);
+
+                if (tokens[prev] != .l_brace)
+                    try self.applyPunctuation(.newline);
+            }
+
+            return while (first < last) : (first += 1)
+                try self.formatToken(first, .newline);
         }
         /// Formats a single token.
         ///

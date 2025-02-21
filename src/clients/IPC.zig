@@ -1251,17 +1251,14 @@ pub fn readLoop(self: *IPC) ReadLoopErrors!void {
             else => return,
         };
 
+        if (message.len <= 1)
+            continue;
+
         ipclog.debug("Got message: {s}", .{message});
 
-        const parsed = self.parseRPCEvent(message) catch {
-            if (self.onError) |onError| {
+        const parsed = std.json.parseFromSlice(Value, self.allocator, message, .{ .allocate = .alloc_always }) catch {
+            if (self.onError) |onError|
                 onError(message) catch return error.UnexpectedError;
-            }
-            const timeout = std.mem.toBytes(std.posix.timeval{
-                .sec = @intCast(0),
-                .usec = @intCast(1000),
-            });
-            try std.posix.setsockopt(self.ipc_reader.stream.handle, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, &timeout);
 
             return error.FailedToJsonParseResponse;
         };
@@ -1760,20 +1757,6 @@ fn handleErrorResponse(
         .ChainDisconnected => return error.ChainDisconnected,
         _ => return error.UnexpectedRpcErrorCode,
     }
-}
-/// Internal RPC event parser.
-/// Error set is the same as std.json.
-fn parseRPCEvent(
-    self: *IPC,
-    request: []const u8,
-) ParseError(Scanner)!JsonParsed(Value) {
-    const parsed = std.json.parseFromSlice(Value, self.allocator, request, .{ .allocate = .alloc_always }) catch |err| {
-        ipclog.debug("Failed to parse request: {s}", .{request});
-
-        return err;
-    };
-
-    return parsed;
 }
 /// Sends requests with empty params.
 fn sendBasicRequest(

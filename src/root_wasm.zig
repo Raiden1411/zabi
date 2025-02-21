@@ -7,6 +7,7 @@ comptime {
     _ = @import("wasm/wasm.zig");
     _ = @import("wasm/evm.zig");
     _ = @import("wasm/utils.zig");
+    _ = @import("wasm/formatter.zig");
 }
 
 /// So that we can log from zig to js.

@@ -111,7 +111,6 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
         /// Sets the initial state with the provided indentation
         // TODO:
         // Render comments.
-        // Render max newlines
         // Render missing nodes.
         pub fn init(
             tree: Ast,
@@ -135,7 +134,10 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
         pub fn format(self: *Formatter) Error!void {
             const nodes = self.tree.rootDecls();
 
-            for (nodes) |node| {
+            for (nodes, 0..) |node, i| {
+                if (i != 0)
+                    try self.renderExtraNewLine(self.tree.firstToken(node));
+
                 try self.formatDocComments(self.tree.firstToken(node));
                 try self.formatSourceUnit(node);
             }
@@ -364,9 +366,11 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
 
             self.stream.pushIndentation();
 
-            for (statements) |statement| {
-                try self.formatDocComments(self.tree.firstToken(statement));
+            for (statements, 0..) |statement, i| {
+                if (i != 0)
+                    try self.renderExtraNewLine(self.tree.firstToken(statement));
 
+                try self.formatDocComments(self.tree.firstToken(statement));
                 try self.formatContractBodyElement(statement);
             }
 
@@ -1012,8 +1016,12 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
 
             self.stream.pushIndentation();
 
-            for (statements) |statement|
+            for (statements, 0..) |statement, i| {
+                if (i != 0)
+                    try self.renderExtraNewLine(self.tree.firstToken(statement));
+
                 try self.formatStatement(statement, .none);
+            }
 
             self.stream.popIndentation();
 
@@ -1906,7 +1914,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             const slice = self.tokenSlice(token_index);
 
             try self.stream.writer().writeAll(slice);
-            return self.applyPunctuation(punctuation);
+            return self.formatPunctuation(token_index, slice.len, punctuation);
         }
         /// Grabs the associated source code from a `token`
         ///
@@ -1926,6 +1934,115 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
 
             return slice;
         }
+        /// Renders a extra newline to a max of 2.
+        pub fn renderExtraNewLine(
+            self: *Formatter,
+            index: Ast.TokenIndex,
+        ) Error!void {
+            const tokens = self.tree.tokens.items(.start);
+            const token_start = tokens[index];
+
+            if (token_start == 0)
+                return;
+
+            const token_end = if (index == 0) 0 else self.tokenSlice(index - 1).len;
+
+            if (std.mem.indexOf(u8, self.tree.source[token_end..token_start], "//") != null)
+                return;
+
+            if (index > 0 and self.tree.tokens.items(.tag)[index - 1] == .doc_comment)
+                return;
+
+            var i: u32 = token_start - 1;
+            var newlines: u2 = 0;
+
+            while (std.ascii.isWhitespace(self.tree.source[i])) : (i -= 1) {
+                if (self.tree.source[i] == '\n')
+                    newlines += 1;
+
+                if (newlines == 2)
+                    return self.applyPunctuation(.newline);
+
+                if (i == token_end)
+                    break;
+            }
+        }
+        pub fn formatPunctuation(
+            self: *Formatter,
+            token_index: Ast.TokenIndex,
+            lexeme_len: usize,
+            space: Punctuation,
+        ) Error!void {
+            const token_tags = self.tree.tokens.items(.tag);
+            const token_starts = self.tree.tokens.items(.start);
+
+            const token_start = token_starts[token_index];
+
+            if (space == .skip)
+                return;
+
+            if (space == .comma and token_tags[token_index + 1] != .comma)
+                try self.stream.writer().writeByte(',');
+
+            const comment = try self.renderComments(token_start + lexeme_len, token_starts[token_index + 1]);
+            switch (space) {
+                .none => {},
+                .space => if (!comment)
+                    try self.stream.writer().writeByte(' '),
+                .newline => if (!comment)
+                    try self.stream.writer().writeByte('\n'),
+                .comma => if (token_tags[token_index + 1] == .comma)
+                    try self.formatToken(token_index + 1, .newline)
+                else if (!comment)
+                    try self.stream.writer().writeByte('\n'),
+                .comma_space => if (token_tags[token_index + 1] == .comma)
+                    try self.formatToken(token_index + 1, .space)
+                else if (!comment)
+                    try self.stream.writer().writeByte(' '),
+                .comma_newline => if (token_tags[token_index + 1] == .comma)
+                    try self.formatToken(token_index + 1, .newline)
+                else if (!comment)
+                    try self.stream.writer().writeByte('\n'),
+                .semicolon => if (token_tags[token_index + 1] == .semicolon)
+                    try self.formatToken(token_index + 1, .newline)
+                else if (!comment)
+                    try self.stream.writer().writeByte('\n'),
+                .skip => unreachable,
+            }
+        }
+        /// Renders comments from the source code trimmed.
+        pub fn renderComments(self: *Formatter, start: usize, end: usize) Error!bool {
+            var index: usize = start;
+            while (std.mem.indexOf(u8, self.tree.source[index..end], "//")) |offset| {
+                const comment_start = index + offset;
+
+                const newline_index = std.mem.indexOfScalar(u8, self.tree.source[comment_start..end], '\n');
+                const newline = if (newline_index) |i| comment_start + i else null;
+
+                const untrimmed_comment = self.tree.source[comment_start .. newline orelse self.tree.source.len];
+                const trimmed_comment = std.mem.trimRight(u8, untrimmed_comment, &std.ascii.whitespace);
+
+                if (index != 0) {
+                    if (index == start and std.mem.containsAtLeast(u8, self.tree.source[index..comment_start], 2, "\n")) {
+                        try self.stream.writer().writeByte('\n');
+                        try self.stream.writer().writeByte('\n');
+                    } else if (std.mem.indexOfScalar(u8, self.tree.source[index..comment_start], '\n') != null)
+                        try self.stream.writer().writeByte('\n')
+                    else if (index == start)
+                        try self.stream.writer().writeByte(' ');
+                }
+
+                index = 1 + (newline orelse end - 1);
+
+                try self.stream.writer().print("{s}\n", .{trimmed_comment});
+            }
+
+            if (index != start and std.mem.containsAtLeast(u8, self.tree.source[index - 1 .. end], 2, "\n"))
+                if (end != self.tree.source.len)
+                    try self.stream.writer().writeByte('\n');
+
+            return index != start;
+        }
         /// Applies punctuation after a token.
         pub fn applyPunctuation(self: *Formatter, punctuation: Punctuation) Error!void {
             return switch (punctuation) {
@@ -1939,6 +2056,19 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                 .skip,
                 => {},
             };
+        }
+        /// Check if a given token index contains a following comment
+        fn hasComment(self: *Formatter, start_token: Ast.TokenIndex, end_token: Ast.TokenIndex) bool {
+            const token_starts = self.tree.tokens.items(.start);
+
+            var i = start_token;
+            while (i < end_token) : (i += 1) {
+                const start = token_starts[i] + self.tree.tokenSlice(i).len;
+                const end = token_starts[i + 1];
+                if (std.mem.indexOf(u8, self.tree.source[start..end], "//") != null) return true;
+            }
+
+            return false;
         }
         /// Checks if the node is a block node
         fn isBlockNode(self: Formatter, node: Ast.Node.Index) bool {

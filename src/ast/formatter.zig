@@ -1886,9 +1886,9 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             if (first != 0) {
                 const prev = tokens[first - 1];
 
-                std.debug.assert(tokens[prev] != .l_paren);
+                std.debug.assert(prev != .l_paren);
 
-                if (tokens[prev] != .l_brace)
+                if (prev != .l_brace)
                     try self.applyPunctuation(.newline);
             }
 

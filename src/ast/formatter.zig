@@ -1950,7 +1950,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             if (std.mem.indexOf(u8, self.tree.source[token_end..token_start], "//") != null)
                 return;
 
-            if (index > 0 and self.tree.tokens.items(.tag)[index - 1] == .doc_comment)
+            if (index > 0 and (self.tree.tokens.items(.tag)[index - 1] == .doc_comment or self.tree.tokens.items(.tag)[index - 1] == .doc_comment_container))
                 return;
 
             var i: u32 = token_start - 1;
@@ -1967,6 +1967,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     break;
             }
         }
+        /// Applies punctuation based of it a comment was rendered or not.
         pub fn formatPunctuation(
             self: *Formatter,
             token_index: Ast.TokenIndex,
@@ -2011,7 +2012,11 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             }
         }
         /// Renders comments from the source code trimmed.
-        pub fn renderComments(self: *Formatter, start: usize, end: usize) Error!bool {
+        pub fn renderComments(
+            self: *Formatter,
+            start: usize,
+            end: usize,
+        ) Error!bool {
             var index: usize = start;
             while (std.mem.indexOf(u8, self.tree.source[index..end], "//")) |offset| {
                 const comment_start = index + offset;

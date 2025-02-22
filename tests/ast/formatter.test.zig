@@ -66,17 +66,16 @@ test "Element" {
     const slice =
         \\contract SendToFallback is ForBar     ,   ASFASDSADASD      {
         \\    function transferToFallback(address payable _to) public payable {
-        \\        _to.transfer(msg.value) 
+        \\        _to.transfer(msg.value);
         \\ //   Comment
-        \\;
         \\    }
         \\
         \\ 
         \\ 
         \\ 
         \\      function callFallback(address payable _to) public payable {
-        \\ //       This is a comment
         \\        require(sent, "Failed to send Ether");
+        \\ //       This is a comment
         \\    }
         \\}
     ;

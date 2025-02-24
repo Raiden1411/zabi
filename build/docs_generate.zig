@@ -510,7 +510,7 @@ const Runner = struct {
             switch (sub_path.kind) {
                 .directory => {
                     if (excludes.get(sub_path.basename) != null) {
-                        var curr = walker.stack.pop();
+                        var curr = walker.stack.pop() orelse continue;
                         curr.iter.dir.close();
 
                         continue;

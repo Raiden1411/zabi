@@ -3833,13 +3833,13 @@ pub fn parseYulVariableDeclaration(self: *Parser) ParserErrors!Node.Index {
         else => {
             const tag = assignOperationNode(self.token_tags[self.nextToken()]) orelse
                 return self.addNode(.{
-                .tag = .yul_var_decl,
-                .main_token = let,
-                .data = .{
-                    .lhs = decl,
-                    .rhs = 0,
-                },
-            });
+                    .tag = .yul_var_decl,
+                    .main_token = let,
+                    .data = .{
+                        .lhs = decl,
+                        .rhs = 0,
+                    },
+                });
 
             if (tag != .yul_assign)
                 return self.fail(.expected_yul_assignment);

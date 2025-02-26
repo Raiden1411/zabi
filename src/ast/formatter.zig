@@ -41,8 +41,8 @@ pub fn IndentingStream(comptime BaseWriter: type) type {
         pub fn applyIndentation(self: *Self) WriterError!void {
             if (self.apply_indentation and self.getCurrentIndentation() > 0) {
                 try self.base_writer.writeByteNTimes(' ', self.getCurrentIndentation());
-                self.apply_indentation = false;
             }
+            self.apply_indentation = false;
         }
         /// Gets the current indentation level to apply. `indentation_level` * `indentation_count`
         pub fn getCurrentIndentation(self: *Self) usize {
@@ -110,7 +110,6 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
 
         /// Sets the initial state with the provided indentation
         // TODO:
-        // Render comments.
         // Render missing nodes.
         pub fn init(
             tree: Ast,
@@ -132,9 +131,9 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
 
         /// Formats a solidity file.
         pub fn format(self: *Formatter) Error!void {
-            const nodes = self.tree.rootDecls();
+            _ = try self.renderComments(0, self.tree.tokens.items(.start)[0]);
 
-            for (nodes, 0..) |node, i| {
+            for (self.tree.rootDecls(), 0..) |node, i| {
                 if (i != 0)
                     try self.renderExtraNewLine(self.tree.firstToken(node));
 
@@ -362,9 +361,8 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
         ) Error!void {
             const main_token = self.tree.nodes.items(.main_token);
 
-            try self.formatToken(main_token[node], .newline);
-
             self.stream.pushIndentation();
+            try self.formatToken(main_token[node], if (statements.len != 0) .newline else .none);
 
             for (statements, 0..) |statement, i| {
                 if (i != 0)
@@ -1012,9 +1010,8 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
         ) Error!void {
             const main_token = self.tree.nodes.items(.main_token);
 
-            try self.formatToken(main_token[node], .newline);
-
             self.stream.pushIndentation();
+            try self.formatToken(main_token[node], if (statements.len != 0) .newline else .none);
 
             for (statements, 0..) |statement, i| {
                 if (i != 0)
@@ -1945,7 +1942,10 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             if (token_start == 0)
                 return;
 
-            const token_end = if (index == 0) 0 else self.tokenSlice(index - 1).len;
+            const token_end = if (index == 0)
+                0
+            else
+                tokens[index - 1] + self.tokenSlice(index - 1).len;
 
             if (std.mem.indexOf(u8, self.tree.source[token_end..token_start], "//") != null)
                 return;

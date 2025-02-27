@@ -39,9 +39,9 @@ pub fn IndentingStream(comptime BaseWriter: type) type {
         }
         /// Applies indentation if the current level * count is higher than 0.
         pub fn applyIndentation(self: *Self) WriterError!void {
-            if (self.apply_indentation and self.getCurrentIndentation() > 0) {
+            if (self.apply_indentation and self.getCurrentIndentation() > 0)
                 try self.base_writer.writeByteNTimes(' ', self.getCurrentIndentation());
-            }
+
             self.apply_indentation = false;
         }
         /// Gets the current indentation level to apply. `indentation_level` * `indentation_count`
@@ -337,7 +337,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                 .enum_decl,
                 .enum_decl_one,
                 => return self.formatContractBodyElement(node),
-                else => {
+                .constant_variable_decl => {
                     const variable = self.tree.constantVariableDecl(node);
 
                     try self.formatTypeExpression(variable.ast.type_token, .space);
@@ -351,6 +351,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     // .expression
                     return self.formatExpression(variable.ast.expression_node, .semicolon);
                 },
+                else => unreachable, // Invalid node
             }
         }
         /// Formats a solidity block of contract elements.
@@ -1024,6 +1025,57 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
 
             return self.formatToken(self.tree.lastToken(node), punctuation);
         }
+        pub fn formatYulStatement(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            const nodes = self.tree.nodes.items(.tag);
+            const data = self.tree.nodes.items(.data);
+
+            switch (nodes[node]) {
+                .yul_if,
+                => {
+                    const yul_if = self.tree.yulIfStatement(node);
+
+                    try self.formatToken(yul_if.main_token, .space);
+                    try self.formatExpression(yul_if.ast.condition, .space);
+
+                    return self.formatYulStatement(yul_if.ast.then_expression, punctuation);
+                },
+                .yul_for,
+                => {
+                    const yul_for = self.tree.yulForStatement(node);
+
+                    try self.formatToken(yul_for.main_token, .space);
+                    try self.formatExpression(yul_for.ast.assign_expr, .space);
+                    try self.formatExpression(yul_for.ast.condition, .space);
+                    try self.formatExpression(yul_for.ast.increment, .space);
+
+                    return self.formatYulStatement(yul_for.ast.then_expression, punctuation);
+                },
+                .asm_block_two,
+                => {
+                    const statements: [2]Ast.Node.Index = .{
+                        data[node].lhs,
+                        data[node].rhs,
+                    };
+
+                    if (data[node].lhs == 0)
+                        return self.formatYulBlock(node, statements[0..0])
+                    else if (data[node].rhs == 0)
+                        return self.formatYulBlock(node, statements[0..1])
+                    else
+                        return self.formatYulBlock(node, statements[0..2]);
+                },
+                .asm_block,
+                => {
+                    const statements = self.tree.extra_data[data[node].lhs..data[node].rhs];
+
+                    return self.formatYulBlock(node, statements);
+                },
+            }
+        }
         /// Formats a solidity expression.
         pub fn formatExpression(
             self: *Formatter,
@@ -1204,6 +1256,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     return self.formatToken(last, punctuation);
                 },
                 .call,
+                .yul_call,
                 => {
                     const token = main_token[node];
                     const expressions = data[node];
@@ -1224,6 +1277,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     return self.formatToken(last, punctuation);
                 },
                 .call_one,
+                .yul_call_one,
                 => {
                     const token = main_token[node];
                     const expression = data[node];
@@ -1239,6 +1293,11 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                 },
                 .variable_decl,
                 => return self.formatVariableDecl(node, punctuation),
+                .yul_variable_decl,
+                => return self.formatYulVariableDecl(node, punctuation),
+                .yul_variable_decl_multi,
+                .yul_assign_multi,
+                => @panic("TODO"),
                 .error_variable_decl,
                 => return self.formatErrorVariableDecl(node, punctuation),
                 .event_variable_decl,
@@ -1398,7 +1457,6 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             // l_paren
             try self.formatToken(fn_proto.name + 1, .none);
 
-            // TODO: Render doc_comment
             for (fn_proto.ast.params, 0..) |field, i|
                 try self.formatExpression(
                     field,
@@ -1786,6 +1844,24 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             try self.formatToken(data.lhs, .space);
 
             return self.formatToken(data.rhs, punctuation);
+        }
+        /// Formats a yul variable declaration
+        pub fn formatYulVariableDecl(
+            self: *Formatter,
+            node: Ast.Node.Index,
+            punctuation: Punctuation,
+        ) Error!void {
+            const yul_var = self.tree.yulVariableDecl(node);
+
+            try self.formatToken(yul_var.main_token, .space);
+
+            if (yul_var.ast.expression != 0) {
+                try self.formatExpression(yul_var.ast.name, .space);
+                try self.formatToken(self.tree.lastToken(yul_var.ast.name) + 1, .space);
+                return self.formatExpression(yul_var.ast.expression, punctuation);
+            }
+
+            return self.formatExpression(yul_var.ast.name, .space);
         }
         /// Formats a solidity type expression.
         pub fn formatTypeExpression(

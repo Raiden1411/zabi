@@ -129,7 +129,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
 
         /// Formats a solidity file.
         pub fn format(self: *Formatter) Error!void {
-            std.debug.assert(self.tree.errors.len != 0); // Cannot format with errors
+            std.debug.assert(self.tree.errors.len == 0); // Cannot format with errors
             _ = try self.renderComments(0, self.tree.tokens.items(.start)[0]);
 
             for (self.tree.rootDecls(), 0..) |node, i| {

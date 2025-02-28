@@ -1091,10 +1091,11 @@ pub fn yulFunctionDecl(
 
     return .{
         .ast = .{
-            .name = extra.identifier,
             .params_start = extra.params_start,
             .params_end = extra.params_end,
+            .body = data.rhs,
         },
+        .name = extra.identifier,
         .main_token = main,
     };
 }
@@ -1112,12 +1113,13 @@ pub fn yulFullFunctionDecl(
 
     return .{
         .ast = .{
-            .name = extra.identifier,
             .params_start = extra.params_start,
             .params_end = extra.params_end,
             .returns_start = extra.returns_start,
             .returns_end = extra.returns_end,
+            .body = data.rhs,
         },
+        .name = extra.identifier,
         .main_token = main,
     };
 }
@@ -1144,7 +1146,8 @@ pub fn yulMultiVariableDecl(
     self: Ast,
     node: Node.Index,
 ) ast.YulMultiVariableDecl {
-    std.debug.assert(self.nodes.items(.tag)[node] == .yul_var_decl_multi);
+    std.debug.assert(self.nodes.items(.tag)[node] == .yul_var_decl_multi or
+        self.nodes.items(.tag)[node] == .yul_assign_multi);
 
     const data = self.nodes.items(.data)[node];
     const main = self.nodes.items(.main_token)[node];
@@ -1207,7 +1210,7 @@ pub fn yulSwitchStatement(
     self: Ast,
     node: Node.Index,
 ) ast.yulSwitchStatement {
-    std.debug.assert(self.nodes.items(.tag)[node] == .yul_if);
+    std.debug.assert(self.nodes.items(.tag)[node] == .yul_switch);
 
     const data = self.nodes.items(.data)[node];
     const main = self.nodes.items(.main_token)[node];
@@ -2333,9 +2336,10 @@ pub const ast = struct {
     pub const YulFunctionDecl = struct {
         ast: Components,
         main_token: TokenIndex,
+        name: TokenIndex,
 
         pub const Components = struct {
-            name: Node.Index,
+            body: Node.Index,
             params_start: Node.Index,
             params_end: Node.Index,
         };
@@ -2344,9 +2348,10 @@ pub const ast = struct {
     pub const YulFullFunctionDecl = struct {
         ast: Components,
         main_token: TokenIndex,
+        name: TokenIndex,
 
         pub const Components = struct {
-            name: Node.Index,
+            body: Node.Index,
             params_start: Node.Index,
             params_end: Node.Index,
             returns_start: Node.Index,

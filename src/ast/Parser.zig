@@ -1271,7 +1271,6 @@ pub fn parseBlock(self: *Parser) ParserErrors!Node.Index {
 
     _ = self.consumeToken(.r_brace);
     const semicolon = (self.token_tags[self.token_index - 2] == .semicolon);
-
     const statements = self.scratch.items[scratch..];
 
     switch (statements.len) {
@@ -1697,6 +1696,9 @@ pub fn parseAssignExpr(self: *Parser) ParserErrors!Node.Index {
 
     const tag = assignOperationNode(self.token_tags[self.token_index]) orelse
         return decl;
+
+    if (tag == .yul_assign)
+        return self.fail(.expected_expr);
 
     const node = try self.addNode(.{
         .tag = tag,
@@ -3420,6 +3422,7 @@ pub fn parseAssemblyBlock(self: *Parser) ParserErrors!Node.Index {
         return null_node;
 
     const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
 
     while (true) {
         if (self.consumeToken(.r_brace)) |_| break;
@@ -3833,13 +3836,13 @@ pub fn parseYulVariableDeclaration(self: *Parser) ParserErrors!Node.Index {
         else => {
             const tag = assignOperationNode(self.token_tags[self.nextToken()]) orelse
                 return self.addNode(.{
-                    .tag = .yul_var_decl,
-                    .main_token = let,
-                    .data = .{
-                        .lhs = decl,
-                        .rhs = 0,
-                    },
-                });
+                .tag = .yul_var_decl,
+                .main_token = let,
+                .data = .{
+                    .lhs = decl,
+                    .rhs = 0,
+                },
+            });
 
             if (tag != .yul_assign)
                 return self.fail(.expected_yul_assignment);
@@ -4144,7 +4147,7 @@ fn listToSpan(
 ) Allocator.Error!Node.Range {
     try self.extra_data.appendSlice(self.allocator, list);
 
-    return Node.Range{
+    return .{
         .start = @as(Node.Index, @intCast(self.extra_data.items.len - list.len)),
         .end = @as(Node.Index, @intCast(self.extra_data.items.len)),
     };

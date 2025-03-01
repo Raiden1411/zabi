@@ -1780,11 +1780,11 @@ pub fn parseCallExpression(
     while (true) {
         if (self.consumeToken(.r_paren)) |_| break;
 
-        const struct_init = try self.parseCurlySuffixExpr();
+        const struct_init = try self.parseCurlySuffixExpr(0);
 
-        if (struct_init != 0) {
-            try self.scratch.append(self.allocator, struct_init);
-        } else {
+        if (struct_init != 0)
+            try self.scratch.append(self.allocator, struct_init)
+        else {
             const param = try self.expectExpr();
             try self.scratch.append(self.allocator, param);
         }
@@ -1800,7 +1800,10 @@ pub fn parseCallExpression(
                 self.token_index += 1;
                 break;
             },
-            .colon, .r_brace, .r_bracket => return self.failMsg(.{
+            .colon,
+            .r_brace,
+            .r_bracket,
+            => return self.failMsg(.{
                 .tag = .expected_token,
                 .token = self.token_index,
                 .extra = .{ .expected_tag = .r_paren },
@@ -1895,12 +1898,12 @@ pub fn parseSuffix(
                 .rhs = undefined,
             },
         }),
-        .l_brace => return self.parseCurlySuffixExpr(),
+        .l_brace => return self.parseCurlySuffixExpr(lhs),
         else => return null_node,
     }
 }
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.callArgumentList)
-pub fn parseCurlySuffixExpr(self: *Parser) ParserErrors!Node.Index {
+pub fn parseCurlySuffixExpr(self: *Parser, lhs: Node.Index) ParserErrors!Node.Index {
     const l_brace = self.consumeToken(.l_brace) orelse return null_node;
 
     const scratch = self.scratch.items.len;
@@ -1932,7 +1935,10 @@ pub fn parseCurlySuffixExpr(self: *Parser) ParserErrors!Node.Index {
                 self.token_index += 1;
                 break;
             },
-            .colon, .semicolon, .r_bracket => return self.failMsg(.{
+            .colon,
+            .semicolon,
+            .r_bracket,
+            => return self.failMsg(.{
                 .tag = .expected_token,
                 .token = self.token_index,
                 .extra = .{ .expected_tag = .r_brace },
@@ -1948,24 +1954,24 @@ pub fn parseCurlySuffixExpr(self: *Parser) ParserErrors!Node.Index {
             .tag = .struct_init_one,
             .main_token = l_brace,
             .data = .{
-                .lhs = 0,
-                .rhs = undefined,
+                .lhs = lhs,
+                .rhs = 0,
             },
         }),
         1 => return self.addNode(.{
             .tag = .struct_init_one,
             .main_token = l_brace,
             .data = .{
-                .lhs = slice[0],
-                .rhs = undefined,
+                .lhs = lhs,
+                .rhs = slice[0],
             },
         }),
         else => return self.addNode(.{
             .tag = .struct_init,
             .main_token = l_brace,
             .data = .{
-                .lhs = try self.addExtraData(try self.listToSpan(slice)),
-                .rhs = undefined,
+                .lhs = lhs,
+                .rhs = try self.addExtraData(try self.listToSpan(slice)),
             },
         }),
     }
@@ -2279,8 +2285,8 @@ pub fn parsePrefixExpr(self: *Parser) ParserErrors!Node.Index {
     const tag: Node.Tag = switch (self.token_tags[self.token_index]) {
         .bang => .conditional_not,
         .minus => .negation,
-        .minus_minus => .decrement,
-        .plus_plus => .increment,
+        .minus_minus => .decrement_front,
+        .plus_plus => .increment_front,
         .keyword_delete => .delete,
         .tilde => .bit_not,
         else => return self.parseSuffixExpr(),

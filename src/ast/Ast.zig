@@ -202,7 +202,7 @@ pub fn stateVariableDecl(
 
     std.debug.assert(token_tags.len > state);
 
-    const modifier_range = self.extraData(state, Node.Range);
+    const modifier_range = self.extraData(self.nodes.items(.main_token)[state], Node.Range);
     const modifier_node = self.extra_data[modifier_range.start..modifier_range.end];
 
     for (modifier_node) |state_mod| {
@@ -220,6 +220,7 @@ pub fn stateVariableDecl(
                 }
             },
             .override_specifier => result.override = self.nodes.items(.main_token)[state],
+            else => unreachable,
         }
     }
 
@@ -450,16 +451,16 @@ pub fn constructorDecl(
     std.debug.assert(self.nodes.items(.tag)[node] == .construct_decl);
 
     const data = self.nodes.items(.data)[node];
-    const main = self.nodes.items(.main_token)[node];
+    const main = self.nodes.items(.main_token);
 
     const proto = self.extraData(data.lhs, Node.ConstructorProto);
-    const extra = self.extraData(proto.specifiers, Node.Range);
+    const extra = self.extraData(main[proto.specifiers], Node.Range);
 
     const params = self.extra_data[proto.params_start..proto.params_end];
     const specifiers = self.extra_data[extra.start..extra.end];
 
     return .{
-        .main_token = main,
+        .main_token = main[node],
         .ast = .{
             .params = params,
             .body = data.rhs,
@@ -476,16 +477,16 @@ pub fn constructorDeclOne(
     std.debug.assert(self.nodes.items(.tag)[node] == .construct_decl_one);
 
     const data = self.nodes.items(.data)[node];
-    const main = self.nodes.items(.main_token)[node];
+    const main = self.nodes.items(.main_token);
 
     const proto = self.extraData(data.lhs, Node.ConstructorProtoOne);
     node_buffer[0] = proto.param;
 
-    const extra = self.extraData(proto.specifiers, Node.Range);
+    const extra = self.extraData(main[proto.specifiers], Node.Range);
     const specifiers = self.extra_data[extra.start..extra.end];
 
     return .{
-        .main_token = main,
+        .main_token = main[node],
         .ast = .{
             .params = if (proto.param == 0) node_buffer[0..0] else node_buffer[0..1],
             .body = data.rhs,
@@ -1342,8 +1343,6 @@ pub fn firstToken(
             .if_simple,
             .block_semicolon,
             .payable_decl,
-            .struct_init,
-            .struct_init_one,
             .yul_full_function_decl,
             .yul_function_decl,
             .yul_switch,
@@ -1359,6 +1358,8 @@ pub fn firstToken(
             .asm_block,
             .asm_block_two,
             .simple_specifiers,
+            .increment_front,
+            .decrement_front,
             => return main_token[current_node],
 
             .error_variable_decl,
@@ -1366,6 +1367,15 @@ pub fn firstToken(
             .struct_field,
             .variable_decl,
             => current_node = main_token[current_node],
+
+            .struct_init,
+            .struct_init_one,
+            => {
+                if (data[current_node].lhs != 0)
+                    current_node = data[current_node].lhs
+                else
+                    return main_token[current_node];
+            },
 
             .call,
             .call_one,
@@ -1452,6 +1462,8 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .leave,
             .simple_specifiers,
             .using_alias_operator,
+            .increment,
+            .decrement,
             => return main_token[current_node] + end_offset,
 
             .number_literal_sub_denomination,
@@ -1465,13 +1477,13 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .state_variable_decl,
             => {
                 end_offset += 1;
-                if (data[current_node].rhs != 0) {
-                    current_node = data[current_node].rhs;
-                    // Main token is the state so the next are identifier and semicolon.
-                } else if (main_token[current_node] != 0) {
-                    end_offset += 1;
-                    current_node = main_token[current_node];
-                } else current_node = data[current_node].lhs;
+
+                if (data[current_node].rhs != 0)
+                    current_node = data[current_node].rhs
+                else if (main_token[current_node] != 0)
+                    current_node = main_token[current_node]
+                else
+                    current_node = data[current_node].lhs;
             },
 
             .variable_decl,
@@ -1565,10 +1577,9 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 current_node = data[current_node].rhs;
             },
 
-            // TODO: Update this for increment and decrement
             .bit_not,
-            .increment,
-            .decrement,
+            .increment_front,
+            .decrement_front,
             .conditional_not,
             .delete,
             .negation,
@@ -1610,8 +1621,11 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             => {
                 end_offset += 1;
 
-                if (data[current_node].lhs != 0)
-                    current_node = data[current_node].lhs;
+                if (data[current_node].rhs != 0) {
+                    std.debug.print("FoooOOOOOOOOOOOOOOOOOOOOOOOOOOOOO: {}", .{self.nodes.items(.tag)[data[current_node].rhs]});
+
+                    current_node = data[current_node].rhs;
+                }
 
                 return main_token[current_node] + end_offset;
             },
@@ -1619,9 +1633,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .struct_init,
             => {
                 const elements = self.extraData(data[current_node].rhs, Node.Range);
-                std.debug.assert(elements.end - elements.start > 0);
 
-                end_offset += 1;
                 current_node = self.extra_data[elements.end - 1];
             },
 
@@ -2569,6 +2581,12 @@ pub const Node = struct {
         /// main_token is the operand.
         /// lhs is the expr and rhs is unused.
         decrement,
+        /// main_token is the operand.
+        /// lhs is the expr and rhs is unused.
+        increment_front,
+        /// main_token is the operand.
+        /// lhs is the expr and rhs is unused.
+        decrement_front,
         /// main_token is the keyword.
         /// lhs is the expr and rhs is unused.
         delete,

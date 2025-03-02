@@ -1476,6 +1476,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
             .state_variable_decl,
             => {
+                end_offset += 1;
                 if (data[current_node].rhs != 0)
                     current_node = data[current_node].rhs
                 else if (main_token[current_node] != 0)
@@ -1507,7 +1508,6 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 } else current_node = main_token[current_node];
             },
 
-            .emit,
             .assign,
             .assign_add,
             .assign_sub,
@@ -1576,6 +1576,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .delete,
             .negation,
             .exponent,
+            .emit,
             => current_node = data[current_node].lhs,
 
             .mapping_decl,

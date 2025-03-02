@@ -1,9 +1,9 @@
-/// A generic client for interacting with EVM contracts.
+/// A generic client for interactintes
 pub const contract = @import("contract.zig");
 
 /// KZG commitments. Related to EIP4844. Uses the c library
 /// to enable support for zabi to use.
-pub const kzg4844 = @import("c-kzg-4844");
+pub const kzg4844 = @import("c_kzg_4844");
 
 /// Multicall contract wrapper that exposes contract functions.
 pub const multicall = @import("multicall.zig");

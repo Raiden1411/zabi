@@ -1,4 +1,4 @@
-const ckzg4844 = @import("c-kzg-4844");
+const ckzg4844 = @import("c_kzg_4844");
 const constants = zabi_utils.constants;
 const eip712 = @import("zabi-abi").eip712;
 const encoder = zabi_encoding.abi_encoding;

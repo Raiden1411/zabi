@@ -1,4 +1,4 @@
-const kzg = @import("c-kzg-4844");
+const kzg = @import("c_kzg_4844");
 const meta = @import("zabi-meta").utils;
 const std = @import("std");
 const rlp = @import("rlp.zig");

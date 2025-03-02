@@ -256,6 +256,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                                 .space,
                         );
 
+                    try self.formatToken(import.path - 2, .space);
                     try self.formatToken(import.path - 1, .space);
 
                     return self.formatToken(import.path, .semicolon);
@@ -271,6 +272,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     for (import.ast.symbols.?) |symbol|
                         try self.formatToken(symbol, .space);
 
+                    try self.formatToken(import.path - 2, .space);
                     try self.formatToken(import.path - 1, .space);
 
                     return self.formatToken(import.path, .semicolon);
@@ -297,11 +299,11 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     try self.formatToken(main[node] + 1, .space);
 
                     const start = data[node].lhs;
-                    const end = data[node].lhs;
+                    const end = data[node].rhs;
 
                     var i: usize = start;
                     while (i <= end) : (i += 1)
-                        try self.formatToken(@intCast(i), if (i != end) .space else .semicolon);
+                        try self.formatToken(@intCast(i), if (i != end) .none else .semicolon);
                 },
                 .import_directive_path,
                 .import_directive_path_identifier,
@@ -731,7 +733,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
 
                     if (data[node].rhs != 0) {
                         try self.applyPunctuation(.space);
-                        try self.formatToken(self.tree.firstToken(data[node].rhs) - 1, .none);
+                        try self.formatToken(self.tree.firstToken(data[node].rhs) - 1, .space);
 
                         return self.formatExpression(data[node].rhs, .semicolon);
                     }
@@ -1046,6 +1048,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                 if (i != 0)
                     try self.renderExtraNewLine(self.tree.firstToken(statement));
 
+                try self.formatDocComments(self.tree.firstToken(statement));
                 try self.formatStatement(statement, .none);
             }
 
@@ -1300,6 +1303,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                 .conditional_not,
                 .increment_front,
                 .decrement_front,
+                .negation,
                 => {
                     const operator = main_token[node];
                     const expressions = data[node];
@@ -1335,7 +1339,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     try self.formatToken(keyword, .none);
                     try self.formatToken(keyword + 1, .none);
 
-                    try self.formatExpression(expressions.lhs, punctuation);
+                    try self.formatTypeExpression(expressions.lhs, punctuation);
 
                     return self.formatToken(last, .none);
                 },
@@ -1407,7 +1411,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
 
                         try self.formatExpression(expression.rhs, .none);
 
-                        return self.formatToken(self.tree.lastToken(expression.rhs) + 1, punctuation);
+                        return self.formatToken(self.tree.lastToken(node), punctuation);
                     }
 
                     // .r_brace
@@ -1534,7 +1538,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                         );
                     }
 
-                    return self.formatToken(self.tree.lastToken(slice[slice.len - 1]) + 1, punctuation);
+                    return self.formatToken(self.tree.lastToken(node), punctuation);
                 },
                 .using_alias_operator,
                 => {
@@ -1603,10 +1607,13 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             const fn_proto = self.tree.functionProtoOne(&buffer, node);
 
             try self.formatToken(fn_proto.main_token, .space);
-            try self.formatToken(fn_proto.name, .none);
 
-            // l_paren
-            try self.formatToken(fn_proto.name + 1, .none);
+            if (fn_proto.name != 0) {
+                try self.formatToken(fn_proto.name, .none);
+                // l_paren
+                try self.formatToken(fn_proto.name + 1, .none);
+            } else try self.formatToken(fn_proto.main_token + 1, .none);
+
             for (fn_proto.ast.params) |field|
                 try self.formatExpression(field, .none);
 
@@ -1637,10 +1644,12 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             const fn_proto = self.tree.functionProto(&buffer, node);
 
             try self.formatToken(fn_proto.main_token, .space);
-            try self.formatToken(fn_proto.name, .none);
 
-            // l_paren
-            try self.formatToken(fn_proto.name + 1, .none);
+            if (fn_proto.name != 0) {
+                try self.formatToken(fn_proto.name, .none);
+                // l_paren
+                try self.formatToken(fn_proto.name + 1, .none);
+            } else try self.formatToken(fn_proto.main_token + 1, .none);
 
             for (fn_proto.ast.params, 0..) |field, i|
                 try self.formatExpression(
@@ -1678,10 +1687,13 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             const fn_proto = self.tree.functionProtoSimple(&buffer, node);
 
             try self.formatToken(fn_proto.main_token, .space);
-            try self.formatToken(fn_proto.name, .none);
 
-            // l_paren
-            try self.formatToken(fn_proto.name + 1, .none);
+            if (fn_proto.name != 0) {
+                try self.formatToken(fn_proto.name, .none);
+                // l_paren
+                try self.formatToken(fn_proto.name + 1, .none);
+            } else try self.formatToken(fn_proto.main_token + 1, .none);
+
             for (fn_proto.ast.params) |field|
                 try self.formatExpression(field, .none);
 
@@ -1703,10 +1715,12 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             const fn_proto = self.tree.functionMulti(node);
 
             try self.formatToken(fn_proto.main_token, .space);
-            try self.formatToken(fn_proto.name, .none);
 
-            // l_paren
-            try self.formatToken(fn_proto.name + 1, .none);
+            if (fn_proto.name != 0) {
+                try self.formatToken(fn_proto.name, .none);
+                // l_paren
+                try self.formatToken(fn_proto.name + 1, .none);
+            } else try self.formatToken(fn_proto.main_token + 1, .none);
 
             for (fn_proto.ast.params, 0..) |field, i|
                 try self.formatExpression(
@@ -1755,7 +1769,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     const modifier_proto = self.tree.modifierProtoOne(&buffer, node);
 
                     try self.formatToken(modifier_proto.main_token, .space);
-                    try self.formatToken(modifier_proto.name, .space);
+                    try self.formatToken(modifier_proto.name, if (modifier_proto.ast.params.len != 0) .space else .none);
 
                     for (modifier_proto.ast.params) |field|
                         try self.formatExpression(field, .none);

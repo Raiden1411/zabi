@@ -381,17 +381,17 @@ pub fn modifierProto(
     std.debug.assert(self.nodes.items(.tag)[node] == .modifier_proto);
 
     const data = self.nodes.items(.data)[node];
-    const main = self.nodes.items(.main_token)[node];
+    const main = self.nodes.items(.main_token);
 
     const proto = self.extraData(data.lhs, Node.ModifierProto);
     const params = self.extra_data[proto.params_start..proto.params_end];
 
-    const specifiers_node = self.nodes.items(.main_token)[data.rhs];
+    const specifiers_node = main[data.rhs];
     const range = self.extraData(specifiers_node, Node.Range);
     const specifiers = self.extra_data[range.start..range.end];
 
     return .{
-        .main_token = main,
+        .main_token = main[node],
         .name = proto.identifier,
         .ast = .{
             .params = params,
@@ -408,16 +408,16 @@ pub fn modifierProtoOne(
     std.debug.assert(self.nodes.items(.tag)[node] == .modifier_proto_one);
 
     const data = self.nodes.items(.data)[node];
-    const main = self.nodes.items(.main_token)[node];
+    const main = self.nodes.items(.main_token);
 
     const proto = self.extraData(data.lhs, Node.ModifierProtoOne);
     node_buffer[0] = proto.param;
 
-    const extra = self.extraData(data.rhs, Node.Range);
+    const extra = self.extraData(main[data.rhs], Node.Range);
     const specifiers = self.extra_data[extra.start..extra.end];
 
     return .{
-        .main_token = main,
+        .main_token = main[node],
         .name = proto.identifier,
         .ast = .{
             .params = if (proto.param == 0) node_buffer[0..0] else node_buffer[0..1],
@@ -1476,8 +1476,6 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
             .state_variable_decl,
             => {
-                end_offset += 1;
-
                 if (data[current_node].rhs != 0)
                     current_node = data[current_node].rhs
                 else if (main_token[current_node] != 0)
@@ -1571,12 +1569,6 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .assembly_decl,
             => current_node = data[current_node].rhs,
 
-            .do_while,
-            => {
-                end_offset += 1;
-                current_node = data[current_node].rhs;
-            },
-
             .bit_not,
             .increment_front,
             .decrement_front,
@@ -1587,11 +1579,23 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             => current_node = data[current_node].lhs,
 
             .mapping_decl,
-            .error_proto_simple,
+            .do_while,
             .constant_variable_decl,
             => {
                 end_offset += 1;
                 current_node = data[current_node].rhs;
+            },
+
+            .error_proto_simple,
+            => {
+                end_offset += 1;
+
+                if (data[current_node].rhs != 0)
+                    current_node = data[current_node].rhs
+                else {
+                    end_offset += 1;
+                    return data[current_node].lhs + end_offset;
+                }
             },
 
             .payable_decl,
@@ -1621,17 +1625,15 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             => {
                 end_offset += 1;
 
-                if (data[current_node].rhs != 0) {
-                    std.debug.print("FoooOOOOOOOOOOOOOOOOOOOOOOOOOOOOO: {}", .{self.nodes.items(.tag)[data[current_node].rhs]});
-
-                    current_node = data[current_node].rhs;
-                }
-
-                return main_token[current_node] + end_offset;
+                if (data[current_node].rhs != 0)
+                    current_node = data[current_node].rhs
+                else
+                    return main_token[current_node] + end_offset;
             },
 
             .struct_init,
             => {
+                end_offset += 1;
                 const elements = self.extraData(data[current_node].rhs, Node.Range);
 
                 current_node = self.extra_data[elements.end - 1];
@@ -1860,7 +1862,12 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 if (extra.anonymous != 0)
                     return main_token[extra.anonymous] + end_offset;
 
-                current_node = extra.params;
+                if (extra.params != 0)
+                    current_node = extra.params
+                else {
+                    end_offset += 1;
+                    return data[current_node].rhs + end_offset;
+                }
             },
 
             .event_proto_multi => {
@@ -1895,8 +1902,10 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
                 if (returns.end > self.extra_data.len)
                     current_node = returns.end
+                else if (returns.start == returns.end)
+                    current_node = returns.start
                 else
-                    current_node = self.extra_data[returns.end];
+                    current_node = self.extra_data[returns.end - 1];
             },
 
             .function_proto,
@@ -1908,7 +1917,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 if (returns.end > self.extra_data.len)
                     current_node = returns.end
                 else if (returns.start == returns.end)
-                    current_node = self.extra_data[returns.end - 1] + end_offset
+                    current_node = returns.start
                 else
                     current_node = self.extra_data[returns.end - 1];
             },
@@ -1928,7 +1937,6 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
 
             .function_proto_simple,
             => {
-                end_offset += 1;
                 const proto = self.extraData(data[current_node].lhs, Node.FnProtoOne);
                 const specifiers_node = main_token[proto.specifiers];
                 const range = self.extraData(specifiers_node, Node.Range);

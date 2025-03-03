@@ -23,7 +23,7 @@ pub fn jsonParse(
     options: ParseOptions,
 ) ParseError(@TypeOf(source.*))!T {
     const json_value = try Value.jsonParse(allocator, source, options);
-    return try jsonParseFromValue(T, allocator, json_value, options);
+    return jsonParseFromValue(T, allocator, json_value, options);
 }
 
 /// Custom jsonParseFromValue that is mostly used to enable
@@ -149,7 +149,9 @@ pub fn innerParseValueRequest(
                 else => return std.json.innerParseFromValue(T, allocator, source, options),
             }
         },
-        .int, .comptime_int => {
+        .int,
+        .comptime_int,
+        => {
             switch (source) {
                 .number_string, .string => |str| {
                     if (std.mem.eql(u8, str, "0x"))

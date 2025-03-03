@@ -2,7 +2,7 @@ const env_parser = @import("src/utils/env_load.zig");
 const std = @import("std");
 const builtin = @import("builtin");
 
-const min_zig_string = "0.14.0-dev.3008+7cef585f5";
+const min_zig_string = "0.14.0-dev.3445+6c3cbb0c8";
 
 /// Build zabi modules and test runners.
 pub fn build(b: *std.Build) void {
@@ -368,13 +368,13 @@ fn addDependencies(
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
 ) void {
-    const c_kzg_4844_dep = b.dependency("c-kzg-4844", .{
+    const c_kzg_4844_dep = b.dependency("c_kzg_4844", .{
         .target = target,
         .optimize = optimize,
     });
 
-    mod.addImport("c-kzg-4844", c_kzg_4844_dep.module("c-kzg-4844"));
-    mod.linkLibrary(c_kzg_4844_dep.artifact("c-kzg-4844"));
+    mod.addImport("c_kzg_4844", c_kzg_4844_dep.module("c_kzg_4844"));
+    mod.linkLibrary(c_kzg_4844_dep.artifact("c_kzg_4844"));
 }
 /// Builds and runs the benchmarks
 fn buildBenchmark(

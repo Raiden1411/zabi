@@ -3,7 +3,7 @@ test {
     _ = @import("abi/root.zig");
     _ = @import("ast/tokenizer.test.zig");
     _ = @import("ast/parser.test.zig");
-    // _ = @import("ast/formatter.test.zig");
+    _ = @import("ast/formatter.test.zig");
     _ = @import("clients/url.test.zig");
     _ = @import("clients/ens_utils.test.zig");
     _ = @import("clients/parse_deposit.test.zig");

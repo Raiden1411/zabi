@@ -4,9 +4,9 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const module = b.addModule("c-kzg-4844", .{ .root_source_file = b.path("root.zig") });
+    const module = b.addModule("c_kzg_4844", .{ .root_source_file = b.path("root.zig") });
 
-    const upstream = b.dependency("c-kzg-4844", .{});
+    const upstream = b.dependency("c_kzg_4844", .{});
 
     const lib = try buildKzg(b, upstream, target, optimize);
     module.addIncludePath(upstream.path("src"));
@@ -30,7 +30,7 @@ pub fn build(b: *std.Build) !void {
 }
 
 fn buildKzg(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !*std.Build.Step.Compile {
-    const lib = b.addStaticLibrary(.{ .name = "c-kzg-4844", .target = target, .optimize = optimize });
+    const lib = b.addStaticLibrary(.{ .name = "c_kzg_4844", .target = target, .optimize = optimize });
     const blst_dep = b.dependency("blst", .{
         .target = target,
         .optimize = optimize,

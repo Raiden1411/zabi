@@ -1271,7 +1271,6 @@ pub fn parseBlock(self: *Parser) ParserErrors!Node.Index {
 
     _ = self.consumeToken(.r_brace);
     const semicolon = (self.token_tags[self.token_index - 2] == .semicolon);
-
     const statements = self.scratch.items[scratch..];
 
     switch (statements.len) {
@@ -1341,24 +1340,35 @@ pub fn expectTryStatement(self: *Parser) ParserErrors!Node.Index {
 
     const slice = self.scratch.items[scratch..];
 
-    return self.addNode(.{
-        .tag = .@"try",
-        .main_token = try_index,
-        .data = .{
-            .lhs = try self.addExtraData(Node.Try{
-                .returns = switch (returns) {
-                    .zero_one => |elem| elem,
-                    .multi => |elems| try self.addExtraData(Node.Range{
+    switch (returns) {
+        .zero_one => |elem| return self.addNode(.{
+            .tag = .try_simple,
+            .main_token = try_index,
+            .data = .{
+                .lhs = try self.addExtraData(Node.Try{
+                    .returns = elem,
+                    .expression = expr,
+                    .block_statement = block,
+                }),
+                .rhs = try self.addExtraData(try self.listToSpan(slice)),
+            },
+        }),
+        .multi => |elems| return self.addNode(.{
+            .tag = .try_multi,
+            .main_token = try_index,
+            .data = .{
+                .lhs = try self.addExtraData(Node.Try{
+                    .returns = try self.addExtraData(Node.Range{
                         .start = elems.start,
                         .end = elems.end,
                     }),
-                },
-                .expression = expr,
-                .block_statement = block,
-            }),
-            .rhs = try self.addExtraData(try self.listToSpan(slice)),
-        },
-    });
+                    .expression = expr,
+                    .block_statement = block,
+                }),
+                .rhs = try self.addExtraData(try self.listToSpan(slice)),
+            },
+        }),
+    }
 }
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.catchClause)
 pub fn expectCatchStatement(self: *Parser) ParserErrors!Node.Index {
@@ -1376,20 +1386,27 @@ pub fn expectCatchStatement(self: *Parser) ParserErrors!Node.Index {
 
     const block = try self.expectBlock();
 
-    return self.addNode(.{
-        .tag = .@"catch",
-        .main_token = catch_index,
-        .data = .{
-            .lhs = switch (body) {
-                .zero_one => |elem| elem,
-                .multi => |elems| try self.addExtraData(Node.Range{
+    switch (body) {
+        .zero_one => |elem| return self.addNode(.{
+            .tag = .catch_simple,
+            .main_token = catch_index,
+            .data = .{
+                .lhs = elem,
+                .rhs = block,
+            },
+        }),
+        .multi => |elems| return self.addNode(.{
+            .tag = .catch_multi,
+            .main_token = catch_index,
+            .data = .{
+                .lhs = try self.addExtraData(Node.Range{
                     .start = elems.start,
                     .end = elems.end,
                 }),
+                .rhs = block,
             },
-            .rhs = block,
-        },
-    });
+        }),
+    }
 }
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.forStatement)
 pub fn expectForStatement(self: *Parser) ParserErrors!Node.Index {
@@ -1698,6 +1715,9 @@ pub fn parseAssignExpr(self: *Parser) ParserErrors!Node.Index {
     const tag = assignOperationNode(self.token_tags[self.token_index]) orelse
         return decl;
 
+    if (tag == .yul_assign)
+        return self.fail(.expected_expr);
+
     const node = try self.addNode(.{
         .tag = tag,
         .main_token = self.nextToken(),
@@ -1778,11 +1798,11 @@ pub fn parseCallExpression(
     while (true) {
         if (self.consumeToken(.r_paren)) |_| break;
 
-        const struct_init = try self.parseCurlySuffixExpr();
+        const struct_init = try self.parseCurlySuffixExpr(0);
 
-        if (struct_init != 0) {
-            try self.scratch.append(self.allocator, struct_init);
-        } else {
+        if (struct_init != 0)
+            try self.scratch.append(self.allocator, struct_init)
+        else {
             const param = try self.expectExpr();
             try self.scratch.append(self.allocator, param);
         }
@@ -1798,7 +1818,10 @@ pub fn parseCallExpression(
                 self.token_index += 1;
                 break;
             },
-            .colon, .r_brace, .r_bracket => return self.failMsg(.{
+            .colon,
+            .r_brace,
+            .r_bracket,
+            => return self.failMsg(.{
                 .tag = .expected_token,
                 .token = self.token_index,
                 .extra = .{ .expected_tag = .r_paren },
@@ -1893,12 +1916,12 @@ pub fn parseSuffix(
                 .rhs = undefined,
             },
         }),
-        .l_brace => return self.parseCurlySuffixExpr(),
+        .l_brace => return self.parseCurlySuffixExpr(lhs),
         else => return null_node,
     }
 }
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.callArgumentList)
-pub fn parseCurlySuffixExpr(self: *Parser) ParserErrors!Node.Index {
+pub fn parseCurlySuffixExpr(self: *Parser, lhs: Node.Index) ParserErrors!Node.Index {
     const l_brace = self.consumeToken(.l_brace) orelse return null_node;
 
     const scratch = self.scratch.items.len;
@@ -1930,7 +1953,10 @@ pub fn parseCurlySuffixExpr(self: *Parser) ParserErrors!Node.Index {
                 self.token_index += 1;
                 break;
             },
-            .colon, .semicolon, .r_bracket => return self.failMsg(.{
+            .colon,
+            .semicolon,
+            .r_bracket,
+            => return self.failMsg(.{
                 .tag = .expected_token,
                 .token = self.token_index,
                 .extra = .{ .expected_tag = .r_brace },
@@ -1946,24 +1972,24 @@ pub fn parseCurlySuffixExpr(self: *Parser) ParserErrors!Node.Index {
             .tag = .struct_init_one,
             .main_token = l_brace,
             .data = .{
-                .lhs = 0,
-                .rhs = undefined,
+                .lhs = lhs,
+                .rhs = 0,
             },
         }),
         1 => return self.addNode(.{
             .tag = .struct_init_one,
             .main_token = l_brace,
             .data = .{
-                .lhs = slice[0],
-                .rhs = undefined,
+                .lhs = lhs,
+                .rhs = slice[0],
             },
         }),
         else => return self.addNode(.{
             .tag = .struct_init,
             .main_token = l_brace,
             .data = .{
-                .lhs = try self.addExtraData(try self.listToSpan(slice)),
-                .rhs = undefined,
+                .lhs = lhs,
+                .rhs = try self.addExtraData(try self.listToSpan(slice)),
             },
         }),
     }
@@ -2277,8 +2303,8 @@ pub fn parsePrefixExpr(self: *Parser) ParserErrors!Node.Index {
     const tag: Node.Tag = switch (self.token_tags[self.token_index]) {
         .bang => .conditional_not,
         .minus => .negation,
-        .minus_minus => .decrement,
-        .plus_plus => .increment,
+        .minus_minus => .decrement_front,
+        .plus_plus => .increment_front,
         .keyword_delete => .delete,
         .tilde => .bit_not,
         else => return self.parseSuffixExpr(),
@@ -3420,6 +3446,7 @@ pub fn parseAssemblyBlock(self: *Parser) ParserErrors!Node.Index {
         return null_node;
 
     const scratch = self.scratch.items.len;
+    defer self.scratch.shrinkRetainingCapacity(scratch);
 
     while (true) {
         if (self.consumeToken(.r_brace)) |_| break;
@@ -4144,7 +4171,7 @@ fn listToSpan(
 ) Allocator.Error!Node.Range {
     try self.extra_data.appendSlice(self.allocator, list);
 
-    return Node.Range{
+    return .{
         .start = @as(Node.Index, @intCast(self.extra_data.items.len - list.len)),
         .end = @as(Node.Index, @intCast(self.extra_data.items.len)),
     };

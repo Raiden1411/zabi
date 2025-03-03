@@ -286,6 +286,67 @@ test "It can format a contract without errors" {
     try testing.expectEqual(0, ast_fmt.errors.len);
 }
 
+test "Try/Catch" {
+    const slice =
+        \\contract Bar {
+        \\    event Log(string message);
+        \\    event LogBytes(bytes data);
+        \\
+        \\    Foo public foo;
+        \\
+        \\    constructor() {
+        \\        // This Foo contract is used for example of try catch with external call
+        \\        foo = new Foo(msg.sender);
+        \\    }
+        \\
+        \\    // Example of try / catch with external call
+        \\    // tryCatchExternalCall(0) => Log("external call failed")
+        \\    // tryCatchExternalCall(1) => Log("my func was called")
+        \\    function tryCatchExternalCall(uint256 _i) public {
+        \\        try foo.myFunc(_i) returns (string memory result) {
+        \\            emit Log(result);
+        \\        } catch {
+        \\            emit Log("external call failed");
+        \\        }
+        \\    }
+        \\
+        \\    // Example of try / catch with contract creation
+        \\    // tryCatchNewContract(0x0000000000000000000000000000000000000000) => Log("invalid address")
+        \\    // tryCatchNewContract(0x0000000000000000000000000000000000000001) => LogBytes("")
+        \\    // tryCatchNewContract(0x0000000000000000000000000000000000000002) => Log("Foo created")
+        \\    function tryCatchNewContract(address _owner) public {
+        \\        try new Foo(_owner) returns (Foo foo) {
+        \\            // you can use variable foo here
+        \\            emit Log("Foo created");
+        \\        } catch Error(string memory reason) {
+        \\            // catch failing revert() and require()
+        \\            emit Log(reason);
+        \\        } catch (bytes memory reason) {
+        \\            // catch failing assert()
+        \\            emit LogBytes(reason);
+        \\        }
+        \\    }
+        \\}
+    ;
+
+    var ast = try Ast.parse(testing.allocator, slice);
+    defer ast.deinit(testing.allocator);
+
+    var list = std.ArrayList(u8).init(testing.allocator);
+    errdefer list.deinit();
+
+    var format: Formatter = .init(ast, 4, list.writer());
+    try format.format();
+
+    const fmt = try list.toOwnedSliceSentinel(0);
+    defer testing.allocator.free(fmt);
+
+    var ast_fmt = try Ast.parse(testing.allocator, fmt);
+    defer ast_fmt.deinit(testing.allocator);
+
+    try testing.expectEqual(0, ast_fmt.errors.len);
+}
+
 test "Owner Contract" {
     const slice =
         \\// SPDX-License-Identifier: MIT

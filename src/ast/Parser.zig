@@ -1340,24 +1340,35 @@ pub fn expectTryStatement(self: *Parser) ParserErrors!Node.Index {
 
     const slice = self.scratch.items[scratch..];
 
-    return self.addNode(.{
-        .tag = .@"try",
-        .main_token = try_index,
-        .data = .{
-            .lhs = try self.addExtraData(Node.Try{
-                .returns = switch (returns) {
-                    .zero_one => |elem| elem,
-                    .multi => |elems| try self.addExtraData(Node.Range{
+    switch (returns) {
+        .zero_one => |elem| return self.addNode(.{
+            .tag = .try_simple,
+            .main_token = try_index,
+            .data = .{
+                .lhs = try self.addExtraData(Node.Try{
+                    .returns = elem,
+                    .expression = expr,
+                    .block_statement = block,
+                }),
+                .rhs = try self.addExtraData(try self.listToSpan(slice)),
+            },
+        }),
+        .multi => |elems| return self.addNode(.{
+            .tag = .try_multi,
+            .main_token = try_index,
+            .data = .{
+                .lhs = try self.addExtraData(Node.Try{
+                    .returns = try self.addExtraData(Node.Range{
                         .start = elems.start,
                         .end = elems.end,
                     }),
-                },
-                .expression = expr,
-                .block_statement = block,
-            }),
-            .rhs = try self.addExtraData(try self.listToSpan(slice)),
-        },
-    });
+                    .expression = expr,
+                    .block_statement = block,
+                }),
+                .rhs = try self.addExtraData(try self.listToSpan(slice)),
+            },
+        }),
+    }
 }
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.catchClause)
 pub fn expectCatchStatement(self: *Parser) ParserErrors!Node.Index {
@@ -1375,20 +1386,27 @@ pub fn expectCatchStatement(self: *Parser) ParserErrors!Node.Index {
 
     const block = try self.expectBlock();
 
-    return self.addNode(.{
-        .tag = .@"catch",
-        .main_token = catch_index,
-        .data = .{
-            .lhs = switch (body) {
-                .zero_one => |elem| elem,
-                .multi => |elems| try self.addExtraData(Node.Range{
+    switch (body) {
+        .zero_one => |elem| return self.addNode(.{
+            .tag = .catch_simple,
+            .main_token = catch_index,
+            .data = .{
+                .lhs = elem,
+                .rhs = block,
+            },
+        }),
+        .multi => |elems| return self.addNode(.{
+            .tag = .catch_multi,
+            .main_token = catch_index,
+            .data = .{
+                .lhs = try self.addExtraData(Node.Range{
                     .start = elems.start,
                     .end = elems.end,
                 }),
+                .rhs = block,
             },
-            .rhs = block,
-        },
-    });
+        }),
+    }
 }
 /// [Grammar](https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.forStatement)
 pub fn expectForStatement(self: *Parser) ParserErrors!Node.Index {

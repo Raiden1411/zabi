@@ -490,7 +490,7 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                 => {
                     const constructor_decl = self.tree.constructorDecl(node);
 
-                    try self.formatToken(constructor_decl.main_token, .space);
+                    try self.formatToken(constructor_decl.main_token, .none);
                     try self.formatToken(constructor_decl.main_token + 1, .none);
 
                     for (constructor_decl.ast.params, 0..) |field, i|
@@ -514,13 +514,16 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     var buffer: [1]Ast.Node.Index = undefined;
                     const constructor_decl = self.tree.constructorDeclOne(&buffer, node);
 
-                    try self.formatToken(constructor_decl.main_token, .space);
+                    try self.formatToken(constructor_decl.main_token, .none);
                     try self.formatToken(constructor_decl.main_token + 1, .none);
 
                     for (constructor_decl.ast.params) |field|
                         try self.formatExpression(field, .none);
 
-                    try self.formatToken(self.tree.lastToken(constructor_decl.ast.params[0]) + 1, .space);
+                    if (constructor_decl.ast.params.len != 0)
+                        try self.formatToken(self.tree.lastToken(constructor_decl.ast.params[0]) + 1, .space)
+                    else
+                        try self.formatToken(constructor_decl.main_token + 2, .space);
 
                     if (constructor_decl.ast.specifiers.len != 0)
                         try self.formatSpecifiers(constructor_decl.ast.specifiers, .space);
@@ -826,28 +829,21 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
 
                     return self.formatStatement(data[node].rhs, .newline);
                 },
-                // TODO: Change how this node works
-                .@"try",
+                .try_simple,
                 => {
-                    // .keyword_try
-                    try self.formatToken(main_token[node], .none);
+                    try self.formatToken(main_token[node], .space);
 
                     const expression = self.tree.extraData(data[node].lhs, Ast.Node.Try);
                     try self.formatExpression(expression.expression, .space);
 
                     if (expression.returns != 0) {
-                        const first = self.tree.firstToken(expression.returns);
-                        // .keyword_returns
-                        try self.formatToken(first - 2, .space);
-                        // .l_paren
-                        try self.formatToken(first - 1, .none);
+                        const last = self.tree.lastToken(expression.expression);
 
-                        // expression
+                        try self.formatToken(last + 1, .none);
+                        try self.formatToken(last + 2, .none);
+
                         try self.formatExpression(expression.returns, .none);
-
-                        // .r_paren
-                        const last = self.tree.lastToken(expression.returns);
-                        try self.formatToken(last + 1, .space);
+                        try self.formatToken(self.tree.lastToken(expression.returns) + 1, .space);
                     }
 
                     try self.formatStatement(expression.block_statement, .newline);
@@ -855,25 +851,38 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     const extra = self.tree.extraData(data[node].rhs, Ast.Node.Range);
                     const slice = self.tree.extra_data[extra.start..extra.end];
 
-                    for (slice) |catch_statement| {
-                        try self.formatToken(main_token[catch_statement], .space);
+                    return for (slice) |catch_statement|
+                        try self.formatCatchStatement(catch_statement);
+                },
+                .try_multi,
+                => {
+                    try self.formatToken(main_token[node], .space);
 
-                        const possible_iden = main_token[catch_statement] + 1;
+                    const expression = self.tree.extraData(data[node].lhs, Ast.Node.Try);
+                    try self.formatExpression(expression.expression, .space);
 
-                        if (self.tree.tokens.items(.tag)[main_token[possible_iden]] == .identifier)
-                            try self.formatToken(main_token[possible_iden], .space);
+                    const extra = self.tree.extraData(expression.returns, Ast.Node.Range);
+                    const slice = self.tree.extra_data[extra.start..extra.end];
 
-                        if (data[catch_statement].lhs != 0) {
-                            const l_paren = self.tree.firstToken(data[catch_statement].lhs);
-                            try self.formatToken(l_paren, .none);
-                            try self.formatExpression(data[catch_statement].lhs, .none);
+                    const last = self.tree.lastToken(expression.expression);
 
-                            const r_paren = self.tree.lastToken(data[catch_statement].lhs);
-                            try self.formatToken(r_paren, .none);
-                        }
+                    try self.formatToken(last + 1, .none);
+                    try self.formatToken(last + 2, .none);
 
-                        try self.formatStatement(data[catch_statement].rhs, .newline);
+                    var last_param: u32 = 0;
+                    for (slice, 0..) |param, i| {
+                        try self.formatExpression(param, if (i < slice.len - 1) .comma_space else .none);
+                        last_param = @intCast(i);
                     }
+
+                    try self.formatToken(self.tree.firstToken(expression.block_statement) - 1, .space);
+                    try self.formatStatement(expression.block_statement, .newline);
+
+                    const catch_info = self.tree.extraData(data[node].rhs, Ast.Node.Range);
+                    const catch_statements = self.tree.extra_data[catch_info.start..catch_info.end];
+
+                    return for (catch_statements) |catch_statement|
+                        try self.formatCatchStatement(catch_statement);
                 },
                 .@"break",
                 .@"continue",
@@ -1055,6 +1064,50 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
             self.stream.popIndentation();
 
             return self.formatToken(self.tree.lastToken(node), punctuation);
+        }
+        /// Formats a solidity block of statements.
+        pub fn formatCatchStatement(
+            self: *Formatter,
+            node: Ast.Node.Index,
+        ) Error!void {
+            const main_token = self.tree.nodes.items(.main_token);
+            const nodes = self.tree.nodes.items(.tag);
+            const data = self.tree.nodes.items(.data);
+
+            switch (nodes[node]) {
+                .catch_simple => {
+                    try self.formatToken(main_token[node], .space);
+
+                    if (self.tree.tokens.items(.tag)[main_token[node] + 1] == .identifier)
+                        try self.formatToken(main_token[node] + 1, .space);
+
+                    if (data[node].lhs != 0) {
+                        try self.formatToken(self.tree.firstToken(data[node].lhs) - 1, .none);
+                        try self.formatExpression(data[node].lhs, .none);
+                        try self.formatToken(self.tree.lastToken(data[node].lhs) + 1, .space);
+                    }
+
+                    return self.formatStatement(data[node].rhs, .newline);
+                },
+                .catch_multi => {
+                    try self.formatToken(main_token[node], .space);
+
+                    if (self.tree.tokens.items(.tag)[main_token[node] + 1] == .identifier) {
+                        try self.formatToken(main_token[node] + 1, .space);
+                    } else try self.formatToken(main_token[node] + 1, .none);
+
+                    const extra = self.tree.extraData(data[node].lhs, Ast.Node.Range);
+                    const slice = self.tree.extra_data[extra.start..extra.end];
+
+                    for (slice, 0..) |param, i| {
+                        try self.formatExpression(param, if (i < slice.len - 1) .comma_space else .none);
+                    }
+
+                    try self.formatToken(self.tree.firstToken(data[node].rhs) - 1, .space);
+                    return self.formatStatement(data[node].rhs, .newline);
+                },
+                else => unreachable, // Invalid node
+            }
         }
         /// Formats a assemblyDecl string flags
         pub fn formatAssemblyFlags(

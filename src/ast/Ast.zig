@@ -1294,8 +1294,10 @@ pub fn firstToken(
             .@"break",
             .@"continue",
             .@"return",
-            .@"try",
-            .@"catch",
+            .try_simple,
+            .try_multi,
+            .catch_simple,
+            .catch_multi,
             .leave,
             .do_while,
             .user_defined_type,
@@ -1558,7 +1560,8 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .@"while",
             .if_simple,
             .@"for",
-            .@"catch",
+            .catch_simple,
+            .catch_multi,
             .yul_if,
             .yul_assign_multi,
             .yul_for,
@@ -1844,7 +1847,8 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
                 current_node = extra.else_expression;
             },
 
-            .@"try",
+            .try_simple,
+            .try_multi,
             .yul_switch,
             => {
                 const extra = self.extraData(data[current_node].rhs, Node.Range);
@@ -2681,11 +2685,13 @@ pub const Node = struct {
         /// main token is keyword.
         /// lhs is the index into extra data.
         /// rhs is the index into extra data.
-        @"try",
+        try_simple,
+        try_multi,
         /// main token is keyword.
         /// lhs is the index into extra data.
         /// rhs is the index into block expression.
-        @"catch",
+        catch_simple,
+        catch_multi,
         /// main token is keyword.
         /// both rhs and lhs are unused.
         @"break",

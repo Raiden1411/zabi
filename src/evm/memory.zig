@@ -7,6 +7,9 @@ const Word = [32]u8;
 
 /// A extendable memory used by the evm interpreter.
 pub const Memory = struct {
+    /// Sets the initial capacity to be aligned with the cpu cache size.
+    const init_capacity = @as(comptime_int, @max(1, std.atomic.cache_line / @sizeOf(u256)));
+
     /// Set of errors when resizing errors.
     pub const Error = error{MaxMemoryReached};
 
@@ -255,7 +258,7 @@ pub const Memory = struct {
     ) usize {
         var new = current;
         while (true) {
-            new +|= new + 32;
+            new +|= new + init_capacity;
             if (new > minimum) {
                 @branchHint(.likely);
                 return new;

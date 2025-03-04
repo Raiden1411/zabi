@@ -189,7 +189,7 @@ pub fn Stack(comptime T: type) type {
         pub fn tryPush(
             self: *Self,
             item: T,
-        ) !void {
+        ) (Allocator.Error || error{StackOverflow})!void {
             self.mutex.lock();
             defer self.mutex.unlock();
 

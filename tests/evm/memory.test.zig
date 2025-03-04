@@ -55,7 +55,7 @@ test "Context" {
     try testing.expectEqual(mem.buffer.len, 32);
     try testing.expectEqual(mem.checkpoints.items.len, 0);
     try testing.expectEqual(mem.last_checkpoint, 0);
-    try testing.expectEqual(mem.total_capacity, 96);
+    try testing.expectEqual(mem.total_capacity, 60);
 
     try mem.newContext();
     try mem.resize(96);
@@ -63,7 +63,7 @@ test "Context" {
     try testing.expectEqual(mem.buffer.len, 128);
     try testing.expectEqual(mem.checkpoints.items.len, 1);
     try testing.expectEqual(mem.last_checkpoint, 32);
-    try testing.expectEqual(mem.total_capacity, 224);
+    try testing.expectEqual(mem.total_capacity, 252);
 
     try mem.newContext();
     try mem.resize(128);
@@ -71,7 +71,7 @@ test "Context" {
     try testing.expectEqual(mem.buffer.len, 256);
     try testing.expectEqual(mem.checkpoints.items.len, 2);
     try testing.expectEqual(mem.last_checkpoint, 128);
-    try testing.expectEqual(mem.total_capacity, 480);
+    try testing.expectEqual(mem.total_capacity, 508);
 
     mem.freeContext();
     try mem.resize(96);
@@ -79,7 +79,7 @@ test "Context" {
     try testing.expectEqual(mem.buffer.len, 128);
     try testing.expectEqual(mem.checkpoints.items.len, 1);
     try testing.expectEqual(mem.last_checkpoint, 32);
-    try testing.expectEqual(mem.total_capacity, 480);
+    try testing.expectEqual(mem.total_capacity, 508);
 
     mem.freeContext();
     try mem.resize(64);
@@ -87,7 +87,7 @@ test "Context" {
     try testing.expectEqual(mem.buffer.len, 64);
     try testing.expectEqual(mem.checkpoints.items.len, 0);
     try testing.expectEqual(mem.last_checkpoint, 0);
-    try testing.expectEqual(mem.total_capacity, 480);
+    try testing.expectEqual(mem.total_capacity, 508);
 }
 
 test "No Context" {

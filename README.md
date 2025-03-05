@@ -23,7 +23,7 @@ Zabi aims to add support for interacting with ethereum or any compatible EVM bas
 
 ### Zig Versions
 
-Zabi will support zig v0.13 in separate branches. If you would like to use it you can find it in the `zig_version_0.13.0` branch where you can build it against zig 0.13.0.
+Zabi will support zig v0.14 in separate branches. If you would like to use it you can find it in the `zig_version_0.14.0` branch where you can build it against zig 0.13.0.
 The main branch of zabi will follow the latest commits from zig and the other branch will be stable in terms of zig versions but not features from zabi.
 
 ### Integration

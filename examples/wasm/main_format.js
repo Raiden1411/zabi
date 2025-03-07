@@ -48,6 +48,7 @@
 		const result = wasm_exports.formatSolidity(ptr, len);
 
 		const str = unwrapString(result);
+		console.log(str);
 		document.getElementById("result").textContent = str;
 	}
 

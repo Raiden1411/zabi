@@ -302,8 +302,25 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                     const end = data[node].rhs;
 
                     var i: usize = start;
-                    while (i <= end) : (i += 1)
-                        try self.formatToken(@intCast(i), if (i != end) .none else .semicolon);
+                    while (i <= end) : (i += 1) {
+                        switch (self.tree.tokens.items(.tag)[i]) {
+                            .angle_bracket_right,
+                            .angle_bracket_right_equal,
+                            .angle_bracket_left,
+                            .angle_bracket_left_equal,
+                            .caret,
+                            => {
+                                try self.applyPunctuation(.space);
+                                try self.formatToken(@intCast(i), .space);
+                            },
+                            .equal,
+                            .number_literal,
+                            .period,
+                            => try self.formatToken(@intCast(i), .none),
+                            .semicolon => return self.applyPunctuation(.semicolon),
+                            else => unreachable,
+                        }
+                    }
                 },
                 .import_directive_path,
                 .import_directive_path_identifier,

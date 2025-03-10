@@ -2886,8 +2886,9 @@ pub fn parsePragmaVersion(self: *Parser) ParserErrors!TokenIndex {
                 self.token_index += 1;
                 _ = try self.expectToken(.number_literal);
             },
-            .number_literal => self.token_index += 1,
-            .period => self.token_index += 1,
+            .number_literal,
+            .period,
+            => self.token_index += 1,
             else => break self.token_index,
         }
     };

@@ -170,14 +170,10 @@ pub fn init(opts: InitOptions) InitErrors!*IPC {
     }
 
     self.ipc_reader = .{
-        .allocator = opts.allocator,
-        .buffer = try opts.allocator.alloc(u8, opts.growth_rate orelse std.math.maxInt(u16)),
-        .growth_rate = opts.growth_rate orelse std.math.maxInt(u16),
+        .buffer = std.fifo.LinearFifo(u8, .Dynamic).init(opts.allocator),
         .stream = undefined,
         .closed = false,
-        .message_end = 0,
-        .position = 0,
-        .message_start = 0,
+        .overflow = 0,
     };
 
     self.ipc_reader.stream = try self.connect(opts.network_config.endpoint.path);

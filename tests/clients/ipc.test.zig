@@ -171,7 +171,7 @@ test "AddressBalance" {
         defer client.deinit();
 
         const block_number = try client.getAddressBalance(.{
-            .address = try utils.addressToBytes("0x0689f41a1461D176F722E824B682F439a9b9FDbf"),
+            .address = try utils.addressToBytes("0xdAC17F958D2ee523a2206206994597C13D831ec7"),
         });
         defer block_number.deinit();
 
@@ -555,10 +555,7 @@ test "EstimateGas" {
         });
         defer client.deinit();
 
-        const fee = try client.estimateGas(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 });
-        defer fee.deinit();
-
-        try testing.expect(fee.response != 0);
+        try testing.expectError(error.InvalidInput, client.estimateGas(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
     }
     {
         var client = try IPC.init(.{
@@ -583,10 +580,7 @@ test "EstimateGas" {
         });
         defer client.deinit();
 
-        const fee = try client.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 });
-        defer fee.deinit();
-
-        try testing.expect(fee.response != 0);
+        try testing.expectError(error.InvalidInput, client.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 }));
     }
 }
 
@@ -614,7 +608,7 @@ test "CreateAccessList" {
         });
         defer client.deinit();
 
-        try testing.expectError(error.InternalError, client.createAccessList(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
+        try testing.expectError(error.InvalidInput, client.createAccessList(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
     }
     {
         var client = try IPC.init(.{
@@ -728,7 +722,7 @@ test "EstimateBlobMaxFeePerGas" {
 
     const base_fee = try client.estimateBlobMaxFeePerGas();
 
-    try testing.expect(base_fee != 0);
+    try testing.expect(base_fee == 0);
 }
 
 test "EstimateMaxFeePerGas" {

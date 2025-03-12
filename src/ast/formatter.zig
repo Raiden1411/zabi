@@ -1314,8 +1314,21 @@ pub fn SolidityFormatter(comptime OutWriter: type) type {
                 .field_access,
                 => {
                     try self.formatExpression(data[node].lhs, .none);
-                    try self.formatToken(main_token[node], .none);
 
+                    const last = self.tree.lastToken(data[node].lhs);
+                    const same_line = self.tree.tokensOnSameLine(last, data[node].rhs);
+
+                    if (!same_line and !self.hasComment(last, main_token[node])) {
+                        self.stream.pushIndentation();
+                        defer self.stream.popIndentation();
+
+                        try self.applyPunctuation(.newline);
+                        try self.formatToken(main_token[node], .none);
+
+                        return self.formatToken(data[node].rhs, punctuation);
+                    }
+
+                    try self.formatToken(main_token[node], .none);
                     return self.formatToken(data[node].rhs, punctuation);
                 },
                 .equal_equal,

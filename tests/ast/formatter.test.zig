@@ -44,6 +44,9 @@ test "Basic" {
         \\ //       This is a comment
         \\ return           foooooo +           6;
         \\ 
+        \\ foooooo
+        \\ .
+        \\ bar();
         \\    }
     ;
 
@@ -56,6 +59,9 @@ test "Basic" {
     var format: Formatter = .init(ast, 4, list.writer());
 
     try format.formatStatement(@intCast(ast.nodes.len - 1), .none);
+
+    const fmt = try list.toOwnedSlice();
+    defer testing.allocator.free(fmt);
 }
 
 test "Element" {

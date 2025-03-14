@@ -242,6 +242,9 @@ pub fn build(b: *std.Build) void {
     // Builds the examples.
     buildExamples(b, target, optimize, zabi);
 
+    // Build the zabigen executable.
+    buildZabiGen(b, target, optimize, zabi);
+
     // Build and generate docs for zabi. Uses the `doc_comments` spread across the codebase.
     // Always build in `ReleaseFast`.
     buildDocs(b, target);
@@ -452,6 +455,26 @@ fn buildDocs(b: *std.Build, target: std.Build.ResolvedTarget) void {
 
     const docs_step = b.step("docs", "Generate documentation based on the source code.");
     docs_step.dependOn(&docs_run.step);
+}
+/// Builds zabigen executable to generate a project based on a json abi
+fn buildZabiGen(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    dependency: *std.Build.Module,
+) void {
+    const abi_step = b.step("zabigen", "Build a zig project from a json abi");
+
+    const abigen = b.addExecutable(.{
+        .name = "zabigen",
+        .root_source_file = b.path("gen/zabigen.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    abigen.root_module.addImport("zabi", dependency);
+
+    var install_artifact = b.addInstallArtifact(abigen, .{});
+    abi_step.dependOn(&install_artifact.step);
 }
 /// Loads enviroment variables from a `.env` file in case they aren't already present.
 fn loadVariables(b: *std.Build, env_path: []const u8, exe: *std.Build.Step.Run) void {

@@ -7,6 +7,8 @@ const zabi = @import("zabi");
 const Abi = abitypes.Abi;
 const AbiParameter = abi_param.AbiParameter;
 const Allocator = std.mem.Allocator;
+const ArrayListWriter = std.ArrayList(u8).Writer;
+const ParamType = zabi.abi.param_type.ParamType;
 
 const CliOptions = struct {
     json_abi: []const u8,
@@ -19,7 +21,7 @@ pub fn main() !void {
         break :alloc switch (@import("builtin").mode) {
             .Debug,
             .ReleaseSafe,
-            => .{ debug_allocator, true },
+            => .{ debug_allocator.allocator(), true },
             .ReleaseSmall,
             .ReleaseFast,
             => .{ std.heap.smp_allocator, false },
@@ -36,18 +38,23 @@ pub fn main() !void {
 
     const file = file: {
         if (std.fs.path.isAbsolute(parsed.json_abi))
-            break :file try std.fs.openFileAbsolute(parsed.json_abi);
+            break :file try std.fs.openFileAbsolute(parsed.json_abi, .{});
 
         break :file try std.fs.cwd().openFile(parsed.json_abi, .{});
     };
     defer file.close();
 
-    const reader = std.json.reader(allocator, file.reader());
+    var reader = std.json.reader(allocator, file.reader());
 
-    const abi_parsed = try std.json.parseFromTokenSource(Abi, allocator, reader, .{});
+    const abi_parsed = try std.json.parseFromTokenSource(Abi, allocator, &reader, .{});
     defer abi_parsed.deinit();
 
-    return generateSourceFromAbi(allocator, abi_parsed.value);
+    const source = try generateSourceFromAbi(allocator, abi_parsed.value);
+    defer allocator.free(source);
+
+    try std.io.getStdErr().writeAll("\n");
+    try std.io.getStdErr().writeAll(source);
+    try std.io.getStdErr().writeAll("\n");
 }
 
 fn generateSourceFromAbi(
@@ -63,40 +70,89 @@ fn generateSourceFromAbi(
         .abiFunction => |function| {
             try writer.print("pub fn {s}(", .{function.name});
             try writeFunctionParameters(&writer, function.inputs);
-            try writer.writeAll(")");
+            try writer.writeAll(") ");
             try writeFunctionReturns(&writer, function.inputs);
+        },
+        .abiConstructor => |constructor| {
+            try writer.writeAll("pub fn deployContract(");
+            try writeFunctionParameters(&writer, constructor.inputs);
+            try writer.writeAll(") !void");
         },
         inline else => continue,
     };
-}
 
-fn writeFunctionParameters(
-    writer: *std.ArrayList(u8).Writer,
-    params: []const AbiParameter,
-) Allocator.Error!void {
-    for (params) |param| {
-        try writer.print("{s}: ", .{param.name});
-
-        try convertToZigTypes(writer, param.type);
-    }
+    return list.toOwnedSlice();
 }
 
 fn writeFunctionReturns(
-    writer: *std.ArrayList(u8).Writer,
+    writer: *ArrayListWriter,
     params: []const AbiParameter,
 ) Allocator.Error!void {
-    for (params) |param| {
-        switch (param.type) {
-            .string,
-            .bytes,
-            => try writer.print("{s}: {s}", .{ param.name, @tagName(param.type) }),
-        }
-    }
+    try writer.writeAll("!AbiDecoded(struct{ ");
+
+    for (params) |param| switch (param.type) {
+        .bool,
+        .string,
+        .bytes,
+        .address,
+        .int,
+        .uint,
+        .fixedBytes,
+        .fixedArray,
+        .dynamicArray,
+        => try convertToZigTypes(writer, param.type),
+
+        .@"enum",
+        => try writer.writeAll("u8,"),
+        .tuple,
+        => {
+            try writer.writeAll("struct { ");
+
+            if (param.components) |components|
+                try writeFunctionParameters(writer, components);
+
+            try writer.writeAll(" }");
+        },
+    };
+
+    try writer.writeAll(" })");
+}
+
+fn writeFunctionParameters(
+    writer: *ArrayListWriter,
+    params: []const AbiParameter,
+) Allocator.Error!void {
+    for (params) |param| switch (param.type) {
+        .bool,
+        .string,
+        .bytes,
+        .address,
+        .int,
+        .uint,
+        .fixedBytes,
+        .fixedArray,
+        .dynamicArray,
+        => {
+            try writer.print("{s}: ", .{param.name});
+            try convertToZigTypes(writer, param.type);
+        },
+        .@"enum",
+        => try writer.print("{s}: u8", .{param.name}),
+        .tuple,
+        => {
+            try writer.writeAll("struct { ");
+
+            if (param.components) |components|
+                try writeFunctionParameters(writer, components);
+
+            try writer.writeAll(" }");
+        },
+    };
 }
 
 fn convertToZigTypes(
-    writer: *std.ArrayList(u8).Writer,
-    param_type: zabi.abi.param_type.ParamType,
+    writer: *ArrayListWriter,
+    param_type: ParamType,
 ) Allocator.Error!void {
     switch (param_type) {
         .string,
@@ -124,6 +180,6 @@ fn convertToZigTypes(
 
             return convertToZigTypes(writer, arr_info.*);
         },
-        else => @panic("TODO"),
+        inline else => unreachable, // Doesnt get handled here
     }
 }

@@ -45,6 +45,7 @@ pub fn main() !void {
     defer file.close();
 
     var reader = std.json.reader(allocator, file.reader());
+    defer reader.deinit();
 
     const abi_parsed = try std.json.parseFromTokenSource(Abi, allocator, &reader, .{});
     defer abi_parsed.deinit();
@@ -72,11 +73,16 @@ fn generateSourceFromAbi(
             try writeFunctionParameters(&writer, function.inputs);
             try writer.writeAll(") ");
             try writeFunctionReturns(&writer, function.inputs);
+            try writer.writeByte('\n');
+
+            // TODO: Create the function body based on the mutability
+            // Same applies for the return type
         },
         .abiConstructor => |constructor| {
             try writer.writeAll("pub fn deployContract(");
             try writeFunctionParameters(&writer, constructor.inputs);
-            try writer.writeAll(") !void");
+            try writer.writeAll(") ![32]u8");
+            try writer.writeByte('\n');
         },
         inline else => continue,
     };
@@ -103,7 +109,7 @@ fn writeFunctionReturns(
         => try convertToZigTypes(writer, param.type),
 
         .@"enum",
-        => try writer.writeAll("u8,"),
+        => try writer.writeAll("u8, "),
         .tuple,
         => {
             try writer.writeAll("struct { ");
@@ -111,11 +117,11 @@ fn writeFunctionReturns(
             if (param.components) |components|
                 try writeFunctionParameters(writer, components);
 
-            try writer.writeAll(" }");
+            try writer.writeAll("}");
         },
     };
 
-    try writer.writeAll(" })");
+    try writer.writeAll("})");
 }
 
 fn writeFunctionParameters(
@@ -145,7 +151,7 @@ fn writeFunctionParameters(
             if (param.components) |components|
                 try writeFunctionParameters(writer, components);
 
-            try writer.writeAll(" }");
+            try writer.writeAll("}");
         },
     };
 }
@@ -157,17 +163,17 @@ fn convertToZigTypes(
     switch (param_type) {
         .string,
         .bytes,
-        => try writer.writeAll("[]const u8,"),
+        => try writer.writeAll("[]const u8, "),
         .address,
-        => try writer.writeAll("[20]u8,"),
+        => try writer.writeAll("[20]u8, "),
         .bool,
-        => try writer.writeAll("bool,"),
+        => try writer.writeAll("bool, "),
         .fixedBytes,
-        => |bytes| try writer.print("[{d}]u8,", .{bytes}),
+        => |bytes| try writer.print("[{d}]u8, ", .{bytes}),
         .int,
-        => |bytes| try writer.print("i{d},", .{bytes}),
+        => |bytes| try writer.print("i{d}, ", .{bytes}),
         .uint,
-        => |bytes| try writer.print("u{d},", .{bytes}),
+        => |bytes| try writer.print("u{d}, ", .{bytes}),
         .fixedArray,
         => |arr_info| {
             try writer.print("[{d}]", .{arr_info.size});

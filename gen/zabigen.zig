@@ -139,7 +139,23 @@ fn writeFunctionParameters(
         .fixedArray,
         .dynamicArray,
         => {
-            try writer.print("{s}: ", .{param.name});
+            const name: []const u8 = blk: {
+                if (param.name.len != 0)
+                    break :blk param.name;
+
+                // TODO: Change this later
+                var buffer: [8]u8 = undefined;
+
+                var prng: std.Random.DefaultPrng = .init(0);
+                var rand: std.Random = prng.random();
+
+                inline for (0..7) |i|
+                    buffer[i] = rand.intRangeAtMost(u8, 'a', 'z');
+
+                break :blk buffer[0..];
+            };
+
+            try writer.print("{s}: ", .{name});
             try convertToZigTypes(writer, param.type);
         },
         .@"enum",

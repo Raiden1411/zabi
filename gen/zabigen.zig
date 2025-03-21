@@ -72,7 +72,15 @@ fn generateSourceFromAbi(
             try writer.print("pub fn {s}(", .{function.name});
             try writeFunctionParameters(&writer, function.inputs);
             try writer.writeAll(") ");
-            try writeFunctionReturns(&writer, function.inputs);
+
+            switch (function.stateMutability) {
+                .view,
+                .pure,
+                => try writeFunctionReturns(&writer, function.outputs),
+                .payable,
+                .nonpayable,
+                => try writer.writeAll("![32]u8"),
+            }
             try writer.writeByte('\n');
 
             // TODO: Create the function body based on the mutability
@@ -162,7 +170,8 @@ fn writeFunctionParameters(
         => try writer.print("{s}: u8", .{param.name}),
         .tuple,
         => {
-            try writer.writeAll("struct { ");
+            try writer.print("{s}: struct", .{param.name});
+            try writer.writeAll(" {");
 
             if (param.components) |components|
                 try writeFunctionParameters(writer, components);

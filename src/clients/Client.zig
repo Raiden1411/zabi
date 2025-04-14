@@ -1741,7 +1741,7 @@ fn internalFetch(
         if (!request.response.parser.done) {
             self.connection.closing = true;
         }
-        if (self.client.connection_pool.used.len != 0) {
+        if (self.client.connection_pool.used.len() != 0) {
             self.client.connection_pool.release(self.allocator, self.connection);
         }
     }

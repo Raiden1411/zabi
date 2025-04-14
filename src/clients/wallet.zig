@@ -68,18 +68,20 @@ pub const WalletIpcClient = Wallet(.ipc);
 pub const TransactionEnvelopePool = struct {
     mutex: Mutex = .{},
     /// DoublyLinkedList queue. Iterate from last to first (LIFO)
-    pooled_envelopes: TransactionEnvelopeQueue,
+    pooled_envelopes: std.DoublyLinkedList,
 
     /// LinkedList node.
-    pub const Node = TransactionEnvelopeQueue.Node;
+    pub const Node = struct {
+        data: TransactionEnvelope,
+        /// Entry in `ConnectionPool.used` or `ConnectionPool.free`.
+        pool_node: std.DoublyLinkedList.Node,
+    };
 
     /// Search criteria used to find the required parameter.
     const SearchCriteria = struct {
         type: TransactionTypes,
         nonce: u64,
     };
-
-    const TransactionEnvelopeQueue = std.DoublyLinkedList(TransactionEnvelope);
 
     /// Finds a transaction envelope from the pool based on the
     /// transaction type and it's nonce in case there are transactions with the same type. This is thread safe.
@@ -96,18 +98,19 @@ pub const TransactionEnvelopePool = struct {
         var last_tx_node = pool.pooled_envelopes.last;
 
         while (last_tx_node) |tx_node| : (last_tx_node = tx_node.prev) {
-            switch (tx_node.data) {
+            const data: *Node = @alignCast(@fieldParentPtr("pool_node", tx_node));
+            switch (data.data) {
                 inline else => |pooled_tx| if (pooled_tx.nonce != search.nonce)
                     continue,
             }
 
-            if (!std.mem.eql(u8, @tagName(tx_node.data), @tagName(search.type)))
+            if (!std.mem.eql(u8, @tagName(data.data), @tagName(search.type)))
                 continue;
 
-            defer allocator.destroy(tx_node);
+            defer allocator.destroy(data);
 
-            pool.unsafeReleaseEnvelopeFromPool(tx_node);
-            return tx_node.data;
+            pool.unsafeReleaseEnvelopeFromPool(data);
+            return data.data;
         }
 
         return null;
@@ -120,14 +123,14 @@ pub const TransactionEnvelopePool = struct {
         pool.mutex.lock();
         defer pool.mutex.unlock();
 
-        pool.pooled_envelopes.append(node);
+        pool.pooled_envelopes.append(&node.pool_node);
     }
     /// Removes a node from the pool. This is not thread safe.
     pub fn unsafeReleaseEnvelopeFromPool(
         pool: *TransactionEnvelopePool,
         node: *Node,
     ) void {
-        pool.pooled_envelopes.remove(node);
+        pool.pooled_envelopes.remove(&node.pool_node);
     }
     /// Removes a node from the pool. This is thread safe.
     pub fn releaseEnvelopeFromPool(
@@ -137,7 +140,7 @@ pub const TransactionEnvelopePool = struct {
         pool.mutex.lock();
         defer pool.mutex.unlock();
 
-        pool.pooled_envelopes.remove(node);
+        pool.pooled_envelopes.remove(&node.pool_node);
     }
     /// Gets the last node from the pool and removes it.
     /// This is thread safe.
@@ -149,9 +152,10 @@ pub const TransactionEnvelopePool = struct {
         defer pool.mutex.unlock();
 
         if (pool.pooled_envelopes.popFirst()) |node| {
-            defer allocator.destroy(node);
+            const data: *Node = @alignCast(@fieldParentPtr("pool_node", node));
+            defer allocator.destroy(data);
 
-            return node.data;
+            return data.data;
         } else return null;
     }
     /// Gets the last node from the pool and removes it.
@@ -164,9 +168,10 @@ pub const TransactionEnvelopePool = struct {
         defer pool.mutex.unlock();
 
         if (pool.pooled_envelopes.pop()) |node| {
-            defer allocator.destroy(node);
+            const data: *Node = @alignCast(@fieldParentPtr("pool_node", node));
+            defer allocator.destroy(data);
 
-            return node.data;
+            return data.data;
         } else return null;
     }
     /// Destroys all created pointer. All future operations will deadlock.
@@ -179,7 +184,8 @@ pub const TransactionEnvelopePool = struct {
 
         var first = pool.pooled_envelopes.first;
         while (first) |node| {
-            defer allocator.destroy(node);
+            const data: *Node = @alignCast(@fieldParentPtr("pool_node", node));
+            defer allocator.destroy(data);
             first = node.next;
         }
 
@@ -584,6 +590,7 @@ pub fn Wallet(comptime client_type: WalletClients) type {
 
             envelope.* = .{
                 .data = undefined,
+                .pool_node = .{},
             };
 
             envelope.data = try self.prepareTransaction(unprepared_envelope);

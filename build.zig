@@ -2,7 +2,7 @@ const env_parser = @import("src/utils/env_load.zig");
 const std = @import("std");
 const builtin = @import("builtin");
 
-const min_zig_string = "0.15.0-dev.345+ec2888858";
+const min_zig_string = "0.15.0-dev.386+2e35fdd03";
 
 /// Build zabi modules and test runners.
 pub fn build(b: *std.Build) void {
@@ -459,7 +459,7 @@ fn loadVariables(b: *std.Build, env_path: []const u8, exe: *std.Build.Step.Run) 
         std.debug.panic("Failed to read from {s} file! Error: {s}", .{ env_path, @errorName(err) });
     defer file.close();
 
-    const source = file.readToEndAllocOptions(b.allocator, std.math.maxInt(u32), null, @alignOf(u8), 0) catch |err|
+    const source = file.readToEndAllocOptions(b.allocator, std.math.maxInt(u32), null, .@"1", 0) catch |err|
         std.debug.panic("Failed to read from {s} file! Error: {s}", .{ env_path, @errorName(err) });
     defer b.allocator.free(source);
 

@@ -722,7 +722,7 @@ test "EstimateBlobMaxFeePerGas" {
 
     const base_fee = try client.estimateBlobMaxFeePerGas();
 
-    try testing.expect(base_fee == 0);
+    try testing.expect(base_fee != 0);
 }
 
 test "EstimateMaxFeePerGas" {

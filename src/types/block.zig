@@ -313,6 +313,7 @@ pub const BlobBlock = struct {
     number: ?u64,
     parentBeaconBlockRoot: ?Hash = null,
     requestsRoot: ?Hash = null,
+    requestsHash: ?Hash = null,
     parentHash: Hash,
     receiptsRoot: Hash,
     sealFields: ?[]const Hex = null,

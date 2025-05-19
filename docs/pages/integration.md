@@ -19,6 +19,16 @@ zig fetch --save https://github.com/Raiden1411/zabi/archive/VERSION_NUMBER.tar.g
 zig fetch --save git+https://github.com/Raiden1411/zabi.git#LATEST_COMMIT
 ```
 
+To install zabi with the latest zig version you can install it like so
+
+```bash
+zig fetch --save git+https://github.com/Raiden1411/zabi.git#zig_version_0.14.0
+```
+
+Zabi will only maintain the latest version available. So when 0.15.0 eventually releases it use that and 0.14.0 will no longer be supported and so on.
+
+This should only be until zig reaches 1.0.
+
 Then in your `build.zig` file add the following to the `exe` section for the executable where you wish to have `zabi` available.
 
 ```zig

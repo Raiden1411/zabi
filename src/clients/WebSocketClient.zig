@@ -1,3 +1,8 @@
+//! Websocket client implementation that is spec compliant and autobahn compliant.
+//!
+//! This implementation relies on multithreading for the read loop but there are future plans to
+//! implement different solution for this and the IPC client
+
 const builtin = @import("builtin");
 const std = @import("std");
 const testing = std.testing;

@@ -13,6 +13,10 @@
         .c_kzg_4844 = .{
             .path = "./pkg/c-kzg-4844",
         },
+        .aio = .{
+            .url = "git+https://github.com/Cloudef/zig-aio.git#8d0507183396220a77f36e5182e5c91995d89449",
+            .hash = "aio-0.0.0-776t3n5WBQASyyJ0vCpZxIX7U6NTVEvaWVf1-9sjcVYa",
+        },
     },
     .paths = .{
         // This makes *all* files, recursively, included in this package. It is generally

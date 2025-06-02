@@ -1,3 +1,6 @@
+/// async enabled implementation of some of zabi's rpc clients.
+pub const @"async" = @import("async/root.zig");
+
 /// A generic client for interactintes
 pub const contract = @import("contract.zig");
 

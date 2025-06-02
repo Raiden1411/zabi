@@ -8,6 +8,18 @@ const Function = abi.Function;
 const IPC = @import("zabi").clients.IpcClient;
 const MulticallTargets = multicall.MulticallTargets;
 
+test "IpcReader" {
+    var reader = try @import("zabi").clients.@"async".AsyncIpcReader.init(std.testing.allocator, "/tmp/anvil.ipc");
+    defer reader.deinit();
+
+    // try reader.writeMessage(@constCast(
+    //     \\{"jsonrpc": "2.0", "id": 31337, "method": "eth_getBlockByNumber", "params": ["latest", false]}
+    // ));
+
+    const a = try reader.readMessage();
+    std.debug.print("FOOO: {s}\n", .{a});
+}
+
 test "BlockByNumber" {
     {
         var client = try IPC.init(.{

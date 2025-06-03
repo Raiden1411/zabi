@@ -2,7 +2,8 @@ const std = @import("std");
 const clients = @import("zabi").clients;
 
 const Allocator = std.mem.Allocator;
-const WebSocketClient = clients.WebSocketClient;
+const WebSocketClient = clients.blocking.WebSocketClient;
+const AsyncWebSocketClient = clients.non_blocking.AsyncWebSocketClient;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

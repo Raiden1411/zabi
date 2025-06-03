@@ -1,5 +1,5 @@
-/// async enabled implementation of some of zabi's rpc clients.
-pub const @"async" = @import("async/root.zig");
+/// blocking enabled implementation of some of zabi's readers/clients.
+pub const blocking = @import("blocking/root.zig");
 
 /// A generic client for interactintes
 pub const contract = @import("contract.zig");
@@ -10,6 +10,9 @@ pub const kzg4844 = @import("c_kzg_4844");
 
 /// Multicall contract wrapper that exposes contract functions.
 pub const multicall = @import("multicall.zig");
+
+/// non blocking enabled implementation of some of zabi's readers/clients.
+pub const non_blocking = @import("async/root.zig");
 
 /// Network config for different type of chains and associated contracts.
 pub const network = @import("network.zig");
@@ -31,10 +34,6 @@ pub const PubClient = @import("Client.zig");
 /// Supports most RPC methods. Converts errors responses
 /// into zig errors. Handles error 429 but not the rest.
 pub const WebSocket = @import("WebSocket.zig");
-
-/// Zabi's custom websocket client RFC implementation.
-/// RFC: https://www.rfc-editor.org/rfc/rfc6455
-pub const WebSocketClient = @import("WebSocketClient.zig");
 
 /// The ipc rpc client to interact with EVM based chains.
 /// Supports most RPC methods. Converts errors responses

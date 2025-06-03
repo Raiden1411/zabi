@@ -79,7 +79,7 @@ const Uri = std.Uri;
 const Value = std.json.Value;
 const WatchLogsRequest = log.WatchLogsRequest;
 const Wei = types.Wei;
-const WsClient = @import("WebSocketClient.zig");
+const WsClient = @import("blocking/WebSocketClient.zig");
 
 const WebSocketHandler = @This();
 

@@ -1556,7 +1556,6 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .construct_decl,
             .construct_decl_one,
             .user_defined_type,
-            .unchecked_block,
             .@"while",
             .if_simple,
             .@"for",
@@ -1580,6 +1579,7 @@ pub fn lastToken(self: Ast, node: Node.Index) TokenIndex {
             .negation,
             .exponent,
             .emit,
+            .unchecked_block,
             => current_node = data[current_node].lhs,
 
             .mapping_decl,

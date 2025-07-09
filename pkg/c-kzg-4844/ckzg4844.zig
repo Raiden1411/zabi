@@ -1,4 +1,3 @@
-const c = @import("c.zig");
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
@@ -9,6 +8,10 @@ const ParseError = std.json.ParseError;
 const Scanner = std.json.Scanner;
 const Sha256 = std.crypto.hash.sha2.Sha256;
 const Tuple = std.meta.Tuple;
+
+const c = @cImport({
+    @cInclude("c_kzg_4844.h");
+});
 
 const KZG4844 = @This();
 

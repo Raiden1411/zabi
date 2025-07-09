@@ -9,4 +9,5 @@
         },
         .blst = .{ .path = "../blst" },
     },
+    .fingerprint = 0xd135d14e27c91910,
 }

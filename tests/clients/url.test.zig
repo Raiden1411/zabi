@@ -43,7 +43,7 @@ test "Query Parameters" {
         const params = try searchUrlParamsAlloc(testing.allocator, .{ .foo = 69, .bar = 1.1 }, .{});
         defer testing.allocator.free(params);
 
-        try testing.expectEqualStrings("?foo=69&bar=1.1e0", params);
+        try testing.expectEqualStrings("?foo=69&bar=1.1", params);
     }
     {
         const params = try searchUrlParamsAlloc(testing.allocator, .{ .foo = 69, .bar = [_]u8{0} ** 20 }, .{});

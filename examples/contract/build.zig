@@ -6,11 +6,14 @@ pub fn build(b: *std.Build) void {
 
     _ = b.addModule("contract_example", .{ .root_source_file = b.path("contract.zig") });
 
-    const exe = b.addExecutable(.{
-        .name = "contract_example",
+    const module = b.createModule(.{
         .root_source_file = b.path("contract.zig"),
         .target = target,
         .optimize = optimize,
+    });
+    const exe = b.addExecutable(.{
+        .name = "contract_example",
+        .root_module = module,
     });
 
     addDependencies(b, exe);

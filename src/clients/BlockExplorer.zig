@@ -805,7 +805,7 @@ pub fn sendRequest(self: *Explorer, comptime T: type, uri: Uri) SendRequestError
                 // Clears any message that was written
                 body.shrinkRetainingCapacity(0);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
+                std.Thread.sleep(std.time.ns_per_ms * backoff);
                 continue;
             },
             else => {

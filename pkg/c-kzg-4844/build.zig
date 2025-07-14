@@ -12,11 +12,14 @@ pub fn build(b: *std.Build) !void {
     module.addIncludePath(upstream.path("src"));
 
     if (target.query.isNative()) {
-        const test_exe = b.addTest(.{
-            .name = "test",
+        const mod = b.createModule(.{
             .root_source_file = b.path("root.zig"),
             .target = target,
             .optimize = optimize,
+        });
+        const test_exe = b.addTest(.{
+            .name = "test",
+            .root_module = mod,
         });
         test_exe.linkLibrary(lib);
 
@@ -30,7 +33,12 @@ pub fn build(b: *std.Build) !void {
 }
 
 fn buildKzg(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !*std.Build.Step.Compile {
-    const lib = b.addStaticLibrary(.{ .name = "c_kzg_4844", .target = target, .optimize = optimize });
+    const mod = b.createModule(.{ .optimize = optimize, .target = target });
+    const lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "c_kzg_4844",
+        .root_module = mod,
+    });
     const blst_dep = b.dependency("blst", .{
         .target = target,
         .optimize = optimize,

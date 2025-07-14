@@ -214,7 +214,7 @@ pub const ParamType = union(enum) {
     pub fn typeToJsonStringify(
         self: @This(),
         writer: anytype,
-    ) @TypeOf(writer).Error!void {
+    ) !void {
         switch (self) {
             .string,
             .bytes,
@@ -241,7 +241,7 @@ pub const ParamType = union(enum) {
     pub fn typeToString(
         self: @This(),
         writer: anytype,
-    ) @TypeOf(writer).Error!void {
+    ) !void {
         switch (self) {
             .string,
             .bytes,

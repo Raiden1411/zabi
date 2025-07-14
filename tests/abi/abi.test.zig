@@ -12,14 +12,14 @@ const Receive = abi.Receive;
 
 test "Formatting" {
     {
-        try testing.expectFmt("error Foo(address bar)", "{s}", .{Error{
+        try testing.expectFmt("error Foo(address bar)", "{f}", .{Error{
             .type = .@"error",
             .name = "Foo",
             .inputs = &.{.{ .type = .{ .address = {} }, .name = "bar" }},
         }});
     }
     {
-        try testing.expectFmt("event Foo(address bar)", "{s}", .{Event{
+        try testing.expectFmt("event Foo(address bar)", "{f}", .{Event{
             .type = .event,
             .name = "Foo",
             .inputs = &.{
@@ -28,32 +28,32 @@ test "Formatting" {
         }});
     }
     {
-        try testing.expectFmt("constructor(address bar) payable", "{s}", .{Constructor{
+        try testing.expectFmt("constructor(address bar) payable", "{f}", .{Constructor{
             .type = .constructor,
             .inputs = &.{.{ .type = .{ .address = {} }, .name = "bar" }},
             .stateMutability = .payable,
         }});
     }
     {
-        try testing.expectFmt("receive() external payable", "{s}", .{Receive{
+        try testing.expectFmt("receive() external payable", "{f}", .{Receive{
             .type = .receive,
             .stateMutability = .payable,
         }});
     }
     {
-        try testing.expectFmt("fallback()", "{s}", .{Fallback{
+        try testing.expectFmt("fallback()", "{f}", .{Fallback{
             .type = .fallback,
             .stateMutability = .nonpayable,
         }});
     }
     {
-        try testing.expectFmt("fallback() payable", "{s}", .{Fallback{
+        try testing.expectFmt("fallback() payable", "{f}", .{Fallback{
             .type = .fallback,
             .stateMutability = .payable,
         }});
     }
     {
-        try testing.expectFmt("function Foo(address bar)", "{s}", .{
+        try testing.expectFmt("function Foo(address bar)", "{f}", .{
             Function{
                 .type = .function,
                 .name = "Foo",
@@ -64,7 +64,7 @@ test "Formatting" {
         });
     }
     {
-        try testing.expectFmt("function Foo(address bar) view", "{s}", .{
+        try testing.expectFmt("function Foo(address bar) view", "{f}", .{
             Function{
                 .type = .function,
                 .name = "Foo",
@@ -75,7 +75,7 @@ test "Formatting" {
         });
     }
     {
-        try testing.expectFmt("function Foo(address bar) pure returns (bool baz)", "{s}", .{
+        try testing.expectFmt("function Foo(address bar) pure returns (bool baz)", "{f}", .{
             Function{
                 .type = .function,
                 .name = "Foo",
@@ -88,7 +88,7 @@ test "Formatting" {
         });
     }
     {
-        try testing.expectFmt("function Foo((string[] foo, uint256 bar, (bytes[] fizz, bool buzz, int256[] jazz)[] baz) fizzbuzz)", "{s}", .{
+        try testing.expectFmt("function Foo((string[] foo, uint256 bar, (bytes[] fizz, bool buzz, int256[] jazz)[] baz) fizzbuzz)", "{f}", .{
             Function{
                 .type = .function,
                 .name = "Foo",
@@ -115,7 +115,7 @@ test "Formatting" {
         });
     }
     {
-        try testing.expectFmt("function Foo((string[] foo, uint256 bar, (bytes[] fizz, bool buzz, int256[] jazz)[] baz) fizzbuzz)", "{s}", .{
+        try testing.expectFmt("function Foo((string[] foo, uint256 bar, (bytes[] fizz, bool buzz, int256[] jazz)[] baz) fizzbuzz)", "{f}", .{
             AbiItem{
                 .abiFunction = .{
                     .type = .function,

@@ -7,7 +7,7 @@ const hashName = ens_utils.hashName;
 
 test "Namehash" {
     const hash = try hashName("zzabi.eth");
-    const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{&hash});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("0x5ebecd8698825286699948626f12835f42f21c118e164aba567ede63911000c8", hex);
@@ -19,7 +19,7 @@ test "EnsToBytes" {
         var buffer: [11]u8 = undefined;
         const bytes_read = convertEnsToBytes(buffer[0..], name);
 
-        const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(buffer[0..bytes_read])});
+        const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{buffer[0..bytes_read]});
         defer testing.allocator.free(hex);
 
         try testing.expectEqualStrings("0x057a7a6162690365746800", hex);
@@ -29,7 +29,7 @@ test "EnsToBytes" {
         var buffer: [15]u8 = undefined;
         const bytes_read = convertEnsToBytes(buffer[0..], name);
 
-        const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(buffer[0..bytes_read])});
+        const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{buffer[0..bytes_read]});
         defer testing.allocator.free(hex);
 
         try testing.expectEqualStrings("0x057a7a616269037a69670365746800", hex);
@@ -39,7 +39,7 @@ test "EnsToBytes" {
         var buffer: [68]u8 = undefined;
         const bytes_read = convertEnsToBytes(buffer[0..], name);
 
-        const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(buffer[0..bytes_read])});
+        const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{buffer[0..bytes_read]});
         defer testing.allocator.free(hex);
 
         try testing.expectEqualStrings("0x425b316462356632623439323936626434316439316462636130373938633335393764633036656561623166623661386437326235393233343264633762336133365d00", hex);
@@ -49,7 +49,7 @@ test "EnsToBytes" {
         var buffer: [68]u8 = undefined;
         const bytes_read = convertEnsToBytes(buffer[0..], name);
 
-        const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(buffer[0..bytes_read])});
+        const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{buffer[0..bytes_read]});
         defer testing.allocator.free(hex);
 
         try testing.expectEqualStrings("0x425b316462356632623439323936626434316439316462636130373938633335393764633036656561623166623661386437326235393233343264633762336133365d00", hex);

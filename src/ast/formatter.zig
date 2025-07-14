@@ -9,7 +9,7 @@ pub fn IndentingStream(comptime BaseWriter: type) type {
         const Self = @This();
 
         pub const WriterError = BaseWriter.Error;
-        pub const Writer = std.io.Writer(*Self, WriterError, write);
+        pub const Writer = std.io.GenericWriter(*Self, WriterError, write);
 
         /// The base writer for this wrapper
         base_writer: BaseWriter,

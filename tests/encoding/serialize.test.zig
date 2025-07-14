@@ -50,7 +50,7 @@ test "Base eip 7702" {
         }, null);
         defer testing.allocator.free(base);
 
-        const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+        const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{base});
         defer testing.allocator.free(hex);
 
         try testing.expectEqualStrings("04f8670180847735940084773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080c0f838da0194000000000000000000000000000000000000000045800101dc0a9400000000000000000000000000000000000000008201a4010101", hex);
@@ -93,7 +93,7 @@ test "Base eip 7702" {
         });
         defer testing.allocator.free(base);
 
-        const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+        const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{base});
         defer testing.allocator.free(hex);
 
         try testing.expectEqualStrings("04f86a0180847735940084773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080c0f838dc0194fba3912ca04dd458c843e2ee08967fc04f3579c28201a4800101da0a94000000000000000000000000000000000000000045010101010101", hex);
@@ -117,7 +117,7 @@ test "Base eip 4844" {
     }, null);
     defer testing.allocator.free(base);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{base});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("03f8500145847735940084773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080c080e1a00000000000000000000000000000000000000000000000000000000000000000", hex);
@@ -139,7 +139,7 @@ test "Base eip 1559" {
     }, null);
     defer testing.allocator.free(base);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{base});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("02ed0145847735940084773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080c0", hex);
@@ -160,7 +160,7 @@ test "Zero eip 1559" {
     }, null);
     defer testing.allocator.free(zero);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(zero)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{zero});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("02dd018080808094f39fd6e51aad88f6f4ce6ab8827279cfffb922668080c0", hex);
@@ -180,7 +180,7 @@ test "Minimal eip 1559" {
     }, null);
     defer testing.allocator.free(min);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(min)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{min});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("02c90180808080808080c0", hex);
@@ -201,7 +201,7 @@ test "Base eip1559 with gas" {
     }, null);
     defer testing.allocator.free(base);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{base});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("02ef01458477359400847735940082520994f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080c0", hex);
@@ -224,7 +224,7 @@ test "Base eip1559 with accessList" {
     }, null);
     defer testing.allocator.free(base);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{base});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("02f88b01458477359400847735940082520994f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080f85bf859940000000000000000000000000000000000000000f842a00000000000000000000000000000000000000000000000000000000000000001a00000000000000000000000000000000000000000000000000000000000000002", hex);
@@ -245,7 +245,7 @@ test "Base eip1559 with data" {
     }, null);
     defer testing.allocator.free(base);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{base});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("02f101458477359400847735940082520994f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a7640000821234c0", hex);
@@ -265,7 +265,7 @@ test "Base eip 2930" {
     }, null);
     defer testing.allocator.free(base);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{base});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("01e8014584773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080c0", hex);
@@ -285,7 +285,7 @@ test "Zero eip eip2930" {
     }, null);
     defer testing.allocator.free(zero);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(zero)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{zero});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("01dc0180808094f39fd6e51aad88f6f4ce6ab8827279cfffb922668080c0", hex);
@@ -295,7 +295,7 @@ test "Minimal eip 2930" {
     const min = try serializeTransactionEIP2930(testing.allocator, .{ .chainId = 1, .nonce = 0, .gasPrice = 0, .gas = 0, .to = null, .value = 0, .data = null, .accessList = &.{} }, null);
     defer testing.allocator.free(min);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(min)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{min});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("01c801808080808080c0", hex);
@@ -315,7 +315,7 @@ test "Base eip2930 with gas" {
     }, null);
     defer testing.allocator.free(base);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{base});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("01ea0145847735940082520994f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080c0", hex);
@@ -337,7 +337,7 @@ test "Base eip2930 with accessList" {
     }, null);
     defer testing.allocator.free(base);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{base});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("01f8860145847735940082520994f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080f85bf859940000000000000000000000000000000000000000f842a00000000000000000000000000000000000000000000000000000000000000001a00000000000000000000000000000000000000000000000000000000000000002", hex);
@@ -357,7 +357,7 @@ test "Base eip2930 with data" {
     }, null);
     defer testing.allocator.free(base);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{base});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("01ec0145847735940082520994f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a7640000821234c0", hex);
@@ -375,7 +375,7 @@ test "Base eip legacy" {
     }, null);
     defer testing.allocator.free(base);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{base});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("e64584773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080", hex);
@@ -393,7 +393,7 @@ test "Zero eip legacy" {
     }, null);
     defer testing.allocator.free(zero);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(zero)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{zero});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("da80808094f39fd6e51aad88f6f4ce6ab8827279cfffb922668080", hex);
@@ -410,7 +410,7 @@ test "Minimal eip legacy" {
     }, null);
     defer testing.allocator.free(min);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(min)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{min});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("c6808080808080", hex);
@@ -428,7 +428,7 @@ test "Base legacy with gas" {
     }, null);
     defer testing.allocator.free(base);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{base});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("e845847735940082520994f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080", hex);
@@ -446,7 +446,7 @@ test "Base legacy with data" {
     }, null);
     defer testing.allocator.free(base);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{base});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("ea45847735940082520994f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a7640000821234", hex);
@@ -466,7 +466,7 @@ test "Serialize Transaction Base" {
     }, null);
     defer testing.allocator.free(base_legacy);
 
-    const hex_legacy = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base_legacy)});
+    const hex_legacy = try std.fmt.allocPrint(testing.allocator, "{x}", .{base_legacy});
     defer testing.allocator.free(hex_legacy);
 
     try testing.expectEqualStrings("e64584773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080", hex_legacy);
@@ -485,7 +485,7 @@ test "Serialize Transaction Base" {
     }, null);
     defer testing.allocator.free(base_2930);
 
-    const hex_2930 = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base_2930)});
+    const hex_2930 = try std.fmt.allocPrint(testing.allocator, "{x}", .{base_2930});
     defer testing.allocator.free(hex_2930);
 
     try testing.expectEqualStrings("01e8014584773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080c0", hex_2930);
@@ -505,7 +505,7 @@ test "Serialize Transaction Base" {
     }, null);
     defer testing.allocator.free(base);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(base)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{base});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("02ed0145847735940084773594008094f39fd6e51aad88f6f4ce6ab8827279cfffb92266880de0b6b3a764000080c0", hex);
@@ -528,7 +528,7 @@ test "Serialize eip1559 with signature" {
     }, sig);
     defer testing.allocator.free(encoded);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{encoded});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("02f874827a6980847735940084773594008252099470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a764000080c001a0d4d68c02302962fa53289fda5616c9e19a9d63b3956d63d177097143b2093e3ea025e1dd76721b4fc48eb5e2f91bf9132699036deccd45b3fa9d77b1d9b7628fb2", hex);
@@ -550,7 +550,7 @@ test "Serialize eip2930 with signature" {
     }, sig);
     defer testing.allocator.free(encoded);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{encoded});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("01f86f827a698084773594008252099470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a764000080c001a0855b7b9d7f752dd108609930a5dd9ced9c131936d84d5c302a6a4edd0c50101aa075fc0c4af1cf18d5bf15a9960b1988d2fbf9ae6351a957dd572e95adbbf8c26f", hex);
@@ -571,7 +571,7 @@ test "Serialize legacy with signature" {
     }, sig);
     defer testing.allocator.free(encoded);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{encoded});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("f86d8084773594008252099470997970c51812dc3a010c7d01b50e0d17dc79c8880de0b6b3a76400008082f4f5a0a918ad4845f590df2667eceacdb621dcedf9c3efefd7f783d5f45840131c338da059a2e246acdab8cfdc51b764ec20e4a59ca1998d8a101dba01cd1cb34c1179a0", hex);

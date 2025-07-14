@@ -159,13 +159,16 @@ pub const Function = struct {
         return decoder.decodeAbiFunctionOutputs(T, allocator, encoded, options);
     }
     /// Format the struct into a human readable string.
-    pub fn format(self: @This(), comptime layout: []const u8, opts: std.fmt.FormatOptions, writer: anytype) @TypeOf(writer).Error!void {
+    pub fn format(
+        self: @This(),
+        writer: anytype,
+    ) std.Io.Writer.Error!void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
 
         try writer.print("(", .{});
         for (self.inputs, 0..) |input, i| {
-            try input.format(layout, opts, writer);
+            try input.format(writer);
             if (i != self.inputs.len - 1) try writer.print(", ", .{});
         }
         try writer.print(")", .{});
@@ -175,7 +178,7 @@ pub const Function = struct {
         if (self.outputs.len > 0) {
             try writer.print(" returns (", .{});
             for (self.outputs, 0..) |output, i| {
-                try output.format(layout, opts, writer);
+                try output.format(writer);
                 if (i != self.outputs.len - 1) try writer.print(", ", .{});
             }
             try writer.print(")", .{});
@@ -226,16 +229,14 @@ pub const Event = struct {
     /// Format the struct into a human readable string.
     pub fn format(
         self: @This(),
-        comptime layout: []const u8,
-        opts: std.fmt.FormatOptions,
         writer: anytype,
-    ) @TypeOf(writer).Error!void {
+    ) std.Io.Writer.Error!void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
 
         try writer.print("(", .{});
         for (self.inputs, 0..) |input, i| {
-            try input.format(layout, opts, writer);
+            try input.format(writer);
             if (i != self.inputs.len - 1) try writer.print(",", .{});
         }
         try writer.print(")", .{});
@@ -318,16 +319,14 @@ pub const Error = struct {
     /// Format the struct into a human readable string.
     pub fn format(
         self: @This(),
-        comptime layout: []const u8,
-        opts: std.fmt.FormatOptions,
         writer: anytype,
-    ) @TypeOf(writer).Error!void {
+    ) std.Io.Writer.Error!void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
 
         try writer.print("(", .{});
         for (self.inputs, 0..) |input, i| {
-            try input.format(layout, opts, writer);
+            try input.format(writer);
             if (i != self.inputs.len - 1) try writer.print(", ", .{});
         }
         try writer.print(")", .{});
@@ -409,15 +408,13 @@ pub const Constructor = struct {
     /// Format the struct into a human readable string.
     pub fn format(
         self: @This(),
-        comptime layout: []const u8,
-        opts: std.fmt.FormatOptions,
         writer: anytype,
-    ) @TypeOf(writer).Error!void {
+    ) std.Io.Writer.Error!void {
         try writer.print("{s}", .{@tagName(self.type)});
 
         try writer.print("(", .{});
         for (self.inputs, 0..) |input, i| {
-            try input.format(layout, opts, writer);
+            try input.format(writer);
             if (i != self.inputs.len - 1) try writer.print(", ", .{});
         }
         try writer.print(")", .{});
@@ -481,13 +478,8 @@ pub const Fallback = struct {
     /// Format the struct into a human readable string.
     pub fn format(
         self: @This(),
-        comptime layout: []const u8,
-        opts: std.fmt.FormatOptions,
         writer: anytype,
-    ) @TypeOf(writer).Error!void {
-        _ = opts;
-        _ = layout;
-
+    ) std.Io.Writer.Error!void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print("()", .{});
 
@@ -504,13 +496,8 @@ pub const Receive = struct {
     /// Format the struct into a human readable string.
     pub fn format(
         self: @This(),
-        comptime layout: []const u8,
-        opts: std.fmt.FormatOptions,
         writer: anytype,
-    ) @TypeOf(writer).Error!void {
-        _ = opts;
-        _ = layout;
-
+    ) std.Io.Writer.Error!void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print("() external ", .{});
 
@@ -563,12 +550,10 @@ pub const AbiItem = union(enum) {
 
     pub fn format(
         self: @This(),
-        comptime layout: []const u8,
-        opts: std.fmt.FormatOptions,
         writer: anytype,
-    ) @TypeOf(writer).Error!void {
+    ) std.Io.Writer.Error!void {
         switch (self) {
-            inline else => |value| try value.format(layout, opts, writer),
+            inline else => |value| try value.format(writer),
         }
     }
 };

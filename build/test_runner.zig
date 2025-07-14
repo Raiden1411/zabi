@@ -14,7 +14,7 @@ pub const std_options: Options = .{
 };
 
 /// Wraps the stderr with our color stream.
-const ColorWriterStream = ColorWriter(@TypeOf(std.io.getStdErr().writer()));
+const ColorWriterStream = ColorWriter(@TypeOf(std.fs.File.stderr().deprecatedWriter()));
 
 /// Struct that will contain the test results.
 const TestResults = struct {
@@ -46,7 +46,7 @@ const Runner = struct {
             self.color_stream.setNextColor(.bold);
             try self.color_stream.writer().writeAll("Test will run but client tests might fail\n\n");
 
-            std.time.sleep(std.time.ns_per_s);
+            std.Thread.sleep(std.time.ns_per_s);
         };
     }
     /// Writes the test module name.
@@ -135,7 +135,7 @@ pub fn main() !void {
     var runner: Runner = .{
         .color_stream = .{
             .color = .reset,
-            .underlaying_writer = std.io.getStdErr().writer(),
+            .underlaying_writer = std.fs.File.stderr().deprecatedWriter(),
         },
         .result = .{},
     };

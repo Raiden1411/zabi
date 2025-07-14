@@ -11,8 +11,9 @@ pub const kzg4844 = @import("c_kzg_4844");
 /// Multicall contract wrapper that exposes contract functions.
 pub const multicall = @import("multicall.zig");
 
-/// non blocking enabled implementation of some of zabi's readers/clients.
-pub const non_blocking = @import("async/root.zig");
+// TODO: Readd this once it updates zig
+// /// non blocking enabled implementation of some of zabi's readers/clients.
+// pub const non_blocking = @import("async/root.zig");
 
 /// Network config for different type of chains and associated contracts.
 pub const network = @import("network.zig");

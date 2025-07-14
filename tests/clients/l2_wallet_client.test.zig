@@ -9,7 +9,7 @@ const L2WalletClient = @import("zabi").superchain.l2_wallet_client.L2WalletClien
 const WithdrawalEnvelope = withdrawl.WithdrawalEnvelope;
 
 test "PrepareWithdrawalProofTransaction" {
-    std.time.sleep(std.time.ns_per_ms * 500);
+    std.Thread.sleep(std.time.ns_per_ms * 500);
 
     const uri = try std.Uri.parse("http://localhost:6970/");
     var buffer_hex: Hash = undefined;
@@ -83,7 +83,7 @@ test "PrepareWithdrawalProofTransaction" {
 }
 
 test "ProveWithdrawal" {
-    std.time.sleep(std.time.ns_per_ms * 500);
+    std.Thread.sleep(std.time.ns_per_ms * 500);
 
     const uri = try std.Uri.parse("http://localhost:6970/");
     var buffer_hex: Hash = undefined;
@@ -133,7 +133,7 @@ test "ProveWithdrawal" {
 }
 
 test "FinalizeWithdrawal" {
-    std.time.sleep(std.time.ns_per_ms * 500);
+    std.Thread.sleep(std.time.ns_per_ms * 500);
 
     const uri = try std.Uri.parse("http://localhost:6970/");
     var buffer_hex: Hash = undefined;

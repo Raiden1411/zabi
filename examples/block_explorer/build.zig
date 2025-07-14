@@ -6,11 +6,14 @@ pub fn build(b: *std.Build) void {
 
     _ = b.addModule("explorer_example", .{ .root_source_file = b.path("explorer.zig") });
 
-    const exe = b.addExecutable(.{
-        .name = "explorer_example",
+    const module = b.createModule(.{
         .root_source_file = b.path("explorer.zig"),
         .target = target,
         .optimize = optimize,
+    });
+    const exe = b.addExecutable(.{
+        .name = "explorer_example",
+        .root_module = module,
     });
 
     addDependencies(b, exe);

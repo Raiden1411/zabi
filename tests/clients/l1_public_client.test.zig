@@ -167,7 +167,7 @@ test "Portal Version" {
 
     const version = try op.getPortalVersion();
 
-    try testing.expectEqual(version.major, 3);
+    try testing.expectEqual(version.major, 4);
 }
 
 test "Get Games" {

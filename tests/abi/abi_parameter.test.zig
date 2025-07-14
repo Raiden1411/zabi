@@ -206,10 +206,10 @@ test "Prepare" {
 test "Format" {
     {
         const param: AbiEventParameter = .{ .type = .{ .tuple = {} }, .name = "foo", .indexed = false, .components = &.{.{ .type = .{ .address = {} }, .name = "bar" }} };
-        try testing.expectFmt("(address bar) foo", "{s}", .{param});
+        try testing.expectFmt("(address bar) foo", "{f}", .{param});
     }
     {
         const param: AbiParameter = .{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .address = {} }, .name = "bar" }} };
-        try testing.expectFmt("(address bar) foo", "{s}", .{param});
+        try testing.expectFmt("(address bar) foo", "{f}", .{param});
     }
 }

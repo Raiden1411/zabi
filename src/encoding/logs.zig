@@ -203,7 +203,10 @@ pub fn AbiLogTopicsEncoder(comptime event: AbiEvent) type {
         const Self = @This();
 
         /// The hash of the event used as the first log topic.
-        const hash = event.encode() catch @compileError("Event signature higher than 256 bits!");
+        const hash = blk: {
+            @setEvalBranchQuota(10000);
+            break :blk event.encode() catch @compileError("Event signature higher than 256 bits!");
+        };
 
         /// Compile time generation of indexed AbiEventParameters`.
         const indexed_params = indexed: {

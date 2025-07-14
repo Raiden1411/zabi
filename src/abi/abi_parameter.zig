@@ -37,7 +37,7 @@ pub const AbiParameter = struct {
         const encoded = try encoder.encodeAbiParameters(allocator, &.{self}, values);
         defer encoded.deinit();
 
-        const hexed = try std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded.data)});
+        const hexed = try std.fmt.allocPrint(allocator, "{x}", .{encoded});
 
         return hexed;
     }
@@ -63,14 +63,12 @@ pub const AbiParameter = struct {
     /// Format the struct into a human readable string.
     pub fn format(
         self: @This(),
-        comptime layout: []const u8,
-        opts: std.fmt.FormatOptions,
         writer: anytype,
-    ) @TypeOf(writer).Error!void {
+    ) std.Io.Writer.Error!void {
         if (self.components) |components| {
             try writer.print("(", .{});
             for (components, 0..) |component, i| {
-                try component.format(layout, opts, writer);
+                try component.format(writer);
                 if (i != components.len - 1) try writer.print(", ", .{});
             }
             try writer.print(")", .{});
@@ -110,14 +108,12 @@ pub const AbiEventParameter = struct {
     /// Format the struct into a human readable string.
     pub fn format(
         self: @This(),
-        comptime layout: []const u8,
-        opts: std.fmt.FormatOptions,
         writer: anytype,
-    ) @TypeOf(writer).Error!void {
+    ) std.Io.Writer.Error!void {
         if (self.components) |components| {
             try writer.print("(", .{});
             for (components, 0..) |component, i| {
-                try component.format(layout, opts, writer);
+                try component.format(writer);
                 if (i != components.len - 1) try writer.print(", ", .{});
             }
             try writer.print(")", .{});

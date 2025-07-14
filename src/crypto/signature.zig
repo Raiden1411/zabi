@@ -49,7 +49,7 @@ pub const EthereumSchnorrSignature = struct {
     pub fn toHex(sig: EthereumSchnorrSignature, allocator: Allocator) Allocator.Error![]u8 {
         const bytes = sig.toBytes();
 
-        return std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});
+        return std.fmt.allocPrint(allocator, "{x}", .{bytes[0..]});
     }
     /// Converts a hex signature into it's struct representation.
     pub fn fromHex(hex: []const u8) error{
@@ -100,7 +100,7 @@ pub const CompressedEthereumSchnorrSignature = struct {
     pub fn toHex(sig: EthereumSchnorrSignature, allocator: Allocator) Allocator.Error![]u8 {
         const bytes = sig.toBytes();
 
-        return std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});
+        return std.fmt.allocPrint(allocator, "{x}", .{bytes[0..]});
     }
     /// Converts a hex signature into it's struct representation.
     pub fn fromHex(hex: []const u8) error{
@@ -148,7 +148,7 @@ pub const SchnorrSignature = struct {
     pub fn toHex(sig: SchnorrSignature, allocator: Allocator) Allocator.Error![]u8 {
         const bytes = sig.toBytes();
 
-        return std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});
+        return std.fmt.allocPrint(allocator, "{x}", .{bytes[0..]});
     }
     /// Converts a hex signature into it's struct representation.
     pub fn fromHex(hex: []const u8) error{
@@ -204,7 +204,7 @@ pub const Signature = struct {
     pub fn toHex(sig: Signature, allocator: Allocator) Allocator.Error![]u8 {
         const bytes = sig.toBytes();
 
-        return std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});
+        return std.fmt.allocPrint(allocator, "{x}", .{bytes[0..]});
     }
     /// Converts a hex signature into it's struct representation.
     pub fn fromHex(hex: []const u8) error{
@@ -270,7 +270,7 @@ pub const CompactSignature = struct {
     pub fn toHex(sig: CompactSignature, allocator: Allocator) Allocator.Error![]u8 {
         const bytes = sig.toBytes();
 
-        return std.fmt.allocPrint(allocator, "{s}", .{std.fmt.fmtSliceHexLower(bytes[0..])});
+        return std.fmt.allocPrint(allocator, "{x}", .{bytes[0..]});
     }
     /// Converts a hex signature into it's struct representation.
     pub fn fromHex(hex: []const u8) error{

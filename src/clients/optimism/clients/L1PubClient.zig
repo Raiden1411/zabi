@@ -455,11 +455,11 @@ pub fn L1Client(comptime client_type: Clients) type {
                 if (i == games.len)
                     break;
 
-                const time = try std.math.sub(i64, @intCast(games[i].timestamp), @intCast(game.timestamp));
-                const block = try std.math.sub(i64, @intCast(games[i].l2BlockNumber), @intCast(game.l2BlockNumber));
+                const time = try std.math.sub(i128, @intCast(games[i].timestamp), @intCast(game.timestamp));
+                const block = try std.math.sub(i128, @intCast(games[i].l2BlockNumber), @intCast(game.l2BlockNumber));
 
-                elapsed_time = elapsed_time - (time - block);
-                block_interval = block_interval - block;
+                elapsed_time = @intCast(elapsed_time - (time - block));
+                block_interval = @intCast(block_interval - block);
             }
 
             elapsed_time = try std.math.divCeil(isize, elapsed_time, @intCast(games.len - 1));
@@ -603,7 +603,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             GameNotFound,
         })!GameResult {
             const timings = try self.getSecondsUntilNextGame(interval_buffer, l2BlockNumber);
-            std.time.sleep(@intCast(timings.seconds * std.time.ns_per_s));
+            std.Thread.sleep(@intCast(timings.seconds * std.time.ns_per_s));
 
             var retries: usize = 0;
             const game: GameResult = while (true) : (retries += 1) {
@@ -614,7 +614,7 @@ pub fn L1Client(comptime client_type: Clients) type {
                     error.EvmFailedToExecute,
                     error.GameNotFound,
                     => {
-                        std.time.sleep(self.rpc_client.network_config.pooling_interval);
+                        std.Thread.sleep(self.rpc_client.network_config.pooling_interval);
                         continue;
                     },
                     else => return err,
@@ -637,7 +637,7 @@ pub fn L1Client(comptime client_type: Clients) type {
             GameNotFound,
         })!L2Output {
             const time = try self.getSecondsToNextL2Output(latest_l2_block);
-            std.time.sleep(@intCast(time * 1000));
+            std.Thread.sleep(@intCast(time * 1000));
 
             var retries: usize = 0;
             const l2_output = while (true) : (retries += 1) {
@@ -646,7 +646,7 @@ pub fn L1Client(comptime client_type: Clients) type {
 
                 const output = self.getL2Output(latest_l2_block) catch |err| switch (err) {
                     error.EvmFailedToExecute => {
-                        std.time.sleep(self.rpc_client.network_config.retries);
+                        std.Thread.sleep(self.rpc_client.network_config.retries);
                         continue;
                     },
                     else => return err,
@@ -668,12 +668,12 @@ pub fn L1Client(comptime client_type: Clients) type {
 
             if (version.major < 3) {
                 const time = try self.getSecondsToFinalize(withdrawal_hash);
-                std.time.sleep(time * 1000);
+                std.Thread.sleep(time * 1000);
                 return;
             }
 
             const time = try self.getSecondsToFinalizeGame(withdrawal_hash);
-            std.time.sleep(time * 1000);
+            std.Thread.sleep(time * 1000);
         }
     };
 }

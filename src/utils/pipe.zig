@@ -34,4 +34,4 @@ pub fn maybeIgnoreSigpipe() void {
     }
 }
 
-fn noopSigHandler(_: c_int) callconv(.C) void {}
+fn noopSigHandler(_: c_int) callconv(.c) void {}

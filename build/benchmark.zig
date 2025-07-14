@@ -8,7 +8,7 @@ const PriorityDequeue = std.PriorityDequeue;
 const TestFn = std.builtin.TestFn;
 
 /// Wraps the stderr with our color stream.
-const ColorWriterStream = ColorWriter(@TypeOf(std.io.getStdErr().writer()));
+const ColorWriterStream = ColorWriter(@TypeOf(std.fs.File.stderr().deprecatedWriter()));
 
 /// Custom benchmark runner that pretty prints all of the taken measurements.
 /// Heavily inspired by [poop](https://github.com/andrewrk/poop/tree/main)
@@ -74,7 +74,7 @@ pub fn BenchmarkRunner(
             return .{
                 .color_stream = .{
                     .color = .reset,
-                    .underlaying_writer = std.io.getStdErr().writer(),
+                    .underlaying_writer = std.fs.File.stderr().deprecatedWriter(),
                 },
                 .dequeue = queue,
             };
@@ -133,7 +133,7 @@ pub fn BenchmarkRunner(
         /// Gets the col size of the terminal.
         pub fn getColTerminalSize() usize {
             var winsize: Winsize = undefined;
-            _ = std.os.linux.ioctl(std.io.getStdErr().handle, TIOCGWINSZ, @intFromPtr(&winsize));
+            _ = std.os.linux.ioctl(std.fs.File.stderr().handle, TIOCGWINSZ, @intFromPtr(&winsize));
 
             return @intCast(winsize.ws_col);
         }

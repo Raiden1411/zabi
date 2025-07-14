@@ -58,7 +58,7 @@ pub const HDWalletNode = struct {
     ///
     /// const node = try HDWalletNode.fromSeedAndPath(hashed, "m/44'/60'/0'/0/0");
     ///
-    /// const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&node.priv_key)});
+    /// const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{&node.priv_key});
     /// defer testing.allocator.free(hex);
     ///
     /// try testing.expectEqualStrings("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", hex);

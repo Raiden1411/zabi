@@ -34,7 +34,7 @@ pub fn main() !void {
     };
 
     // wait 5 seconds for autobanh server to be up
-    std.time.sleep(std.time.ns_per_s * 1);
+    std.Thread.sleep(std.time.ns_per_s * 1);
 
     for (cases, 0..) |case, i| {
         std.debug.print("running case: {s}\n", .{case});

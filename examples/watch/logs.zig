@@ -33,9 +33,6 @@ pub fn main() !void {
     defer id.deinit();
 
     std.debug.print("Sub id: 0x{x}\n", .{id.response});
-    // There is currently a bug on the tls client that will cause index out of bound errors
-    // https://github.com/ziglang/zig/issues/15226
-    // Make sure that for now the data you are using is not big enough to cause these crashes.
     while (true) {
         const event = try socket.getLogsSubEvent();
         defer event.deinit();
@@ -46,8 +43,8 @@ pub fn main() !void {
         const topics = try decoder.logs_decoder.decodeLogs(struct { [32]u8, [20]u8, [20]u8 }, event.response.params.result.topics, .{});
 
         std.debug.print("Transfer event found. Value transfered: {d} dollars\n", .{value.result / 1000000});
-        std.debug.print("From: 0x{s}\n", .{std.fmt.fmtSliceHexLower(&topics[1])});
-        std.debug.print("To: 0x{s}\n", .{std.fmt.fmtSliceHexLower(&topics[2])});
+        std.debug.print("From: 0x{x}\n", .{&topics[1]});
+        std.debug.print("To: 0x{x}\n", .{&topics[2]});
     }
 
     const unsubed = try socket.unsubscribe(id.response);

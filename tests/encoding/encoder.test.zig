@@ -315,7 +315,7 @@ test "Constructor" {
     const encoded = try constructor.encode(testing.allocator, .{true});
     defer testing.allocator.free(encoded);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{encoded});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("0000000000000000000000000000000000000000000000000000000000000001", hex);
@@ -335,7 +335,7 @@ test "Constructor multi params" {
     const encoded = try constructor.encode(testing.allocator, .{ true, fizz });
     defer testing.allocator.free(encoded);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{encoded});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", hex);
@@ -355,7 +355,7 @@ test "Error signature" {
     const encoded = try err.encode(testing.allocator, .{ true, fizz });
     defer testing.allocator.free(encoded);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{encoded});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("65c9c0c100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", hex);
@@ -374,7 +374,7 @@ test "Event signature" {
 
     const encoded = try event.encode();
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&encoded)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{&encoded});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", hex);
@@ -393,7 +393,7 @@ test "Event signature non indexed" {
 
     const encoded = try event.encode();
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&encoded)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{&encoded});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", hex);
@@ -415,7 +415,7 @@ test "Function" {
     const encoded = try func.encode(testing.allocator, .{ true, fizz });
     defer testing.allocator.free(encoded);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{encoded});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("65c9c0c100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", hex);
@@ -437,7 +437,7 @@ test "Function outputs" {
     const encoded = try func.encodeOutputs(testing.allocator, .{1});
     defer testing.allocator.free(encoded);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{encoded});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("0000000000000000000000000000000000000000000000000000000000000001", hex);
@@ -461,7 +461,7 @@ test "AbiItem" {
     const encoded = try func.abiFunction.encode(testing.allocator, .{ true, fizz });
     defer testing.allocator.free(encoded);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{encoded});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("65c9c0c100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000866697a7a62757a7a000000000000000000000000000000000000000000000000", hex);
@@ -471,7 +471,7 @@ fn testEncode(expected: []const u8, comptime params: []const AbiParameter, value
     const encoded = try encodeAbiParameters(params, testing.allocator, values);
     defer testing.allocator.free(encoded);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{encoded});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings(expected, hex);
@@ -481,7 +481,7 @@ fn testEncodeRuntime(expected: []const u8, values: []const AbiEncodedValues) !vo
     const encoded = try encodeAbiParametersValues(testing.allocator, values);
     defer testing.allocator.free(encoded);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{encoded});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings(expected, hex);
@@ -491,7 +491,7 @@ fn testEncodeReflection(expected: []const u8, values: anytype) !void {
     const encoded = try encodeAbiParametersFromReflection(testing.allocator, values);
     defer testing.allocator.free(encoded);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{encoded});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings(expected, hex);
@@ -501,7 +501,7 @@ fn testEncodePacked(expected: []const u8, value: anytype) !void {
     const encoded = try encodePacked(testing.allocator, value);
     defer testing.allocator.free(encoded);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(encoded)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{encoded});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings(expected, hex);

@@ -29,7 +29,7 @@ test "HashAuthorization" {
 
     const message = try wallet.hashAuthorityEip7702(try utils.addressToBytes("0x90F79bf6EB2c4f870365E785982E1f101E93b906"), 69);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(&message)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{&message});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings(hex, "5daf8ca195709ae5c4f081a74786f87dbce7ab39130624532d52a47ad2627181");
@@ -89,7 +89,7 @@ test "AuthMessage" {
         const message = try wallet.authMessageEip3074([_]u8{0} ** 20, null, hash);
         defer testing.allocator.free(message);
 
-        const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(message)});
+        const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{message});
         defer testing.allocator.free(hex);
 
         // try testing.expectEqualStrings(hex, "040000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000033800000000000000000000000000000000000000000000000000000000000000003ea2f1d0abf3fc66cf29eebb70cbd4e7fe762ef8a09bcc06c8edf641230afec0");
@@ -112,7 +112,7 @@ test "AuthMessage" {
         const message = try wallet.authMessageEip3074([_]u8{0} ** 20, null, hash);
         defer testing.allocator.free(message);
 
-        const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(message)});
+        const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{message});
         defer testing.allocator.free(hex);
 
         // try testing.expectEqualStrings(hex, "040000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000033800000000000000000000000000000000000000000000000000000000000000003ea2f1d0abf3fc66cf29eebb70cbd4e7fe762ef8a09bcc06c8edf641230afec0");
@@ -140,7 +140,7 @@ test "AuthMessage" {
         const message = try wallet.authMessageEip3074([_]u8{0} ** 20, 69, hash);
         defer testing.allocator.free(message);
 
-        const hex = try std.fmt.allocPrint(testing.allocator, "{s}", .{std.fmt.fmtSliceHexLower(message)});
+        const hex = try std.fmt.allocPrint(testing.allocator, "{x}", .{message});
         defer testing.allocator.free(hex);
 
         // try testing.expectEqualStrings(hex, "040000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000004500000000000000000000000000000000000000000000000000000000000000003ea2f1d0abf3fc66cf29eebb70cbd4e7fe762ef8a09bcc06c8edf641230afec0");

@@ -6,11 +6,14 @@ pub fn build(b: *std.Build) void {
 
     _ = b.addModule("interpreter_example", .{ .root_source_file = b.path("interpreter.zig") });
 
-    const exe = b.addExecutable(.{
-        .name = "interpreter_example",
+    const module = b.createModule(.{
         .root_source_file = b.path("interpreter.zig"),
         .target = target,
         .optimize = optimize,
+    });
+    const exe = b.addExecutable(.{
+        .name = "interpreter_example",
+        .root_module = module,
     });
 
     addDependencies(b, exe);

@@ -7,22 +7,25 @@ pub fn build(b: *std.Build) void {
     _ = b.addModule("watch_example", .{ .root_source_file = b.path("watch.zig") });
     _ = b.addModule("logs_example", .{ .root_source_file = b.path("logs.zig") });
 
-    const exe = b.addExecutable(.{
-        .name = "watch_example",
+    const module_watch = b.createModule(.{
         .root_source_file = b.path("watch.zig"),
         .target = target,
         .optimize = optimize,
+    });
+    const exe = b.addExecutable(.{
+        .name = "watch_example",
+        .root_module = module_watch,
     });
 
     addDependencies(b, exe);
     b.installArtifact(exe);
 
-    const exe_logs = b.addExecutable(.{
-        .name = "logs_example",
+    const module_logs = b.createModule(.{
         .root_source_file = b.path("logs.zig"),
         .target = target,
         .optimize = optimize,
     });
+    const exe_logs = b.addExecutable(.{ .name = "logs_example", .root_module = module_logs });
 
     addDependencies(b, exe_logs);
     b.installArtifact(exe_logs);

@@ -262,11 +262,15 @@ fn buildTestOrCoverage(
 
     // Builds and runs the main tests of zabi.
     {
-        const lib_unit_tests = b.addTest(.{
-            .name = "zabi-tests",
+        const lib_unit_tests_mod = b.createModule(.{
             .root_source_file = b.path("tests/root.zig"),
             .target = target,
             .optimize = optimize,
+        });
+        const lib_unit_tests = b.addTest(.{
+            .name = "zabi-tests",
+            .root_module = lib_unit_tests_mod,
+
             .test_runner = .{
                 .path = b.path("build/test_runner.zig"),
                 .mode = .simple,
@@ -286,11 +290,14 @@ fn buildTestOrCoverage(
 
     // Build and run coverage test runner if `zig build coverage` was ran
     {
-        const coverage_lib_unit_tests = b.addTest(.{
-            .name = "zabi-tests-coverage",
-            .root_source_file = b.path("tests/root_benchmark.zig"),
+        const coverage_lib_tests_mod = b.createModule(.{
+            .root_source_file = b.path("tests/root.zig"),
             .target = target,
             .optimize = optimize,
+        });
+        const coverage_lib_unit_tests = b.addTest(.{
+            .name = "zabi-tests-coverage",
+            .root_module = coverage_lib_tests_mod,
             .test_runner = .{
                 .path = b.path("build/test_runner.zig"),
                 .mode = .simple,
@@ -337,11 +344,14 @@ fn buildWasm(b: *std.Build, module: *std.Build.Module) void {
         }),
     };
 
-    const wasm = b.addExecutable(.{
-        .name = "zabi_wasm",
+    const wasm_mod = b.createModule(.{
         .root_source_file = b.path("src/root_wasm.zig"),
         .target = b.resolveTargetQuery(wasm_crosstarget),
         .optimize = .ReleaseSmall,
+    });
+    const wasm = b.addExecutable(.{
+        .name = "zabi_wasm",
+        .root_module = wasm_mod,
     });
     wasm.root_module.addImport("zabi", module);
 
@@ -373,16 +383,16 @@ fn addDependencies(
         .optimize = optimize,
     });
 
-    const aio = b.dependency("aio", .{
-        .target = target,
-        .optimize = optimize,
-    });
+    // const aio = b.dependency("aio", .{
+    //     .target = target,
+    //     .optimize = optimize,
+    // });
 
     mod.addImport("c_kzg_4844", c_kzg_4844_dep.module("c_kzg_4844"));
     mod.linkLibrary(c_kzg_4844_dep.artifact("c_kzg_4844"));
 
-    mod.addImport("aio", aio.module("aio"));
-    mod.addImport("coro", aio.module("coro"));
+    // mod.addImport("aio", aio.module("aio"));
+    // mod.addImport("coro", aio.module("coro"));
 }
 /// Builds and runs the benchmarks
 fn buildBenchmark(
@@ -391,11 +401,14 @@ fn buildBenchmark(
     optimize: std.builtin.OptimizeMode,
     dependency: *std.Build.Module,
 ) void {
-    const bench = b.addTest(.{
-        .name = "benchmark",
+    const bench_mod = b.createModule(.{
         .root_source_file = b.path("tests/root_benchmark.zig"),
         .target = target,
         .optimize = optimize,
+    });
+    const bench = b.addTest(.{
+        .name = "benchmark",
+        .root_module = bench_mod,
         .test_runner = .{
             .path = b.path("build/benchmark.zig"),
             .mode = .simple,
@@ -431,12 +444,16 @@ fn buildExamples(
 
     inline for (examples) |example| {
         const index = std.mem.lastIndexOfScalar(u8, example, '/').?;
-        const example_exe = b.addExecutable(.{
-            // example name -> filename - .zig extension
-            .name = example[index + 1 .. example.len - 4],
+
+        const example_mod = b.createModule(.{
             .root_source_file = b.path(example),
             .target = target,
             .optimize = optimize,
+        });
+        const example_exe = b.addExecutable(.{
+            // example name -> filename - .zig extension
+            .name = example[index + 1 .. example.len - 4],
+            .root_module = example_mod,
         });
         example_exe.root_module.addImport("zabi", dependency);
         addDependencies(b, example_exe.root_module, target, optimize);
@@ -447,12 +464,15 @@ fn buildExamples(
 }
 /// Builds and runs a runner to generate documentation based on the `doc_comments` tokens in the codebase.
 fn buildDocs(b: *std.Build, target: std.Build.ResolvedTarget) void {
-    const docs = b.addExecutable(.{
-        .name = "docs",
+    const docs_mod = b.createModule(.{
         .root_source_file = b.path("build/docs_generate.zig"),
         .target = target,
         .optimize = .ReleaseFast,
         .link_libc = true,
+    });
+    const docs = b.addExecutable(.{
+        .name = "docs",
+        .root_module = docs_mod,
     });
 
     var docs_run = b.addRunArtifact(docs);

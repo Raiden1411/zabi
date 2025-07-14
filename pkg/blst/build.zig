@@ -15,7 +15,15 @@ pub fn build(b: *std.Build) !void {
 }
 
 fn buildBlst(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !*std.Build.Step.Compile {
-    const lib = b.addStaticLibrary(.{ .name = "blst", .target = target, .optimize = optimize });
+    const mod = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+    });
+    const lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "blst",
+        .root_module = mod,
+    });
 
     lib.addIncludePath(upstream.path("src"));
     lib.addIncludePath(upstream.path("build"));

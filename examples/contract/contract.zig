@@ -59,7 +59,7 @@ pub fn main() !void {
         inline else => |tx_receipt| tx_receipt.transactionHash,
     };
 
-    std.debug.print("Transaction receipt: {s}", .{std.fmt.fmtSliceHexLower(&hash)});
+    std.debug.print("Transaction receipt: {x}", .{&hash});
 
     const balance = try contract.readContractFunction(u256, "balanceOf", .{contract.wallet.getWalletAddress()}, .{
         .london = .{

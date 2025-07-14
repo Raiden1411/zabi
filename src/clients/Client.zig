@@ -211,7 +211,7 @@ pub fn connectRpcServer(self: *PubClient) error{ InvalidEndpointConfig, Unsuppor
             0...2 => {},
             else => {
                 const sleep_timing: u64 = @min(10_000, self.network_config.pooling_interval * retries);
-                std.time.sleep(sleep_timing * std.time.ns_per_ms);
+                std.Thread.sleep(sleep_timing * std.time.ns_per_ms);
             },
         }
 
@@ -794,7 +794,7 @@ pub fn getSha3Hash(
     self: *PubClient,
     message: []const u8,
 ) (BasicRequestErrors || error{ InvalidCharacter, InvalidLength })!RPCResponse(Hash) {
-    const message_hex = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(message)});
+    const message_hex = try std.fmt.allocPrint(self.allocator, "0x{x}", .{message});
     defer self.allocator.free(message_hex);
 
     const request: EthereumRequest(struct { []const u8 }) = .{
@@ -1409,7 +1409,7 @@ pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash
                 break;
             } else {
                 valid_confirmations += 1;
-                std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+                std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
                 continue;
             }
         }
@@ -1418,7 +1418,7 @@ pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash
             tx = self.getTransactionByHash(tx_hash) catch |err| switch (err) {
                 // If it fails we keep trying
                 error.TransactionNotFound => {
-                    std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+                    std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
                     continue;
                 },
                 else => return err,
@@ -1444,14 +1444,14 @@ pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash
 
                 const block_transactions = switch (current_block.response) {
                     inline else => |blocks| if (blocks.transactions) |block_txs| block_txs else {
-                        std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+                        std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
                         continue;
                     },
                 };
 
                 const pending_transaction = switch (block_transactions) {
                     .hashes => {
-                        std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+                        std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
                         continue;
                     },
                     .objects => |tx_objects| tx_objects,
@@ -1498,7 +1498,7 @@ pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash
                         break;
                 }
 
-                std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+                std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
                 continue;
             },
             else => return err,
@@ -1513,7 +1513,7 @@ pub fn waitForTransactionReceiptType(self: *PubClient, comptime T: type, tx_hash
             break;
         } else {
             valid_confirmations += 1;
-            std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+            std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
             continue;
         }
     }
@@ -1578,7 +1578,7 @@ pub fn sendRpcRequest(
                 // Clears any message that was written
                 body.shrinkRetainingCapacity(0);
 
-                std.time.sleep(std.time.ns_per_ms * backoff);
+                std.Thread.sleep(std.time.ns_per_ms * backoff);
                 continue;
             },
             else => {

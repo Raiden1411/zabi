@@ -62,7 +62,7 @@ pub fn ColorWriter(comptime UnderlayingWriter: type) type {
         /// Set of possible errors from this writer.
         pub const Error = UnderlayingWriter.Error;
 
-        const Writer = std.io.Writer(*Self, Error, write);
+        const Writer = std.io.GenericWriter(*Self, Error, write);
         const Self = @This();
 
         /// The writer that we will use to write to.

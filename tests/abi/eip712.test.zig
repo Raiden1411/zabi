@@ -28,7 +28,7 @@ test "With Message" {
         .contents = "Hello, Bob!",
     });
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{hash});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("0xc52c0ee5d84264471806290a3f2c4cecfc5490626bf912d01f240d7a274b371e", hex);
@@ -61,7 +61,7 @@ test "With Domain" {
 
     const hash = try hashStruct(testing.allocator, types, "EIP712Domain", domain);
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{hash});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("0xf2cee375fa42b42143804025fc449deafd50cc031ca257e0b194a650a912090f", hex);
@@ -69,7 +69,7 @@ test "With Domain" {
 
 test "EIP712 Minimal" {
     const hash = try hashTypedData(testing.allocator, .{ .EIP712Domain = .{} }, "EIP712Domain", .{}, .{});
-    const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{hash});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("0x8d4a3f4082945b7879e2b55f181c31a77c8c0a464b70669458abbaaf99de4c38", hex);
@@ -112,7 +112,7 @@ test "EIP712 Example" {
         .contents = "Hello, Bob!",
     });
 
-    const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{hash});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("0xbe609aee343fb3c4b28e1df9e632fca64fcfaede20f02e86244efddf30957bd2", hex);
@@ -176,7 +176,7 @@ test "EIP712 Complex" {
     };
 
     const hash = try hashTypedData(testing.allocator, types, "Mail", domain, message);
-    const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{hash});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("0x9a74cb859ad30835ffb2da406423233c212cf6dd78e6c2c98b0c9289568954ae", hex);
@@ -229,7 +229,7 @@ test "EIP712 Complex empty domain data" {
     };
 
     const hash = try hashTypedData(testing.allocator, types, "Mail", .{}, message);
-    const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{hash});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("0x14ed1dbbfecbe5de3919f7ea47daafdf3a29dfbb60dd88d85509f79773d503a5", hex);
@@ -282,7 +282,7 @@ test "EIP712 Complex null domain data" {
     };
 
     const hash = try hashTypedData(testing.allocator, types, "Mail", null, message);
-    const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{hash});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("0xad520b9936265259bb247eb16258d7b59c02dca1b278c7590f19d5ee03d362e8", hex);
@@ -337,7 +337,7 @@ test "EIP712 Complex empty domain name" {
     };
 
     const hash = try hashTypedData(testing.allocator, types, "Mail", .{ .name = "" }, message);
-    const hex = try std.fmt.allocPrint(testing.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(&hash)});
+    const hex = try std.fmt.allocPrint(testing.allocator, "0x{x}", .{hash});
     defer testing.allocator.free(hex);
 
     try testing.expectEqualStrings("0xc3f4f9ebd774352940f60aebbc83fcee20d0b17eb42bd1b20c91a748001ecb53", hex);

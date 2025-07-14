@@ -210,7 +210,8 @@ fn failWithMessage(
     assert(@typeInfo(@TypeOf(values)) == .@"struct");
     assert(@typeInfo(@TypeOf(values)).@"struct".is_tuple);
 
-    const stderr = std.io.getStdErr().writer();
-    stderr.print("Failed with message: " ++ message ++ "\n", values) catch {};
+    const stderr = std.fs.File.stderr();
+    stderr.writeAll("Failed with message: ") catch {};
+    stderr.writeAll(message) catch {};
     std.posix.exit(1);
 }

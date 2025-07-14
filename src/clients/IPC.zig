@@ -223,7 +223,7 @@ pub fn connect(
             0...2 => {},
             else => {
                 const sleep_timing: u64 = @min(5_000, self.network_config.pooling_interval * retries);
-                std.time.sleep(sleep_timing * std.time.ns_per_ms);
+                std.Thread.sleep(sleep_timing * std.time.ns_per_ms);
             },
         }
 
@@ -1373,7 +1373,7 @@ pub fn sendRpcRequest(
                         const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
                         ipclog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
-                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        std.Thread.sleep(std.time.ns_per_ms * backoff);
                         continue;
                     },
                     else => return err,
@@ -1578,7 +1578,7 @@ pub fn waitForTransactionReceiptType(self: *IPC, comptime T: type, tx_hash: Hash
             } else {
                 valid_confirmations += 1;
                 retries += 1;
-                std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+                std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
                 continue;
             }
         }
@@ -1681,7 +1681,7 @@ pub fn waitForTransactionReceiptType(self: *IPC, comptime T: type, tx_hash: Hash
             break;
         } else {
             valid_confirmations += 1;
-            std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+            std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
             retries += 1;
             continue;
         }
@@ -1718,7 +1718,7 @@ fn handleErrorEvent(
             const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
             ipclog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
-            std.time.sleep(std.time.ns_per_ms * backoff);
+            std.Thread.sleep(std.time.ns_per_ms * backoff);
         },
         else => return err,
     }

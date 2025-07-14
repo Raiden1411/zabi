@@ -198,7 +198,7 @@ pub fn connect(self: *WebSocketHandler) ConnectionErrors!WsClient {
             0...2 => {},
             else => {
                 const sleep_timing: u64 = @min(5_000, self.network_config.pooling_interval * retries);
-                std.time.sleep(sleep_timing * std.time.ns_per_ms);
+                std.Thread.sleep(sleep_timing * std.time.ns_per_ms);
             },
         }
 
@@ -720,7 +720,7 @@ pub fn getSha3Hash(
     self: *WebSocketHandler,
     message: []const u8,
 ) (BasicRequestErrors || error{ InvalidCharacter, InvalidLength })!RPCResponse(Hash) {
-    const hex_message = try std.fmt.allocPrint(self.allocator, "0x{s}", .{std.fmt.fmtSliceHexLower(message)});
+    const hex_message = try std.fmt.allocPrint(self.allocator, "0x{x}", .{message});
     defer self.allocator.free(hex_message);
 
     const request: EthereumRequest(struct { []const u8 }) = .{
@@ -1340,7 +1340,7 @@ pub fn sendRpcRequest(self: *WebSocketHandler, comptime T: type, message: []u8) 
                         const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
                         wslog.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
-                        std.time.sleep(std.time.ns_per_ms * backoff);
+                        std.Thread.sleep(std.time.ns_per_ms * backoff);
                         continue;
                     },
                     else => return err,
@@ -1533,7 +1533,7 @@ pub fn waitForTransactionReceiptType(self: *WebSocketHandler, comptime T: type, 
             } else {
                 valid_confirmations += 1;
                 retries += 1;
-                std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+                std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
                 continue;
             }
         }
@@ -1636,7 +1636,7 @@ pub fn waitForTransactionReceiptType(self: *WebSocketHandler, comptime T: type, 
             break;
         } else {
             valid_confirmations += 1;
-            std.time.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+            std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
             retries += 1;
             continue;
         }

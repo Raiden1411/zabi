@@ -6,11 +6,14 @@ pub fn build(b: *std.Build) void {
 
     _ = b.addModule("transfer_example", .{ .root_source_file = b.path("transfer.zig") });
 
-    const exe = b.addExecutable(.{
-        .name = "transfer_example",
+    const module = b.createModule(.{
         .root_source_file = b.path("transfer.zig"),
         .target = target,
         .optimize = optimize,
+    });
+    const exe = b.addExecutable(.{
+        .name = "transfer_example",
+        .root_module = module,
     });
 
     addDependencies(b, exe);

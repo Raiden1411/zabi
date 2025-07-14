@@ -3,12 +3,9 @@ const color = @import("color.zig");
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
-const ColorWriter = color.ColorWriter;
+const ColorWriterStream = color.ColorWriter;
 const PriorityDequeue = std.PriorityDequeue;
 const TestFn = std.builtin.TestFn;
-
-/// Wraps the stderr with our color stream.
-const ColorWriterStream = ColorWriter(@TypeOf(std.fs.File.stderr().deprecatedWriter()));
 
 /// Custom benchmark runner that pretty prints all of the taken measurements.
 /// Heavily inspired by [poop](https://github.com/andrewrk/poop/tree/main)
@@ -72,16 +69,14 @@ pub fn BenchmarkRunner(
             try queue.ensureTotalCapacity(max_slowest_tracker);
 
             return .{
-                .color_stream = .{
-                    .color = .reset,
-                    .underlaying_writer = std.fs.File.stderr().deprecatedWriter(),
-                },
+                .color_stream = .init(std.debug.lockStderrWriter(&.{}), &.{}),
                 .dequeue = queue,
             };
         }
         /// Clears any allocated memory for the queue.
         pub fn deinit(self: Self) void {
             self.dequeue.deinit();
+            std.debug.unlockStderrWriter();
         }
         /// Main bench runner that will run the tests and calculate their performance.
         ///
@@ -145,38 +140,45 @@ pub fn BenchmarkRunner(
             if (self.dequeue.count() == 0)
                 return;
 
-            var writer = self.color_stream.writer();
+            var writer = &self.color_stream.writer;
 
             self.color_stream.setNextColor(.red);
             try writer.writeAll("  Slowest Tests:\n");
 
-            while (self.dequeue.removeMaxOrNull()) |slowest| {
+            while (self.dequeue.removeMaxOrNull()) |slowest|
                 try self.printSlowest(slowest);
-            }
         }
         /// Prints the current module as a header.
         ///
         /// ==== module name ====
         pub fn printHeader(self: *Self, module: []const u8) ColorWriterStream.Error!void {
-            var writer = self.color_stream.writer();
+            var writer = &self.color_stream.writer;
 
             const col = @divFloor(getColTerminalSize(), 2);
+            var buffer: [100]u8 = undefined;
 
-            try self.color_stream.writer().writeByteNTimes('\n', 2);
+            var discarding = std.Io.Writer.Discarding.init(&buffer);
+            var void_writter = &discarding.writer;
+
+            try void_writter.print(" Running {s} module ", .{module});
+            try void_writter.flush();
+
+            try writer.splatByteAll('\n', 2);
+
             self.color_stream.setNextColor(.bright_green);
-            try writer.writeByteNTimes('=', col - @divFloor(module.len, 2) - 9);
+            try writer.splatByteAll('=', col - @divFloor(discarding.count, 2));
 
-            try writer.print(" Running {s} module ", .{module});
+            try writer.writeAll(buffer[0..discarding.count]);
 
-            try writer.writeByteNTimes('=', col - @divFloor(module.len, 2) - 8);
-            try writer.writeByteNTimes('\n', 2);
+            try writer.splatByteAll('=', col - @divFloor(discarding.count, 2));
+            try writer.splatByteAll('\n', 2);
         }
         /// Prints the a element of the slowest queue.
         /// xxxx with an average of x
         pub fn printSlowest(self: *Self, slowest: SlowestTests) !void {
-            var writer = self.color_stream.writer();
+            var writer = &self.color_stream.writer;
 
-            try writer.writeByteNTimes(' ', 4);
+            try writer.splatByteAll(' ', 4);
 
             self.color_stream.setNextColor(.dim);
             try writer.writeAll(slowest.name);
@@ -190,10 +192,10 @@ pub fn BenchmarkRunner(
         /// Prints the name of the test.
         /// Benchmark: test_name
         pub fn printBenchmarkTestName(self: *Self, name: []const u8) ColorWriterStream.Error![]const u8 {
-            var writer = self.color_stream.writer();
+            var writer = &self.color_stream.writer;
             const index = std.mem.lastIndexOf(u8, name, "test.").?;
 
-            try writer.writeByteNTimes(' ', 2);
+            try writer.splatByteAll(' ', 2);
             self.color_stream.setNextColor(.dim);
             try writer.writeAll("Benchmarking: ");
 
@@ -210,20 +212,20 @@ pub fn BenchmarkRunner(
         /// measurements      mean ± σ            min … max
         /// wall_time:       427us ± 51.5us     403us … 1.22ms
         pub fn printResult(self: *Self, result: BenchmarkResult) ColorWriterStream.Error!void {
-            var writer = self.color_stream.writer();
+            var writer = &self.color_stream.writer;
 
             // Prints the headers.
-            try writer.writeByteNTimes(' ', 4);
+            try writer.splatByteAll(' ', 4);
             try writer.writeAll("measurements");
             self.color_stream.setNextColor(.green);
-            try writer.writeByteNTimes(' ', 6);
+            try writer.splatByteAll(' ', 6);
             try writer.writeAll("mean");
             self.color_stream.setNextColor(.bold);
             try writer.writeAll(" ± ");
             self.color_stream.setNextColor(.green);
             try writer.writeAll("σ");
 
-            try writer.writeByteNTimes(' ', 12);
+            try writer.splatByteAll(' ', 12);
             self.color_stream.setNextColor(.bright_cyan);
             try writer.writeAll("min");
             self.color_stream.setNextColor(.bold);
@@ -234,9 +236,9 @@ pub fn BenchmarkRunner(
 
             // Prints the results
             self.color_stream.setNextColor(.reset);
-            try writer.writeByteNTimes(' ', 4);
+            try writer.splatByteAll(' ', 4);
             try writer.writeAll("wall_time:");
-            try writer.writeByteNTimes(' ', 6);
+            try writer.splatByteAll(' ', 6);
             self.color_stream.setNextColor(.green);
             try self.printUnit(result.mean);
             self.color_stream.setNextColor(.bold);
@@ -244,17 +246,18 @@ pub fn BenchmarkRunner(
             self.color_stream.setNextColor(.green);
             try self.printUnit(result.stdiv);
 
-            try writer.writeByteNTimes(' ', 4);
+            try writer.splatByteAll(' ', 4);
             self.color_stream.setNextColor(.bright_cyan);
             try self.printUnit(@floatFromInt(result.min));
             self.color_stream.setNextColor(.bold);
             try writer.writeAll(" … ");
             self.color_stream.setNextColor(.bright_red);
             try self.printUnit(@floatFromInt(result.max));
-            try writer.writeByteNTimes('\n', 2);
+            try writer.splatByteAll('\n', 2);
         }
         /// Converts the result into a human readable unit of measurement and prints it.
         pub fn printUnit(self: *Self, number: f64) ColorWriterStream.Error!void {
+            var writer = &self.color_stream.writer;
             var num: f64 = 0;
             var unit: []const u8 = "";
 
@@ -276,17 +279,17 @@ pub fn BenchmarkRunner(
             }
 
             if (num >= 1000 or @round(num) == num) {
-                try self.color_stream.writer().print("{d: >4.0}", .{num});
+                try writer.print("{d: >4.0}", .{num});
             } else if (num >= 100) {
-                try self.color_stream.writer().print("{d: >4.0}", .{num});
+                try writer.print("{d: >4.0}", .{num});
             } else if (num >= 10) {
-                try self.color_stream.writer().print("{d: >3.1}", .{num});
+                try writer.print("{d: >3.1}", .{num});
             } else {
-                try self.color_stream.writer().print("{d: >3.2}", .{num});
+                try writer.print("{d: >3.2}", .{num});
             }
 
             self.color_stream.setNextColor(.dim);
-            try self.color_stream.writer().writeAll(unit);
+            try writer.writeAll(unit);
         }
         /// Computes all of the collected samples and returns the result.
         pub fn computeSamples(self: *Self, sample_index: usize) BenchmarkResult {
@@ -310,7 +313,11 @@ pub fn BenchmarkRunner(
                 std_div += delta * delta;
             }
 
-            std_div /= @floatFromInt(self.samples[0..sample_index].len - 1);
+            if (self.samples[0..sample_index].len > 1) {
+                @branchHint(.likely);
+                std_div /= @floatFromInt(self.samples[0..sample_index].len - 1);
+            }
+
             std_div = @sqrt(std_div);
 
             return .{
@@ -327,7 +334,7 @@ pub fn BenchmarkRunner(
 pub fn main() !void {
     const test_funcs: []const TestFn = builtin.test_functions;
 
-    var runner: BenchmarkRunner(1000, 10, 5) = try .init(std.heap.c_allocator);
+    var runner: BenchmarkRunner(1000, 10, 5) = try .init(std.heap.smp_allocator);
     defer runner.deinit();
 
     var module: []const u8 = "";

@@ -4,7 +4,7 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 const Anvil = @import("zabi").clients.Anvil;
-const ColorWriter = color.ColorWriter;
+const ColorWriterStream = color.ColorWriter;
 const FileWriter = std.fs.File.Writer;
 const Options = std.Options;
 const TestFn = std.builtin.TestFn;
@@ -12,9 +12,6 @@ const TestFn = std.builtin.TestFn;
 pub const std_options: Options = .{
     .log_level = .info,
 };
-
-/// Wraps the stderr with our color stream.
-const ColorWriterStream = ColorWriter(@TypeOf(std.fs.File.stderr().deprecatedWriter()));
 
 /// Struct that will contain the test results.
 const TestResults = struct {
@@ -36,89 +33,104 @@ const Runner = struct {
     /// Connect to the anvil instance an reset it.
     pub fn resetAnvilInstance(self: *Self, allocator: Allocator) !void {
         startAnvilInstances(allocator) catch {
-            self.color_stream.setNextColor(.yellow);
-            try self.color_stream.writer().writeAll("warning: ");
-            self.color_stream.setNextColor(.bold);
-            try self.color_stream.writer().writeAll("Failed to connect to anvil! Please ensure that it is running on port 6969\n");
+            var writer = &self.color_stream.writer;
 
             self.color_stream.setNextColor(.yellow);
-            try self.color_stream.writer().writeAll("warning: ");
+            try writer.writeAll("warning: ");
             self.color_stream.setNextColor(.bold);
-            try self.color_stream.writer().writeAll("Test will run but client tests might fail\n\n");
+            try writer.writeAll("Failed to connect to anvil! Please ensure that it is running on port 6969\n");
+
+            self.color_stream.setNextColor(.yellow);
+            try writer.writeAll("warning: ");
+            self.color_stream.setNextColor(.bold);
+            try writer.writeAll("Test will run but client tests might fail\n\n");
 
             std.Thread.sleep(std.time.ns_per_s);
         };
     }
     /// Writes the test module name.
     pub fn writeModuleName(self: *Self, module: []const u8) ColorWriterStream.Error!void {
+        var writer = &self.color_stream.writer;
         self.color_stream.setNextColor(.yellow);
-        try self.color_stream.writer().print(" |{s}|", .{module});
-        try self.color_stream.applyReset();
+
+        try writer.print(" |{s}|", .{module});
     }
     /// Writes the test object name.
     pub fn writeFileName(self: *Self, object: []const u8) ColorWriterStream.Error!void {
+        var writer = &self.color_stream.writer;
         self.color_stream.setNextColor(.blue);
-        try self.color_stream.writer().print("|{s}|", .{object});
-        try self.color_stream.applyReset();
+
+        try writer.print("|{s}|", .{object});
     }
     /// Writes the test name.
     pub fn writeTestName(self: *Self, name: []const u8) ColorWriterStream.Error!void {
+        var writer = &self.color_stream.writer;
         self.color_stream.setNextColor(.dim);
 
         const index = std.mem.lastIndexOf(u8, name, "test.") orelse unreachable;
 
-        try self.color_stream.writer().print(" Running {s}...", .{name[index + 5 ..]});
-        try self.color_stream.applyReset();
+        try writer.print(" Running {s}...", .{name[index + 5 ..]});
     }
     /// Write a success result to the stream
     pub fn writeSuccess(self: *Self) ColorWriterStream.Error!void {
+        var writer = &self.color_stream.writer;
         self.result.passed += 1;
 
         self.color_stream.setNextColor(.green);
-        try self.color_stream.writer().writeAll("✓\n");
+        try writer.writeAll("✓\n");
     }
     /// Write a skipped result to the stream
     pub fn writeSkipped(self: *Self) ColorWriterStream.Error!void {
+        var writer = &self.color_stream.writer;
         self.result.skipped += 1;
 
         self.color_stream.setNextColor(.yellow);
-        try self.color_stream.writer().writeAll("skipped!\n");
+        try writer.writeAll("skipped!\n");
     }
     /// Write a fail result to the stream
     pub fn writeFail(self: *Self) ColorWriterStream.Error!void {
+        var writer = &self.color_stream.writer;
         self.result.failed += 1;
 
         self.color_stream.setNextColor(.red);
-        try self.color_stream.writer().writeAll("✘\n");
+        try writer.writeAll("✘\n");
     }
     /// Write a skipped result to the stream
     pub fn writeLeaked(self: *Self) ColorWriterStream.Error!void {
+        var writer = &self.color_stream.writer;
         self.result.leaked += 1;
 
         self.color_stream.setNextColor(.blue);
-        try self.color_stream.writer().writeAll("leaked!\n");
+        try writer.writeAll("leaked!\n");
     }
     /// Pretty print the test results.
     pub fn writeResult(self: *Self) ColorWriterStream.Error!void {
+        var writer = &self.color_stream.writer;
+
         self.color_stream.setNextColor(.reset);
-        try self.color_stream.writer().writeAll("\n    ZABI Tests: ");
+        try writer.writeAll("\n    ZABI Tests: ");
+
         self.color_stream.setNextColor(.green);
-        try self.color_stream.writer().print("{d} passed\n", .{self.result.passed});
-        self.color_stream.setNextColor(.reset);
+        try writer.print("{d} passed\n", .{self.result.passed});
 
-        try self.color_stream.writer().writeAll("    ZABI Tests: ");
+        self.color_stream.setNextColor(.reset);
+        try writer.writeAll("    ZABI Tests: ");
+
         self.color_stream.setNextColor(.red);
-        try self.color_stream.writer().print("{d} failed\n", .{self.result.failed});
-        self.color_stream.setNextColor(.reset);
+        try writer.print("{d} failed\n", .{self.result.failed});
 
-        try self.color_stream.writer().writeAll("    ZABI Tests: ");
+        self.color_stream.setNextColor(.reset);
+        try writer.writeAll("    ZABI Tests: ");
+
         self.color_stream.setNextColor(.yellow);
-        try self.color_stream.writer().print("{d} skipped\n", .{self.result.skipped});
-        self.color_stream.setNextColor(.reset);
+        try writer.print("{d} skipped\n", .{self.result.skipped});
 
-        try self.color_stream.writer().writeAll("    ZABI Tests: ");
+        self.color_stream.setNextColor(.reset);
+        try writer.writeAll("    ZABI Tests: ");
+
         self.color_stream.setNextColor(.blue);
-        try self.color_stream.writer().print("{d} leaked\n", .{self.result.leaked});
+        try writer.print("{d} leaked\n", .{self.result.leaked});
+
         self.color_stream.setNextColor(.reset);
     }
 };
@@ -133,10 +145,7 @@ pub fn main() !void {
         return;
 
     var runner: Runner = .{
-        .color_stream = .{
-            .color = .reset,
-            .underlaying_writer = std.fs.File.stderr().deprecatedWriter(),
-        },
+        .color_stream = .init(std.debug.lockStderrWriter(&.{}), &.{}),
         .result = .{},
     };
     try runner.resetAnvilInstance(std.heap.page_allocator);

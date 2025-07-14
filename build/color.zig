@@ -57,51 +57,50 @@ pub const AnsiColorCodes = enum {
 };
 
 /// Custom writer that we use to write tests result and with specific tty colors.
-pub fn ColorWriter(comptime UnderlayingWriter: type) type {
-    return struct {
-        /// Set of possible errors from this writer.
-        pub const Error = UnderlayingWriter.Error;
+pub const ColorWriter = struct {
+    /// Set of possible errors from this writer.
+    pub const Error = std.Io.Writer.Error;
 
-        const Writer = std.io.GenericWriter(*Self, Error, write);
-        const Self = @This();
+    const Self = @This();
 
-        /// The writer that we will use to write to.
-        underlaying_writer: UnderlayingWriter,
-        /// Next tty color to apply in the stream.
-        color: AnsiColorCodes,
+    /// The writer that we will use to write to.
+    underlaying_writer: *std.Io.Writer,
+    /// Next tty color to apply in the stream.
+    color: AnsiColorCodes,
+    /// The writer impl for this stream
+    writer: std.Io.Writer,
 
-        pub fn writer(self: *Self) Writer {
-            return .{ .context = self };
-        }
-        /// Write function that will write to the stream with the `next_color`.
-        pub fn write(self: *Self, bytes: []const u8) Error!usize {
-            if (bytes.len == 0)
-                return bytes.len;
+    pub fn init(out: *std.Io.Writer, buffer: []u8) @This() {
+        return .initColorWriter(out, .reset, buffer);
+    }
 
-            try self.applyColor();
-            try self.writeNoColor(bytes);
-            try self.applyReset();
+    pub fn initColorWriter(out: *std.Io.Writer, color: AnsiColorCodes, buffer: []u8) @This() {
+        return .{
+            .underlaying_writer = out,
+            .color = color,
+            .writer = .{
+                .buffer = buffer,
+                .vtable = &.{ .drain = @This().drain },
+            },
+        };
+    }
 
-            return bytes.len;
-        }
-        /// Sets the next color in the stream
-        pub fn setNextColor(self: *Self, next: AnsiColorCodes) void {
-            self.color = next;
-        }
-        /// Writes the next color to the stream.
-        pub fn applyColor(self: *Self) Error!void {
-            try self.underlaying_writer.writeAll(self.color.toSlice());
-        }
-        /// Writes the reset ansi to the stream
-        pub fn applyReset(self: *Self) Error!void {
-            try self.underlaying_writer.writeAll(AnsiColorCodes.toSlice(.reset));
-        }
-        /// Writes to the stream without colors.
-        pub fn writeNoColor(self: *Self, bytes: []const u8) UnderlayingWriter.Error!void {
-            if (bytes.len == 0)
-                return;
+    pub fn drain(writer: *std.Io.Writer, data: []const []const u8, splat: usize) Error!usize {
+        const this: *@This() = @alignCast(@fieldParentPtr("writer", writer));
+        const aux = writer.buffered();
 
-            try self.underlaying_writer.writeAll(bytes);
-        }
-    };
-}
+        try this.underlaying_writer.writeAll(this.color.toSlice());
+        const written = try this.underlaying_writer.writeSplatHeader(aux, data, splat);
+        try this.underlaying_writer.writeAll(AnsiColorCodes.toSlice(.reset));
+
+        const n = written - writer.end;
+        writer.end = 0;
+
+        return n;
+    }
+
+    /// Sets the next color in the stream
+    pub fn setNextColor(self: *Self, next: AnsiColorCodes) void {
+        self.color = next;
+    }
+};

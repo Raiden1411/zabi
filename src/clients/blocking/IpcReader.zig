@@ -12,10 +12,10 @@ const Buffer = std.fifo.LinearFifo(u8, .Dynamic);
 const Self = @This();
 
 /// Set of possible errors when reading from the socket.
-pub const ReadError = Stream.ReadError || Allocator.Error || error{Closed};
+pub const ReadError = Stream.ReadError || Allocator.Error || error{Closed} || std.Io.Reader.Error;
 
 /// Set of possible error when writting to the stream.
-pub const WriteError = Stream.WriteError;
+pub const WriteError = std.Io.Writer.Error;
 
 /// LinearFifo that grows as needed.
 buffer: Buffer,
@@ -85,7 +85,9 @@ pub fn jsonMessage(self: *@This()) usize {
 /// Reads the bytes directly from the socket. Will allocate more memory as needed.
 pub fn read(self: *@This()) ReadError!void {
     const buffer = try self.buffer.writableWithSize(std.math.maxInt(u16));
-    const read_amount = try self.stream.read(buffer);
+
+    var reader = self.stream.reader(&.{});
+    const read_amount = try reader.file_reader.read(buffer);
 
     if (read_amount == 0)
         return error.Closed;
@@ -112,6 +114,7 @@ pub fn readMessage(self: *@This()) ReadError![]u8 {
 pub fn writeMessage(
     self: *@This(),
     message: []u8,
-) Stream.WriteError!void {
-    try self.stream.writeAll(message);
+) WriteError!void {
+    var writer = self.stream.writer(&.{});
+    try writer.interface.writeAll(message);
 }

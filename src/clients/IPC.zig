@@ -88,13 +88,14 @@ const IPC = @This();
 const ipclog = std.log.scoped(.ipc);
 
 /// Set of possible errors when starting the client.
-pub const InitErrors = Allocator.Error || std.Thread.SpawnError || error{ InvalidNetworkConfig, InvalidIPCPath, FailedToConnect };
+pub const InitErrors = std.Thread.SpawnError || error{ InvalidNetworkConfig, InvalidIPCPath, FailedToConnect } || IpcReader.WriteError;
 
 /// Set of possible errors when reading from the socket.
 pub const ReadLoopErrors = SetSockOptError || error{ FailedToJsonParseResponse, Closed, InvalidTypeMessage, UnexpectedError };
 
 /// Set of possible errors when send a rpc request.
-pub const SendRpcRequestErrors = Allocator.Error || EthereumZigErrors || std.posix.WriteError || ParseFromValueError || error{ReachedMaxRetryLimit};
+pub const SendRpcRequestErrors = Allocator.Error || EthereumZigErrors ||
+    ParseFromValueError || error{ReachedMaxRetryLimit} || IpcReader.WriteError;
 
 /// Set of generic errors when sending a rpc request.
 pub const BasicRequestErrors = SendRpcRequestErrors || error{NoSpaceLeft};

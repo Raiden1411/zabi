@@ -104,7 +104,7 @@ pub fn jsonStringify(
 
     try valueStart(writer_stream);
 
-    try writer_stream.stream.writeByte('{');
+    try writer_stream.writer.writeByte('{');
     writer_stream.next_punctuation = .the_beginning;
     inline for (info.@"struct".fields) |field| {
         var emit_field = true;
@@ -116,7 +116,7 @@ pub fn jsonStringify(
 
         if (emit_field) {
             try valueStart(writer_stream);
-            try std.json.encodeJsonString(field.name, .{}, writer_stream.stream);
+            try std.json.Stringify.encodeJsonString(field.name, .{}, writer_stream.writer);
             writer_stream.next_punctuation = .colon;
             try innerStringify(@field(self, field.name), writer_stream);
         }
@@ -125,7 +125,7 @@ pub fn jsonStringify(
         .none, .comma => {},
         else => unreachable,
     }
-    try writer_stream.stream.writeByte('}');
+    try writer_stream.writer.writeByte('}');
     writer_stream.next_punctuation = .comma;
 
     return;
@@ -268,24 +268,24 @@ pub fn innerStringify(
     switch (info) {
         .bool => {
             try valueStart(stream_writer);
-            try stream_writer.stream.writeAll(if (value) "true" else "false");
+            try stream_writer.writer.writeAll(if (value) "true" else "false");
             stream_writer.next_punctuation = .comma;
         },
         .int, .comptime_int => {
             try valueStart(stream_writer);
-            try stream_writer.stream.writeByte('\"');
-            try stream_writer.stream.print("0x{x}", .{value});
-            try stream_writer.stream.writeByte('\"');
+            try stream_writer.writer.writeByte('\"');
+            try stream_writer.writer.print("0x{x}", .{value});
+            try stream_writer.writer.writeByte('\"');
             stream_writer.next_punctuation = .comma;
         },
         .float, .comptime_float => {
             try valueStart(stream_writer);
-            try stream_writer.stream.print("{d}", .{value});
+            try stream_writer.writer.print("{d}", .{value});
             stream_writer.next_punctuation = .comma;
         },
         .null => {
             try valueStart(stream_writer);
-            try stream_writer.stream.writeAll("null");
+            try stream_writer.writer.writeAll("null");
             stream_writer.next_punctuation = .comma;
         },
         .optional => {
@@ -295,7 +295,7 @@ pub fn innerStringify(
         },
         .enum_literal => {
             try valueStart(stream_writer);
-            try std.json.encodeJsonString(@tagName(value), .{}, stream_writer.stream);
+            try std.json.encodeJsonString(@tagName(value), .{}, stream_writer.writer);
             stream_writer.next_punctuation = .comma;
         },
         .@"enum" => |enum_info| {
@@ -308,12 +308,12 @@ pub fn innerStringify(
             }
 
             try valueStart(stream_writer);
-            try std.json.encodeJsonString(@tagName(value), .{}, stream_writer.stream);
+            try std.json.Stringify.encodeJsonString(@tagName(value), .{}, stream_writer.writer);
             stream_writer.next_punctuation = .comma;
         },
         .error_set => {
             try valueStart(stream_writer);
-            try std.json.encodeJsonString(@errorName(value), .{}, stream_writer.stream);
+            try std.json.encodeJsonString(@errorName(value), .{}, stream_writer.writer);
             stream_writer.next_punctuation = .comma;
         },
         .array => |arr_info| {
@@ -345,7 +345,7 @@ pub fn innerStringify(
                             }
                         }
                         @memcpy(buffer[0..2], "0x");
-                        try std.json.encodeJsonString(buffer[0..], .{}, stream_writer.stream);
+                        try std.json.Stringify.encodeJsonString(buffer[0..], .{}, stream_writer.writer);
                     },
                     else => {
                         // Treat the rest as a normal hex encoded value
@@ -353,7 +353,7 @@ pub fn innerStringify(
                         const hexed = std.fmt.bytesToHex(value, .lower);
                         @memcpy(buffer[2..], hexed[0..]);
                         @memcpy(buffer[0..2], "0x");
-                        try std.json.encodeJsonString(buffer[0..], .{}, stream_writer.stream);
+                        try std.json.Stringify.encodeJsonString(buffer[0..], .{}, stream_writer.writer);
                     },
                 }
                 stream_writer.next_punctuation = .comma;
@@ -377,14 +377,14 @@ pub fn innerStringify(
 
                     const slice = if (ptr_info.size == .many) std.mem.span(value) else value;
 
-                    try valueStart(stream_writer);
                     if (ptr_info.child == u8) {
+                        try valueStart(stream_writer);
                         if (ptr_info.is_const) {
-                            try std.json.encodeJsonString(value, .{}, stream_writer.stream);
+                            try std.json.Stringify.encodeJsonString(value, .{}, stream_writer.writer);
                         } else {
                             // We assume that non const u8 slices are to be hex encoded.
-                            try stream_writer.stream.writeByte('\"');
-                            try stream_writer.stream.writeAll("0x");
+                            try stream_writer.writer.writeByte('\"');
+                            try stream_writer.writer.writeAll("0x");
 
                             var buf: [2]u8 = undefined;
 
@@ -392,17 +392,14 @@ pub fn innerStringify(
                             for (value) |c| {
                                 buf[0] = charset[c >> 4];
                                 buf[1] = charset[c & 15];
-                                try stream_writer.stream.writeAll(&buf);
+                                try stream_writer.writer.writeAll(&buf);
                             }
 
-                            try stream_writer.stream.writeByte('\"');
+                            try stream_writer.writer.writeByte('\"');
                         }
                         stream_writer.next_punctuation = .comma;
                     } else {
-                        try stream_writer.stream.writeByte('[');
-
-                        stream_writer.indent_level += 1;
-                        stream_writer.next_punctuation = .none;
+                        try std.json.Stringify.beginArray(stream_writer);
 
                         for (slice) |span| {
                             try innerStringify(span, stream_writer);
@@ -413,8 +410,7 @@ pub fn innerStringify(
                             else => unreachable,
                         }
 
-                        try stream_writer.stream.writeByte(']');
-                        stream_writer.next_punctuation = .comma;
+                        try std.json.Stringify.endArray(stream_writer);
                     }
                 },
                 else => @compileError("Unsupported pointer type " ++ @typeName(@TypeOf(value))),
@@ -422,11 +418,7 @@ pub fn innerStringify(
         },
         .@"struct" => |struct_info| {
             if (struct_info.is_tuple) {
-                try valueStart(stream_writer);
-                try stream_writer.stream.writeByte('[');
-
-                stream_writer.indent_level += 1;
-                stream_writer.next_punctuation = .none;
+                try std.json.Stringify.beginArray(stream_writer);
 
                 inline for (value) |val| {
                     try innerStringify(val, stream_writer);
@@ -437,10 +429,7 @@ pub fn innerStringify(
                     else => unreachable,
                 }
 
-                try stream_writer.stream.writeByte(']');
-                stream_writer.next_punctuation = .comma;
-
-                return;
+                try std.json.Stringify.endArray(stream_writer);
             } else {
                 if (@hasDecl(@TypeOf(value), "jsonStringify"))
                     return value.jsonStringify(stream_writer)
@@ -461,7 +450,7 @@ pub fn innerStringify(
 fn valueStart(stream_writer: anytype) @TypeOf(stream_writer.*).Error!void {
     switch (stream_writer.next_punctuation) {
         .the_beginning, .none => {},
-        .comma => try stream_writer.stream.writeByte(','),
-        .colon => try stream_writer.stream.writeByte(':'),
+        .comma => try stream_writer.writer.writeByte(','),
+        .colon => try stream_writer.writer.writeByte(':'),
     }
 }

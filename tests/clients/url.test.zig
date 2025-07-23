@@ -64,18 +64,18 @@ test "QueryParameters" {
 
     {
         var request_buffer: [4 * 1024]u8 = undefined;
-        var buf_writter = std.io.fixedBufferStream(&request_buffer);
+        var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-        try value.buildQuery(.{ .bar = 69 }, buf_writter.writer());
+        try value.buildQuery(.{ .bar = 69 }, &buf_writter);
 
-        try testing.expectEqualStrings("?module=account&action=balance&bar=69&page=1&apikey=FOO", buf_writter.getWritten());
+        try testing.expectEqualStrings("?module=account&action=balance&bar=69&page=1&apikey=FOO", buf_writter.buffered());
     }
     {
         var request_buffer: [4 * 1024]u8 = undefined;
-        var buf_writter = std.io.fixedBufferStream(&request_buffer);
+        var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-        try value.buildDefaultQuery(buf_writter.writer());
+        try value.buildDefaultQuery(&buf_writter);
 
-        try testing.expectEqualStrings("?module=account&action=balance&page=1&apikey=FOO", buf_writter.getWritten());
+        try testing.expectEqualStrings("?module=account&action=balance&page=1&apikey=FOO", buf_writter.buffered());
     }
 }

@@ -15,9 +15,10 @@ const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
+const Writer = std.Io.Writer;
 
 /// Set of errors while performing logs abi encoding.
-pub const EncodeLogsErrors = Allocator.Error || error{NoSpaceLeft};
+pub const EncodeLogsErrors = Allocator.Error || error{NoSpaceLeft} || Writer.Error;
 
 /// Performs compile time reflection to decided on which way to encode the values.
 /// Uses the [specification](https://docs.soliditylang.org/en/latest/abi-spec.html#indexed-event-encoding) as the base of encoding.

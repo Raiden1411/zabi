@@ -12,7 +12,7 @@ test "Clients Root" {
     _ = @import("wallet.test.zig");
     _ = @import("contract.test.zig");
 
-    // Ens tests
+    // // Ens tests
     _ = @import("ens.test.zig");
     _ = @import("ens_utils.test.zig");
 

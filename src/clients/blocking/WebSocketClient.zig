@@ -42,7 +42,7 @@ pub const AssertionError = error{
 };
 
 /// Set of possible errors when sending a handshake response.
-pub const SendHandshakeError = NetStream.WriteError || error{NoSpaceLeft};
+pub const SendHandshakeError = NetStream.WriteError || error{NoSpaceLeft} || std.Io.Writer.Error;
 
 /// Set of possible errors when reading a handshake response.
 pub const ReadHandshakeError = Allocator.Error || Stream.ReadError || AssertionError || TlsError;
@@ -449,8 +449,7 @@ pub fn sendHandshake(
     // Dont support paths that exceed this.
     var buffer: [4096]u8 = undefined;
 
-    var buf_stream = std.io.fixedBufferStream(&buffer);
-    var writer = buf_stream.writer();
+    var writer = std.Io.Writer.fixed(&buffer);
 
     const path: []const u8 = if (self.uri.path.isEmpty()) "/" else switch (self.uri.path) {
         .raw => |raw| raw,
@@ -475,9 +474,7 @@ pub fn sendHandshake(
     try writer.writeAll("Sec-WebSocket-Version: 13\r\n");
     try writer.writeAll("\r\n");
 
-    const written = buf_stream.getWritten();
-
-    try self.stream.writeAll(written);
+    try self.stream.writeAll(writer.buffered());
 }
 /// Validates that the handshake response is valid and returns the amount of bytes read.
 ///

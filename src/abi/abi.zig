@@ -29,6 +29,7 @@ const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
 const ParseOptions = std.json.ParseOptions;
 const Value = std.json.Value;
+const Writer = std.Io.Writer;
 
 /// Solidity abi stat mutability definition of functions and constructors.
 pub const StateMutability = enum {
@@ -49,7 +50,7 @@ pub const Abitype = enum {
 };
 
 /// Set of possible errors when running `allocPrepare`
-pub const PrepareErrors = Allocator.Error || error{NoSpaceLeft};
+pub const PrepareErrors = Allocator.Error || error{NoSpaceLeft} || Writer.Error;
 
 /// Solidity Abi function representation.
 /// Reference: ["function"](https://docs.soliditylang.org/en/latest/abi-spec.html#json)
@@ -79,14 +80,14 @@ pub const Function = struct {
         self: @This(),
         allocator: Allocator,
         values: anytype,
-    ) (AbiEncoder.Errors || error{NoSpaceLeft})![]u8 {
+    ) (AbiEncoder.Errors || error{NoSpaceLeft} || Writer.Error)![]u8 {
         var buffer: [256]u8 = undefined;
 
-        var stream = std.io.fixedBufferStream(&buffer);
-        try self.prepare(stream.writer());
+        var stream = Writer.fixed(&buffer);
+        try self.prepare(&stream);
 
         var hashed: [Keccak256.digest_length]u8 = undefined;
-        Keccak256.hash(stream.getWritten(), &hashed, .{});
+        Keccak256.hash(stream.buffered(), &hashed, .{});
 
         var abi_encoder: AbiEncoder = .empty;
 
@@ -103,7 +104,7 @@ pub const Function = struct {
         comptime self: @This(),
         allocator: Allocator,
         values: AbiParametersToPrimative(self.inputs),
-    ) (AbiEncoder.Errors || error{NoSpaceLeft})![]u8 {
+    ) (AbiEncoder.Errors || error{NoSpaceLeft} || Writer.Error)![]u8 {
         return encoder.encodeAbiFunction(self, allocator, values);
     }
     /// Encode the struct signature based on the values provided.
@@ -205,7 +206,7 @@ pub const Function = struct {
     /// Intended to use for hashing purposes.
     pub fn prepare(
         self: @This(),
-        writer: anytype,
+        writer: *Writer,
     ) PrepareErrors!void {
         try writer.print("{s}", .{self.name});
 
@@ -245,11 +246,11 @@ pub const Event = struct {
     pub fn encode(self: @This()) PrepareErrors!Hash {
         var buffer: [256]u8 = undefined;
 
-        var stream = std.io.fixedBufferStream(&buffer);
-        try self.prepare(stream.writer());
+        var stream = Writer.fixed(&buffer);
+        try self.prepare(&stream);
 
         var hashed: [Keccak256.digest_length]u8 = undefined;
-        Keccak256.hash(stream.getWritten(), &hashed, .{});
+        Keccak256.hash(stream.buffered(), &hashed, .{});
 
         return hashed;
     }
@@ -340,7 +341,7 @@ pub const Error = struct {
         comptime self: @This(),
         allocator: Allocator,
         values: AbiParametersToPrimative(self.inputs),
-    ) (AbiEncoder.Errors || error{NoSpaceLeft})![]u8 {
+    ) (AbiEncoder.Errors || error{NoSpaceLeft} || Writer.Error)![]u8 {
         return encoder.encodeAbiError(self, allocator, values);
     }
     /// Decode a encoded error based on itself.

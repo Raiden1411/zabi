@@ -41,8 +41,8 @@ pub fn main() !void {
     defer receipt.deinit();
 
     var buffer: [4096]u8 = undefined;
-    var buffer_stream = std.io.fixedBufferStream(&buffer);
-    try std.json.stringify(receipt.response, .{}, buffer_stream.writer());
+    var buffer_stream = std.Io.Writer.fixed(&buffer);
+    try std.json.Stringify.value(receipt.response, .{}, &buffer_stream);
 
-    std.debug.print("Transaction receipt: {s}", .{buffer_stream.getWritten()});
+    std.debug.print("Transaction receipt: {s}", .{buffer_stream.buffered()});
 }

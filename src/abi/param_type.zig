@@ -199,21 +199,20 @@ pub const ParamType = union(enum) {
 
     pub fn jsonStringify(
         self: @This(),
-        stream: anytype,
-    ) @TypeOf(stream.*).Error!void {
+        stream: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
         // Cursed hack. There should be a better way
         var out_buf: [256]u8 = undefined;
-        var slice_stream = std.io.fixedBufferStream(&out_buf);
-        const out = slice_stream.writer();
-        try self.typeToJsonStringify(out);
+        var slice_stream = std.Io.Writer.fixed(&out_buf);
+        try self.typeToJsonStringify(&slice_stream);
 
-        try stream.write(slice_stream.getWritten());
+        try stream.write(slice_stream.buffered());
     }
 
     /// Converts the tagname of `self` into a writer.
     pub fn typeToJsonStringify(
         self: @This(),
-        writer: anytype,
+        writer: *std.Io.Writer,
     ) !void {
         switch (self) {
             .string,
@@ -240,7 +239,7 @@ pub const ParamType = union(enum) {
     /// Converts `self` into its tagname.
     pub fn typeToString(
         self: @This(),
-        writer: anytype,
+        writer: *std.Io.Writer,
     ) !void {
         switch (self) {
             .string,

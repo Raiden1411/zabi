@@ -206,7 +206,7 @@ pub const AnvilStartOptions = struct {
     pub fn parseToArgumentsSlice(
         self: AnvilStartOptions,
         allocator: Allocator,
-    ) (Allocator.Error || error{NoSpaceLeft})![]const []const u8 {
+    ) (Allocator.Error || error{NoSpaceLeft} || std.Io.Writer.Error)![]const []const u8 {
         var list = try std.ArrayList([]const u8).initCapacity(allocator, 1);
         errdefer list.deinit();
 
@@ -227,7 +227,7 @@ pub const AnvilStartOptions = struct {
                         const value_info = @typeInfo(@TypeOf(value));
 
                         var buffer: [1024]u8 = undefined;
-                        var buf_writer = std.io.fixedBufferStream(&buffer);
+                        var buf_writer = std.Io.Writer.fixed(&buffer);
 
                         try list.ensureUnusedCapacity(2);
 
@@ -241,13 +241,13 @@ pub const AnvilStartOptions = struct {
                         // Adds the arguments associated value.
                         {
                             switch (value_info) {
-                                .int => try buf_writer.writer().print("{d}", .{value}),
-                                .pointer => try buf_writer.writer().print("{s}", .{value}),
-                                .@"enum" => try buf_writer.writer().print("{s}", .{@tagName(value)}),
+                                .int => try buf_writer.print("{d}", .{value}),
+                                .pointer => try buf_writer.print("{s}", .{value}),
+                                .@"enum" => try buf_writer.print("{s}", .{@tagName(value)}),
                                 else => @compileError("Unsupported type '" ++ @typeName(@TypeOf(value)) ++ "'"),
                             }
 
-                            list.appendAssumeCapacity(buf_writer.getWritten());
+                            list.appendAssumeCapacity(buf_writer.buffered());
                         }
                     }
                 },
@@ -299,7 +299,7 @@ pub fn initClient(
 pub fn initProcess(
     allocator: Allocator,
     options: AnvilStartOptions,
-) (Allocator.Error || error{NoSpaceLeft} || Child.SpawnError)!Child {
+) (Allocator.Error || error{NoSpaceLeft} || Child.SpawnError || std.Io.Writer.Error)!Child {
     const args_slice = try options.parseToArgumentsSlice(allocator);
     defer allocator.free(args_slice);
 
@@ -327,7 +327,7 @@ pub fn setBalance(
         .method = .anvil_setBalance,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -343,7 +343,7 @@ pub fn setCode(
         .method = .anvil_setCode,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -358,7 +358,7 @@ pub fn setRpcUrl(
         .method = .anvil_setRpcUrl,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -373,7 +373,7 @@ pub fn setCoinbase(
         .method = .anvil_setCoinbase,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -385,7 +385,7 @@ pub fn setLoggingEnable(self: *Anvil) FetchErrors!void {
         .method = .anvil_setLoggingEnabled,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -400,7 +400,7 @@ pub fn setMinGasPrice(
         .method = .anvil_setMinGasPrice,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -415,7 +415,7 @@ pub fn setNextBlockBaseFeePerGas(
         .method = .anvil_setNextBlockBaseFeePerGas,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -430,7 +430,7 @@ pub fn setChainId(
         .method = .anvil_setChainId,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -446,7 +446,7 @@ pub fn setNonce(
         .method = .anvil_setNonce,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -461,7 +461,7 @@ pub fn dropTransaction(
         .method = .anvil_dropTransaction,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -477,7 +477,7 @@ pub fn mine(
         .method = .anvil_mine,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -492,7 +492,7 @@ pub fn reset(
         .method = .anvil_reset,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -507,7 +507,7 @@ pub fn impersonateAccount(
         .method = .anvil_impersonateAccount,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -522,7 +522,7 @@ pub fn stopImpersonatingAccount(
         .method = .anvil_impersonateAccount,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);

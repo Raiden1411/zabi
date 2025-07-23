@@ -22,9 +22,10 @@ const Error = zabi_abi.abitypes.Error;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Function = zabi_abi.abitypes.Function;
 const ParamType = zabi_abi.param_type.ParamType;
+const Writer = std.Io.Writer;
 
 /// Set of errors while perfoming abi encoding.
-pub const EncodeErrors = AbiEncoder.Errors || error{NoSpaceLeft};
+pub const EncodeErrors = AbiEncoder.Errors || error{NoSpaceLeft} || Writer.Error;
 
 /// Runtime value representation for abi encoding.
 pub const AbiEncodedValues = union(enum) {
@@ -85,14 +86,14 @@ pub fn encodeAbiFunction(
     comptime func: Function,
     allocator: Allocator,
     values: AbiParametersToPrimative(func.inputs),
-) (AbiEncoder.Errors || error{NoSpaceLeft})![]u8 {
+) (AbiEncoder.Errors || error{NoSpaceLeft} || Writer.Error)![]u8 {
     var buffer: [256]u8 = undefined;
 
-    var stream = std.io.fixedBufferStream(&buffer);
-    try func.prepare(stream.writer());
+    var stream = Writer.fixed(&buffer);
+    try func.prepare(&stream);
 
     var hashed: [Keccak256.digest_length]u8 = undefined;
-    Keccak256.hash(stream.getWritten(), &hashed, .{});
+    Keccak256.hash(stream.buffered(), &hashed, .{});
 
     var encoder: AbiEncoder = .empty;
 
@@ -116,14 +117,14 @@ pub fn encodeAbiError(
     comptime err: Error,
     allocator: Allocator,
     values: AbiParametersToPrimative(err.inputs),
-) (AbiEncoder.Errors || error{NoSpaceLeft})![]u8 {
+) (AbiEncoder.Errors || error{NoSpaceLeft} || Writer.Error)![]u8 {
     var buffer: [256]u8 = undefined;
 
-    var stream = std.io.fixedBufferStream(&buffer);
-    try err.prepare(stream.writer());
+    var stream = Writer.fixed(&buffer);
+    try err.prepare(&stream);
 
     var hashed: [Keccak256.digest_length]u8 = undefined;
-    Keccak256.hash(stream.getWritten(), &hashed, .{});
+    Keccak256.hash(stream.buffered(), &hashed, .{});
 
     var encoder: AbiEncoder = .empty;
 

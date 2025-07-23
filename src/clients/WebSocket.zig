@@ -105,7 +105,7 @@ pub const SocketWriteErrors = WsClient.NetStream.WriteError;
 pub const SendRpcRequestErrors = EthereumZigErrors || SocketWriteErrors || ParseFromValueError || error{ReachedMaxRetryLimit};
 
 /// Set of generic errors when sending rpc request.
-pub const BasicRequestErrors = SendRpcRequestErrors || error{NoSpaceLeft};
+pub const BasicRequestErrors = SendRpcRequestErrors || error{ NoSpaceLeft, WriteFailed };
 
 pub const InitOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
@@ -352,7 +352,7 @@ pub fn feeHistory(
     const tag: BalanceBlockTag = newest_block.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
     if (newest_block.block_number) |number| {
         const request: EthereumRequest(struct { u64, u64, ?[]const f64 }) = .{
@@ -361,7 +361,7 @@ pub fn feeHistory(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     } else {
         const request: EthereumRequest(struct { u64, BalanceBlockTag, ?[]const f64 }) = .{
             .params = .{ blockCount, tag, reward_percentil },
@@ -369,10 +369,10 @@ pub fn feeHistory(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     }
 
-    return self.sendRpcRequest(FeeHistory, buf_writter.getWritten());
+    return self.sendRpcRequest(FeeHistory, buf_writter.buffered());
 }
 /// Returns a list of addresses owned by client.
 ///
@@ -424,11 +424,11 @@ pub fn getBlockByHashType(
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    const request_block = try self.sendRpcRequest(?T, buf_writter.getWritten());
+    const request_block = try self.sendRpcRequest(?T, buf_writter.buffered());
     errdefer request_block.deinit();
 
     const block_info = request_block.response orelse return error.InvalidBlockHash;
@@ -459,7 +459,7 @@ pub fn getBlockByNumberType(
     const include = opts.include_transaction_objects orelse false;
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
     if (opts.block_number) |number| {
         const request: EthereumRequest(struct { u64, bool }) = .{
@@ -468,7 +468,7 @@ pub fn getBlockByNumberType(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     } else {
         const request: EthereumRequest(struct { BlockTag, bool }) = .{
             .params = .{ tag, include },
@@ -476,10 +476,10 @@ pub fn getBlockByNumberType(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     }
 
-    const request_block = try self.sendRpcRequest(?T, buf_writter.getWritten());
+    const request_block = try self.sendRpcRequest(?T, buf_writter.buffered());
     errdefer request_block.deinit();
 
     const block_info = request_block.response orelse return error.InvalidBlockNumber;
@@ -552,7 +552,7 @@ pub fn getFilterOrLogChanges(
     // errdefer @atomicStore(bool, &self.close_client, true, .seq_cst);
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
     switch (method) {
         .eth_getFilterLogs, .eth_getFilterChanges => {},
@@ -565,9 +565,9 @@ pub fn getFilterOrLogChanges(
         .id = @intFromEnum(self.network_config.chain_id),
     };
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    const possible_filter = try self.sendRpcRequest(?Logs, buf_writter.getWritten());
+    const possible_filter = try self.sendRpcRequest(?Logs, buf_writter.buffered());
     const filter = possible_filter.response orelse return error.InvalidFilterId;
 
     return .{
@@ -591,7 +591,7 @@ pub fn getLogs(
     tag: ?BalanceBlockTag,
 ) (BasicRequestErrors || error{InvalidLogRequestParams})!RPCResponse(Logs) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
     if (tag) |request_tag| {
         const request: EthereumRequest(struct { LogTagRequest }) = .{
@@ -606,7 +606,7 @@ pub fn getLogs(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
+        try std.json.Stringify.value(request, .{ .emit_null_optional_fields = false }, &buf_writter);
     } else {
         const request: EthereumRequest(struct { LogRequest }) = .{
             .params = .{opts},
@@ -614,10 +614,10 @@ pub fn getLogs(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
+        try std.json.Stringify.value(request, .{ .emit_null_optional_fields = false }, &buf_writter);
     }
 
-    const possible_logs = try self.sendRpcRequest(?Logs, buf_writter.getWritten());
+    const possible_logs = try self.sendRpcRequest(?Logs, buf_writter.buffered());
     errdefer possible_logs.deinit();
 
     const logs = possible_logs.response orelse return error.InvalidLogRequestParams;
@@ -666,7 +666,7 @@ pub fn getProof(
     tag: ?ProofBlockTag,
 ) (BasicRequestErrors || error{ExpectBlockNumberOrTag})!RPCResponse(ProofResult) {
     var request_buffer: [2 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
     if (tag) |request_tag| {
         const request: EthereumRequest(struct { Address, []const Hash, block.ProofBlockTag }) = .{
@@ -675,7 +675,7 @@ pub fn getProof(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     } else {
         const number = opts.blockNumber orelse return error.ExpectBlockNumberOrTag;
 
@@ -685,10 +685,10 @@ pub fn getProof(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     }
 
-    return self.sendRpcRequest(ProofResult, buf_writter.getWritten());
+    return self.sendRpcRequest(ProofResult, buf_writter.buffered());
 }
 /// Returns the current Ethereum protocol version.
 ///
@@ -707,11 +707,11 @@ pub fn getRawTransactionByHash(self: *WebSocketHandler, tx_hash: Hash) BasicRequ
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    return self.sendRpcRequest(Hex, buf_writter.getWritten());
+    return self.sendRpcRequest(Hex, buf_writter.buffered());
 }
 /// Returns the Keccak256 hash of the given message.
 ///
@@ -730,11 +730,11 @@ pub fn getSha3Hash(
     };
 
     var request_buffer: [4096]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    return self.sendRpcRequest(Hash, buf_writter.getWritten());
+    return self.sendRpcRequest(Hash, buf_writter.buffered());
 }
 /// Returns the value from a storage position at a given address.
 ///
@@ -748,7 +748,7 @@ pub fn getStorage(
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
     if (opts.block_number) |number| {
         const request: EthereumRequest(struct { Address, Hash, u64 }) = .{
@@ -757,7 +757,7 @@ pub fn getStorage(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     } else {
         const request: EthereumRequest(struct { Address, Hash, BalanceBlockTag }) = .{
             .params = .{ address, storage_key, tag },
@@ -765,10 +765,10 @@ pub fn getStorage(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     }
 
-    return self.sendRpcRequest(Hash, buf_writter.getWritten());
+    return self.sendRpcRequest(Hash, buf_writter.buffered());
 }
 /// Returns null if the node has finished syncing. Otherwise it will return
 /// the sync progress.
@@ -806,11 +806,11 @@ pub fn getTransactionByBlockHashAndIndexType(
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    const possible_tx = try self.sendRpcRequest(?T, buf_writter.getWritten());
+    const possible_tx = try self.sendRpcRequest(?T, buf_writter.buffered());
     errdefer possible_tx.deinit();
 
     const tx = possible_tx.response orelse return error.TransactionNotFound;
@@ -842,7 +842,7 @@ pub fn getTransactionByBlockNumberAndIndexType(
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
     if (opts.block_number) |number| {
         const request: EthereumRequest(struct { u64, usize }) = .{
@@ -851,7 +851,7 @@ pub fn getTransactionByBlockNumberAndIndexType(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     } else {
         const request: EthereumRequest(struct { BalanceBlockTag, usize }) = .{
             .params = .{ tag, index },
@@ -859,10 +859,10 @@ pub fn getTransactionByBlockNumberAndIndexType(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     }
 
-    const possible_tx = try self.sendRpcRequest(?T, buf_writter.getWritten());
+    const possible_tx = try self.sendRpcRequest(?T, buf_writter.buffered());
     errdefer possible_tx.deinit();
 
     const tx = possible_tx.response orelse return error.TransactionNotFound;
@@ -899,11 +899,11 @@ pub fn getTransactionByHashType(
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    const possible_tx = try self.sendRpcRequest(?T, buf_writter.getWritten());
+    const possible_tx = try self.sendRpcRequest(?T, buf_writter.buffered());
     errdefer possible_tx.deinit();
 
     const tx = possible_tx.response orelse return error.TransactionNotFound;
@@ -940,11 +940,11 @@ pub fn getTransactionReceiptType(
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    const possible_receipt = try self.sendRpcRequest(?T, buf_writter.getWritten());
+    const possible_receipt = try self.sendRpcRequest(?T, buf_writter.buffered());
     errdefer possible_receipt.deinit();
 
     const receipt = possible_receipt.response orelse return error.TransactionReceiptNotFound;
@@ -977,10 +977,10 @@ pub fn getTxPoolContentFrom(self: *WebSocketHandler, from: Address) BasicRequest
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
-    return self.sendRpcRequest([]const PoolTransactionByNonce, buf_writter.getWritten());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
+    return self.sendRpcRequest([]const PoolTransactionByNonce, buf_writter.buffered());
 }
 /// The inspect inspection property can be queried to list a textual summary of all the transactions currently pending for inclusion in the next block(s),
 /// as well as the ones that are being scheduled for future execution only.
@@ -1026,11 +1026,11 @@ pub fn getUncleByBlockHashAndIndexType(
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    const request_block = try self.sendRpcRequest(?T, buf_writter.getWritten());
+    const request_block = try self.sendRpcRequest(?T, buf_writter.buffered());
     errdefer request_block.deinit();
 
     const block_info = request_block.response orelse return error.InvalidBlockHashOrIndex;
@@ -1065,7 +1065,7 @@ pub fn getUncleByBlockNumberAndIndexType(
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
     if (opts.block_number) |number| {
         const request: EthereumRequest(struct { u64, usize }) = .{
@@ -1074,7 +1074,7 @@ pub fn getUncleByBlockNumberAndIndexType(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     } else {
         const request: EthereumRequest(struct { BalanceBlockTag, usize }) = .{
             .params = .{ tag, index },
@@ -1082,10 +1082,10 @@ pub fn getUncleByBlockNumberAndIndexType(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     }
 
-    const request_block = try self.sendRpcRequest(?T, buf_writter.getWritten());
+    const request_block = try self.sendRpcRequest(?T, buf_writter.buffered());
     errdefer request_block.deinit();
 
     const block_info = request_block.response orelse return error.InvalidBlockNumberOrIndex;
@@ -1164,7 +1164,7 @@ pub fn newBlockFilter(self: *WebSocketHandler) !RPCResponse(u128) {
 /// RPC Method: [`eth_newFilter`](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_newfilter)
 pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBlockTag) !RPCResponse(u128) {
     var request_buffer: [8 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
     if (tag) |request_tag| {
         const request: EthereumRequest(struct { LogTagRequest }) = .{
@@ -1179,7 +1179,7 @@ pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBloc
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
+        try std.json.Stringify.value(request, .{ .emit_null_optional_fields = false }, &buf_writter);
     } else {
         const request: EthereumRequest(struct { LogRequest }) = .{
             .params = .{opts},
@@ -1187,10 +1187,10 @@ pub fn newLogFilter(self: *WebSocketHandler, opts: LogRequest, tag: ?BalanceBloc
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
+        try std.json.Stringify.value(request, .{ .emit_null_optional_fields = false }, &buf_writter);
     }
 
-    return self.sendRpcRequest(u128, buf_writter.getWritten());
+    return self.sendRpcRequest(u128, buf_writter.buffered());
 }
 /// Creates a filter in the node, to notify when new pending transactions arrive.
 /// To check if the state has changed, call `getFilterOrLogChanges`.
@@ -1304,11 +1304,11 @@ pub fn sendRawTransaction(self: *WebSocketHandler, serialized_tx: Hex) BasicRequ
     };
 
     var request_buffer: [8 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    return self.sendRpcRequest(Hash, buf_writter.getWritten());
+    return self.sendRpcRequest(Hash, buf_writter.buffered());
 }
 /// Writes message to websocket server and parses the reponse from it.
 /// This blocks until it gets the response back from the server.
@@ -1361,11 +1361,11 @@ pub fn uninstallFilter(self: *WebSocketHandler, id: usize) BasicRequestErrors!RP
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    return self.sendRpcRequest(bool, buf_writter.getWritten());
+    return self.sendRpcRequest(bool, buf_writter.buffered());
 }
 /// Unsubscribe from different Ethereum event types with a regular RPC call
 /// with eth_unsubscribe as the method and the subscriptionId as the first parameter.
@@ -1379,11 +1379,11 @@ pub fn unsubscribe(self: *WebSocketHandler, sub_id: u128) BasicRequestErrors!RPC
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    return self.sendRpcRequest(bool, buf_writter.getWritten());
+    return self.sendRpcRequest(bool, buf_writter.buffered());
 }
 /// Emits new blocks that are added to the blockchain.
 ///
@@ -1396,18 +1396,18 @@ pub fn watchNewBlocks(self: *WebSocketHandler) BasicRequestErrors!RPCResponse(u1
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    return self.sendRpcRequest(u128, buf_writter.getWritten());
+    return self.sendRpcRequest(u128, buf_writter.buffered());
 }
 /// Emits logs attached to a new block that match certain topic filters and address.
 ///
 /// RPC Method: [`eth_subscribe`](https://docs.alchemy.com/reference/logs)
 pub fn watchLogs(self: *WebSocketHandler, opts: WatchLogsRequest) BasicRequestErrors!RPCResponse(u128) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
     const request: EthereumRequest(struct { Subscriptions, WatchLogsRequest }) = .{
         .params = .{ .logs, opts },
@@ -1415,9 +1415,9 @@ pub fn watchLogs(self: *WebSocketHandler, opts: WatchLogsRequest) BasicRequestEr
         .id = @intFromEnum(self.network_config.chain_id),
     };
 
-    try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
+    try std.json.Stringify.value(request, .{ .emit_null_optional_fields = false }, &buf_writter);
 
-    return self.sendRpcRequest(u128, buf_writter.getWritten());
+    return self.sendRpcRequest(u128, buf_writter.buffered());
 }
 /// Emits transaction hashes that are sent to the network and marked as "pending".
 ///
@@ -1430,11 +1430,11 @@ pub fn watchTransactions(self: *WebSocketHandler) BasicRequestErrors!RPCResponse
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    return self.sendRpcRequest(u128, buf_writter.getWritten());
+    return self.sendRpcRequest(u128, buf_writter.buffered());
 }
 /// Creates a new subscription for desired events. Sends data as soon as it occurs
 ///
@@ -1450,11 +1450,11 @@ pub fn watchWebsocketEvent(self: *WebSocketHandler, method: []const u8) BasicReq
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    return self.sendRpcRequest(u128, buf_writter.getWritten());
+    return self.sendRpcRequest(u128, buf_writter.buffered());
 }
 /// Waits until a transaction gets mined and the receipt can be grabbed.
 /// This is retry based on either the amount of `confirmations` given.
@@ -1696,11 +1696,11 @@ fn sendBasicRequest(self: *WebSocketHandler, comptime T: type, method: EthereumR
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    return self.sendRpcRequest(T, buf_writter.getWritten());
+    return self.sendRpcRequest(T, buf_writter.buffered());
 }
 
 /// Sends specific block_number requests.
@@ -1708,7 +1708,7 @@ fn sendBlockNumberRequest(self: *WebSocketHandler, opts: BlockNumberRequest, met
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
     if (opts.block_number) |number| {
         const request: EthereumRequest(struct { u64 }) = .{
@@ -1717,7 +1717,7 @@ fn sendBlockNumberRequest(self: *WebSocketHandler, opts: BlockNumberRequest, met
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     } else {
         const request: EthereumRequest(struct { BalanceBlockTag }) = .{
             .params = .{tag},
@@ -1725,10 +1725,10 @@ fn sendBlockNumberRequest(self: *WebSocketHandler, opts: BlockNumberRequest, met
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     }
 
-    return self.sendRpcRequest(usize, buf_writter.getWritten());
+    return self.sendRpcRequest(usize, buf_writter.buffered());
 }
 // Sends specific block_hash requests.
 fn sendBlockHashRequest(self: *WebSocketHandler, block_hash: Hash, method: EthereumRpcMethods) BasicRequestErrors!RPCResponse(usize) {
@@ -1739,11 +1739,11 @@ fn sendBlockHashRequest(self: *WebSocketHandler, block_hash: Hash, method: Ether
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try std.json.stringify(request, .{}, buf_writter.writer());
+    try std.json.Stringify.value(request, .{}, &buf_writter);
 
-    return self.sendRpcRequest(usize, buf_writter.getWritten());
+    return self.sendRpcRequest(usize, buf_writter.buffered());
 }
 /// Sends request specific for addresses.
 fn sendAddressRequest(
@@ -1755,7 +1755,7 @@ fn sendAddressRequest(
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
     if (opts.block_number) |number| {
         const request: EthereumRequest(struct { Address, u64 }) = .{
@@ -1764,7 +1764,7 @@ fn sendAddressRequest(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     } else {
         const request: EthereumRequest(struct { Address, BalanceBlockTag }) = .{
             .params = .{ opts.address, tag },
@@ -1772,10 +1772,10 @@ fn sendAddressRequest(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{}, buf_writter.writer());
+        try std.json.Stringify.value(request, .{}, &buf_writter);
     }
 
-    return self.sendRpcRequest(T, buf_writter.getWritten());
+    return self.sendRpcRequest(T, buf_writter.buffered());
 }
 /// Sends eth_call request
 fn sendEthCallRequest(
@@ -1788,7 +1788,7 @@ fn sendEthCallRequest(
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [8 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
     if (opts.block_number) |number| {
         const request: EthereumRequest(struct { EthCall, u64 }) = .{
@@ -1797,7 +1797,7 @@ fn sendEthCallRequest(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
+        try std.json.Stringify.value(request, .{ .emit_null_optional_fields = false }, &buf_writter);
     } else {
         const request: EthereumRequest(struct { EthCall, BalanceBlockTag }) = .{
             .params = .{ call_object, tag },
@@ -1805,8 +1805,8 @@ fn sendEthCallRequest(
             .id = @intFromEnum(self.network_config.chain_id),
         };
 
-        try std.json.stringify(request, .{ .emit_null_optional_fields = false }, buf_writter.writer());
+        try std.json.Stringify.value(request, .{ .emit_null_optional_fields = false }, &buf_writter);
     }
 
-    return self.sendRpcRequest(T, buf_writter.getWritten());
+    return self.sendRpcRequest(T, buf_writter.buffered());
 }

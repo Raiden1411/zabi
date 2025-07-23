@@ -166,38 +166,38 @@ test "Prepare" {
     {
         const param: AbiParameter = .{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .address = {} }, .name = "bar" }} };
 
-        var c_writter = std.io.countingWriter(std.io.null_writer);
-        try param.prepare(c_writter.writer());
+        var c_writter: std.Io.Writer.Discarding = .init(&.{});
+        try param.prepare(&c_writter.writer);
 
-        const bytes = c_writter.bytes_written;
+        const bytes = c_writter.count;
         const size = std.math.cast(usize, bytes) orelse return error.OutOfMemory;
 
         const buffer = try testing.allocator.alloc(u8, size);
         defer testing.allocator.free(buffer);
 
-        var buf_writter = std.io.fixedBufferStream(buffer);
-        try param.prepare(buf_writter.writer());
+        var buf_writter = std.Io.Writer.fixed(buffer);
+        try param.prepare(&buf_writter);
 
-        const slice = buf_writter.getWritten();
+        const slice = buf_writter.buffered();
 
         try testing.expectEqualStrings(slice, "(address)");
     }
     {
         const param: AbiEventParameter = .{ .type = .{ .tuple = {} }, .name = "foo", .indexed = false, .components = &.{.{ .type = .{ .address = {} }, .name = "bar" }} };
 
-        var c_writter = std.io.countingWriter(std.io.null_writer);
-        try param.prepare(c_writter.writer());
+        var c_writter: std.Io.Writer.Discarding = .init(&.{});
+        try param.prepare(&c_writter.writer);
 
-        const bytes = c_writter.bytes_written;
+        const bytes = c_writter.count;
         const size = std.math.cast(usize, bytes) orelse return error.OutOfMemory;
 
         const buffer = try testing.allocator.alloc(u8, size);
         defer testing.allocator.free(buffer);
 
-        var buf_writter = std.io.fixedBufferStream(buffer);
-        try param.prepare(buf_writter.writer());
+        var buf_writter = std.Io.Writer.fixed(buffer);
+        try param.prepare(&buf_writter);
 
-        const slice = buf_writter.getWritten();
+        const slice = buf_writter.buffered();
 
         try testing.expectEqualStrings(slice, "(address)");
     }

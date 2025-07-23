@@ -44,6 +44,7 @@ const TokenBalanceRequest = explorer.TokenBalanceRequest;
 const TokenEventRequest = explorer.TokenEventRequest;
 const TokenExplorerTransaction = explorer.TokenExplorerTransaction;
 const Uri = std.Uri;
+const Writer = std.Io.Writer;
 
 const Explorer = @This();
 
@@ -57,7 +58,7 @@ pub const FetchErrors = Allocator.Error || HttpClient.RequestError || HttpClient
 pub const SendRequestErrors = FetchErrors || error{ UnexpectedServerResponse, UnexpectedErrorFound, ReachedMaxRetryLimit, InvalidRequest };
 
 /// Set of generic errors when sending a request.
-pub const BasicRequestErrors = SendRequestErrors || error{NoSpaceLeft};
+pub const BasicRequestErrors = SendRequestErrors || error{NoSpaceLeft} || Writer.Error;
 
 /// The block explorer modules.
 pub const Modules = enum {
@@ -167,7 +168,7 @@ pub const QueryParameters = struct {
 
     /// Build the query based on the provided `value` and it's inner state.
     /// Uses the `QueryWriter` to build the searchUrlParams.
-    pub fn buildQuery(self: @This(), value: anytype, writer: anytype) @TypeOf(writer).Error!void {
+    pub fn buildQuery(self: @This(), value: anytype, writer: *Writer) Writer.Error!void {
         const info = @typeInfo(@TypeOf(value));
 
         comptime {
@@ -175,7 +176,7 @@ pub const QueryParameters = struct {
             std.debug.assert(!info.@"struct".is_tuple); // Must be a non tuple struct type
         }
 
-        var stream = QueryWriter(@TypeOf(writer)).init(writer);
+        var stream: QueryWriter = .init(writer);
 
         try stream.beginQuery();
 
@@ -197,8 +198,8 @@ pub const QueryParameters = struct {
     }
     /// Build the query parameters without any provided values.
     /// Uses the `QueryWriter` to build the searchUrlParams.
-    pub fn buildDefaultQuery(self: @This(), writer: anytype) @TypeOf(writer).Error!void {
-        var stream = QueryWriter(@TypeOf(writer)).init(writer);
+    pub fn buildDefaultQuery(self: @This(), writer: *Writer) Writer.Error!void {
+        var stream: QueryWriter = .init(writer);
 
         try stream.beginQuery();
 
@@ -256,9 +257,9 @@ pub fn deinit(self: *Explorer) void {
 /// Queries the api endpoint to find the `address` contract ABI.
 pub fn getAbi(self: *Explorer, address: Address) (BasicRequestErrors || ParseError(Scanner))!ExplorerResponse(Abi) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .contract,
@@ -267,9 +268,9 @@ pub fn getAbi(self: *Explorer, address: Address) (BasicRequestErrors || ParseErr
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(.{ .address = address }, buf_writter.writer());
+    try query.buildQuery(.{ .address = address }, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     // The api sends the ABI as a string... So we grab it and reparse it as `Abi`
     const parsed = try self.sendRequest([]const u8, uri);
@@ -282,9 +283,9 @@ pub fn getAbi(self: *Explorer, address: Address) (BasicRequestErrors || ParseErr
 /// Queries the api endpoint to find the `address` balance at the specified `tag`
 pub fn getAddressBalance(self: *Explorer, request: AddressBalanceRequest) BasicRequestErrors!ExplorerResponse(u256) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .account,
@@ -293,18 +294,18 @@ pub fn getAddressBalance(self: *Explorer, request: AddressBalanceRequest) BasicR
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(request, buf_writter.writer());
+    try query.buildQuery(request, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest(u256, uri);
 }
 /// Queries the api endpoint to find the block reward at the specified `block_number`
 pub fn getBlockCountDown(self: *Explorer, block_number: u64) BasicRequestErrors!ExplorerResponse(BlockCountDown) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .block,
@@ -313,18 +314,18 @@ pub fn getBlockCountDown(self: *Explorer, block_number: u64) BasicRequestErrors!
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(.{ .blockno = block_number }, buf_writter.writer());
+    try query.buildQuery(.{ .blockno = block_number }, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest(BlockCountDown, uri);
 }
 /// Queries the api endpoint to find the block reward at the specified `block_number`
 pub fn getBlockNumberByTimestamp(self: *Explorer, request: BlocktimeRequest) BasicRequestErrors!ExplorerResponse(u64) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .block,
@@ -333,18 +334,18 @@ pub fn getBlockNumberByTimestamp(self: *Explorer, request: BlocktimeRequest) Bas
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(request, buf_writter.writer());
+    try query.buildQuery(request, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest(u64, uri);
 }
 /// Queries the api endpoint to find the block reward at the specified `block_number`
 pub fn getBlockReward(self: *Explorer, block_number: u64) BasicRequestErrors!ExplorerResponse(BlockRewards) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .block,
@@ -352,18 +353,18 @@ pub fn getBlockReward(self: *Explorer, block_number: u64) BasicRequestErrors!Exp
         .options = .{},
         .apikey = self.apikey,
     };
-    try query.buildQuery(.{ .blockno = block_number }, buf_writter.writer());
+    try query.buildQuery(.{ .blockno = block_number }, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest(BlockRewards, uri);
 }
 /// Queries the api endpoint to find the creation tx address from the target contract addresses.
 pub fn getContractCreation(self: *Explorer, addresses: []const Address) BasicRequestErrors!ExplorerResponse([]const ContractCreationResult) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .contract,
@@ -372,18 +373,18 @@ pub fn getContractCreation(self: *Explorer, addresses: []const Address) BasicReq
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(.{ .contractaddresses = addresses }, buf_writter.writer());
+    try query.buildQuery(.{ .contractaddresses = addresses }, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest([]const ContractCreationResult, uri);
 }
 /// Queries the api endpoint to find the `address` balance at the specified `tag`
 pub fn getEstimationOfConfirmation(self: *Explorer, gas_price: u64) BasicRequestErrors!ExplorerResponse(u64) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .gastracker,
@@ -392,18 +393,18 @@ pub fn getEstimationOfConfirmation(self: *Explorer, gas_price: u64) BasicRequest
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(.{ .gasprice = gas_price }, buf_writter.writer());
+    try query.buildQuery(.{ .gasprice = gas_price }, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest(u64, uri);
 }
 /// Queries the api endpoint to find the `address` erc20 token balance.
 pub fn getErc20TokenBalance(self: *Explorer, request: TokenBalanceRequest) BasicRequestErrors!ExplorerResponse(u256) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .account,
@@ -412,18 +413,18 @@ pub fn getErc20TokenBalance(self: *Explorer, request: TokenBalanceRequest) Basic
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(request, buf_writter.writer());
+    try query.buildQuery(request, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest(u256, uri);
 }
 /// Queries the api endpoint to find the `address` erc20 token supply.
 pub fn getErc20TokenSupply(self: *Explorer, address: Address) BasicRequestErrors!ExplorerResponse(u256) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .stats,
@@ -432,9 +433,9 @@ pub fn getErc20TokenSupply(self: *Explorer, address: Address) BasicRequestErrors
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(.{ .contractaddress = address }, buf_writter.writer());
+    try query.buildQuery(.{ .contractaddress = address }, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest(u256, uri);
 }
@@ -449,9 +450,9 @@ pub fn getErc20TokenTransferEvents(
     options: QueryOptions,
 ) BasicRequestErrors!ExplorerResponse([]const TokenExplorerTransaction) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .account,
@@ -460,9 +461,9 @@ pub fn getErc20TokenTransferEvents(
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(request, buf_writter.writer());
+    try query.buildQuery(request, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest([]const TokenExplorerTransaction, uri);
 }
@@ -477,9 +478,9 @@ pub fn getErc721TokenTransferEvents(
     options: QueryOptions,
 ) BasicRequestErrors!ExplorerResponse([]const TokenExplorerTransaction) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .account,
@@ -488,9 +489,9 @@ pub fn getErc721TokenTransferEvents(
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(request, buf_writter.writer());
+    try query.buildQuery(request, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest([]const TokenExplorerTransaction, uri);
 }
@@ -505,9 +506,9 @@ pub fn getErc1155TokenTransferEvents(
     options: QueryOptions,
 ) BasicRequestErrors!ExplorerResponse([]const TokenExplorerTransaction) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .account,
@@ -516,18 +517,18 @@ pub fn getErc1155TokenTransferEvents(
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(request, buf_writter.writer());
+    try query.buildQuery(request, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest([]const TokenExplorerTransaction, uri);
 }
 /// Queries the api endpoint to find the `address` erc20 token balance.
 pub fn getEtherPrice(self: *Explorer) BasicRequestErrors!ExplorerResponse(EtherPriceResponse) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .stats,
@@ -536,9 +537,9 @@ pub fn getEtherPrice(self: *Explorer) BasicRequestErrors!ExplorerResponse(EtherP
         .apikey = self.apikey,
     };
 
-    try query.buildDefaultQuery(buf_writter.writer());
+    try query.buildDefaultQuery(&buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest(EtherPriceResponse, uri);
 }
@@ -553,9 +554,9 @@ pub fn getInternalTransactionList(
     options: QueryOptions,
 ) BasicRequestErrors!ExplorerResponse([]const InternalExplorerTransaction) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .account,
@@ -564,9 +565,9 @@ pub fn getInternalTransactionList(
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(request, buf_writter.writer());
+    try query.buildQuery(request, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest([]const InternalExplorerTransaction, uri);
 }
@@ -577,9 +578,9 @@ pub fn getInternalTransactionList(
 /// or increasing the `max_append_size`.
 pub fn getInternalTransactionListByHash(self: *Explorer, tx_hash: Hash) BasicRequestErrors!ExplorerResponse([]const InternalExplorerTransaction) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .account,
@@ -588,9 +589,9 @@ pub fn getInternalTransactionListByHash(self: *Explorer, tx_hash: Hash) BasicReq
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(.{ .txhash = tx_hash }, buf_writter.writer());
+    try query.buildQuery(.{ .txhash = tx_hash }, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest([]const InternalExplorerTransaction, uri);
 }
@@ -607,9 +608,9 @@ pub fn getInternalTransactionListByRange(
     std.debug.assert(request.startblock <= request.endblock); // Invalid range provided.
 
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .account,
@@ -618,18 +619,18 @@ pub fn getInternalTransactionListByRange(
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(request, buf_writter.writer());
+    try query.buildQuery(request, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest([]const InternalExplorerTransaction, uri);
 }
 /// Queries the api endpoint to find the logs at the target `address` based on the provided block range.
 pub fn getLogs(self: *Explorer, request: LogRequest, options: QueryOptions) BasicRequestErrors!ExplorerResponse([]const ExplorerLog) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .logs,
@@ -638,18 +639,18 @@ pub fn getLogs(self: *Explorer, request: LogRequest, options: QueryOptions) Basi
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(request, buf_writter.writer());
+    try query.buildQuery(request, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest([]const ExplorerLog, uri);
 }
 /// Queries the api endpoint to find the `address` balances at the specified `tag`
 pub fn getMultiAddressBalance(self: *Explorer, request: MultiAddressBalanceRequest) BasicRequestErrors!ExplorerResponse([]const MultiAddressBalance) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .account,
@@ -658,9 +659,9 @@ pub fn getMultiAddressBalance(self: *Explorer, request: MultiAddressBalanceReque
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(request, buf_writter.writer());
+    try query.buildQuery(request, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest([]const MultiAddressBalance, uri);
 }
@@ -669,9 +670,9 @@ pub fn getMultiAddressBalance(self: *Explorer, request: MultiAddressBalanceReque
 /// This will cause the json parse to fail.
 pub fn getSourceCode(self: *Explorer, address: Address) BasicRequestErrors!ExplorerResponse([]const GetSourceResult) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .contract,
@@ -680,18 +681,18 @@ pub fn getSourceCode(self: *Explorer, address: Address) BasicRequestErrors!Explo
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(.{ .address = address }, buf_writter.writer());
+    try query.buildQuery(.{ .address = address }, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest([]const GetSourceResult, uri);
 }
 /// Queries the api endpoint to find the `address` erc20 token balance.
 pub fn getTotalEtherSupply(self: *Explorer) BasicRequestErrors!ExplorerResponse(u256) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .stats,
@@ -700,9 +701,9 @@ pub fn getTotalEtherSupply(self: *Explorer) BasicRequestErrors!ExplorerResponse(
         .apikey = self.apikey,
     };
 
-    try query.buildDefaultQuery(buf_writter.writer());
+    try query.buildDefaultQuery(&buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest(u256, uri);
 }
@@ -713,9 +714,9 @@ pub fn getTotalEtherSupply(self: *Explorer) BasicRequestErrors!ExplorerResponse(
 /// or increasing the `max_append_size`
 pub fn getTransactionList(self: *Explorer, request: TransactionListRequest, options: QueryOptions) BasicRequestErrors!ExplorerResponse([]const ExplorerTransaction) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .account,
@@ -724,18 +725,18 @@ pub fn getTransactionList(self: *Explorer, request: TransactionListRequest, opti
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(request, buf_writter.writer());
+    try query.buildQuery(request, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest([]const ExplorerTransaction, uri);
 }
 /// Queries the api endpoint to find the transaction receipt status based on the provided `hash`
 pub fn getTransactionReceiptStatus(self: *Explorer, hash: Hash) BasicRequestErrors!ExplorerResponse(ReceiptStatus) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .transaction,
@@ -744,18 +745,18 @@ pub fn getTransactionReceiptStatus(self: *Explorer, hash: Hash) BasicRequestErro
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(.{ .txhash = hash }, buf_writter.writer());
+    try query.buildQuery(.{ .txhash = hash }, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest(ReceiptStatus, uri);
 }
 /// Queries the api endpoint to find the transaction status based on the provided `hash`
 pub fn getTransactionStatus(self: *Explorer, hash: Hash) BasicRequestErrors!ExplorerResponse(TransactionStatus) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.io.fixedBufferStream(&request_buffer);
+    var buf_writter = std.Io.Writer.fixed(&request_buffer);
 
-    try buf_writter.writer().writeAll(self.endpoint.getEndpoint());
+    try buf_writter.writeAll(self.endpoint.getEndpoint());
 
     const query: QueryParameters = .{
         .module = .transaction,
@@ -764,9 +765,9 @@ pub fn getTransactionStatus(self: *Explorer, hash: Hash) BasicRequestErrors!Expl
         .apikey = self.apikey,
     };
 
-    try query.buildQuery(.{ .txhash = hash }, buf_writter.writer());
+    try query.buildQuery(.{ .txhash = hash }, &buf_writter);
 
-    const uri = try Uri.parse(buf_writter.getWritten());
+    const uri = try Uri.parse(buf_writter.buffered());
 
     return self.sendRequest(TransactionStatus, uri);
 }

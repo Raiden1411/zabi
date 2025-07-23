@@ -10,9 +10,10 @@ const DecoderErrors = decoder.DecoderErrors;
 const DecodeOptions = decoder.DecodeOptions;
 const EncodeErrors = encoder.EncodeErrors;
 const ParamType = @import("param_type.zig").ParamType;
+const Writer = std.Io.Writer;
 
 /// Set of possible errors when running `allocPrepare`
-pub const PrepareErrors = Allocator.Error || error{NoSpaceLeft};
+pub const PrepareErrors = Allocator.Error || error{NoSpaceLeft} || Writer.Error;
 
 /// Struct to represent solidity Abi Paramters
 pub const AbiParameter = struct {
@@ -82,7 +83,7 @@ pub const AbiParameter = struct {
     /// Intended to use for hashing purposes.
     pub fn prepare(
         self: @This(),
-        writer: anytype,
+        writer: *Writer,
     ) PrepareErrors!void {
         if (self.components) |components| {
             try writer.print("(", .{});
@@ -128,7 +129,7 @@ pub const AbiEventParameter = struct {
     /// Intended to use for hashing purposes.
     pub fn prepare(
         self: @This(),
-        writer: anytype,
+        writer: *Writer,
     ) PrepareErrors!void {
         if (self.components) |components| {
             try writer.print("(", .{});

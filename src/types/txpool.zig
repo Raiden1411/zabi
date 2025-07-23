@@ -335,17 +335,17 @@ pub const InspectPoolTransactionByNonce = struct {
     /// Converts the nonces into strings.
     pub fn jsonStringify(
         value: InspectPoolTransactionByNonce,
-        source: anytype,
-    ) @TypeOf(source.*).Error!void {
+        source: *std.json.Stringify,
+    ) std.json.Stringify.Error!void {
         try source.beginObject();
         var iter = value.nonce.iterator();
 
         while (iter.next()) |field| {
             var buffer: [@sizeOf(u64)]u8 = undefined;
-            var buf_writter = std.io.fixedBufferStream(&buffer);
-            buf_writter.writer().print("{d}", .{field.key_ptr.*}) catch return error.OutOfMemory;
+            var buf_writter = std.Io.Writer.fixed(&buffer);
+            buf_writter.print("{d}", .{field.key_ptr.*}) catch return error.WriteFailed;
 
-            try source.objectField(buf_writter.getWritten());
+            try source.objectField(buf_writter.buffered());
             try source.write(field.value_ptr.*);
         }
 
@@ -401,19 +401,16 @@ pub const PoolTransactionByNonce = struct {
         return .{ .nonce = result };
     }
     /// Converts the nonces into strings.
-    pub fn jsonStringify(
-        value: PoolTransactionByNonce,
-        source: anytype,
-    ) @TypeOf(source.*).Error!void {
+    pub fn jsonStringify(value: PoolTransactionByNonce, source: *std.json.Stringify) std.json.Stringify.Error!void {
         try source.beginObject();
         var iter = value.nonce.iterator();
 
         while (iter.next()) |field| {
             var buffer: [@sizeOf(u64)]u8 = undefined;
-            var buf_writter = std.io.fixedBufferStream(&buffer);
-            buf_writter.writer().print("{d}", .{field.key_ptr.*}) catch return error.OutOfMemory;
+            var buf_writter = std.Io.Writer.fixed(&buffer);
+            buf_writter.print("{d}", .{field.key_ptr.*}) catch return error.WriteFailed;
 
-            try source.objectField(buf_writter.getWritten());
+            try source.objectField(buf_writter.buffered());
             try source.write(field.value_ptr.*);
         }
 

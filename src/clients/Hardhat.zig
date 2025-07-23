@@ -165,7 +165,7 @@ pub fn setBalance(
         .method = .hardhat_setBalance,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -181,7 +181,7 @@ pub fn setCode(
         .method = .hardhat_setCode,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -196,7 +196,7 @@ pub fn setRpcUrl(
         .method = .hardhat_setRpcUrl,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -211,7 +211,7 @@ pub fn setCoinbase(
         .method = .hardhat_setCoinbase,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -223,7 +223,7 @@ pub fn setLoggingEnable(self: *Hardhat) FetchErrors!void {
         .method = .hardhat_setLoggingEnabled,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -238,7 +238,7 @@ pub fn setMinGasPrice(
         .method = .hardhat_setMinGasPrice,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -253,7 +253,7 @@ pub fn setNextBlockBaseFeePerGas(
         .method = .hardhat_setNextBlockBaseFeePerGas,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -268,7 +268,7 @@ pub fn setChainId(
         .method = .hardhat_setChainId,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -284,7 +284,7 @@ pub fn setNonce(
         .method = .hardhat_setNonce,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -299,7 +299,7 @@ pub fn dropTransaction(
         .method = .hardhat_dropTransaction,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -315,7 +315,7 @@ pub fn mine(
         .method = .hardhat_mine,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -330,7 +330,7 @@ pub fn reset(
         .method = .hardhat_reset,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -345,7 +345,7 @@ pub fn impersonateAccount(
         .method = .hardhat_impersonateAccount,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);
@@ -360,7 +360,7 @@ pub fn stopImpersonatingAccount(
         .method = .hardhat_impersonateAccount,
     };
 
-    const req_body = try std.json.stringifyAlloc(self.allocator, request, .{});
+    const req_body = try std.json.Stringify.valueAlloc(self.allocator, request, .{});
     defer self.allocator.free(req_body);
 
     return self.sendRpcRequest(req_body);

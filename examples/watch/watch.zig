@@ -2,14 +2,14 @@ const args_parser = @import("zabi").utils.args;
 const std = @import("std");
 const clients = @import("zabi").clients;
 
-const WebSocket = clients.WebSocket;
+const WebProvider = clients.Provider.WebsocketProvider;
 
 pub const CliOptions = struct {
     url: []const u8,
 };
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa: std.heap.DebugAllocator(.{}) = .{};
     defer _ = gpa.deinit();
 
     var iter = try std.process.argsWithAllocator(gpa.allocator());
@@ -19,13 +19,15 @@ pub fn main() !void {
 
     const uri = try std.Uri.parse(parsed.url);
 
-    var socket = try WebSocket.init(.{
+    var socket = try WebProvider.init(.{
         .network_config = .{ .endpoint = .{ .uri = uri } },
         .allocator = gpa.allocator(),
     });
     defer socket.deinit();
 
-    const id = try socket.watchTransactions();
+    try socket.readLoopSeperateThread();
+
+    const id = try socket.provider.watchTransactions();
     defer id.deinit();
 
     std.debug.print("Sub id: 0x{x}\n", .{id.response});
@@ -34,7 +36,7 @@ pub fn main() !void {
         defer event.deinit();
 
         const hash = event.response.params.result;
-        const transaction = socket.getTransactionByHash(hash) catch |err| switch (err) {
+        const transaction = socket.provider.getTransactionByHash(hash) catch |err| switch (err) {
             error.TransactionNotFound => continue,
             else => return err,
         };
@@ -56,6 +58,6 @@ pub fn main() !void {
         }
     }
 
-    const unsubed = try socket.unsubscribe(id.response);
+    const unsubed = try socket.provider.unsubscribe(id.response);
     defer unsubed.deinit();
 }

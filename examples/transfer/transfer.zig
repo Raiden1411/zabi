@@ -2,7 +2,8 @@ const args_parser = @import("zabi").utils.args;
 const std = @import("std");
 const clients = @import("zabi").clients;
 
-const Wallet = clients.wallet.Wallet(.websocket);
+const WebProvider = clients.Provider.WebsocketProvider;
+const Wallet = clients.Wallet;
 
 const CliOptions = struct {
     priv_key: [32]u8,
@@ -20,14 +21,19 @@ pub fn main() !void {
 
     const uri = try std.Uri.parse(parsed.url);
 
-    var wallet = try Wallet.init(parsed.priv_key, .{
+    var socket = try WebProvider.init(.{
         .allocator = gpa.allocator(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .chain_id = .sepolia,
             .base_fee_multiplier = 3.2,
         },
-    }, true);
+    });
+    defer socket.deinit();
+
+    try socket.readLoopSeperateThread();
+
+    var wallet = try Wallet.init(parsed.priv_key, gpa.allocator(), &socket.provider, true);
     defer wallet.deinit();
 
     const hash = try wallet.sendTransaction(.{
@@ -37,7 +43,7 @@ pub fn main() !void {
     });
     defer hash.deinit();
 
-    const receipt = try wallet.waitForTransactionReceipt(hash.response, 0);
+    const receipt = try wallet.rpc_client.waitForTransactionReceipt(hash.response, 0);
     defer receipt.deinit();
 
     var buffer: [4096]u8 = undefined;

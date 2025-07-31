@@ -15,9 +15,6 @@ pub const decoding = @import("zabi-decoding");
 /// Set of encoding methods. Currently supported are
 /// abi, logs, rlp and ssz.
 pub const encoding = @import("zabi-encoding");
-/// Currently minimal support for interacting with ens resolvers
-/// More functionality will be added in the future.
-pub const ens = @import("zabi-ens");
 /// Evm implementation. For now it contains the interpreter and other needed instances
 /// like `Contract`, `Host` and `EVMEnviroment` among other things.
 pub const evm = @import("zabi-evm");
@@ -26,8 +23,6 @@ pub const human_readable = @import("zabi-human");
 /// Set of utils for meta programming in zabi as
 /// well as where the custom json parser/stringify that we use resides.
 pub const meta = @import("zabi-meta");
-/// Superchain contracts, methods and clients. Fault proofs aren't yet supported.
-pub const superchain = @import("zabi-op-stack");
 /// Zabi's custom types for all things related to JSON RPC Requests
 /// as well the currently supported chains, etc.
 pub const types = @import("zabi-types");

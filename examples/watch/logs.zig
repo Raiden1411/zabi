@@ -3,7 +3,7 @@ const clients = @import("zabi").clients;
 const decoder = @import("zabi").decoding;
 const std = @import("std");
 
-const WebSocket = clients.WebSocket;
+const WebProvider = clients.Provider.WebsocketProvider;
 
 pub const CliOptions = struct {
     url: []const u8,
@@ -20,13 +20,15 @@ pub fn main() !void {
 
     const uri = try std.Uri.parse(parsed.url);
 
-    var socket = try WebSocket.init(.{
+    var socket = try WebProvider.init(.{
         .network_config = .{ .endpoint = .{ .uri = uri } },
         .allocator = gpa.allocator(),
     });
     defer socket.deinit();
 
-    const id = try socket.watchLogs(.{
+    try socket.readLoopSeperateThread();
+
+    const id = try socket.provider.watchLogs(.{
         .address = try @import("zabi").utils.utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
         .topics = &.{@constCast(&try @import("zabi").utils.utils.hashToBytes("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"))},
     });
@@ -47,6 +49,6 @@ pub fn main() !void {
         std.debug.print("To: 0x{x}\n", .{&topics[2]});
     }
 
-    const unsubed = try socket.unsubscribe(id.response);
+    const unsubed = try socket.provider.unsubscribe(id.response);
     defer unsubed.deinit();
 }

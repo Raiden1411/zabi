@@ -62,13 +62,6 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    // Build the library with the ens-client module.
-    const zabi_ens = b.addModule("zabi-ens", .{
-        .root_source_file = b.path("src/clients/ens/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
     // Build the library with the encoding module.
     const zabi_encoding = b.addModule("zabi-encoding", .{
         .root_source_file = b.path("src/encoding/root.zig"),
@@ -97,13 +90,6 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    // Build the library with the op-stack module.
-    const zabi_op_stack = b.addModule("zabi-op-stack", .{
-        .root_source_file = b.path("src/clients/optimism/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
     // Build the library with the types module.
     const zabi_types = b.addModule("zabi-types", .{
         .root_source_file = b.path("src/types/root.zig"),
@@ -127,11 +113,9 @@ pub fn build(b: *std.Build) void {
         zabi.addImport("zabi-crypto", zabi_crypto);
         zabi.addImport("zabi-decoding", zabi_decoding);
         zabi.addImport("zabi-encoding", zabi_encoding);
-        zabi.addImport("zabi-ens", zabi_ens);
         zabi.addImport("zabi-evm", zabi_evm);
         zabi.addImport("zabi-human", zabi_human);
         zabi.addImport("zabi-meta", zabi_meta);
-        zabi.addImport("zabi-op-stack", zabi_op_stack);
         zabi.addImport("zabi-types", zabi_types);
         zabi.addImport("zabi-utils", zabi_utils);
     }
@@ -179,16 +163,6 @@ pub fn build(b: *std.Build) void {
         zabi_encoding.addImport("zabi-utils", zabi_utils);
     }
 
-    // Adds the dependencies for `zabi-ens` module.
-    {
-        zabi_ens.addImport("zabi-abi", zabi_abi);
-        zabi_ens.addImport("zabi-clients", zabi_clients);
-        zabi_ens.addImport("zabi-decoding", zabi_decoding);
-        zabi_ens.addImport("zabi-encoding", zabi_encoding);
-        zabi_ens.addImport("zabi-types", zabi_types);
-        zabi_ens.addImport("zabi-utils", zabi_utils);
-    }
-
     // Adds the dependencies for `zabi-evm` module.
     {
         zabi_evm.addImport("zabi-utils", zabi_utils);
@@ -206,18 +180,6 @@ pub fn build(b: *std.Build) void {
     {
         zabi_meta.addImport("zabi-abi", zabi_abi);
         zabi_meta.addImport("zabi-types", zabi_types);
-    }
-
-    // Adds the dependencies for `zabi-op-stack` module.
-    {
-        zabi_op_stack.addImport("zabi-abi", zabi_abi);
-        zabi_op_stack.addImport("zabi-clients", zabi_clients);
-        zabi_op_stack.addImport("zabi-crypto", zabi_crypto);
-        zabi_op_stack.addImport("zabi-decoding", zabi_decoding);
-        zabi_op_stack.addImport("zabi-encoding", zabi_encoding);
-        zabi_op_stack.addImport("zabi-meta", zabi_meta);
-        zabi_op_stack.addImport("zabi-types", zabi_types);
-        zabi_op_stack.addImport("zabi-utils", zabi_utils);
     }
 
     // Adds the dependencies for `zabi-types` module.
@@ -291,7 +253,7 @@ fn buildTestOrCoverage(
     // Build and run coverage test runner if `zig build coverage` was ran
     {
         const coverage_lib_tests_mod = b.createModule(.{
-            .root_source_file = b.path("tests/root_benchmark.zig"),
+            .root_source_file = b.path("tests/root.zig"),
             .target = target,
             .optimize = optimize,
         });
@@ -319,7 +281,6 @@ fn buildTestOrCoverage(
         kcov_collect.addPrefixedDirectoryArg("--include-pattern=", b.path("src"));
         _ = kcov_collect.addOutputFileArg(coverage_lib_unit_tests.name);
         kcov_collect.addArtifactArg(coverage_lib_unit_tests);
-        kcov_collect.enableTestRunnerMode();
 
         const install_coverage = b.addInstallDirectory(.{
             .source_dir = kcov_collect.addOutputFileArg("."),
@@ -438,7 +399,6 @@ fn buildExamples(
         "examples/interpreter/interpreter.zig",
         "examples/block_explorer/explorer.zig",
         "examples/wallet/wallet.zig",
-        "examples/contract/contract.zig",
         "examples/autobahn/autobahn.zig",
     };
 

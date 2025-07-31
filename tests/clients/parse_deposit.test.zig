@@ -1,5 +1,5 @@
-const parse = @import("zabi").superchain.parse;
-const serialize = @import("zabi").superchain.serialize;
+const parse = @import("zabi").clients.op_parse;
+const serialize = @import("zabi").clients.op_serialize;
 const std = @import("std");
 const testing = std.testing;
 const transaction = @import("zabi").types.transactions;

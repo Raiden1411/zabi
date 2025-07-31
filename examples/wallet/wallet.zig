@@ -2,7 +2,8 @@ const args_parser = @import("zabi").utils.args;
 const std = @import("std");
 const clients = @import("zabi").clients;
 
-const Wallet = clients.wallet.Wallet(.http);
+const HttpProvider = clients.Provider.HttpProvider;
+const Wallet = clients.Wallet;
 
 const CliOptions = struct {
     priv_key: [32]u8,
@@ -19,11 +20,13 @@ pub fn main() !void {
     const parsed = args_parser.parseArgs(CliOptions, gpa.allocator(), &iter);
 
     const uri = try std.Uri.parse(parsed.url);
-
-    var wallet = try Wallet.init(parsed.priv_key, .{
+    var provider = try HttpProvider.init(.{
         .allocator = gpa.allocator(),
         .network_config = .{ .endpoint = .{ .uri = uri } },
-    }, false);
+    });
+    defer provider.deinit();
+
+    var wallet = try Wallet.init(parsed.priv_key, gpa.allocator(), &provider.provider, false);
     defer wallet.deinit();
 
     const message = try wallet.signEthereumMessage("Hello World");

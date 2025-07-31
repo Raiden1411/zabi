@@ -144,8 +144,9 @@ pub fn main() !void {
     if (test_funcs.len <= 1)
         return;
 
+    var writer = std.fs.File.stderr().writer(&.{}).interface;
     var runner: Runner = .{
-        .color_stream = .init(std.debug.lockStderrWriter(&.{}), &.{}),
+        .color_stream = .init(&writer, &.{}),
         .result = .{},
     };
     try runner.resetAnvilInstance(std.heap.page_allocator);

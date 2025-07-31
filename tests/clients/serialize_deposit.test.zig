@@ -1,4 +1,4 @@
-const serialize = @import("zabi").superchain.serialize;
+const serialize = @import("zabi").clients.op_serialize;
 const std = @import("std");
 const testing = std.testing;
 const utils = @import("zabi").utils.utils;

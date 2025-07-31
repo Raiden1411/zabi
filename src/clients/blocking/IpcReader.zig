@@ -12,7 +12,7 @@ const Buffer = std.fifo.LinearFifo(u8, .Dynamic);
 const Self = @This();
 
 /// Set of possible errors when reading from the socket.
-pub const ReadError = Stream.ReadError || Allocator.Error || error{Closed} || std.Io.Reader.Error;
+pub const ReadError = Stream.ReadError || Allocator.Error || error{EndOfStream} || std.Io.Reader.Error;
 
 /// Set of possible error when writting to the stream.
 pub const WriteError = std.Io.Writer.Error;
@@ -23,8 +23,6 @@ buffer: Buffer,
 stream: Stream,
 /// Amount of bytes to discard on a successfull read.
 overflow: usize,
-/// The tell reader if the stream is closed.
-closed: bool,
 
 /// Sets the initial reader state in order to perform any necessary actions.
 ///
@@ -47,21 +45,16 @@ pub fn init(
 }
 /// Frees the buffer and closes the stream.
 pub fn deinit(self: *@This()) void {
-    if (@atomicRmw(bool, &self.closed, .Xchg, true, .acq_rel) == false) {
-        self.buffer.deinit();
-        self.stream.close();
-    }
+    self.overflow = 0;
+    std.posix.shutdown(self.stream.handle, .both) catch unreachable;
+    self.buffer.deinit();
+    self.stream.close();
 }
 /// "Reads" a json message and moves the necessary position members in order
 /// to have the necessary message.
 pub fn jsonMessage(self: *@This()) usize {
     self.buffer.discard(self.overflow);
     self.buffer.realign();
-
-    if (self.buffer.count <= 1) {
-        self.overflow = 0;
-        return 0;
-    }
 
     var depth: usize = 0;
     var index: usize = 0;
@@ -74,8 +67,8 @@ pub fn jsonMessage(self: *@This()) usize {
 
         // Check if we read a message or not.
         if (depth == 0) {
-            self.overflow = index + 1;
-            return index + 1;
+            self.overflow = self.buffer.count;
+            return self.buffer.count;
         }
     }
 
@@ -90,7 +83,7 @@ pub fn read(self: *@This()) ReadError!void {
     const read_amount = try reader.file_reader.read(buffer);
 
     if (read_amount == 0)
-        return error.Closed;
+        return error.EndOfStream;
 
     self.buffer.update(read_amount);
 }

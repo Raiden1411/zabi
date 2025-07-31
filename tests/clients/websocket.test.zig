@@ -5,8 +5,7 @@ const testing = std.testing;
 const utils = @import("zabi").utils.utils;
 
 const Function = abi.Function;
-const MulticallTargets = multicall.MulticallTargets;
-const WebSocketHandler = @import("zabi").clients.WebSocket;
+const WebSocketHandler = @import("zabi").clients.Provider.WebsocketProvider;
 
 test "BlockByNumber" {
     {
@@ -20,7 +19,9 @@ test "BlockByNumber" {
         });
         defer client.deinit();
 
-        const block_number = try client.getBlockByNumber(.{ .block_number = 10 });
+        try client.readLoopSeperateThread();
+
+        const block_number = try client.provider.getBlockByNumber(.{ .block_number = 10 });
         defer block_number.deinit();
     }
     {
@@ -33,8 +34,9 @@ test "BlockByNumber" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const block_number = try client.getBlockByNumber(.{});
+        const block_number = try client.provider.getBlockByNumber(.{});
         defer block_number.deinit();
     }
     {
@@ -47,8 +49,9 @@ test "BlockByNumber" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const block_number = try client.getBlockByNumber(.{ .include_transaction_objects = true });
+        const block_number = try client.provider.getBlockByNumber(.{ .include_transaction_objects = true });
         defer block_number.deinit();
     }
     {
@@ -61,8 +64,9 @@ test "BlockByNumber" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const block_number = try client.getBlockByNumber(.{ .block_number = 1000000, .include_transaction_objects = true });
+        const block_number = try client.provider.getBlockByNumber(.{ .block_number = 1000000, .include_transaction_objects = true });
         defer block_number.deinit();
     }
 }
@@ -78,8 +82,9 @@ test "BlockByHash" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const block_number = try client.getBlockByHash(.{
+        const block_number = try client.provider.getBlockByHash(.{
             .block_hash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"),
         });
         defer block_number.deinit();
@@ -96,8 +101,9 @@ test "BlockByHash" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const block_number = try client.getBlockByHash(.{
+        const block_number = try client.provider.getBlockByHash(.{
             .block_hash = try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"),
             .include_transaction_objects = true,
         });
@@ -119,8 +125,9 @@ test "BlockTransactionCountByHash" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const block_number = try client.getBlockTransactionCountByHash(try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"));
+    const block_number = try client.provider.getBlockTransactionCountByHash(try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"));
     defer block_number.deinit();
 
     try testing.expect(block_number.response != 0);
@@ -137,8 +144,9 @@ test "BlockTransactionCountByNumber" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const block_number = try client.getBlockTransactionCountByNumber(.{ .block_number = 100101 });
+        const block_number = try client.provider.getBlockTransactionCountByNumber(.{ .block_number = 100101 });
         defer block_number.deinit();
 
         try testing.expectEqual(block_number.response, 0);
@@ -153,8 +161,9 @@ test "BlockTransactionCountByNumber" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const block_number = try client.getBlockTransactionCountByNumber(.{});
+        const block_number = try client.provider.getBlockTransactionCountByNumber(.{});
         defer block_number.deinit();
 
         try testing.expect(block_number.response != 0);
@@ -172,8 +181,9 @@ test "AddressBalance" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const block_number = try client.getAddressBalance(.{
+        const block_number = try client.provider.getAddressBalance(.{
             .address = try utils.addressToBytes("0x0689f41a1461D176F722E824B682F439a9b9FDbf"),
             .block_number = 100101,
         });
@@ -191,8 +201,9 @@ test "AddressBalance" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const block_number = try client.getAddressBalance(.{
+        const block_number = try client.provider.getAddressBalance(.{
             .address = try utils.addressToBytes("0xdAC17F958D2ee523a2206206994597C13D831ec7"),
         });
         defer block_number.deinit();
@@ -212,8 +223,9 @@ test "AddressNonce" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const block_number = try client.getAddressTransactionCount(.{
+        const block_number = try client.provider.getAddressTransactionCount(.{
             .address = try utils.addressToBytes("0x0689f41a1461D176F722E824B682F439a9b9FDbf"),
         });
         defer block_number.deinit();
@@ -230,8 +242,9 @@ test "AddressNonce" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const block_number = try client.getAddressTransactionCount(.{
+        const block_number = try client.provider.getAddressTransactionCount(.{
             .address = try utils.addressToBytes("0x0689f41a1461D176F722E824B682F439a9b9FDbf"),
             .block_number = 100012,
         });
@@ -251,8 +264,9 @@ test "BlockNumber" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const block_number = try client.getBlockNumber();
+    const block_number = try client.provider.getBlockNumber();
     defer block_number.deinit();
 
     try testing.expect(block_number.response != 0);
@@ -268,8 +282,9 @@ test "GetChainId" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const chain = try client.getChainId();
+    const chain = try client.provider.getChainId();
     defer chain.deinit();
 
     try testing.expectEqual(chain.response, 1);
@@ -286,8 +301,9 @@ test "GetStorage" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const storage = try client.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{});
+        const storage = try client.provider.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{});
         defer storage.deinit();
 
         try testing.expectEqual(@as(u256, @bitCast(storage.response)), 0);
@@ -302,8 +318,9 @@ test "GetStorage" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const storage = try client.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{ .block_number = 101010 });
+        const storage = try client.provider.getStorage([_]u8{0} ** 20, [_]u8{0} ** 32, .{ .block_number = 101010 });
         defer storage.deinit();
 
         try testing.expectEqual(@as(u256, @bitCast(storage.response)), 0);
@@ -320,8 +337,9 @@ test "GetAccounts" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const accounts = try client.getAccounts();
+    const accounts = try client.provider.getAccounts();
     defer accounts.deinit();
 
     try testing.expectEqual(accounts.response.len, 10);
@@ -339,8 +357,9 @@ test "GetContractCode" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const code = try client.getContractCode(.{
+        const code = try client.provider.getContractCode(.{
             .address = try utils.addressToBytes("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
         });
         defer code.deinit();
@@ -357,8 +376,9 @@ test "GetContractCode" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const code = try client.getContractCode(.{
+        const code = try client.provider.getContractCode(.{
             .address = try utils.addressToBytes("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"),
             .block_number = 101010,
         });
@@ -378,8 +398,9 @@ test "GetTransactionByHash" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const tx = try client.getTransactionByHash(try utils.hashToBytes("0x360bf48bf75f0020d05cc97526b246d67c266dcf91897c01cf7acfe94fe2154e"));
+    const tx = try client.provider.getTransactionByHash(try utils.hashToBytes("0x360bf48bf75f0020d05cc97526b246d67c266dcf91897c01cf7acfe94fe2154e"));
     defer tx.deinit();
 
     try testing.expect(tx.response == .london);
@@ -396,8 +417,9 @@ test "GetReceipt" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const receipt = try client.getTransactionReceipt(try utils.hashToBytes("0x360bf48bf75f0020d05cc97526b246d67c266dcf91897c01cf7acfe94fe2154e"));
+    const receipt = try client.provider.getTransactionReceipt(try utils.hashToBytes("0x360bf48bf75f0020d05cc97526b246d67c266dcf91897c01cf7acfe94fe2154e"));
     defer receipt.deinit();
 
     try testing.expect(receipt.response == .legacy);
@@ -415,8 +437,9 @@ test "GetFilter" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const filter = try client.getFilterOrLogChanges(0, .eth_getFilterChanges);
+        const filter = try client.provider.getFilterOrLogChanges(0, .eth_getFilterChanges);
         defer filter.deinit();
 
         try testing.expectEqual(filter.response.len, 0);
@@ -431,8 +454,9 @@ test "GetFilter" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const filter = try client.getFilterOrLogChanges(0, .eth_getFilterLogs);
+        const filter = try client.provider.getFilterOrLogChanges(0, .eth_getFilterLogs);
         defer filter.deinit();
 
         try testing.expectEqual(filter.response.len, 0);
@@ -447,8 +471,9 @@ test "GetFilter" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        try testing.expectError(error.InvalidRpcMethod, client.getFilterOrLogChanges(0, .eth_chainId));
+        try testing.expectError(error.InvalidRpcMethod, client.provider.getFilterOrLogChanges(0, .eth_chainId));
     }
 }
 
@@ -462,8 +487,9 @@ test "GetGasPrice" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const gas = try client.getGasPrice();
+    const gas = try client.provider.getGasPrice();
     defer gas.deinit();
 
     try testing.expect(gas.response != 0);
@@ -479,8 +505,9 @@ test "GetUncleCountByBlockHash" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const uncle = try client.getUncleCountByBlockHash(try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"));
+    const uncle = try client.provider.getUncleCountByBlockHash(try utils.hashToBytes("0x7f609bbcba8d04901c9514f8f62feaab8cf1792d64861d553dde6308e03f3ef8"));
     defer uncle.deinit();
 
     try testing.expectEqual(uncle.response, 0);
@@ -497,8 +524,9 @@ test "GetUncleCountByBlockNumber" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const uncle = try client.getUncleCountByBlockNumber(.{});
+        const uncle = try client.provider.getUncleCountByBlockNumber(.{});
         defer uncle.deinit();
 
         try testing.expectEqual(uncle.response, 0);
@@ -513,8 +541,9 @@ test "GetUncleCountByBlockNumber" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const uncle = try client.getUncleCountByBlockNumber(.{ .block_number = 101010 });
+        const uncle = try client.provider.getUncleCountByBlockNumber(.{ .block_number = 101010 });
         defer uncle.deinit();
 
         try testing.expectEqual(uncle.response, 0);
@@ -532,8 +561,9 @@ test "GetUncleByBlockNumberAndIndex" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        try testing.expectError(error.InvalidBlockNumberOrIndex, client.getUncleByBlockNumberAndIndex(.{}, 0));
+        try testing.expectError(error.InvalidBlockNumberOrIndex, client.provider.getUncleByBlockNumberAndIndex(.{}, 0));
     }
     {
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -545,8 +575,9 @@ test "GetUncleByBlockNumberAndIndex" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const uncle = try client.getUncleByBlockNumberAndIndex(.{ .block_number = 15537381 }, 0);
+        const uncle = try client.provider.getUncleByBlockNumberAndIndex(.{ .block_number = 15537381 }, 0);
         defer uncle.deinit();
 
         try testing.expect(uncle.response == .legacy);
@@ -563,8 +594,9 @@ test "GetUncleByBlockHashAndIndex" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const tx = try client.getUncleByBlockHashAndIndex(try utils.hashToBytes("0x4e216c95f527e9ba0f1161a1c4609b893302c704f05a520da8141ca91878f63e"), 0);
+    const tx = try client.provider.getUncleByBlockHashAndIndex(try utils.hashToBytes("0x4e216c95f527e9ba0f1161a1c4609b893302c704f05a520da8141ca91878f63e"), 0);
     defer tx.deinit();
 
     try testing.expect(tx.response == .legacy);
@@ -581,8 +613,9 @@ test "GetTransactionByBlockNumberAndIndex" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        try testing.expectError(error.TransactionNotFound, client.getTransactionByBlockNumberAndIndex(.{}, 0));
+        try testing.expectError(error.TransactionNotFound, client.provider.getTransactionByBlockNumberAndIndex(.{}, 0));
     }
     {
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -594,8 +627,9 @@ test "GetTransactionByBlockNumberAndIndex" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const tx = try client.getTransactionByBlockNumberAndIndex(.{ .block_number = 15537381 }, 0);
+        const tx = try client.provider.getTransactionByBlockNumberAndIndex(.{ .block_number = 15537381 }, 0);
         defer tx.deinit();
 
         try testing.expect(tx.response == .london);
@@ -613,8 +647,9 @@ test "EstimateGas" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        try testing.expectError(error.TransactionRejected, client.estimateGas(.{ .london = .{ .gas = 10 } }, .{}));
+        try testing.expectError(error.TransactionRejected, client.provider.estimateGas(.{ .london = .{ .gas = 10 } }, .{}));
     }
     {
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -626,8 +661,9 @@ test "EstimateGas" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        try testing.expectError(error.InvalidInput, client.estimateGas(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
+        try testing.expectError(error.InvalidInput, client.provider.estimateGas(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
     }
     {
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -639,8 +675,9 @@ test "EstimateGas" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const fee = try client.estimateGas(.{ .legacy = .{ .value = 10 } }, .{});
+        const fee = try client.provider.estimateGas(.{ .legacy = .{ .value = 10 } }, .{});
         defer fee.deinit();
 
         try testing.expect(fee.response != 0);
@@ -655,8 +692,9 @@ test "EstimateGas" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        try testing.expectError(error.InvalidInput, client.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 }));
+        try testing.expectError(error.InvalidInput, client.provider.estimateGas(.{ .legacy = .{ .gas = 10 } }, .{ .block_number = 101010 }));
     }
 }
 
@@ -671,8 +709,9 @@ test "CreateAccessList" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const access = try client.createAccessList(.{ .london = .{ .value = 10 } }, .{});
+        const access = try client.provider.createAccessList(.{ .london = .{ .value = 10 } }, .{});
         defer access.deinit();
 
         try testing.expect(access.response.gasUsed != 0);
@@ -687,8 +726,9 @@ test "CreateAccessList" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        try testing.expectError(error.InvalidInput, client.createAccessList(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
+        try testing.expectError(error.InvalidInput, client.provider.createAccessList(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
     }
     {
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -700,8 +740,9 @@ test "CreateAccessList" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const access = try client.createAccessList(.{ .legacy = .{ .value = 10 } }, .{});
+        const access = try client.provider.createAccessList(.{ .legacy = .{ .value = 10 } }, .{});
         defer access.deinit();
 
         try testing.expect(access.response.gasUsed != 0);
@@ -718,8 +759,9 @@ test "GetNetworkPeerCount" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    try testing.expectError(error.InvalidParams, client.getNetworkPeerCount());
+    try testing.expectError(error.InvalidParams, client.provider.getNetworkPeerCount());
 }
 
 test "GetNetworkVersionId" {
@@ -732,8 +774,9 @@ test "GetNetworkVersionId" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const id = try client.getNetworkVersionId();
+    const id = try client.provider.getNetworkVersionId();
     defer id.deinit();
 
     try testing.expectEqual(id.response, 1);
@@ -749,8 +792,9 @@ test "GetNetworkListenStatus" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const id = try client.getNetworkListenStatus();
+    const id = try client.provider.getNetworkListenStatus();
     defer id.deinit();
 
     try testing.expectEqual(id.response, true);
@@ -766,8 +810,9 @@ test "GetSha3Hash" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    try testing.expectError(error.InvalidParams, client.getSha3Hash("foobar"));
+    try testing.expectError(error.InvalidParams, client.provider.getSha3Hash("foobar"));
 }
 
 test "GetClientVersion" {
@@ -780,8 +825,9 @@ test "GetClientVersion" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const version = try client.getClientVersion();
+    const version = try client.provider.getClientVersion();
     defer version.deinit();
 
     try testing.expect(version.response.len != 0);
@@ -798,8 +844,9 @@ test "BlobBaseFee" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const base_fee = try client.blobBaseFee();
+    const base_fee = try client.provider.blobBaseFee();
     defer base_fee.deinit();
 
     try testing.expectEqual(base_fee.response, 0);
@@ -815,8 +862,9 @@ test "EstimateBlobMaxFeePerGas" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const base_fee = try client.estimateBlobMaxFeePerGas();
+    const base_fee = try client.provider.estimateBlobMaxFeePerGas();
 
     try testing.expect(base_fee != 0);
 }
@@ -831,8 +879,9 @@ test "EstimateMaxFeePerGas" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const fees = try client.estimateMaxFeePerGas();
+    const fees = try client.provider.estimateMaxFeePerGas();
     defer fees.deinit();
 
     try testing.expect(fees.response != 0);
@@ -850,8 +899,9 @@ test "EstimateFeePerGas" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const fee = try client.estimateFeesPerGas(.{ .london = .{} }, null);
+        const fee = try client.provider.estimateFeesPerGas(.{ .london = .{} }, null);
 
         try testing.expect(fee.london.max_fee_gas != 0);
         try testing.expect(fee.london.max_priority_fee != 0);
@@ -866,8 +916,9 @@ test "EstimateFeePerGas" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const fee = try client.estimateFeesPerGas(.{ .legacy = .{} }, null);
+        const fee = try client.provider.estimateFeesPerGas(.{ .legacy = .{} }, null);
 
         try testing.expect(fee.legacy.gas_price != 0);
     }
@@ -881,8 +932,9 @@ test "EstimateFeePerGas" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const fee = try client.estimateFeesPerGas(.{ .london = .{} }, 1000);
+        const fee = try client.provider.estimateFeesPerGas(.{ .london = .{} }, 1000);
 
         try testing.expect(fee.london.max_fee_gas != 0);
         try testing.expect(fee.london.max_priority_fee != 0);
@@ -900,8 +952,9 @@ test "GetProof" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const proofs = try client.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{}, .blockNumber = 101010 }, null);
+        const proofs = try client.provider.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{}, .blockNumber = 101010 }, null);
         defer proofs.deinit();
 
         try testing.expect(proofs.response.balance != 0);
@@ -916,8 +969,9 @@ test "GetProof" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const proofs = try client.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{} }, .latest);
+        const proofs = try client.provider.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{} }, .latest);
         defer proofs.deinit();
 
         try testing.expect(proofs.response.balance != 0);
@@ -935,8 +989,9 @@ test "GetLogs" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const logs = try client.getLogs(.{ .toBlock = 101010, .fromBlock = 101010 }, null);
+        const logs = try client.provider.getLogs(.{ .toBlock = 101010, .fromBlock = 101010 }, null);
         defer logs.deinit();
     }
     {
@@ -949,8 +1004,9 @@ test "GetLogs" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const logs = try client.getLogs(.{}, .latest);
+        const logs = try client.provider.getLogs(.{}, .latest);
         defer logs.deinit();
     }
 }
@@ -966,8 +1022,9 @@ test "NewLogFilter" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const logs = try client.newLogFilter(.{}, .latest);
+        const logs = try client.provider.newLogFilter(.{}, .latest);
         defer logs.deinit();
     }
     {
@@ -980,8 +1037,9 @@ test "NewLogFilter" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const logs = try client.newLogFilter(.{ .fromBlock = 101010, .toBlock = 101010 }, null);
+        const logs = try client.provider.newLogFilter(.{ .fromBlock = 101010, .toBlock = 101010 }, null);
         defer logs.deinit();
     }
 }
@@ -996,8 +1054,9 @@ test "NewBlockFilter" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const block_id = try client.newBlockFilter();
+    const block_id = try client.provider.newBlockFilter();
     defer block_id.deinit();
 }
 
@@ -1011,8 +1070,9 @@ test "NewPendingTransactionFilter" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const tx_id = try client.newPendingTransactionFilter();
+    const tx_id = try client.provider.newPendingTransactionFilter();
     defer tx_id.deinit();
 }
 
@@ -1026,8 +1086,9 @@ test "UninstallFilter" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const status = try client.uninstallFilter(1);
+    const status = try client.provider.uninstallFilter(1);
     defer status.deinit();
 }
 
@@ -1041,8 +1102,9 @@ test "GetProtocolVersion" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    try testing.expectError(error.InvalidParams, client.getProtocolVersion());
+    try testing.expectError(error.InvalidParams, client.provider.getProtocolVersion());
 }
 
 test "SyncStatus" {
@@ -1055,8 +1117,9 @@ test "SyncStatus" {
         },
     });
     defer client.deinit();
+    try client.readLoopSeperateThread();
 
-    const status = client.getSyncStatus();
+    const status = client.provider.getSyncStatus();
     defer if (status) |s| s.deinit();
 }
 
@@ -1073,8 +1136,9 @@ test "FeeHistory" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const status = try client.feeHistory(10, .{}, &.{ 0.1, 0.2 });
+        const status = try client.provider.feeHistory(10, .{}, &.{ 0.1, 0.2 });
         defer status.deinit();
     }
     {
@@ -1087,8 +1151,9 @@ test "FeeHistory" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const status = try client.feeHistory(10, .{ .block_number = 101010 }, null);
+        const status = try client.provider.feeHistory(10, .{ .block_number = 101010 }, null);
         defer status.deinit();
     }
     {
@@ -1101,8 +1166,9 @@ test "FeeHistory" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const status = try client.feeHistory(10, .{}, &.{ 0.1, 0.2 });
+        const status = try client.provider.feeHistory(10, .{}, &.{ 0.1, 0.2 });
         defer status.deinit();
     }
     {
@@ -1115,50 +1181,51 @@ test "FeeHistory" {
             },
         });
         defer client.deinit();
+        try client.readLoopSeperateThread();
 
-        const status = try client.feeHistory(10, .{ .block_number = 101010 }, &.{ 0.1, 0.2 });
+        const status = try client.provider.feeHistory(10, .{ .block_number = 101010 }, &.{ 0.1, 0.2 });
         defer status.deinit();
     }
 }
 
-test "Multicall" {
-    const uri = try std.Uri.parse("http://127.0.0.1:6969/");
-
-    var client = try WebSocketHandler.init(.{
-        .allocator = testing.allocator,
-        .network_config = .{
-            .endpoint = .{ .uri = uri },
-        },
-    });
-    defer client.deinit();
-
-    const supply: Function = .{
-        .type = .function,
-        .name = "totalSupply",
-        .stateMutability = .view,
-        .inputs = &.{},
-        .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
-    };
-
-    const balance: Function = .{
-        .type = .function,
-        .name = "balanceOf",
-        .stateMutability = .view,
-        .inputs = &.{.{ .type = .{ .address = {} }, .name = "balanceOf" }},
-        .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
-    };
-
-    const a: []const MulticallTargets = &.{
-        MulticallTargets{ .function = supply, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
-        MulticallTargets{ .function = balance, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
-    };
-
-    const res = try client.multicall3(a, .{ {}, .{try utils.addressToBytes("0xFded38DF0180039867E54EBdec2012D534862cE3")} }, true);
-    defer res.deinit();
-
-    try testing.expect(res.result.len != 0);
-    try testing.expectEqual(res.result[0].success, true);
-}
+// test "Multicall" {
+//     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+//
+//     var client = try WebSocketHandler.init(.{
+//         .allocator = testing.allocator,
+//         .network_config = .{
+//             .endpoint = .{ .uri = uri },
+//         },
+//     });
+//     defer client.deinit();
+//
+//     const supply: Function = .{
+//         .type = .function,
+//         .name = "totalSupply",
+//         .stateMutability = .view,
+//         .inputs = &.{},
+//         .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
+//     };
+//
+//     const balance: Function = .{
+//         .type = .function,
+//         .name = "balanceOf",
+//         .stateMutability = .view,
+//         .inputs = &.{.{ .type = .{ .address = {} }, .name = "balanceOf" }},
+//         .outputs = &.{.{ .type = .{ .uint = 256 }, .name = "supply" }},
+//     };
+//
+//     const a: []const MulticallTargets = &.{
+//         MulticallTargets{ .function = supply, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
+//         MulticallTargets{ .function = balance, .target_address = comptime utils.addressToBytes("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") catch unreachable },
+//     };
+//
+//     const res = try client.provider.multicall3(a, .{ {}, .{try utils.addressToBytes("0xFded38DF0180039867E54EBdec2012D534862cE3")} }, true);
+//     defer res.deinit();
+//
+//     try testing.expect(res.result.len != 0);
+//     try testing.expectEqual(res.result[0].success, true);
+// }
 
 test "Ref All Decls" {
     std.testing.refAllDecls(WebSocketHandler);

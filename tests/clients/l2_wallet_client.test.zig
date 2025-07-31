@@ -5,7 +5,8 @@ const withdrawl = @import("zabi").superchain.withdrawal_types;
 const utils = @import("zabi").utils.utils;
 
 const Hash = types.Hash;
-const L2WalletClient = @import("zabi").superchain.l2_wallet_client.L2WalletClient;
+const HttpProvider = @import("zabi").clients.Provider.HttpProvider;
+const Wallet = @import("zabi").clients.Wallet;
 const WithdrawalEnvelope = withdrawl.WithdrawalEnvelope;
 
 test "PrepareWithdrawalProofTransaction" {
@@ -15,7 +16,7 @@ test "PrepareWithdrawalProofTransaction" {
     var buffer_hex: Hash = undefined;
     _ = try std.fmt.hexToBytes(buffer_hex[0..], "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-    var wallet_op = try L2WalletClient(.http).init(buffer_hex, .{
+    var http_provider = try HttpProvider.init(.{
         .allocator = testing.allocator,
         .network_config = .{
             .endpoint = .{ .uri = uri },
@@ -23,6 +24,9 @@ test "PrepareWithdrawalProofTransaction" {
             .op_stack_contracts = .{},
         },
     });
+    defer http_provider.deinit();
+
+    var wallet_op = try Wallet.init(buffer_hex, testing.allocator, &http_provider.provider, false);
     defer wallet_op.deinit();
 
     var buffer: [4096]u8 = undefined;
@@ -89,7 +93,7 @@ test "ProveWithdrawal" {
     var buffer_hex: Hash = undefined;
     _ = try std.fmt.hexToBytes(buffer_hex[0..], "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-    var wallet_op = try L2WalletClient(.http).init(buffer_hex, .{
+    var http_provider = try HttpProvider.init(.{
         .allocator = testing.allocator,
         .network_config = .{
             .endpoint = .{ .uri = uri },
@@ -97,6 +101,9 @@ test "ProveWithdrawal" {
             .op_stack_contracts = .{},
         },
     });
+    defer http_provider.deinit();
+
+    var wallet_op = try Wallet.init(buffer_hex, testing.allocator, &http_provider.provider, false);
     defer wallet_op.deinit();
 
     var buffer: [4096]u8 = undefined;
@@ -139,7 +146,7 @@ test "FinalizeWithdrawal" {
     var buffer_hex: Hash = undefined;
     _ = try std.fmt.hexToBytes(buffer_hex[0..], "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
-    var wallet_op = try L2WalletClient(.http).init(buffer_hex, .{
+    var http_provider = try HttpProvider.init(.{
         .allocator = testing.allocator,
         .network_config = .{
             .endpoint = .{ .uri = uri },
@@ -147,6 +154,9 @@ test "FinalizeWithdrawal" {
             .op_stack_contracts = .{},
         },
     });
+    defer http_provider.deinit();
+
+    var wallet_op = try Wallet.init(buffer_hex, testing.allocator, &http_provider.provider, false);
     defer wallet_op.deinit();
 
     const final = try wallet_op.finalizeWithdrawal(.{
@@ -158,10 +168,4 @@ test "FinalizeWithdrawal" {
         .nonce = 1766847064778384329583297500742918515827483896875618958121606201292641795,
     });
     defer final.deinit();
-}
-
-test "Ref All Decls" {
-    std.testing.refAllDecls(L2WalletClient(.http));
-    std.testing.refAllDecls(L2WalletClient(.ipc));
-    std.testing.refAllDecls(L2WalletClient(.websocket));
 }

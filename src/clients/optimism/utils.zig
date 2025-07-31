@@ -45,6 +45,7 @@ pub fn opaqueToDepositData(hex_bytes: Hex) DepositData {
         .data = data,
     };
 }
+
 /// Gets the storage hash from a message hash
 pub fn getWithdrawalHashStorageSlot(hash: Hash) Hash {
     var buffer: [64]u8 = [_]u8{0} ** 64;
@@ -56,6 +57,7 @@ pub fn getWithdrawalHashStorageSlot(hash: Hash) Hash {
 
     return hash_buffer;
 }
+
 /// Gets the source hash from deposit transaction.
 pub fn getSourceHash(domain: Domain, log_index: u256, l1_blockhash: Hash) Hash {
     var marker: [32]u8 = undefined;
@@ -80,6 +82,7 @@ pub fn getSourceHash(domain: Domain, log_index: u256, l1_blockhash: Hash) Hash {
 
     return input_hash;
 }
+
 /// Gets a deposit transaction based on the provided arguments.
 pub fn getDepositTransaction(opts: GetDepositArgs) DepositTransaction {
     const hash = opts.source_hash orelse getSourceHash(opts.domain, opts.log_index, opts.l1_blockhash);
@@ -98,6 +101,7 @@ pub fn getDepositTransaction(opts: GetDepositArgs) DepositTransaction {
         .from = opts.from,
     };
 }
+
 /// Gets a L2 transaction hash from a deposit transaction.
 pub fn getL2HashFromL1DepositInfo(allocator: Allocator, opts: GetDepositArgs) !Hash {
     const deposit_tx = getDepositTransaction(opts);

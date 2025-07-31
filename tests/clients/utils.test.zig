@@ -1,4 +1,4 @@
-const op_utils = @import("zabi").superchain.utils;
+const op_utils = @import("zabi").clients.op_utils;
 const std = @import("std");
 const testing = std.testing;
 const utils = @import("zabi").utils.utils;

@@ -698,9 +698,8 @@ pub const AbiEncoder = struct {
 
         try self.pre_encoded.ensureUnusedCapacity(allocator, info.@"struct".fields.len);
 
-        inline for (info.@"struct".fields) |field| {
+        inline for (info.@"struct".fields) |field|
             try self.preEncodeReflection(allocator, @field(values, field.name));
-        }
     }
     /// This will use zig's ability to provide compile time reflection based on the `value` provided.
     pub fn preEncodeReflection(

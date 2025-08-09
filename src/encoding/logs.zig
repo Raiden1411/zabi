@@ -210,12 +210,14 @@ pub fn AbiLogTopicsEncoder(comptime event: AbiEvent) type {
         };
 
         /// Compile time generation of indexed AbiEventParameters`.
-        const indexed_params = indexed: {
-            var indexed: std.BoundedArray(AbiEventParameter, 32) = .{};
+        const indexed_params: struct { buf: [32]AbiEventParameter, len: usize } = indexed: {
+            var buffer: [32]AbiEventParameter = undefined;
+            var size: usize = 0;
 
             for (event.inputs) |input| {
                 if (input.indexed) {
-                    indexed.append(input) catch @compileError("Append reached max size of 32");
+                    buffer[size] = input;
+                    size += 1;
                 }
             }
 
@@ -248,7 +250,7 @@ pub fn AbiLogTopicsEncoder(comptime event: AbiEvent) type {
             if (indexed_params.len == 0)
                 return self.topics.toOwnedSlice(allocator);
 
-            const params_slice = comptime indexed_params.slice();
+            const params_slice = comptime indexed_params.buf[0..indexed_params.len];
 
             inline for (params_slice, values) |param, value|
                 self.encodeLogTopic(param, value);

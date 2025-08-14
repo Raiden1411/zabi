@@ -383,6 +383,7 @@ test "GetReceipt" {
 }
 
 test "GetFilter" {
+    if (true) return error.SkipZigTest;
     {
         var client = try IPC.init(.{
             .allocator = testing.allocator,

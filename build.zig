@@ -276,7 +276,7 @@ fn buildTestOrCoverage(
     // Build and run coverage test runner if `zig build coverage` was ran
     {
         const coverage_lib_tests_mod = b.createModule(.{
-            .root_source_file = b.path("tests/root.zig"),
+            .root_source_file = b.path("tests/root_benchmark.zig"),
             .target = target,
             .optimize = optimize,
         });
@@ -290,42 +290,6 @@ fn buildTestOrCoverage(
         });
         coverage_lib_unit_tests.root_module.addImport("zabi", module);
         const test_step_coverage = b.step("coverage", "Run unit tests with kcov coverage");
-
-        const kcov_collect = std.Build.Step.Run.create(b, "collect coverage");
-        kcov_collect.rename_step_with_output_arg = false;
-
-        if (load_variables)
-            loadVariables(b, env_file_path, kcov_collect);
-
-        kcov_collect.addArgs(&.{
-            "kcov",
-            "--clean",
-        });
-        kcov_collect.addPrefixedDirectoryArg("--include-pattern=", b.path("src"));
-        _ = kcov_collect.addOutputFileArg(coverage_lib_unit_tests.name);
-        kcov_collect.addArtifactArg(coverage_lib_unit_tests);
-
-        const install_coverage = b.addInstallDirectory(.{
-            .source_dir = kcov_collect.addOutputFileArg("."),
-            .install_dir = .{ .custom = "coverage" },
-            .install_subdir = "",
-        });
-        test_step_coverage.dependOn(&install_coverage.step);
-    }
-
-    // Build and run coverage test runner if `zig build coverage` was ran
-    {
-        const coverage_lib_tests_mod = b.createModule(.{
-            .root_source_file = b.path("tests/root.zig"),
-            .target = target,
-            .optimize = optimize,
-        });
-        const coverage_lib_unit_tests = b.addTest(.{
-            .name = "zabi-tests-coverage",
-            .root_module = coverage_lib_tests_mod,
-        });
-        coverage_lib_unit_tests.root_module.addImport("zabi", module);
-        const test_step_coverage = b.step("coverage-ci", "Run unit tests with kcov coverage");
 
         const kcov_collect = std.Build.Step.Run.create(b, "collect coverage");
         kcov_collect.rename_step_with_output_arg = false;

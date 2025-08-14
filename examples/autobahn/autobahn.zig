@@ -3,7 +3,6 @@ const clients = @import("zabi").clients;
 
 const Allocator = std.mem.Allocator;
 const WebSocketClient = clients.blocking.WebSocketClient;
-const AsyncWebSocketClient = clients.non_blocking.AsyncWebSocketClient;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -46,7 +45,6 @@ pub fn main() !void {
             auto.readLoop() catch |err| switch (err) {
                 error.UnnegociatedReservedBits,
                 error.ControlFrameTooBig,
-                error.UnfragmentedContinue,
                 error.MessageSizeOverflow,
                 error.UnsupportedOpcode,
                 error.UnexpectedFragment,
@@ -98,12 +96,9 @@ const AutoBanh = struct {
     pub fn readLoop(self: *AutoBanh) !void {
         while (true) {
             const message = self.client.readMessage() catch |err| switch (err) {
-                error.BrokenPipe,
-                error.ConnectionResetByPeer,
-                error.NotOpenForReading,
-                => {
-                    @atomicStore(bool, &self.client.closed_connection, true, .release);
-                    return error.ConnectionClosed;
+                error.EndOfStream => {
+                    self.client.close(1002);
+                    return;
                 },
                 error.InvalidUtf8Payload => {
                     self.client.close(1007);

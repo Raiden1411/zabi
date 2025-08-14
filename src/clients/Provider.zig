@@ -93,7 +93,7 @@ const TxPoolStatus = txpool.TxPoolStatus;
 const Value = std.json.Value;
 const WatchLogsRequest = log.WatchLogsRequest;
 const Withdrawal = withdrawal_types.Withdrawal;
-const WsClient = @import("blocking/WebSocketClient.zig");
+const WsClient = @import("blocking/WebSocketClientNew.zig");
 
 /// Scoped logging for the JSON RPC client.
 const provider_log = std.log.scoped(.provider);
@@ -2846,18 +2846,18 @@ pub const WebsocketProvider = struct {
 
     /// The allocator that will manage the connections memory
     allocator: Allocator,
-    /// Channel used to communicate between threads on subscription events.
-    sub_channel: Channel(JsonParsed(Value)),
-    /// Channel used to communicate between threads on rpc events.
-    rpc_channel: Stack(JsonParsed(Value)),
-    /// The chains config
-    provider: Provider,
     /// Callback function for when the connection is closed.
     onClose: ?*const fn () void,
     /// Callback function that will run once a socket event is parsed
     onEvent: ?*const fn (args: JsonParsed(Value)) anyerror!void,
+    provider: Provider,
+    /// Channel used to communicate between threads on rpc events.
+    rpc_channel: Stack(JsonParsed(Value)),
+    /// Channel used to communicate between threads on subscription events.
+    sub_channel: Channel(JsonParsed(Value)),
     /// Callback function that will run once a error is parsed.
     onError: ?*const fn (args: []const u8) anyerror!void,
+    thread: ?std.Thread,
     /// The underlaying websocket client
     ws_client: WsClient,
 
@@ -2874,8 +2874,6 @@ pub const WebsocketProvider = struct {
         };
 
         var client = try WsClient.connect(opts.allocator, uri);
-        errdefer client.deinit();
-
         try client.handshake(hostname);
 
         return .{
@@ -2891,6 +2889,7 @@ pub const WebsocketProvider = struct {
             .onEvent = opts.onEvent,
             .rpc_channel = Stack(JsonParsed(Value)).init(opts.allocator, null),
             .sub_channel = Channel(JsonParsed(Value)).init(opts.allocator),
+            .thread = null,
             .ws_client = client,
         };
     }
@@ -2910,6 +2909,11 @@ pub const WebsocketProvider = struct {
         self.sub_channel.deinit();
         self.rpc_channel.deinit();
         self.ws_client.deinit();
+
+        if (self.thread) |thread|
+            thread.join();
+
+        self.ws_client.connection.destroyConnection(self.allocator);
     }
 
     /// Parses the `Value` in the sub-channel as a pending transaction hash event
@@ -2946,14 +2950,11 @@ pub const WebsocketProvider = struct {
     ///
     /// Will not work in single threaded mode.
     pub fn readLoopSeperateThread(self: *WebsocketProvider) !void {
-        const thread = try std.Thread.spawn(.{}, readLoopOwned, .{self});
-        thread.detach();
+        self.thread = try std.Thread.spawn(.{}, readLoopOwned, .{self});
     }
 
     /// ReadLoop used mainly to run in seperate threads.
     pub fn readLoopOwned(self: *WebsocketProvider) !void {
-        zabi_utils.pipe.maybeIgnoreSigpipe();
-
         return self.readLoop() catch |err| {
             provider_log.debug("Read loop reported error: {s}", .{@errorName(err)});
         };
@@ -2964,12 +2965,9 @@ pub const WebsocketProvider = struct {
     /// Best to call this in a seperate thread. Or use the event functions
     /// if you dont want to use threads.
     pub fn readLoop(self: *WebsocketProvider) !void {
-        while (!@atomicLoad(bool, &self.ws_client.closed_connection, .acquire)) {
+        while (true) {
             const message = self.ws_client.readMessage() catch |err| {
                 switch (err) {
-                    error.NotOpenForReading,
-                    error.ConnectionResetByPeer,
-                    error.BrokenPipe,
                     error.EndOfStream,
                     => return err,
                     error.InvalidUtf8Payload => {
@@ -3157,7 +3155,7 @@ pub const HttpProvider = struct {
         const provider: *HttpProvider = @alignCast(@fieldParentPtr("provider", self));
         provider_log.debug("Preparing to send request body: {s}", .{request});
 
-        var body: ArrayList(u8) = .init(provider.allocator);
+        var body: std.Io.Writer.Allocating = .init(provider.allocator);
         defer body.deinit();
 
         var retries: u8 = 0;
@@ -3165,16 +3163,13 @@ pub const HttpProvider = struct {
             if (retries > self.network_config.retries)
                 return error.ReachedMaxRetryLimit;
 
-            const req = try provider.internalFetch(request, &body);
+            const req = try provider.internalFetch(request, &body.writer);
 
             switch (req.status) {
                 .ok => {
-                    const res_body = try body.toOwnedSlice();
-                    defer provider.allocator.free(res_body);
+                    provider_log.debug("Got response from server: {s}", .{body.getWritten()});
 
-                    provider_log.debug("Got response from server: {s}", .{res_body});
-
-                    return std.json.parseFromSlice(Value, provider.allocator, res_body, .{ .allocate = .alloc_always });
+                    return std.json.parseFromSlice(Value, provider.allocator, body.getWritten(), .{ .allocate = .alloc_always });
                 },
                 .too_many_requests => {
                     // Exponential backoff
@@ -3199,14 +3194,14 @@ pub const HttpProvider = struct {
     pub fn internalFetch(
         self: *HttpProvider,
         payload: []const u8,
-        body: *ArrayList(u8),
+        body: *std.Io.Writer,
     ) !FetchResult {
         const uri = self.provider.network_config.getNetworkUri() orelse return error.InvalidEndpointConfig;
 
         return self.client.fetch(.{
             .method = .POST,
             .payload = payload,
-            .response_storage = .{ .dynamic = body },
+            .response_writer = body,
             .location = .{ .uri = uri },
             .headers = .{ .content_type = .{ .override = "application/json" } },
         });
@@ -3264,7 +3259,7 @@ pub const IpcProvider = struct {
                 },
             },
             .ipc_reader = .{
-                .buffer = std.fifo.LinearFifo(u8, .Dynamic).init(opts.allocator),
+                .buffer = zabi_utils.fifo.LinearFifo(u8, .Dynamic).init(opts.allocator),
                 .stream = socket_stream,
                 .overflow = 0,
             },

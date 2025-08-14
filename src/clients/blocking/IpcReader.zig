@@ -7,7 +7,7 @@ const testing = std.testing;
 
 const Allocator = std.mem.Allocator;
 const Stream = std.net.Stream;
-const Buffer = std.fifo.LinearFifo(u8, .Dynamic);
+const Buffer = @import("zabi-utils").fifo.LinearFifo(u8, .Dynamic);
 
 const Self = @This();
 

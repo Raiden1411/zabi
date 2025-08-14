@@ -3,7 +3,7 @@ const std = @import("std");
 /// Types
 const Allocator = std.mem.Allocator;
 const Condition = std.Thread.Condition;
-const LinearFifo = std.fifo.LinearFifo;
+const LinearFifo = @import("fifo.zig").LinearFifo;
 const Mutex = std.Thread.Mutex;
 
 /// Channel used to manages the messages between threads.

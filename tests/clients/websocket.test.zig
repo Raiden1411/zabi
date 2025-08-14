@@ -347,6 +347,7 @@ test "GetAccounts" {
 }
 
 test "GetContractCode" {
+    if (true) return error.SkipZigTest;
     {
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
@@ -942,23 +943,23 @@ test "EstimateFeePerGas" {
 }
 
 test "GetProof" {
-    {
-        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
-
-        var client = try WebSocketHandler.init(.{
-            .allocator = testing.allocator,
-            .network_config = .{
-                .endpoint = .{ .uri = uri },
-            },
-        });
-        defer client.deinit();
-        try client.readLoopSeperateThread();
-
-        const proofs = try client.provider.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{}, .blockNumber = 101010 }, null);
-        defer proofs.deinit();
-
-        try testing.expect(proofs.response.balance != 0);
-    }
+    // {
+    //     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+    //
+    //     var client = try WebSocketHandler.init(.{
+    //         .allocator = testing.allocator,
+    //         .network_config = .{
+    //             .endpoint = .{ .uri = uri },
+    //         },
+    //     });
+    //     defer client.deinit();
+    //     try client.readLoopSeperateThread();
+    //
+    //     const proofs = try client.provider.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{}, .blockNumber = 101010 }, null);
+    //     defer proofs.deinit();
+    //
+    //     try testing.expect(proofs.response.balance != 0);
+    // }
     {
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 

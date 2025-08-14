@@ -7,15 +7,15 @@ const builtin = @import("builtin");
 const std = @import("std");
 const testing = std.testing;
 
-const TlsAlertErrors = std.crypto.tls.AlertDescription.Error;
+const TlsAlertErrors = std.crypto.tls.Alert.Description.Error;
 const Allocator = std.mem.Allocator;
 const Base64Encoder = std.base64.standard.Encoder;
 const CertificateBundle = std.crypto.Certificate.Bundle;
-const LinearFifo = std.fifo.LinearFifo(u8, .Dynamic);
-const OpcodeHeader = std.http.WebSocket.Header0;
-const Opcodes = std.http.WebSocket.Opcode;
-const PayloadHeader = std.http.WebSocket.Header1;
-const Protocol = std.http.Client.Connection.Protocol;
+const OpcodeHeader = std.http.Server.WebSocket.Header0;
+const Opcode = std.http.Server.WebSocket.Opcode;
+const PayloadHeader = std.http.Server.WebSocket.Header1;
+const Protocol = std.http.Client.Protocol;
+const Reader = std.Io.Reader;
 const Scanner = std.json.Scanner;
 const Sha1 = std.crypto.hash.Sha1;
 const Stream = std.net.Stream;
@@ -23,68 +23,15 @@ const TcpConnectToHostError = std.net.TcpConnectToHostError;
 const TlsClient = std.crypto.tls.Client;
 const Uri = std.Uri;
 const Value = std.json.Value;
+const Writer = std.Io.Writer;
+
+pub const disable_tls = std.options.http_disable_tls;
 
 /// Inner websocket client logger.
 const wsclient_log = std.log.scoped(.ws_client);
 
 // Reference to self.
 const WebsocketClient = @This();
-
-/// Set of possible error's when trying to perform the initial connection to the host.
-pub const ConnectionErrors = TlsClient.InitError(Stream) || TcpConnectToHostError ||
-    CertificateBundle.RescanError || error{ UnsupportedSchema, UnspecifiedHostName };
-
-/// Set of possible errors when asserting a handshake response.
-pub const AssertionError = error{
-    DuplicateHandshakeHeader,
-    InvalidHandshakeMessage,
-    InvalidHandshakeKey,
-};
-
-/// Set of possible errors when sending a handshake response.
-pub const SendHandshakeError = NetStream.WriteError || error{NoSpaceLeft} || std.Io.Writer.Error;
-
-/// Set of possible errors when reading a handshake response.
-pub const ReadHandshakeError = Allocator.Error || Stream.ReadError || AssertionError || TlsError;
-
-/// Set of possible errors when trying to read values directly from the socket.
-pub const SocketReadError = Stream.ReadError || Allocator.Error || error{EndOfStream} || TlsError;
-
-/// RFC Compliant set of errors.
-pub const PayloadErrors = error{
-    UnnegociatedReservedBits,
-    ControlFrameTooBig,
-    UnfragmentedContinue,
-    MessageSizeOverflow,
-    UnsupportedOpcode,
-    UnexpectedFragment,
-    MaskedServerMessage,
-    InvalidUtf8Payload,
-    FragmentedControl,
-};
-
-/// Set of Tls errors outside of alerts.
-pub const TlsError = error{
-    Overflow,
-    TlsUnexpectedMessage,
-    TlsIllegalParameter,
-    TlsRecordOverflow,
-    TlsBadRecordMac,
-    TlsConnectionTruncated,
-    TlsDecodeError,
-    TlsBadLength,
-} || TlsAlertErrors;
-
-/// Possible errors when reading a websocket frame.
-pub const ReadMessageError = SocketReadError || PayloadErrors;
-
-/// Comptime map that is used to get the connection type.
-const protocol_map = std.StaticStringMap(Protocol).initComptime(.{
-    .{ "http", .plain },
-    .{ "ws", .plain },
-    .{ "https", .tls },
-    .{ "wss", .tls },
-});
 
 // State for checking a handshake response.
 pub const Checks = union(enum) {
@@ -98,7 +45,7 @@ pub const Checks = union(enum) {
 /// Structure of a websocket message.
 pub const WebsocketMessage = struct {
     /// Websocket valid opcodes.
-    opcode: Opcodes,
+    opcode: Opcode,
     /// Payload data read.
     data: []const u8,
 };
@@ -106,114 +53,241 @@ pub const WebsocketMessage = struct {
 /// Wrapper around a websocket fragmented frame.
 pub const Fragment = struct {
     const Self = @This();
+    const Error = Allocator.Error || Writer.Error;
 
     /// FIFO stream of all fragments.
-    fragment_fifo: LinearFifo,
+    alloc_writer: Writer.Allocating,
     /// The type of message that the fragment is. Control fragment's are not supported.
-    message_type: ?Opcodes,
+    message_type: ?Opcode,
 
     /// Clears any allocated memory.
     pub fn deinit(self: *Self) void {
-        self.fragment_fifo.deinit();
+        self.alloc_writer.deinit();
     }
+
     /// Writes the payload into the stream.
-    pub fn writeAll(self: *Self, payload: []const u8) Allocator.Error!void {
-        try self.fragment_fifo.ensureUnusedCapacity(payload.len);
-        return self.fragment_fifo.writeAssumeCapacity(payload);
+    pub fn writeAll(self: *Self, payload: []const u8) Error!void {
+        try self.alloc_writer.ensureUnusedCapacity(payload.len);
+        return self.alloc_writer.writer.writeAll(payload);
     }
+
     /// Reset the fragment but keeps the allocated memory.
     /// Also reset the message type back to null.
     pub fn reset(self: *Self) void {
-        self.fragment_fifo.count = 0;
-        self.fragment_fifo.head = 0;
+        self.alloc_writer.shrinkRetainingCapacity(0);
         self.message_type = null;
     }
+
     /// Returns a slice of the currently written values on the buffer.
-    pub fn slice(self: Self) []const u8 {
-        return self.fragment_fifo.buf[0..self.fragment_fifo.readableLength()];
+    pub fn slice(self: *Self) []u8 {
+        return self.alloc_writer.getWritten();
     }
+
     /// Returns the total amount of bytes that were written.
     pub fn size(self: Self) usize {
-        return self.fragment_fifo.count;
+        return self.alloc_writer.writer.end;
     }
 };
 
 /// Wrapper stream around a `std.net.Stream` and a `TlsClient`.
-pub const NetStream = struct {
-    /// Set of possible errors when writting to the stream.
-    pub const WriteError = Stream.WriteError;
-    /// Set of possible errors when reading from the stream.
-    pub const ReadError = Stream.ReadError || TlsError;
+pub const Connection = struct {
+    stream_writer: Stream.Writer,
 
-    /// The connection to the socket that will be used by the
-    /// client or the tls_stream if available.
-    net_stream: Stream,
-    /// Null by default since we might want to connect
-    /// locally and don't want to enforce it.
-    tls_stream: ?TlsClient,
+    stream_reader: Stream.Reader,
+    /// The uri that this client is connected too.
+    uri: Uri,
+    /// The http protocol that this connection will use.
+    protocol: Protocol,
 
-    /// Depending on if the tls_stream is not null it will use that instead.
-    pub fn writeAll(
-        self: *NetStream,
-        message: []const u8,
-    ) WriteError!void {
-        if (self.tls_stream) |*tls_stream|
-            return tls_stream.writeAll(self.net_stream, message);
+    pub fn flush(self: *Connection) Writer.Error!void {
+        if (self.protocol == .tls) {
+            if (disable_tls) unreachable;
+            const tls: *Tls = @alignCast(@fieldParentPtr("connection", self));
+            try tls.tls_client.writer.flush();
+        }
 
-        return self.net_stream.writeAll(message);
+        try self.stream_writer.interface.flush();
     }
-    /// Depending on if the tls_stream is not null it will use that instead.
-    pub fn readAtLeast(
-        self: *NetStream,
-        buffer: []u8,
-        size: usize,
-    ) ReadError!usize {
-        if (self.tls_stream) |*tls_stream|
-            return tls_stream.readAtLeast(self.net_stream, buffer, size);
 
-        return self.net_stream.readAtLeast(buffer, size);
+    pub fn getStream(self: *Connection) Stream {
+        return self.stream_reader.getStream();
     }
-    /// Depending on if the tls_stream is not null it will use that instead.
-    pub fn read(
-        self: *NetStream,
-        buffer: []u8,
-    ) ReadError!usize {
-        if (self.tls_stream) |*tls_stream|
-            return tls_stream.read(self.net_stream, buffer);
 
-        return self.net_stream.read(buffer);
+    pub fn reader(self: *Connection) *Reader {
+        return switch (self.protocol) {
+            .tls => {
+                if (disable_tls) unreachable;
+                const tls: *Tls = @alignCast(@fieldParentPtr("connection", self));
+                return &tls.tls_client.reader;
+            },
+            .plain => self.stream_reader.interface(),
+        };
     }
-    /// Close the tls client if it's not null and the stream.
-    pub fn close(self: *NetStream) void {
-        if (self.tls_stream) |*tls_stream|
-            _ = tls_stream.writeEnd(self.net_stream, "", true) catch {};
 
-        self.net_stream.close();
+    pub fn writer(self: *Connection) *Writer {
+        return switch (self.protocol) {
+            .tls => {
+                if (disable_tls) unreachable;
+                const tls: *Tls = @alignCast(@fieldParentPtr("connection", self));
+                return &tls.tls_client.writer;
+            },
+            .plain => &self.stream_writer.interface,
+        };
     }
+
+    pub fn close(self: *Connection) void {
+        self.end() catch {};
+
+        std.posix.shutdown(self.getStream().handle, .both) catch {};
+        self.getStream().close();
+    }
+
+    pub fn end(self: *Connection) !void {
+        if (self.protocol == .tls) {
+            if (disable_tls) unreachable;
+            const tls: *Tls = @alignCast(@fieldParentPtr("connection", self));
+            try tls.tls_client.end();
+        }
+
+        try self.stream_writer.interface.flush();
+    }
+
+    pub fn destroyConnection(self: *Connection, allocator: Allocator) void {
+        switch (self.protocol) {
+            .tls => {
+                const tls: *Tls = @alignCast(@fieldParentPtr("connection", self));
+                tls.destroy(allocator);
+            },
+            .plain => {
+                const plain: *Plain = @alignCast(@fieldParentPtr("connection", self));
+                plain.destroy(allocator);
+            },
+        }
+    }
+
+    pub const Plain = struct {
+        connection: Connection,
+
+        const read_buffer_size = 4096;
+        const write_buffer_size = 1024;
+        const allocation_length = write_buffer_size + read_buffer_size;
+
+        pub fn create(
+            allocator: Allocator,
+            uri: Uri,
+            stream: Stream,
+        ) !*Plain {
+            const base = try allocator.alignedAlloc(u8, .of(Plain), allocation_length + @sizeOf(Plain));
+            errdefer allocator.free(base);
+
+            const host_buffer = base[@sizeOf(Plain)..];
+            const socket_read_buffer = host_buffer.ptr[host_buffer.len..][0..read_buffer_size];
+            const socket_write_buffer = socket_read_buffer.ptr[socket_read_buffer.len..][0..write_buffer_size];
+
+            const plain: *Plain = @ptrCast(base);
+
+            plain.* = .{
+                .connection = .{
+                    .stream_writer = stream.writer(socket_write_buffer),
+                    .stream_reader = stream.reader(socket_read_buffer),
+                    .uri = uri,
+                    .protocol = .plain,
+                },
+            };
+
+            return plain;
+        }
+
+        pub fn destroy(plain: *Plain, allocator: Allocator) void {
+            const base: [*]align(@alignOf(Plain)) u8 = @ptrCast(plain);
+
+            allocator.free(base[0 .. allocation_length + @sizeOf(Plain)]);
+        }
+    };
+
+    pub const Tls = struct {
+        connection: Connection,
+        tls_client: TlsClient,
+
+        const tls_buffer_size = if (disable_tls) 0 else TlsClient.min_buffer_len;
+        const read_buffer_size = 4096 + tls_buffer_size;
+        const write_buffer_size = 1024;
+        const allocation_length = write_buffer_size + read_buffer_size + tls_buffer_size + tls_buffer_size;
+
+        pub fn create(
+            allocator: Allocator,
+            uri: Uri,
+            stream: Stream,
+        ) !*Tls {
+            const base = try allocator.alignedAlloc(u8, .of(Tls), allocation_length + @sizeOf(Tls));
+            errdefer allocator.free(base);
+
+            const tls_read_buffer = base[@sizeOf(Tls)..][0..tls_buffer_size];
+            const tls_write_buffer = tls_read_buffer.ptr[tls_read_buffer.len..][0..tls_buffer_size];
+
+            const write_buffer = tls_write_buffer.ptr[tls_write_buffer.len..][0..write_buffer_size];
+            const read_buffer = write_buffer.ptr[write_buffer.len..][0..read_buffer_size];
+
+            const tls: *Tls = @ptrCast(base);
+
+            var bundle: CertificateBundle = .{};
+            defer bundle.deinit(allocator);
+
+            try bundle.rescan(allocator);
+            const hostname = switch (uri.host orelse return error.UnspecifiedHostName) {
+                .raw => |raw| raw,
+                .percent_encoded => |host| host,
+            };
+
+            tls.* = .{
+                .connection = .{
+                    .stream_writer = stream.writer(tls_write_buffer),
+                    .stream_reader = stream.reader(tls_read_buffer),
+                    .uri = uri,
+                    .protocol = .tls,
+                },
+                .tls_client = try TlsClient.init(
+                    tls.connection.stream_reader.interface(),
+                    &tls.connection.stream_writer.interface,
+                    .{
+                        .host = .{ .explicit = hostname },
+                        .ca = .{ .bundle = bundle },
+                        .ssl_key_log = null,
+                        .read_buffer = read_buffer,
+                        .write_buffer = write_buffer,
+                        // This is appropriate for HTTPS because the HTTP headers contain
+                        // the content length which is used to detect truncation attacks.
+                        .allow_truncation_attacks = true,
+                    },
+                ),
+            };
+
+            return tls;
+        }
+
+        pub fn destroy(plain: *Tls, allocator: Allocator) void {
+            const base: [*]align(@alignOf(Tls)) u8 = @ptrCast(plain);
+            allocator.free(base[0 .. allocation_length + @sizeOf(Tls)]);
+        }
+    };
 };
 
+/// Clients allocator used to allocate the read and write buffers
+allocator: Allocator,
 /// Wrapper stream of a `std.net.Stream` and a `std.crypto.tls.Client`.
-stream: NetStream,
-/// Fifo structure that is used as the buffer to read from the socket.
-recieve_fifo: LinearFifo,
+connection: *Connection,
 /// Fifo structure that builds websocket frames that are fragmeneted.
 fragment: Fragment,
-/// Bytes to discard on the next read.
-over_read: usize,
-/// The uri that this client is connected too.
-uri: Uri,
+/// Storage for large responses from the server
+storage: Writer.Allocating,
 /// Closes the net stream. This value should only be changed atomically.
 closed_connection: bool,
 
-/// Connects to the specficed uri. Creates a tls connection depending on the `uri.scheme`
-///
-/// Check out `protocol_map` to see when tls is enable. For now this doesn't respect zig's
-/// `disable_tls` option.
 pub fn connect(
     allocator: Allocator,
     uri: Uri,
-) ConnectionErrors!WebsocketClient {
-    const scheme = protocol_map.get(uri.scheme) orelse return error.UnsupportedSchema;
+) !WebsocketClient {
+    const scheme = Protocol.fromScheme(uri.scheme) orelse return error.UnsupportedSchema;
 
     const port: u16 = uri.port orelse switch (scheme) {
         .plain => 80,
@@ -225,48 +299,29 @@ pub fn connect(
         .percent_encoded => |host| host,
     };
 
-    const fifo: LinearFifo = .init(allocator);
+    const storage: Writer.Allocating = .init(allocator);
     const fragment: Fragment = .{
-        .fragment_fifo = .init(allocator),
+        .alloc_writer = .init(allocator),
         .message_type = null,
     };
 
     const stream = try std.net.tcpConnectToHost(allocator, hostname, port);
+    errdefer stream.close();
 
-    const tls_client: ?TlsClient = tls: {
-        if (scheme != .tls)
-            break :tls null;
-
-        var bundle: CertificateBundle = .{};
-        defer bundle.deinit(allocator);
-
-        try bundle.rescan(allocator);
-
-        break :tls try TlsClient.init(stream, .{
-            .host = .{ .explicit = hostname },
-            .ca = .{ .bundle = bundle },
-        });
+    const connection = switch (scheme) {
+        .plain => &(try Connection.Plain.create(allocator, uri, stream)).connection,
+        .tls => &(try Connection.Tls.create(allocator, uri, stream)).connection,
     };
 
     return .{
-        .recieve_fifo = fifo,
+        .allocator = allocator,
         .fragment = fragment,
-        .stream = .{
-            .net_stream = stream,
-            .tls_stream = tls_client,
-        },
-        .over_read = 0,
-        .uri = uri,
+        .connection = connection,
+        .storage = storage,
         .closed_connection = false,
     };
 }
 
-/// Clears the inner fifo data structures and closes the connection.
-pub fn deinit(self: *WebsocketClient) void {
-    self.close(0);
-    self.recieve_fifo.deinit();
-    self.fragment.deinit();
-}
 /// Send close handshake and closes the net stream.
 pub fn close(
     self: *WebsocketClient,
@@ -274,9 +329,25 @@ pub fn close(
 ) void {
     if (@atomicRmw(bool, &self.closed_connection, .Xchg, true, .acq_rel) == false) {
         self.writeCloseFrame(exit_code) catch {};
-        self.stream.close();
+        self.connection.close();
     }
 }
+
+/// Clears the inner data structures. And closes the connection.
+///
+/// The connection is not destroyed by this method and must be called seperatly.
+///
+/// This was done because the `readLoop` might get ran in different threads.
+/// So this avoid potential segfaults when deiniting the client.
+///
+/// See:
+/// * `Connection.destroyConnection`
+pub fn deinit(self: *WebsocketClient) void {
+    self.close(0);
+    self.fragment.deinit();
+    self.storage.deinit();
+}
+
 /// Generate a base64 set of random bytes.
 pub fn generateHandshakeKey() [24]u8 {
     var nonce: [16]u8 = undefined;
@@ -287,6 +358,7 @@ pub fn generateHandshakeKey() [24]u8 {
 
     return base_64;
 }
+
 /// Masks a websocket message. Uses simd when possible.
 pub fn maskMessage(
     message: []u8,
@@ -308,187 +380,34 @@ pub fn maskMessage(
         remainder = remainder[vec_size..];
     }
 }
-/// Generates the websocket header frame based on the message len and the opcode provided.
-///
-///  0                   1                   2                   3
-///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-/// +-+-+-+-+-------+-+-------------+-------------------------------+
-/// |F|R|R|R| opcode|M| Payload len |    Extended payload length    |
-/// |I|S|S|S|  (4)  |A|     (7)     |             (16/64)           |
-/// |N|V|V|V|       |S|             |   (if payload len==126/127)   |
-/// | |1|2|3|       |K|             |                               |
-/// +-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
-/// |     Extended payload length continued, if payload len == 127  |
-/// + - - - - - - - - - - - - - - - +-------------------------------+
-/// |                               |Masking-key, if MASK set to 1  |
-/// +-------------------------------+-------------------------------+
-/// | Masking-key (continued)       |          Payload Data         |
-/// +-------------------------------- - - - - - - - - - - - - - - - +
-/// :                     Payload Data continued ...                :
-/// + - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - +
-/// |                     Payload Data continued ...                |
-/// +---------------------------------------------------------------+
-pub fn writeHeaderFrame(
-    self: *WebsocketClient,
-    message: []const u8,
-    opcode: Opcodes,
-) NetStream.WriteError![4]u8 {
-    var buffer: [14]u8 = undefined;
 
-    buffer[0] = @bitCast(@as(OpcodeHeader, .{
-        .opcode = opcode,
-        .fin = true,
-    }));
-
-    switch (message.len) {
-        0...125 => {
-            buffer[1] = @bitCast(@as(PayloadHeader, .{
-                .payload_len = @enumFromInt(message.len),
-                .mask = true,
-            }));
-            std.crypto.random.bytes(buffer[2..6]);
-            try self.stream.writeAll(buffer[0..6]);
-
-            return buffer[2..6].*;
-        },
-        126...0xFFFF => {
-            buffer[1] = @bitCast(@as(PayloadHeader, .{
-                .payload_len = .len16,
-                .mask = true,
-            }));
-
-            std.mem.writeInt(u16, buffer[2..4], @intCast(message.len), .big);
-            std.crypto.random.bytes(buffer[4..8]);
-            try self.stream.writeAll(buffer[0..8]);
-
-            return buffer[4..8].*;
-        },
-        else => {
-            buffer[1] = @bitCast(@as(PayloadHeader, .{
-                .payload_len = .len64,
-                .mask = true,
-            }));
-            std.mem.writeInt(u64, buffer[2..10], @intCast(message.len), .big);
-            std.crypto.random.bytes(buffer[10..14]);
-            try self.stream.writeAll(buffer[0..]);
-
-            return buffer[10..].*;
-        },
-    }
-}
-/// Writes to the server a close frame with a provided `exit_code`.
-///
-/// For more details please see: https://www.rfc-editor.org/rfc/rfc6455#section-5.5.1
-pub fn writeCloseFrame(
-    self: *WebsocketClient,
-    exit_code: u16,
-) NetStream.WriteError!void {
-    if (exit_code == 0)
-        return self.writeFrame("", .connection_close);
-
-    var buffer: [2]u8 = undefined;
-    std.mem.writeInt(u16, buffer[0..2], exit_code, .big);
-
-    return self.writeFrame(buffer[0..], .connection_close);
-}
-/// Writes a websocket frame directly to the socket.
-///
-/// The message is masked according to the websocket RFC.
-/// More details here: https://www.rfc-editor.org/rfc/rfc6455#section-6.1
-pub fn writeFrame(
-    self: *WebsocketClient,
-    message: []u8,
-    opcode: Opcodes,
-) NetStream.WriteError!void {
-    const mask = try self.writeHeaderFrame(message, opcode);
-
-    if (message.len > 0) {
-        maskMessage(message, mask);
-
-        try self.stream.writeAll(message);
-    }
-}
 /// Performs the websocket handshake and validates that it got a valid response.
 ///
 /// More info here: https://www.rfc-editor.org/rfc/rfc6455#section-1.2
 pub fn handshake(
     self: *WebsocketClient,
     host: []const u8,
-) (ReadHandshakeError || SendHandshakeError)!void {
+) !void {
     const key = generateHandshakeKey();
     errdefer self.deinit();
 
     try self.sendHandshake(host, key);
-    try self.readHandshake(key);
+
+    const headers = try self.readHandshake();
+    try parseHandshakeResponse(key, headers);
 }
-/// Read the handshake message from the socket and asserts that we got a valid server response.
-///
-/// Places the amount of parsed bytes from the handshake to be discarded on the next socket read.
-pub fn readHandshake(
-    self: *WebsocketClient,
-    handshake_key: [24]u8,
-) ReadHandshakeError!void {
-    // Handshake shouldn't exceed this.
-    const read_buffer = try self.recieve_fifo.writableWithSize(4096);
-    self.recieve_fifo.realign();
 
-    const read = try self.stream.read(read_buffer);
-    const parsed = try parseHandshakeResponse(handshake_key, read_buffer[0..read]);
-
-    self.recieve_fifo.update(read);
-    self.over_read = parsed;
-}
-/// Send the handshake message to the server. Doesn't support url's higher than 4096 bits.
-///
-/// Also writes the query of the path if the `uri` was able to parse it.
-pub fn sendHandshake(
-    self: *WebsocketClient,
-    host: []const u8,
-    key: [24]u8,
-) SendHandshakeError!void {
-    // Dont support paths that exceed this.
-    var buffer: [4096]u8 = undefined;
-
-    var writer = std.Io.Writer.fixed(&buffer);
-
-    const path: []const u8 = if (self.uri.path.isEmpty()) "/" else switch (self.uri.path) {
-        .raw => |raw| raw,
-        .percent_encoded => |encoded| encoded,
-    };
-    const query_bytes: ?[]const u8 = if (self.uri.query) |query| switch (query) {
-        .percent_encoded => |percent_encoded| percent_encoded,
-        .raw => |raw| raw,
-    } else null;
-
-    try writer.print("GET {s}", .{path});
-
-    if (query_bytes) |query|
-        try writer.print("?{s}", .{query});
-
-    try writer.writeAll(" HTTP/1.1\r\n");
-    try writer.print("Host: {s}\r\n", .{host});
-    try writer.writeAll("Content-length: 0\r\n");
-    try writer.writeAll("Upgrade: websocket\r\n");
-    try writer.writeAll("Connection: Upgrade\r\n");
-    try writer.print("Sec-WebSocket-Key: {s}\r\n", .{key});
-    try writer.writeAll("Sec-WebSocket-Version: 13\r\n");
-    try writer.writeAll("\r\n");
-
-    try self.stream.writeAll(writer.buffered());
-}
 /// Validates that the handshake response is valid and returns the amount of bytes read.
 ///
 /// The return bytes are then used to discard in case where we read more than handshake from the stream.
 pub fn parseHandshakeResponse(
     key: [24]u8,
     response: []const u8,
-) AssertionError!usize {
+) !void {
     var iter = std.mem.tokenizeAny(u8, response, "\r\n");
     var websocket_key: ?[]const u8 = null;
 
     var checks: Checks = .none;
-    var message_len: usize = 0;
-
     while (iter.next()) |header| {
         const index = std.mem.indexOfScalar(u8, header, ':') orelse {
             if (std.ascii.startsWithIgnoreCase(header, "HTTP/1.1 101")) {
@@ -497,15 +416,15 @@ pub fn parseHandshakeResponse(
                     .checked_protocol => return error.DuplicateHandshakeHeader,
                     else => return error.InvalidHandshakeMessage,
                 };
-
-                message_len += header.len + 2; // adds the \r\n
             }
 
             continue;
         };
 
         if (std.ascii.eqlIgnoreCase(header[0..index], "sec-websocket-accept")) {
-            const trimmed = std.mem.trim(u8, header[index + 1 ..], " ");
+            @branchHint(.likely);
+
+            const trimmed = std.mem.trim(u8, header[index + 1 ..], &std.ascii.whitespace);
             websocket_key = trimmed;
 
             checks = switch (checks) {
@@ -518,7 +437,9 @@ pub fn parseHandshakeResponse(
         }
 
         if (std.ascii.eqlIgnoreCase(header[0..index], "connection")) {
-            const trimmed = std.mem.trim(u8, header[index + 1 ..], " ");
+            @branchHint(.likely);
+
+            const trimmed = std.mem.trim(u8, header[index + 1 ..], &std.ascii.whitespace);
             if (!std.ascii.eqlIgnoreCase(trimmed, "upgrade"))
                 return error.InvalidHandshakeMessage;
 
@@ -532,7 +453,9 @@ pub fn parseHandshakeResponse(
         }
 
         if (std.ascii.eqlIgnoreCase(header[0..index], "upgrade")) {
-            const trimmed = std.mem.trim(u8, header[index + 1 ..], " ");
+            @branchHint(.likely);
+
+            const trimmed = std.mem.trim(u8, header[index + 1 ..], &std.ascii.whitespace);
             if (!std.ascii.eqlIgnoreCase(trimmed, "websocket"))
                 return error.InvalidHandshakeMessage;
 
@@ -544,14 +467,13 @@ pub fn parseHandshakeResponse(
                 else => return error.InvalidHandshakeMessage,
             };
         }
-
-        message_len += header.len + 2; // adds the \r\n
     }
 
-    if (checks != .checked_key)
-        return error.InvalidHandshakeMessage;
+    const ws_key = websocket_key orelse {
+        @branchHint(.unlikely);
+        return error.InvalidHandshakeKey;
+    };
 
-    const ws_key = websocket_key orelse return error.InvalidHandshakeKey;
     var hash: [Sha1.digest_length]u8 = undefined;
 
     var hasher = Sha1.init(.{});
@@ -567,44 +489,42 @@ pub fn parseHandshakeResponse(
     std.debug.assert(ws_key.len == 28); // Invalid websocket_key
     const reponse_int: u224 = @bitCast(ws_key[0..28].*);
 
-    if (encoded_int != reponse_int)
+    if (encoded_int != reponse_int) {
+        @branchHint(.unlikely);
         return error.InvalidHandshakeKey;
-
-    return message_len + 2; // add the final \r\n
-}
-/// Read data directly from the socket and return that data.
-///
-/// Returns end of stream if the amount requested is higher than the
-/// amount of bytes that were actually read.
-pub fn readFromSocket(
-    self: *WebsocketClient,
-    size: usize,
-) SocketReadError![]const u8 {
-    self.recieve_fifo.discard(self.over_read);
-    self.recieve_fifo.realign();
-
-    if (size > self.recieve_fifo.count) {
-        const amount = size - self.recieve_fifo.count;
-        const buffer = self.recieve_fifo.writableSlice(0);
-
-        const writable_buf = if (buffer.len > amount) buffer else blk: {
-            const new_buffer = try self.recieve_fifo.writableWithSize(amount);
-
-            break :blk new_buffer;
-        };
-
-        const read = try self.stream.readAtLeast(writable_buf, amount);
-
-        if (read < amount)
-            return error.EndOfStream;
-
-        self.recieve_fifo.update(read);
     }
-
-    self.over_read = size;
-
-    return self.recieve_fifo.readableSliceOfLen(size);
 }
+
+/// Buffers the entire head inside `in`.
+///
+/// The resulting memory is invalidated by any subsequent consumption of
+/// the input stream.
+pub fn readHandshake(self: *WebsocketClient) ![]const u8 {
+    const reader = self.connection.reader();
+    var hp: std.http.HeadParser = .{};
+    var head_len: usize = 0;
+    while (true) {
+        if (reader.buffer.len - head_len == 0) return error.HttpHeadersOversize;
+        const remaining = reader.buffered()[head_len..];
+        if (remaining.len == 0) {
+            reader.fillMore() catch |err| switch (err) {
+                error.EndOfStream => switch (head_len) {
+                    0 => return error.HttpConnectionClosing,
+                    else => return error.HttpRequestTruncated,
+                },
+                error.ReadFailed => return error.ReadFailed,
+            };
+            continue;
+        }
+        head_len += hp.feed(remaining);
+        if (hp.state == .finished) {
+            const head_buffer = reader.buffered()[0..head_len];
+            reader.toss(head_len);
+            return head_buffer;
+        }
+    }
+}
+
 /// Reads a websocket frame from the socket and decodes it based on
 /// the frames headers.
 ///
@@ -612,9 +532,11 @@ pub fn readFromSocket(
 /// must always send unmasked data.
 ///
 /// More info here: https://www.rfc-editor.org/rfc/rfc6455#section-6.2
-pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
+pub fn readMessage(self: *WebsocketClient) !WebsocketMessage {
+    var reader = self.connection.reader();
+
     while (true) {
-        const headers = (try self.readFromSocket(2))[0..2];
+        const headers = try reader.takeArray(2);
 
         const op_head: OpcodeHeader = @bitCast(headers[0]);
         const payload_head: PayloadHeader = @bitCast(headers[1]);
@@ -626,21 +548,22 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
             return error.UnnegociatedReservedBits;
 
         const total = switch (payload_head.payload_len) {
-            .len16 => blk: {
-                const size = (try self.readFromSocket(@sizeOf(u16)))[0..@sizeOf(u16)];
-
-                break :blk std.mem.readInt(u16, size, .big);
-            },
-            .len64 => blk: {
-                const size = (try self.readFromSocket(@sizeOf(u64)))[0..@sizeOf(u64)];
-                const int = std.mem.readInt(u64, size, .big);
-
-                break :blk std.math.cast(usize, int) orelse return error.MessageSizeOverflow;
-            },
+            .len16 => try reader.takeInt(u16, .big),
+            .len64 => std.math.cast(usize, try reader.takeInt(u64, .big)) orelse return error.MessageSizeOverflow,
             _ => @intFromEnum(payload_head.payload_len),
         };
 
-        const payload = try self.readFromSocket(total);
+        const payload = blk: {
+            if (total < reader.buffer.len)
+                break :blk try reader.take(total);
+
+            try self.storage.ensureUnusedCapacity(total);
+
+            try reader.streamExact(&self.storage.writer, total);
+            defer self.storage.shrinkRetainingCapacity(0);
+
+            break :blk self.storage.getWritten();
+        };
 
         switch (op_head.opcode) {
             .text,
@@ -669,6 +592,7 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
             .continuation,
             => {
                 const message_type = self.fragment.message_type orelse return error.FragmentedControl;
+
                 if (!op_head.fin) {
                     try self.fragment.writeAll(payload);
                     continue;
@@ -686,7 +610,7 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
 
                 return .{
                     .opcode = message_type,
-                    .data = @constCast(slice),
+                    .data = slice,
                 };
             },
             .ping,
@@ -702,6 +626,198 @@ pub fn readMessage(self: *WebsocketClient) ReadMessageError!WebsocketMessage {
                 };
             },
             _ => return error.UnsupportedOpcode,
+        }
+    }
+}
+
+/// Send the handshake message to the server. Doesn't support url's higher than 4096 bits.
+///
+/// Also writes the query of the path if the `uri` was able to parse it.
+pub fn sendHandshake(
+    self: *WebsocketClient,
+    host: []const u8,
+    key: [24]u8,
+) !void {
+    const path: []const u8 = if (self.connection.uri.path.isEmpty()) "/" else switch (self.connection.uri.path) {
+        .raw => |raw| raw,
+        .percent_encoded => |encoded| encoded,
+    };
+
+    const query_bytes: ?[]const u8 = if (self.connection.uri.query) |query| switch (query) {
+        .percent_encoded => |percent_encoded| percent_encoded,
+        .raw => |raw| raw,
+    } else null;
+
+    try self.connection.writer().print("GET {s}", .{path});
+
+    if (query_bytes) |query|
+        try self.connection.writer().print("?{s}", .{query});
+
+    try self.connection.writer().writeAll(" HTTP/1.1\r\n");
+    try self.connection.writer().print("Host: {s}\r\n", .{host});
+    try self.connection.writer().writeAll("Content-length: 0\r\n");
+    try self.connection.writer().writeAll("Upgrade: websocket\r\n");
+    try self.connection.writer().writeAll("Connection: Upgrade\r\n");
+    try self.connection.writer().print("Sec-WebSocket-Key: {s}\r\n", .{key});
+    try self.connection.writer().writeAll("Sec-WebSocket-Version: 13\r\n");
+    try self.connection.writer().writeAll("\r\n");
+
+    try self.connection.flush();
+}
+
+/// Writes to the server a close frame with a provided `exit_code`.
+///
+/// For more details please see: https://www.rfc-editor.org/rfc/rfc6455#section-5.5.1
+pub fn writeCloseFrame(
+    self: *WebsocketClient,
+    exit_code: u16,
+) !void {
+    if (exit_code == 0)
+        return self.writeFrame("", .connection_close);
+
+    var buffer: [2]u8 = undefined;
+    std.mem.writeInt(u16, buffer[0..2], exit_code, .big);
+
+    return self.writeFrame(buffer[0..], .connection_close);
+}
+
+/// Writes a websocket frame directly to the socket.
+///
+/// The message is masked according to the websocket RFC.
+/// More details here: https://www.rfc-editor.org/rfc/rfc6455#section-6.1
+pub fn writeFrame(
+    self: *WebsocketClient,
+    message: []u8,
+    opcode: Opcode,
+) !void {
+    const mask = try self.writeHeaderFrame(message, opcode);
+    try self.connection.flush();
+
+    if (message.len > 0) {
+        @branchHint(.likely);
+
+        maskMessage(message, mask);
+
+        try self.connection.writer().writeAll(message);
+        try self.connection.flush();
+    }
+}
+
+/// Generates the websocket header frame based on the message len and the opcode provided.
+///
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-------+-+-------------+-------------------------------+
+/// |F|R|R|R| opcode|M| Payload len |    Extended payload length    |
+/// |I|S|S|S|  (4)  |A|     (7)     |             (16/64)           |
+/// |N|V|V|V|       |S|             |   (if payload len==126/127)   |
+/// | |1|2|3|       |K|             |                               |
+/// +-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
+/// |     Extended payload length continued, if payload len == 127  |
+/// + - - - - - - - - - - - - - - - +-------------------------------+
+/// |                               |Masking-key, if MASK set to 1  |
+/// +-------------------------------+-------------------------------+
+/// | Masking-key (continued)       |          Payload Data         |
+/// +-------------------------------- - - - - - - - - - - - - - - - +
+/// :                     Payload Data continued ...                :
+/// + - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - +
+/// |                     Payload Data continued ...                |
+/// +---------------------------------------------------------------+
+pub fn writeHeaderFrame(
+    self: *WebsocketClient,
+    message: []const u8,
+    opcode: Opcode,
+) ![4]u8 {
+    var writer = self.connection.writer();
+
+    var buffer: [4]u8 = undefined;
+
+    try writer.writeByte(@bitCast(@as(OpcodeHeader, .{
+        .opcode = opcode,
+        .fin = true,
+    })));
+
+    switch (message.len) {
+        0...125 => {
+            try writer.writeByte(@bitCast(@as(PayloadHeader, .{
+                .payload_len = @enumFromInt(message.len),
+                .mask = true,
+            })));
+
+            std.crypto.random.bytes(buffer[0..]);
+            try writer.writeAll(buffer[0..]);
+
+            return buffer;
+        },
+        126...0xFFFF => {
+            try writer.writeByte(@bitCast(@as(PayloadHeader, .{
+                .payload_len = .len16,
+                .mask = true,
+            })));
+
+            try writer.writeInt(u16, @intCast(message.len), .big);
+
+            std.crypto.random.bytes(buffer[0..]);
+            try writer.writeAll(buffer[0..]);
+
+            return buffer;
+        },
+        else => {
+            try writer.writeByte(@bitCast(@as(PayloadHeader, .{
+                .payload_len = .len64,
+                .mask = true,
+            })));
+
+            try writer.writeInt(u64, @intCast(message.len), .big);
+
+            std.crypto.random.bytes(buffer[0..]);
+            try writer.writeAll(buffer[0..]);
+
+            return buffer;
+        },
+    }
+}
+
+test "handshake" {
+    const path = try std.fmt.allocPrint(testing.allocator, "http://localhost:9001/runCase?casetuple={s}&agent=zabi.zig", .{"5.6"});
+    defer testing.allocator.free(path);
+
+    const uri = try std.Uri.parse(path);
+
+    var client = try WebsocketClient.connect(testing.allocator, uri);
+    defer client.deinit();
+
+    try client.handshake("localhost:9001");
+
+    while (true) {
+        const message = client.readMessage() catch |err| switch (err) {
+            error.EndOfStream => {
+                client.close(1002);
+                return;
+            },
+            error.InvalidUtf8Payload => {
+                client.close(1007);
+                return err;
+            },
+            else => {
+                client.close(1002);
+                return err;
+            },
+        };
+
+        switch (message.opcode) {
+            .binary,
+            => try client.writeFrame(@constCast(message.data), .binary),
+            .text,
+            => try client.writeFrame(@constCast(message.data), .text),
+            .ping,
+            => try client.writeFrame(@constCast(message.data), .pong),
+            .connection_close,
+            => return client.close(0),
+            // Ignore unsolicited pong messages.
+            .pong,
+            => continue,
+            else => return error.UnexpectedOpcode,
         }
     }
 }

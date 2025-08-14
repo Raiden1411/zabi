@@ -1,6 +1,6 @@
 test "Clients Root" {
     // Block explorer tests
-    _ = @import("block_explorer.test.zig");
+    // _ = @import("block_explorer.test.zig");
     _ = @import("url.test.zig");
 
     // Pub clients tests

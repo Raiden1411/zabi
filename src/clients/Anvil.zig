@@ -21,8 +21,8 @@ const SpecId = specification.SpecId;
 const Value = std.json.Value;
 
 /// Set of errors while fetching from a json rpc http endpoint.
-pub const FetchErrors = Allocator.Error || Client.RequestError || Client.Request.WaitError ||
-    Client.Request.FinishError || Client.Request.ReadError || std.Uri.ParseError || error{ StreamTooLong, InvalidRequest };
+pub const FetchErrors = Allocator.Error || Client.RequestError || Client.Request.ReceiveHeadError ||
+    std.Io.Writer.Error || std.Io.Reader.Error || std.Uri.ParseError || error{ StreamTooLong, InvalidRequest, UnsupportedCompressionMethod };
 
 /// Values needed for the `anvil_reset` request.
 pub const Forking = struct {

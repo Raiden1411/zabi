@@ -221,7 +221,7 @@ pub fn AbiLogTopicsEncoder(comptime event: AbiEvent) type {
                 }
             }
 
-            break :indexed indexed;
+            break :indexed .{ .buf = buffer, .len = size };
         };
 
         /// Initialize the structure.

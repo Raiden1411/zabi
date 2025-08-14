@@ -17,8 +17,8 @@ const ParseOptions = std.json.ParseOptions;
 const Value = std.json.Value;
 
 /// Set of errors while fetching from a json rpc http endpoint.
-pub const FetchErrors = Allocator.Error || Client.RequestError || Client.Request.WaitError ||
-    Client.Request.FinishError || Client.Request.ReadError || std.Uri.ParseError || error{ StreamTooLong, InvalidRequest };
+pub const FetchErrors = Allocator.Error || Client.RequestError || Client.Request.ReceiveHeadError ||
+    std.Io.Writer.Error || std.Io.Reader.Error || std.Uri.ParseError || error{ StreamTooLong, InvalidRequest, UnsupportedCompressionMethod };
 
 /// Values needed for the `hardhat_reset` request.
 pub const Forking = struct {
@@ -370,14 +370,10 @@ pub fn sendRpcRequest(
     self: *Hardhat,
     req_body: []u8,
 ) FetchErrors!void {
-    var body = std.ArrayList(u8).init(self.allocator);
-    defer body.deinit();
-
     const req = try self.http_client.fetch(.{
         .headers = .{ .content_type = .{ .override = "application/json" } },
         .payload = req_body,
         .location = .{ .uri = self.localhost },
-        .response_storage = .{ .dynamic = &body },
     });
 
     if (req.status != .ok) return error.InvalidRequest;

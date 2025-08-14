@@ -163,7 +163,7 @@ pub fn decodeAbiConstructor(comptime T: type, allocator: Allocator, encoded: []u
 }
 /// Decodes the abi encoded slice. All allocations are managed in an `ArenaAllocator`.
 /// This is usefull when you have to grab ownership of the memory from the slice or the type you need requires the creation
-/// of an `ArrayList`.
+/// of an `array_list.Managed`.
 ///
 /// Allocations:
 ///     `Bool`, `Int`, `Enum`, `Array` => **false**.
@@ -381,7 +381,7 @@ fn decodeParameter(comptime T: type, allocator: Allocator, encoded: []u8, positi
                     var pos: usize = 0;
                     var read: u16 = 0;
 
-                    var list = std.ArrayList(ptr_info.child).init(allocator);
+                    var list = std.array_list.Managed(ptr_info.child).init(allocator);
                     errdefer list.deinit();
 
                     for (0..length) |_| {

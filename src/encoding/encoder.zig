@@ -14,8 +14,8 @@ const AbiParameterToPrimative = meta.AbiParameterToPrimative;
 const AbiParametersToPrimative = meta.AbiParametersToPrimative;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
-const ArrayList = std.ArrayList;
+const ArrayListUnmanaged = std.ArrayList;
+const ArrayList = std.array_list.Managed;
 const ByteAlignedInt = std.math.ByteAlignedInt;
 const Constructor = zabi_abi.abitypes.Constructor;
 const Error = zabi_abi.abitypes.Error;
@@ -1042,7 +1042,7 @@ pub fn encodeString(
     const ceil = try std.math.divCeil(usize, payload.len, 32);
     const padded_size = ceil * 32;
 
-    var list = try std.ArrayList(u8).initCapacity(allocator, padded_size + 32);
+    var list = try std.array_list.Managed(u8).initCapacity(allocator, padded_size + 32);
     errdefer list.deinit();
 
     var writer = list.writer();

@@ -3,7 +3,7 @@ const formatter = @import("zabi").ast.formatter;
 const testing = std.testing;
 
 const Ast = @import("zabi").ast.Ast;
-const Formatter = formatter.SolidityFormatter(std.ArrayList(u8).Writer);
+const Formatter = formatter.SolidityFormatter(std.array_list.Managed(u8).Writer);
 const Parser = @import("zabi").ast.Parser;
 
 test "Basic" {
@@ -50,7 +50,7 @@ test "Basic" {
         \\    }
     ;
 
-    var list = std.ArrayList(u8).init(testing.allocator);
+    var list = std.array_list.Managed(u8).init(testing.allocator);
     defer list.deinit();
 
     var ast = try Ast.parse(testing.allocator, slice);
@@ -114,7 +114,7 @@ test "Element" {
         \\}
     ;
 
-    var list = std.ArrayList(u8).init(testing.allocator);
+    var list = std.array_list.Managed(u8).init(testing.allocator);
     errdefer list.deinit();
 
     var ast = try Ast.parse(testing.allocator, slice);
@@ -277,7 +277,7 @@ test "It can format a contract without errors" {
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 
-    var list = std.ArrayList(u8).init(testing.allocator);
+    var list = std.array_list.Managed(u8).init(testing.allocator);
     errdefer list.deinit();
 
     var format: Formatter = .init(ast, 4, list.writer());
@@ -338,7 +338,7 @@ test "Try/Catch" {
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 
-    var list = std.ArrayList(u8).init(testing.allocator);
+    var list = std.array_list.Managed(u8).init(testing.allocator);
     errdefer list.deinit();
 
     var format: Formatter = .init(ast, 4, list.writer());
@@ -463,7 +463,7 @@ test "Owner Contract" {
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 
-    var list = std.ArrayList(u8).init(testing.allocator);
+    var list = std.array_list.Managed(u8).init(testing.allocator);
     errdefer list.deinit();
 
     var format: Formatter = .init(ast, 4, list.writer());
@@ -708,7 +708,7 @@ test "Uniswap" {
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 
-    var list = std.ArrayList(u8).init(testing.allocator);
+    var list = std.array_list.Managed(u8).init(testing.allocator);
     errdefer list.deinit();
 
     var format: Formatter = .init(ast, 4, list.writer());
@@ -764,7 +764,7 @@ test "Fallback" {
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 
-    var list = std.ArrayList(u8).init(testing.allocator);
+    var list = std.array_list.Managed(u8).init(testing.allocator);
     errdefer list.deinit();
 
     var format: Formatter = .init(ast, 4, list.writer());
@@ -1757,7 +1757,7 @@ test "Solady" {
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 
-    var list = std.ArrayList(u8).init(testing.allocator);
+    var list = std.array_list.Managed(u8).init(testing.allocator);
     errdefer list.deinit();
 
     var format: Formatter = .init(ast, 4, list.writer());

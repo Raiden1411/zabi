@@ -124,7 +124,7 @@ pub fn logInstruction(self: *Interpreter, size: u8) (HostInstructionErrors || Me
         break :blk self.memory.getSlice()[off .. off + len];
     };
 
-    var topic = try std.ArrayList(?[32]u8).initCapacity(self.allocator, size);
+    var topic = try std.array_list.Managed(?[32]u8).initCapacity(self.allocator, size);
     errdefer topic.deinit();
 
     for (0..size) |_| {

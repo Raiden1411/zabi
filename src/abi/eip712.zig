@@ -96,7 +96,7 @@ pub fn hashTypedData(
     domain: ?TypedDataDomain,
     message: anytype,
 ) EIP712Errors![Keccak256.digest_length]u8 {
-    var list = std.ArrayList(u8).init(allocator);
+    var list = std.array_list.Managed(u8).init(allocator);
     errdefer list.deinit();
 
     var writer = list.writer();
@@ -174,7 +174,7 @@ pub fn hashStruct(
     comptime primary_type: []const u8,
     data: anytype,
 ) EIP712Errors![Keccak256.digest_length]u8 {
-    var list = std.ArrayList(u8).init(allocator);
+    var list = std.array_list.Managed(u8).init(allocator);
     errdefer list.deinit();
 
     try encodeStruct(allocator, types, primary_type, data, list.writer());
@@ -244,7 +244,7 @@ pub fn encodeStructField(
 ) EIP712Errors!void {
     const info = @typeInfo(@TypeOf(value));
     if (@hasField(@TypeOf(types), primary_type)) {
-        var list = std.ArrayList(u8).init(allocator);
+        var list = std.array_list.Managed(u8).init(allocator);
         errdefer list.deinit();
 
         try encodeStruct(allocator, types, primary_type, value, list.writer());
@@ -331,7 +331,7 @@ pub fn encodeStructField(
 
             switch (param_type) {
                 .dynamicArray, .fixedArray => {
-                    var list = std.ArrayList(u8).init(allocator);
+                    var list = std.array_list.Managed(u8).init(allocator);
                     errdefer list.deinit();
 
                     const index = comptime std.mem.lastIndexOf(u8, primary_type, "[");
@@ -401,7 +401,7 @@ pub fn encodeStructField(
 
                     switch (param_type) {
                         .dynamicArray, .fixedArray => {
-                            var list = std.ArrayList(u8).init(allocator);
+                            var list = std.array_list.Managed(u8).init(allocator);
                             errdefer list.deinit();
 
                             const index = comptime std.mem.lastIndexOf(u8, primary_type, "[");
@@ -430,7 +430,7 @@ pub fn encodeStructField(
 
                 switch (param_type) {
                     .dynamicArray, .fixedArray => {
-                        var list = std.ArrayList(u8).init(allocator);
+                        var list = std.array_list.Managed(u8).init(allocator);
                         errdefer list.deinit();
 
                         const index = comptime std.mem.lastIndexOf(u8, primary_type, "[");
@@ -460,7 +460,7 @@ pub fn hashType(
     comptime types_fields: anytype,
     comptime primary_type: []const u8,
 ) EncodeTypeErrors![Keccak256.digest_length]u8 {
-    var list = std.ArrayList(u8).init(allocator);
+    var list = std.array_list.Managed(u8).init(allocator);
     errdefer list.deinit();
 
     try encodeType(allocator, types_fields, primary_type, list.writer());

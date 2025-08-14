@@ -28,7 +28,7 @@ fn buildBlst(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.R
     lib.addIncludePath(upstream.path("src"));
     lib.addIncludePath(upstream.path("build"));
 
-    var flags = std.ArrayList([]const u8).init(b.allocator);
+    var flags = std.array_list.Managed([]const u8).init(b.allocator);
     defer flags.deinit();
 
     if (!target.result.isDarwinLibC()) {

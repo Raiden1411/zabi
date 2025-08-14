@@ -625,7 +625,7 @@ pub fn hashAuthorityEip7702(
         nonce,
     };
 
-    var list: std.ArrayList(u8) = .init(self.allocator);
+    var list: std.array_list.Managed(u8) = .init(self.allocator);
     errdefer list.deinit();
 
     try list.writer().writeByte(0x05);
@@ -1137,7 +1137,7 @@ pub fn prepareWithdrawalProofTransaction(
         inline else => |block_info| .{ .stateRoot = block_info.stateRoot, .hash = block_info.hash.? },
     };
 
-    var proofs = try std.ArrayList([]u8).initCapacity(self.allocator, proof.response.storageProof[0].proof.len);
+    var proofs = try std.array_list.Managed([]u8).initCapacity(self.allocator, proof.response.storageProof[0].proof.len);
     errdefer proofs.deinit();
 
     for (proof.response.storageProof[0].proof) |p| {

@@ -33,7 +33,7 @@ const AbiParametersToPrimative = meta_abi.AbiParametersToPrimative;
 const AccessListResult = transaction.AccessListResult;
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
+const ArrayList = std.array_list.Managed;
 const BalanceBlockTag = block.BalanceBlockTag;
 const BalanceRequest = block.BalanceRequest;
 const Block = block.Block;
@@ -995,7 +995,7 @@ pub fn getGames(
     const decoded = try decoder.decodeAbiParameter([]const Game, allocator, games.response, .{});
     defer decoded.deinit();
 
-    var list = std.ArrayList(GameResult).init(allocator);
+    var list = std.array_list.Managed(GameResult).init(allocator);
     errdefer list.deinit();
 
     for (decoded.result) |game| {
@@ -1188,7 +1188,7 @@ pub fn getL2HashesForDepositTransaction(
     const deposit_data = try self.getTransactionDepositEvents(allocator, tx_hash);
     defer allocator.free(deposit_data);
 
-    var list = try std.ArrayList(Hash).initCapacity(allocator, deposit_data.len);
+    var list = try std.array_list.Managed(Hash).initCapacity(allocator, deposit_data.len);
     errdefer list.deinit();
 
     for (deposit_data) |data| {
@@ -1704,7 +1704,7 @@ pub fn getTransactionDepositEvents(self: *Provider, allocator: Allocator, tx_has
         inline else => |tx_receipt| tx_receipt.logs,
     };
 
-    var list = std.ArrayList(TransactionDeposited).init(allocator);
+    var list = std.array_list.Managed(TransactionDeposited).init(allocator);
     errdefer list.deinit();
 
     // Event selector for `TransactionDeposited`.
@@ -1973,7 +1973,7 @@ pub fn getWithdrawMessages(self: *Provider, allocator: Allocator, tx_hash: Hash)
     if (receipt != .op_receipt)
         return error.InvalidTransactionHash;
 
-    var list = std.ArrayList(Withdrawal).init(allocator);
+    var list = std.array_list.Managed(Withdrawal).init(allocator);
     errdefer list.deinit();
 
     // The hash for the event selector `MessagePassed`
@@ -2033,7 +2033,7 @@ pub fn getWithdrawMessagesL2(
         },
     }
 
-    var list = std.ArrayList(Withdrawal).init(allocator);
+    var list = std.array_list.Managed(Withdrawal).init(allocator);
     errdefer list.deinit();
 
     // The hash for the event selector `MessagePassed`
@@ -2089,7 +2089,7 @@ pub fn multicall3(
 ) !AbiDecoded([]const Result) {
     comptime std.debug.assert(targets.len == function_arguments.len);
 
-    var abi_list = try std.ArrayList(Call3).initCapacity(allocator, targets.len);
+    var abi_list = try std.array_list.Managed(Call3).initCapacity(allocator, targets.len);
     errdefer abi_list.deinit();
 
     inline for (targets, function_arguments) |target, argument| {

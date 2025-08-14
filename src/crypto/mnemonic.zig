@@ -111,12 +111,12 @@ pub fn fromEntropy(
 ) (Allocator.Error || error{Overflow})![]const u8 {
     const list = word_list orelse english;
 
-    var mnemonic = std.ArrayList(u8).init(allocator);
+    var mnemonic = std.array_list.Managed(u8).init(allocator);
     errdefer mnemonic.deinit();
 
     var writer = mnemonic.writer();
 
-    var indices = std.ArrayList(u16).init(allocator);
+    var indices = std.array_list.Managed(u16).init(allocator);
     errdefer indices.deinit();
 
     try indices.append(0);

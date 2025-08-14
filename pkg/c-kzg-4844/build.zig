@@ -49,7 +49,7 @@ fn buildKzg(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.Re
     lib.addIncludePath(upstream.path("src"));
     lib.addIncludePath(.{ .src_path = .{ .owner = b, .sub_path = "" } });
 
-    var flags = std.ArrayList([]const u8).init(b.allocator);
+    var flags = std.array_list.Managed([]const u8).init(b.allocator);
     defer flags.deinit();
 
     lib.addCSourceFiles(.{ .root = upstream.path("."), .flags = flags.items, .files = &.{"src/c_kzg_4844.c"} });

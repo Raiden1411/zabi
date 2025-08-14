@@ -36,7 +36,7 @@ const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
 const LondonEnvelope = transaction.LondonEnvelope;
 const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
-const RlpEncodeErrors = rlp.RlpEncoder(std.ArrayList(u8).Writer).Error;
+const RlpEncodeErrors = rlp.RlpEncoder(std.array_list.Managed(u8).Writer).Error;
 const Sidecar = kzg.KZG4844.Sidecar;
 const Sidecars = kzg.KZG4844.Sidecars;
 const Signature = @import("zabi-crypto").signature.Signature;
@@ -120,7 +120,7 @@ pub fn serializeTransactionEIP7702(
             signature.s,
         };
 
-        var list = std.ArrayList(u8).init(allocator);
+        var list = std.array_list.Managed(u8).init(allocator);
         errdefer list.deinit();
 
         try list.writer().writeByte(0x04);
@@ -143,7 +143,7 @@ pub fn serializeTransactionEIP7702(
         prep_auth,
     };
 
-    var list = std.ArrayList(u8).init(allocator);
+    var list = std.array_list.Managed(u8).init(allocator);
     errdefer list.deinit();
 
     try list.writer().writeByte(0x04);
@@ -185,7 +185,7 @@ pub fn serializeCancunTransaction(
             signature.s,
         };
 
-        var list = std.ArrayList(u8).init(allocator);
+        var list = std.array_list.Managed(u8).init(allocator);
         errdefer list.deinit();
 
         try list.writer().writeByte(0x03);
@@ -209,7 +209,7 @@ pub fn serializeCancunTransaction(
         blob_hashes,
     };
 
-    var list = std.ArrayList(u8).init(allocator);
+    var list = std.array_list.Managed(u8).init(allocator);
     errdefer list.deinit();
 
     try list.writer().writeByte(0x03);
@@ -258,7 +258,7 @@ pub fn serializeCancunTransactionWithBlobs(
             proofs,
         };
 
-        var list = std.ArrayList(u8).init(allocator);
+        var list = std.array_list.Managed(u8).init(allocator);
         errdefer list.deinit();
 
         try list.writer().writeByte(0x03);
@@ -285,7 +285,7 @@ pub fn serializeCancunTransactionWithBlobs(
         proofs,
     };
 
-    var list = std.ArrayList(u8).init(allocator);
+    var list = std.array_list.Managed(u8).init(allocator);
     errdefer list.deinit();
 
     try list.writer().writeByte(0x03);
@@ -336,7 +336,7 @@ pub fn serializeCancunTransactionWithSidecars(
             list_sidecar.items(.proof),
         };
 
-        var list = std.ArrayList(u8).init(allocator);
+        var list = std.array_list.Managed(u8).init(allocator);
         errdefer list.deinit();
 
         try list.writer().writeByte(0x03);
@@ -363,7 +363,7 @@ pub fn serializeCancunTransactionWithSidecars(
         list_sidecar.items(.proof),
     };
 
-    var list = std.ArrayList(u8).init(allocator);
+    var list = std.array_list.Managed(u8).init(allocator);
     errdefer list.deinit();
 
     try list.writer().writeByte(0x03);
@@ -398,7 +398,7 @@ pub fn serializeTransactionEIP1559(
             signature.s,
         };
 
-        var list = std.ArrayList(u8).init(allocator);
+        var list = std.array_list.Managed(u8).init(allocator);
         errdefer list.deinit();
 
         try list.writer().writeByte(0x02);
@@ -420,7 +420,7 @@ pub fn serializeTransactionEIP1559(
         prep_access,
     };
 
-    var list = std.ArrayList(u8).init(allocator);
+    var list = std.array_list.Managed(u8).init(allocator);
     errdefer list.deinit();
 
     try list.writer().writeByte(0x02);
@@ -454,7 +454,7 @@ pub fn serializeTransactionEIP2930(
             signature.s,
         };
 
-        var list = std.ArrayList(u8).init(allocator);
+        var list = std.array_list.Managed(u8).init(allocator);
         errdefer list.deinit();
 
         try list.writer().writeByte(0x01);
@@ -475,7 +475,7 @@ pub fn serializeTransactionEIP2930(
         prep_access,
     };
 
-    var list = std.ArrayList(u8).init(allocator);
+    var list = std.array_list.Managed(u8).init(allocator);
     errdefer list.deinit();
 
     try list.writer().writeByte(0x01);
@@ -566,7 +566,7 @@ pub fn prepareAccessList(
     allocator: Allocator,
     access_list: []const AccessList,
 ) Allocator.Error![]const StructToTupleType(AccessList) {
-    var tuple_list = try std.ArrayList(StructToTupleType(AccessList)).initCapacity(allocator, access_list.len);
+    var tuple_list = try std.array_list.Managed(StructToTupleType(AccessList)).initCapacity(allocator, access_list.len);
     errdefer tuple_list.deinit();
 
     for (access_list) |access| {
@@ -580,7 +580,7 @@ pub fn prepareAuthorizationList(
     allocator: Allocator,
     authorization_list: []const AuthorizationPayload,
 ) Allocator.Error![]const StructToTupleType(AuthorizationPayload) {
-    var tuple_list = try std.ArrayList(StructToTupleType(AuthorizationPayload)).initCapacity(allocator, authorization_list.len);
+    var tuple_list = try std.array_list.Managed(StructToTupleType(AuthorizationPayload)).initCapacity(allocator, authorization_list.len);
     errdefer tuple_list.deinit();
 
     for (authorization_list) |auth| {

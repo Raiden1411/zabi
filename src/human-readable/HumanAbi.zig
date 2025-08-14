@@ -63,7 +63,7 @@ pub fn toAbi(self: *HumanAbi) (HumanAbiErrors || error{ UnexpectedNode, Unexpect
     const nodes = self.ast.nodes.items(.tag);
     const data = self.ast.nodes.items(.data);
 
-    var list = try std.ArrayList(AbiItem).initCapacity(self.allocator, self.ast.nodes.len);
+    var list = try std.array_list.Managed(AbiItem).initCapacity(self.allocator, self.ast.nodes.len);
     errdefer list.deinit();
 
     for (nodes, 0..) |node, index| {
@@ -408,7 +408,7 @@ pub fn toAbiParameters(
     self: HumanAbi,
     nodes: []const Node.Index,
 ) HumanAbiErrors![]const AbiParameter {
-    var params = try std.ArrayList(AbiParameter).initCapacity(self.allocator, nodes.len);
+    var params = try std.array_list.Managed(AbiParameter).initCapacity(self.allocator, nodes.len);
     errdefer params.deinit();
 
     for (nodes) |node|
@@ -421,7 +421,7 @@ pub fn toAbiParametersFromDecl(
     self: HumanAbi,
     nodes: []const Node.Index,
 ) HumanAbiErrors![]const AbiParameter {
-    var params = try std.ArrayList(AbiParameter).initCapacity(self.allocator, nodes.len);
+    var params = try std.array_list.Managed(AbiParameter).initCapacity(self.allocator, nodes.len);
     errdefer params.deinit();
 
     for (nodes) |node|
@@ -434,7 +434,7 @@ pub fn toAbiEventParameters(
     self: HumanAbi,
     nodes: []const Node.Index,
 ) HumanAbiErrors![]const AbiEventParameter {
-    var params = try std.ArrayList(AbiEventParameter).initCapacity(self.allocator, nodes.len);
+    var params = try std.array_list.Managed(AbiEventParameter).initCapacity(self.allocator, nodes.len);
     errdefer params.deinit();
 
     for (nodes) |node|

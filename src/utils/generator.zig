@@ -155,7 +155,7 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
                     return pointer;
                 },
                 .slice => {
-                    var list = std.ArrayList(ptr_info.child).init(allocator);
+                    var list = std.array_list.Managed(ptr_info.child).init(allocator);
                     errdefer list.deinit();
 
                     var rand = std.Random.DefaultPrng.init(seed);

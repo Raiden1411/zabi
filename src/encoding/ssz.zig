@@ -14,7 +14,7 @@ const Allocator = std.mem.Allocator;
 ///
 /// Caller owns the memory
 pub fn encodeSSZ(allocator: Allocator, value: anytype) Allocator.Error![]u8 {
-    var list = std.ArrayList(u8).init(allocator);
+    var list = std.array_list.Managed(u8).init(allocator);
     errdefer list.deinit();
 
     try encodeItem(value, &list);
@@ -22,7 +22,7 @@ pub fn encodeSSZ(allocator: Allocator, value: anytype) Allocator.Error![]u8 {
     return list.toOwnedSlice();
 }
 
-fn encodeItem(value: anytype, list: *std.ArrayList(u8)) Allocator.Error!void {
+fn encodeItem(value: anytype, list: *std.array_list.Managed(u8)) Allocator.Error!void {
     const info = @typeInfo(@TypeOf(value));
     var writer = list.writer();
 

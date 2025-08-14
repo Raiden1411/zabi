@@ -5,7 +5,7 @@ const utils = @import("zabi-utils").utils;
 // Types
 const Allocator = std.mem.Allocator;
 const ByteAlignedInt = std.math.ByteAlignedInt;
-const ArrayListWriter = std.ArrayList(u8).Writer;
+const ArrayListWriter = std.array_list.Managed(u8).Writer;
 
 /// RLP Encoding according to the [spec](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
 /// This also supports generating a `Writer` interface.
@@ -134,7 +134,7 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
                     if (payload.len == 0)
                         return self.stream.writeByte(0xc0);
 
-                    var arr = std.ArrayList(u8).init(allocator);
+                    var arr = std.array_list.Managed(u8).init(allocator);
                     errdefer arr.deinit();
 
                     var recursive: RlpEncoder(ArrayListWriter) = .init(arr.writer());
@@ -167,7 +167,7 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
                             if (payload.len == 0)
                                 return self.stream.writeByte(0xc0);
 
-                            var arr = std.ArrayList(u8).init(allocator);
+                            var arr = std.array_list.Managed(u8).init(allocator);
                             errdefer arr.deinit();
 
                             var recursive: RlpEncoder(ArrayListWriter) = .init(arr.writer());
@@ -198,7 +198,7 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
                         if (payload.len == 0)
                             return self.stream.writeByte(0xc0);
 
-                        var arr = std.ArrayList(u8).init(allocator);
+                        var arr = std.array_list.Managed(u8).init(allocator);
                         errdefer arr.deinit();
 
                         var recursive: RlpEncoder(ArrayListWriter) = .init(arr.writer());
@@ -312,7 +312,7 @@ pub fn RlpEncoder(comptime OutWriter: type) type {
 /// defer allocator.free(encoded);
 /// ```
 pub fn encodeRlp(allocator: Allocator, payload: anytype) RlpEncoder(ArrayListWriter).Error![]u8 {
-    var list = std.ArrayList(u8).init(allocator);
+    var list = std.array_list.Managed(u8).init(allocator);
     errdefer list.deinit();
 
     var encoder: RlpEncoder(ArrayListWriter) = .init(list.writer());
@@ -320,6 +320,7 @@ pub fn encodeRlp(allocator: Allocator, payload: anytype) RlpEncoder(ArrayListWri
 
     return list.toOwnedSlice();
 }
+
 /// RLP Encoding according to the [spec](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
 ///
 /// Supported types:

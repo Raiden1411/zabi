@@ -9,7 +9,7 @@ const zabi_types = @import("zabi-types");
 
 const Address = types.Address;
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
+const ArrayList = std.array_list.Managed;
 const AutoHashMap = std.AutoHashMap;
 const Bytecode = @import("bytecode.zig").Bytecode;
 const EVMEnviroment = env.EVMEnviroment;

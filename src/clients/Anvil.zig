@@ -207,7 +207,7 @@ pub const AnvilStartOptions = struct {
         self: AnvilStartOptions,
         allocator: Allocator,
     ) (Allocator.Error || error{NoSpaceLeft} || std.Io.Writer.Error)![]const []const u8 {
-        var list = try std.ArrayList([]const u8).initCapacity(allocator, 1);
+        var list = try std.array_list.Managed([]const u8).initCapacity(allocator, 1);
         errdefer list.deinit();
 
         list.appendAssumeCapacity("anvil");

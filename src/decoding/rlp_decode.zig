@@ -179,7 +179,7 @@ pub const RlpDecoder = struct {
                         if (size <= 0xf7) {
                             const slice_len = size - 0xc0;
 
-                            var result = std.ArrayList(ptr_info.child).init(allocator);
+                            var result = std.array_list.Managed(ptr_info.child).init(allocator);
                             errdefer result.deinit();
 
                             const expected_position = self.position + slice_len;
@@ -199,7 +199,7 @@ pub const RlpDecoder = struct {
 
                         const slice_len = size - 0xf7;
 
-                        var result = std.ArrayList(ptr_info.child).init(allocator);
+                        var result = std.array_list.Managed(ptr_info.child).init(allocator);
                         errdefer result.deinit();
 
                         std.debug.assert(self.position + slice_len <= self.encoded.len);

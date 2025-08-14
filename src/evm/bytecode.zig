@@ -41,7 +41,7 @@ pub const AnalyzedBytecode = struct {
 
     /// Creates an instance of `AnalyzedBytecode`.
     pub fn init(allocator: Allocator, raw: []u8) Allocator.Error!AnalyzedBytecode {
-        var list = try std.ArrayList(u8).initCapacity(allocator, raw.len + 33);
+        var list = try std.array_list.Managed(u8).initCapacity(allocator, raw.len + 33);
         list.appendSliceAssumeCapacity(raw);
         list.appendSliceAssumeCapacity(&[_]u8{0} ** 33);
 

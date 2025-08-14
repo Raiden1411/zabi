@@ -537,7 +537,7 @@ pub fn parseSignedLegacyTransaction(allocator: Allocator, serialized: []const u8
 
 /// Parses serialized transaction accessLists. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseAccessList(allocator: Allocator, access_list: []const StructToTupleType(AccessList)) Allocator.Error![]const AccessList {
-    var list = try std.ArrayList(AccessList).initCapacity(allocator, access_list.len);
+    var list = try std.array_list.Managed(AccessList).initCapacity(allocator, access_list.len);
     errdefer list.deinit();
 
     for (access_list) |item| {
@@ -550,7 +550,7 @@ pub fn parseAccessList(allocator: Allocator, access_list: []const StructToTupleT
 }
 /// Parses serialized transaction accessLists. Recommend to use an arena or similar otherwise its expected to leak memory.
 pub fn parseAuthorizationList(allocator: Allocator, auth_list: []const StructToTupleType(AuthorizationPayload)) Allocator.Error![]const AuthorizationPayload {
-    var list = try std.ArrayList(AuthorizationPayload).initCapacity(allocator, auth_list.len);
+    var list = try std.array_list.Managed(AuthorizationPayload).initCapacity(allocator, auth_list.len);
     errdefer list.deinit();
 
     for (auth_list) |item| {

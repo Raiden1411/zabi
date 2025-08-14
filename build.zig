@@ -250,6 +250,29 @@ fn buildTestOrCoverage(
             loadVariables(b, env_file_path, run_lib_unit_tests);
     }
 
+    // Builds and runs the main tests of zabi for CI.
+    {
+        const lib_unit_tests_mod = b.createModule(.{
+            .root_source_file = b.path("tests/root.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        const lib_unit_tests = b.addTest(.{
+            .name = "zabi-tests",
+            .root_module = lib_unit_tests_mod,
+        });
+        lib_unit_tests.root_module.addImport("zabi", module);
+        addDependencies(b, lib_unit_tests.root_module, target, optimize);
+
+        var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
+
+        const test_step = b.step("test-ci", "Run unit tests");
+        test_step.dependOn(&run_lib_unit_tests.step);
+
+        if (load_variables)
+            loadVariables(b, env_file_path, run_lib_unit_tests);
+    }
+
     // Build and run coverage test runner if `zig build coverage` was ran
     {
         const coverage_lib_tests_mod = b.createModule(.{
@@ -267,6 +290,42 @@ fn buildTestOrCoverage(
         });
         coverage_lib_unit_tests.root_module.addImport("zabi", module);
         const test_step_coverage = b.step("coverage", "Run unit tests with kcov coverage");
+
+        const kcov_collect = std.Build.Step.Run.create(b, "collect coverage");
+        kcov_collect.rename_step_with_output_arg = false;
+
+        if (load_variables)
+            loadVariables(b, env_file_path, kcov_collect);
+
+        kcov_collect.addArgs(&.{
+            "kcov",
+            "--clean",
+        });
+        kcov_collect.addPrefixedDirectoryArg("--include-pattern=", b.path("src"));
+        _ = kcov_collect.addOutputFileArg(coverage_lib_unit_tests.name);
+        kcov_collect.addArtifactArg(coverage_lib_unit_tests);
+
+        const install_coverage = b.addInstallDirectory(.{
+            .source_dir = kcov_collect.addOutputFileArg("."),
+            .install_dir = .{ .custom = "coverage" },
+            .install_subdir = "",
+        });
+        test_step_coverage.dependOn(&install_coverage.step);
+    }
+
+    // Build and run coverage test runner if `zig build coverage` was ran
+    {
+        const coverage_lib_tests_mod = b.createModule(.{
+            .root_source_file = b.path("tests/root.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        const coverage_lib_unit_tests = b.addTest(.{
+            .name = "zabi-tests-coverage",
+            .root_module = coverage_lib_tests_mod,
+        });
+        coverage_lib_unit_tests.root_module.addImport("zabi", module);
+        const test_step_coverage = b.step("coverage-ci", "Run unit tests with kcov coverage");
 
         const kcov_collect = std.Build.Step.Run.create(b, "collect coverage");
         kcov_collect.rename_step_with_output_arg = false;
@@ -355,6 +414,7 @@ fn addDependencies(
     // mod.addImport("aio", aio.module("aio"));
     // mod.addImport("coro", aio.module("coro"));
 }
+
 /// Builds and runs the benchmarks
 fn buildBenchmark(
     b: *std.Build,
@@ -383,6 +443,7 @@ fn buildBenchmark(
     const bench_step = b.step("bench", "Benchmark zabi");
     bench_step.dependOn(&bench_run.step);
 }
+
 /// Builds all of zabi examples so that we can leverage this also for CI
 fn buildExamples(
     b: *std.Build,

@@ -50,7 +50,9 @@ pub const Anvil = @import("Anvil.zig");
 /// `searchUrlParams` writer. It only supports the free api methods,
 /// but you should have all the tool available in the library if you want to target
 /// the PRO methods.
-pub const BlockExplorer = @import("BlockExplorer.zig");
+
+// TODO: Readd this
+// pub const BlockExplorer = @import("BlockExplorer.zig");
 
 /// Custom wrapper for interacting with the Hardhat testchain
 pub const Hardhat = @import("Hardhat.zig");

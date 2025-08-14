@@ -93,7 +93,7 @@ const TxPoolStatus = txpool.TxPoolStatus;
 const Value = std.json.Value;
 const WatchLogsRequest = log.WatchLogsRequest;
 const Withdrawal = withdrawal_types.Withdrawal;
-const WsClient = @import("blocking/WebSocketClientNew.zig");
+const WsClient = @import("blocking/WebSocketClient.zig");
 
 /// Scoped logging for the JSON RPC client.
 const provider_log = std.log.scoped(.provider);

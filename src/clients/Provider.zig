@@ -3167,9 +3167,9 @@ pub const HttpProvider = struct {
 
             switch (req.status) {
                 .ok => {
-                    provider_log.debug("Got response from server: {s}", .{body.getWritten()});
+                    provider_log.debug("Got response from server: {s}", .{body.written()});
 
-                    return std.json.parseFromSlice(Value, provider.allocator, body.getWritten(), .{ .allocate = .alloc_always });
+                    return std.json.parseFromSlice(Value, provider.allocator, body.written(), .{ .allocate = .alloc_always });
                 },
                 .too_many_requests => {
                     // Exponential backoff

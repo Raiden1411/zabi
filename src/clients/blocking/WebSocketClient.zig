@@ -80,7 +80,7 @@ pub const Fragment = struct {
 
     /// Returns a slice of the currently written values on the buffer.
     pub fn slice(self: *Self) []u8 {
-        return self.alloc_writer.getWritten();
+        return self.alloc_writer.written();
     }
 
     /// Returns the total amount of bytes that were written.
@@ -562,7 +562,7 @@ pub fn readMessage(self: *WebsocketClient) !WebsocketMessage {
             try reader.streamExact(&self.storage.writer, total);
             defer self.storage.shrinkRetainingCapacity(0);
 
-            break :blk self.storage.getWritten();
+            break :blk self.storage.written();
         };
 
         switch (op_head.opcode) {

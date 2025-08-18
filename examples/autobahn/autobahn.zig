@@ -40,7 +40,7 @@ pub fn main() !void {
 
         {
             var auto = try AutoBanh.init(allocator, case);
-            defer auto.deinit();
+            defer auto.deinit(allocator);
 
             auto.readLoop() catch |err| switch (err) {
                 error.UnnegociatedReservedBits,
@@ -66,7 +66,10 @@ pub fn main() !void {
 fn updateReport(allocator: Allocator) !void {
     const uri = try std.Uri.parse("http://localhost:9001/updateReports?agent=zabi.zig");
     var client = try WebSocketClient.connect(allocator, uri);
-    defer client.deinit();
+    defer {
+        client.deinit();
+        client.connection.destroyConnection(allocator);
+    }
 
     try client.handshake("localhost:9001");
     try client.writeCloseFrame(0);
@@ -89,8 +92,9 @@ const AutoBanh = struct {
         };
     }
 
-    pub fn deinit(self: *AutoBanh) void {
+    pub fn deinit(self: *AutoBanh, allocator: Allocator) void {
         self.client.deinit();
+        self.client.connection.destroyConnection(allocator);
     }
 
     pub fn readLoop(self: *AutoBanh) !void {

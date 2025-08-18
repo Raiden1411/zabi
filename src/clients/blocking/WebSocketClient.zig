@@ -89,52 +89,24 @@ pub const Fragment = struct {
     }
 };
 
-/// Wrapper stream around a `std.net.Stream` and a `TlsClient`.
+/// Representation of a websocket connection used by this client
+///
+/// This is similar to `std.http.Client.Connection` but adapted to our use case.
 pub const Connection = struct {
+    /// The writer that will be used to write to the stream connection.
     stream_writer: Stream.Writer,
-
+    /// The reader that will be used to read data from the socket.
     stream_reader: Stream.Reader,
     /// The uri that this client is connected too.
     uri: Uri,
     /// The http protocol that this connection will use.
     protocol: Protocol,
+    /// The allocated size of hostname
+    host_len: u8,
 
-    pub fn flush(self: *Connection) Writer.Error!void {
-        if (self.protocol == .tls) {
-            if (disable_tls) unreachable;
-            const tls: *Tls = @alignCast(@fieldParentPtr("connection", self));
-            try tls.tls_client.writer.flush();
-        }
-
-        try self.stream_writer.interface.flush();
-    }
-
-    pub fn getStream(self: *Connection) Stream {
-        return self.stream_reader.getStream();
-    }
-
-    pub fn reader(self: *Connection) *Reader {
-        return switch (self.protocol) {
-            .tls => {
-                if (disable_tls) unreachable;
-                const tls: *Tls = @alignCast(@fieldParentPtr("connection", self));
-                return &tls.tls_client.reader;
-            },
-            .plain => self.stream_reader.interface(),
-        };
-    }
-
-    pub fn writer(self: *Connection) *Writer {
-        return switch (self.protocol) {
-            .tls => {
-                if (disable_tls) unreachable;
-                const tls: *Tls = @alignCast(@fieldParentPtr("connection", self));
-                return &tls.tls_client.writer;
-            },
-            .plain => &self.stream_writer.interface,
-        };
-    }
-
+    /// Closes the network connection
+    ///
+    /// If the connection is a tls connection it will send and `end` message and flushes it.
     pub fn close(self: *Connection) void {
         self.end() catch {};
 
@@ -142,16 +114,8 @@ pub const Connection = struct {
         self.getStream().close();
     }
 
-    pub fn end(self: *Connection) !void {
-        if (self.protocol == .tls) {
-            if (disable_tls) unreachable;
-            const tls: *Tls = @alignCast(@fieldParentPtr("connection", self));
-            try tls.tls_client.end();
-        }
-
-        try self.stream_writer.interface.flush();
-    }
-
+    /// Frees the memory associated with the reader and writer buffers
+    /// and the connection pointer
     pub fn destroyConnection(self: *Connection, allocator: Allocator) void {
         switch (self.protocol) {
             .tls => {
@@ -165,26 +129,100 @@ pub const Connection = struct {
         }
     }
 
+    /// Sends end message if its a tls connection and flushes any buffered data still in the writer.
+    pub fn end(self: *Connection) !void {
+        if (self.protocol == .tls) {
+            if (disable_tls) unreachable;
+            const tls: *Tls = @alignCast(@fieldParentPtr("connection", self));
+            try tls.tls_client.end();
+        }
+
+        try self.stream_writer.interface.flush();
+    }
+
+    /// Flushes the buffered data and writes to it.
+    pub fn flush(self: *Connection) Writer.Error!void {
+        if (self.protocol == .tls) {
+            if (disable_tls) unreachable;
+            const tls: *Tls = @alignCast(@fieldParentPtr("connection", self));
+            try tls.tls_client.writer.flush();
+        }
+
+        try self.stream_writer.interface.flush();
+    }
+
+    /// Gets the network stream associated with this connection
+    pub fn getStream(self: *Connection) Stream {
+        return self.stream_reader.getStream();
+    }
+
+    /// Gets the hostname associated with this connection
+    pub fn getHostname(self: *Connection) []const u8 {
+        return switch (self.protocol) {
+            .tls => {
+                if (disable_tls) unreachable;
+                const tls: *Tls = @alignCast(@fieldParentPtr("connection", self));
+
+                return tls.getHostname();
+            },
+            .plain => {
+                const plain: *Plain = @alignCast(@fieldParentPtr("connection", self));
+
+                return plain.getHostname();
+            },
+        };
+    }
+
+    /// Gets the reader independent of the connection type. Either tls or plain.
+    pub fn reader(self: *Connection) *Reader {
+        return switch (self.protocol) {
+            .tls => {
+                if (disable_tls) unreachable;
+                const tls: *Tls = @alignCast(@fieldParentPtr("connection", self));
+                return &tls.tls_client.reader;
+            },
+            .plain => self.stream_reader.interface(),
+        };
+    }
+
+    /// Gets the writer independent of the connection type. Either tls or plain.
+    pub fn writer(self: *Connection) *Writer {
+        return switch (self.protocol) {
+            .tls => {
+                if (disable_tls) unreachable;
+                const tls: *Tls = @alignCast(@fieldParentPtr("connection", self));
+                return &tls.tls_client.writer;
+            },
+            .plain => &self.stream_writer.interface,
+        };
+    }
+
+    /// Representation of a plain websocket connection
     pub const Plain = struct {
         connection: Connection,
 
-        const read_buffer_size = 4096;
+        const read_buffer_size = 8192;
         const write_buffer_size = 1024;
-        const allocation_length = write_buffer_size + read_buffer_size;
+        const allocation_length = write_buffer_size + read_buffer_size + @sizeOf(Plain);
 
+        /// Creates the pointer and any buffers that the readers and writers need.
         pub fn create(
             allocator: Allocator,
             uri: Uri,
             stream: Stream,
         ) !*Plain {
-            const base = try allocator.alignedAlloc(u8, .of(Plain), allocation_length + @sizeOf(Plain));
+            var host_name_buffer: [Uri.host_name_max]u8 = undefined;
+            const hostname = try uri.getHost(&host_name_buffer);
+
+            const base = try allocator.alignedAlloc(u8, .of(Plain), allocation_length + hostname.len);
             errdefer allocator.free(base);
 
-            const host_buffer = base[@sizeOf(Plain)..];
-            const socket_read_buffer = host_buffer.ptr[host_buffer.len..][0..read_buffer_size];
+            const host = base[@sizeOf(Plain)..][0..hostname.len];
+            const socket_read_buffer = host.ptr[host.len..][0..read_buffer_size];
             const socket_write_buffer = socket_read_buffer.ptr[socket_read_buffer.len..][0..write_buffer_size];
 
             const plain: *Plain = @ptrCast(base);
+            @memcpy(host, hostname);
 
             plain.* = .{
                 .connection = .{
@@ -192,52 +230,66 @@ pub const Connection = struct {
                     .stream_reader = stream.reader(socket_read_buffer),
                     .uri = uri,
                     .protocol = .plain,
+                    .host_len = @intCast(hostname.len),
                 },
             };
 
             return plain;
         }
 
+        /// Destroy the pointer and frees the read and write buffer
         pub fn destroy(plain: *Plain, allocator: Allocator) void {
             const base: [*]align(@alignOf(Plain)) u8 = @ptrCast(plain);
 
-            allocator.free(base[0 .. allocation_length + @sizeOf(Plain)]);
+            allocator.free(base[0 .. allocation_length + @as(usize, @intCast(plain.connection.host_len))]);
+        }
+
+        /// Gets the hostname associated with this connection
+        pub fn getHostname(plain: *Plain) []u8 {
+            const base: [*]u8 = @ptrCast(plain);
+            return base[@sizeOf(Plain)..][0..plain.connection.host_len];
         }
     };
 
+    /// Representation of a tls websocket connection
     pub const Tls = struct {
         connection: Connection,
         tls_client: TlsClient,
 
         const tls_buffer_size = if (disable_tls) 0 else TlsClient.min_buffer_len;
-        const read_buffer_size = 4096 + tls_buffer_size;
+        const read_buffer_size = 8192;
         const write_buffer_size = 1024;
-        const allocation_length = write_buffer_size + read_buffer_size + tls_buffer_size + tls_buffer_size;
 
+        const allocation_length = write_buffer_size + read_buffer_size +
+            tls_buffer_size + tls_buffer_size + tls_buffer_size + @sizeOf(Tls);
+
+        /// Creates the pointer and any buffers that the readers and writers need.
         pub fn create(
             allocator: Allocator,
             uri: Uri,
             stream: Stream,
         ) !*Tls {
-            const base = try allocator.alignedAlloc(u8, .of(Tls), allocation_length + @sizeOf(Tls));
+            var host_name_buffer: [Uri.host_name_max]u8 = undefined;
+            const hostname = try uri.getHost(&host_name_buffer);
+
+            const base = try allocator.alignedAlloc(u8, .of(Tls), allocation_length + hostname.len);
             errdefer allocator.free(base);
 
-            const tls_read_buffer = base[@sizeOf(Tls)..][0..tls_buffer_size];
+            const host = base[@sizeOf(Tls)..][0..hostname.len];
+            const tls_read_buffer = host.ptr[host.len..][0 .. tls_buffer_size + read_buffer_size];
             const tls_write_buffer = tls_read_buffer.ptr[tls_read_buffer.len..][0..tls_buffer_size];
 
             const write_buffer = tls_write_buffer.ptr[tls_write_buffer.len..][0..write_buffer_size];
-            const read_buffer = write_buffer.ptr[write_buffer.len..][0..read_buffer_size];
+            const read_buffer = write_buffer.ptr[write_buffer.len..][0..tls_buffer_size];
 
             const tls: *Tls = @ptrCast(base);
+
+            @memcpy(host, hostname);
 
             var bundle: CertificateBundle = .{};
             defer bundle.deinit(allocator);
 
             try bundle.rescan(allocator);
-            const hostname = switch (uri.host orelse return error.UnspecifiedHostName) {
-                .raw => |raw| raw,
-                .percent_encoded => |host| host,
-            };
 
             tls.* = .{
                 .connection = .{
@@ -245,6 +297,7 @@ pub const Connection = struct {
                     .stream_reader = stream.reader(tls_read_buffer),
                     .uri = uri,
                     .protocol = .tls,
+                    .host_len = @intCast(hostname.len),
                 },
                 .tls_client = try TlsClient.init(
                     tls.connection.stream_reader.interface(),
@@ -265,9 +318,16 @@ pub const Connection = struct {
             return tls;
         }
 
-        pub fn destroy(plain: *Tls, allocator: Allocator) void {
-            const base: [*]align(@alignOf(Tls)) u8 = @ptrCast(plain);
-            allocator.free(base[0 .. allocation_length + @sizeOf(Tls)]);
+        /// Destroy the pointer and frees the read and write buffer
+        pub fn destroy(tls: *Tls, allocator: Allocator) void {
+            const base: [*]align(@alignOf(Tls)) u8 = @ptrCast(tls);
+            allocator.free(base[0 .. allocation_length + @as(usize, @intCast(tls.connection.host_len))]);
+        }
+
+        /// Gets the hostname associated with this connection
+        pub fn getHostname(tls: *Tls) []u8 {
+            const base: [*]u8 = @ptrCast(Tls);
+            return base[@sizeOf(Tls)..][0..tls.connection.host_len];
         }
     };
 };
@@ -280,8 +340,8 @@ connection: *Connection,
 fragment: Fragment,
 /// Storage for large responses from the server
 storage: Writer.Allocating,
-/// Closes the net stream. This value should only be changed atomically.
-closed_connection: bool,
+/// Indicates that the connection is closed or not
+closed: bool,
 
 pub fn connect(
     allocator: Allocator,
@@ -318,7 +378,7 @@ pub fn connect(
         .fragment = fragment,
         .connection = connection,
         .storage = storage,
-        .closed_connection = false,
+        .closed = false,
     };
 }
 
@@ -327,7 +387,7 @@ pub fn close(
     self: *WebsocketClient,
     exit_code: u16,
 ) void {
-    if (@atomicRmw(bool, &self.closed_connection, .Xchg, true, .acq_rel) == false) {
+    if (@atomicRmw(bool, &self.closed, .Xchg, true, .acq_rel) == false) {
         self.writeCloseFrame(exit_code) catch {};
         self.connection.close();
     }
@@ -495,28 +555,34 @@ pub fn parseHandshakeResponse(
     }
 }
 
-/// Buffers the entire head inside `in`.
+/// Buffers the entire handshake inside of the `reader`.
 ///
 /// The resulting memory is invalidated by any subsequent consumption of
 /// the input stream.
 pub fn readHandshake(self: *WebsocketClient) ![]const u8 {
     const reader = self.connection.reader();
+
     var hp: std.http.HeadParser = .{};
     var head_len: usize = 0;
+
     while (true) {
-        if (reader.buffer.len - head_len == 0) return error.HttpHeadersOversize;
+        if (reader.buffer.len - head_len == 0) return error.HandshakeOversize;
+
         const remaining = reader.buffered()[head_len..];
+
         if (remaining.len == 0) {
             reader.fillMore() catch |err| switch (err) {
                 error.EndOfStream => switch (head_len) {
-                    0 => return error.HttpConnectionClosing,
-                    else => return error.HttpRequestTruncated,
+                    0 => return error.Closing,
+                    else => return error.RequestTruncated,
                 },
                 error.ReadFailed => return error.ReadFailed,
             };
             continue;
         }
+
         head_len += hp.feed(remaining);
+
         if (hp.state == .finished) {
             const head_buffer = reader.buffered()[0..head_len];
             reader.toss(head_len);
@@ -554,11 +620,10 @@ pub fn readMessage(self: *WebsocketClient) !WebsocketMessage {
         };
 
         const payload = blk: {
-            if (total < reader.buffer.len)
+            if (total < reader.buffered().len)
                 break :blk try reader.take(total);
 
             try self.storage.ensureUnusedCapacity(total);
-
             try reader.streamExact(&self.storage.writer, total);
             defer self.storage.shrinkRetainingCapacity(0);
 
@@ -638,29 +703,27 @@ pub fn sendHandshake(
     host: []const u8,
     key: [24]u8,
 ) !void {
-    const path: []const u8 = if (self.connection.uri.path.isEmpty()) "/" else switch (self.connection.uri.path) {
-        .raw => |raw| raw,
-        .percent_encoded => |encoded| encoded,
-    };
+    var writer = self.connection.writer();
 
-    const query_bytes: ?[]const u8 = if (self.connection.uri.query) |query| switch (query) {
-        .percent_encoded => |percent_encoded| percent_encoded,
-        .raw => |raw| raw,
-    } else null;
+    try writer.writeAll("GET ");
 
-    try self.connection.writer().print("GET {s}", .{path});
+    if (self.connection.uri.path.isEmpty()) {
+        try writer.writeByte('/');
+    } else try writer.writeAll(try self.connection.uri.path.toRaw(writer.buffer[writer.end..]));
 
-    if (query_bytes) |query|
-        try self.connection.writer().print("?{s}", .{query});
+    if (self.connection.uri.query) |query| {
+        try writer.writeByte('?');
+        try writer.writeAll(try query.toRaw(writer.buffer[writer.end..]));
+    }
 
-    try self.connection.writer().writeAll(" HTTP/1.1\r\n");
-    try self.connection.writer().print("Host: {s}\r\n", .{host});
-    try self.connection.writer().writeAll("Content-length: 0\r\n");
-    try self.connection.writer().writeAll("Upgrade: websocket\r\n");
-    try self.connection.writer().writeAll("Connection: Upgrade\r\n");
-    try self.connection.writer().print("Sec-WebSocket-Key: {s}\r\n", .{key});
-    try self.connection.writer().writeAll("Sec-WebSocket-Version: 13\r\n");
-    try self.connection.writer().writeAll("\r\n");
+    try writer.writeAll(" HTTP/1.1\r\n");
+    try writer.print("Host: {s}\r\n", .{host});
+    try writer.writeAll("Content-length: 0\r\n");
+    try writer.writeAll("Upgrade: websocket\r\n");
+    try writer.writeAll("Connection: Upgrade\r\n");
+    try writer.print("Sec-WebSocket-Key: {s}\r\n", .{key});
+    try writer.writeAll("Sec-WebSocket-Version: 13\r\n");
+    try writer.writeAll("\r\n");
 
     try self.connection.flush();
 }

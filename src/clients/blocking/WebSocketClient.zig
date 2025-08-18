@@ -343,6 +343,9 @@ storage: Writer.Allocating,
 /// Indicates that the connection is closed or not
 closed: bool,
 
+/// Creates a connection to the websocket server.
+///
+/// This doesn't perform the handshake to the server. That must be done seperatly.
 pub fn connect(
     allocator: Allocator,
     uri: Uri,

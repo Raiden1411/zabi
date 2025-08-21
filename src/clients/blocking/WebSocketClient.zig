@@ -427,7 +427,7 @@ pub fn maskMessage(
     message: []u8,
     mask: [4]u8,
 ) void {
-    const vec_size = std.simd.suggestVectorLength(u8) orelse @sizeOf(usize);
+    const vec_size = @max(std.simd.suggestVectorLength(u8) orelse 1, 8);
     const Vector = @Vector(vec_size, u8);
 
     var remainder = message;

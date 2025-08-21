@@ -3226,7 +3226,6 @@ pub const IpcProvider = struct {
     allocator: Allocator,
     /// The IPC net stream to read and write requests.
     ipc_reader: IpcReader,
-    thread: ?std.Thread,
     /// Callback function for when the connection is closed.
     onClose: ?*const fn () void,
     /// Callback function that will run once a socket event is parsed
@@ -3239,6 +3238,8 @@ pub const IpcProvider = struct {
     sub_channel: Channel(JsonParsed(Value)),
     /// Channel used to communicate between threads on rpc events.
     rpc_channel: Stack(JsonParsed(Value)),
+    /// The thread used if the readLoop is allocated in a seperate thread.
+    thread: ?std.Thread,
 
     /// Populates the WebSocketHandler pointer.
     /// Starts the connection in a seperate process.
@@ -3258,11 +3259,7 @@ pub const IpcProvider = struct {
                     .sendRpcRequest = IpcProvider.sendRpcRequest,
                 },
             },
-            .ipc_reader = .{
-                .buffer = zabi_utils.fifo.LinearFifo(u8, .Dynamic).init(opts.allocator),
-                .stream = socket_stream,
-                .overflow = 0,
-            },
+            .ipc_reader = try .init(opts.allocator, socket_stream),
             .thread = null,
             .onClose = opts.onClose,
             .onError = opts.onError,
@@ -3283,12 +3280,14 @@ pub const IpcProvider = struct {
         while (self.rpc_channel.popOrNull()) |node|
             node.deinit();
 
-        self.ipc_reader.deinit();
         self.sub_channel.deinit();
         self.rpc_channel.deinit();
+        self.ipc_reader.deinit();
 
         if (self.thread) |thread|
             thread.join();
+
+        self.ipc_reader.connection.destroyConnection(self.allocator);
     }
 
     /// Parses the `Value` in the sub-channel as a pending transaction hash event
@@ -3341,26 +3340,7 @@ pub const IpcProvider = struct {
     /// if you dont want to use threads.
     pub fn readLoop(self: *IpcProvider) !void {
         while (true) {
-            const message = self.ipc_reader.readMessage() catch |err| switch (err) {
-                error.EndOfStream,
-                error.ConnectionResetByPeer,
-                error.BrokenPipe,
-                error.NotOpenForReading,
-                => return error.Closed,
-                else => return err,
-            };
-
-            if (message.len <= 1)
-                continue;
-
-            provider_log.debug("Got message: {s}", .{message});
-
-            const parsed = std.json.parseFromSlice(Value, self.allocator, message, .{ .allocate = .alloc_always }) catch {
-                if (self.onError) |onError|
-                    onError(message) catch return error.UnexpectedError;
-
-                return error.FailedToJsonParseResponse;
-            };
+            const parsed = try self.ipc_reader.readMessage(self.allocator);
             errdefer parsed.deinit();
 
             if (parsed.value != .object)

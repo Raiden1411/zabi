@@ -52,39 +52,41 @@ pub const WebsocketMessage = struct {
 
 /// Wrapper around a websocket fragmented frame.
 pub const Fragment = struct {
-    const Self = @This();
     const Error = Allocator.Error || Writer.Error;
 
-    /// FIFO stream of all fragments.
+    /// Writer to preserve the fragmented payload.
     alloc_writer: Writer.Allocating,
-    /// The type of message that the fragment is. Control fragment's are not supported.
+    /// The type of message that the fragment is.
+    ///
+    /// Control fragment's are not supported.
     message_type: ?Opcode,
 
     /// Clears any allocated memory.
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: *Fragment) void {
         self.alloc_writer.deinit();
     }
 
-    /// Writes the payload into the stream.
-    pub fn writeAll(self: *Self, payload: []const u8) Error!void {
+    /// Writes the payload into the buffer.
+    pub fn writeAll(self: *Fragment, payload: []const u8) Error!void {
         try self.alloc_writer.ensureUnusedCapacity(payload.len);
         return self.alloc_writer.writer.writeAll(payload);
     }
 
-    /// Reset the fragment but keeps the allocated memory.
+    /// Resets the fragment but keeps the allocated memory.
+    ///
     /// Also reset the message type back to null.
-    pub fn reset(self: *Self) void {
+    pub fn reset(self: *Fragment) void {
         self.alloc_writer.shrinkRetainingCapacity(0);
         self.message_type = null;
     }
 
     /// Returns a slice of the currently written values on the buffer.
-    pub fn slice(self: *Self) []u8 {
+    pub fn slice(self: *Fragment) []u8 {
         return self.alloc_writer.written();
     }
 
     /// Returns the total amount of bytes that were written.
-    pub fn size(self: Self) usize {
+    pub fn size(self: Fragment) usize {
         return self.alloc_writer.writer.end;
     }
 };
@@ -650,8 +652,6 @@ pub fn readMessage(self: *WebsocketClient) !WebsocketMessage {
                 if (op_head.opcode == .text and !std.unicode.utf8ValidateSlice(payload))
                     return error.InvalidUtf8Payload;
 
-                wsclient_log.debug("Got websocket message: {s}", .{payload});
-
                 return .{
                     .opcode = op_head.opcode,
                     .data = payload,
@@ -673,8 +673,6 @@ pub fn readMessage(self: *WebsocketClient) !WebsocketMessage {
 
                 if (message_type == .text and !std.unicode.utf8ValidateSlice(slice))
                     return error.InvalidUtf8Payload;
-
-                wsclient_log.debug("Got complete fragmented websocket message: {s}", .{slice});
 
                 return .{
                     .opcode = message_type,
@@ -738,8 +736,11 @@ pub fn writeCloseFrame(
     self: *WebsocketClient,
     exit_code: u16,
 ) !void {
-    if (exit_code == 0)
+    if (exit_code == 0) {
+        @branchHint(.likely);
+
         return self.writeFrame("", .connection_close);
+    }
 
     var buffer: [2]u8 = undefined;
     std.mem.writeInt(u16, buffer[0..2], exit_code, .big);
@@ -756,17 +757,48 @@ pub fn writeFrame(
     message: []u8,
     opcode: Opcode,
 ) !void {
-    const mask = try self.writeHeaderFrame(message, opcode);
-    try self.connection.flush();
+    var messages: [1][]u8 = .{message};
+    try self.writeFrameVecUnflushed(&messages, opcode);
 
-    if (message.len > 0) {
-        @branchHint(.likely);
+    return self.connection.flush();
+}
 
-        maskMessage(message, mask);
+/// Writes a websocket frame directly to the socket. Doesn't flush the writers buffer.
+///
+/// The fin bit is set to true on this sent frame.
+///
+/// To send a fragmented message please see `writeHeaderFrameVecUnflushed`
+/// and pair it with `writeBodyVecUnflushed`
+///
+/// The message is masked according to the websocket RFC.
+/// More details here: https://www.rfc-editor.org/rfc/rfc6455#section-6.1
+pub fn writeFrameVecUnflushed(
+    self: *WebsocketClient,
+    messages: [][]u8,
+    opcode: Opcode,
+) !void {
+    try self.writeHeaderFrameVecUnflushed(messages, opcode, true);
 
-        try self.connection.writer().writeAll(message);
-        try self.connection.flush();
-    }
+    return self.writeBodyVecUnflushed(messages);
+}
+
+/// Writes a websocket message directly to the socket without the header
+///
+/// The message is masked according to the websocket RFC.
+/// More details here: https://www.rfc-editor.org/rfc/rfc6455#section-6.1
+pub fn writeBodyVecUnflushed(
+    self: *WebsocketClient,
+    messages: [][]u8,
+) !void {
+    var buffer: [4]u8 = undefined;
+    std.crypto.random.bytes(buffer[0..]);
+
+    try self.connection.writer().writeAll(buffer[0..]);
+
+    for (messages) |message|
+        maskMessage(message, buffer);
+
+    try self.connection.writer().writeVecAll(@ptrCast(messages));
 }
 
 /// Generates the websocket header frame based on the message len and the opcode provided.
@@ -789,44 +821,37 @@ pub fn writeFrame(
 /// + - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - +
 /// |                     Payload Data continued ...                |
 /// +---------------------------------------------------------------+
-pub fn writeHeaderFrame(
+pub fn writeHeaderFrameVecUnflushed(
     self: *WebsocketClient,
-    message: []const u8,
+    messages: [][]u8,
     opcode: Opcode,
-) ![4]u8 {
+    fin_bit: bool,
+) !void {
     var writer = self.connection.writer();
 
-    var buffer: [4]u8 = undefined;
+    const total_len = len: {
+        var total_len: u64 = 0;
+        for (messages) |iovec| total_len += iovec.len;
+        break :len total_len;
+    };
 
     try writer.writeByte(@bitCast(@as(OpcodeHeader, .{
         .opcode = opcode,
-        .fin = true,
+        .fin = fin_bit,
     })));
 
-    switch (message.len) {
-        0...125 => {
-            try writer.writeByte(@bitCast(@as(PayloadHeader, .{
-                .payload_len = @enumFromInt(message.len),
-                .mask = true,
-            })));
-
-            std.crypto.random.bytes(buffer[0..]);
-            try writer.writeAll(buffer[0..]);
-
-            return buffer;
-        },
+    return switch (total_len) {
+        0...125 => try writer.writeByte(@bitCast(@as(PayloadHeader, .{
+            .payload_len = @enumFromInt(total_len),
+            .mask = true,
+        }))),
         126...0xFFFF => {
             try writer.writeByte(@bitCast(@as(PayloadHeader, .{
                 .payload_len = .len16,
                 .mask = true,
             })));
 
-            try writer.writeInt(u16, @intCast(message.len), .big);
-
-            std.crypto.random.bytes(buffer[0..]);
-            try writer.writeAll(buffer[0..]);
-
-            return buffer;
+            try writer.writeInt(u16, @intCast(total_len), .big);
         },
         else => {
             try writer.writeByte(@bitCast(@as(PayloadHeader, .{
@@ -834,14 +859,9 @@ pub fn writeHeaderFrame(
                 .mask = true,
             })));
 
-            try writer.writeInt(u64, @intCast(message.len), .big);
-
-            std.crypto.random.bytes(buffer[0..]);
-            try writer.writeAll(buffer[0..]);
-
-            return buffer;
+            try writer.writeInt(u64, total_len, .big);
         },
-    }
+    };
 }
 
 test "handshake" {
@@ -857,10 +877,7 @@ test "handshake" {
 
     while (true) {
         const message = client.readMessage() catch |err| switch (err) {
-            error.EndOfStream => {
-                client.close(1002);
-                return;
-            },
+            error.EndOfStream => client.close(1002),
             error.InvalidUtf8Payload => {
                 client.close(1007);
                 return err;

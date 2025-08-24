@@ -2,7 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 const utils = @import("zabi").utils.utils;
 
-const encodeRlp = @import("zabi").encoding.rlp.encodeRlp;
+const encodeRlp = @import("zabi").encoding.RlpEncoder.encodeRlp;
 const decodeRlp = @import("zabi").decoding.rlp.decodeRlp;
 
 test "Decoded bool" {

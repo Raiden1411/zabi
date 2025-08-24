@@ -2,7 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 const utils = @import("zabi").utils.utils;
 
-const encodeRlp = @import("zabi").encoding.rlp.encodeRlp;
+const encodeRlp = @import("zabi").encoding.RlpEncoder.encodeRlp;
 
 test "Int" {
     const low = try encodeRlp(testing.allocator, 127);

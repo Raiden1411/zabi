@@ -1,7 +1,6 @@
 const kzg = @import("c_kzg_4844");
 const meta = @import("zabi-meta").utils;
 const std = @import("std");
-const rlp = @import("rlp.zig");
 const transaction = zabi_types.transactions;
 const testing = std.testing;
 const types = zabi_types.ethereum;
@@ -36,7 +35,8 @@ const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
 const LondonEnvelope = transaction.LondonEnvelope;
 const LondonEnvelopeSigned = transaction.LondonEnvelopeSigned;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
-const RlpEncodeErrors = rlp.RlpEncoder(std.array_list.Managed(u8).Writer).Error;
+const RlpEncoder = @import("rlp.zig");
+const RlpEncodeErrors = RlpEncoder.Error;
 const Sidecar = kzg.KZG4844.Sidecar;
 const Sidecars = kzg.KZG4844.Sidecars;
 const Signature = @import("zabi-crypto").signature.Signature;
@@ -45,7 +45,7 @@ const TransactionEnvelope = transaction.TransactionEnvelope;
 const Tuple = std.meta.Tuple;
 
 /// Set of possible errors when serializing a transaction.
-pub const SerializeErrors = RlpEncodeErrors || error{InvalidRecoveryId};
+pub const SerializeErrors = RlpEncodeErrors || error{InvalidRecoveryId} || Allocator.Error;
 
 /// Set of possible errors when serializing cancun blobs.
 pub const CancunSerializeErrors = RlpEncodeErrors || Allocator.Error || error{
@@ -90,6 +90,7 @@ pub fn serializeTransaction(
         .london => |val| try serializeTransactionEIP1559(allocator, val, sig),
     };
 }
+
 /// Function to serialize eip7702 transactions.
 /// Caller ownes the memory
 pub fn serializeTransactionEIP7702(
@@ -120,13 +121,13 @@ pub fn serializeTransactionEIP7702(
             signature.s,
         };
 
-        var list = std.array_list.Managed(u8).init(allocator);
-        errdefer list.deinit();
+        var alloc_writer: std.Io.Writer.Allocating = .init(allocator);
+        errdefer alloc_writer.deinit();
 
-        try list.writer().writeByte(0x04);
-        try rlp.encodeRlpFromArrayListWriter(allocator, envelope_signed, list.writer());
+        try alloc_writer.writer.writeByte(0x04);
+        try RlpEncoder.encodeRlpFromWriter(allocator, envelope_signed, &alloc_writer.writer);
 
-        const serialized = try list.toOwnedSlice();
+        const serialized = try alloc_writer.toOwnedSlice();
         return serialized;
     }
 
@@ -143,15 +144,16 @@ pub fn serializeTransactionEIP7702(
         prep_auth,
     };
 
-    var list = std.array_list.Managed(u8).init(allocator);
-    errdefer list.deinit();
+    var alloc_writer: std.Io.Writer.Allocating = .init(allocator);
+    errdefer alloc_writer.deinit();
 
-    try list.writer().writeByte(0x04);
-    try rlp.encodeRlpFromArrayListWriter(allocator, envelope_signed, list.writer());
+    try alloc_writer.writer.writeByte(0x04);
+    try RlpEncoder.encodeRlpFromWriter(allocator, envelope_signed, &alloc_writer.writer);
 
-    const serialized = try list.toOwnedSlice();
+    const serialized = try alloc_writer.toOwnedSlice();
     return serialized;
 }
+
 /// Serializes a cancun type transactions without blobs.
 ///
 /// Please use `serializeCancunTransactionWithSidecars` or
@@ -185,13 +187,13 @@ pub fn serializeCancunTransaction(
             signature.s,
         };
 
-        var list = std.array_list.Managed(u8).init(allocator);
-        errdefer list.deinit();
+        var alloc_writer: std.Io.Writer.Allocating = .init(allocator);
+        errdefer alloc_writer.deinit();
 
-        try list.writer().writeByte(0x03);
-        try rlp.encodeRlpFromArrayListWriter(allocator, envelope_signed, list.writer());
+        try alloc_writer.writer.writeByte(0x03);
+        try RlpEncoder.encodeRlpFromWriter(allocator, envelope_signed, &alloc_writer.writer);
 
-        const serialized = try list.toOwnedSlice();
+        const serialized = try alloc_writer.toOwnedSlice();
         return serialized;
     }
 
@@ -209,15 +211,16 @@ pub fn serializeCancunTransaction(
         blob_hashes,
     };
 
-    var list = std.array_list.Managed(u8).init(allocator);
-    errdefer list.deinit();
+    var alloc_writer: std.Io.Writer.Allocating = .init(allocator);
+    errdefer alloc_writer.deinit();
 
-    try list.writer().writeByte(0x03);
-    try rlp.encodeRlpFromArrayListWriter(allocator, envelope, list.writer());
+    try alloc_writer.writer.writeByte(0x03);
+    try RlpEncoder.encodeRlpFromWriter(allocator, envelope, &alloc_writer.writer);
 
-    const serialized = try list.toOwnedSlice();
+    const serialized = try alloc_writer.toOwnedSlice();
     return serialized;
 }
+
 /// Serializes a cancun sidecars into the eip4844 wrapper.
 pub fn serializeCancunTransactionWithBlobs(
     allocator: Allocator,
@@ -258,13 +261,13 @@ pub fn serializeCancunTransactionWithBlobs(
             proofs,
         };
 
-        var list = std.array_list.Managed(u8).init(allocator);
-        errdefer list.deinit();
+        var alloc_writer: std.Io.Writer.Allocating = .init(allocator);
+        errdefer alloc_writer.deinit();
 
-        try list.writer().writeByte(0x03);
-        try rlp.encodeRlpFromArrayListWriter(allocator, envelope_signed, list.writer());
+        try alloc_writer.writer.writeByte(0x03);
+        try RlpEncoder.encodeRlpFromWriter(allocator, envelope_signed, &alloc_writer.writer);
 
-        const serialized = try list.toOwnedSlice();
+        const serialized = try alloc_writer.toOwnedSlice();
         return serialized;
     }
 
@@ -285,15 +288,16 @@ pub fn serializeCancunTransactionWithBlobs(
         proofs,
     };
 
-    var list = std.array_list.Managed(u8).init(allocator);
-    errdefer list.deinit();
+    var alloc_writer: std.Io.Writer.Allocating = .init(allocator);
+    errdefer alloc_writer.deinit();
 
-    try list.writer().writeByte(0x03);
-    try rlp.encodeRlpFromArrayListWriter(allocator, envelope, list.writer());
+    try alloc_writer.writer.writeByte(0x03);
+    try RlpEncoder.encodeRlpFromWriter(allocator, envelope, &alloc_writer.writer);
 
-    const serialized = try list.toOwnedSlice();
+    const serialized = try alloc_writer.toOwnedSlice();
     return serialized;
 }
+
 /// Serializes a cancun sidecars into the eip4844 wrapper.
 pub fn serializeCancunTransactionWithSidecars(
     allocator: Allocator,
@@ -336,13 +340,13 @@ pub fn serializeCancunTransactionWithSidecars(
             list_sidecar.items(.proof),
         };
 
-        var list = std.array_list.Managed(u8).init(allocator);
-        errdefer list.deinit();
+        var alloc_writer: std.Io.Writer.Allocating = .init(allocator);
+        errdefer alloc_writer.deinit();
 
-        try list.writer().writeByte(0x03);
-        try rlp.encodeRlpFromArrayListWriter(allocator, envelope_signed, list.writer());
+        try alloc_writer.writer.writeByte(0x03);
+        try RlpEncoder.encodeRlpFromWriter(allocator, envelope_signed, &alloc_writer.writer);
 
-        const serialized = try list.toOwnedSlice();
+        const serialized = try alloc_writer.toOwnedSlice();
         return serialized;
     }
 
@@ -363,15 +367,16 @@ pub fn serializeCancunTransactionWithSidecars(
         list_sidecar.items(.proof),
     };
 
-    var list = std.array_list.Managed(u8).init(allocator);
-    errdefer list.deinit();
+    var alloc_writer: std.Io.Writer.Allocating = .init(allocator);
+    errdefer alloc_writer.deinit();
 
-    try list.writer().writeByte(0x03);
-    try rlp.encodeRlpFromArrayListWriter(allocator, envelope, list.writer());
+    try alloc_writer.writer.writeByte(0x03);
+    try RlpEncoder.encodeRlpFromWriter(allocator, envelope, &alloc_writer.writer);
 
-    const serialized = try list.toOwnedSlice();
+    const serialized = try alloc_writer.toOwnedSlice();
     return serialized;
 }
+
 /// Function to serialize eip1559 transactions.
 /// Caller ownes the memory
 pub fn serializeTransactionEIP1559(
@@ -398,13 +403,13 @@ pub fn serializeTransactionEIP1559(
             signature.s,
         };
 
-        var list = std.array_list.Managed(u8).init(allocator);
-        errdefer list.deinit();
+        var alloc_writer: std.Io.Writer.Allocating = .init(allocator);
+        errdefer alloc_writer.deinit();
 
-        try list.writer().writeByte(0x02);
-        try rlp.encodeRlpFromArrayListWriter(allocator, envelope_sig, list.writer());
+        try alloc_writer.writer.writeByte(0x02);
+        try RlpEncoder.encodeRlpFromWriter(allocator, envelope_sig, &alloc_writer.writer);
 
-        const serialized = try list.toOwnedSlice();
+        const serialized = try alloc_writer.toOwnedSlice();
         return serialized;
     }
 
@@ -420,15 +425,16 @@ pub fn serializeTransactionEIP1559(
         prep_access,
     };
 
-    var list = std.array_list.Managed(u8).init(allocator);
-    errdefer list.deinit();
+    var alloc_writer: std.Io.Writer.Allocating = .init(allocator);
+    errdefer alloc_writer.deinit();
 
-    try list.writer().writeByte(0x02);
-    try rlp.encodeRlpFromArrayListWriter(allocator, envelope, list.writer());
+    try alloc_writer.writer.writeByte(0x02);
+    try RlpEncoder.encodeRlpFromWriter(allocator, envelope, &alloc_writer.writer);
 
-    const serialized = try list.toOwnedSlice();
+    const serialized = try alloc_writer.toOwnedSlice();
     return serialized;
 }
+
 /// Function to serialize eip2930 transactions.
 /// Caller ownes the memory
 pub fn serializeTransactionEIP2930(
@@ -454,13 +460,13 @@ pub fn serializeTransactionEIP2930(
             signature.s,
         };
 
-        var list = std.array_list.Managed(u8).init(allocator);
-        errdefer list.deinit();
+        var alloc_writer: std.Io.Writer.Allocating = .init(allocator);
+        errdefer alloc_writer.deinit();
 
-        try list.writer().writeByte(0x01);
-        try rlp.encodeRlpFromArrayListWriter(allocator, envelope_sig, list.writer());
+        try alloc_writer.writer.writeByte(0x01);
+        try RlpEncoder.encodeRlpFromWriter(allocator, envelope_sig, &alloc_writer.writer);
 
-        const serialized = try list.toOwnedSlice();
+        const serialized = try alloc_writer.toOwnedSlice();
         return serialized;
     }
 
@@ -475,15 +481,16 @@ pub fn serializeTransactionEIP2930(
         prep_access,
     };
 
-    var list = std.array_list.Managed(u8).init(allocator);
-    errdefer list.deinit();
+    var alloc_writer: std.Io.Writer.Allocating = .init(allocator);
+    errdefer alloc_writer.deinit();
 
-    try list.writer().writeByte(0x01);
-    try rlp.encodeRlpFromArrayListWriter(allocator, envelope, list.writer());
+    try alloc_writer.writer.writeByte(0x01);
+    try RlpEncoder.encodeRlpFromWriter(allocator, envelope, &alloc_writer.writer);
 
-    const serialized = try list.toOwnedSlice();
+    const serialized = try alloc_writer.toOwnedSlice();
     return serialized;
 }
+
 /// Function to serialize legacy transactions.
 /// Caller ownes the memory
 pub fn serializeTransactionLegacy(
@@ -523,7 +530,7 @@ pub fn serializeTransactionLegacy(
             signature.s,
         };
 
-        const encoded_sig = try rlp.encodeRlp(allocator, envelope_sig);
+        const encoded_sig = try RlpEncoder.encodeRlp(allocator, envelope_sig);
 
         return encoded_sig;
     }
@@ -542,7 +549,7 @@ pub fn serializeTransactionLegacy(
             null,
         };
 
-        const encoded_sig = try rlp.encodeRlp(allocator, envelope_sig);
+        const encoded_sig = try RlpEncoder.encodeRlp(allocator, envelope_sig);
 
         return encoded_sig;
     }
@@ -557,35 +564,35 @@ pub fn serializeTransactionLegacy(
         tx.data,
     };
 
-    const encoded = try rlp.encodeRlp(allocator, envelope);
+    const encoded = try RlpEncoder.encodeRlp(allocator, envelope);
 
     return encoded;
 }
+
 /// Serializes the access list into a slice of tuples of hex values.
 pub fn prepareAccessList(
     allocator: Allocator,
     access_list: []const AccessList,
 ) Allocator.Error![]const StructToTupleType(AccessList) {
-    var tuple_list = try std.array_list.Managed(StructToTupleType(AccessList)).initCapacity(allocator, access_list.len);
-    errdefer tuple_list.deinit();
+    var tuple_list: std.ArrayList(StructToTupleType(AccessList)) = try .initCapacity(allocator, access_list.len);
+    errdefer tuple_list.deinit(allocator);
 
-    for (access_list) |access| {
+    for (access_list) |access|
         tuple_list.appendAssumeCapacity(.{ access.address, access.storageKeys });
-    }
 
-    return tuple_list.toOwnedSlice();
+    return tuple_list.toOwnedSlice(allocator);
 }
+
 /// Serializes the authorization list into a slice of tuples of hex values.
 pub fn prepareAuthorizationList(
     allocator: Allocator,
     authorization_list: []const AuthorizationPayload,
 ) Allocator.Error![]const StructToTupleType(AuthorizationPayload) {
-    var tuple_list = try std.array_list.Managed(StructToTupleType(AuthorizationPayload)).initCapacity(allocator, authorization_list.len);
-    errdefer tuple_list.deinit();
+    var tuple_list: std.ArrayList(StructToTupleType(AuthorizationPayload)) = try .initCapacity(allocator, authorization_list.len);
+    errdefer tuple_list.deinit(allocator);
 
-    for (authorization_list) |auth| {
+    for (authorization_list) |auth|
         tuple_list.appendAssumeCapacity(.{ auth.chain_id, auth.address, auth.nonce, auth.y_parity, auth.r, auth.s });
-    }
 
-    return tuple_list.toOwnedSlice();
+    return tuple_list.toOwnedSlice(allocator);
 }

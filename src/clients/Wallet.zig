@@ -625,13 +625,13 @@ pub fn hashAuthorityEip7702(
         nonce,
     };
 
-    var list: std.array_list.Managed(u8) = .init(self.allocator);
-    errdefer list.deinit();
+    var alloc_writer: std.Io.Writer.Allocating = .init(self.allocator);
+    errdefer alloc_writer.deinit();
 
-    try list.writer().writeByte(0x05);
-    try zabi_encoding.rlp.encodeRlpFromArrayListWriter(self.allocator, envelope, list.writer());
+    try alloc_writer.writer.writeByte(0x05);
+    try zabi_encoding.RlpEncoder.encodeRlpFromWriter(self.allocator, envelope, &alloc_writer.writer);
 
-    const serialized = try list.toOwnedSlice();
+    const serialized = try alloc_writer.toOwnedSlice();
     defer self.allocator.free(serialized);
 
     var buffer: Hash = undefined;

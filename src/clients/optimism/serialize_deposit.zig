@@ -1,5 +1,4 @@
 const meta = @import("zabi-meta").utils;
-const rlp = @import("zabi-encoding").rlp;
 const std = @import("std");
 const testing = std.testing;
 const transaction = @import("zabi-types").transactions;
@@ -9,6 +8,7 @@ const utils = @import("zabi-utils").utils;
 const Allocator = std.mem.Allocator;
 const DepositTransaction = transaction.DepositTransaction;
 const Hex = types.Hex;
+const RlpEncoder = @import("zabi-encoding").RlpEncoder;
 const StructToTupleType = meta.StructToTupleType;
 
 /// Serializes an OP deposit transaction
@@ -25,7 +25,7 @@ pub fn serializeDepositTransaction(allocator: Allocator, tx: DepositTransaction)
         tx.data,
     };
 
-    const encoded_sig = try rlp.encodeRlp(allocator, envelope);
+    const encoded_sig = try RlpEncoder.encodeRlp(allocator, envelope);
     defer allocator.free(encoded_sig);
 
     var serialized = try allocator.alloc(u8, encoded_sig.len + 1);

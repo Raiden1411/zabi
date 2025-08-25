@@ -159,6 +159,8 @@ pub fn innerParseValueRequest(
 
                     return std.fmt.parseInt(T, str, 0);
                 },
+                .float => return std.json.innerParseFromValue(T, allocator, source, options),
+                .integer => return std.json.innerParseFromValue(T, allocator, source, options),
 
                 else => return error.UnexpectedToken,
             }

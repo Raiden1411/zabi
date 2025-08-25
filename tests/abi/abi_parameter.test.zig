@@ -161,3 +161,66 @@ test "Json parse error" {
 
     try testing.expectError(error.UnknownField, std.json.parseFromSlice(AbiParameter, testing.allocator, sslice, .{}));
 }
+test "Prepare" {
+    {
+        const param: AbiParameter = .{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .address = {} }, .name = "bar" }} };
+
+        var c_writter: std.Io.Writer.Discarding = .init(&.{});
+
+        try param.prepare(&c_writter.writer);
+
+        const bytes = c_writter.count;
+
+        const size = std.math.cast(usize, bytes) orelse return error.OutOfMemory;
+
+        const buffer = try testing.allocator.alloc(u8, size);
+
+        defer testing.allocator.free(buffer);
+
+        var buf_writter = std.Io.Writer.fixed(buffer);
+
+        try param.prepare(&buf_writter);
+
+        const slice = buf_writter.buffered();
+
+        try testing.expectEqualStrings(slice, "(address)");
+    }
+
+    {
+        const param: AbiEventParameter = .{ .type = .{ .tuple = {} }, .name = "foo", .indexed = false, .components = &.{.{ .type = .{ .address = {} }, .name = "bar" }} };
+
+        var c_writter: std.Io.Writer.Discarding = .init(&.{});
+
+        try param.prepare(&c_writter.writer);
+
+        const bytes = c_writter.count;
+
+        const size = std.math.cast(usize, bytes) orelse return error.OutOfMemory;
+
+        const buffer = try testing.allocator.alloc(u8, size);
+
+        defer testing.allocator.free(buffer);
+
+        var buf_writter = std.Io.Writer.fixed(buffer);
+
+        try param.prepare(&buf_writter);
+
+        const slice = buf_writter.buffered();
+
+        try testing.expectEqualStrings(slice, "(address)");
+    }
+}
+
+test "Format" {
+    {
+        const param: AbiEventParameter = .{ .type = .{ .tuple = {} }, .name = "foo", .indexed = false, .components = &.{.{ .type = .{ .address = {} }, .name = "bar" }} };
+
+        try testing.expectFmt("(address bar) foo", "{f}", .{param});
+    }
+
+    {
+        const param: AbiParameter = .{ .type = .{ .tuple = {} }, .name = "foo", .components = &.{.{ .type = .{ .address = {} }, .name = "bar" }} };
+
+        try testing.expectFmt("(address bar) foo", "{f}", .{param});
+    }
+}

@@ -3,7 +3,7 @@ const formatter = @import("zabi").ast.formatter;
 const testing = std.testing;
 
 const Ast = @import("zabi").ast.Ast;
-const Formatter = formatter.SolidityFormatter(std.array_list.Managed(u8).Writer);
+const Formatter = formatter.SolidityFormatter;
 const Parser = @import("zabi").ast.Parser;
 
 test "Basic" {
@@ -50,13 +50,13 @@ test "Basic" {
         \\    }
     ;
 
-    var list = std.array_list.Managed(u8).init(testing.allocator);
+    var list = std.Io.Writer.Allocating.init(testing.allocator);
     defer list.deinit();
 
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 
-    var format: Formatter = .init(ast, 4, list.writer());
+    var format: Formatter = .init(ast, 4, &list.writer);
 
     try format.formatStatement(@intCast(ast.nodes.len - 1), .none);
 
@@ -114,13 +114,13 @@ test "Element" {
         \\}
     ;
 
-    var list = std.array_list.Managed(u8).init(testing.allocator);
+    var list = std.Io.Writer.Allocating.init(testing.allocator);
     errdefer list.deinit();
 
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 
-    var format: Formatter = .init(ast, 4, list.writer());
+    var format: Formatter = .init(ast, 4, &list.writer);
 
     try format.format();
 
@@ -277,10 +277,10 @@ test "It can format a contract without errors" {
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 
-    var list = std.array_list.Managed(u8).init(testing.allocator);
+    var list = std.Io.Writer.Allocating.init(testing.allocator);
     errdefer list.deinit();
 
-    var format: Formatter = .init(ast, 4, list.writer());
+    var format: Formatter = .init(ast, 4, &list.writer);
     try format.format();
 
     const fmt = try list.toOwnedSliceSentinel(0);
@@ -338,10 +338,10 @@ test "Try/Catch" {
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 
-    var list = std.array_list.Managed(u8).init(testing.allocator);
+    var list = std.Io.Writer.Allocating.init(testing.allocator);
     errdefer list.deinit();
 
-    var format: Formatter = .init(ast, 4, list.writer());
+    var format: Formatter = .init(ast, 4, &list.writer);
     try format.format();
 
     const fmt = try list.toOwnedSliceSentinel(0);
@@ -463,10 +463,10 @@ test "Owner Contract" {
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 
-    var list = std.array_list.Managed(u8).init(testing.allocator);
+    var list = std.Io.Writer.Allocating.init(testing.allocator);
     errdefer list.deinit();
 
-    var format: Formatter = .init(ast, 4, list.writer());
+    var format: Formatter = .init(ast, 4, &list.writer);
     try format.format();
 
     const fmt = try list.toOwnedSliceSentinel(0);
@@ -708,10 +708,10 @@ test "Uniswap" {
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 
-    var list = std.array_list.Managed(u8).init(testing.allocator);
+    var list = std.Io.Writer.Allocating.init(testing.allocator);
     errdefer list.deinit();
 
-    var format: Formatter = .init(ast, 4, list.writer());
+    var format: Formatter = .init(ast, 4, &list.writer);
     try format.format();
 
     const fmt = try list.toOwnedSliceSentinel(0);
@@ -764,10 +764,10 @@ test "Fallback" {
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 
-    var list = std.array_list.Managed(u8).init(testing.allocator);
+    var list = std.Io.Writer.Allocating.init(testing.allocator);
     errdefer list.deinit();
 
-    var format: Formatter = .init(ast, 4, list.writer());
+    var format: Formatter = .init(ast, 4, &list.writer);
     try format.format();
 
     const fmt = try list.toOwnedSliceSentinel(0);
@@ -1757,10 +1757,10 @@ test "Solady" {
     var ast = try Ast.parse(testing.allocator, slice);
     defer ast.deinit(testing.allocator);
 
-    var list = std.array_list.Managed(u8).init(testing.allocator);
+    var list = std.Io.Writer.Allocating.init(testing.allocator);
     errdefer list.deinit();
 
-    var format: Formatter = .init(ast, 4, list.writer());
+    var format: Formatter = .init(ast, 4, &list.writer);
     try format.format();
 
     const fmt = try list.toOwnedSliceSentinel(0);

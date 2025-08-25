@@ -1,3 +1,4 @@
+// TODO: Remove this once the std lib re-introduces the deque datastructure
 const std = @import("std");
 const math = std.math;
 const mem = std.mem;

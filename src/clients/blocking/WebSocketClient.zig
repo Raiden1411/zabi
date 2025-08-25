@@ -625,14 +625,15 @@ pub fn readMessage(self: *WebsocketClient) !WebsocketMessage {
         };
 
         const payload = blk: {
-            if (total < reader.buffered().len)
-                break :blk try reader.take(total);
+            if (total > reader.buffer.len) {
+                try self.storage.ensureUnusedCapacity(total);
+                try reader.streamExact(&self.storage.writer, total);
+                defer self.storage.shrinkRetainingCapacity(0);
 
-            try self.storage.ensureUnusedCapacity(total);
-            try reader.streamExact(&self.storage.writer, total);
-            defer self.storage.shrinkRetainingCapacity(0);
+                break :blk self.storage.written();
+            }
 
-            break :blk self.storage.written();
+            break :blk try reader.take(total);
         };
 
         switch (op_head.opcode) {

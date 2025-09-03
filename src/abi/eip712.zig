@@ -26,7 +26,7 @@ pub const MessageProperty = struct {
 };
 
 /// Set of possible errors when encoding struct into human-readable format.
-pub const EncodeTypeErrors = Allocator.Error || error{InvalidPrimaryType};
+pub const EncodeTypeErrors = Allocator.Error || error{InvalidPrimaryType} || std.Io.Writer.Error;
 
 /// Set of possible errors when encoding the struct values.
 pub const EIP712Errors = EncodeTypeErrors || ParamErrors || error{ UnexpectTypeFound, NoSpaceLeft, InvalidLength };
@@ -96,10 +96,10 @@ pub fn hashTypedData(
     domain: ?TypedDataDomain,
     message: anytype,
 ) EIP712Errors![Keccak256.digest_length]u8 {
-    var list = std.array_list.Managed(u8).init(allocator);
+    var list = std.Io.Writer.Allocating.init(allocator);
     errdefer list.deinit();
 
-    var writer = list.writer();
+    var writer = &list.writer;
     try writer.writeAll("\x19\x01");
 
     if (domain) |dom| {
@@ -174,10 +174,10 @@ pub fn hashStruct(
     comptime primary_type: []const u8,
     data: anytype,
 ) EIP712Errors![Keccak256.digest_length]u8 {
-    var list = std.array_list.Managed(u8).init(allocator);
+    var list = std.Io.Writer.Allocating.init(allocator);
     errdefer list.deinit();
 
-    try encodeStruct(allocator, types, primary_type, data, list.writer());
+    try encodeStruct(allocator, types, primary_type, data, &list.writer);
 
     const slice = try list.toOwnedSlice();
     defer allocator.free(slice);
@@ -210,7 +210,7 @@ pub fn encodeStruct(
     comptime types: anytype,
     comptime primary_type: []const u8,
     data: anytype,
-    writer: anytype,
+    writer: *std.Io.Writer,
 ) EIP712Errors!void {
     const info = @typeInfo(@TypeOf(types));
     const data_info = @typeInfo(@TypeOf(data));
@@ -240,14 +240,14 @@ pub fn encodeStructField(
     comptime types: anytype,
     comptime primary_type: []const u8,
     value: anytype,
-    writer: anytype,
+    writer: *std.Io.Writer,
 ) EIP712Errors!void {
     const info = @typeInfo(@TypeOf(value));
     if (@hasField(@TypeOf(types), primary_type)) {
-        var list = std.array_list.Managed(u8).init(allocator);
+        var list = std.Io.Writer.Allocating.init(allocator);
         errdefer list.deinit();
 
-        try encodeStruct(allocator, types, primary_type, value, list.writer());
+        try encodeStruct(allocator, types, primary_type, value, &list.writer);
 
         const slice = try list.toOwnedSlice();
         defer allocator.free(slice);
@@ -331,13 +331,13 @@ pub fn encodeStructField(
 
             switch (param_type) {
                 .dynamicArray, .fixedArray => {
-                    var list = std.array_list.Managed(u8).init(allocator);
+                    var list = std.Io.Writer.Allocating.init(allocator);
                     errdefer list.deinit();
 
                     const index = comptime std.mem.lastIndexOf(u8, primary_type, "[");
                     const arr_type = primary_type[0 .. index orelse return error.InvalidType];
                     for (value) |v| {
-                        try encodeStructField(allocator, types, arr_type, v, list.writer());
+                        try encodeStructField(allocator, types, arr_type, v, &list.writer);
                     }
 
                     const slice = try list.toOwnedSlice();
@@ -401,13 +401,13 @@ pub fn encodeStructField(
 
                     switch (param_type) {
                         .dynamicArray, .fixedArray => {
-                            var list = std.array_list.Managed(u8).init(allocator);
+                            var list = std.Io.Writer.Allocating.init(allocator);
                             errdefer list.deinit();
 
                             const index = comptime std.mem.lastIndexOf(u8, primary_type, "[");
                             const arr_type = primary_type[0 .. index orelse return error.InvalidType];
                             for (value) |v| {
-                                try encodeStructField(allocator, types, arr_type, v, list.writer());
+                                try encodeStructField(allocator, types, arr_type, v, &list.writer);
                             }
 
                             const slice = try list.toOwnedSlice();
@@ -430,13 +430,13 @@ pub fn encodeStructField(
 
                 switch (param_type) {
                     .dynamicArray, .fixedArray => {
-                        var list = std.array_list.Managed(u8).init(allocator);
+                        var list = std.Io.Writer.Allocating.init(allocator);
                         errdefer list.deinit();
 
                         const index = comptime std.mem.lastIndexOf(u8, primary_type, "[");
                         const arr_type = primary_type[0 .. index orelse return error.InvalidType];
                         inline for (value) |v| {
-                            try encodeStructField(allocator, types, arr_type, v, list.writer());
+                            try encodeStructField(allocator, types, arr_type, v, &list.writer);
                         }
 
                         const slice = try list.toOwnedSlice();
@@ -460,10 +460,10 @@ pub fn hashType(
     comptime types_fields: anytype,
     comptime primary_type: []const u8,
 ) EncodeTypeErrors![Keccak256.digest_length]u8 {
-    var list = std.array_list.Managed(u8).init(allocator);
+    var list = std.Io.Writer.Allocating.init(allocator);
     errdefer list.deinit();
 
-    try encodeType(allocator, types_fields, primary_type, list.writer());
+    try encodeType(allocator, types_fields, primary_type, &list.writer);
 
     const slice = try list.toOwnedSlice();
     defer allocator.free(slice);

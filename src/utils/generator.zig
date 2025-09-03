@@ -172,8 +172,6 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
 
                     if (ptr_info.child == u8) {
                         if (opts.ascii.use_on_arrays_and_slices) {
-                            var writer = list.writer();
-
                             for (0..size) |i| {
                                 rand.seed(size * (i + 1));
 
@@ -184,7 +182,7 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
 
                                 assert(std.ascii.isAlphabetic(char));
 
-                                try writer.writeByte(char);
+                                try list.append(char);
                             }
 
                             return list.toOwnedSlice();

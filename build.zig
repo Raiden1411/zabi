@@ -465,7 +465,9 @@ fn loadVariables(b: *std.Build, env_path: []const u8, exe: *std.Build.Step.Run) 
         std.debug.panic("Failed to read from {s} file! Error: {s}", .{ env_path, @errorName(err) });
     defer file.close();
 
-    const source = file.readToEndAllocOptions(b.allocator, std.math.maxInt(u32), null, .@"1", 0) catch |err|
+    var reader = file.reader(&.{});
+
+    const source = reader.interface.allocRemainingAlignedSentinel(b.allocator, .limited(std.math.maxInt(u32)), .@"1", 0) catch |err|
         std.debug.panic("Failed to read from {s} file! Error: {s}", .{ env_path, @errorName(err) });
     defer b.allocator.free(source);
 

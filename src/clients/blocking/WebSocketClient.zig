@@ -607,10 +607,8 @@ pub fn readMessage(self: *WebsocketClient) !WebsocketMessage {
     var reader = self.connection.reader();
 
     while (true) {
-        const headers = try reader.takeArray(2);
-
-        const op_head: OpcodeHeader = @bitCast(headers[0]);
-        const payload_head: PayloadHeader = @bitCast(headers[1]);
+        const op_head = try reader.takeStruct(OpcodeHeader, .big);
+        const payload_head = try reader.takeStruct(PayloadHeader, .big);
 
         if (payload_head.mask)
             return error.MaskedServerMessage;
@@ -836,29 +834,29 @@ pub fn writeHeaderFrameVecUnflushed(
         break :len total_len;
     };
 
-    try writer.writeByte(@bitCast(@as(OpcodeHeader, .{
+    try writer.writeStruct(OpcodeHeader{
         .opcode = opcode,
         .fin = fin_bit,
-    })));
+    }, .big);
 
     return switch (total_len) {
-        0...125 => try writer.writeByte(@bitCast(@as(PayloadHeader, .{
+        0...125 => try writer.writeStruct(PayloadHeader{
             .payload_len = @enumFromInt(total_len),
             .mask = true,
-        }))),
+        }, .big),
         126...0xFFFF => {
-            try writer.writeByte(@bitCast(@as(PayloadHeader, .{
+            try writer.writeStruct(PayloadHeader{
                 .payload_len = .len16,
                 .mask = true,
-            })));
+            }, .big);
 
             try writer.writeInt(u16, @intCast(total_len), .big);
         },
         else => {
-            try writer.writeByte(@bitCast(@as(PayloadHeader, .{
+            try writer.writeStruct(PayloadHeader{
                 .payload_len = .len64,
                 .mask = true,
-            })));
+            }, .big);
 
             try writer.writeInt(u64, total_len, .big);
         },
@@ -866,13 +864,16 @@ pub fn writeHeaderFrameVecUnflushed(
 }
 
 test "handshake" {
-    const path = try std.fmt.allocPrint(testing.allocator, "http://localhost:9001/runCase?casetuple={s}&agent=zabi.zig", .{"5.6"});
+    const path = try std.fmt.allocPrint(testing.allocator, "http://localhost:9001/runCase?casetuple={s}&agent=zabi.zig", .{"9.7.6"});
     defer testing.allocator.free(path);
 
     const uri = try std.Uri.parse(path);
 
     var client = try WebsocketClient.connect(testing.allocator, uri);
-    defer client.deinit();
+    defer {
+        client.deinit();
+        client.connection.destroyConnection(testing.allocator);
+    }
 
     try client.handshake("localhost:9001");
 

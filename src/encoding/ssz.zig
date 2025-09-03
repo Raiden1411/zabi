@@ -13,18 +13,17 @@ const Allocator = std.mem.Allocator;
 /// Almost all zig types are supported.
 ///
 /// Caller owns the memory
-pub fn encodeSSZ(allocator: Allocator, value: anytype) Allocator.Error![]u8 {
-    var list = std.array_list.Managed(u8).init(allocator);
+pub fn encodeSSZ(allocator: Allocator, value: anytype) (Allocator.Error || std.Io.Writer.Error)![]u8 {
+    var list = std.Io.Writer.Allocating.init(allocator);
     errdefer list.deinit();
 
-    try encodeItem(value, &list);
+    try encodeItem(value, &list.writer);
 
     return list.toOwnedSlice();
 }
 
-fn encodeItem(value: anytype, list: *std.array_list.Managed(u8)) Allocator.Error!void {
+fn encodeItem(value: anytype, writer: *std.Io.Writer) std.Io.Writer.Error!void {
     const info = @typeInfo(@TypeOf(value));
-    var writer = list.writer();
 
     switch (info) {
         .bool => try writer.writeInt(u8, @intFromBool(value), .little),
@@ -45,7 +44,7 @@ fn encodeItem(value: anytype, list: *std.array_list.Managed(u8)) Allocator.Error
         .optional => {
             if (value) |val| {
                 try writer.writeInt(u8, 1, .little);
-                return try encodeItem(val, list);
+                return try encodeItem(val, writer);
             } else try writer.writeInt(u8, 0, .little);
         },
         .@"union" => |union_info| {
@@ -55,13 +54,13 @@ fn encodeItem(value: anytype, list: *std.array_list.Managed(u8)) Allocator.Error
             inline for (union_info.fields, 0..) |field, i| {
                 if (@intFromEnum(value) == i) {
                     try writer.writeInt(u8, i, .little);
-                    return try encodeItem(@field(value, field.name), list);
+                    return try encodeItem(@field(value, field.name), writer);
                 }
             }
         },
         .pointer => |ptr_info| {
             switch (ptr_info.size) {
-                .one => return encodeItem(value.*, list),
+                .one => return encodeItem(value.*, writer),
                 .slice => {
                     if (ptr_info.child == u8) {
                         try writer.writeAll(value);
@@ -69,7 +68,7 @@ fn encodeItem(value: anytype, list: *std.array_list.Managed(u8)) Allocator.Error
                     }
 
                     for (value) |val| {
-                        try encodeItem(val, list);
+                        try encodeItem(val, writer);
                     }
                 },
                 else => @compileError("Unsupported pointer type " ++ @typeName(@TypeOf(value))),
@@ -96,7 +95,7 @@ fn encodeItem(value: anytype, list: *std.array_list.Managed(u8)) Allocator.Error
             }
 
             for (0..vec_info.len) |i| {
-                try encodeItem(value[i], list);
+                try encodeItem(value[i], writer);
             }
         },
         .@"enum", .enum_literal => try writer.writeAll(@tagName(value)),
@@ -126,20 +125,20 @@ fn encodeItem(value: anytype, list: *std.array_list.Managed(u8)) Allocator.Error
 
             if (utils.isStaticType(arr_info.child)) {
                 for (value) |val| {
-                    try encodeItem(val, list);
+                    try encodeItem(val, writer);
                 }
                 return;
             }
 
-            var offset_start = list.items.len;
+            var offset_start = writer.end;
 
             for (value) |_| {
                 try writer.writeInt(u32, 0, .little);
             }
 
             for (value) |val| {
-                std.mem.writeInt(u32, list.items[offset_start .. offset_start + 4][0..4], @as(u32, @truncate(list.items.len)), .little);
-                try encodeItem(val, list);
+                std.mem.writeInt(u32, writer.buffer[offset_start .. offset_start + 4][0..4], @as(u32, @truncate(writer.end)), .little);
+                try encodeItem(val, writer);
                 offset_start += 4;
             }
         },
@@ -155,9 +154,9 @@ fn encodeItem(value: anytype, list: *std.array_list.Managed(u8)) Allocator.Error
             var accumulate: usize = start;
             inline for (struct_info.fields) |field| {
                 switch (@typeInfo(field.type)) {
-                    .int, .bool => try encodeItem(@field(value, field.name), list),
+                    .int, .bool => try encodeItem(@field(value, field.name), writer),
                     else => {
-                        try encodeItem(@as(u32, @truncate(accumulate)), list);
+                        try encodeItem(@as(u32, @truncate(accumulate)), writer);
                         accumulate += sizeOfValue(@field(value, field.name));
                     },
                 }
@@ -167,7 +166,7 @@ fn encodeItem(value: anytype, list: *std.array_list.Managed(u8)) Allocator.Error
                 inline for (struct_info.fields) |field| {
                     switch (@typeInfo(field.type)) {
                         .bool, .int => continue,
-                        else => try encodeItem(@field(value, field.name), list),
+                        else => try encodeItem(@field(value, field.name), writer),
                     }
                 }
             }

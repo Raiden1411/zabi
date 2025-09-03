@@ -108,13 +108,13 @@ pub fn fromEntropy(
     comptime word_count: comptime_int,
     entropy_bytes: EntropyArray(word_count),
     word_list: ?Wordlist,
-) (Allocator.Error || error{Overflow})![]const u8 {
+) (Allocator.Error || error{Overflow} || std.Io.Writer.Error)![]const u8 {
     const list = word_list orelse english;
 
-    var mnemonic = std.array_list.Managed(u8).init(allocator);
+    var mnemonic = std.Io.Writer.Allocating.init(allocator);
     errdefer mnemonic.deinit();
 
-    var writer = mnemonic.writer();
+    var writer = &mnemonic.writer;
 
     var indices = std.array_list.Managed(u16).init(allocator);
     errdefer indices.deinit();

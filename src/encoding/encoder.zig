@@ -243,7 +243,7 @@ pub const AbiEncoder = struct {
     pub const Self = @This();
 
     /// Set of possible error when running this encoder.
-    pub const Errors = error{ DivisionByZero, Overflow } || Allocator.Error;
+    pub const Errors = error{ DivisionByZero, Overflow } || Allocator.Error || std.Io.Writer.Error;
 
     /// Sets the initial state of the encoder.
     pub const empty: Self = .{
@@ -882,19 +882,19 @@ pub const AbiEncoder = struct {
 /// Similar to `AbiEncoder` but used for packed encoding.
 pub const EncodePacked = struct {
     /// Set of possible error when running this encoder.
-    pub const Errors = error{ DivisionByZero, Overflow } || Allocator.Error;
+    pub const Errors = error{ DivisionByZero, Overflow } || Allocator.Error || std.Io.Writer.Error;
 
     /// Changes the encoder behaviour based on the type of the parameter.
     param_type: ParameterType,
     /// List that is used to write the encoded values too.
-    list: ArrayList(u8),
+    list: std.Io.Writer.Allocating,
 
     /// Sets the initial state of the encoder.
     pub fn init(
         allocator: Allocator,
         param_type: ParameterType,
     ) EncodePacked {
-        const list = ArrayList(u8).init(allocator);
+        const list = std.Io.Writer.Allocating.init(allocator);
 
         return .{
             .param_type = param_type,
@@ -918,7 +918,7 @@ pub const EncodePacked = struct {
         value: anytype,
     ) Errors!void {
         const info = @typeInfo(@TypeOf(value));
-        const writer = self.list.writer();
+        var writer = &self.list.writer;
 
         switch (info) {
             .bool => return switch (self.param_type) {
@@ -1038,18 +1038,18 @@ pub fn encodeFixedBytes(
 pub fn encodeString(
     allocator: Allocator,
     payload: []const u8,
-) (error{ DivisionByZero, Overflow } || Allocator.Error)![]u8 {
+) EncodePacked.Errors![]u8 {
     const ceil = try std.math.divCeil(usize, payload.len, 32);
     const padded_size = ceil * 32;
 
-    var list = try std.array_list.Managed(u8).initCapacity(allocator, padded_size + 32);
+    var list = try std.Io.Writer.Allocating.initCapacity(allocator, padded_size + 32);
     errdefer list.deinit();
 
-    var writer = list.writer();
+    var writer = &list.writer;
     try writer.writeInt(u256, payload.len, .big);
 
-    list.appendSliceAssumeCapacity(payload);
-    try writer.writeByteNTimes(0, padded_size - payload.len);
+    try writer.writeAll(payload);
+    _ = try writer.splatByte(0, padded_size - payload.len);
 
     return list.toOwnedSlice();
 }

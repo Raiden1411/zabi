@@ -5,7 +5,7 @@
     .dependencies = .{
         .c_kzg_4844 = .{
             .url = "https://github.com/ethereum/c-kzg-4844/archive/refs/tags/v0.4.0.tar.gz",
-            .hash = "122037488cd5d62e856888f1bb206989fdcb02efcdbae8fc110df5395a12d4be5eb0",
+            .hash = "N-V-__8AAO7_8AM3SIzV1i6FaIjxuyBpif3LAu_Nuuj8EQ31",
         },
         .blst = .{ .path = "../blst" },
     },

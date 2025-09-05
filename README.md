@@ -21,15 +21,87 @@
 ### Overview
 Zabi aims to add support for interacting with ethereum or any compatible EVM based chain. 
 
-### Zig Versions
 
-Zabi will support zig v0.14 in separate branches. If you would like to use it you can find it in the `zig_version_0.14.0` branch where you can build it against zig 0.13.0.
-The main branch of zabi will follow the latest commits from zig and the other branch will be stable in terms of zig versions but not features from zabi.
+### Zig Versions
+Zabi will follow the master branch of ziglang as best as possible.
+
+
+### Installing Zig
+You can install the latest version of zig [here](https://ziglang.org/download/) or you can also use a version manager like [zvm](https://www.zvm.app/guides/install-zvm/) to manage your zig version.
+
 
 ### Integration
-You can check how to integrate ZABI in your project [here](https://www.zabi.sh/integration)
+In the `build.zig.zon` file, add the following to the dependencies object.
+
+```zig
+.zabi = .{
+    .url = "https://github.com/Raiden1411/zabi/archive/VERSION_NUMBER.tar.gz",
+}
+```
+
+The compiler will produce a hash mismatch error, add the `.hash` field to `build.zig.zon`
+with the hash the compiler tells you it found.
+You can also use `zig fetch` to automatically do the above steps.
+
+```bash
+zig fetch --save https://github.com/Raiden1411/zabi/archive/VERSION_NUMBER.tar.gz 
+zig fetch --save git+https://github.com/Raiden1411/zabi.git#LATEST_COMMIT
+```
+
+To install zabi with the latest zig version you can install it like so
+```bash
+zig fetch --save git+https://github.com/Raiden1411/zabi.git#zig_version_0.14.0
+```
+
+Zabi will only maintain the latest version available. So when 0.15.0 eventually releases it use that and 0.14.0 will no longer be supported and so on.
+This should only be until zig reaches 1.0.
+
+Then in your `build.zig` file add the following to the `exe` section for the executable where you wish to have `zabi` available.
+```zig
+const zabi_module = b.dependency("zabi", .{}).module("zabi");
+// for exe, lib, tests, etc.
+exe.root_module.addImport("zabi", zabi_module);
+```
+
+Now in the code, you can import components like this:
+```zig
+const zabi = @import("zabi");
+const meta = zabi.meta;
+const encoder = zabi.encoder;
+```
+
+Zabi is a modular library meaning that you can import separete modules if you just need some components of zabi.
+```zig
+const zabi = b.dependency("zabi", .{});
+// for exe, lib, tests, etc.
+exe.root_module.addImport("zabi-evm", zabi.module("zabi-evm"));
+```
+
+Now in the code, you can import components like this:
+```zig
+const zabi_evm = @import("zabi-evm");
+```
+
+Currently these are all of the modules available for you to use in `zabi`:
+- zabi -> contains all modules.
+- zabi-abi -> contains all abi types and eip712.
+- zabi-ast -> contains a solidity tokenizer, parser and Ast.
+- zabi-clients -> contains all supported RPC clients and a block explorer clients. Also include a multicall clients as well as the wallet and contract client.
+- zabi-crypto -> contains the signer used in zabi as well BIP32 and BIP39
+- zabi-decoding -> contains all decoding methods supported.
+- zabi-encoding -> contains all encoding methods supported.
+- zabi-ens -> contains a custom ens client and utils.
+- zabi-evm -> contains the EVM interpreter.
+- zabi-human -> contains a custom human readable abi parser.
+- zabi-meta -> contains all of the meta programming utils used in zabi.
+- zabi-op-stack -> contains custom op-stack clients and utils.
+- zabi-types -> contains all of the types used in zabi.
+- zabi-utils -> contains all of the utils used in zabi as well as the custom cli parser data generator.
+
 
 ### Example Usage
+You can check of the examples in the example/ folder but for a simple introduction you can checkout the bellow example.
+
 ```zig
 const args_parser = @import("zabi").utils.args;
 const std = @import("std");
@@ -71,9 +143,6 @@ pub fn main() !void {
 }
 ```
 
-### Installing Zig
-
-You can install the latest version of zig [here](https://ziglang.org/download/) or you can also use a version manager like [zvm](https://www.zvm.app/guides/install-zvm/) to manage your zig version.
 
 ### Features
 
@@ -106,14 +175,13 @@ You can install the latest version of zig [here](https://ziglang.org/download/) 
 And a lot more yet to come...
 
 ### Goal
-
 The goal of zabi is to be one of the best library to use by the ethereum ecosystem and to expose to more people to the zig programming language.
 
-### Contributing
 
+### Contributing
 Contributions to Zabi are greatly appreciated! If you're interested in contributing to ZAbi, feel free to create a pull request with a feature or a bug fix. \
 You can also read the [contributing guide](/.github/CONTRIBUTING.md) **before submitting a pull request**
 
-### Sponsors
 
+### Sponsors
 If you find Zabi useful or use it for work, please consider supporting development on [GitHub Sponsors]( https://github.com/sponsors/Raiden1411) or sending crypto to [zzabi.eth](https://etherscan.io/name-lookup-search?id=zzabi.eth) or interacting with the [drip](https://www.drips.network/app/projects/github/Raiden1411/zabi?exact) platform where 40% of the revenue gets sent to zabi's dependencies. Thank you 🙏

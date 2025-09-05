@@ -86,15 +86,13 @@ Currently these are all of the modules available for you to use in `zabi`:
 - zabi -> contains all modules.
 - zabi-abi -> contains all abi types and eip712.
 - zabi-ast -> contains a solidity tokenizer, parser and Ast.
-- zabi-clients -> contains all supported RPC clients and a block explorer clients. Also include a multicall clients as well as the wallet and contract client.
+- zabi-clients -> contains all supported RPC clients and a block explorer clients.
 - zabi-crypto -> contains the signer used in zabi as well BIP32 and BIP39
 - zabi-decoding -> contains all decoding methods supported.
 - zabi-encoding -> contains all encoding methods supported.
-- zabi-ens -> contains a custom ens client and utils.
 - zabi-evm -> contains the EVM interpreter.
 - zabi-human -> contains a custom human readable abi parser.
 - zabi-meta -> contains all of the meta programming utils used in zabi.
-- zabi-op-stack -> contains custom op-stack clients and utils.
 - zabi-types -> contains all of the types used in zabi.
 - zabi-utils -> contains all of the utils used in zabi as well as the custom cli parser data generator.
 

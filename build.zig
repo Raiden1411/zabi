@@ -410,8 +410,7 @@ fn buildExamples(
         "examples/watch/logs.zig",
         "examples/transfer/transfer.zig",
         "examples/interpreter/interpreter.zig",
-        // TODO: Readd this
-        // "examples/block_explorer/explorer.zig",
+        "examples/block_explorer/explorer.zig",
         "examples/wallet/wallet.zig",
         "examples/autobahn/autobahn.zig",
     };

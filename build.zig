@@ -2,7 +2,7 @@ const env_parser = @import("src/utils/env_load.zig");
 const std = @import("std");
 const builtin = @import("builtin");
 
-const min_zig_string = "0.16.0-dev.23+47a2f2dda";
+const min_zig_string = "0.16.0-dev.164+bc7955306";
 
 /// Build zabi modules and test runners.
 pub fn build(b: *std.Build) void {
@@ -203,10 +203,6 @@ pub fn build(b: *std.Build) void {
 
     // Builds the examples.
     buildExamples(b, target, optimize, zabi);
-
-    // Build and generate docs for zabi. Uses the `doc_comments` spread across the codebase.
-    // Always build in `ReleaseFast`.
-    buildDocs(b, target);
 
     // Build the wasm file. Always build in `ReleaseSmall` on `wasm32-freestanding`.
     buildWasm(b, zabi);
@@ -440,25 +436,7 @@ fn buildExamples(
         examples_step.dependOn(&install_artifact.step);
     }
 }
-/// Builds and runs a runner to generate documentation based on the `doc_comments` tokens in the codebase.
-fn buildDocs(b: *std.Build, target: std.Build.ResolvedTarget) void {
-    const docs_mod = b.createModule(.{
-        .root_source_file = b.path("build/docs_generate.zig"),
-        .target = target,
-        .optimize = .ReleaseFast,
-        .link_libc = true,
-    });
-    const docs = b.addExecutable(.{
-        .name = "docs",
-        .root_module = docs_mod,
-    });
 
-    var docs_run = b.addRunArtifact(docs);
-    docs_run.has_side_effects = true;
-
-    const docs_step = b.step("docs", "Generate documentation based on the source code.");
-    docs_step.dependOn(&docs_run.step);
-}
 /// Loads enviroment variables from a `.env` file in case they aren't already present.
 fn loadVariables(b: *std.Build, env_path: []const u8, exe: *std.Build.Step.Run) void {
     var file = std.fs.cwd().openFile(env_path, .{}) catch |err|

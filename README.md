@@ -49,14 +49,13 @@ zig fetch --save git+https://github.com/Raiden1411/zabi.git#LATEST_COMMIT
 ```
 
 To install zabi with the latest zig version you can install it like so
+
 ```bash
 zig fetch --save git+https://github.com/Raiden1411/zabi.git#zig_version_0.14.0
 ```
 
-Zabi will only maintain the latest version available. So when 0.15.0 eventually releases it use that and 0.14.0 will no longer be supported and so on.
-This should only be until zig reaches 1.0.
-
 Then in your `build.zig` file add the following to the `exe` section for the executable where you wish to have `zabi` available.
+
 ```zig
 const zabi_module = b.dependency("zabi", .{}).module("zabi");
 // for exe, lib, tests, etc.
@@ -64,6 +63,7 @@ exe.root_module.addImport("zabi", zabi_module);
 ```
 
 Now in the code, you can import components like this:
+
 ```zig
 const zabi = @import("zabi");
 const meta = zabi.meta;
@@ -71,6 +71,7 @@ const encoder = zabi.encoder;
 ```
 
 Zabi is a modular library meaning that you can import separete modules if you just need some components of zabi.
+
 ```zig
 const zabi = b.dependency("zabi", .{});
 // for exe, lib, tests, etc.
@@ -78,6 +79,7 @@ exe.root_module.addImport("zabi-evm", zabi.module("zabi-evm"));
 ```
 
 Now in the code, you can import components like this:
+
 ```zig
 const zabi_evm = @import("zabi-evm");
 ```

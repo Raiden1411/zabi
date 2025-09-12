@@ -86,8 +86,6 @@ which will start the service on `https://127.0.0.1:6969` and `/tmp/anvil.ipc`, w
 
 Once you have cloned the repo and have the correct version of zig running on your computer you can now run `zig build` to ensure that everything gets built properly.
 
-Zabi supports `version 0.13.0` of zig in seperate branches. You can checkout each seperate branch and work in those branches if that is your goal.
-
 ---
 
 ### Running the test suite
@@ -97,25 +95,6 @@ Before running the tests you will need add the url's to a `.env` file. Zabi has 
 You can also run `zig build coverage` for running a seperate set of tests that then get analized with kcov (make sure you have it installed.) or you can run `zig build bench` to run the coverage tests as a benchmark.
 
 When adding new features or fixing bugs, it's important to add test cases to cover the new/updated behavior.
-
-<div align="right">
-  <a href="#basic-guide">&uarr; back to top</a></b>
-</div>
-
----
-
-### Writing documentation
-
-Documentation is crucial to helping developers of all experience levels use zabi. zabi uses [Vocs](https://vocs.dev) and Markdown for the documentation site (located at [`docs`](../docs)). To start the site in dev mode, run:
-
-```bash
-pnpm dev 
-```
-
-Zabi use mostly auto-generated documentation from its source code. If you make a change to the code make sure that to run `zig build docs` in order to update any changes.
-If you create a new file and want to add it to the website make to update `docs/sidebar.ts` to include it.
-
-This is expected to be changed in the future.
 
 <div align="right">
   <a href="#basic-guide">&uarr; back to top</a></b>

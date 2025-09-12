@@ -159,10 +159,11 @@ pub const Function = struct {
         _ = self;
         return decoder.decodeAbiFunctionOutputs(T, allocator, encoded, options);
     }
+
     /// Format the struct into a human readable string.
     pub fn format(
         self: @This(),
-        writer: anytype,
+        writer: *Writer,
     ) std.Io.Writer.Error!void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
@@ -194,10 +195,10 @@ pub const Function = struct {
         self: @This(),
         allocator: Allocator,
     ) PrepareErrors![]u8 {
-        var list: std.ArrayList(u8) = .init(allocator);
+        var list: std.Io.Writer.Allocating = .init(allocator);
         errdefer list.deinit();
 
-        try self.prepare(list.writer());
+        try self.prepare(&list.writer);
 
         return list.toOwnedSlice();
     }
@@ -230,7 +231,7 @@ pub const Event = struct {
     /// Format the struct into a human readable string.
     pub fn format(
         self: @This(),
-        writer: anytype,
+        writer: *Writer,
     ) std.Io.Writer.Error!void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
@@ -242,6 +243,7 @@ pub const Event = struct {
         }
         try writer.print(")", .{});
     }
+
     /// Generates the hash of the struct signatures.
     pub fn encode(self: @This()) PrepareErrors!Hash {
         var buffer: [256]u8 = undefined;
@@ -254,6 +256,7 @@ pub const Event = struct {
 
         return hashed;
     }
+
     /// Encode the struct signature based on the values provided.
     /// Runtime reflection based on the provided values will occur to determine
     /// what is the correct method to use to encode the values
@@ -266,6 +269,7 @@ pub const Event = struct {
     ) EncodeLogsErrors![]const ?Hash {
         return encoder_logs.encodeLogTopicsFromReflection(allocator, self, values);
     }
+
     /// Decode the encoded log topics based on the event signature and the provided type.
     ///
     /// Caller owns the memory.
@@ -278,6 +282,7 @@ pub const Event = struct {
         _ = self;
         return decoder_logs.decodeLogs(T, encoded, options);
     }
+
     /// Format the struct into a human readable string.
     /// Intended to use for hashing purposes.
     ///
@@ -286,18 +291,19 @@ pub const Event = struct {
         self: @This(),
         allocator: Allocator,
     ) PrepareErrors![]u8 {
-        var list: std.ArrayList(u8) = .init(allocator);
+        var list: std.Io.Writer.Allocating = .init(allocator);
         errdefer list.deinit();
 
-        try self.prepare(list.writer());
+        try self.prepare(&list.writer);
 
         return list.toOwnedSlice();
     }
+
     /// Format the struct into a human readable string.
     /// Intended to use for hashing purposes.
     pub fn prepare(
         self: @This(),
-        writer: anytype,
+        writer: *Writer,
     ) PrepareErrors!void {
         try writer.print("{s}", .{self.name});
 
@@ -320,8 +326,8 @@ pub const Error = struct {
     /// Format the struct into a human readable string.
     pub fn format(
         self: @This(),
-        writer: anytype,
-    ) std.Io.Writer.Error!void {
+        writer: *Writer,
+    ) Writer.Error!void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print(" {s}", .{self.name});
 
@@ -344,6 +350,7 @@ pub const Error = struct {
     ) (AbiEncoder.Errors || error{NoSpaceLeft} || Writer.Error)![]u8 {
         return encoder.encodeAbiError(self, allocator, values);
     }
+
     /// Decode a encoded error based on itself.
     /// Runtime reflection based on the provided values will occur to determine
     /// what is the correct method to use to encode the values.
@@ -363,6 +370,7 @@ pub const Error = struct {
         _ = self;
         return decoder.decodeAbiError(T, allocator, encoded, options);
     }
+
     /// Format the struct into a human readable string.
     /// Intended to use for hashing purposes.
     ///
@@ -371,18 +379,19 @@ pub const Error = struct {
         self: @This(),
         allocator: Allocator,
     ) PrepareErrors![]u8 {
-        var list: std.ArrayList(u8) = .init(allocator);
+        var list: Writer.Allocating = .init(allocator);
         errdefer list.deinit();
 
-        try self.prepare(list.writer());
+        try self.prepare(&list.writer);
 
         return list.toOwnedSlice();
     }
+
     /// Format the struct into a human readable string.
     /// Intended to use for hashing purposes.
     pub fn prepare(
         self: @This(),
-        writer: anytype,
+        writer: *Writer,
     ) PrepareErrors!void {
         try writer.print("{s}", .{self.name});
 
@@ -409,7 +418,7 @@ pub const Constructor = struct {
     /// Format the struct into a human readable string.
     pub fn format(
         self: @This(),
-        writer: anytype,
+        writer: *Writer,
     ) std.Io.Writer.Error!void {
         try writer.print("{s}", .{@tagName(self.type)});
 
@@ -422,6 +431,7 @@ pub const Constructor = struct {
 
         if (self.stateMutability != .nonpayable) try writer.print(" {s}", .{@tagName(self.stateMutability)});
     }
+
     /// Abi Encode the struct signature based on the values provided.
     ///
     /// Compile time reflection is used to encode based on type of the values provided.
@@ -434,6 +444,7 @@ pub const Constructor = struct {
 
         return encoder.encodeAbiParametersFromReflection(allocator, values);
     }
+
     /// Abi Encode the struct signature based on the values provided.
     ///
     /// This is only available if `self` is know at comptime. With this we will know the exact type
@@ -445,6 +456,7 @@ pub const Constructor = struct {
     ) AbiEncoder.Errors![]u8 {
         return encoder.encodeAbiParameters(self.inputs, allocator, values);
     }
+
     /// Decode a encoded constructor arguments based on itself.
     /// Runtime reflection based on the provided values will occur to determine
     /// what is the correct method to use to encode the values.
@@ -479,8 +491,8 @@ pub const Fallback = struct {
     /// Format the struct into a human readable string.
     pub fn format(
         self: @This(),
-        writer: anytype,
-    ) std.Io.Writer.Error!void {
+        writer: *Writer,
+    ) Writer.Error!void {
         try writer.print("{s}", .{@tagName(self.type)});
         try writer.print("()", .{});
 
@@ -551,8 +563,8 @@ pub const AbiItem = union(enum) {
 
     pub fn format(
         self: @This(),
-        writer: anytype,
-    ) std.Io.Writer.Error!void {
+        writer: *Writer,
+    ) Writer.Error!void {
         switch (self) {
             inline else => |value| try value.format(writer),
         }

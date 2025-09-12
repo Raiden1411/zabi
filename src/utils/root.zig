@@ -4,8 +4,6 @@ pub const args = @import("args.zig");
 pub const channel = @import("channel.zig");
 /// Constant values used in zabi.
 pub const constants = @import("constants.zig");
-/// Previous std impl of a FIFO data structure
-pub const fifo = @import("fifo.zig");
 /// Custom dotenv loader.
 pub const env_load = @import("env_load.zig");
 /// Custom data generator used mostly for fuzzing.

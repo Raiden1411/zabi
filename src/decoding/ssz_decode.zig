@@ -82,19 +82,6 @@ pub fn decodeSSZ(comptime T: type, serialized: []const u8) SSZDecodeErrors!T {
         .vector => |vec_info| {
             var result: T = undefined;
 
-            if (vec_info.child == bool) {
-                for (serialized, 0..) |byte, bindex| {
-                    var index: u8 = 0;
-                    var bit = byte;
-                    while (bindex * 8 + index < vec_info.len and index < 8) : (index += 1) {
-                        result[bindex * 8 + index] = bit & 1 == 1;
-                        bit >>= 1;
-                    }
-                }
-
-                return result;
-            }
-
             comptime var index = 0;
             const size = @sizeOf(vec_info.child);
 

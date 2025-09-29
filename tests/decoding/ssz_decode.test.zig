@@ -160,20 +160,10 @@ test "Decode Optional" {
 }
 
 test "Decode Vector" {
-    {
-        const encoded: @Vector(12, bool) = .{ true, false, true, true, false, false, false, true, false, true, false, true };
-        const slice = [_]u8{ 0x8D, 0x0A };
+    const encoded: @Vector(2, u16) = .{ 0xABCD, 0xEF01 };
+    const slice = &[_]u8{ 0xCD, 0xAB, 0x01, 0xEF };
 
-        const decoded = try decodeSSZ(@Vector(12, bool), &slice);
+    const decoded = try decodeSSZ(@Vector(2, u16), slice);
 
-        try testing.expectEqualDeep(encoded, decoded);
-    }
-    {
-        const encoded: @Vector(2, u16) = .{ 0xABCD, 0xEF01 };
-        const slice = &[_]u8{ 0xCD, 0xAB, 0x01, 0xEF };
-
-        const decoded = try decodeSSZ(@Vector(2, u16), slice);
-
-        try testing.expectEqualDeep(encoded, decoded);
-    }
+    try testing.expectEqualDeep(encoded, decoded);
 }

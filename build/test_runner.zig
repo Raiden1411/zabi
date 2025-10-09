@@ -171,7 +171,7 @@ pub fn main() !void {
             else => {
                 try runner.writeFail();
                 if (@errorReturnTrace()) |trace|
-                    std.debug.dumpStackTrace(trace.*);
+                    std.debug.dumpStackTrace(trace);
             },
         }
 

@@ -143,7 +143,7 @@ pub fn main() !void {
         return;
 
     var writer_buffer: [1024]u8 = undefined;
-    const writer = std.debug.lockStderrWriter(&writer_buffer);
+    const writer, _ = std.debug.lockStderrWriter(&writer_buffer);
     defer std.debug.unlockStderrWriter();
 
     var runner: Runner = .{

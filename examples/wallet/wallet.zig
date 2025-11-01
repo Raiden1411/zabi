@@ -14,6 +14,9 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
+    var threaded_io: std.Io.Threaded = .init(gpa.allocator());
+    defer threaded_io.deinit();
+
     var iter = try std.process.argsWithAllocator(gpa.allocator());
     defer iter.deinit();
 
@@ -22,6 +25,7 @@ pub fn main() !void {
     const uri = try std.Uri.parse(parsed.url);
     var provider = try HttpProvider.init(.{
         .allocator = gpa.allocator(),
+        .io = threaded_io.io(),
         .network_config = .{ .endpoint = .{ .uri = uri } },
     });
     defer provider.deinit();

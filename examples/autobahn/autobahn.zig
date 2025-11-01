@@ -8,6 +8,9 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.detectLeaks();
 
+    var threaded_io: std.Io.Threaded = .init(gpa.allocator());
+    defer threaded_io.deinit();
+
     const allocator = gpa.allocator();
 
     const cases = [_][]const u8{
@@ -32,14 +35,14 @@ pub fn main() !void {
         "9.7.1",   "9.7.2",   "9.7.3",   "9.7.4",   "9.7.5",   "9.7.6",   "9.8.1",   "9.8.2",   "9.8.3",   "9.8.4",   "9.8.5",   "9.8.6",   "10.1.1",
     };
 
-    // wait 5 seconds for autobanh server to be up
-    std.Thread.sleep(std.time.ns_per_s * 1);
+    // wait 1 seconds for autobanh server to be up
+    try threaded_io.io().sleep(std.Io.Duration.fromSeconds(std.time.ns_per_s), .real);
 
     for (cases, 0..) |case, i| {
         std.debug.print("running case: {s}\n", .{case});
 
         {
-            var auto = try AutoBanh.init(allocator, case);
+            var auto = try AutoBanh.init(allocator, threaded_io.io(), case);
             defer auto.deinit(allocator);
 
             auto.readLoop() catch |err| switch (err) {
@@ -57,15 +60,15 @@ pub fn main() !void {
         }
 
         if (@rem(i, 10) == 0) {
-            try updateReport(allocator);
+            try updateReport(allocator, threaded_io.io());
         }
     }
-    try updateReport(allocator);
+    try updateReport(allocator, threaded_io.io());
 }
 
-fn updateReport(allocator: Allocator) !void {
+fn updateReport(allocator: Allocator, io: std.Io) !void {
     const uri = try std.Uri.parse("http://localhost:9001/updateReports?agent=zabi.zig");
-    var client = try WebSocketClient.connect(allocator, uri);
+    var client = try WebSocketClient.connect(allocator, io, uri);
     defer {
         client.deinit();
         client.connection.destroyConnection(allocator);
@@ -78,12 +81,12 @@ fn updateReport(allocator: Allocator) !void {
 const AutoBanh = struct {
     client: WebSocketClient,
 
-    pub fn init(allocator: Allocator, case: []const u8) !AutoBanh {
+    pub fn init(allocator: Allocator, io: std.Io, case: []const u8) !AutoBanh {
         const path = try std.fmt.allocPrint(allocator, "http://localhost:9001/runCase?casetuple={s}&agent=zabi.zig", .{case});
         defer allocator.free(path);
 
         const uri = try std.Uri.parse(path);
-        var client = try WebSocketClient.connect(allocator, uri);
+        var client = try WebSocketClient.connect(allocator, io, uri);
 
         try client.handshake("localhost:9001");
 

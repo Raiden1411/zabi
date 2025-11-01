@@ -16,12 +16,16 @@ pub fn main() !void {
     var iter = try std.process.argsWithAllocator(gpa.allocator());
     defer iter.deinit();
 
+    var threaded_io: std.Io.Threaded = .init(gpa.allocator());
+    defer threaded_io.deinit();
+
     const parsed = args_parser.parseArgs(CliOptions, gpa.allocator(), &iter);
 
     const uri = try std.Uri.parse(parsed.url);
 
     var socket = try WebProvider.init(.{
         .network_config = .{ .endpoint = .{ .uri = uri } },
+        .io = threaded_io.io(),
         .allocator = gpa.allocator(),
     });
     defer socket.deinit();

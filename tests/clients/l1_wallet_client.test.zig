@@ -10,6 +10,9 @@ const Wallet = @import("zabi").clients.Wallet;
 const WithdrawalEnvelope = withdrawl.WithdrawalEnvelope;
 
 test "InitiateWithdrawal" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://localhost:6969/");
 
     var buffer: Hash = undefined;
@@ -17,6 +20,7 @@ test "InitiateWithdrawal" {
 
     var http_provider = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .op_stack_contracts = .{},

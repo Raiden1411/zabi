@@ -12,6 +12,9 @@ const IpcProvider = @import("zabi").clients.Provider.IpcProvider;
 
 test "DeployContract" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const abi: abitypes.Constructor = .{
             .type = .constructor,
             .inputs = &.{},
@@ -21,6 +24,7 @@ test "DeployContract" {
         const uri = try std.Uri.parse("http://localhost:6969/");
         var client = try WebsocketProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -41,6 +45,8 @@ test "DeployContract" {
         defer hash.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
         const abi: abitypes.Constructor = .{
             .type = .constructor,
             .inputs = &.{},
@@ -49,6 +55,7 @@ test "DeployContract" {
 
         var client = try IpcProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -68,6 +75,9 @@ test "DeployContract" {
         defer hash.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const abi: abitypes.Constructor = .{
             .type = .constructor,
             .inputs = &.{},
@@ -77,6 +87,7 @@ test "DeployContract" {
         const uri = try std.Uri.parse("http://localhost:6969/");
         var client = try HttpProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -98,6 +109,9 @@ test "DeployContract" {
 
 test "WriteContract" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const abi: abitypes.Function = .{
             .type = .function,
             .inputs = &.{
@@ -112,6 +126,7 @@ test "WriteContract" {
         const uri = try std.Uri.parse("http://localhost:6969/");
         var client = try HttpProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -134,6 +149,9 @@ test "WriteContract" {
         defer result.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const abi: abitypes.Function = .{
             .type = .function,
             .inputs = &.{
@@ -148,6 +166,7 @@ test "WriteContract" {
         const uri = try std.Uri.parse("http://localhost:6969/");
         var client = try WebsocketProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -171,6 +190,9 @@ test "WriteContract" {
         defer result.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const abi: abitypes.Function = .{
             .type = .function,
             .inputs = &.{
@@ -184,6 +206,7 @@ test "WriteContract" {
 
         var client = try IpcProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -207,6 +230,9 @@ test "WriteContract" {
         defer result.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const abi: abitypes.Function = .{
             .type = .function,
             .inputs = &.{
@@ -220,6 +246,7 @@ test "WriteContract" {
         const uri = try std.Uri.parse("http://localhost:6969/");
         var client = try HttpProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -242,6 +269,9 @@ test "WriteContract" {
 
 test "SimulateWriteCall" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const abi: abitypes.Function = .{
             .type = .function,
             .inputs = &.{
@@ -255,6 +285,7 @@ test "SimulateWriteCall" {
 
         const uri = try std.Uri.parse("http://localhost:6969/");
         var client = try HttpProvider.init(.{
+            .io = threaded_io.io(),
             .allocator = testing.allocator,
             .network_config = .{
                 .endpoint = .{ .uri = uri },
@@ -275,6 +306,9 @@ test "SimulateWriteCall" {
         defer result.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const abi: abitypes.Function = .{
             .type = .function,
             .inputs = &.{
@@ -289,6 +323,7 @@ test "SimulateWriteCall" {
         const uri = try std.Uri.parse("http://localhost:6969/");
         var client = try WebsocketProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -309,6 +344,9 @@ test "SimulateWriteCall" {
         defer result.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const abi: abitypes.Function = .{
             .type = .function,
             .inputs = &.{
@@ -322,6 +360,7 @@ test "SimulateWriteCall" {
 
         var client = try IpcProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -342,6 +381,9 @@ test "SimulateWriteCall" {
         defer result.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const abi: abitypes.Function = .{
             .type = .function,
             .inputs = &.{
@@ -356,6 +398,7 @@ test "SimulateWriteCall" {
         const uri = try std.Uri.parse("http://localhost:6969/");
         var client = try WebsocketProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },

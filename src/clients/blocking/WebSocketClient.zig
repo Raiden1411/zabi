@@ -11,19 +11,21 @@ const TlsAlertErrors = std.crypto.tls.Alert.Description.Error;
 const Allocator = std.mem.Allocator;
 const Base64Encoder = std.base64.standard.Encoder;
 const CertificateBundle = std.crypto.Certificate.Bundle;
+const HostName = Io.net.HostName;
+const Io = std.Io;
 const OpcodeHeader = std.http.Server.WebSocket.Header0;
 const Opcode = std.http.Server.WebSocket.Opcode;
 const PayloadHeader = std.http.Server.WebSocket.Header1;
 const Protocol = std.http.Client.Protocol;
-const Reader = std.Io.Reader;
+const Reader = Io.Reader;
 const Scanner = std.json.Scanner;
 const Sha1 = std.crypto.hash.Sha1;
-const Stream = std.net.Stream;
-const TcpConnectToHostError = std.net.TcpConnectToHostError;
+const Stream = Io.net.Stream;
+const TcpConnectToHostError = Io.net.IpAddress.ConnectError || HostName.LookupError;
 const TlsClient = std.crypto.tls.Client;
 const Uri = std.Uri;
 const Value = std.json.Value;
-const Writer = std.Io.Writer;
+const Writer = Io.Writer;
 
 pub const disable_tls = std.options.http_disable_tls;
 
@@ -99,21 +101,21 @@ pub const Connection = struct {
     stream_writer: Stream.Writer,
     /// The reader that will be used to read data from the socket.
     stream_reader: Stream.Reader,
-    /// The uri that this client is connected too.
-    uri: Uri,
     /// The http protocol that this connection will use.
     protocol: Protocol,
     /// The allocated size of hostname
     host_len: u8,
+    /// Uri of the host
+    uri: Uri,
 
     /// Closes the network connection
     ///
     /// If the connection is a tls connection it will send and `end` message and flushes it.
-    pub fn close(self: *Connection) void {
+    pub fn close(self: *Connection, io: Io) void {
         self.end() catch {};
 
-        std.posix.shutdown(self.getStream().handle, .both) catch {};
-        self.getStream().close();
+        std.posix.shutdown(self.getStream().socket.handle, .both) catch {};
+        self.getStream().close(io);
     }
 
     /// Frees the memory associated with the reader and writer buffers
@@ -155,7 +157,7 @@ pub const Connection = struct {
 
     /// Gets the network stream associated with this connection
     pub fn getStream(self: *Connection) Stream {
-        return self.stream_reader.getStream();
+        return self.stream_reader.stream;
     }
 
     /// Gets the hostname associated with this connection
@@ -183,7 +185,7 @@ pub const Connection = struct {
                 const tls: *Tls = @alignCast(@fieldParentPtr("connection", self));
                 return &tls.tls_client.reader;
             },
-            .plain => self.stream_reader.interface(),
+            .plain => &self.stream_reader.interface,
         };
     }
 
@@ -210,29 +212,28 @@ pub const Connection = struct {
         /// Creates the pointer and any buffers that the readers and writers need.
         pub fn create(
             allocator: Allocator,
+            io: Io,
+            host: HostName,
             uri: Uri,
             stream: Stream,
         ) !*Plain {
-            var host_name_buffer: [Uri.host_name_max]u8 = undefined;
-            const hostname = try uri.getHost(&host_name_buffer);
-
-            const base = try allocator.alignedAlloc(u8, .of(Plain), allocation_length + hostname.len);
+            const base = try allocator.alignedAlloc(u8, .of(Plain), allocation_length + host.bytes.len);
             errdefer allocator.free(base);
 
-            const host = base[@sizeOf(Plain)..][0..hostname.len];
-            const socket_read_buffer = host.ptr[host.len..][0..read_buffer_size];
+            const hostname = base[@sizeOf(Plain)..][0..host.bytes.len];
+            const socket_read_buffer = hostname.ptr[hostname.len..][0..read_buffer_size];
             const socket_write_buffer = socket_read_buffer.ptr[socket_read_buffer.len..][0..write_buffer_size];
 
             const plain: *Plain = @ptrCast(base);
-            @memcpy(host, hostname);
+            @memcpy(hostname, host.bytes);
 
             plain.* = .{
                 .connection = .{
-                    .stream_writer = stream.writer(socket_write_buffer),
-                    .stream_reader = stream.reader(socket_read_buffer),
-                    .uri = uri,
+                    .stream_writer = stream.writer(io, socket_write_buffer),
+                    .stream_reader = stream.reader(io, socket_read_buffer),
                     .protocol = .plain,
-                    .host_len = @intCast(hostname.len),
+                    .host_len = @intCast(host.bytes.len),
+                    .uri = uri,
                 },
             };
 
@@ -247,9 +248,9 @@ pub const Connection = struct {
         }
 
         /// Gets the hostname associated with this connection
-        pub fn getHostname(plain: *Plain) []u8 {
+        pub fn getHostname(plain: *Plain) HostName {
             const base: [*]u8 = @ptrCast(plain);
-            return base[@sizeOf(Plain)..][0..plain.connection.host_len];
+            return .{ .bytes = base[@sizeOf(Plain)..][0..plain.connection.host_len] };
         }
     };
 
@@ -268,41 +269,44 @@ pub const Connection = struct {
         /// Creates the pointer and any buffers that the readers and writers need.
         pub fn create(
             allocator: Allocator,
+            io: Io,
+            host: HostName,
             uri: Uri,
             stream: Stream,
         ) !*Tls {
-            var host_name_buffer: [Uri.host_name_max]u8 = undefined;
-            const hostname = try uri.getHost(&host_name_buffer);
-
-            const base = try allocator.alignedAlloc(u8, .of(Tls), allocation_length + hostname.len);
+            const base = try allocator.alignedAlloc(u8, .of(Tls), allocation_length + host.bytes.len);
             errdefer allocator.free(base);
 
-            const host = base[@sizeOf(Tls)..][0..hostname.len];
-            const tls_read_buffer = host.ptr[host.len..][0 .. tls_buffer_size + read_buffer_size];
+            const hostname = base[@sizeOf(Tls)..][0..host.bytes.len];
+            const tls_read_buffer = hostname.ptr[hostname.len..][0 .. tls_buffer_size + read_buffer_size];
             const tls_write_buffer = tls_read_buffer.ptr[tls_read_buffer.len..][0..tls_buffer_size];
 
             const write_buffer = tls_write_buffer.ptr[tls_write_buffer.len..][0..write_buffer_size];
             const read_buffer = write_buffer.ptr[write_buffer.len..][0..tls_buffer_size];
 
+            var entropy: [176]u8 = undefined;
+            std.crypto.random.bytes(&entropy);
+
             const tls: *Tls = @ptrCast(base);
 
-            @memcpy(host, hostname);
+            @memcpy(hostname, host.bytes);
 
             var bundle: CertificateBundle = .{};
             defer bundle.deinit(allocator);
 
-            try bundle.rescan(allocator);
+            const time = try Io.Clock.real.now(io);
+            try bundle.rescan(allocator, io, time);
 
             tls.* = .{
                 .connection = .{
-                    .stream_writer = stream.writer(tls_write_buffer),
-                    .stream_reader = stream.reader(tls_read_buffer),
-                    .uri = uri,
+                    .stream_writer = stream.writer(io, tls_write_buffer),
+                    .stream_reader = stream.reader(io, tls_read_buffer),
                     .protocol = .tls,
-                    .host_len = @intCast(hostname.len),
+                    .host_len = @intCast(host.bytes.len),
+                    .uri = uri,
                 },
                 .tls_client = try TlsClient.init(
-                    tls.connection.stream_reader.interface(),
+                    &tls.connection.stream_reader.interface,
                     &tls.connection.stream_writer.interface,
                     .{
                         .host = .{ .explicit = hostname },
@@ -313,6 +317,8 @@ pub const Connection = struct {
                         // This is appropriate for HTTPS because the HTTP headers contain
                         // the content length which is used to detect truncation attacks.
                         .allow_truncation_attacks = true,
+                        .entropy = &entropy,
+                        .realtime_now_seconds = time.toSeconds(),
                     },
                 ),
             };
@@ -329,13 +335,15 @@ pub const Connection = struct {
         /// Gets the hostname associated with this connection
         pub fn getHostname(tls: *Tls) []u8 {
             const base: [*]u8 = @ptrCast(Tls);
-            return base[@sizeOf(Tls)..][0..tls.connection.host_len];
+            return .{ .bytes = base[@sizeOf(Tls)..][0..tls.connection.host_len] };
         }
     };
 };
 
 /// Clients allocator used to allocate the read and write buffers
 allocator: Allocator,
+/// Io implementation used for this client.
+io: Io,
 /// Wrapper stream of a `std.net.Stream` and a `std.crypto.tls.Client`.
 connection: *Connection,
 /// Fifo structure that builds websocket frames that are fragmeneted.
@@ -350,6 +358,7 @@ closed: bool,
 /// This doesn't perform the handshake to the server. That must be done seperatly.
 pub fn connect(
     allocator: Allocator,
+    io: Io,
     uri: Uri,
 ) !WebsocketClient {
     const scheme = Protocol.fromScheme(uri.scheme) orelse return error.UnsupportedSchema;
@@ -359,10 +368,8 @@ pub fn connect(
         .tls => 443,
     };
 
-    const hostname = switch (uri.host orelse return error.UnspecifiedHostName) {
-        .raw => |raw| raw,
-        .percent_encoded => |host| host,
-    };
+    var host_buffer: [HostName.max_len]u8 = undefined;
+    const hostname = try uri.getHost(&host_buffer);
 
     const storage: Writer.Allocating = .init(allocator);
     const fragment: Fragment = .{
@@ -370,16 +377,17 @@ pub fn connect(
         .message_type = null,
     };
 
-    const stream = try std.net.tcpConnectToHost(allocator, hostname, port);
-    errdefer stream.close();
+    const stream = try hostname.connect(io, port, .{ .mode = .stream });
+    errdefer stream.close(io);
 
     const connection = switch (scheme) {
-        .plain => &(try Connection.Plain.create(allocator, uri, stream)).connection,
-        .tls => &(try Connection.Tls.create(allocator, uri, stream)).connection,
+        .plain => &(try Connection.Plain.create(allocator, io, hostname, uri, stream)).connection,
+        .tls => &(try Connection.Tls.create(allocator, io, hostname, uri, stream)).connection,
     };
 
     return .{
         .allocator = allocator,
+        .io = io,
         .fragment = fragment,
         .connection = connection,
         .storage = storage,
@@ -394,7 +402,7 @@ pub fn close(
 ) void {
     if (@atomicRmw(bool, &self.closed, .Xchg, true, .acq_rel) == false) {
         self.writeCloseFrame(exit_code) catch {};
-        self.connection.close();
+        self.connection.close(self.io);
     }
 }
 
@@ -864,12 +872,15 @@ pub fn writeHeaderFrameVecUnflushed(
 }
 
 test "handshake" {
+    var threaded_io: Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const path = try std.fmt.allocPrint(testing.allocator, "http://localhost:9001/runCase?casetuple={s}&agent=zabi.zig", .{"9.7.6"});
     defer testing.allocator.free(path);
 
     const uri = try std.Uri.parse(path);
 
-    var client = try WebsocketClient.connect(testing.allocator, uri);
+    var client = try WebsocketClient.connect(testing.allocator, threaded_io.io(), uri);
     defer {
         client.deinit();
         client.connection.destroyConnection(testing.allocator);
@@ -879,7 +890,7 @@ test "handshake" {
 
     while (true) {
         const message = client.readMessage() catch |err| switch (err) {
-            error.EndOfStream => client.close(1002),
+            error.EndOfStream => return client.close(1002),
             error.InvalidUtf8Payload => {
                 client.close(1007);
                 return err;

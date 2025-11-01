@@ -7,6 +7,9 @@ const HttpProvider = @import("zabi").clients.Provider.HttpProvider;
 const Anvil = @import("zabi").clients.Anvil;
 
 test "Reset Anvil" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const mainnet = try std.process.getEnvVarOwned(testing.allocator, "ANVIL_FORK_URL");
     defer testing.allocator.free(mainnet);
 
@@ -15,6 +18,7 @@ test "Reset Anvil" {
 
     anvil.initClient(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
     });
 
     try anvil.reset(.{
@@ -26,9 +30,12 @@ test "Reset Anvil" {
 }
 
 test "ENS Text" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
     var ens = try HttpProvider.init(
         .{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = test_clients.anvil_mainnet,
         },
     );
@@ -39,9 +46,12 @@ test "ENS Text" {
 
 test "ENS Name" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
         var ens = try HttpProvider.init(
             .{
                 .allocator = testing.allocator,
+                .io = threaded_io.io(),
                 .network_config = test_clients.anvil_mainnet,
             },
         );
@@ -56,9 +66,12 @@ test "ENS Name" {
 }
 
 test "ENS Address" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
     var ens = try HttpProvider.init(
         .{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = test_clients.anvil_mainnet,
         },
     );
@@ -72,9 +85,12 @@ test "ENS Address" {
 }
 
 test "ENS Resolver" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
     var ens = try HttpProvider.init(
         .{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = test_clients.anvil_mainnet,
         },
     );

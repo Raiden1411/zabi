@@ -27,6 +27,7 @@ const ExplorerTransaction = explorer.ExplorerTransaction;
 const GetSourceResult = explorer.GetSourceResult;
 const Hash = types.Hash;
 const HttpClient = std.http.Client;
+const Io = std.Io;
 const InternalExplorerTransaction = explorer.InternalExplorerTransaction;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const LogRequest = explorer.LogRequest;
@@ -134,7 +135,10 @@ pub const Actions = enum {
 
 /// The client init options
 pub const InitOpts = struct {
+    /// Allocator used for this client
     allocator: Allocator,
+    /// Io implementation used for this client
+    io: Io,
     /// The Explorer api key.
     apikey: []const u8,
     /// Set of supported endpoints.
@@ -208,6 +212,8 @@ pub const QueryParameters = struct {
 apikey: []const u8,
 /// The allocator of this client.
 allocator: Allocator,
+/// Io implementation used for this client.
+io: Io,
 /// The underlaying http client.
 client: HttpClient,
 /// Set of supported endpoints.
@@ -230,8 +236,9 @@ pub fn init(opts: InitOpts) Explorer {
     return .{
         .allocator = opts.allocator,
         .apikey = opts.apikey,
-        .client = .{ .allocator = opts.allocator },
+        .client = .{ .allocator = opts.allocator, .io = opts.io },
         .endpoint = opts.endpoint,
+        .io = opts.io,
         .retries = opts.retries,
     };
 }
@@ -789,7 +796,7 @@ pub fn getTransactionStatus(self: *Explorer, hash: Hash) !ExplorerResponse(Trans
 ///
 /// `value` must be a non tuple struct type.
 pub fn sendRequest(self: *Explorer, comptime T: type, uri: Uri) !ExplorerResponse(T) {
-    var body: std.Io.Writer.Allocating = .init(self.allocator);
+    var body: Io.Writer.Allocating = .init(self.allocator);
     defer body.deinit();
 
     var retries: u8 = 0;
@@ -816,7 +823,7 @@ pub fn sendRequest(self: *Explorer, comptime T: type, uri: Uri) !ExplorerRespons
                 // Clears any message that was written
                 body.shrinkRetainingCapacity(0);
 
-                std.Thread.sleep(std.time.ns_per_ms * backoff);
+                try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
                 continue;
             },
             else => {

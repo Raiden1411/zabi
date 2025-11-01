@@ -11,6 +11,7 @@ const FetchResult = std.http.Client.FetchResult;
 const Hardhat = @This();
 const Hash = types.Hash;
 const Hex = types.Hex;
+const Io = std.Io;
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
 const ParseOptions = std.json.ParseOptions;
@@ -18,7 +19,7 @@ const Value = std.json.Value;
 
 /// Set of errors while fetching from a json rpc http endpoint.
 pub const FetchErrors = Allocator.Error || Client.RequestError || Client.Request.ReceiveHeadError ||
-    std.Io.Writer.Error || std.Io.Reader.Error || std.Uri.ParseError || error{ StreamTooLong, InvalidRequest, UnsupportedCompressionMethod };
+    Io.Writer.Error || Io.Reader.Error || std.Uri.ParseError || error{ StreamTooLong, InvalidRequest, UnsupportedCompressionMethod };
 
 /// Values needed for the `hardhat_reset` request.
 pub const Forking = struct {
@@ -129,6 +130,8 @@ pub const HardhatMethods = enum {
 pub const StartUpOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
     allocator: Allocator,
+    /// Io implementation to use for the http client
+    io: Io,
     /// The localhost address.
     localhost: []const u8 = "http://127.0.0.1:8545/",
 };
@@ -147,7 +150,7 @@ pub fn initClient(
     self.* = .{
         .allocator = opts.allocator,
         .localhost = try std.Uri.parse(opts.localhost),
-        .http_client = std.http.Client{ .allocator = opts.allocator },
+        .http_client = std.http.Client{ .allocator = opts.allocator, .io = opts.io },
     };
 }
 /// Cleans up the http client

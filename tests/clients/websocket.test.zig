@@ -9,10 +9,14 @@ const WebSocketHandler = @import("zabi").clients.Provider.WebsocketProvider;
 
 test "BlockByNumber" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -25,10 +29,14 @@ test "BlockByNumber" {
         defer block_number.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -40,10 +48,14 @@ test "BlockByNumber" {
         defer block_number.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -55,10 +67,14 @@ test "BlockByNumber" {
         defer block_number.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -73,10 +89,14 @@ test "BlockByNumber" {
 
 test "BlockByHash" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -92,10 +112,14 @@ test "BlockByHash" {
         try testing.expect(block_number.response == .beacon);
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -116,10 +140,14 @@ test "BlockByHash" {
 }
 
 test "BlockTransactionCountByHash" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -135,10 +163,14 @@ test "BlockTransactionCountByHash" {
 
 test "BlockTransactionCountByNumber" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -152,10 +184,14 @@ test "BlockTransactionCountByNumber" {
         try testing.expectEqual(block_number.response, 0);
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -172,10 +208,14 @@ test "BlockTransactionCountByNumber" {
 
 test "AddressBalance" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -192,10 +232,14 @@ test "AddressBalance" {
         try testing.expectEqual(block_number.response, 0);
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -214,10 +258,14 @@ test "AddressBalance" {
 
 test "AddressNonce" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -233,10 +281,14 @@ test "AddressNonce" {
         try testing.expect(block_number.response != 0);
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -255,10 +307,14 @@ test "AddressNonce" {
 }
 
 test "BlockNumber" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -273,10 +329,14 @@ test "BlockNumber" {
 }
 
 test "GetChainId" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -292,10 +352,14 @@ test "GetChainId" {
 
 test "GetStorage" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -309,10 +373,14 @@ test "GetStorage" {
         try testing.expectEqual(@as(u256, @bitCast(storage.response)), 0);
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -328,10 +396,14 @@ test "GetStorage" {
 }
 
 test "GetAccounts" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -349,10 +421,14 @@ test "GetAccounts" {
 test "GetContractCode" {
     if (true) return error.SkipZigTest;
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -368,10 +444,14 @@ test "GetContractCode" {
         try testing.expect(code.response.len != 0);
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -390,10 +470,14 @@ test "GetContractCode" {
 }
 
 test "GetTransactionByHash" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -409,10 +493,14 @@ test "GetTransactionByHash" {
 }
 
 test "GetReceipt" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -429,10 +517,14 @@ test "GetReceipt" {
 
 test "GetFilter" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -446,10 +538,14 @@ test "GetFilter" {
         try testing.expectEqual(filter.response.len, 0);
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -463,10 +559,14 @@ test "GetFilter" {
         try testing.expectEqual(filter.response.len, 0);
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -479,10 +579,14 @@ test "GetFilter" {
 }
 
 test "GetGasPrice" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -497,10 +601,14 @@ test "GetGasPrice" {
 }
 
 test "GetUncleCountByBlockHash" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -516,10 +624,14 @@ test "GetUncleCountByBlockHash" {
 
 test "GetUncleCountByBlockNumber" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -533,10 +645,14 @@ test "GetUncleCountByBlockNumber" {
         try testing.expectEqual(uncle.response, 0);
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -553,10 +669,14 @@ test "GetUncleCountByBlockNumber" {
 
 test "GetUncleByBlockNumberAndIndex" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -567,10 +687,14 @@ test "GetUncleByBlockNumberAndIndex" {
         try testing.expectError(error.InvalidBlockNumberOrIndex, client.provider.getUncleByBlockNumberAndIndex(.{}, 0));
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -586,10 +710,14 @@ test "GetUncleByBlockNumberAndIndex" {
 }
 
 test "GetUncleByBlockHashAndIndex" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -605,10 +733,14 @@ test "GetUncleByBlockHashAndIndex" {
 
 test "GetTransactionByBlockNumberAndIndex" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -619,10 +751,14 @@ test "GetTransactionByBlockNumberAndIndex" {
         try testing.expectError(error.TransactionNotFound, client.provider.getTransactionByBlockNumberAndIndex(.{}, 0));
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -639,10 +775,14 @@ test "GetTransactionByBlockNumberAndIndex" {
 
 test "EstimateGas" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -653,10 +793,14 @@ test "EstimateGas" {
         try testing.expectError(error.TransactionRejected, client.provider.estimateGas(.{ .london = .{ .gas = 10 } }, .{}));
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -667,10 +811,14 @@ test "EstimateGas" {
         try testing.expectError(error.InvalidInput, client.provider.estimateGas(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -684,10 +832,14 @@ test "EstimateGas" {
         try testing.expect(fee.response != 0);
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -701,10 +853,14 @@ test "EstimateGas" {
 
 test "CreateAccessList" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -718,10 +874,14 @@ test "CreateAccessList" {
         try testing.expect(access.response.gasUsed != 0);
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -732,10 +892,14 @@ test "CreateAccessList" {
         try testing.expectError(error.InvalidInput, client.provider.createAccessList(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -751,10 +915,14 @@ test "CreateAccessList" {
 }
 
 test "GetNetworkPeerCount" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -766,10 +934,14 @@ test "GetNetworkPeerCount" {
 }
 
 test "GetNetworkVersionId" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -784,10 +956,14 @@ test "GetNetworkVersionId" {
 }
 
 test "GetNetworkListenStatus" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -802,10 +978,14 @@ test "GetNetworkListenStatus" {
 }
 
 test "GetSha3Hash" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -817,10 +997,14 @@ test "GetSha3Hash" {
 }
 
 test "GetClientVersion" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -836,10 +1020,14 @@ test "GetClientVersion" {
 
 test "BlobBaseFee" {
     if (true) return error.SkipZigTest;
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -854,10 +1042,14 @@ test "BlobBaseFee" {
 }
 
 test "EstimateBlobMaxFeePerGas" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -871,10 +1063,14 @@ test "EstimateBlobMaxFeePerGas" {
 }
 
 test "EstimateMaxFeePerGas" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -891,10 +1087,14 @@ test "EstimateMaxFeePerGas" {
 test "EstimateFeePerGas" {
     if (true) return error.SkipZigTest;
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -908,10 +1108,14 @@ test "EstimateFeePerGas" {
         try testing.expect(fee.london.max_priority_fee != 0);
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -924,10 +1128,14 @@ test "EstimateFeePerGas" {
         try testing.expect(fee.legacy.gas_price != 0);
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -943,28 +1151,36 @@ test "EstimateFeePerGas" {
 }
 
 test "GetProof" {
-    // {
-    //     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
-    //
-    //     var client = try WebSocketHandler.init(.{
-    //         .allocator = testing.allocator,
-    //         .network_config = .{
-    //             .endpoint = .{ .uri = uri },
-    //         },
-    //     });
-    //     defer client.deinit();
-    //     try client.readLoopSeperateThread();
-    //
-    //     const proofs = try client.provider.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{}, .blockNumber = 101010 }, null);
-    //     defer proofs.deinit();
-    //
-    //     try testing.expect(proofs.response.balance != 0);
-    // }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
+            .network_config = .{
+                .endpoint = .{ .uri = uri },
+            },
+        });
+        defer client.deinit();
+        try client.readLoopSeperateThread();
+
+        const proofs = try client.provider.getProof(.{ .address = [_]u8{0} ** 20, .storageKeys = &.{}, .blockNumber = 101010 }, null);
+        defer proofs.deinit();
+
+        try testing.expect(proofs.response.balance != 0);
+    }
+    {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
+        const uri = try std.Uri.parse("http://127.0.0.1:6969/");
+
+        var client = try WebSocketHandler.init(.{
+            .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -981,10 +1197,14 @@ test "GetProof" {
 
 test "GetLogs" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -996,10 +1216,14 @@ test "GetLogs" {
         defer logs.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -1014,10 +1238,14 @@ test "GetLogs" {
 
 test "NewLogFilter" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -1029,10 +1257,14 @@ test "NewLogFilter" {
         defer logs.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -1046,10 +1278,14 @@ test "NewLogFilter" {
 }
 
 test "NewBlockFilter" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -1062,10 +1298,14 @@ test "NewBlockFilter" {
 }
 
 test "NewPendingTransactionFilter" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -1078,10 +1318,14 @@ test "NewPendingTransactionFilter" {
 }
 
 test "UninstallFilter" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -1094,10 +1338,14 @@ test "UninstallFilter" {
 }
 
 test "GetProtocolVersion" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -1109,10 +1357,14 @@ test "GetProtocolVersion" {
 }
 
 test "SyncStatus" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
     var client = try WebSocketHandler.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -1128,10 +1380,14 @@ test "FeeHistory" {
     if (true) return error.SkipZigTest;
 
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -1143,10 +1399,14 @@ test "FeeHistory" {
         defer status.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -1158,10 +1418,14 @@ test "FeeHistory" {
         defer status.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -1173,10 +1437,14 @@ test "FeeHistory" {
         defer status.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
 
         var client = try WebSocketHandler.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },

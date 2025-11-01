@@ -44,8 +44,6 @@ const Runner = struct {
             try writer.writeAll("warning: ");
             self.color_stream.setNextColor(.bold);
             try writer.writeAll("Test will run but client tests might fail\n\n");
-
-            std.Thread.sleep(std.time.ns_per_s);
         };
     }
     /// Writes the test module name.
@@ -144,9 +142,12 @@ pub fn main() !void {
     if (test_funcs.len <= 1)
         return;
 
-    var writer = std.fs.File.stderr().writer(&.{}).interface;
+    var writer_buffer: [1024]u8 = undefined;
+    const writer = std.debug.lockStderrWriter(&writer_buffer);
+    defer std.debug.unlockStderrWriter();
+
     var runner: Runner = .{
-        .color_stream = .init(&writer, &.{}),
+        .color_stream = .init(writer, &.{}),
         .result = .{},
     };
     try runner.resetAnvilInstance(std.heap.page_allocator);
@@ -184,13 +185,16 @@ pub fn main() !void {
 
 /// Connects to the anvil instance. Fails if it cant.
 fn startAnvilInstances(allocator: std.mem.Allocator) !void {
+    var threaded_io: std.Io.Threaded = .init(allocator);
+    defer threaded_io.deinit();
+
     const mainnet = try std.process.getEnvVarOwned(allocator, "ANVIL_FORK_URL");
     defer allocator.free(mainnet);
 
     var anvil: Anvil = undefined;
     defer anvil.deinit();
 
-    anvil.initClient(.{ .allocator = allocator });
+    anvil.initClient(.{ .allocator = allocator, .io = threaded_io.io() });
 
     try anvil.reset(.{
         .forking = .{ .jsonRpcUrl = mainnet },

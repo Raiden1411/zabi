@@ -8,10 +8,11 @@ const testing = std.testing;
 const Allocator = std.mem.Allocator;
 const AllocWhen = std.json.AllocWhen;
 const Diagnostics = std.json.Diagnostics;
-const Reader = std.Io.Reader;
+const Io = std.Io;
+const Reader = Io.Reader;
 const Scanner = std.json.Scanner;
-const Stream = std.net.Stream;
-const Writer = std.Io.Writer;
+const Stream = Io.net.Stream;
+const Writer = Io.Writer;
 
 const Self = @This();
 
@@ -19,10 +20,10 @@ const Self = @This();
 /// the object is complete instead of relying on `EndOfStream` error
 pub const JsonReader = struct {
     scanner: Scanner,
-    reader: *std.Io.Reader,
+    reader: *Io.Reader,
 
     /// The allocator is only used to track `[]` and `{}` nesting levels.
-    pub fn init(allocator: Allocator, io_reader: *std.Io.Reader) @This() {
+    pub fn init(allocator: Allocator, io_reader: *Io.Reader) @This() {
         return .{
             .scanner = Scanner.initStreaming(allocator),
             .reader = io_reader,
@@ -214,11 +215,11 @@ pub const Connection = struct {
     /// Closes the network connection
     ///
     /// If the connection is a tls connection it will send and `end` message and flushes it.
-    pub fn close(self: *Connection) void {
+    pub fn close(self: *Connection, io: Io) void {
         self.flush() catch {};
 
-        std.posix.shutdown(self.getStream().handle, .both) catch {};
-        self.getStream().close();
+        std.posix.shutdown(self.getStream().socket.handle, .both) catch {};
+        self.getStream().close(io);
     }
 
     /// Frees the memory associated with the reader and writer buffers
@@ -235,12 +236,12 @@ pub const Connection = struct {
 
     /// Gets the network stream associated with this connection
     pub fn getStream(self: *Connection) Stream {
-        return self.stream_reader.getStream();
+        return self.stream_reader.stream;
     }
 
     /// Gets the reader independent of the connection type. Either tls or plain.
     pub fn reader(self: *Connection) *Reader {
-        return self.stream_reader.interface();
+        return &self.stream_reader.interface;
     }
 
     /// Gets the writer independent of the connection type. Either tls or plain.
@@ -259,6 +260,7 @@ pub const Connection = struct {
         /// Creates the pointer and any buffers that the readers and writers need.
         pub fn create(
             allocator: Allocator,
+            io: Io,
             stream: Stream,
         ) !*Plain {
             const base = try allocator.alignedAlloc(u8, .of(Plain), allocation_length);
@@ -273,8 +275,8 @@ pub const Connection = struct {
 
             plain.* = .{
                 .connection = .{
-                    .stream_writer = stream.writer(socket_write_buffer),
-                    .stream_reader = stream.reader(socket_read_buffer),
+                    .stream_writer = stream.writer(io, socket_write_buffer),
+                    .stream_reader = stream.reader(io, socket_read_buffer),
                 },
             };
 
@@ -290,6 +292,8 @@ pub const Connection = struct {
     };
 };
 
+/// The Io implementation used by this client
+io: Io,
 /// Underlaying socket/pipe connection
 connection: *Connection,
 
@@ -307,11 +311,13 @@ connection: *Connection,
 /// ```
 pub fn init(
     allocator: Allocator,
+    io: Io,
     stream: Stream,
 ) Allocator.Error!@This() {
-    const connection = &(try Connection.Plain.create(allocator, stream)).connection;
+    const connection = &(try Connection.Plain.create(allocator, io, stream)).connection;
 
     return .{
+        .io = io,
         .connection = connection,
     };
 }
@@ -320,7 +326,7 @@ pub fn init(
 ///
 /// That must be done seperatly via `Connection.destroyConnection`
 pub fn deinit(self: *@This()) void {
-    self.connection.close();
+    self.connection.close(self.io);
 }
 
 /// Reads one message from the socket stream.
@@ -351,9 +357,13 @@ pub fn writeMessage(
 }
 
 test "Fooo" {
-    const stream = try std.net.connectUnixSocket("/tmp/anvil.ipc");
+    var threaded_io: Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
 
-    var ipc_reader = try Self.init(std.testing.allocator, stream);
+    const unix = try Io.net.UnixAddress.init("/tmp/anvil.ipc");
+    const stream = try unix.connect(threaded_io.io());
+
+    var ipc_reader = try Self.init(std.testing.allocator, threaded_io.io(), stream);
     defer {
         ipc_reader.deinit();
         ipc_reader.connection.destroyConnection(std.testing.allocator);

@@ -50,6 +50,7 @@ const Function = abitype.Function;
 const KZG4844 = ckzg4844.KZG4844;
 const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
+const Io = std.Io;
 const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
 const LondonEthCall = transaction.LondonEthCall;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
@@ -625,7 +626,7 @@ pub fn hashAuthorityEip7702(
         nonce,
     };
 
-    var alloc_writer: std.Io.Writer.Allocating = .init(self.allocator);
+    var alloc_writer: Io.Writer.Allocating = .init(self.allocator);
     errdefer alloc_writer.deinit();
 
     try alloc_writer.writer.writeByte(0x05);

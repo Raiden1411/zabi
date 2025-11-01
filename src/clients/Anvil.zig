@@ -14,6 +14,7 @@ const Client = std.http.Client;
 const ConvertToEnum = meta_utils.ConvertToEnum;
 const Hash = types.Hash;
 const Hex = types.Hex;
+const Io = std.Io;
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
 const ParseOptions = std.json.ParseOptions;
@@ -263,6 +264,8 @@ pub const AnvilStartOptions = struct {
 pub const InitOptions = struct {
     /// Allocator to use to create the ChildProcess and other allocations
     allocator: Allocator,
+    /// Io implementation used for the http client.
+    io: Io,
     /// The port to use in anvil
     port: u16 = 6969,
 };
@@ -289,7 +292,7 @@ pub fn initClient(
     self.* = .{
         .allocator = options.allocator,
         .uri = uri,
-        .http_client = Client{ .allocator = options.allocator },
+        .http_client = Client{ .allocator = options.allocator, .io = options.io },
     };
 }
 /// Start the `anvil` as a child process. The arguments list will be created based on

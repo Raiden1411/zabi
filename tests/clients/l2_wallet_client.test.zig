@@ -10,7 +10,10 @@ const Wallet = @import("zabi").clients.Wallet;
 const WithdrawalEnvelope = withdrawl.WithdrawalEnvelope;
 
 test "PrepareWithdrawalProofTransaction" {
-    std.Thread.sleep(std.time.ns_per_ms * 500);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
+    try threaded_io.io().sleep(std.Io.Duration.fromSeconds(std.time.ns_per_ms * 500));
 
     const uri = try std.Uri.parse("http://localhost:6970/");
     var buffer_hex: Hash = undefined;
@@ -18,6 +21,7 @@ test "PrepareWithdrawalProofTransaction" {
 
     var http_provider = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .chain_id = .op_mainnet,
@@ -87,7 +91,10 @@ test "PrepareWithdrawalProofTransaction" {
 }
 
 test "ProveWithdrawal" {
-    std.Thread.sleep(std.time.ns_per_ms * 500);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
+    try threaded_io.io().sleep(std.Io.Duration.fromSeconds(std.time.ns_per_ms * 500));
 
     const uri = try std.Uri.parse("http://localhost:6970/");
     var buffer_hex: Hash = undefined;
@@ -95,6 +102,7 @@ test "ProveWithdrawal" {
 
     var http_provider = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .chain_id = .op_mainnet,
@@ -140,7 +148,10 @@ test "ProveWithdrawal" {
 }
 
 test "FinalizeWithdrawal" {
-    std.Thread.sleep(std.time.ns_per_ms * 500);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
+    try threaded_io.io().sleep(std.Io.Duration.fromSeconds(std.time.ns_per_ms * 500));
 
     const uri = try std.Uri.parse("http://localhost:6970/");
     var buffer_hex: Hash = undefined;
@@ -148,6 +159,7 @@ test "FinalizeWithdrawal" {
 
     var http_provider = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .chain_id = .op_mainnet,

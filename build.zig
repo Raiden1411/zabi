@@ -438,11 +438,14 @@ fn buildExamples(
 
 /// Loads enviroment variables from a `.env` file in case they aren't already present.
 fn loadVariables(b: *std.Build, env_path: []const u8, exe: *std.Build.Step.Run) void {
+    var threaded_io: std.Io.Threaded = .init(b.allocator);
+    defer threaded_io.deinit();
+
     var file = std.fs.cwd().openFile(env_path, .{}) catch |err|
         std.debug.panic("Failed to read from {s} file! Error: {s}", .{ env_path, @errorName(err) });
     defer file.close();
 
-    var reader = file.reader(&.{});
+    var reader = file.reader(threaded_io.io(), &.{});
 
     const source = reader.interface.allocRemainingAlignedSentinel(b.allocator, .limited(std.math.maxInt(u32)), .@"1", 0) catch |err|
         std.debug.panic("Failed to read from {s} file! Error: {s}", .{ env_path, @errorName(err) });

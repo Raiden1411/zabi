@@ -60,6 +60,7 @@ const Hash = types.Hash;
 const Hex = types.Hex;
 const HttpClient = std.http.Client;
 const HttpConnection = http.Client.Connection;
+const Io = std.Io;
 const IpcReader = @import("blocking/IpcReader.zig");
 const JsonParsed = std.json.Parsed;
 const LondonTransactionEnvelope = zabi_types.transactions.LondonTransactionEnvelope;
@@ -196,6 +197,8 @@ pub const aggregate3_abi: Function = .{
 vtable: *const VTable,
 /// The network config that the provider will connect to.
 network_config: NetworkConfig,
+/// Io implementation used in this provider.
+io: Io,
 
 const VTable = struct {
     sendRpcRequest: *const fn (self: *Provider, request: []u8) anyerror!JsonParsed(Value),
@@ -426,7 +429,7 @@ pub fn feeHistory(
     const tag: BalanceBlockTag = newest_block.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     if (newest_block.block_number) |number| {
         const request: EthereumRequest(struct { u64, u64, ?[]const f64 }) = .{
@@ -525,7 +528,7 @@ pub fn getBlockByHashType(
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -567,7 +570,7 @@ pub fn getBlockByNumberType(
     const include = opts.include_transaction_objects orelse false;
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     if (opts.block_number) |number| {
         const request: EthereumRequest(struct { u64, bool }) = .{
@@ -882,7 +885,7 @@ pub fn getFilterOrLogChanges(
     method: EthereumRpcMethods,
 ) !RPCResponse(Logs) {
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     switch (method) {
         .eth_getFilterLogs, .eth_getFilterChanges => {},
@@ -1052,7 +1055,7 @@ pub fn getLogs(
     tag: ?BalanceBlockTag,
 ) !RPCResponse(Logs) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     if (tag) |request_tag| {
         const request: EthereumRequest(struct { LogTagRequest }) = .{
@@ -1142,7 +1145,7 @@ pub fn getProof(
     tag: ?ProofBlockTag,
 ) !RPCResponse(ProofResult) {
     var request_buffer: [2 * 1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     if (tag) |request_tag| {
         const request: EthereumRequest(struct { Address, []const Hash, block.ProofBlockTag }) = .{
@@ -1314,7 +1317,7 @@ pub fn getRawTransactionByHash(
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -1380,7 +1383,7 @@ pub fn getSecondsToFinalize(
     defer data.deinit();
 
     const time = try zabi_utils.utils.bytesToInt(i64, data.response);
-    const time_since: i64 = @divFloor(std.time.timestamp(), 1000) - @as(i64, @truncate(@as(i128, @intCast(proven.timestamp))));
+    const time_since: i64 = @divFloor((try Io.Clock.real.now(self.io)).toSeconds(), 1000) - @as(i64, @truncate(@as(i128, @intCast(proven.timestamp))));
 
     return if (time_since < 0) @intCast(0) else @intCast(time - time_since);
 }
@@ -1409,7 +1412,7 @@ pub fn getSecondsToFinalizeGame(
     if (time == 0)
         return error.WithdrawalNotProved;
 
-    const time_since: i64 = @divFloor(std.time.timestamp(), 1000) - @as(i64, @truncate(@as(i128, @intCast(proven.timestamp))));
+    const time_since: i64 = @divFloor((try Io.Clock.real.now(self.io)).toSeconds(), 1000) - @as(i64, @truncate(@as(i128, @intCast(proven.timestamp))));
 
     return if (time_since < 0) @intCast(0) else @intCast(time - time_since);
 }
@@ -1445,7 +1448,7 @@ pub fn getSecondsUntilNextGame(
     const latest_timestamp: i64 = @intCast(latest_game.timestamp * 1000);
 
     const interval: i64 = @intFromFloat(@ceil(@as(f64, @floatFromInt(elapsed_time)) * interval_buffer) + 1);
-    const now = std.time.timestamp() * 1000;
+    const now = (try Io.Clock.real.now(self.io)).toSeconds() * 1000;
 
     const seconds: i64 = blk: {
         if (now < latest_timestamp)
@@ -1486,7 +1489,7 @@ pub fn getSha3Hash(
     };
 
     var request_buffer: [4096]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -1508,7 +1511,7 @@ pub fn getStorage(
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     if (opts.block_number) |number| {
         const request: EthereumRequest(struct { Address, Hash, u64 }) = .{
@@ -1572,7 +1575,7 @@ pub fn getTransactionByBlockHashAndIndexType(
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -1612,7 +1615,7 @@ pub fn getTransactionByBlockNumberAndIndexType(
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     if (opts.block_number) |number| {
         const request: EthereumRequest(struct { u64, usize }) = .{
@@ -1673,7 +1676,7 @@ pub fn getTransactionByHashType(
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -1766,7 +1769,7 @@ pub fn getTransactionReceiptType(
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -1810,7 +1813,7 @@ pub fn getTxPoolContentFrom(
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -1867,7 +1870,7 @@ pub fn getUncleByBlockHashAndIndexType(
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -1910,7 +1913,7 @@ pub fn getUncleByBlockNumberAndIndexType(
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     if (opts.block_number) |number| {
         const request: EthereumRequest(struct { u64, usize }) = .{
@@ -2147,7 +2150,7 @@ pub fn newLogFilter(
     tag: ?BalanceBlockTag,
 ) !RPCResponse(u128) {
     var request_buffer: [8 * 1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     if (tag) |request_tag| {
         const request: EthereumRequest(struct { LogTagRequest }) = .{
@@ -2219,7 +2222,7 @@ pub fn sendRawTransaction(
     };
 
     var request_buffer: [8 * 1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -2245,7 +2248,7 @@ pub fn uninstallFilter(
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -2268,7 +2271,7 @@ pub fn unsubscribe(self: *Provider, sub_id: u128) !RPCResponse(bool) {
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -2288,7 +2291,7 @@ pub fn waitForNextGame(
     l2BlockNumber: u64,
 ) !GameResult {
     const timings = try self.getSecondsUntilNextGame(allocator, interval_buffer, l2BlockNumber);
-    std.Thread.sleep(@intCast(timings.seconds * std.time.ns_per_s));
+    try self.io.sleep(Io.Duration.fromSeconds(timings.seconds * std.time.ns_per_s), .real);
 
     var retries: usize = 0;
     const game: GameResult = while (true) : (retries += 1) {
@@ -2299,7 +2302,7 @@ pub fn waitForNextGame(
             error.EvmFailedToExecute,
             error.GameNotFound,
             => {
-                std.Thread.sleep(self.network_config.pooling_interval);
+                try self.io.sleep(Io.Duration.fromSeconds(@intCast(self.network_config.pooling_interval)), .real);
                 continue;
             },
             else => return err,
@@ -2318,8 +2321,8 @@ pub fn waitForNextProviderOutput(
     allocator: Allocator,
     latest_l2_block: u64,
 ) !L2Output {
-    const time = try self.getSecondsToNextProviderOutput(latest_l2_block);
-    std.Thread.sleep(@intCast(time * 1000));
+    const time = try self.getSecondsToNextL2Output(latest_l2_block);
+    try self.io.sleep(Io.Duration.fromSeconds(@intCast(time * 1000)), .real);
 
     var retries: usize = 0;
     const l2_output = while (true) : (retries += 1) {
@@ -2328,7 +2331,7 @@ pub fn waitForNextProviderOutput(
 
         const output = self.getProviderOutput(allocator, latest_l2_block) catch |err| switch (err) {
             error.EvmFailedToExecute => {
-                std.Thread.sleep(self.network_config.retries);
+                try self.io.sleep(Io.Duration.fromSeconds(@intCast(self.network_config.pooling_interval)), .real);
                 continue;
             },
             else => return err,
@@ -2408,7 +2411,7 @@ pub fn waitForTransactionReceiptType(
                 break;
             } else {
                 valid_confirmations += 1;
-                std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+                try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
                 continue;
             }
         }
@@ -2417,7 +2420,7 @@ pub fn waitForTransactionReceiptType(
             tx = self.getTransactionByHash(tx_hash) catch |err| switch (err) {
                 // If it fails we keep trying
                 error.TransactionNotFound => {
-                    std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+                    try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
                     continue;
                 },
                 else => return err,
@@ -2443,14 +2446,14 @@ pub fn waitForTransactionReceiptType(
 
                 const block_transactions = switch (current_block.response) {
                     inline else => |blocks| if (blocks.transactions) |block_txs| block_txs else {
-                        std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+                        try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
                         continue;
                     },
                 };
 
                 const pending_transaction = switch (block_transactions) {
                     .hashes => {
-                        std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+                        try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
                         continue;
                     },
                     .objects => |tx_objects| tx_objects,
@@ -2497,7 +2500,7 @@ pub fn waitForTransactionReceiptType(
                         break;
                 }
 
-                std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+                try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
                 continue;
             },
             else => return err,
@@ -2512,7 +2515,7 @@ pub fn waitForTransactionReceiptType(
             break;
         } else {
             valid_confirmations += 1;
-            std.Thread.sleep(std.time.ns_per_ms * self.network_config.pooling_interval);
+            try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
             continue;
         }
     }
@@ -2530,12 +2533,12 @@ pub fn waitToFinalize(
 
     if (version.major < 3) {
         const time = try self.getSecondsToFinalize(allocator, withdrawal_hash);
-        std.Thread.sleep(time * 1000);
+        try self.io.sleep(Io.Duration.fromSeconds(time * 1000), .real);
         return;
     }
 
     const time = try self.getSecondsToFinalizeGame(allocator, withdrawal_hash);
-    std.Thread.sleep(time * 1000);
+    try self.io.sleep(Io.Duration.fromSeconds(@intCast(time * 1000)), .real);
 }
 
 /// Emits new blocks that are added to the blockchain.
@@ -2551,7 +2554,7 @@ pub fn watchNewBlocks(self: *Provider) !RPCResponse(u128) {
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -2568,7 +2571,7 @@ pub fn watchNewBlocks(self: *Provider) !RPCResponse(u128) {
 /// This is best use only for websocket or ipc connections
 pub fn watchLogs(self: *Provider, opts: WatchLogsRequest) !RPCResponse(u128) {
     var request_buffer: [4 * 1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     const request: EthereumRequest(struct { Subscriptions, WatchLogsRequest }) = .{
         .params = .{ .logs, opts },
@@ -2600,7 +2603,7 @@ pub fn watchSocketEvent(self: *Provider, method: []const u8) !RPCResponse(u128) 
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -2623,7 +2626,7 @@ pub fn watchTransactions(self: *Provider) !RPCResponse(u128) {
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -2642,7 +2645,7 @@ fn sendBlockNumberRequest(
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     if (opts.block_number) |number| {
         const request: EthereumRequest(struct { u64 }) = .{
@@ -2681,7 +2684,7 @@ fn sendBlockHashRequest(
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -2701,7 +2704,7 @@ fn sendAddressRequest(
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [2 * 1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     if (opts.block_number) |number| {
         const request: EthereumRequest(struct { Address, u64 }) = .{
@@ -2740,7 +2743,7 @@ fn sendBasicRequest(
     };
 
     var request_buffer: [1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     try std.json.Stringify.value(request, .{}, &buf_writter);
 
@@ -2761,7 +2764,7 @@ fn sendEthCallRequest(
     const tag: BalanceBlockTag = opts.tag orelse .latest;
 
     var request_buffer: [8 * 1024]u8 = undefined;
-    var buf_writter = std.Io.Writer.fixed(&request_buffer);
+    var buf_writter = Io.Writer.fixed(&request_buffer);
 
     if (opts.block_number) |number| {
         const request: EthereumRequest(struct { EthCall, u64 }) = .{
@@ -2834,6 +2837,8 @@ pub const WebsocketProvider = struct {
     pub const InitOptions = struct {
         /// Allocator to use to create the ChildProcess and other allocations
         allocator: Allocator,
+        /// The IO implementation used for this client
+        io: Io,
         /// The chains config
         network_config: NetworkConfig,
         /// Callback function for when the connection is closed.
@@ -2868,17 +2873,17 @@ pub const WebsocketProvider = struct {
             return error.InvalidEndpointConfig;
 
         const uri = opts.network_config.endpoint.uri;
-        const hostname = switch (uri.host orelse return error.UnspecifiedHostName) {
-            .raw => |raw| raw,
-            .percent_encoded => |host| host,
-        };
 
-        var client = try WsClient.connect(opts.allocator, uri);
-        try client.handshake(hostname);
+        var buffer: [Io.net.HostName.max_len]u8 = undefined;
+        const host = try uri.getHost(&buffer);
+
+        var client = try WsClient.connect(opts.allocator, opts.io, uri);
+        try client.handshake(host.bytes);
 
         return .{
             .allocator = opts.allocator,
             .provider = .{
+                .io = opts.io,
                 .network_config = opts.network_config,
                 .vtable = &.{
                     .sendRpcRequest = WebsocketProvider.sendRpcRequest,
@@ -3071,7 +3076,7 @@ pub const WebsocketProvider = struct {
                             const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
                             provider_log.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
-                            std.Thread.sleep(std.time.ns_per_ms * backoff);
+                            try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
                             continue;
                         }
                     },
@@ -3085,7 +3090,7 @@ pub const WebsocketProvider = struct {
                             const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
                             provider_log.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
-                            std.Thread.sleep(std.time.ns_per_ms * backoff);
+                            try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
                             continue;
                         }
                     },
@@ -3106,6 +3111,8 @@ pub const HttpProvider = struct {
     pub const InitOptions = struct {
         /// Allocator used to manage the memory arena.
         allocator: Allocator,
+        /// Io implementation used in this provider.
+        io: Io,
         /// The network config for the client to use.
         network_config: NetworkConfig,
     };
@@ -3128,10 +3135,11 @@ pub const HttpProvider = struct {
             return error.InvalidEndpointConfig;
 
         return .{
-            .client = http.Client{ .allocator = opts.allocator },
+            .client = http.Client{ .allocator = opts.allocator, .io = opts.io },
             .allocator = opts.allocator,
             .provider = .{
                 .network_config = opts.network_config,
+                .io = opts.io,
                 .vtable = &.{
                     .sendRpcRequest = HttpProvider.sendRpcRequest,
                 },
@@ -3155,7 +3163,7 @@ pub const HttpProvider = struct {
         const provider: *HttpProvider = @alignCast(@fieldParentPtr("provider", self));
         provider_log.debug("Preparing to send request body: {s}", .{request});
 
-        var body: std.Io.Writer.Allocating = .init(provider.allocator);
+        var body: Io.Writer.Allocating = .init(provider.allocator);
         defer body.deinit();
 
         var retries: u8 = 0;
@@ -3179,7 +3187,7 @@ pub const HttpProvider = struct {
                     // Clears any message that was written
                     body.shrinkRetainingCapacity(0);
 
-                    std.Thread.sleep(std.time.ns_per_ms * backoff);
+                    try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
                     continue;
                 },
                 else => {
@@ -3194,7 +3202,7 @@ pub const HttpProvider = struct {
     pub fn internalFetch(
         self: *HttpProvider,
         payload: []const u8,
-        body: *std.Io.Writer,
+        body: *Io.Writer,
     ) !FetchResult {
         const uri = self.provider.network_config.getNetworkUri() orelse return error.InvalidEndpointConfig;
 
@@ -3212,6 +3220,8 @@ pub const IpcProvider = struct {
     pub const InitOptions = struct {
         /// Allocator to use to create the ChildProcess and other allocations
         allocator: Allocator,
+        /// The IO implementation used for this client
+        io: Io,
         /// The chains config
         network_config: NetworkConfig,
         /// Callback function for when the connection is closed.
@@ -3249,17 +3259,19 @@ pub const IpcProvider = struct {
 
         const path = opts.network_config.endpoint.path;
 
-        const socket_stream = try std.net.connectUnixSocket(path);
+        const unix = try Io.net.UnixAddress.init(path);
+        const socket_stream = try unix.connect(opts.io);
 
         return .{
             .allocator = opts.allocator,
             .provider = .{
                 .network_config = opts.network_config,
+                .io = opts.io,
                 .vtable = &.{
                     .sendRpcRequest = IpcProvider.sendRpcRequest,
                 },
             },
-            .ipc_reader = try .init(opts.allocator, socket_stream),
+            .ipc_reader = try .init(opts.allocator, opts.io, socket_stream),
             .thread = null,
             .onClose = opts.onClose,
             .onError = opts.onError,
@@ -3409,7 +3421,7 @@ pub const IpcProvider = struct {
                             const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
                             provider_log.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
-                            std.Thread.sleep(std.time.ns_per_ms * backoff);
+                            try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
                             continue;
                         }
                     },
@@ -3423,7 +3435,7 @@ pub const IpcProvider = struct {
                             const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
                             provider_log.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
-                            std.Thread.sleep(std.time.ns_per_ms * backoff);
+                            try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
                             continue;
                         }
                     },

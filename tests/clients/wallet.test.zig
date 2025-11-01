@@ -18,12 +18,16 @@ const Wallet = clients.Wallet;
 const WebsocketProvider = clients.Provider.WebsocketProvider;
 
 test "HashAuthorization" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://localhost:6969/");
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
     var client = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -42,12 +46,16 @@ test "HashAuthorization" {
 }
 
 test "Recover Auth Address" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://localhost:6969/");
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
     var client = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -64,12 +72,16 @@ test "Recover Auth Address" {
 }
 
 test "Verify Auth" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://localhost:6969/");
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
     var client = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -85,12 +97,16 @@ test "Verify Auth" {
 }
 
 test "Address match" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://localhost:6969/");
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
     var client = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -104,12 +120,16 @@ test "Address match" {
 }
 
 test "verifyMessage" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://localhost:6969/");
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
     var client = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -128,12 +148,16 @@ test "verifyMessage" {
 }
 
 test "signMessage" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://localhost:6969/");
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
     var client = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -151,12 +175,16 @@ test "signMessage" {
 }
 
 test "signTypedData" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://localhost:6969/");
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
     var client = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -174,12 +202,16 @@ test "signTypedData" {
 }
 
 test "verifyTypedData" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://localhost:6969/");
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
     var client = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -225,12 +257,16 @@ test "verifyTypedData" {
 
 test "sendTransaction" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://localhost:6969/");
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
         var client = try HttpProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -253,12 +289,16 @@ test "sendTransaction" {
         defer receipt.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://localhost:6969/");
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
         var client = try HttpProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -281,13 +321,16 @@ test "sendTransaction" {
         defer receipt.deinit();
     }
     {
-        const uri = try std.Uri.parse("http://localhost:6969/");
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
 
+        const uri = try std.Uri.parse("http://localhost:6969/");
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
         var client = try WebsocketProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -312,11 +355,15 @@ test "sendTransaction" {
         defer receipt.deinit();
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
         var client = try IpcProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -343,12 +390,16 @@ test "sendTransaction" {
 }
 
 test "Get First element With Nonce Manager" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://localhost:6969/");
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
     var client = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -385,12 +436,16 @@ test "Get First element With Nonce Manager" {
 
 test "Pool transactions" {
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         const uri = try std.Uri.parse("http://localhost:6969/");
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
         var client = try HttpProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -409,13 +464,16 @@ test "Pool transactions" {
         try testing.expect(env != null);
     }
     {
-        const uri = try std.Uri.parse("http://localhost:6969/");
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
 
+        const uri = try std.Uri.parse("http://localhost:6969/");
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
         var client = try WebsocketProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .uri = uri },
             },
@@ -436,11 +494,15 @@ test "Pool transactions" {
         try testing.expect(env != null);
     }
     {
+        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        defer threaded_io.deinit();
+
         var buffer: Hash = undefined;
         _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
         var client = try IpcProvider.init(.{
             .allocator = testing.allocator,
+            .io = threaded_io.io(),
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -463,12 +525,16 @@ test "Pool transactions" {
 }
 
 test "Get First element" {
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://localhost:6969/");
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
     var client = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -500,6 +566,8 @@ test "Get First element" {
 
 test "assertTransaction" {
     var tx: TransactionEnvelope = undefined;
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://localhost:6969/");
     var buffer: Hash = undefined;
@@ -507,6 +575,7 @@ test "assertTransaction" {
 
     var client = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },
@@ -568,12 +637,16 @@ test "assertTransaction" {
 test "assertTransactionLegacy" {
     var tx: TransactionEnvelope = undefined;
 
+    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    defer threaded_io.deinit();
+
     const uri = try std.Uri.parse("http://localhost:6969/");
     var buffer: Hash = undefined;
     _ = try std.fmt.hexToBytes(&buffer, "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
 
     var client = try HttpProvider.init(.{
         .allocator = testing.allocator,
+        .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
         },

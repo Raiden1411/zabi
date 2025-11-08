@@ -36,7 +36,7 @@ pub fn main() !void {
     };
 
     // wait 1 seconds for autobanh server to be up
-    try threaded_io.io().sleep(std.Io.Duration.fromSeconds(std.time.ns_per_s), .real);
+    try threaded_io.io().sleep(.fromSeconds(std.time.ns_per_s), .real);
 
     for (cases, 0..) |case, i| {
         std.debug.print("running case: {s}\n", .{case});

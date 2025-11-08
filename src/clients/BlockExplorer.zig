@@ -823,7 +823,7 @@ pub fn sendRequest(self: *Explorer, comptime T: type, uri: Uri) !ExplorerRespons
                 // Clears any message that was written
                 body.shrinkRetainingCapacity(0);
 
-                try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
+                try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
                 continue;
             },
             else => {

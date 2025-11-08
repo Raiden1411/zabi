@@ -214,7 +214,11 @@ pub fn blobBaseFee(self: *Provider) !RPCResponse(u64) {
 /// Create an accessList of addresses and storageKeys for a transaction to access
 ///
 /// RPC Method: [eth_createAccessList](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_createaccesslist)
-pub fn createAccessList(self: *Provider, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(AccessListResult) {
+pub fn createAccessList(
+    self: *Provider,
+    call_object: EthCall,
+    opts: BlockNumberRequest,
+) !RPCResponse(AccessListResult) {
     return self.sendEthCallRequest(AccessListResult, call_object, opts, .eth_createAccessList);
 }
 
@@ -294,7 +298,11 @@ pub fn estimateFeesPerGas(
 /// for a variety of reasons including EVM mechanics and node performance.
 ///
 /// RPC Method: [eth_estimateGas](https://ethereum.org/en/developers/docs/apis/json-rpc#eth_estimategas)
-pub fn estimateGas(self: *Provider, call_object: EthCall, opts: BlockNumberRequest) !RPCResponse(u64) {
+pub fn estimateGas(
+    self: *Provider,
+    call_object: EthCall,
+    opts: BlockNumberRequest,
+) !RPCResponse(u64) {
     return self.sendEthCallRequest(u64, call_object, opts, .eth_estimateGas);
 }
 
@@ -380,41 +388,86 @@ pub fn estimateMaxFeePerGas(self: *Provider) !RPCResponse(u64) {
 /// Estimates the L1 + Provider fees to execute a transaction on L2
 pub fn estimateTotalFees(
     self: *Provider,
+    gpa: Allocator,
     london_envelope: LondonTransactionEnvelope,
 ) !u256 {
-    const l1_gas_fee = try self.estimateL1GasFee(london_envelope);
-    const l2_gas = try self.estimateGas(.{ .london = .{
+    var group = Io.Group.init;
+
+    var l1_gas_fee: ?u256 = null;
+    var l2_gas: ?u256 = null;
+    var gas_price: ?u256 = null;
+
+    group.async(self.io, struct {
+        fn worker(provider: *Provider, allocator: Allocator, london: LondonTransactionEnvelope, out: *?u256) anyerror!void {
+            out.* = try provider.estimateL1GasFee(allocator, london);
+        }
+    }.worker, .{ self, gpa, london_envelope, &l1_gas_fee });
+
+    group.async(self.io, struct {
+        fn worker(provider: *Provider, london: EthCall, out: *?u256) anyerror!void {
+            const gas = try provider.estimateGas(london, .{});
+            defer gas.deinit();
+
+            out.* = gas.response;
+        }
+    }.worker, .{ self, .{ .london = .{
         .to = london_envelope.to,
         .data = london_envelope.data,
         .maxFeePerGas = london_envelope.maxFeePerGas,
         .maxPriorityFeePerGas = london_envelope.maxPriorityFeePerGas,
         .value = london_envelope.value,
-    } }, .{});
-    defer l2_gas.deinit();
+    } }, &l2_gas });
 
-    const gas_price = try self.getGasPrice();
-    defer gas_price.deinit();
+    group.async(self.io, struct {
+        fn worker(provider: *Provider, out: *?u256) anyerror!void {
+            const gas = try provider.getGasPrice();
+            defer gas.deinit();
 
-    return l1_gas_fee + l2_gas.response * gas_price.response;
+            out.* = gas.response;
+        }
+    }.worker, .{ self, &gas_price });
+
+    group.wait(self.io);
+
+    return (l1_gas_fee orelse return error.FailedToGetL2Gas) +
+        (l2_gas orelse return error.FailedToGetL1Gas) * (gas_price orelse return error.FailedToGetGasPrice);
 }
 
 /// Estimates the L1 + L2 gas to execute a transaction on L2
 pub fn estimateTotalGas(
     self: *Provider,
-    allocator: Allocator,
+    gpa: Allocator,
     london_envelope: LondonTransactionEnvelope,
 ) !u256 {
-    const l1_gas_fee = try self.estimateL1GasFee(allocator, london_envelope);
-    const l2_gas = try self.estimateGas(.{ .london = .{
+    var group = Io.Group.init;
+
+    var l1_gas_fee: ?u256 = null;
+    var l2_gas: ?u256 = null;
+
+    group.async(self.io, struct {
+        fn worker(provider: *Provider, allocator: Allocator, london: LondonTransactionEnvelope, out: *?u256) void {
+            out.* = provider.estimateL1GasFee(allocator, london) catch return;
+        }
+    }.worker, .{ self, gpa, london_envelope, &l1_gas_fee });
+
+    group.async(self.io, struct {
+        fn worker(provider: *Provider, london: EthCall, out: *?u256) void {
+            const gas = provider.estimateGas(london, .{}) catch return;
+            defer gas.deinit();
+
+            out.* = gas.response;
+        }
+    }.worker, .{ self, .{ .london = .{
         .to = london_envelope.to,
         .data = london_envelope.data,
         .maxFeePerGas = london_envelope.maxFeePerGas,
         .maxPriorityFeePerGas = london_envelope.maxPriorityFeePerGas,
         .value = london_envelope.value,
-    } }, .{});
-    defer l2_gas.deinit();
+    } }, &l2_gas });
 
-    return l1_gas_fee + l2_gas.response;
+    group.wait(self.io);
+
+    return (l1_gas_fee orelse return error.FailedToGetL2Gas) + (l2_gas orelse return error.FailedToGetL1Gas);
 }
 
 /// Returns historical gas information, allowing you to track trends over time.
@@ -1191,13 +1244,13 @@ pub fn getL2HashesForDepositTransaction(
     const deposit_data = try self.getTransactionDepositEvents(allocator, tx_hash);
     defer allocator.free(deposit_data);
 
-    var list = try std.array_list.Managed(Hash).initCapacity(allocator, deposit_data.len);
-    errdefer list.deinit();
+    var list = try std.ArrayList(Hash).initCapacity(allocator, deposit_data.len);
+    errdefer list.deinit(allocator);
 
     for (deposit_data) |data| {
         defer allocator.free(data.opaqueData);
 
-        try list.append(try op_utils.getL2HashFromL1DepositInfo(allocator, .{
+        list.appendAssumeCapacity(try op_utils.getL2HashFromL1DepositInfo(allocator, .{
             .to = data.to,
             .from = data.from,
             .opaque_data = data.opaqueData,
@@ -1207,7 +1260,7 @@ pub fn getL2HashesForDepositTransaction(
         }));
     }
 
-    return list.toOwnedSlice();
+    return list.toOwnedSlice(allocator);
 }
 
 /// Calls to the ProviderOutputOracle contract on Provider to get the output for a given L2 block
@@ -1976,8 +2029,8 @@ pub fn getWithdrawMessages(self: *Provider, allocator: Allocator, tx_hash: Hash)
     if (receipt != .op_receipt)
         return error.InvalidTransactionHash;
 
-    var list = std.array_list.Managed(Withdrawal).init(allocator);
-    errdefer list.deinit();
+    var list: std.ArrayList(Withdrawal) = .empty;
+    errdefer list.deinit(allocator);
 
     // The hash for the event selector `MessagePassed`
     const hash: u256 = comptime @bitCast(zabi_utils.utils.hashToBytes("0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054") catch unreachable);
@@ -1991,7 +2044,7 @@ pub fn getWithdrawMessages(self: *Provider, allocator: Allocator, tx_hash: Hash)
         const decoded = try decoder.decodeAbiParameterLeaky(struct { u256, u256, []u8, [32]u8 }, allocator, logs.data, .{});
         const decoded_logs = try decoder_logs.decodeLogs(struct { Hash, u256, Address, Address }, logs.topics, .{});
 
-        try list.append(.{
+        try list.append(allocator, .{
             .nonce = decoded_logs[1],
             .target = decoded_logs[2],
             .sender = decoded_logs[3],
@@ -2002,7 +2055,7 @@ pub fn getWithdrawMessages(self: *Provider, allocator: Allocator, tx_hash: Hash)
         });
     }
 
-    const messages = try list.toOwnedSlice();
+    const messages = try list.toOwnedSlice(allocator);
 
     return .{
         .blockNumber = receipt.op_receipt.blockNumber.?,
@@ -2036,8 +2089,8 @@ pub fn getWithdrawMessagesL2(
         },
     }
 
-    var list = std.array_list.Managed(Withdrawal).init(allocator);
-    errdefer list.deinit();
+    var list: std.ArrayList(Withdrawal) = .empty;
+    errdefer list.deinit(allocator);
 
     // The hash for the event selector `MessagePassed`
     const hash: Hash = comptime try zabi_utils.utils.hashToBytes("0x02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a2744955054");
@@ -2053,8 +2106,7 @@ pub fn getWithdrawMessagesL2(
 
             const decoded_logs = try decoder_logs.decodeLogs(struct { Hash, u256, Address, Address }, message.topics, .{});
 
-            try list.ensureUnusedCapacity(1);
-            list.appendAssumeCapacity(.{
+            try list.append(allocator, .{
                 .nonce = decoded_logs[1],
                 .target = decoded_logs[2],
                 .sender = decoded_logs[3],
@@ -2066,7 +2118,7 @@ pub fn getWithdrawMessagesL2(
         }
     }
 
-    const messages = try list.toOwnedSlice();
+    const messages = try list.toOwnedSlice(allocator);
 
     const block_info = switch (receipt) {
         inline else => |tx_receipt| tx_receipt.blockNumber,
@@ -2092,8 +2144,8 @@ pub fn multicall3(
 ) !AbiDecoded([]const Result) {
     comptime std.debug.assert(targets.len == function_arguments.len);
 
-    var abi_list = try std.array_list.Managed(Call3).initCapacity(allocator, targets.len);
-    errdefer abi_list.deinit();
+    var abi_list = try std.ArrayList(Call3).initCapacity(allocator, targets.len);
+    errdefer abi_list.deinit(allocator);
 
     inline for (targets, function_arguments) |target, argument| {
         const encoded = try target.function.encode(allocator, argument);
@@ -2107,7 +2159,7 @@ pub fn multicall3(
         abi_list.appendAssumeCapacity(call3);
     }
 
-    const slice = try abi_list.toOwnedSlice();
+    const slice = try abi_list.toOwnedSlice(allocator);
     defer {
         for (slice) |s| allocator.free(s.callData);
         allocator.free(slice);
@@ -2291,7 +2343,7 @@ pub fn waitForNextGame(
     l2BlockNumber: u64,
 ) !GameResult {
     const timings = try self.getSecondsUntilNextGame(allocator, interval_buffer, l2BlockNumber);
-    try self.io.sleep(Io.Duration.fromSeconds(timings.seconds * std.time.ns_per_s), .real);
+    try self.io.sleep(.fromSeconds(timings.seconds * std.time.ns_per_s), .real);
 
     var retries: usize = 0;
     const game: GameResult = while (true) : (retries += 1) {
@@ -2302,7 +2354,7 @@ pub fn waitForNextGame(
             error.EvmFailedToExecute,
             error.GameNotFound,
             => {
-                try self.io.sleep(Io.Duration.fromSeconds(@intCast(self.network_config.pooling_interval)), .real);
+                try self.io.sleep(.fromSeconds(@intCast(self.network_config.pooling_interval)), .real);
                 continue;
             },
             else => return err,
@@ -2322,7 +2374,7 @@ pub fn waitForNextProviderOutput(
     latest_l2_block: u64,
 ) !L2Output {
     const time = try self.getSecondsToNextL2Output(latest_l2_block);
-    try self.io.sleep(Io.Duration.fromSeconds(@intCast(time * 1000)), .real);
+    try self.io.sleep(.fromSeconds(@intCast(time * 1000)), .real);
 
     var retries: usize = 0;
     const l2_output = while (true) : (retries += 1) {
@@ -2331,7 +2383,7 @@ pub fn waitForNextProviderOutput(
 
         const output = self.getProviderOutput(allocator, latest_l2_block) catch |err| switch (err) {
             error.EvmFailedToExecute => {
-                try self.io.sleep(Io.Duration.fromSeconds(@intCast(self.network_config.pooling_interval)), .real);
+                try self.io.sleep(.fromSeconds(@intCast(self.network_config.pooling_interval)), .real);
                 continue;
             },
             else => return err,
@@ -2411,7 +2463,7 @@ pub fn waitForTransactionReceiptType(
                 break;
             } else {
                 valid_confirmations += 1;
-                try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
+                try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
                 continue;
             }
         }
@@ -2420,7 +2472,7 @@ pub fn waitForTransactionReceiptType(
             tx = self.getTransactionByHash(tx_hash) catch |err| switch (err) {
                 // If it fails we keep trying
                 error.TransactionNotFound => {
-                    try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
+                    try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
                     continue;
                 },
                 else => return err,
@@ -2446,14 +2498,14 @@ pub fn waitForTransactionReceiptType(
 
                 const block_transactions = switch (current_block.response) {
                     inline else => |blocks| if (blocks.transactions) |block_txs| block_txs else {
-                        try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
+                        try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
                         continue;
                     },
                 };
 
                 const pending_transaction = switch (block_transactions) {
                     .hashes => {
-                        try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
+                        try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
                         continue;
                     },
                     .objects => |tx_objects| tx_objects,
@@ -2500,7 +2552,7 @@ pub fn waitForTransactionReceiptType(
                         break;
                 }
 
-                try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
+                try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
                 continue;
             },
             else => return err,
@@ -2515,7 +2567,7 @@ pub fn waitForTransactionReceiptType(
             break;
         } else {
             valid_confirmations += 1;
-            try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
+            try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
             continue;
         }
     }
@@ -2533,12 +2585,12 @@ pub fn waitToFinalize(
 
     if (version.major < 3) {
         const time = try self.getSecondsToFinalize(allocator, withdrawal_hash);
-        try self.io.sleep(Io.Duration.fromSeconds(time * 1000), .real);
+        try self.io.sleep(.fromSeconds(time * 1000), .real);
         return;
     }
 
     const time = try self.getSecondsToFinalizeGame(allocator, withdrawal_hash);
-    try self.io.sleep(Io.Duration.fromSeconds(@intCast(time * 1000)), .real);
+    try self.io.sleep(.fromSeconds(@intCast(time * 1000)), .real);
 }
 
 /// Emits new blocks that are added to the blockchain.
@@ -2855,6 +2907,7 @@ pub const WebsocketProvider = struct {
     onClose: ?*const fn () void,
     /// Callback function that will run once a socket event is parsed
     onEvent: ?*const fn (args: JsonParsed(Value)) anyerror!void,
+    /// RPC provider to interact with this implementation.
     provider: Provider,
     /// Channel used to communicate between threads on rpc events.
     rpc_channel: Stack(JsonParsed(Value)),
@@ -2862,6 +2915,7 @@ pub const WebsocketProvider = struct {
     sub_channel: Channel(JsonParsed(Value)),
     /// Callback function that will run once a error is parsed.
     onError: ?*const fn (args: []const u8) anyerror!void,
+    /// Seperate thread that will run the readLoop in case of non blocking
     thread: ?std.Thread,
     /// The underlaying websocket client
     ws_client: WsClient,
@@ -3076,7 +3130,7 @@ pub const WebsocketProvider = struct {
                             const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
                             provider_log.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
-                            try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
+                            try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
                             continue;
                         }
                     },
@@ -3090,7 +3144,7 @@ pub const WebsocketProvider = struct {
                             const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
                             provider_log.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
-                            try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
+                            try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
                             continue;
                         }
                     },
@@ -3187,7 +3241,7 @@ pub const HttpProvider = struct {
                     // Clears any message that was written
                     body.shrinkRetainingCapacity(0);
 
-                    try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
+                    try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
                     continue;
                 },
                 else => {
@@ -3421,7 +3475,7 @@ pub const IpcProvider = struct {
                             const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
                             provider_log.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
-                            try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
+                            try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
                             continue;
                         }
                     },
@@ -3435,7 +3489,7 @@ pub const IpcProvider = struct {
                             const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
                             provider_log.debug("Error 429 found. Retrying in {d} ms", .{backoff});
 
-                            try self.io.sleep(Io.Duration.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
+                            try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_s * backoff)), .real);
                             continue;
                         }
                     },

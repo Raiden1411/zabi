@@ -36,7 +36,7 @@ fn encodeItem(value: anytype, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         .comptime_int => {
             const size = comptime utils.computeSize(@intCast(value)) * 8;
             switch (size) {
-                8, 16, 32, 64, 128, 256 => try writer.writeInt(@Type(.{ .Int = .{ .signedness = .unsigned, .bits = size } }), value, .little),
+                8, 16, 32, 64, 128, 256 => try writer.writeInt(@Int(.unsigned, size), value, .little),
                 else => @compileError(std.fmt.comptimePrint("Unsupported {d} bits for ssz encoding", .{size})),
             }
         },

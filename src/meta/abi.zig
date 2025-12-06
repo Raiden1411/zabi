@@ -13,14 +13,7 @@ const ParamType = zabi_abi.param_type.ParamType;
 /// Sames as `AbiParametersToPrimative` but for event parameter types.
 pub fn AbiEventParametersDataToPrimative(comptime paramters: []const AbiEventParameter) type {
     if (paramters.len == 0)
-        return @Type(.{
-            .@"struct" = .{
-                .layout = .auto,
-                .fields = &.{},
-                .decls = &.{},
-                .is_tuple = true,
-            },
-        });
+        return @Struct(.auto, null, &.{}, &.{}, &.{});
 
     var count: usize = 0;
 
@@ -29,32 +22,20 @@ pub fn AbiEventParametersDataToPrimative(comptime paramters: []const AbiEventPar
             count += 1;
     }
 
-    var fields: [count]std.builtin.Type.StructField = undefined;
+    var fields_types: [count]type = undefined;
 
     count = 0;
     for (paramters) |paramter| {
         const EventType = AbiEventParameterDataToPrimative(paramter);
 
         if (EventType != void) {
-            fields[count] = .{
-                .name = std.fmt.comptimePrint("{d}", .{count}),
-                .type = EventType,
-                .default_value_ptr = null,
-                .is_comptime = false,
-                .alignment = if (@sizeOf(EventType) > 0) @alignOf(EventType) else 0,
-            };
+            fields_types[count] =
+                EventType;
             count += 1;
         }
     }
 
-    return @Type(.{
-        .@"struct" = .{
-            .layout = .auto,
-            .fields = &fields,
-            .decls = &.{},
-            .is_tuple = true,
-        },
-    });
+    return @Tuple(&fields_types);
 }
 /// Sames as `AbiParameterToPrimative` but for event parameter types.
 pub fn AbiEventParameterDataToPrimative(comptime param: AbiEventParameter) type {
@@ -66,21 +47,11 @@ pub fn AbiEventParameterDataToPrimative(comptime param: AbiEventParameter) type 
         .int => |val| if (val % 8 != 0 or val > 256)
             @compileError("Invalid bits passed in to int type")
         else
-            @Type(.{
-                .int = .{
-                    .signedness = .signed,
-                    .bits = val,
-                },
-            }),
+            @Int(.signed, val),
         .uint => |val| if (val % 8 != 0 or val > 256)
             @compileError("Invalid bits passed in to int type")
         else
-            @Type(.{
-                .int = .{
-                    .signedness = .unsigned,
-                    .bits = val,
-                },
-            }),
+            @Int(.unsigned, val),
         .dynamicArray => []const AbiParameterToPrimative(.{
             .type = param.type.dynamicArray.*,
             .name = param.name,
@@ -95,26 +66,22 @@ pub fn AbiEventParameterDataToPrimative(comptime param: AbiEventParameter) type 
         }),
         .tuple => {
             if (param.components) |components| {
-                var fields: [components.len]std.builtin.Type.StructField = undefined;
+                var fields_name: [components.len][]const u8 = undefined;
+                var fields_type: [components.len]type = undefined;
+                var fields_attr: [components.len]std.builtin.Type.StructField.Attributes = undefined;
+
                 for (components, 0..) |component, i| {
                     const FieldType = AbiParameterToPrimative(component);
-                    fields[i] = .{
-                        .name = component.name ++ "",
-                        .type = FieldType,
+                    fields_name[i] = component.name ++ "";
+                    fields_type[i] = FieldType;
+                    fields_attr[i] = .{
                         .default_value_ptr = null,
-                        .is_comptime = false,
-                        .alignment = if (@sizeOf(FieldType) > 0) @alignOf(FieldType) else 0,
+                        .@"comptime" = false,
+                        .@"align" = if (@sizeOf(FieldType) > 0) @alignOf(FieldType) else 0,
                     };
                 }
 
-                return @Type(.{
-                    .@"struct" = .{
-                        .layout = .auto,
-                        .fields = &fields,
-                        .decls = &.{},
-                        .is_tuple = false,
-                    },
-                });
+                return @Struct(.auto, null, &fields_name, &fields_type, &fields_attr);
             } else @compileError("Expected components to not be null");
         },
         inline else => void,
@@ -127,23 +94,7 @@ pub fn AbiEventParameterDataToPrimative(comptime param: AbiEventParameter) type 
 /// O then the resulting type a tuple of just the Hash type.
 pub fn AbiEventParametersToPrimativeType(comptime event_params: []const AbiEventParameter) type {
     if (event_params.len == 0) {
-        var fields: [1]std.builtin.Type.StructField = undefined;
-        fields[0] = .{
-            .name = std.fmt.comptimePrint("{d}", .{0}),
-            .type = [32]u8,
-            .default_value_ptr = null,
-            .is_comptime = false,
-            .alignment = @alignOf([32]u8),
-        };
-
-        return @Type(.{
-            .@"struct" = .{
-                .layout = .auto,
-                .fields = &fields,
-                .decls = &.{},
-                .is_tuple = true,
-            },
-        });
+        return @Tuple(&.{[32]u8});
     }
 
     var count: usize = 0;
@@ -154,37 +105,18 @@ pub fn AbiEventParametersToPrimativeType(comptime event_params: []const AbiEvent
         if (EventType != void) count += 1;
     }
 
-    var fields: [count + 1]std.builtin.Type.StructField = undefined;
-    fields[0] = .{
-        .name = std.fmt.comptimePrint("{d}", .{0}),
-        .type = [32]u8,
-        .default_value_ptr = null,
-        .is_comptime = false,
-        .alignment = @alignOf([32]u8),
-    };
+    var fields: [count + 1]type = undefined;
+    fields[0] = [32]u8;
 
     for (event_params, 1..) |param, i| {
         const EventType = AbiEventParameterToPrimativeType(param);
 
         if (EventType != void) {
-            fields[i] = .{
-                .name = std.fmt.comptimePrint("{d}", .{i}),
-                .type = EventType,
-                .default_value_ptr = null,
-                .is_comptime = false,
-                .alignment = if (@sizeOf(EventType) > 0) @alignOf(EventType) else 0,
-            };
+            fields[i] = EventType;
         }
     }
 
-    return @Type(.{
-        .@"struct" = .{
-            .layout = .auto,
-            .fields = &fields,
-            .decls = &.{},
-            .is_tuple = true,
-        },
-    });
+    return @Tuple(&fields);
 }
 /// Converts the abi event parameters into native zig types
 /// This is intended to be used for log topic data or in
@@ -205,21 +137,11 @@ pub fn AbiEventParameterToPrimativeType(comptime param: AbiEventParameter) type 
         .int => |val| if (val % 8 != 0 or val > 256)
             @compileError("Invalid bits passed in to int type")
         else
-            @Type(.{
-                .int = .{
-                    .signedness = .signed,
-                    .bits = val,
-                },
-            }),
+            @Int(.signed, val),
         .uint => |val| if (val % 8 != 0 or val > 256)
             @compileError("Invalid bits passed in to int type")
         else
-            @Type(.{
-                .int = .{
-                    .signedness = .unsigned,
-                    .bits = val,
-                },
-            }),
+            @Int(.unsigned, val),
         inline else => void,
     };
 }
@@ -230,28 +152,15 @@ pub fn AbiEventParameterToPrimativeType(comptime param: AbiEventParameter) type 
 /// O then the resulting type will be a void type.
 pub fn AbiParametersToPrimative(comptime paramters: []const AbiParameter) type {
     if (paramters.len == 0) return void;
-    var fields: [paramters.len]std.builtin.Type.StructField = undefined;
+    var fields: [paramters.len]type = undefined;
 
     for (paramters, 0..) |paramter, i| {
         const FieldType = AbiParameterToPrimative(paramter);
 
-        fields[i] = .{
-            .name = std.fmt.comptimePrint("{d}", .{i}),
-            .type = FieldType,
-            .default_value_ptr = null,
-            .is_comptime = false,
-            .alignment = if (@sizeOf(FieldType) > 0) @alignOf(FieldType) else 0,
-        };
+        fields[i] = FieldType;
     }
 
-    return @Type(.{
-        .@"struct" = .{
-            .layout = .auto,
-            .fields = &fields,
-            .decls = &.{},
-            .is_tuple = true,
-        },
-    });
+    return @Tuple(&fields);
 }
 /// Convert solidity ABI paramter to the representing Zig types.
 ///
@@ -280,21 +189,11 @@ pub fn AbiParameterToPrimative(comptime param: AbiParameter) type {
         .int => |val| if (val % 8 != 0 or val > 256)
             @compileError("Invalid bits passed in to int type")
         else
-            @Type(.{
-                .int = .{
-                    .signedness = .signed,
-                    .bits = val,
-                },
-            }),
+            @Int(.signed, val),
         .uint => |val| if (val % 8 != 0 or val > 256)
             @compileError("Invalid bits passed in to int type")
         else
-            @Type(.{
-                .int = .{
-                    .signedness = .unsigned,
-                    .bits = val,
-                },
-            }),
+            @Int(.unsigned, val),
         .dynamicArray => []const AbiParameterToPrimative(.{
             .type = param.type.dynamicArray.*,
             .name = param.name,
@@ -309,26 +208,22 @@ pub fn AbiParameterToPrimative(comptime param: AbiParameter) type {
         }),
         .tuple => {
             if (param.components) |components| {
-                var fields: [components.len]std.builtin.Type.StructField = undefined;
+                var fields_name: [components.len][]const u8 = undefined;
+                var fields_type: [components.len]type = undefined;
+                var fields_attr: [components.len]std.builtin.Type.StructField.Attributes = undefined;
+
                 for (components, 0..) |component, i| {
                     const FieldType = AbiParameterToPrimative(component);
-                    fields[i] = .{
-                        .name = component.name ++ "",
-                        .type = FieldType,
+                    fields_name[i] = component.name ++ "";
+                    fields_type[i] = FieldType;
+                    fields_attr[i] = .{
                         .default_value_ptr = null,
-                        .is_comptime = false,
-                        .alignment = if (@sizeOf(FieldType) > 0) @alignOf(FieldType) else 0,
+                        .@"comptime" = false,
+                        .@"align" = if (@sizeOf(FieldType) > 0) @alignOf(FieldType) else 0,
                     };
                 }
 
-                return @Type(.{
-                    .@"struct" = .{
-                        .layout = .auto,
-                        .fields = &fields,
-                        .decls = &.{},
-                        .is_tuple = false,
-                    },
-                });
+                return @Struct(.auto, null, &fields_name, &fields_type, &fields_attr);
             } else @compileError("Expected components to not be null");
         },
         inline else => void,

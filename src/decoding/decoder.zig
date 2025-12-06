@@ -280,7 +280,7 @@ fn decodeParameter(comptime T: type, allocator: Allocator, encoded: []u8, positi
                 if (arr_info.len > 32)
                     @compileError("Invalid u8 array length. Expected lower than or equal to 32");
 
-                const AsInt = @Type(.{ .int = .{ .signedness = .unsigned, .bits = arr_info.len * 8 } });
+                const AsInt = @Int(.unsigned, arr_info.len * 8);
 
                 const slice = encoded[position .. position + 32];
                 var result: T = undefined;

@@ -8,26 +8,17 @@ pub fn ConvertToEnum(comptime T: type) type {
     const info = @typeInfo(T);
     assert(info == .@"struct");
 
-    var enum_fields: [info.@"struct".fields.len]std.builtin.Type.EnumField = undefined;
+    var enum_fields: [info.@"struct".fields.len][]const u8 = undefined;
+    var enum_values: [info.@"struct".fields.len]usize = undefined;
 
-    var count = 0;
-    for (&enum_fields, info.@"struct".fields) |*enum_field, struct_field| {
-        enum_field.* = .{
-            .name = struct_field.name ++ "",
-            .value = count,
-        };
-        count += 1;
+    for (&enum_fields, &enum_values, info.@"struct".fields, 0..) |*enum_field, *enum_value, struct_field, i| {
+        enum_field.* = struct_field.name ++ "";
+        enum_value.* = i;
     }
 
-    return @Type(.{
-        .@"enum" = .{
-            .tag_type = usize,
-            .fields = &enum_fields,
-            .decls = &.{},
-            .is_exhaustive = true,
-        },
-    });
+    return @Enum(usize, .exhaustive, &enum_fields, &enum_values);
 }
+
 /// Type function use to extract enum members from any enum.
 ///
 /// The needle can be just the tagName of a single member or a comma seperated value.
@@ -54,7 +45,8 @@ pub fn Extract(
     if (counter == 0)
         @compileError("Provided needle does not contain valid tagNames");
 
-    var enumFields: [counter]std.builtin.Type.EnumField = undefined;
+    var enum_fields: [counter][]const u8 = undefined;
+    var enum_values: [counter]usize = undefined;
 
     iter.reset();
     counter = 0;
@@ -62,21 +54,16 @@ pub fn Extract(
     while (iter.next()) |tok| {
         inline for (info.fields) |field| {
             if (std.mem.eql(u8, field.name, tok)) {
-                enumFields[counter] = field;
+                enum_fields[counter] = field.name;
+                enum_values[counter] = counter;
                 counter += 1;
             }
         }
     }
 
-    return @Type(.{
-        .@"enum" = .{
-            .tag_type = info.tag_type,
-            .fields = &enumFields,
-            .decls = &.{},
-            .is_exhaustive = true,
-        },
-    });
+    return @Enum(usize, .exhaustive, &enum_fields, &enum_values);
 }
+
 /// Merge structs into a single one
 pub fn MergeStructs(
     comptime T: type,
@@ -91,28 +78,38 @@ pub fn MergeStructs(
     if (info_t.@"struct".is_tuple or info_k.@"struct".is_tuple)
         @compileError("Use `MergeTupleStructs` instead");
 
+    const size = info_t.@"struct".fields.len + info_k.@"struct".fields.len;
     var counter: usize = 0;
-    var fields: [info_t.@"struct".fields.len + info_k.@"struct".fields.len]std.builtin.Type.StructField = undefined;
+
+    var fields_names: [size][]const u8 = undefined;
+    var fields_types: [size]type = undefined;
+    var fields_attr: [size]std.builtin.Type.StructField.Attributes = undefined;
 
     for (info_t.@"struct".fields) |field| {
-        fields[counter] = field;
+        fields_names[counter] = field.name;
+        fields_types[counter] = field.type;
+        fields_attr[counter] = .{
+            .@"comptime" = field.is_comptime,
+            .@"align" = field.alignment,
+            .default_value_ptr = field.default_value_ptr,
+        };
         counter += 1;
     }
 
     for (info_k.@"struct".fields) |field| {
-        fields[counter] = field;
+        fields_names[counter] = field.name;
+        fields_types[counter] = field.type;
+        fields_attr[counter] = .{
+            .@"comptime" = field.is_comptime,
+            .@"align" = field.alignment,
+            .default_value_ptr = field.default_value_ptr,
+        };
         counter += 1;
     }
 
-    return @Type(.{
-        .@"struct" = .{
-            .layout = .auto,
-            .fields = &fields,
-            .decls = &.{},
-            .is_tuple = false,
-        },
-    });
+    return @Struct(.auto, null, &fields_names, &fields_types, &fields_attr);
 }
+
 /// Merge tuple structs
 pub fn MergeTupleStructs(
     comptime T: type,
@@ -128,33 +125,21 @@ pub fn MergeTupleStructs(
         @compileError("Use `MergeStructs` instead");
 
     var counter: usize = 0;
-    var fields: [info_t.@"struct".fields.len + info_k.@"struct".fields.len]std.builtin.Type.StructField = undefined;
+    var fields: [info_t.@"struct".fields.len + info_k.@"struct".fields.len]type = undefined;
 
     for (info_t.@"struct".fields) |field| {
-        fields[counter] = field;
+        fields[counter] = field.type;
         counter += 1;
     }
 
     for (info_k.@"struct".fields) |field| {
-        fields[counter] = .{
-            .name = std.fmt.comptimePrint("{d}", .{counter}),
-            .type = field.type,
-            .default_value_ptr = field.default_value_ptr,
-            .alignment = field.alignment,
-            .is_comptime = field.is_comptime,
-        };
+        fields[counter] = field.type;
         counter += 1;
     }
 
-    return @Type(.{
-        .@"struct" = .{
-            .layout = .auto,
-            .fields = &fields,
-            .decls = &.{},
-            .is_tuple = true,
-        },
-    });
+    return @Tuple(&fields);
 }
+
 /// Convert a struct into a tuple type.
 pub fn StructToTupleType(comptime T: type) type {
     const info = @typeInfo(T);
@@ -162,7 +147,7 @@ pub fn StructToTupleType(comptime T: type) type {
     if (info != .@"struct" and info.@"struct".is_tuple)
         @compileError("Expected non tuple struct type but found " ++ @typeName(T));
 
-    var fields: [info.@"struct".fields.len]std.builtin.Type.StructField = undefined;
+    var fields: [info.@"struct".fields.len]type = undefined;
 
     inline for (info.@"struct".fields, 0..) |field, i| {
         const field_info = @typeInfo(field.type);
@@ -170,81 +155,38 @@ pub fn StructToTupleType(comptime T: type) type {
         switch (field_info) {
             .@"struct" => {
                 const Type = StructToTupleType(field.type);
-                fields[i] = .{
-                    .name = std.fmt.comptimePrint("{d}", .{i}),
-                    .type = Type,
-                    .default_value_ptr = null,
-                    .is_comptime = false,
-                    .alignment = 0,
-                };
+                fields[i] = Type;
             },
             .array => |arr_info| {
                 const arr_type_info = @typeInfo(arr_info.child);
 
                 if (arr_type_info == .@"struct") {
                     const Type = StructToTupleType(arr_info.child);
-                    fields[i] = .{
-                        .name = std.fmt.comptimePrint("{d}", .{i}),
-                        .type = [arr_info.len]Type,
-                        .default_value_ptr = null,
-                        .is_comptime = false,
-                        .alignment = 0,
-                    };
+                    fields[i] = [arr_info.len]Type;
 
                     continue;
                 }
-                fields[i] = .{
-                    .name = std.fmt.comptimePrint("{d}", .{i}),
-                    .type = field.type,
-                    .default_value_ptr = field.default_value_ptr,
-                    .is_comptime = field.is_comptime,
-                    .alignment = 0,
-                };
+
+                fields[i] = field.type;
             },
             .pointer => |ptr_info| {
                 const ptr_type_info = @typeInfo(ptr_info.child);
 
                 if (ptr_type_info == .@"struct") {
                     const Type = StructToTupleType(ptr_info.child);
-                    fields[i] = .{
-                        .name = std.fmt.comptimePrint("{d}", .{i}),
-                        .type = []const Type,
-                        .default_value_ptr = null,
-                        .is_comptime = false,
-                        .alignment = 0,
-                    };
+                    fields[i] = []const Type;
 
                     continue;
                 }
-                fields[i] = .{
-                    .name = std.fmt.comptimePrint("{d}", .{i}),
-                    .type = field.type,
-                    .default_value_ptr = null,
-                    .is_comptime = field.is_comptime,
-                    .alignment = 0,
-                };
+                fields[i] = field.type;
             },
-            else => {
-                fields[i] = .{
-                    .name = std.fmt.comptimePrint("{d}", .{i}),
-                    .type = field.type,
-                    .default_value_ptr = null,
-                    .is_comptime = field.is_comptime,
-                    .alignment = 0,
-                };
-            },
+            else => fields[i] = field.type,
         }
     }
 
-    return @Type(.{
-        .@"struct" = .{
-            .layout = .auto,
-            .fields = &fields,
-            .decls = &.{},
-            .is_tuple = true,
-        },
-    });
+    return @Tuple(&fields);
 }
+
 /// Omits the selected keys from struct types.
 pub fn Omit(
     comptime T: type,
@@ -259,8 +201,9 @@ pub fn Omit(
         @compileError("Key length exceeds struct field length");
 
     const size = info.@"struct".fields.len - keys.len;
-    var fields: [size]std.builtin.Type.StructField = undefined;
-    var fields_seen = [_]bool{false} ** size;
+    var fields_names: [size][]const u8 = undefined;
+    var fields_types: [size]type = undefined;
+    var fields_attr: [size]std.builtin.Type.StructField.Attributes = undefined;
 
     var counter: usize = 0;
     outer: inline for (info.@"struct".fields) |field| {
@@ -269,17 +212,15 @@ pub fn Omit(
                 continue :outer;
         }
 
-        fields[counter] = field;
-        fields_seen[counter] = true;
+        fields_names[counter] = field.name;
+        fields_types[counter] = field.type;
+        fields_attr[counter] = .{
+            .@"comptime" = field.is_comptime,
+            .@"align" = field.alignment,
+            .default_value_ptr = field.default_value_ptr,
+        };
         counter += 1;
     }
 
-    return @Type(.{
-        .@"struct" = .{
-            .layout = .auto,
-            .fields = &fields,
-            .decls = &.{},
-            .is_tuple = false,
-        },
-    });
+    return @Struct(.auto, null, &fields_names, &fields_types, &fields_attr);
 }

@@ -143,27 +143,15 @@ pub const MulticallTargets = struct {
 /// Type function that gets the expected arguments from the provided abi's.
 pub fn MulticallArguments(comptime targets: []const MulticallTargets) type {
     if (targets.len == 0) return void;
-    var fields: [targets.len]std.builtin.Type.StructField = undefined;
+    var fields: [targets.len]type = undefined;
 
     for (targets, 0..) |target, i| {
         const Arguments = AbiParametersToPrimative(target.function.inputs);
 
-        fields[i] = .{
-            .name = std.fmt.comptimePrint("{d}", .{i}),
-            .type = Arguments,
-            .default_value_ptr = null,
-            .is_comptime = false,
-            .alignment = if (@sizeOf(Arguments) > 0) @alignOf(Arguments) else 0,
-        };
+        fields[i] = Arguments;
     }
-    return @Type(.{
-        .@"struct" = .{
-            .layout = .auto,
-            .fields = &fields,
-            .decls = &.{},
-            .is_tuple = true,
-        },
-    });
+
+    return @Tuple(&fields);
 }
 
 /// Multicall3 aggregate3 abi representation.
@@ -388,49 +376,23 @@ pub fn estimateMaxFeePerGas(self: *Provider) !RPCResponse(u64) {
 /// Estimates the L1 + Provider fees to execute a transaction on L2
 pub fn estimateTotalFees(
     self: *Provider,
-    gpa: Allocator,
     london_envelope: LondonTransactionEnvelope,
 ) !u256 {
-    var group = Io.Group.init;
+    const l1_gas_fee = try self.estimateL1GasFee(london_envelope);
 
-    var l1_gas_fee: ?u256 = null;
-    var l2_gas: ?u256 = null;
-    var gas_price: ?u256 = null;
-
-    group.async(self.io, struct {
-        fn worker(provider: *Provider, allocator: Allocator, london: LondonTransactionEnvelope, out: *?u256) anyerror!void {
-            out.* = try provider.estimateL1GasFee(allocator, london);
-        }
-    }.worker, .{ self, gpa, london_envelope, &l1_gas_fee });
-
-    group.async(self.io, struct {
-        fn worker(provider: *Provider, london: EthCall, out: *?u256) anyerror!void {
-            const gas = try provider.estimateGas(london, .{});
-            defer gas.deinit();
-
-            out.* = gas.response;
-        }
-    }.worker, .{ self, .{ .london = .{
+    const l2_gas = try self.estimateGas(.{ .london = .{
         .to = london_envelope.to,
         .data = london_envelope.data,
         .maxFeePerGas = london_envelope.maxFeePerGas,
         .maxPriorityFeePerGas = london_envelope.maxPriorityFeePerGas,
         .value = london_envelope.value,
-    } }, &l2_gas });
+    } }, .{});
+    defer l2_gas.deinit();
 
-    group.async(self.io, struct {
-        fn worker(provider: *Provider, out: *?u256) anyerror!void {
-            const gas = try provider.getGasPrice();
-            defer gas.deinit();
+    const gas_price = try self.getGasPrice();
+    defer gas_price.deinit();
 
-            out.* = gas.response;
-        }
-    }.worker, .{ self, &gas_price });
-
-    group.wait(self.io);
-
-    return (l1_gas_fee orelse return error.FailedToGetL2Gas) +
-        (l2_gas orelse return error.FailedToGetL1Gas) * (gas_price orelse return error.FailedToGetGasPrice);
+    return l1_gas_fee + l2_gas.response * gas_price.response;
 }
 
 /// Estimates the L1 + L2 gas to execute a transaction on L2
@@ -439,35 +401,18 @@ pub fn estimateTotalGas(
     gpa: Allocator,
     london_envelope: LondonTransactionEnvelope,
 ) !u256 {
-    var group = Io.Group.init;
+    const l1_gas_fee = try self.estimateL1GasFee(gpa, london_envelope);
 
-    var l1_gas_fee: ?u256 = null;
-    var l2_gas: ?u256 = null;
-
-    group.async(self.io, struct {
-        fn worker(provider: *Provider, allocator: Allocator, london: LondonTransactionEnvelope, out: *?u256) void {
-            out.* = provider.estimateL1GasFee(allocator, london) catch return;
-        }
-    }.worker, .{ self, gpa, london_envelope, &l1_gas_fee });
-
-    group.async(self.io, struct {
-        fn worker(provider: *Provider, london: EthCall, out: *?u256) void {
-            const gas = provider.estimateGas(london, .{}) catch return;
-            defer gas.deinit();
-
-            out.* = gas.response;
-        }
-    }.worker, .{ self, .{ .london = .{
+    const l2_gas = try self.estimateGas(.{ .london = .{
         .to = london_envelope.to,
         .data = london_envelope.data,
         .maxFeePerGas = london_envelope.maxFeePerGas,
         .maxPriorityFeePerGas = london_envelope.maxPriorityFeePerGas,
         .value = london_envelope.value,
-    } }, &l2_gas });
+    } }, .{});
+    defer l2_gas.deinit();
 
-    group.wait(self.io);
-
-    return (l1_gas_fee orelse return error.FailedToGetL2Gas) + (l2_gas orelse return error.FailedToGetL1Gas);
+    return l1_gas_fee + l2_gas.response;
 }
 
 /// Returns historical gas information, allowing you to track trends over time.

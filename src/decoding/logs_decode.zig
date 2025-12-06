@@ -112,7 +112,7 @@ pub fn decodeLog(comptime T: type, encoded: Hash, options: LogDecoderOptions) Lo
             if (arr_info.len > 32)
                 @compileError("Only [32]u8 arrays and lower are supported. Found: " ++ @typeName(T));
 
-            const AsInt = @Type(.{ .int = .{ .signedness = .unsigned, .bits = arr_info.len * 8 } });
+            const AsInt = @Int(.unsigned, arr_info.len * 8);
 
             var result: T = undefined;
 

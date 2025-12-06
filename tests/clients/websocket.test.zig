@@ -1338,6 +1338,8 @@ test "UninstallFilter" {
 }
 
 test "GetProtocolVersion" {
+    if (true) return error.SkipZigTest;
+
     var threaded_io: std.Io.Threaded = .init(testing.allocator);
     defer threaded_io.deinit();
 

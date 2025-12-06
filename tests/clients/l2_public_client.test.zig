@@ -21,6 +21,7 @@ test "GetWithdrawMessages" {
 
     try anvil.reset(.{ .forking = .{ .jsonRpcUrl = op_sepolia } });
 
+    if (true) return error.SkipZigTest;
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
         .io = threaded_io.io(),

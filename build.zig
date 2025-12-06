@@ -2,7 +2,7 @@ const env_parser = @import("src/utils/env_load.zig");
 const std = @import("std");
 const builtin = @import("builtin");
 
-const min_zig_string = "0.16.0-dev.1246+4b593a6c2";
+const min_zig_string = "0.16.0-dev.1484+d0ba6642b";
 
 /// Build zabi modules and test runners.
 pub fn build(b: *std.Build) void {

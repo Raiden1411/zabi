@@ -3069,7 +3069,7 @@ pub const WebsocketProvider = struct {
                 switch (code) {
                     .integer,
                     => |number| {
-                        const error_enum = try std.meta.intToEnum(EthereumErrorCodes, number);
+                        const error_enum = std.enums.fromInt(EthereumErrorCodes, number) orelse return error.InvalidEnumTag;
 
                         if (error_enum == .TooManyRequests) {
                             const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
@@ -3083,7 +3083,7 @@ pub const WebsocketProvider = struct {
                     .number_string,
                     => |number| {
                         const parsed = try std.fmt.parseInt(i64, number, 10);
-                        const error_enum = try std.meta.intToEnum(EthereumErrorCodes, parsed);
+                        const error_enum = std.enums.fromInt(EthereumErrorCodes, parsed) orelse return error.InvalidEnumTag;
 
                         if (error_enum == .TooManyRequests) {
                             const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
@@ -3414,7 +3414,7 @@ pub const IpcProvider = struct {
                 switch (code) {
                     .integer,
                     => |number| {
-                        const error_enum = try std.meta.intToEnum(EthereumErrorCodes, number);
+                        const error_enum = std.enums.fromInt(EthereumErrorCodes, number) orelse return error.InvalidEnumTag;
 
                         if (error_enum == .TooManyRequests) {
                             const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));
@@ -3428,7 +3428,7 @@ pub const IpcProvider = struct {
                     .number_string,
                     => |number| {
                         const parsed = try std.fmt.parseInt(i64, number, 10);
-                        const error_enum = try std.meta.intToEnum(EthereumErrorCodes, parsed);
+                        const error_enum = std.enums.fromInt(EthereumErrorCodes, parsed) orelse return error.InvalidEnumTag;
 
                         if (error_enum == .TooManyRequests) {
                             const backoff: u64 = std.math.shl(u8, 1, retries) * @as(u64, @intCast(200));

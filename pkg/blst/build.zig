@@ -25,8 +25,8 @@ fn buildBlst(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.R
         .root_module = mod,
     });
 
-    lib.addIncludePath(upstream.path("src"));
-    lib.addIncludePath(upstream.path("build"));
+    lib.root_module.addIncludePath(upstream.path("src"));
+    lib.root_module.addIncludePath(upstream.path("build"));
 
     var flags = std.array_list.Managed([]const u8).init(b.allocator);
     defer flags.deinit();
@@ -35,9 +35,9 @@ fn buildBlst(b: *std.Build, upstream: *std.Build.Dependency, target: std.Build.R
         try flags.appendSlice(&.{"-D__BLST_PORTABLE__"});
     }
 
-    lib.addCSourceFiles(.{ .root = upstream.path(""), .flags = flags.items, .files = &.{ "src/server.c", "build/assembly.S" } });
+    lib.root_module.addCSourceFiles(.{ .root = upstream.path(""), .flags = flags.items, .files = &.{ "src/server.c", "build/assembly.S" } });
     lib.installHeadersDirectory(upstream.path("src"), "", .{});
-    lib.linkLibC();
+    lib.root_module.link_libc = true;
 
     return lib;
 }

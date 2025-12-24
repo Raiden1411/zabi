@@ -2334,7 +2334,7 @@ pub const SolidityFormatter = struct {
         switch (self.tree.tokens.items(.tag)[token_index]) {
             .doc_comment,
             .doc_comment_container,
-            => slice = std.mem.trimRight(u8, slice, &std.ascii.whitespace),
+            => slice = std.mem.trimEnd(u8, slice, &std.ascii.whitespace),
             else => {},
         }
 
@@ -2437,7 +2437,7 @@ pub const SolidityFormatter = struct {
             const newline = if (newline_index) |i| comment_start + i else null;
 
             const untrimmed_comment = self.tree.source[comment_start .. newline orelse self.tree.source.len];
-            const trimmed_comment = std.mem.trimRight(u8, untrimmed_comment, &std.ascii.whitespace);
+            const trimmed_comment = std.mem.trimEnd(u8, untrimmed_comment, &std.ascii.whitespace);
 
             if (index != 0) {
                 if (index == start and std.mem.containsAtLeast(u8, self.tree.source[index..comment_start], 2, "\n")) {

@@ -944,7 +944,7 @@ pub const Transaction = union(enum) {
             return error.UnexpectedToken;
 
         const type_value = std.meta.stringToEnum(TransactionTypes, tx_type.string) orelse
-            std.meta.intToEnum(TransactionTypes, try std.fmt.parseInt(u8, tx_type.string, 0)) catch return error.UnexpectedToken;
+            (std.enums.fromInt(TransactionTypes, try std.fmt.parseInt(u8, tx_type.string, 0)) orelse return error.UnexpectedToken);
 
         switch (type_value) {
             .legacy => return @unionInit(@This(), "legacy", try std.json.parseFromValueLeaky(LegacyTransaction, allocator, source, options)),

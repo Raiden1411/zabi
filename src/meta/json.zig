@@ -177,7 +177,7 @@ pub fn innerParseValueRequest(
                     if (std.meta.stringToEnum(T, slice)) |result| return result;
 
                     const enum_number = std.fmt.parseInt(enum_info.tag_type, slice, 0) catch return error.InvalidEnumTag;
-                    return std.meta.intToEnum(T, enum_number);
+                    return std.enums.fromInt(T, enum_number) orelse error.InvalidEnumTag;
                 },
                 else => return std.json.innerParseFromValue(T, allocator, source, options),
             }

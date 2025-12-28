@@ -209,9 +209,12 @@ fn failWithMessage(
 ) noreturn {
     assert(@typeInfo(@TypeOf(values)) == .@"struct");
     assert(@typeInfo(@TypeOf(values)).@"struct".is_tuple);
+    var buffer: [1024]u8 = undefined;
 
-    const stderr = std.fs.File.stderr();
+    const stderr = std.debug.lockStderr(&buffer).terminal().writer;
+    defer std.debug.unlockStderr();
+
     stderr.writeAll("Failed with message: ") catch {};
     stderr.writeAll(message) catch {};
-    std.posix.exit(1);
+    std.process.exit(1);
 }

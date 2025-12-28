@@ -301,6 +301,7 @@ pub fn initClient(
 /// If `options` are set to their default value it will only start with `anvil` and no arguments.
 pub fn initProcess(
     allocator: Allocator,
+    io: std.Io,
     options: AnvilStartOptions,
 ) (Allocator.Error || error{NoSpaceLeft} || Child.SpawnError || std.Io.Writer.Error)!Child {
     const args_slice = try options.parseToArgumentsSlice(allocator);
@@ -311,7 +312,7 @@ pub fn initProcess(
     result.stdout_behavior = .Ignore;
     result.stderr_behavior = .Ignore;
 
-    try result.spawn();
+    try result.spawn(io);
 
     return result;
 }

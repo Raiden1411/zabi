@@ -14,7 +14,7 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
-    var threaded_io: std.Io.Threaded = .init(gpa.allocator());
+    var threaded_io: std.Io.Threaded = .init(gpa.allocator(), .{});
     defer threaded_io.deinit();
 
     var iter = try std.process.argsWithAllocator(gpa.allocator());

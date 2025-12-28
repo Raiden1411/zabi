@@ -2,7 +2,7 @@ const env_parser = @import("src/utils/env_load.zig");
 const std = @import("std");
 const builtin = @import("builtin");
 
-const min_zig_string = "0.16.0-dev.1484+d0ba6642b";
+const min_zig_string = "0.16.0-dev.1859+212968c57";
 
 /// Build zabi modules and test runners.
 pub fn build(b: *std.Build) void {
@@ -438,12 +438,12 @@ fn buildExamples(
 
 /// Loads enviroment variables from a `.env` file in case they aren't already present.
 fn loadVariables(b: *std.Build, env_path: []const u8, exe: *std.Build.Step.Run) void {
-    var threaded_io: std.Io.Threaded = .init(b.allocator);
+    var threaded_io: std.Io.Threaded = .init(b.allocator, .{});
     defer threaded_io.deinit();
 
-    var file = std.fs.cwd().openFile(env_path, .{}) catch |err|
+    var file = std.Io.Dir.cwd().openFile(threaded_io.io(), env_path, .{}) catch |err|
         std.debug.panic("Failed to read from {s} file! Error: {s}", .{ env_path, @errorName(err) });
-    defer file.close();
+    defer file.close(threaded_io.io());
 
     var reader = file.reader(threaded_io.io(), &.{});
 

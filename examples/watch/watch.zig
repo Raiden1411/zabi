@@ -15,7 +15,7 @@ pub fn main() !void {
     var iter = try std.process.argsWithAllocator(gpa.allocator());
     defer iter.deinit();
 
-    var threaded_io: std.Io.Threaded = .init(gpa.allocator());
+    var threaded_io: std.Io.Threaded = .init(gpa.allocator(), .{});
     defer threaded_io.deinit();
 
     const parsed = args_parser.parseArgs(CliOptions, gpa.allocator(), &iter);

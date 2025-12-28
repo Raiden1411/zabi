@@ -8,7 +8,7 @@ const Anvil = @import("zabi").clients.Anvil;
 const HttpProvider = client.Provider.HttpProvider;
 
 test "GetWithdrawMessages" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const op_sepolia = try std.process.getEnvVarOwned(testing.allocator, "ANVIL_FORK_URL_OP_SEPOLIA");
@@ -40,7 +40,7 @@ test "GetWithdrawMessages" {
 }
 
 test "GetBaseFee" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -56,7 +56,7 @@ test "GetBaseFee" {
 }
 
 test "EstimateL1Gas" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -81,7 +81,7 @@ test "EstimateL1Gas" {
 }
 
 test "EstimateL1GasFee" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -106,7 +106,7 @@ test "EstimateL1GasFee" {
 }
 
 test "EstimateTotalGas" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -131,7 +131,7 @@ test "EstimateTotalGas" {
 }
 
 test "EstimateTotalFees" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{

@@ -143,8 +143,9 @@ pub fn main() !void {
         return;
 
     var writer_buffer: [1024]u8 = undefined;
-    const writer, _ = std.debug.lockStderrWriter(&writer_buffer);
-    defer std.debug.unlockStderrWriter();
+
+    const writer = std.debug.lockStderr(&writer_buffer).terminal().writer;
+    defer std.debug.unlockStderr();
 
     var runner: Runner = .{
         .color_stream = .init(writer, &.{}),
@@ -185,7 +186,7 @@ pub fn main() !void {
 
 /// Connects to the anvil instance. Fails if it cant.
 fn startAnvilInstances(allocator: std.mem.Allocator) !void {
-    var threaded_io: std.Io.Threaded = .init(allocator);
+    var threaded_io: std.Io.Threaded = .init(allocator, .{});
     defer threaded_io.deinit();
 
     const mainnet = try std.process.getEnvVarOwned(allocator, "ANVIL_FORK_URL");

@@ -7,7 +7,7 @@ const HttpProvider = @import("zabi").clients.Provider.HttpProvider;
 const Anvil = @import("zabi").clients.Anvil;
 
 test "Reset Anvil" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const mainnet = try std.process.getEnvVarOwned(testing.allocator, "ANVIL_FORK_URL");
@@ -30,7 +30,7 @@ test "Reset Anvil" {
 }
 
 test "ENS Text" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
     var ens = try HttpProvider.init(
         .{
@@ -46,7 +46,7 @@ test "ENS Text" {
 
 test "ENS Name" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
         var ens = try HttpProvider.init(
             .{
@@ -66,7 +66,7 @@ test "ENS Name" {
 }
 
 test "ENS Address" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
     var ens = try HttpProvider.init(
         .{
@@ -85,7 +85,7 @@ test "ENS Address" {
 }
 
 test "ENS Resolver" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
     var ens = try HttpProvider.init(
         .{

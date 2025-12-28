@@ -8,7 +8,7 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.detectLeaks();
 
-    var threaded_io: std.Io.Threaded = .init(gpa.allocator());
+    var threaded_io: std.Io.Threaded = .init(gpa.allocator(), .{});
     defer threaded_io.deinit();
 
     const allocator = gpa.allocator();

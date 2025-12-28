@@ -9,7 +9,7 @@ const WebSocketHandler = @import("zabi").clients.Provider.WebsocketProvider;
 
 test "BlockByNumber" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -29,7 +29,7 @@ test "BlockByNumber" {
         defer block_number.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -48,7 +48,7 @@ test "BlockByNumber" {
         defer block_number.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -67,7 +67,7 @@ test "BlockByNumber" {
         defer block_number.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -89,7 +89,7 @@ test "BlockByNumber" {
 
 test "BlockByHash" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -112,7 +112,7 @@ test "BlockByHash" {
         try testing.expect(block_number.response == .beacon);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -140,7 +140,7 @@ test "BlockByHash" {
 }
 
 test "BlockTransactionCountByHash" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -163,7 +163,7 @@ test "BlockTransactionCountByHash" {
 
 test "BlockTransactionCountByNumber" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -184,7 +184,7 @@ test "BlockTransactionCountByNumber" {
         try testing.expectEqual(block_number.response, 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -208,7 +208,7 @@ test "BlockTransactionCountByNumber" {
 
 test "AddressBalance" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -232,7 +232,7 @@ test "AddressBalance" {
         try testing.expectEqual(block_number.response, 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -258,7 +258,7 @@ test "AddressBalance" {
 
 test "AddressNonce" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -281,7 +281,7 @@ test "AddressNonce" {
         try testing.expect(block_number.response != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -307,7 +307,7 @@ test "AddressNonce" {
 }
 
 test "BlockNumber" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -329,7 +329,7 @@ test "BlockNumber" {
 }
 
 test "GetChainId" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -352,7 +352,7 @@ test "GetChainId" {
 
 test "GetStorage" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -373,7 +373,7 @@ test "GetStorage" {
         try testing.expectEqual(@as(u256, @bitCast(storage.response)), 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -396,7 +396,7 @@ test "GetStorage" {
 }
 
 test "GetAccounts" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -421,7 +421,7 @@ test "GetAccounts" {
 test "GetContractCode" {
     if (true) return error.SkipZigTest;
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -444,7 +444,7 @@ test "GetContractCode" {
         try testing.expect(code.response.len != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -470,7 +470,7 @@ test "GetContractCode" {
 }
 
 test "GetTransactionByHash" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -493,7 +493,7 @@ test "GetTransactionByHash" {
 }
 
 test "GetReceipt" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -517,7 +517,7 @@ test "GetReceipt" {
 
 test "GetFilter" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -538,7 +538,7 @@ test "GetFilter" {
         try testing.expectEqual(filter.response.len, 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -559,7 +559,7 @@ test "GetFilter" {
         try testing.expectEqual(filter.response.len, 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -579,7 +579,7 @@ test "GetFilter" {
 }
 
 test "GetGasPrice" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -601,7 +601,7 @@ test "GetGasPrice" {
 }
 
 test "GetUncleCountByBlockHash" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -624,7 +624,7 @@ test "GetUncleCountByBlockHash" {
 
 test "GetUncleCountByBlockNumber" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -645,7 +645,7 @@ test "GetUncleCountByBlockNumber" {
         try testing.expectEqual(uncle.response, 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -669,7 +669,7 @@ test "GetUncleCountByBlockNumber" {
 
 test "GetUncleByBlockNumberAndIndex" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -687,7 +687,7 @@ test "GetUncleByBlockNumberAndIndex" {
         try testing.expectError(error.InvalidBlockNumberOrIndex, client.provider.getUncleByBlockNumberAndIndex(.{}, 0));
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -710,7 +710,7 @@ test "GetUncleByBlockNumberAndIndex" {
 }
 
 test "GetUncleByBlockHashAndIndex" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -733,7 +733,7 @@ test "GetUncleByBlockHashAndIndex" {
 
 test "GetTransactionByBlockNumberAndIndex" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -751,7 +751,7 @@ test "GetTransactionByBlockNumberAndIndex" {
         try testing.expectError(error.TransactionNotFound, client.provider.getTransactionByBlockNumberAndIndex(.{}, 0));
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -775,7 +775,7 @@ test "GetTransactionByBlockNumberAndIndex" {
 
 test "EstimateGas" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -793,7 +793,7 @@ test "EstimateGas" {
         try testing.expectError(error.TransactionRejected, client.provider.estimateGas(.{ .london = .{ .gas = 10 } }, .{}));
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -811,7 +811,7 @@ test "EstimateGas" {
         try testing.expectError(error.InvalidInput, client.provider.estimateGas(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -832,7 +832,7 @@ test "EstimateGas" {
         try testing.expect(fee.response != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -853,7 +853,7 @@ test "EstimateGas" {
 
 test "CreateAccessList" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -874,7 +874,7 @@ test "CreateAccessList" {
         try testing.expect(access.response.gasUsed != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -892,7 +892,7 @@ test "CreateAccessList" {
         try testing.expectError(error.InvalidInput, client.provider.createAccessList(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -915,7 +915,7 @@ test "CreateAccessList" {
 }
 
 test "GetNetworkPeerCount" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -934,7 +934,7 @@ test "GetNetworkPeerCount" {
 }
 
 test "GetNetworkVersionId" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -956,7 +956,7 @@ test "GetNetworkVersionId" {
 }
 
 test "GetNetworkListenStatus" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -978,7 +978,7 @@ test "GetNetworkListenStatus" {
 }
 
 test "GetSha3Hash" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -997,7 +997,7 @@ test "GetSha3Hash" {
 }
 
 test "GetClientVersion" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1020,7 +1020,7 @@ test "GetClientVersion" {
 
 test "BlobBaseFee" {
     if (true) return error.SkipZigTest;
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1042,7 +1042,7 @@ test "BlobBaseFee" {
 }
 
 test "EstimateBlobMaxFeePerGas" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1063,7 +1063,7 @@ test "EstimateBlobMaxFeePerGas" {
 }
 
 test "EstimateMaxFeePerGas" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1087,7 +1087,7 @@ test "EstimateMaxFeePerGas" {
 test "EstimateFeePerGas" {
     if (true) return error.SkipZigTest;
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1108,7 +1108,7 @@ test "EstimateFeePerGas" {
         try testing.expect(fee.london.max_priority_fee != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1128,7 +1128,7 @@ test "EstimateFeePerGas" {
         try testing.expect(fee.legacy.gas_price != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1152,7 +1152,7 @@ test "EstimateFeePerGas" {
 
 test "GetProof" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1173,7 +1173,7 @@ test "GetProof" {
         try testing.expect(proofs.response.balance != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1197,7 +1197,7 @@ test "GetProof" {
 
 test "GetLogs" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1216,7 +1216,7 @@ test "GetLogs" {
         defer logs.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1238,7 +1238,7 @@ test "GetLogs" {
 
 test "NewLogFilter" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1257,7 +1257,7 @@ test "NewLogFilter" {
         defer logs.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1278,7 +1278,7 @@ test "NewLogFilter" {
 }
 
 test "NewBlockFilter" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1298,7 +1298,7 @@ test "NewBlockFilter" {
 }
 
 test "NewPendingTransactionFilter" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1318,7 +1318,7 @@ test "NewPendingTransactionFilter" {
 }
 
 test "UninstallFilter" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1340,7 +1340,7 @@ test "UninstallFilter" {
 test "GetProtocolVersion" {
     if (true) return error.SkipZigTest;
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1359,7 +1359,7 @@ test "GetProtocolVersion" {
 }
 
 test "SyncStatus" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1382,7 +1382,7 @@ test "FeeHistory" {
     if (true) return error.SkipZigTest;
 
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1401,7 +1401,7 @@ test "FeeHistory" {
         defer status.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1420,7 +1420,7 @@ test "FeeHistory" {
         defer status.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");
@@ -1439,7 +1439,7 @@ test "FeeHistory" {
         defer status.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://127.0.0.1:6969/");

@@ -10,7 +10,7 @@ const MulticallTargets = multicall.MulticallTargets;
 
 test "BlockByNumber" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -27,7 +27,7 @@ test "BlockByNumber" {
         defer block_number.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -44,7 +44,7 @@ test "BlockByNumber" {
         defer block_number.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -61,7 +61,7 @@ test "BlockByNumber" {
         defer block_number.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -81,7 +81,7 @@ test "BlockByNumber" {
 
 test "BlockByHash" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -102,7 +102,7 @@ test "BlockByHash" {
         try testing.expect(block_number.response == .beacon);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -128,7 +128,7 @@ test "BlockByHash" {
 }
 
 test "BlockTransactionCountByHash" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -149,7 +149,7 @@ test "BlockTransactionCountByHash" {
 
 test "BlockTransactionCountByNumber" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -168,7 +168,7 @@ test "BlockTransactionCountByNumber" {
         try testing.expectEqual(block_number.response, 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -190,7 +190,7 @@ test "BlockTransactionCountByNumber" {
 
 test "AddressBalance" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -212,7 +212,7 @@ test "AddressBalance" {
         try testing.expectEqual(block_number.response, 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -236,7 +236,7 @@ test "AddressBalance" {
 
 test "AddressNonce" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -257,7 +257,7 @@ test "AddressNonce" {
         try testing.expect(block_number.response != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -281,7 +281,7 @@ test "AddressNonce" {
 }
 
 test "BlockNumber" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -301,7 +301,7 @@ test "BlockNumber" {
 }
 
 test "GetChainId" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -322,7 +322,7 @@ test "GetChainId" {
 
 test "GetStorage" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -341,7 +341,7 @@ test "GetStorage" {
         try testing.expectEqual(@as(u256, @bitCast(storage.response)), 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -362,7 +362,7 @@ test "GetStorage" {
 }
 
 test "GetAccounts" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -384,7 +384,7 @@ test "GetAccounts" {
 
 test "GetContractCode" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -405,7 +405,7 @@ test "GetContractCode" {
         try testing.expect(code.response.len != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -429,7 +429,7 @@ test "GetContractCode" {
 }
 
 test "GetTransactionByHash" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -450,7 +450,7 @@ test "GetTransactionByHash" {
 }
 
 test "GetReceipt" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -473,7 +473,7 @@ test "GetReceipt" {
 test "GetFilter" {
     if (true) return error.SkipZigTest;
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -492,7 +492,7 @@ test "GetFilter" {
         try testing.expectEqual(filter.response.len, 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -511,7 +511,7 @@ test "GetFilter" {
         try testing.expectEqual(filter.response.len, 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -529,7 +529,7 @@ test "GetFilter" {
 }
 
 test "GetGasPrice" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -549,7 +549,7 @@ test "GetGasPrice" {
 }
 
 test "GetUncleCountByBlockHash" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -570,7 +570,7 @@ test "GetUncleCountByBlockHash" {
 
 test "GetUncleCountByBlockNumber" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -589,7 +589,7 @@ test "GetUncleCountByBlockNumber" {
         try testing.expectEqual(uncle.response, 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -611,7 +611,7 @@ test "GetUncleCountByBlockNumber" {
 
 test "GetUncleByBlockNumberAndIndex" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -627,7 +627,7 @@ test "GetUncleByBlockNumberAndIndex" {
         try testing.expectError(error.InvalidBlockNumberOrIndex, client.provider.getUncleByBlockNumberAndIndex(.{}, 0));
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -648,7 +648,7 @@ test "GetUncleByBlockNumberAndIndex" {
 }
 
 test "GetUncleByBlockHashAndIndex" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -669,7 +669,7 @@ test "GetUncleByBlockHashAndIndex" {
 
 test "GetTransactionByBlockNumberAndIndex" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -685,7 +685,7 @@ test "GetTransactionByBlockNumberAndIndex" {
         try testing.expectError(error.TransactionNotFound, client.provider.getTransactionByBlockNumberAndIndex(.{}, 0));
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -707,7 +707,7 @@ test "GetTransactionByBlockNumberAndIndex" {
 
 test "EstimateGas" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -723,7 +723,7 @@ test "EstimateGas" {
         try testing.expectError(error.TransactionRejected, client.provider.estimateGas(.{ .london = .{ .gas = 10 } }, .{}));
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -739,7 +739,7 @@ test "EstimateGas" {
         try testing.expectError(error.InvalidInput, client.provider.estimateGas(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -758,7 +758,7 @@ test "EstimateGas" {
         try testing.expect(fee.response != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -777,7 +777,7 @@ test "EstimateGas" {
 
 test "CreateAccessList" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -796,7 +796,7 @@ test "CreateAccessList" {
         try testing.expect(access.response.gasUsed != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -812,7 +812,7 @@ test "CreateAccessList" {
         try testing.expectError(error.InvalidInput, client.provider.createAccessList(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -833,7 +833,7 @@ test "CreateAccessList" {
 }
 
 test "GetNetworkPeerCount" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -850,7 +850,7 @@ test "GetNetworkPeerCount" {
 }
 
 test "GetNetworkVersionId" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -870,7 +870,7 @@ test "GetNetworkVersionId" {
 }
 
 test "GetNetworkListenStatus" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -890,7 +890,7 @@ test "GetNetworkListenStatus" {
 }
 
 test "GetSha3Hash" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -907,7 +907,7 @@ test "GetSha3Hash" {
 }
 
 test "GetClientVersion" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -928,7 +928,7 @@ test "GetClientVersion" {
 
 test "BlobBaseFee" {
     if (true) return error.SkipZigTest;
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -948,7 +948,7 @@ test "BlobBaseFee" {
 }
 
 test "EstimateBlobMaxFeePerGas" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -967,7 +967,7 @@ test "EstimateBlobMaxFeePerGas" {
 }
 
 test "EstimateMaxFeePerGas" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -989,7 +989,7 @@ test "EstimateMaxFeePerGas" {
 test "EstimateFeePerGas" {
     if (true) return error.SkipZigTest;
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -1008,7 +1008,7 @@ test "EstimateFeePerGas" {
         try testing.expect(fee.london.max_priority_fee != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -1026,7 +1026,7 @@ test "EstimateFeePerGas" {
         try testing.expect(fee.legacy.gas_price != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -1048,7 +1048,7 @@ test "EstimateFeePerGas" {
 
 test "GetProof" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -1067,7 +1067,7 @@ test "GetProof" {
         try testing.expect(proofs.response.balance != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -1089,7 +1089,7 @@ test "GetProof" {
 
 test "GetLogs" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -1106,7 +1106,7 @@ test "GetLogs" {
         defer logs.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -1126,7 +1126,7 @@ test "GetLogs" {
 
 test "NewLogFilter" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -1143,7 +1143,7 @@ test "NewLogFilter" {
         defer logs.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -1162,7 +1162,7 @@ test "NewLogFilter" {
 }
 
 test "NewBlockFilter" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -1180,7 +1180,7 @@ test "NewBlockFilter" {
 }
 
 test "NewPendingTransactionFilter" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -1198,7 +1198,7 @@ test "NewPendingTransactionFilter" {
 }
 
 test "UninstallFilter" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -1218,7 +1218,7 @@ test "UninstallFilter" {
 test "GetProtocolVersion" {
     if (true) return error.SkipZigTest;
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -1235,7 +1235,7 @@ test "GetProtocolVersion" {
 }
 
 test "SyncStatus" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var client = try IPC.init(.{
@@ -1256,7 +1256,7 @@ test "FeeHistory" {
     if (true) return error.SkipZigTest;
 
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -1273,7 +1273,7 @@ test "FeeHistory" {
         defer status.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -1290,7 +1290,7 @@ test "FeeHistory" {
         defer status.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{
@@ -1307,7 +1307,7 @@ test "FeeHistory" {
         defer status.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator);
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
         defer threaded_io.deinit();
 
         var client = try IPC.init(.{

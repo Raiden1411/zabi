@@ -8,7 +8,7 @@ const Anvil = @import("zabi").clients.Anvil;
 const HttpProvider = client.Provider.HttpProvider;
 
 test "GetL2HashFromL1DepositInfo" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -25,7 +25,7 @@ test "GetL2HashFromL1DepositInfo" {
 }
 
 test "GetL2Output" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -45,7 +45,7 @@ test "GetL2Output" {
 test "getSecondsToFinalize" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -65,7 +65,7 @@ test "getSecondsToFinalize" {
 test "GetSecondsToNextL2Output" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -84,7 +84,7 @@ test "GetSecondsToNextL2Output" {
 }
 
 test "GetTransactionDepositEvents" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -108,7 +108,7 @@ test "GetProvenWithdrawals" {
     if (true) return error.SkipZigTest;
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -130,7 +130,7 @@ test "GetFinalizedWithdrawals" {
     if (true) return error.SkipZigTest;
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -150,7 +150,7 @@ test "GetFinalizedWithdrawals" {
 test "Errors" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -171,7 +171,7 @@ test "getSecondsUntilNextGame" {
     const sepolia = try std.process.getEnvVarOwned(testing.allocator, "ANVIL_FORK_URL_SEPOLIA");
     defer testing.allocator.free(sepolia);
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var anvil: Anvil = undefined;
@@ -197,7 +197,7 @@ test "getSecondsUntilNextGame" {
 }
 
 test "Portal Version" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -213,7 +213,7 @@ test "Portal Version" {
 }
 
 test "Get Games" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator);
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{

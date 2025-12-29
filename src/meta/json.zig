@@ -159,8 +159,20 @@ pub fn innerParseValueRequest(
 
                     return std.fmt.parseInt(T, str, 0);
                 },
-                .float => return std.json.innerParseFromValue(T, allocator, source, options),
-                .integer => return std.json.innerParseFromValue(T, allocator, source, options),
+                // TODO: Readd this once LLVM bugs on arm64 have been fixed
+                //
+                // .float => |f| {
+                //     if (@round(f) != f) return error.InvalidNumber;
+                //     if (f > @as(f128, @floatFromInt(std.math.maxInt(T)))) return error.Overflow;
+                //     if (f < @as(f128, @floatFromInt(std.math.minInt(T)))) return error.Overflow;
+                //
+                //     return @as(T, @intFromFloat(f));
+                // },
+                .integer => |i| {
+                    if (i > std.math.maxInt(T)) return error.Overflow;
+                    if (i < std.math.minInt(T)) return error.Overflow;
+                    return @intCast(i);
+                },
 
                 else => return error.UnexpectedToken,
             }
@@ -279,8 +291,16 @@ pub fn innerStringify(
             stream_writer.next_punctuation = .comma;
         },
         .float, .comptime_float => {
+            if (@as(f64, @floatCast(value)) == value) {
+                try valueStart(stream_writer);
+                try stream_writer.writer.print("{}", .{@as(f64, @floatCast(value))});
+                stream_writer.next_punctuation = .comma;
+
+                return;
+            }
+
             try valueStart(stream_writer);
-            try stream_writer.writer.print("{d}", .{value});
+            try stream_writer.writer.print("\"{}\"", .{@as(f64, @floatCast(value))});
             stream_writer.next_punctuation = .comma;
         },
         .null => {
@@ -290,8 +310,8 @@ pub fn innerStringify(
         },
         .optional => {
             if (value) |val| {
-                return try innerStringify(val, stream_writer);
-            } else return try innerStringify(null, stream_writer);
+                return innerStringify(val, stream_writer);
+            } else return innerStringify(null, stream_writer);
         },
         .enum_literal => {
             try valueStart(stream_writer);

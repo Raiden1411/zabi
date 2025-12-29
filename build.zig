@@ -410,7 +410,8 @@ fn buildExamples(
         "examples/watch/logs.zig",
         "examples/transfer/transfer.zig",
         "examples/interpreter/interpreter.zig",
-        "examples/block_explorer/explorer.zig",
+        // TODO: Readd this once arm64 llvm bugs have been fixed
+        // "examples/block_explorer/explorer.zig",
         "examples/wallet/wallet.zig",
         "examples/autobahn/autobahn.zig",
     };

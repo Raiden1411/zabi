@@ -180,6 +180,7 @@ pub fn build(b: *std.Build) void {
     {
         zabi_meta.addImport("zabi-abi", zabi_abi);
         zabi_meta.addImport("zabi-types", zabi_types);
+        zabi_meta.addImport("zabi-utils", zabi_utils);
     }
 
     // Adds the dependencies for `zabi-types` module.
@@ -411,7 +412,7 @@ fn buildExamples(
         "examples/transfer/transfer.zig",
         "examples/interpreter/interpreter.zig",
         // TODO: Readd this once arm64 llvm bugs have been fixed
-        // "examples/block_explorer/explorer.zig",
+        "examples/block_explorer/explorer.zig",
         "examples/wallet/wallet.zig",
         "examples/autobahn/autobahn.zig",
     };

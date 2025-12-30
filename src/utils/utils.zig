@@ -251,3 +251,113 @@ pub fn calcultateBlobGasPrice(excess_gas: u64) u128 {
 
     return @divFloor(output, constants.BLOB_GASPRICE_UPDATE_FRACTION);
 }
+
+/// Converts a float type to the provided int type.
+/// This doesn't error on aarch64 for the llvm backend
+pub fn intFromFloat(comptime T: type, float: anytype) T {
+    const Float = switch (@typeInfo(@TypeOf(float))) {
+        else => @TypeOf(float),
+        .comptime_float => f128, // any float type will do
+    };
+    const type_info = @typeInfo(T);
+
+    if (type_info.int.bits <= 128) {
+        @branchHint(.likely);
+        return @intFromFloat(float);
+    }
+
+    if (float == 0)
+        return 0;
+
+    if (std.math.isInf(@as(Float, @floatCast(float)))) {
+        @branchHint(.unlikely);
+
+        if (std.math.isNan(float))
+            return 0;
+
+        return if (float > 0) std.math.maxInt(T) else std.math.minInt(T);
+    }
+
+    const Repr = std.math.FloatRepr(Float);
+    const repr: Repr = @bitCast(@as(Float, @floatCast(float)));
+
+    const raw_mantissa = repr.mantissa;
+    const raw_exponent = @intFromEnum(repr.exponent);
+    const fractional_bits = std.math.floatFractionalBits(Float);
+
+    const is_subnormal = (raw_exponent == 0);
+    const implicit_bit: T = if (is_subnormal) 0 else (@as(T, 1) << fractional_bits);
+    const full_mantissa: T = implicit_bit | @as(T, raw_mantissa);
+
+    const bias = @intFromEnum(Repr.BiasedExponent.zero);
+    const exp_val = if (is_subnormal)
+        1 - @as(i32, @intCast(bias))
+    else
+        @as(i32, @intCast(raw_exponent)) - @as(i32, @intCast(bias));
+
+    var result: T = 0;
+    const shift = exp_val - @as(i32, fractional_bits);
+
+    if (shift >= 0) {
+        if (shift < type_info.int.bits) {
+            result = full_mantissa << @intCast(shift);
+        } else @panic("Cannot fit float into provided integer");
+    } else {
+        const r_shift = -shift;
+        if (r_shift < type_info.int.bits) {
+            result = full_mantissa >> @intCast(r_shift);
+        } else {
+            result = 0;
+        }
+    }
+
+    if (repr.sign == .negative) {
+        if (type_info.int.signedness == .unsigned)
+            @panic("Cannot fit float into provided unsigned integer");
+
+        return -%result;
+    }
+
+    return result;
+}
+
+/// Converts a int type to the provided float type.
+/// This doesn't error on aarch64 for the llvm backend
+pub fn floatFromInt(comptime Float: type, value: anytype) Float {
+    const info_value = @typeInfo(@TypeOf(value));
+    const Int = switch (info_value) {
+        .comptime_int => std.math.IntFittingRange(value, value),
+        .int => @TypeOf(value),
+        else => @compileError("Only integers or comptime_int are supported!"),
+    };
+
+    const info = @typeInfo(Int);
+
+    // For 128-bit or smaller, the native cast is safe and efficient
+    if (info.int.bits <= 128) {
+        @branchHint(.likely);
+
+        return @floatFromInt(value);
+    }
+
+    // Calculate how many 64-bit limbs we need
+    const limb_count = (info.int.bits + 63) / 64;
+    var limbs: [limb_count]u64 = undefined;
+
+    // Handle signedness
+    const is_negative = value < 0;
+    const abs_value = if (is_negative) @as(Int, -%value) else value;
+
+    // Populate limbs (Little Endian)
+    inline for (0..limb_count) |i|
+        limbs[i] = @truncate(abs_value >> (i * 64));
+
+    const b = std.math.big.int.Const{
+        .limbs = &limbs,
+        .positive = !is_negative,
+    };
+
+    const float, _ = b.toFloat(Float, .nearest_even);
+
+    return float;
+}

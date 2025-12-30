@@ -118,7 +118,7 @@ pub fn ExplorerRequestResponse(comptime T: type) type {
             options: ParseOptions,
         ) ParseError(@TypeOf(source.*))!@This() {
             const json_value = try Value.jsonParse(allocator, source, options);
-            return try jsonParseFromValue(allocator, json_value, options);
+            return jsonParseFromValue(allocator, json_value, options);
         }
 
         pub fn jsonParseFromValue(
@@ -343,7 +343,17 @@ pub const TokenExplorerTransaction = struct {
                 if (std.mem.eql(u8, field.name, field_name)) {
                     if (@field(seen, field.name) == 0) {
                         @field(seen, field.name) = 1;
-                        @field(result, field.name) = try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options);
+                        @field(result, field.name) =
+                            switch (@typeInfo(field.type)) {
+                                .optional,
+                                .int,
+                                .float,
+                                .comptime_int,
+                                .comptime_float,
+                                => try meta.json.innerParseValueRequest(field.type, allocator, key_value.value_ptr.*, options),
+                                inline else => try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options),
+                            };
+
                         break;
                     }
                 }
@@ -492,7 +502,17 @@ pub const InternalExplorerTransaction = struct {
                 if (std.mem.eql(u8, field.name, field_name)) {
                     if (@field(seen, field.name) == 0) {
                         @field(seen, field.name) = 1;
-                        @field(result, field.name) = try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options);
+                        @field(result, field.name) =
+                            switch (@typeInfo(field.type)) {
+                                .optional,
+                                .int,
+                                .float,
+                                .comptime_int,
+                                .comptime_float,
+                                => try meta.json.innerParseValueRequest(field.type, allocator, key_value.value_ptr.*, options),
+                                inline else => try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options),
+                            };
+
                         break;
                     }
                 }
@@ -565,7 +585,7 @@ pub const ExplorerTransaction = struct {
         options: ParseOptions,
     ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
-        return try jsonParseFromValue(allocator, json_value, options);
+        return jsonParseFromValue(allocator, json_value, options);
     }
 
     pub fn jsonParseFromValue(
@@ -677,7 +697,16 @@ pub const ExplorerTransaction = struct {
                 if (std.mem.eql(u8, field.name, field_name)) {
                     if (@field(seen, field.name) == 0) {
                         @field(seen, field.name) = 1;
-                        @field(result, field.name) = try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options);
+                        @field(result, field.name) =
+                            switch (@typeInfo(field.type)) {
+                                .optional,
+                                .int,
+                                .float,
+                                .comptime_int,
+                                .comptime_float,
+                                => try meta.json.innerParseValueRequest(field.type, allocator, key_value.value_ptr.*, options),
+                                inline else => try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options),
+                            };
                         break;
                     }
                 }
@@ -737,7 +766,7 @@ pub const GetSourceResult = struct {
         options: ParseOptions,
     ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
-        return try jsonParseFromValue(allocator, json_value, options);
+        return jsonParseFromValue(allocator, json_value, options);
     }
 
     pub fn jsonParseFromValue(
@@ -815,7 +844,16 @@ pub const GetSourceResult = struct {
                 if (std.mem.eql(u8, field.name, field_name)) {
                     if (@field(seen, field.name) == 0) {
                         @field(seen, field.name) = 1;
-                        @field(result, field.name) = try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options);
+                        @field(result, field.name) =
+                            switch (@typeInfo(field.type)) {
+                                .optional,
+                                .int,
+                                .float,
+                                .comptime_int,
+                                .comptime_float,
+                                => try meta.json.innerParseValueRequest(field.type, allocator, key_value.value_ptr.*, options),
+                                inline else => try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options),
+                            };
                         break;
                     }
                 }
@@ -1041,7 +1079,7 @@ pub const BlockRewards = struct {
         options: ParseOptions,
     ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
-        return try jsonParseFromValue(allocator, json_value, options);
+        return jsonParseFromValue(allocator, json_value, options);
     }
 
     pub fn jsonParseFromValue(
@@ -1072,7 +1110,16 @@ pub const BlockRewards = struct {
                 if (std.mem.eql(u8, field.name, field_name)) {
                     if (@field(seen, field.name) == 0) {
                         @field(seen, field.name) = 1;
-                        @field(result, field.name) = try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options);
+                        @field(result, field.name) =
+                            switch (@typeInfo(field.type)) {
+                                .optional,
+                                .int,
+                                .float,
+                                .comptime_int,
+                                .comptime_float,
+                                => try meta.json.innerParseValueRequest(field.type, allocator, key_value.value_ptr.*, options),
+                                inline else => try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options),
+                            };
                         break;
                     }
                 }
@@ -1264,7 +1311,7 @@ pub const GasOracle = struct {
         options: ParseOptions,
     ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
-        return try jsonParseFromValue(allocator, json_value, options);
+        return jsonParseFromValue(allocator, json_value, options);
     }
 
     pub fn jsonParseFromValue(
@@ -1302,7 +1349,16 @@ pub const GasOracle = struct {
                 if (std.mem.eql(u8, field.name, field_name)) {
                     if (@field(seen, field.name) == 0) {
                         @field(seen, field.name) = 1;
-                        @field(result, field.name) = try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options);
+                        @field(result, field.name) =
+                            switch (@typeInfo(field.type)) {
+                                .optional,
+                                .int,
+                                .float,
+                                .comptime_int,
+                                .comptime_float,
+                                => try meta.json.innerParseValueRequest(field.type, allocator, key_value.value_ptr.*, options),
+                                inline else => try std.json.innerParseFromValue(field.type, allocator, key_value.value_ptr.*, options),
+                            };
                         break;
                     }
                 }

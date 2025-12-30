@@ -2,6 +2,7 @@ const meta_utils = @import("utils.zig");
 const std = @import("std");
 const testing = std.testing;
 const types = @import("zabi-types");
+const utils = @import("zabi-utils").utils;
 
 const Allocator = std.mem.Allocator;
 const ConvertToEnum = meta_utils.ConvertToEnum;
@@ -159,15 +160,13 @@ pub fn innerParseValueRequest(
 
                     return std.fmt.parseInt(T, str, 0);
                 },
-                // TODO: Readd this once LLVM bugs on arm64 have been fixed
-                //
-                // .float => |f| {
-                //     if (@round(f) != f) return error.InvalidNumber;
-                //     if (f > @as(f128, @floatFromInt(std.math.maxInt(T)))) return error.Overflow;
-                //     if (f < @as(f128, @floatFromInt(std.math.minInt(T)))) return error.Overflow;
-                //
-                //     return @as(T, @intFromFloat(f));
-                // },
+                .float => |f| {
+                    if (@round(f) != f) return error.InvalidNumber;
+                    if (f > utils.floatFromInt(@TypeOf(f), std.math.maxInt(T))) return error.Overflow;
+                    if (f < utils.floatFromInt(@TypeOf(f), std.math.minInt(T))) return error.Overflow;
+
+                    return utils.intFromFloat(T, f);
+                },
                 .integer => |i| {
                     if (i > std.math.maxInt(T)) return error.Overflow;
                     if (i < std.math.minInt(T)) return error.Overflow;

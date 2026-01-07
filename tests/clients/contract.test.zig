@@ -12,7 +12,9 @@ const IpcProvider = @import("zabi").clients.Provider.IpcProvider;
 
 test "DeployContract" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         const abi: abitypes.Constructor = .{
@@ -45,7 +47,9 @@ test "DeployContract" {
         defer hash.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
         const abi: abitypes.Constructor = .{
             .type = .constructor,
@@ -75,7 +79,9 @@ test "DeployContract" {
         defer hash.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         const abi: abitypes.Constructor = .{
@@ -109,7 +115,9 @@ test "DeployContract" {
 
 test "WriteContract" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         const abi: abitypes.Function = .{
@@ -149,7 +157,9 @@ test "WriteContract" {
         defer result.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         const abi: abitypes.Function = .{
@@ -190,7 +200,9 @@ test "WriteContract" {
         defer result.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         const abi: abitypes.Function = .{
@@ -230,7 +242,9 @@ test "WriteContract" {
         defer result.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         const abi: abitypes.Function = .{
@@ -269,7 +283,9 @@ test "WriteContract" {
 
 test "SimulateWriteCall" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         const abi: abitypes.Function = .{
@@ -306,7 +322,9 @@ test "SimulateWriteCall" {
         defer result.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         const abi: abitypes.Function = .{
@@ -344,7 +362,9 @@ test "SimulateWriteCall" {
         defer result.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         const abi: abitypes.Function = .{
@@ -381,7 +401,9 @@ test "SimulateWriteCall" {
         defer result.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         const abi: abitypes.Function = .{

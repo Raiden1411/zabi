@@ -18,6 +18,7 @@ const Io = std.Io;
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
 const ParseOptions = std.json.ParseOptions;
+const SpawnError = std.process.SpawnError;
 const SpecId = specification.SpecId;
 const Value = std.json.Value;
 
@@ -303,18 +304,18 @@ pub fn initProcess(
     allocator: Allocator,
     io: std.Io,
     options: AnvilStartOptions,
-) (Allocator.Error || error{NoSpaceLeft} || Child.SpawnError || std.Io.Writer.Error)!Child {
+) (Allocator.Error || error{NoSpaceLeft} || SpawnError || std.Io.Writer.Error)!Child {
     const args_slice = try options.parseToArgumentsSlice(allocator);
     defer allocator.free(args_slice);
 
-    var result = std.process.Child.init(args_slice, allocator);
-    result.stdin_behavior = .Ignore;
-    result.stdout_behavior = .Ignore;
-    result.stderr_behavior = .Ignore;
+    const proc = try std.process.spawn(io, .{
+        .argv = args_slice,
+        .stderr = .ignore,
+        .stdout = .ignore,
+        .stdin = .ignore,
+    });
 
-    try result.spawn(io);
-
-    return result;
+    return proc;
 }
 /// Cleans up the http client
 pub fn deinit(self: *Anvil) void {

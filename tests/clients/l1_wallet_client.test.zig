@@ -10,7 +10,9 @@ const Wallet = @import("zabi").clients.Wallet;
 const WithdrawalEnvelope = withdrawl.WithdrawalEnvelope;
 
 test "InitiateWithdrawal" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://localhost:6969/");

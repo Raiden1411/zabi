@@ -18,7 +18,9 @@ const Wallet = clients.Wallet;
 const WebsocketProvider = clients.Provider.WebsocketProvider;
 
 test "HashAuthorization" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://localhost:6969/");
@@ -46,7 +48,9 @@ test "HashAuthorization" {
 }
 
 test "Recover Auth Address" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://localhost:6969/");
@@ -72,7 +76,9 @@ test "Recover Auth Address" {
 }
 
 test "Verify Auth" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://localhost:6969/");
@@ -97,7 +103,9 @@ test "Verify Auth" {
 }
 
 test "Address match" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://localhost:6969/");
@@ -120,7 +128,9 @@ test "Address match" {
 }
 
 test "verifyMessage" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://localhost:6969/");
@@ -148,7 +158,9 @@ test "verifyMessage" {
 }
 
 test "signMessage" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://localhost:6969/");
@@ -175,7 +187,9 @@ test "signMessage" {
 }
 
 test "signTypedData" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://localhost:6969/");
@@ -202,7 +216,9 @@ test "signTypedData" {
 }
 
 test "verifyTypedData" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://localhost:6969/");
@@ -257,7 +273,9 @@ test "verifyTypedData" {
 
 test "sendTransaction" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://localhost:6969/");
@@ -289,7 +307,9 @@ test "sendTransaction" {
         defer receipt.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://localhost:6969/");
@@ -321,7 +341,9 @@ test "sendTransaction" {
         defer receipt.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://localhost:6969/");
@@ -355,7 +377,9 @@ test "sendTransaction" {
         defer receipt.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         var buffer: Hash = undefined;
@@ -390,7 +414,9 @@ test "sendTransaction" {
 }
 
 test "Get First element With Nonce Manager" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://localhost:6969/");
@@ -436,7 +462,9 @@ test "Get First element With Nonce Manager" {
 
 test "Pool transactions" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://localhost:6969/");
@@ -464,7 +492,9 @@ test "Pool transactions" {
         try testing.expect(env != null);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         const uri = try std.Uri.parse("http://localhost:6969/");
@@ -494,7 +524,9 @@ test "Pool transactions" {
         try testing.expect(env != null);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
 
         var buffer: Hash = undefined;
@@ -525,7 +557,9 @@ test "Pool transactions" {
 }
 
 test "Get First element" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://localhost:6969/");
@@ -566,7 +600,9 @@ test "Get First element" {
 
 test "assertTransaction" {
     var tx: TransactionEnvelope = undefined;
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://localhost:6969/");
@@ -637,7 +673,9 @@ test "assertTransaction" {
 test "assertTransactionLegacy" {
     var tx: TransactionEnvelope = undefined;
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     const uri = try std.Uri.parse("http://localhost:6969/");

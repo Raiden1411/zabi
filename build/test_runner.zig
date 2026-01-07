@@ -31,8 +31,8 @@ const Runner = struct {
     result: TestResults,
 
     /// Connect to the anvil instance an reset it.
-    pub fn resetAnvilInstance(self: *Self, allocator: Allocator) !void {
-        startAnvilInstances(allocator) catch {
+    pub fn resetAnvilInstance(self: *Self, allocator: Allocator, env: *std.process.Environ.Map) !void {
+        startAnvilInstances(allocator, env) catch {
             var writer = &self.color_stream.writer;
 
             self.color_stream.setNextColor(.yellow);
@@ -134,7 +134,7 @@ const Runner = struct {
 };
 
 /// Main test runner.
-pub fn main() !void {
+pub fn main(init: std.process.Init.Minimal) !void {
     @disableInstrumentation();
     const test_funcs: []const TestFn = builtin.test_functions;
 
@@ -147,11 +147,15 @@ pub fn main() !void {
     const writer = std.debug.lockStderr(&writer_buffer).terminal().writer;
     defer std.debug.unlockStderr();
 
+    std.testing.io_instance.environ.process_environ = init.environ;
+    var environ_map = try std.testing.io_instance.environ.process_environ.createMap(std.heap.page_allocator);
+    defer environ_map.deinit();
+
     var runner: Runner = .{
         .color_stream = .init(writer, &.{}),
         .result = .{},
     };
-    try runner.resetAnvilInstance(std.heap.page_allocator);
+    try runner.resetAnvilInstance(std.heap.page_allocator, &environ_map);
 
     for (test_funcs) |test_runner| {
         std.testing.allocator_instance = .{};
@@ -185,12 +189,11 @@ pub fn main() !void {
 }
 
 /// Connects to the anvil instance. Fails if it cant.
-fn startAnvilInstances(allocator: std.mem.Allocator) !void {
-    var threaded_io: std.Io.Threaded = .init(allocator, .{});
+fn startAnvilInstances(allocator: std.mem.Allocator, env: *std.process.Environ.Map) !void {
+    var threaded_io: std.Io.Threaded = .init(allocator, .{ .environ = .empty });
     defer threaded_io.deinit();
 
-    const mainnet = try std.process.getEnvVarOwned(allocator, "ANVIL_FORK_URL");
-    defer allocator.free(mainnet);
+    const mainnet = env.get("ANVIL_FORK_URL") orelse return error.MissingEnviromentVariable;
 
     var anvil: Anvil = undefined;
     defer anvil.deinit();

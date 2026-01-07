@@ -9,24 +9,21 @@ pub const CliOptions = struct {
     url: []const u8,
 };
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-
-    var iter = try std.process.argsWithAllocator(gpa.allocator());
-    defer iter.deinit();
-
-    var threaded_io: std.Io.Threaded = .init(gpa.allocator(), .{});
+pub fn main(init: std.process.Init) !void {
+    var threaded_io: std.Io.Threaded = .init(init.gpa, .{
+        .environ = init.minimal.environ,
+    });
     defer threaded_io.deinit();
 
-    const parsed = args_parser.parseArgs(CliOptions, gpa.allocator(), &iter);
+    var iter = init.minimal.args.iterate();
+    const parsed = args_parser.parseArgs(CliOptions, init.gpa, &iter);
 
     const uri = try std.Uri.parse(parsed.url);
 
     var socket = try WebProvider.init(.{
         .network_config = .{ .endpoint = .{ .uri = uri } },
         .io = threaded_io.io(),
-        .allocator = gpa.allocator(),
+        .allocator = init.gpa,
     });
     defer socket.deinit();
 
@@ -43,7 +40,7 @@ pub fn main() !void {
         const event = try socket.getLogsSubEvent();
         defer event.deinit();
 
-        const value = try decoder.abi_decoder.decodeAbiParameter(u256, gpa.allocator(), event.response.params.result.data, .{});
+        const value = try decoder.abi_decoder.decodeAbiParameter(u256, init.gpa, event.response.params.result.data, .{});
         defer value.deinit();
 
         const topics = try decoder.logs_decoder.decodeLogs(struct { [32]u8, [20]u8, [20]u8 }, event.response.params.result.topics, .{});

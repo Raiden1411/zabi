@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
-const ArgIterator = std.process.ArgIterator;
+const ArgIterator = std.process.Args.Iterator;
 const ConvertToEnum = @import("zabi-meta").utils.ConvertToEnum;
 const EnumFieldStruct = std.enums.EnumFieldStruct;
 

@@ -11,13 +11,12 @@ pub const CliOptions = struct {
     calldata: ?[]const u8 = null,
 };
 
-pub fn main() !void {
-    const allocator = std.heap.c_allocator;
+pub fn main(init: std.process.Init.Minimal) !void {
+    const allocator = std.heap.smp_allocator;
 
-    var iter = try std.process.argsWithAllocator(allocator);
-    defer iter.deinit();
-
+    var iter = init.args.iterate();
     const parsed = zabi_utils.args.parseArgs(CliOptions, allocator, &iter);
+
     const calldata_slice = parsed.calldata orelse "";
 
     const bytecode = try allocator.alloc(u8, @divExact(parsed.bytecode.len, 2));

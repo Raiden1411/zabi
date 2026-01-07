@@ -8,11 +8,15 @@ const Anvil = @import("zabi").clients.Anvil;
 const HttpProvider = client.Provider.HttpProvider;
 
 test "GetWithdrawMessages" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
-    const op_sepolia = try std.process.getEnvVarOwned(testing.allocator, "ANVIL_FORK_URL_OP_SEPOLIA");
-    defer testing.allocator.free(op_sepolia);
+    var environ_map = try std.testing.io_instance.environ.process_environ.createMap(std.heap.page_allocator);
+    defer environ_map.deinit();
+
+    const op_sepolia = environ_map.get("ANVIL_FORK_URL_OP_SEPOLIA") orelse return error.MissingEnvVariable;
 
     var anvil: Anvil = undefined;
     defer anvil.deinit();
@@ -40,7 +44,9 @@ test "GetWithdrawMessages" {
 }
 
 test "GetBaseFee" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -56,7 +62,9 @@ test "GetBaseFee" {
 }
 
 test "EstimateL1Gas" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -81,7 +89,9 @@ test "EstimateL1Gas" {
 }
 
 test "EstimateL1GasFee" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -106,7 +116,9 @@ test "EstimateL1GasFee" {
 }
 
 test "EstimateTotalGas" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{
@@ -131,7 +143,9 @@ test "EstimateTotalGas" {
 }
 
 test "EstimateTotalFees" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     var op = try HttpProvider.init(.{

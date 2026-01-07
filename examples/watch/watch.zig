@@ -8,24 +8,21 @@ pub const CliOptions = struct {
     url: []const u8,
 };
 
-pub fn main() !void {
-    var gpa: std.heap.DebugAllocator(.{}) = .{};
-    defer _ = gpa.deinit();
-
-    var iter = try std.process.argsWithAllocator(gpa.allocator());
-    defer iter.deinit();
-
-    var threaded_io: std.Io.Threaded = .init(gpa.allocator(), .{});
+pub fn main(init: std.process.Init) !void {
+    var threaded_io: std.Io.Threaded = .init(init.gpa, .{
+        .environ = init.minimal.environ,
+    });
     defer threaded_io.deinit();
 
-    const parsed = args_parser.parseArgs(CliOptions, gpa.allocator(), &iter);
+    var iter = init.minimal.args.iterate();
+    const parsed = args_parser.parseArgs(CliOptions, init.gpa, &iter);
 
     const uri = try std.Uri.parse(parsed.url);
 
     var socket = try WebProvider.init(.{
         .network_config = .{ .endpoint = .{ .uri = uri } },
         .io = threaded_io.io(),
-        .allocator = gpa.allocator(),
+        .allocator = init.gpa,
     });
     defer socket.deinit();
 

@@ -10,22 +10,19 @@ const CliOptions = struct {
     url: []const u8,
 };
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-
-    var threaded_io: std.Io.Threaded = .init(gpa.allocator(), .{});
+pub fn main(init: std.process.Init) !void {
+    var threaded_io: std.Io.Threaded = .init(init.gpa, .{
+        .environ = init.minimal.environ,
+    });
     defer threaded_io.deinit();
 
-    var iter = try std.process.argsWithAllocator(gpa.allocator());
-    defer iter.deinit();
-
-    const parsed = args_parser.parseArgs(CliOptions, gpa.allocator(), &iter);
+    var iter = init.minimal.args.iterate();
+    const parsed = args_parser.parseArgs(CliOptions, init.gpa, &iter);
 
     const uri = try std.Uri.parse(parsed.url);
 
     var socket = try WebProvider.init(.{
-        .allocator = gpa.allocator(),
+        .allocator = init.gpa,
         .io = threaded_io.io(),
         .network_config = .{
             .endpoint = .{ .uri = uri },
@@ -37,7 +34,7 @@ pub fn main() !void {
 
     try socket.readLoopSeperateThread();
 
-    var wallet = try Wallet.init(parsed.priv_key, gpa.allocator(), &socket.provider, true);
+    var wallet = try Wallet.init(parsed.priv_key, init.gpa, &socket.provider, true);
     defer wallet.deinit();
 
     const hash = try wallet.sendTransaction(.{

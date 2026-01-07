@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
-const EnvMap = std.process.EnvMap;
+const EnvMap = std.process.Environ.Map;
 
 /// Token structure produced my the tokenizer.
 pub const Token = struct {

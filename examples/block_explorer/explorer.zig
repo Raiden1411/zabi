@@ -8,20 +8,17 @@ pub const CliOptions = struct {
     apikey: []const u8,
 };
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-
-    var threaded_io: std.Io.Threaded = .init(gpa.allocator(), .{});
+pub fn main(init: std.process.Init) !void {
+    var threaded_io: std.Io.Threaded = .init(init.gpa, .{
+        .environ = init.minimal.environ,
+    });
     defer threaded_io.deinit();
 
-    var iter = try std.process.argsWithAllocator(gpa.allocator());
-    defer iter.deinit();
-
-    const parsed = args_parser.parseArgs(CliOptions, gpa.allocator(), &iter);
+    var iter = init.minimal.args.iterate();
+    const parsed = args_parser.parseArgs(CliOptions, init.gpa, &iter);
 
     var explorer = BlockExplorer.init(.{
-        .allocator = gpa.allocator(),
+        .allocator = init.gpa,
         .io = threaded_io.io(),
         .apikey = parsed.apikey,
     });

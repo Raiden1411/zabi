@@ -7,11 +7,15 @@ const HttpProvider = @import("zabi").clients.Provider.HttpProvider;
 const Anvil = @import("zabi").clients.Anvil;
 
 test "Reset Anvil" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
-    const mainnet = try std.process.getEnvVarOwned(testing.allocator, "ANVIL_FORK_URL");
-    defer testing.allocator.free(mainnet);
+    var environ_map = try std.testing.io_instance.environ.process_environ.createMap(std.heap.page_allocator);
+    defer environ_map.deinit();
+
+    const mainnet = environ_map.get("ANVIL_FORK_URL") orelse return error.MissingEnvVariable;
 
     var anvil: Anvil = undefined;
     defer anvil.deinit();
@@ -30,7 +34,9 @@ test "Reset Anvil" {
 }
 
 test "ENS Text" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
     var ens = try HttpProvider.init(
         .{
@@ -46,7 +52,9 @@ test "ENS Text" {
 
 test "ENS Name" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+            .environ = .empty,
+        });
         defer threaded_io.deinit();
         var ens = try HttpProvider.init(
             .{
@@ -66,7 +74,9 @@ test "ENS Name" {
 }
 
 test "ENS Address" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
     var ens = try HttpProvider.init(
         .{
@@ -85,7 +95,9 @@ test "ENS Address" {
 }
 
 test "ENS Resolver" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
     var ens = try HttpProvider.init(
         .{

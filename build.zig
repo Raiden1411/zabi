@@ -440,7 +440,10 @@ fn buildExamples(
 
 /// Loads enviroment variables from a `.env` file in case they aren't already present.
 fn loadVariables(b: *std.Build, env_path: []const u8, exe: *std.Build.Step.Run) void {
-    var threaded_io: std.Io.Threaded = .init(b.allocator, .{});
+    var threaded_io: std.Io.Threaded = .init(b.allocator, .{
+        .argv0 = .empty,
+        .environ = .empty,
+    });
     defer threaded_io.deinit();
 
     var file = std.Io.Dir.cwd().openFile(threaded_io.io(), env_path, .{}) catch |err|

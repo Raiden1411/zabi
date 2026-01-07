@@ -4,6 +4,7 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 const ColorWriterStream = color.ColorWriter;
+const LockedStderr = std.Io.LockedStderr;
 const PriorityDequeue = std.PriorityDequeue;
 const TestFn = std.builtin.TestFn;
 
@@ -60,6 +61,8 @@ pub fn BenchmarkRunner(
         samples: [max_samples]u64 = undefined,
         /// PriorityDequeue used to keep track of the slowest tests.
         dequeue: Queue,
+        /// Keeps std_err so that it can be used to get the terminal windows size
+        std_err: LockedStderr,
 
         /// Sets the inital state of the stream and queue.
         pub fn init(allocator: Allocator) Allocator.Error!Self {
@@ -67,16 +70,18 @@ pub fn BenchmarkRunner(
             errdefer queue.deinit();
 
             try queue.ensureTotalCapacity(max_slowest_tracker);
+            var std_err = std.debug.lockStderr(&.{});
 
             return .{
-                .color_stream = .init(std.debug.lockStderrWriter(&.{}), &.{}),
+                .color_stream = .init(std_err.terminal().writer, &.{}),
                 .dequeue = queue,
+                .std_err = std_err,
             };
         }
         /// Clears any allocated memory for the queue.
         pub fn deinit(self: Self) void {
             self.dequeue.deinit();
-            std.debug.unlockStderrWriter();
+            std.debug.unlockStderr();
         }
         /// Main bench runner that will run the tests and calculate their performance.
         ///
@@ -126,9 +131,9 @@ pub fn BenchmarkRunner(
             try self.printResult(result);
         }
         /// Gets the col size of the terminal.
-        pub fn getColTerminalSize() usize {
+        pub fn getColTerminalSize(self: Self) usize {
             var winsize: Winsize = undefined;
-            _ = std.os.linux.ioctl(std.fs.File.stderr().handle, TIOCGWINSZ, @intFromPtr(&winsize));
+            _ = std.os.linux.ioctl(self.std_err.file_writer.file.handle, TIOCGWINSZ, @intFromPtr(&winsize));
 
             return @intCast(winsize.ws_col);
         }
@@ -154,7 +159,7 @@ pub fn BenchmarkRunner(
         pub fn printHeader(self: *Self, module: []const u8) ColorWriterStream.Error!void {
             var writer = &self.color_stream.writer;
 
-            const col = @divFloor(getColTerminalSize(), 2);
+            const col = @divFloor(self.getColTerminalSize(), 2);
             var buffer: [100]u8 = undefined;
 
             var discarding = std.Io.Writer.Discarding.init(&buffer);

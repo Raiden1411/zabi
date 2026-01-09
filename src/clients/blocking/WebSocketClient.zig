@@ -284,8 +284,8 @@ pub const Connection = struct {
             const write_buffer = tls_write_buffer.ptr[tls_write_buffer.len..][0..write_buffer_size];
             const read_buffer = write_buffer.ptr[write_buffer.len..][0..tls_buffer_size];
 
-            var entropy: [176]u8 = undefined;
-            std.crypto.random.bytes(&entropy);
+            var entropy: [240]u8 = undefined;
+            io.random(&entropy);
 
             const tls: *Tls = @ptrCast(base);
 
@@ -422,9 +422,9 @@ pub fn deinit(self: *WebsocketClient) void {
 }
 
 /// Generate a base64 set of random bytes.
-pub fn generateHandshakeKey() [24]u8 {
+pub fn generateHandshakeKey(io: Io) [24]u8 {
     var nonce: [16]u8 = undefined;
-    std.crypto.random.bytes(&nonce);
+    io.random(&nonce);
 
     var base_64: [24]u8 = undefined;
     _ = Base64Encoder.encode(&base_64, &nonce);
@@ -461,7 +461,7 @@ pub fn handshake(
     self: *WebsocketClient,
     host: []const u8,
 ) !void {
-    const key = generateHandshakeKey();
+    const key = generateHandshakeKey(self.io);
     errdefer self.deinit();
 
     try self.sendHandshake(host, key);
@@ -798,7 +798,7 @@ pub fn writeBodyVecUnflushed(
     messages: [][]u8,
 ) !void {
     var buffer: [4]u8 = undefined;
-    std.crypto.random.bytes(buffer[0..]);
+    self.io.random(&buffer);
 
     try self.connection.writer().writeAll(buffer[0..]);
 

@@ -147,7 +147,9 @@ pub fn main(init: std.process.Init.Minimal) !void {
     const writer = std.debug.lockStderr(&writer_buffer).terminal().writer;
     defer std.debug.unlockStderr();
 
-    std.testing.io_instance.environ.process_environ = init.environ;
+    std.testing.io_instance = .init(std.heap.page_allocator, .{ .environ = init.environ });
+    defer std.testing.io_instance.deinit();
+
     var environ_map = try std.testing.io_instance.environ.process_environ.createMap(std.heap.page_allocator);
     defer environ_map.deinit();
 

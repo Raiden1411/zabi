@@ -317,12 +317,35 @@ signer: Signer,
 ///
 /// Also adds the hability to use a nonce manager or to use the network directly.
 pub fn init(
-    private_key: ?Hash,
+    private_key: Hash,
     allocator: Allocator,
     provider: *Provider,
     nonce_manager: bool,
 ) !Wallet {
     const signer = try Signer.init(private_key);
+
+    return .{
+        .allocator = allocator,
+        .rpc_client = provider,
+        .signer = signer,
+        .envelopes_pool = .{
+            .pooled_envelopes = .{},
+        },
+        .nonce_manager = if (nonce_manager) NonceManager.initManager(signer.address_bytes) else null,
+    };
+}
+
+/// Sets the wallet initial state.
+///
+/// The init opts will depend on the [client_type](/api/clients/wallet#walletclients).
+///
+/// Also adds the hability to use a nonce manager or to use the network directly.
+pub fn initRandom(
+    allocator: Allocator,
+    provider: *Provider,
+    nonce_manager: bool,
+) !Wallet {
+    const signer = try Signer.initRandom(provider.io);
 
     return .{
         .allocator = allocator,

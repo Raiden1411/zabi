@@ -60,8 +60,25 @@ pub const EthereumSchorrSigner = struct {
     ///
     /// If a null value is provided a random key will
     /// be generated. This is to mimic the behaviour from zig's `KeyPair` types.
-    pub fn init(private_key: ?CompressedScalar) IdentityElementError!Self {
-        const key = private_key orelse Secp256k1.scalar.random(.big);
+    pub fn init(private_key: CompressedScalar) IdentityElementError!Self {
+        const public_scalar = try Secp256k1.mul(Secp256k1.basePoint, private_key, .big);
+        const public_key = public_scalar.toCompressedSec1();
+
+        // Get the address bytes
+        const address = generateAddress(public_key[1..].*);
+
+        return .{
+            .private_key = private_key,
+            .public_key = public_key,
+            .address_bytes = address,
+        };
+    }
+
+    /// Creates the signer state.
+    ///
+    /// Generates a compressed public key from io random().
+    pub fn initRandom(io: std.Io) IdentityElementError!Self {
+        const key = Secp256k1.scalar.random(io, .big);
 
         const public_scalar = try Secp256k1.mul(Secp256k1.basePoint, key, .big);
         const public_key = public_scalar.toCompressedSec1();
@@ -75,6 +92,7 @@ pub const EthereumSchorrSigner = struct {
             .address_bytes = address,
         };
     }
+
     /// Constructs the message digest based on the previously signed message.
     pub fn constructMessageHash(message: CompressedScalar) CompressedScalar {
         var hash: CompressedScalar = undefined;
@@ -87,6 +105,7 @@ pub const EthereumSchorrSigner = struct {
 
         return hash;
     }
+
     /// Generates the `k` value from random bytes and the private_key.
     pub fn hashNonce(random_buffer: CompressedScalar, priv_key: CompressedScalar) CompressedScalar {
         var hash: CompressedScalar = undefined;
@@ -100,6 +119,7 @@ pub const EthereumSchorrSigner = struct {
 
         return hash;
     }
+
     /// Generates the `Schnorr` challenge from `R` bytes, a `message_construct` and a generated ethereum address.
     pub fn hashChallenge(
         public_key: CompressedPublicKey,
@@ -124,6 +144,7 @@ pub const EthereumSchorrSigner = struct {
 
         return hash;
     }
+
     /// Generates an ethereum address from the `x` coordinates from a public key.
     pub fn generateAddress(r: CompressedScalar) Address {
         // Get the address bytes
@@ -132,6 +153,7 @@ pub const EthereumSchorrSigner = struct {
 
         return hash[12..].*;
     }
+
     /// Converts the `private_key` to a `Secp256k1` scalar.
     ///
     /// Negates the scalar if the y coordinates are odd.
@@ -151,17 +173,18 @@ pub const EthereumSchorrSigner = struct {
 
         return private_scalar;
     }
+
     /// Generates a `Schnorr` signature for a given message.
     ///
     /// This will not verify if the generated signature is correct.
     /// Please use `verifyMessage` to make sure  that the generated signature is valid.
-    pub fn signUnsafe(self: Self, message: CompressedScalar) SigningErrors!EthereumSchnorrSignature {
+    pub fn signUnsafe(self: Self, io: std.Io, message: CompressedScalar) SigningErrors!EthereumSchnorrSignature {
         const message_construct = constructMessageHash(message);
         const priv = try self.privateKeyToScalar();
 
         // Generates the random seed.
         var random_buffer: CompressedScalar = undefined;
-        std.crypto.random.bytes(&random_buffer);
+        io.random(&random_buffer);
 
         const nonce = hashNonce(random_buffer, self.private_key);
         const k = try generateR(nonce);
@@ -181,23 +204,26 @@ pub const EthereumSchorrSigner = struct {
             .s = s.toBytes(.big),
         };
     }
+
     /// Generates a `Schnorr` signature for a given message.
     ///
     /// This verifies if the generated signature is valid. Otherwise an `InvalidSignature` error is returned.
-    pub fn sign(self: Self, message: CompressedScalar) (SigningErrors || error{InvalidSignature})!EthereumSchnorrSignature {
-        const sig = try self.signUnsafe(message);
+    pub fn sign(self: Self, io: std.Io, message: CompressedScalar) (SigningErrors || error{InvalidSignature})!EthereumSchnorrSignature {
+        const sig = try self.signUnsafe(io, message);
 
         if (!self.verifySignature(message, sig))
             return error.InvalidSignature;
 
         return sig;
     }
+
     /// Verifies if the provided signature was signed by `Self`.
     pub fn verifySignature(self: Self, message: CompressedScalar, signature: EthereumSchnorrSignature) bool {
         const message_construct = constructMessageHash(message);
 
         return verifyMessage(self.public_key, message_construct, signature);
     }
+
     /// Verifies if the provided signature was signed by the provided `x` coordinate bytes from a compressed public key.
     pub fn verifyMessage(public_key: CompressedPublicKey, message_construct: CompressedScalar, signature: EthereumSchnorrSignature) bool {
         const r_bytes = signature.r.toCompressedSec1();
@@ -247,8 +273,19 @@ pub const SchnorrSigner = struct {
     ///
     /// If a null value is provided a random key will
     /// be generated. This is to mimic the behaviour from zig's `KeyPair` types.
-    pub fn init(private_key: ?CompressedScalar) IdentityElementError!Self {
-        const key = private_key orelse Secp256k1.scalar.random(.big);
+    pub fn init(private_key: CompressedScalar) IdentityElementError!Self {
+        const public_scalar = try Secp256k1.mul(Secp256k1.basePoint, private_key, .big);
+        const public_key = public_scalar.toCompressedSec1();
+
+        return .{
+            .private_key = private_key,
+            .public_key = public_key,
+        };
+    }
+
+    /// Generates a compressed public key from io.random()
+    pub fn initRandom(io: std.Io) IdentityElementError!Self {
+        const key = Secp256k1.scalar.random(io, .big);
 
         const public_scalar = try Secp256k1.mul(Secp256k1.basePoint, key, .big);
         const public_key = public_scalar.toCompressedSec1();
@@ -258,6 +295,7 @@ pub const SchnorrSigner = struct {
             .public_key = public_key,
         };
     }
+
     /// Converts the `private_key` to a `Secp256k1` scalar.
     ///
     /// Negates the scalar if the y coordinates are odd.
@@ -277,17 +315,18 @@ pub const SchnorrSigner = struct {
 
         return private_scalar;
     }
+
     /// Generates a `Schnorr` signature for a given message.
     ///
     /// This will not verify if the generated signature is correct.
     /// Please use `verifyMessage` to make sure  that the generated signature is valid.
-    pub fn signUnsafe(self: Self, message: []const u8) SigningErrors!SchnorrSignature {
+    pub fn signUnsafe(self: Self, io: std.Io, message: []const u8) SigningErrors!SchnorrSignature {
         // Let d' = int(sk)
         const d_scalar = try self.privateKeyToScalar();
 
         // Generates the random seed.
-        var random_buffer: [32]u8 = undefined;
-        std.crypto.random.bytes(&random_buffer);
+        var random_buffer: CompressedScalar = undefined;
+        io.random(&random_buffer);
 
         // Let t be the byte-wise xor of bytes(d) and hashBIP0340/aux(a)
         const rand_hash = hashAux(random_buffer);
@@ -315,21 +354,24 @@ pub const SchnorrSigner = struct {
             .s = s.toBytes(.big),
         };
     }
+
     /// Generates a `Schnorr` signature for a given message.
     ///
     /// This verifies if the generated signature is valid. Otherwise an `InvalidSignature` error is returned.
-    pub fn sign(self: Self, message: []const u8) (SigningErrors || error{InvalidSignature})!SchnorrSignature {
-        const sig = try self.signUnsafe(message);
+    pub fn sign(self: Self, io: std.Io, message: []const u8) (SigningErrors || error{InvalidSignature})!SchnorrSignature {
+        const sig = try self.signUnsafe(io, message);
 
         if (!self.verifySignature(sig, message))
             return error.InvalidSignature;
 
         return sig;
     }
+
     /// Verifies if the provided signature was signed by `Self`.
     pub fn verifySignature(self: Self, signature: SchnorrSignature, message: []const u8) bool {
         return verifyMessage(self.public_key[1..].*, signature, message);
     }
+
     /// Verifies if the provided signature was signed by the provided `x` coordinate bytes from a compressed public key.
     pub fn verifyMessage(pub_key: CompressedScalar, signature: SchnorrSignature, message: []const u8) bool {
         // Let r = int(sig[0:32])
@@ -357,6 +399,7 @@ pub const SchnorrSigner = struct {
         // Returs false if R(y) is isOdd and r != R(x)
         return !vr.affineCoordinates().y.isOdd() and r.equivalent(vrx);
     }
+
     /// Generates the auxiliary hash from a random set of bytes.
     pub fn hashAux(random_buffer: [32]u8) CompressedScalar {
         var tag_hash: [32]u8 = undefined;
@@ -372,6 +415,7 @@ pub const SchnorrSigner = struct {
 
         return hash;
     }
+
     /// Generates the `k` value from the mask of the `aux` hash and a `public_key` with the `message`.
     pub fn hashNonce(t: [32]u8, public_key: [32]u8, message: []const u8) CompressedScalar {
         var tag_hash: [32]u8 = undefined;
@@ -389,6 +433,7 @@ pub const SchnorrSigner = struct {
 
         return hash;
     }
+
     /// Generates the `Schnorr` challenge from `R` bytes, `public_key` and the `message` to sign.
     pub fn hashChallenge(k_r: [32]u8, pub_key: [32]u8, message: []const u8) CompressedScalar {
         var tag_hash: [32]u8 = undefined;
@@ -431,6 +476,7 @@ pub fn generateR(bytes: CompressedScalar) (NonCanonicalError || IdentityElementE
         .scalar = private_scalar,
     };
 }
+
 /// Extracts a point from the `Secp256k1` curve based on the provided `x` coordinates from
 /// a `CompressedPublicKey` array of bytes.
 pub fn liftX(encoded: CompressedScalar) (NonCanonicalError || NotSquareError)!Secp256k1 {
@@ -447,6 +493,7 @@ pub fn liftX(encoded: CompressedScalar) (NonCanonicalError || NotSquareError)!Se
 
     return Secp256k1{ .x = x, .y = y };
 }
+
 /// Generates the `k` scalar and bytes from a given `public_key` with the identifier.
 pub fn nonceToScalar(bytes: CompressedScalar) (NonCanonicalError || IdentityElementError || error{InvalidNonce})!RBytesAndScalar {
     const private_scalar = try Scalar.fromBytes(bytes, .big);

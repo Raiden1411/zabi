@@ -61,6 +61,7 @@ pub fn recoverPubkey(signature: Signature, message_hash: Hash) RecoverPubKeyErro
 
     return recovered_scalar.toUncompressedSec1();
 }
+
 /// Recovers the address from a message using the
 /// recovered public key from the message.
 pub fn recoverAddress(signature: Signature, message_hash: Hash) RecoverPubKeyErrors!Address {
@@ -71,14 +72,35 @@ pub fn recoverAddress(signature: Signature, message_hash: Hash) RecoverPubKeyErr
 
     return hash[12..].*;
 }
+
 /// Creates the signer state.
 ///
 /// Generates a compressed public key from the provided `private_key`.
 ///
 /// If a null value is provided a random key will
 /// be generated. This is to mimic the behaviour from zig's `KeyPair` types.
-pub fn init(private_key: ?Hash) IdentityElementError!Signer {
-    const key = private_key orelse Secp256k1.scalar.random(.big);
+pub fn init(private_key: Hash) IdentityElementError!Signer {
+    const public_scalar = try Secp256k1.mul(Secp256k1.basePoint, private_key, .big);
+    const public_key = public_scalar.toCompressedSec1();
+
+    // Get the address bytes
+    var hash: [32]u8 = undefined;
+    Keccak256.hash(public_scalar.toUncompressedSec1()[1..], &hash, .{});
+
+    const address: Address = hash[12..].*;
+
+    return .{
+        .private_key = private_key,
+        .public_key = public_key,
+        .address_bytes = address,
+    };
+}
+
+/// Creates the signer state.
+///
+/// Generates a compressed public key from io random.
+pub fn initRandom(io: std.Io) IdentityElementError!Signer {
+    const key = Secp256k1.scalar.random(io, .big);
 
     const public_scalar = try Secp256k1.mul(Secp256k1.basePoint, key, .big);
     const public_key = public_scalar.toCompressedSec1();
@@ -95,6 +117,7 @@ pub fn init(private_key: ?Hash) IdentityElementError!Signer {
         .address_bytes = address,
     };
 }
+
 /// Signs an ethereum or EVM like chains message.
 ///
 /// Since ecdsa signatures are malliable EVM chains only accept

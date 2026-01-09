@@ -11,7 +11,7 @@ test "Signature" {
 
     const signer = try Schnorr.init(key);
 
-    _ = try signer.sign("hello");
+    _ = try signer.sign(testing.io, "hello");
 }
 
 test "From External" {
@@ -42,5 +42,5 @@ test "Ethereum Schnorr" {
     const key: [32]u8 = [_]u8{ 129, 67, 33, 128, 106, 189, 229, 67, 64, 108, 116, 150, 77, 15, 162, 47, 94, 199, 40, 148, 106, 225, 122, 152, 113, 177, 105, 30, 18, 13, 94, 40 };
 
     const signer = try EthereumSchorrSigner.init(key);
-    _ = try signer.sign(hash);
+    _ = try signer.sign(testing.io, hash);
 }

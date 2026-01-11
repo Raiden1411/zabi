@@ -10,14 +10,9 @@ const MulticallTargets = multicall.MulticallTargets;
 
 test "BlockByNumber" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -29,14 +24,9 @@ test "BlockByNumber" {
         defer block_number.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -48,14 +38,9 @@ test "BlockByNumber" {
         defer block_number.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -67,14 +52,9 @@ test "BlockByNumber" {
         defer block_number.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -89,14 +69,9 @@ test "BlockByNumber" {
 
 test "BlockByHash" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -112,14 +87,9 @@ test "BlockByHash" {
         try testing.expect(block_number.response == .beacon);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -140,14 +110,9 @@ test "BlockByHash" {
 }
 
 test "BlockTransactionCountByHash" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -163,14 +128,9 @@ test "BlockTransactionCountByHash" {
 
 test "BlockTransactionCountByNumber" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -184,14 +144,9 @@ test "BlockTransactionCountByNumber" {
         try testing.expectEqual(block_number.response, 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -208,14 +163,9 @@ test "BlockTransactionCountByNumber" {
 
 test "AddressBalance" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -232,14 +182,9 @@ test "AddressBalance" {
         try testing.expectEqual(block_number.response, 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -258,14 +203,9 @@ test "AddressBalance" {
 
 test "AddressNonce" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -281,14 +221,9 @@ test "AddressNonce" {
         try testing.expect(block_number.response != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -307,14 +242,9 @@ test "AddressNonce" {
 }
 
 test "BlockNumber" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -329,14 +259,9 @@ test "BlockNumber" {
 }
 
 test "GetChainId" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -352,14 +277,9 @@ test "GetChainId" {
 
 test "GetStorage" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -373,14 +293,9 @@ test "GetStorage" {
         try testing.expectEqual(@as(u256, @bitCast(storage.response)), 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -396,14 +311,9 @@ test "GetStorage" {
 }
 
 test "GetAccounts" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -420,14 +330,9 @@ test "GetAccounts" {
 
 test "GetContractCode" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -443,14 +348,9 @@ test "GetContractCode" {
         try testing.expect(code.response.len != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -469,14 +369,9 @@ test "GetContractCode" {
 }
 
 test "GetTransactionByHash" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -492,14 +387,9 @@ test "GetTransactionByHash" {
 }
 
 test "GetReceipt" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -517,14 +407,9 @@ test "GetReceipt" {
 test "GetFilter" {
     if (true) return error.SkipZigTest;
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -538,14 +423,9 @@ test "GetFilter" {
         try testing.expectEqual(filter.response.len, 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -559,14 +439,9 @@ test "GetFilter" {
         try testing.expectEqual(filter.response.len, 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -579,14 +454,9 @@ test "GetFilter" {
 }
 
 test "GetGasPrice" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -601,14 +471,9 @@ test "GetGasPrice" {
 }
 
 test "GetUncleCountByBlockHash" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -624,14 +489,9 @@ test "GetUncleCountByBlockHash" {
 
 test "GetUncleCountByBlockNumber" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -645,14 +505,9 @@ test "GetUncleCountByBlockNumber" {
         try testing.expectEqual(uncle.response, 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -669,14 +524,9 @@ test "GetUncleCountByBlockNumber" {
 
 test "GetUncleByBlockNumberAndIndex" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -687,14 +537,9 @@ test "GetUncleByBlockNumberAndIndex" {
         try testing.expectError(error.InvalidBlockNumberOrIndex, client.provider.getUncleByBlockNumberAndIndex(.{}, 0));
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -710,14 +555,9 @@ test "GetUncleByBlockNumberAndIndex" {
 }
 
 test "GetUncleByBlockHashAndIndex" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -733,14 +573,9 @@ test "GetUncleByBlockHashAndIndex" {
 
 test "GetTransactionByBlockNumberAndIndex" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -751,14 +586,9 @@ test "GetTransactionByBlockNumberAndIndex" {
         try testing.expectError(error.TransactionNotFound, client.provider.getTransactionByBlockNumberAndIndex(.{}, 0));
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -775,14 +605,9 @@ test "GetTransactionByBlockNumberAndIndex" {
 
 test "EstimateGas" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -793,14 +618,9 @@ test "EstimateGas" {
         try testing.expectError(error.TransactionRejected, client.provider.estimateGas(.{ .london = .{ .gas = 10 } }, .{}));
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -811,14 +631,9 @@ test "EstimateGas" {
         try testing.expectError(error.InvalidInput, client.provider.estimateGas(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -832,14 +647,9 @@ test "EstimateGas" {
         try testing.expect(fee.response != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -853,14 +663,9 @@ test "EstimateGas" {
 
 test "CreateAccessList" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -874,14 +679,9 @@ test "CreateAccessList" {
         try testing.expect(access.response.gasUsed != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -892,14 +692,9 @@ test "CreateAccessList" {
         try testing.expectError(error.InvalidInput, client.provider.createAccessList(.{ .london = .{ .gas = 10 } }, .{ .block_number = 101010 }));
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -915,14 +710,9 @@ test "CreateAccessList" {
 }
 
 test "GetNetworkPeerCount" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -934,14 +724,9 @@ test "GetNetworkPeerCount" {
 }
 
 test "GetNetworkVersionId" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -956,14 +741,9 @@ test "GetNetworkVersionId" {
 }
 
 test "GetNetworkListenStatus" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -978,14 +758,9 @@ test "GetNetworkListenStatus" {
 }
 
 test "GetSha3Hash" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -997,14 +772,9 @@ test "GetSha3Hash" {
 }
 
 test "GetClientVersion" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -1020,14 +790,9 @@ test "GetClientVersion" {
 
 test "BlobBaseFee" {
     if (true) return error.SkipZigTest;
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -1042,14 +807,9 @@ test "BlobBaseFee" {
 }
 
 test "EstimateBlobMaxFeePerGas" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -1063,14 +823,9 @@ test "EstimateBlobMaxFeePerGas" {
 }
 
 test "EstimateMaxFeePerGas" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -1087,14 +842,9 @@ test "EstimateMaxFeePerGas" {
 test "EstimateFeePerGas" {
     if (true) return error.SkipZigTest;
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -1108,14 +858,9 @@ test "EstimateFeePerGas" {
         try testing.expect(fee.london.max_priority_fee != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -1128,14 +873,9 @@ test "EstimateFeePerGas" {
         try testing.expect(fee.legacy.gas_price != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -1152,14 +892,9 @@ test "EstimateFeePerGas" {
 
 test "GetProof" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -1173,14 +908,9 @@ test "GetProof" {
         try testing.expect(proofs.response.balance != 0);
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -1197,14 +927,9 @@ test "GetProof" {
 
 test "GetLogs" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -1216,14 +941,9 @@ test "GetLogs" {
         defer logs.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -1238,14 +958,9 @@ test "GetLogs" {
 
 test "NewLogFilter" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -1257,14 +972,9 @@ test "NewLogFilter" {
         defer logs.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -1278,14 +988,9 @@ test "NewLogFilter" {
 }
 
 test "NewBlockFilter" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -1298,14 +1003,9 @@ test "NewBlockFilter" {
 }
 
 test "NewPendingTransactionFilter" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -1318,14 +1018,9 @@ test "NewPendingTransactionFilter" {
 }
 
 test "UninstallFilter" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -1340,14 +1035,9 @@ test "UninstallFilter" {
 test "GetProtocolVersion" {
     if (true) return error.SkipZigTest;
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -1359,14 +1049,9 @@ test "GetProtocolVersion" {
 }
 
 test "SyncStatus" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var client = try IPC.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .path = "/tmp/anvil.ipc" },
         },
@@ -1382,14 +1067,9 @@ test "FeeHistory" {
     if (true) return error.SkipZigTest;
 
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -1401,14 +1081,9 @@ test "FeeHistory" {
         defer status.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -1420,14 +1095,9 @@ test "FeeHistory" {
         defer status.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },
@@ -1439,14 +1109,9 @@ test "FeeHistory" {
         defer status.deinit();
     }
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
-
         var client = try IPC.init(.{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = .{
                 .endpoint = .{ .path = "/tmp/anvil.ipc" },
             },

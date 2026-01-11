@@ -8,11 +8,6 @@ const Anvil = @import("zabi").clients.Anvil;
 const HttpProvider = client.Provider.HttpProvider;
 
 test "GetWithdrawMessages" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var environ_map = try std.testing.io_instance.environ.process_environ.createMap(std.heap.page_allocator);
     defer environ_map.deinit();
 
@@ -21,14 +16,14 @@ test "GetWithdrawMessages" {
     var anvil: Anvil = undefined;
     defer anvil.deinit();
 
-    anvil.initClient(.{ .allocator = testing.allocator, .io = threaded_io.io() });
+    anvil.initClient(.{ .allocator = testing.allocator, .io = std.testing.io });
 
     try anvil.reset(.{ .forking = .{ .jsonRpcUrl = op_sepolia } });
 
     if (true) return error.SkipZigTest;
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = test_clients.anvil_op_sepolia,
     });
     defer op.deinit();
@@ -44,14 +39,9 @@ test "GetWithdrawMessages" {
 }
 
 test "GetBaseFee" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = test_clients.anvil_op_sepolia,
     });
     defer op.deinit();
@@ -62,14 +52,9 @@ test "GetBaseFee" {
 }
 
 test "EstimateL1Gas" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = test_clients.anvil_op_sepolia,
     });
     defer op.deinit();
@@ -89,14 +74,9 @@ test "EstimateL1Gas" {
 }
 
 test "EstimateL1GasFee" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = test_clients.anvil_op_sepolia,
     });
     defer op.deinit();
@@ -116,14 +96,9 @@ test "EstimateL1GasFee" {
 }
 
 test "EstimateTotalGas" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = test_clients.anvil_op_sepolia,
     });
     defer op.deinit();
@@ -143,14 +118,9 @@ test "EstimateTotalGas" {
 }
 
 test "EstimateTotalFees" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = test_clients.anvil_op_sepolia,
     });
     defer op.deinit();

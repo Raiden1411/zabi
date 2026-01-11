@@ -8,14 +8,9 @@ const Anvil = @import("zabi").clients.Anvil;
 const HttpProvider = client.Provider.HttpProvider;
 
 test "GetL2HashFromL1DepositInfo" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = test_clients.anvil_mainnet,
     });
     defer op.deinit();
@@ -27,14 +22,9 @@ test "GetL2HashFromL1DepositInfo" {
 }
 
 test "GetL2Output" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = test_clients.anvil_mainnet,
     });
     defer op.deinit();
@@ -49,14 +39,9 @@ test "GetL2Output" {
 test "getSecondsToFinalize" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .op_stack_contracts = .{ .portalAddress = try utils.addressToBytes("0x49048044D57e1C92A77f79988d21Fa8fAF74E97e") },
@@ -71,14 +56,9 @@ test "getSecondsToFinalize" {
 test "GetSecondsToNextL2Output" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .op_stack_contracts = .{},
@@ -92,14 +72,9 @@ test "GetSecondsToNextL2Output" {
 }
 
 test "GetTransactionDepositEvents" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = test_clients.anvil_mainnet,
     });
     defer op.deinit();
@@ -118,14 +93,9 @@ test "GetProvenWithdrawals" {
     if (true) return error.SkipZigTest;
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .op_stack_contracts = .{},
@@ -142,14 +112,9 @@ test "GetFinalizedWithdrawals" {
     if (true) return error.SkipZigTest;
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .op_stack_contracts = .{},
@@ -164,14 +129,9 @@ test "GetFinalizedWithdrawals" {
 test "Errors" {
     const uri = try std.Uri.parse("http://localhost:6969/");
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = .{
             .endpoint = .{ .uri = uri },
             .op_stack_contracts = .{},
@@ -189,21 +149,16 @@ test "getSecondsUntilNextGame" {
 
     const sepolia = environ_map.get("ANVIL_FORK_URL_SEPOLIA") orelse return error.MissingEnvVariable;
 
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var anvil: Anvil = undefined;
     defer anvil.deinit();
 
-    anvil.initClient(.{ .allocator = testing.allocator, .io = threaded_io.io() });
+    anvil.initClient(.{ .allocator = testing.allocator, .io = std.testing.io });
 
     try anvil.reset(.{ .forking = .{ .jsonRpcUrl = sepolia } });
 
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = test_clients.anvil_sepolia,
     });
     defer op.deinit();
@@ -217,14 +172,9 @@ test "getSecondsUntilNextGame" {
 }
 
 test "Portal Version" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = test_clients.anvil_sepolia,
     });
     defer op.deinit();
@@ -235,14 +185,9 @@ test "Portal Version" {
 }
 
 test "Get Games" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
         .network_config = test_clients.anvil_sepolia,
     });
     defer op.deinit();

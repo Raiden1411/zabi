@@ -7,11 +7,6 @@ const HttpProvider = @import("zabi").clients.Provider.HttpProvider;
 const Anvil = @import("zabi").clients.Anvil;
 
 test "Reset Anvil" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
-
     var environ_map = try std.testing.io_instance.environ.process_environ.createMap(std.heap.page_allocator);
     defer environ_map.deinit();
 
@@ -22,7 +17,7 @@ test "Reset Anvil" {
 
     anvil.initClient(.{
         .allocator = testing.allocator,
-        .io = threaded_io.io(),
+        .io = std.testing.io,
     });
 
     try anvil.reset(.{
@@ -34,14 +29,10 @@ test "Reset Anvil" {
 }
 
 test "ENS Text" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
     var ens = try HttpProvider.init(
         .{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = test_clients.anvil_mainnet,
         },
     );
@@ -52,14 +43,10 @@ test "ENS Text" {
 
 test "ENS Name" {
     {
-        var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-            .environ = .empty,
-        });
-        defer threaded_io.deinit();
         var ens = try HttpProvider.init(
             .{
                 .allocator = testing.allocator,
-                .io = threaded_io.io(),
+                .io = std.testing.io,
                 .network_config = test_clients.anvil_mainnet,
             },
         );
@@ -74,14 +61,10 @@ test "ENS Name" {
 }
 
 test "ENS Address" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
     var ens = try HttpProvider.init(
         .{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = test_clients.anvil_mainnet,
         },
     );
@@ -95,14 +78,10 @@ test "ENS Address" {
 }
 
 test "ENS Resolver" {
-    var threaded_io: std.Io.Threaded = .init(testing.allocator, .{
-        .environ = .empty,
-    });
-    defer threaded_io.deinit();
     var ens = try HttpProvider.init(
         .{
             .allocator = testing.allocator,
-            .io = threaded_io.io(),
+            .io = std.testing.io,
             .network_config = test_clients.anvil_mainnet,
         },
     );

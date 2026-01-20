@@ -114,7 +114,7 @@ pub const Connection = struct {
     pub fn close(self: *Connection, io: Io) void {
         self.end() catch {};
 
-        std.posix.shutdown(self.getStream().socket.handle, .both) catch {};
+        self.getStream().shutdown(io, .both) catch {};
         self.getStream().close(io);
     }
 

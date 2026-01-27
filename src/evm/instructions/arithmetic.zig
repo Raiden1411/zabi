@@ -25,8 +25,20 @@ pub fn divInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPeek();
 
-    second.* = if (second.* == 0) 0 else first / second.*;
+    if (second.* == 0) {
+        @branchHint(.cold);
+
+        return;
+    }
+
+    if (fitsInU128(first) and fitsInU128(second.*)) {
+        @branchHint(.likely);
+        second.* = @as(u128, @truncate(first)) / @as(u128, @truncate(second.*));
+    }
+
+    second.* = first / second.*;
 }
+
 /// Performs exponent instruction for the interpreter.
 /// EXP -> 0x0A
 pub fn exponentInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{Overflow})!void {
@@ -40,6 +52,7 @@ pub fn exponentInstruction(self: *Interpreter) (Interpreter.InstructionErrors ||
 
     second.* = exp;
 }
+
 /// Performs addition + mod instruction for the interpreter.
 /// ADDMOD -> 0x08
 pub fn modAdditionInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -53,6 +66,7 @@ pub fn modAdditionInstruction(self: *Interpreter) Interpreter.InstructionErrors!
 
     third.* = if (third.* == 0) add else @mod(add, third.*);
 }
+
 /// Performs mod instruction for the interpreter.
 /// MOD -> 0x06
 pub fn modInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -63,13 +77,20 @@ pub fn modInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
 
     if (second.* == 0) {
         @branchHint(.cold);
-        second.* = 0;
+
+        return;
+    }
+
+    if (fitsInU128(first) and fitsInU128(second.*)) {
+        @branchHint(.likely);
+        second.* = @as(u128, @truncate(first)) % @as(u128, @truncate(second.*));
 
         return;
     }
 
     second.* = @mod(first, second.*);
 }
+
 /// Performs mul + mod instruction for the interpreter.
 /// MULMOD -> 0x09
 pub fn modMultiplicationInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -90,6 +111,7 @@ pub fn modMultiplicationInstruction(self: *Interpreter) Interpreter.InstructionE
 
     third.* = @mod(mul, third.*);
 }
+
 /// Performs mul instruction for the interpreter.
 /// MUL -> 0x02
 pub fn mulInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -102,6 +124,7 @@ pub fn mulInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
 
     second.* = mul;
 }
+
 /// Performs signed division instruction for the interpreter.
 /// SDIV -> 0x05
 pub fn signedDivInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -125,10 +148,19 @@ pub fn signedDivInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
     const abs_n = (casted_first ^ (casted_first >> 255)) -% (casted_first >> 255);
     const abs_d = (casted_second ^ (casted_second >> 255)) -% (casted_second >> 255);
 
-    const res = @as(u256, @bitCast(abs_n)) / @as(u256, @bitCast(abs_d));
+    const abs_n_u: u256 = @bitCast(abs_n);
+    const abs_d_u: u256 = @bitCast(abs_d);
+
+    const res = blk: {
+        if (fitsInU128(abs_n_u) and fitsInU128(abs_d_u)) {
+            @branchHint(.likely);
+            break :blk @as(u128, @truncate(abs_n_u)) / @as(u128, @truncate(abs_d_u));
+        } else break :blk abs_n_u / abs_d_u;
+    };
 
     second.* = (res ^ sign) -% sign;
 }
+
 /// Performs signextend instruction for the interpreter.
 /// SIGNEXTEND -> 0x0B
 pub fn signExtendInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -148,6 +180,7 @@ pub fn signExtendInstruction(self: *Interpreter) Interpreter.InstructionErrors!v
         try self.stack.pushUnsafe(x);
     }
 }
+
 /// Performs sub instruction for the interpreter.
 /// SMOD -> 0x07
 pub fn signedModInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -165,10 +198,25 @@ pub fn signedModInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
 
     const casted_first: i256 = @bitCast(first);
     const casted_second: i256 = @bitCast(second.*);
-    const rem = @rem(casted_first, casted_second);
 
-    second.* = @bitCast(rem);
+    const abs_n = (casted_first ^ (casted_first >> 255)) -% (casted_first >> 255);
+    const abs_d = (casted_second ^ (casted_second >> 255)) -% (casted_second >> 255);
+
+    const abs_n_u: u256 = @bitCast(abs_n);
+    const abs_d_u: u256 = @bitCast(abs_d);
+
+    const abs_res = blk: {
+        if (fitsInU128(abs_n_u) and fitsInU128(abs_d_u)) {
+            @branchHint(.likely);
+            break :blk @as(u128, @truncate(abs_n_u)) / @as(u128, @truncate(abs_d_u));
+        } else break :blk abs_n_u / abs_d_u;
+    };
+
+    // Apply sign of dividend
+    const sign: u256 = @bitCast(casted_first >> 255);
+    second.* = (abs_res ^ sign) -% sign;
 }
+
 /// Performs sub instruction for the interpreter.
 /// SUB -> 0x03
 pub fn subInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -180,4 +228,9 @@ pub fn subInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const sub = first -% second.*;
 
     second.* = sub;
+}
+
+/// Check if a u256 fits in u128 by examining the high bits.
+inline fn fitsInU128(value: u256) bool {
+    return @as(u128, @truncate(value >> 128)) == 0;
 }

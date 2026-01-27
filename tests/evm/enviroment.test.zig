@@ -1,10 +1,13 @@
+const constants = @import("zabi").utils.constants;
 const evm = @import("zabi").evm;
 const enviroment = evm.enviroment;
 const gas = evm.gas;
 const std = @import("std");
 const testing = std.testing;
 
+const AccountInfo = evm.host.AccountInfo;
 const BlobExcessGasAndPrice = enviroment.BlobExcessGasAndPrice;
+const EVMEnviroment = enviroment.EVMEnviroment;
 const Interpreter = evm.Interpreter;
 const PlainHost = evm.host.PlainHost;
 
@@ -251,4 +254,127 @@ test "GasLimit" {
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
     try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+}
+
+test "insufficient balance" {
+    var env = EVMEnviroment.default();
+    env.tx.gas_limit = 21000;
+    env.tx.gas_price = 1_000_000_000;
+    env.tx.value = 1_000_000_000_000_000_000;
+
+    const sender_info = AccountInfo{
+        .balance = 100,
+        .nonce = 0,
+        .code_hash = constants.EMPTY_HASH,
+        .code = null,
+    };
+
+    try testing.expectError(error.InsufficientBalance, env.validateAgainstState(sender_info));
+}
+
+test "sufficient balance passes" {
+    var env = EVMEnviroment.default();
+    env.tx.gas_limit = 21000;
+    env.tx.gas_price = 1_000_000_000;
+    env.tx.value = 0;
+
+    const sender_info = AccountInfo{
+        .balance = 1_000_000_000_000_000_000,
+        .nonce = 0,
+        .code_hash = constants.EMPTY_HASH,
+        .code = null,
+    };
+
+    try env.validateAgainstState(sender_info);
+}
+
+test "invalid nonce" {
+    var env = EVMEnviroment.default();
+    env.tx.nonce = 5;
+
+    const sender_info = AccountInfo{
+        .balance = 1_000_000_000_000_000_000,
+        .nonce = 3,
+        .code_hash = constants.EMPTY_HASH,
+        .code = null,
+    };
+
+    try testing.expectError(error.InvalidNonce, env.validateAgainstState(sender_info));
+}
+
+test "nonce null bypasses check" {
+    var env = EVMEnviroment.default();
+    env.tx.nonce = null;
+
+    const sender_info = AccountInfo{
+        .balance = 1_000_000_000_000_000_000,
+        .nonce = 999,
+        .code_hash = constants.EMPTY_HASH,
+        .code = null,
+    };
+
+    try env.validateAgainstState(sender_info);
+}
+
+test "sender has code (EIP-3607)" {
+    var env = EVMEnviroment.default();
+    env.tx.nonce = 0;
+
+    const sender_info = AccountInfo{
+        .balance = 1_000_000_000_000_000_000,
+        .nonce = 0,
+        .code_hash = [_]u8{0xab} ** 32,
+        .code = null,
+    };
+
+    try testing.expectError(error.SenderHasCode, env.validateAgainstState(sender_info));
+}
+
+test "disable_eip3607 bypasses code check" {
+    var env = EVMEnviroment.default();
+    env.config.disable_eip3607 = true;
+    env.tx.nonce = 0;
+
+    const sender_info = AccountInfo{
+        .balance = 1_000_000_000_000_000_000,
+        .nonce = 0,
+        .code_hash = [_]u8{0xab} ** 32,
+        .code = null,
+    };
+
+    try env.validateAgainstState(sender_info);
+}
+
+test "disable_balance_check bypasses balance" {
+    var env = EVMEnviroment.default();
+    env.config.disable_balance_check = true;
+    env.tx.gas_limit = 21000;
+    env.tx.gas_price = 1_000_000_000;
+    env.tx.value = 1_000_000_000_000_000_000;
+
+    const sender_info = AccountInfo{
+        .balance = 0,
+        .nonce = 0,
+        .code_hash = constants.EMPTY_HASH,
+        .code = null,
+    };
+
+    try env.validateAgainstState(sender_info);
+}
+
+test "optimism mint reduces required balance" {
+    var env = EVMEnviroment.default();
+    env.tx.gas_limit = 21000;
+    env.tx.gas_price = 1_000_000_000;
+    env.tx.value = 1_000_000_000_000_000_000;
+    env.tx.optimism.mint = 1_000_000_000_000_000_000;
+
+    const sender_info = AccountInfo{
+        .balance = 21000 * 1_000_000_000,
+        .nonce = 0,
+        .code_hash = constants.EMPTY_HASH,
+        .code = null,
+    };
+
+    try env.validateAgainstState(sender_info);
 }

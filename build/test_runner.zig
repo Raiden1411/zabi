@@ -138,8 +138,8 @@ pub fn main(init: std.process.Init.Minimal) !void {
     @disableInstrumentation();
     const test_funcs: []const TestFn = builtin.test_functions;
 
-    // Return if we don't have any tests.
-    if (test_funcs.len <= 1)
+    // Return if we don't have any tests (filters may reduce to 0).
+    if (test_funcs.len == 1)
         return;
 
     var writer_buffer: [1024]u8 = undefined;

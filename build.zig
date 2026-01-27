@@ -218,6 +218,7 @@ fn buildTestOrCoverage(
 ) void {
     const load_variables = b.option(bool, "load_variables", "Load enviroment variables from a \"env\" file.") orelse false;
     const env_file_path = b.option([]const u8, "env_file_path", "Specify the location of a env variables file") orelse ".env";
+    const test_filter = b.option([][]const u8, "test-filter", "Filter tests by name (substring match)") orelse &[0][]const u8{};
 
     // Builds and runs the main tests of zabi.
     {
@@ -229,6 +230,7 @@ fn buildTestOrCoverage(
         const lib_unit_tests = b.addTest(.{
             .name = "zabi-tests",
             .root_module = lib_unit_tests_mod,
+            .filters = test_filter,
 
             .test_runner = .{
                 .path = b.path("build/test_runner.zig"),
@@ -257,6 +259,7 @@ fn buildTestOrCoverage(
         const lib_unit_tests = b.addTest(.{
             .name = "zabi-tests",
             .root_module = lib_unit_tests_mod,
+            .filters = test_filter,
         });
         lib_unit_tests.root_module.addImport("zabi", module);
         addDependencies(b, lib_unit_tests.root_module, target, optimize);
@@ -411,7 +414,6 @@ fn buildExamples(
         "examples/watch/logs.zig",
         "examples/transfer/transfer.zig",
         "examples/interpreter/interpreter.zig",
-        // TODO: Readd this once arm64 llvm bugs have been fixed
         "examples/block_explorer/explorer.zig",
         "examples/wallet/wallet.zig",
         "examples/autobahn/autobahn.zig",

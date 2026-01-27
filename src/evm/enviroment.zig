@@ -1,4 +1,5 @@
 const constants = @import("zabi-utils").constants;
+const host = @import("host.zig");
 const specification = @import("specification.zig");
 const std = @import("std");
 const transaction = zabi_types.transactions;
@@ -6,8 +7,9 @@ const types = zabi_types.ethereum;
 const utils = @import("zabi-utils").utils;
 const zabi_types = @import("zabi-types");
 
-const Address = types.Address;
 const AccessList = transaction.AccessList;
+const AccountInfo = host.AccountInfo;
+const Address = types.Address;
 const Hash = types.Hash;
 const SpecId = specification.SpecId;
 
@@ -24,6 +26,9 @@ pub const ValidationErrors = error{
     EmptyBlobs,
     InvalidChainId,
     AccessListNotSupported,
+    InsufficientBalance,
+    InvalidNonce,
+    SenderHasCode,
 };
 
 /// The EVM inner enviroment.
@@ -68,6 +73,23 @@ pub const EVMEnviroment = struct {
         if (self.tx.max_fee_per_blob_gas) |fee| {
             return @truncate(fee * self.tx.getTotalBlobGas());
         } else return null;
+    }
+    /// Calculates the minimum balance required to execute this transaction.
+    /// Returns: gas_limit * gas_price + value + blob_data_fee (if applicable).
+    /// For Optimism deposit txs, the `mint` amount is subtracted from required balance.
+    pub fn calculateRequiredBalance(self: EVMEnviroment) u256 {
+        const gas_cost = @as(u256, self.tx.gas_limit) * self.tx.gas_price;
+        var total = gas_cost + self.tx.value;
+
+        if (self.calculateMaxDataFee()) |blob_fee| {
+            total += blob_fee;
+        }
+
+        if (self.tx.optimism.mint) |mint| {
+            total -|= @as(u256, mint);
+        }
+
+        return total;
     }
     /// Validates the inner block enviroment based on the provided `SpecId`
     pub fn validateBlockEnviroment(
@@ -140,7 +162,35 @@ pub const EVMEnviroment = struct {
                 return error.MaxFeePerBlobGasNotSupported;
         }
     }
-    // TODO: Validate against State.
+    /// Validates the transaction against the sender's account state.
+    /// This should be called after `validateTransaction` with access to state.
+    ///
+    /// Checks performed:
+    /// - Nonce matches (unless `tx.nonce` is null)
+    /// - Sender has no deployed code (EIP-3607, unless `disable_eip3607` is set)
+    /// - Sender has sufficient balance (unless `disable_balance_check` is set)
+    pub fn validateAgainstState(
+        self: EVMEnviroment,
+        sender_info: AccountInfo,
+    ) ValidationErrors!void {
+        if (self.tx.nonce) |expected_nonce| {
+            if (sender_info.nonce != expected_nonce)
+                return error.InvalidNonce;
+        }
+
+        if (!self.config.disable_eip3607) {
+            const has_code = @as(u256, @bitCast(sender_info.code_hash)) !=
+                @as(u256, @bitCast(constants.EMPTY_HASH));
+            if (has_code)
+                return error.SenderHasCode;
+        }
+
+        if (!self.config.disable_balance_check) {
+            const required = self.calculateRequiredBalance();
+            if (sender_info.balance < required)
+                return error.InsufficientBalance;
+        }
+    }
 };
 
 /// The EVM Configuration enviroment.

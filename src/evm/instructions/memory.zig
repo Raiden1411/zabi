@@ -11,8 +11,10 @@ pub const MemoryInstructionErrors = Interpreter.InstructionErrors || Memory.Erro
 /// Runs the mcopy opcode for the interpreter.
 /// 0x5E -> MCOPY
 pub fn mcopyInstruction(self: *Interpreter) (MemoryInstructionErrors || error{InstructionNotEnabled})!void {
-    if (!self.spec.enabled(.CANCUN))
+    if (!self.spec.enabled(.CANCUN)) {
+        @branchHint(.cold);
         return error.InstructionNotEnabled;
+    }
 
     const destination = try self.stack.tryPopUnsafe();
     const source = try self.stack.tryPopUnsafe();

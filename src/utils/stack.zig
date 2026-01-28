@@ -74,14 +74,30 @@ pub fn Stack(comptime T: type) type {
             try self.pushUnsafe(item);
         }
 
-        /// Appends an item to the stack.
+        /// Appends an item to the stack. Assumes capacity was initialized with `max_size`
+        /// This is not thread safe.
+        pub fn tryPushUnsafe(
+            self: *Self,
+            item: T,
+        ) error{StackOverflow}!void {
+            if (self.inner.items.len > self.availableSize()) {
+                @branchHint(.unlikely);
+                return error.StackOverflow;
+            }
+
+            self.inner.appendAssumeCapacity(item);
+        }
+
+        /// Appends an item to the stack. Will allocate if needed.
         /// This is not thread safe.
         pub fn pushUnsafe(
             self: *Self,
             item: T,
         ) (Allocator.Error || error{StackOverflow})!void {
-            if (self.inner.items.len > self.availableSize())
+            if (self.inner.items.len > self.availableSize()) {
+                @branchHint(.unlikely);
                 return error.StackOverflow;
+            }
 
             try self.inner.ensureUnusedCapacity(1);
             self.inner.appendAssumeCapacity(item);
@@ -147,15 +163,17 @@ pub fn Stack(comptime T: type) type {
             self: *Self,
             position_swap: usize,
         ) error{StackUnderflow}!void {
-            if (self.inner.items.len < position_swap)
+            if (self.inner.items.len < position_swap) {
+                @branchHint(.unlikely);
                 return error.StackUnderflow;
+            }
 
             const top = self.inner.items.len - 1;
             const second = top - position_swap;
 
-            self.inner.items[top] ^= self.inner.items[second];
-            self.inner.items[second] ^= self.inner.items[top];
-            self.inner.items[top] ^= self.inner.items[second];
+            const tmp = self.inner.items[top];
+            self.inner.items[top] = self.inner.items[second];
+            self.inner.items[second] = tmp;
         }
 
         /// Swap an item from the stack depending on the provided positions.
@@ -168,8 +186,10 @@ pub fn Stack(comptime T: type) type {
             std.debug.assert(swap > 0); // Overlapping swap;
 
             const second_position = position + swap;
-            if (second_position >= self.inner.items.len)
+            if (second_position >= self.inner.items.len) {
+                @branchHint(.unlikely);
                 return error.StackUnderflow;
+            }
 
             const first = self.inner.items[position];
             const second = self.inner.items[second_position];
@@ -200,6 +220,68 @@ pub fn Stack(comptime T: type) type {
             self.writeable.signal();
         }
 
+        /// Peek the last element of the stack and returns it's pointer.
+        ///
+        /// Returns null if len is 0;
+        ///
+        /// This is not thread safe
+        pub fn peekUnsafe(self: *Self) ?*u256 {
+            if (self.inner.items.len == 0) {
+                @branchHint(.unlikely);
+                return null;
+            }
+
+            return &self.inner.items[self.inner.items.len - 1];
+        }
+
+        /// Peek the last element of the stack and returns it's pointer.
+        ///
+        /// Returns `StackUnderflow` if len is 0;
+        ///
+        /// This is not thread safe
+        pub fn tryPeekUnsafe(self: *Self) error{StackUnderflow}!*u256 {
+            return self.peekUnsafe() orelse {
+                @branchHint(.unlikely);
+                return error.StackUnderflow;
+            };
+        }
+
+        /// Peek the last element of the stack and returns it's pointer.
+        ///
+        /// Returns `StackUnderflow` if len is 0;
+        ///
+        /// This is thread safe
+        pub fn tryPeek(self: *Self) error{StackUnderflow}!*u256 {
+            self.mutex.lock();
+            defer {
+                self.mutex.unlock();
+                self.writeable.signal();
+            }
+
+            return self.peekUnsafe() orelse {
+                @branchHint(.unlikely);
+                return error.StackUnderflow;
+            };
+        }
+
+        /// Peek the last element of the stack and returns it's pointer.
+        ///
+        /// Will block until it can get a value.
+        ///
+        /// This is thread safe
+        pub fn peek(self: *Self) *u256 {
+            self.mutex.lock();
+            defer {
+                self.mutex.unlock();
+                self.writeable.signal();
+            }
+
+            while (true) return self.peekUnsafe() orelse {
+                self.readable.wait(&self.mutex);
+                continue;
+            };
+        }
+
         /// Pushes an item to the stack.
         /// This is thread safe,
         pub fn tryPush(
@@ -215,7 +297,7 @@ pub fn Stack(comptime T: type) type {
         }
 
         /// Returns the current stack size.
-        pub fn stackHeight(self: *Self) usize {
+        pub fn stackHeight(self: *const Self) usize {
             return self.inner.items.len;
         }
 

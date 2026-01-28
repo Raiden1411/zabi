@@ -86,7 +86,7 @@ test "Jump" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
-    interpreter.contract = contract;
+    interpreter.contract = &contract;
 
     {
         try interpreter.stack.pushUnsafe(31);
@@ -122,7 +122,7 @@ test "Conditional Jump" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
-    interpreter.contract = contract;
+    interpreter.contract = &contract;
 
     {
         try interpreter.stack.pushUnsafe(1);

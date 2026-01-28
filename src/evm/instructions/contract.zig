@@ -51,6 +51,7 @@ pub fn callInstruction(self: *Interpreter) (error{FailedToLoadAccount} || Interp
 
     self.status = .call_or_create;
 }
+
 /// Performs callcode instruction for the interpreter.
 /// CALLCODE -> 0xF2
 pub fn callCodeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -90,6 +91,7 @@ pub fn callCodeInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
 
     self.status = .call_or_create;
 }
+
 /// Performs create instruction for the interpreter.
 /// CREATE -> 0xF0 and CREATE2 -> 0xF5
 pub fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ InstructionNotEnabled, Overflow } || Memory.Error || Interpreter.InstructionErrors)!void {
@@ -163,6 +165,7 @@ pub fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ Instruct
 
     self.status = .call_or_create;
 }
+
 /// Performs delegatecall instruction for the interpreter.
 /// DELEGATECALL -> 0xF4
 pub fn delegateCallInstruction(self: *Interpreter) (error{InstructionNotEnabled} || Interpreter.InstructionErrors)!void {
@@ -200,6 +203,7 @@ pub fn delegateCallInstruction(self: *Interpreter) (error{InstructionNotEnabled}
 
     self.status = .call_or_create;
 }
+
 /// Performs staticcall instruction for the interpreter.
 /// STATICCALL -> 0xFA
 pub fn staticCallInstruction(self: *Interpreter) (error{InstructionNotEnabled} || Interpreter.InstructionErrors)!void {
@@ -258,6 +262,7 @@ pub inline fn calculateCall(self: *Interpreter, values_transfered: bool, is_cold
 
     return limit;
 }
+
 /// Gets the memory slice and the ranges used to grab it.
 /// This also resizes the interpreter's memory.
 pub fn getMemoryInputsAndRanges(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!struct { []u8, struct { usize, usize } } {
@@ -278,6 +283,7 @@ pub fn getMemoryInputsAndRanges(self: *Interpreter) (Interpreter.InstructionErro
 
     return .{ buffer, result };
 }
+
 /// Resizes the memory as gets the offset ranges.
 pub fn resizeMemoryAndGetRange(
     self: *Interpreter,

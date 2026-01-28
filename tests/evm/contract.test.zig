@@ -6,18 +6,31 @@ const testing = std.testing;
 
 const Allocator = std.mem.Allocator;
 const CallAction = actions.CallAction;
+const Contract = @import("zabi").evm.contract.Contract;
 const CreateScheme = actions.CreateScheme;
 const Interpreter = evm.Interpreter;
 const Memory = evm.memory.Memory;
 const PlainHost = evm.host.PlainHost;
 
 test "Create" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
     var interpreter: Interpreter = undefined;
 
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.allocator = testing.allocator;
+    interpreter.contract = &contract;
 
     {
         interpreter.spec = .LATEST;
@@ -48,6 +61,17 @@ test "Create" {
 }
 
 test "Create2" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
     var host: PlainHost = undefined;
     defer host.deinit();
 
@@ -64,6 +88,7 @@ test "Create2" {
     interpreter.allocator = testing.allocator;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
     interpreter.host = host.host();
+    interpreter.contract = &contract;
 
     {
         interpreter.spec = .LATEST;
@@ -87,6 +112,17 @@ test "Create2" {
 }
 
 test "Call" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
     var host: PlainHost = undefined;
     defer host.deinit();
 
@@ -104,6 +140,7 @@ test "Call" {
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
     interpreter.host = host.host();
     interpreter.spec = .LATEST;
+    interpreter.contract = &contract;
 
     {
         try interpreter.stack.pushUnsafe(0);
@@ -158,6 +195,17 @@ test "Call" {
 }
 
 test "CallCode" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
     var host: PlainHost = undefined;
     defer host.deinit();
 
@@ -175,6 +223,7 @@ test "CallCode" {
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
     interpreter.host = host.host();
     interpreter.spec = .LATEST;
+    interpreter.contract = &contract;
 
     {
         try interpreter.stack.pushUnsafe(0);
@@ -215,6 +264,17 @@ test "CallCode" {
 }
 
 test "DelegateCall" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
     var host: PlainHost = undefined;
     defer host.deinit();
 
@@ -231,6 +291,7 @@ test "DelegateCall" {
     interpreter.allocator = testing.allocator;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
     interpreter.host = host.host();
+    interpreter.contract = &contract;
 
     {
         interpreter.spec = .LATEST;
@@ -258,6 +319,17 @@ test "DelegateCall" {
 }
 
 test "StaticCall" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
     var host: PlainHost = undefined;
     defer host.deinit();
 
@@ -274,6 +346,7 @@ test "StaticCall" {
     interpreter.allocator = testing.allocator;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
     interpreter.host = host.host();
+    interpreter.contract = &contract;
 
     {
         interpreter.spec = .LATEST;

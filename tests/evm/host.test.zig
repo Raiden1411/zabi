@@ -4,6 +4,7 @@ const host = evm.host;
 const std = @import("std");
 const testing = std.testing;
 
+const Contract = @import("zabi").evm.contract.Contract;
 const Interpreter = evm.Interpreter;
 const PlainHost = host.PlainHost;
 const Memory = evm.memory.Memory;
@@ -178,6 +179,17 @@ test "ExtCodeSize" {
 }
 
 test "Log" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
     var plain: PlainHost = undefined;
     defer plain.deinit();
 
@@ -195,6 +207,7 @@ test "Log" {
     interpreter.host = plain.host();
     interpreter.allocator = testing.allocator;
     interpreter.spec = .LATEST;
+    interpreter.contract = &contract;
 
     {
         try interpreter.stack.pushUnsafe(0);
@@ -244,6 +257,17 @@ test "Log" {
 }
 
 test "SelfBalance" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+
+    defer contract.deinit(testing.allocator);
     var plain: PlainHost = undefined;
     defer plain.deinit();
 
@@ -255,6 +279,7 @@ test "SelfBalance" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = plain.host();
+    interpreter.contract = &contract;
 
     interpreter.spec = .LATEST;
     try evm.instructions.host.selfBalanceInstruction(&interpreter);
@@ -269,6 +294,17 @@ test "SelfBalance" {
 }
 
 test "Sload" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
     var plain: PlainHost = undefined;
     defer plain.deinit();
 
@@ -280,6 +316,7 @@ test "Sload" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = plain.host();
+    interpreter.contract = &contract;
 
     {
         interpreter.spec = .LATEST;
@@ -316,6 +353,17 @@ test "Sload" {
 }
 
 test "Sstore" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
     var plain: PlainHost = undefined;
     defer plain.deinit();
 
@@ -327,6 +375,7 @@ test "Sstore" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = plain.host();
+    interpreter.contract = &contract;
 
     {
         interpreter.spec = .LATEST;
@@ -363,6 +412,17 @@ test "Sstore" {
 }
 
 test "Tload" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
     var plain: PlainHost = undefined;
     defer plain.deinit();
 
@@ -374,6 +434,7 @@ test "Tload" {
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
     interpreter.host = plain.host();
+    interpreter.contract = &contract;
 
     {
         interpreter.spec = .LATEST;
@@ -390,6 +451,17 @@ test "Tload" {
 }
 
 test "Tstore" {
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &.{} },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
     var plain: PlainHost = undefined;
     defer plain.deinit();
 
@@ -402,6 +474,7 @@ test "Tstore" {
     interpreter.program_counter = 0;
     interpreter.host = plain.host();
     interpreter.is_static = false;
+    interpreter.contract = &contract;
 
     {
         interpreter.spec = .LATEST;

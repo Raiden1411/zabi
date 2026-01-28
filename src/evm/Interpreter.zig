@@ -108,7 +108,7 @@ allocator: Allocator,
 /// Compiled bytecode that will get ran.
 code: []u8,
 /// The contract associated to this interpreter.
-contract: Contract,
+contract: *const Contract,
 /// Tracker for used gas by the interpreter.
 gas_tracker: GasTracker,
 /// The host enviroment for this interpreter.
@@ -160,7 +160,7 @@ return_data: []u8,
 pub fn init(
     self: *Interpreter,
     allocator: Allocator,
-    contract_instance: Contract,
+    contract_instance: *const Contract,
     evm_host: Host,
     opts: InterpreterInitOptions,
 ) Allocator.Error!void {
@@ -180,16 +180,19 @@ pub fn init(
         .return_data = &[0]u8{},
     };
 }
+
 /// Clear memory and destroy's any created pointers.
 pub fn deinit(self: *Interpreter) void {
     self.memory.deinit();
 
     self.allocator.free(self.return_data.ptr[0..self.return_data.len]);
 }
+
 /// Moves the `program_counter` by one.
 pub fn advanceProgramCounter(self: *Interpreter) void {
     self.program_counter += 1;
 }
+
 /// Runs a single instruction based on the `program_counter`
 /// position and the associated bytecode. Doesn't move the counter.
 pub fn runInstruction(self: *Interpreter) AllInstructionErrors!void {
@@ -210,6 +213,7 @@ pub fn runInstruction(self: *Interpreter) AllInstructionErrors!void {
 
     return @errorCast(operation.execution(self));
 }
+
 /// Runs the associated contract bytecode.
 ///
 /// Depending on the interperter final `status` this can return errors.\
@@ -273,6 +277,7 @@ pub fn run(self: *Interpreter) (AllInstructionErrors || InterpreterStatusErrors)
         },
     }
 }
+
 /// Resizes the inner memory size. Adds gas expansion cost to
 /// the gas tracker.
 pub fn resize(

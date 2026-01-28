@@ -24,7 +24,7 @@ test "Address" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
-    interpreter.contract = contract;
+    interpreter.contract = &contract;
     interpreter.spec = .LATEST;
 
     try evm.instructions.system.addressInstruction(&interpreter);
@@ -50,7 +50,7 @@ test "Caller" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
-    interpreter.contract = contract;
+    interpreter.contract = &contract;
     interpreter.spec = .LATEST;
 
     try evm.instructions.system.callerInstruction(&interpreter);
@@ -76,7 +76,7 @@ test "Value" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
-    interpreter.contract = contract;
+    interpreter.contract = &contract;
     interpreter.spec = .LATEST;
 
     try evm.instructions.system.callValueInstruction(&interpreter);
@@ -102,7 +102,7 @@ test "CodeSize" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
-    interpreter.contract = contract;
+    interpreter.contract = &contract;
     interpreter.spec = .LATEST;
 
     try evm.instructions.system.codeSizeInstruction(&interpreter);
@@ -128,7 +128,7 @@ test "CallDataSize" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
-    interpreter.contract = contract;
+    interpreter.contract = &contract;
     interpreter.spec = .LATEST;
 
     try evm.instructions.system.callDataSizeInstruction(&interpreter);
@@ -154,7 +154,7 @@ test "Gas" {
     interpreter.gas_tracker = gas.GasTracker.init(1000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
-    interpreter.contract = contract;
+    interpreter.contract = &contract;
     interpreter.spec = .LATEST;
 
     try evm.instructions.system.gasInstruction(&interpreter);
@@ -180,7 +180,7 @@ test "ReturnDataSize" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
-    interpreter.contract = contract;
+    interpreter.contract = &contract;
     interpreter.return_data = &.{};
     interpreter.spec = .LATEST;
 
@@ -208,7 +208,7 @@ test "CallDataLoad" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
-    interpreter.contract = contract;
+    interpreter.contract = &contract;
     interpreter.spec = .LATEST;
 
     {
@@ -248,7 +248,7 @@ test "CallDataCopy" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
-    interpreter.contract = contract;
+    interpreter.contract = &contract;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
     interpreter.spec = .LATEST;
 
@@ -295,7 +295,7 @@ test "CodeCopy" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
-    interpreter.contract = contract;
+    interpreter.contract = &contract;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
     interpreter.spec = .LATEST;
 
@@ -330,7 +330,7 @@ test "Keccak256" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
-    interpreter.contract = contract;
+    interpreter.contract = &contract;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
     interpreter.spec = .LATEST;
 
@@ -378,7 +378,7 @@ test "ReturnDataCopy" {
     interpreter.gas_tracker = gas.GasTracker.init(30_000_000);
     interpreter.stack = .{ .len = 0 };
     interpreter.program_counter = 0;
-    interpreter.contract = contract;
+    interpreter.contract = &contract;
     interpreter.memory = Memory.initEmpty(testing.allocator, null);
     interpreter.return_data = &data;
     interpreter.spec = .LATEST;

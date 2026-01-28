@@ -85,14 +85,14 @@ pub const Memory = struct {
     }
 
     /// Gets the current size of the `Memory` range.
-    pub fn getCurrentMemorySize(self: Memory) u64 {
+    pub fn getCurrentMemorySize(self: *const Memory) u64 {
         std.debug.assert(self.buffer.len >= self.last_checkpoint);
         return self.buffer.len - self.last_checkpoint;
     }
 
     /// Gets a byte from the list's buffer.
     pub fn getMemoryByte(
-        self: Memory,
+        self: *const Memory,
         offset: usize,
     ) u8 {
         const slice = self.getSlice();
@@ -104,7 +104,7 @@ pub const Memory = struct {
     /// Gets a `Word` from memory of in other words it gets a slice
     /// of 32 bytes from the inner memory buffer.
     pub fn getMemoryWord(
-        self: Memory,
+        self: *const Memory,
         offset: usize,
     ) Word {
         const slice = self.getSlice();
@@ -114,7 +114,7 @@ pub const Memory = struct {
     }
 
     /// Gets a memory slice based on the last checkpoints until the end of the buffer.
-    pub fn getSlice(self: Memory) []u8 {
+    pub fn getSlice(self: *const Memory) []u8 {
         std.debug.assert(self.buffer.len > self.last_checkpoint);
 
         return self.buffer[self.last_checkpoint..];
@@ -160,6 +160,7 @@ pub const Memory = struct {
 
         // Extends to new len within capacity.
         if (self.total_capacity >= new_capacity) {
+            @branchHint(.likely);
             self.buffer.len = new_capacity;
 
             return;
@@ -180,7 +181,7 @@ pub const Memory = struct {
     /// Converts a memory "Word" into a u256 number.
     /// This reads the word as `Big` endian.
     pub fn wordToInt(
-        self: Memory,
+        self: *const Memory,
         offset: usize,
     ) u256 {
         const word = self.getMemoryWord(offset);
@@ -191,7 +192,7 @@ pub const Memory = struct {
     /// Writes a single byte into this memory buffer.
     /// This can overwrite to existing memory.
     pub fn writeByte(
-        self: Memory,
+        self: *const Memory,
         offset: usize,
         byte: u8,
     ) void {
@@ -203,7 +204,7 @@ pub const Memory = struct {
     /// Writes a memory `Word` into the memory buffer.
     /// This can overwrite existing memory.
     pub fn writeWord(
-        self: Memory,
+        self: *const Memory,
         offset: usize,
         word: [32]u8,
     ) void {
@@ -213,7 +214,7 @@ pub const Memory = struct {
     /// Writes a `u256` number into the memory buffer.
     /// This can overwrite to existing memory.
     pub fn writeInt(
-        self: Memory,
+        self: *const Memory,
         offset: usize,
         data: u256,
     ) void {
@@ -227,7 +228,7 @@ pub const Memory = struct {
     /// Writes a slice to the memory buffer based on a offset.
     /// This can overwrite to existing memory.
     pub fn write(
-        self: Memory,
+        self: *const Memory,
         offset: usize,
         data: []const u8,
     ) void {
@@ -240,7 +241,7 @@ pub const Memory = struct {
     /// Writes a slice to a given offset in memory + the provided data's offset.
     /// This can overwrite existing memory.
     pub fn writeData(
-        self: Memory,
+        self: *const Memory,
         offset: usize,
         data_offset: usize,
         len: usize,

@@ -13,9 +13,7 @@ pub fn addInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     const first = try self.stack.tryPopUnsafe();
     const second = try self.stack.tryPeek();
 
-    const addition = first +% second.*;
-
-    second.* = addition;
+    second.* = first +% second.*;
 }
 
 /// Performs div instruction for the interpreter.

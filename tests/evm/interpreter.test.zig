@@ -35,7 +35,12 @@ test "SnailTracer" {
     var interpreter: Interpreter = undefined;
     defer interpreter.deinit();
 
-    try interpreter.init(testing.allocator, contract_instance, plain.host(), .{ .gas_limit = 165_102_640 });
+    try interpreter.init(
+        testing.allocator,
+        &contract_instance,
+        plain.host(),
+        .{ .gas_limit = 165_102_640 },
+    );
 
     const result = try interpreter.run();
     defer result.deinit(testing.allocator);
@@ -61,7 +66,12 @@ test "Init" {
     var interpreter: Interpreter = undefined;
     defer interpreter.deinit();
 
-    try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
+    try interpreter.init(
+        testing.allocator,
+        &contract_instance,
+        plain.host(),
+        .{},
+    );
 }
 
 test "RunInstruction" {
@@ -84,7 +94,12 @@ test "RunInstruction" {
     var interpreter: Interpreter = undefined;
     defer interpreter.deinit();
 
-    try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
+    try interpreter.init(
+        testing.allocator,
+        &contract_instance,
+        plain.host(),
+        .{},
+    );
 
     const result = try interpreter.run();
     defer result.deinit(testing.allocator);
@@ -116,7 +131,12 @@ test "RunInstruction Create" {
     var interpreter: Interpreter = undefined;
     defer interpreter.deinit();
 
-    try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
+    try interpreter.init(
+        testing.allocator,
+        &contract_instance,
+        plain.host(),
+        .{},
+    );
 
     const result = try interpreter.run();
     defer result.deinit(testing.allocator);
@@ -150,7 +170,12 @@ test "RunInstruction Create2" {
     var interpreter: Interpreter = undefined;
     defer interpreter.deinit();
 
-    try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
+    try interpreter.init(
+        testing.allocator,
+        &contract_instance,
+        plain.host(),
+        .{},
+    );
 
     const result = try interpreter.run();
     defer result.deinit(testing.allocator);
@@ -184,7 +209,12 @@ test "Running With Jump" {
         var interpreter: Interpreter = undefined;
         defer interpreter.deinit();
 
-        try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
+        try interpreter.init(
+            testing.allocator,
+            &contract_instance,
+            plain.host(),
+            .{},
+        );
 
         const result = try interpreter.run();
         defer result.deinit(testing.allocator);
@@ -214,7 +244,12 @@ test "Running With Jump" {
         var interpreter: Interpreter = undefined;
         defer interpreter.deinit();
 
-        try interpreter.init(testing.allocator, contract_instance, plain.host(), .{});
+        try interpreter.init(
+            testing.allocator,
+            &contract_instance,
+            plain.host(),
+            .{},
+        );
 
         try testing.expectError(error.InvalidJump, interpreter.run());
     }

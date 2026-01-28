@@ -1,9 +1,9 @@
 const constants = zabi_utils.constants;
 const host = @import("host.zig");
 const mem = @import("memory.zig");
-const testing = @import("std").testing;
 const utils = zabi_utils.utils;
 const zabi_utils = @import("zabi-utils");
+const std = @import("std");
 
 const SpecId = @import("specification.zig").SpecId;
 const SelfDestructResult = host.SelfDestructResult;
@@ -28,27 +28,30 @@ pub const GasTracker = struct {
             .refund_amount = 0,
         };
     }
+
     /// Returns the remaining gas that can be used.
-    pub fn availableGas(self: GasTracker) u64 {
+    pub inline fn availableGas(self: *const GasTracker) u64 {
         return self.gas_limit - self.used_amount;
     }
+
     /// Updates the gas tracker based on the opcode cost.
     pub inline fn updateTracker(self: *GasTracker, cost: u64) GasTracker.Error!void {
         const total, const overflow = @addWithOverflow(self.used_amount, cost);
 
         if (@bitCast(overflow)) {
-            @branchHint(.cold);
+            @branchHint(.unlikely);
             return error.GasOverflow;
         }
 
         if (total > self.gas_limit) {
-            @branchHint(.cold);
+            @branchHint(.unlikely);
             return error.OutOfGas;
         }
 
         self.used_amount = total;
     }
 };
+
 /// Calculates the gas cost for the `CALL` opcode.
 pub inline fn calculateCallCost(spec: SpecId, values_transfered: bool, is_cold: bool, new_account: bool) u64 {
     var gas: u64 = if (spec.enabled(.BERLIN)) warmOrColdCost(is_cold) else if (spec.enabled(.TANGERINE)) 700 else 40;
@@ -67,6 +70,7 @@ pub inline fn calculateCallCost(spec: SpecId, values_transfered: bool, is_cold: 
 
     return gas;
 }
+
 /// Calculates the gas cost for the `EXTCODESIZE` opcode.
 pub inline fn calculateCodeSizeCost(spec: SpecId, is_cold: bool) u64 {
     if (spec.enabled(.BERLIN))
@@ -77,6 +81,7 @@ pub inline fn calculateCodeSizeCost(spec: SpecId, is_cold: bool) u64 {
 
     return 20;
 }
+
 /// Calculates the gas cost per `Memory` word.
 /// Returns null in case of overflow.
 pub inline fn calculateCostPerMemoryWord(length: u64, multiple: u64) ?u64 {
@@ -87,11 +92,13 @@ pub inline fn calculateCostPerMemoryWord(length: u64, multiple: u64) ?u64 {
 
     return result;
 }
+
 /// Calculates the cost of using the `CREATE` opcode.
 /// **PANICS** if the gas cost overflows
 pub inline fn calculateCreateCost(length: u64) u64 {
     return calculateCostPerMemoryWord(length, constants.INITCODE_WORD_COST) orelse @panic("Init contract code cost overflow");
 }
+
 /// Calculates the cost of using the `CREATE2` opcode.
 /// Returns null in case of overflow.
 pub inline fn calculateCreate2Cost(length: u64) ?u64 {
@@ -105,6 +112,7 @@ pub inline fn calculateCreate2Cost(length: u64) ?u64 {
         return result;
     } else return null;
 }
+
 /// Calculates the gas used for the `EXP` opcode.
 pub inline fn calculateExponentCost(exp: u256, spec: SpecId) error{Overflow}!u64 {
     const size = utils.computeSize(exp);
@@ -117,6 +125,7 @@ pub inline fn calculateExponentCost(exp: u256, spec: SpecId) error{Overflow}!u64
 
     return exp_gas;
 }
+
 /// Calculates the gas used for the `EXTCODECOPY` opcode.
 pub inline fn calculateExtCodeCopyCost(spec: SpecId, len: u64, is_cold: bool) ?u64 {
     const word_cost = calculateCostPerMemoryWord(len, 3);
@@ -132,6 +141,7 @@ pub inline fn calculateExtCodeCopyCost(spec: SpecId, len: u64, is_cold: bool) ?u
         return result;
     } else return null;
 }
+
 /// Calculates the cost of using the `KECCAK256` opcode.
 /// Returns null in case of overflow.
 pub inline fn calculateKeccakCost(length: u64) ?u64 {
@@ -145,6 +155,7 @@ pub inline fn calculateKeccakCost(length: u64) ?u64 {
         return result;
     } else return null;
 }
+
 /// Calculates the gas cost for a LOG instruction.
 pub inline fn calculateLogCost(size: u8, length: u64) ?u64 {
     const topics: u64 = constants.LOGTOPIC * size;
@@ -165,10 +176,12 @@ pub inline fn calculateLogCost(size: u8, length: u64) ?u64 {
 
     return log;
 }
+
 /// Calculates the memory expansion cost based on the provided `word_count`
 pub inline fn calculateMemoryCost(count: u64) u64 {
     return (3 *| count) +| @divFloor(count *| count, 512);
 }
+
 /// Calculates the cost of a memory copy.
 pub inline fn calculateMemoryCopyLowCost(length: u64) ?u64 {
     const word_cost = calculateCostPerMemoryWord(length, 3);
@@ -182,6 +195,7 @@ pub inline fn calculateMemoryCopyLowCost(length: u64) ?u64 {
         return result;
     } else return null;
 }
+
 /// Calculates the cost of the `SSTORE` opcode after the `FRONTIER` spec.
 pub inline fn calculateFrontierSstoreCost(current: u256, new: u256) u64 {
     if (current == 0 and new != 0)
@@ -189,6 +203,7 @@ pub inline fn calculateFrontierSstoreCost(current: u256, new: u256) u64 {
 
     return constants.SSTORE_RESET;
 }
+
 /// Calculates the cost of the `SSTORE` opcode after the `ISTANBUL` spec.
 pub inline fn calculateIstanbulSstoreCost(original: u256, current: u256, new: u256) u64 {
     if (new == current)
@@ -202,6 +217,7 @@ pub inline fn calculateIstanbulSstoreCost(original: u256, current: u256, new: u2
 
     return constants.WARM_STORAGE_READ_COST;
 }
+
 /// Calculate the cost of an `SLOAD` opcode based on the spec and if the access is cold
 /// or warm if the `BERLIN` spec is enabled.
 pub inline fn calculateSloadCost(spec: SpecId, is_cold: bool) u64 {
@@ -217,6 +233,7 @@ pub inline fn calculateSloadCost(spec: SpecId, is_cold: bool) u64 {
 
     return 50;
 }
+
 /// Calculate the cost of an `SSTORE` opcode based on the spec, if the access is cold
 /// and the value in storage. Returns null if the spec is `ISTANBUL` enabled and the provided
 /// gas is lower than `CALL_STIPEND`.
@@ -238,6 +255,7 @@ pub inline fn calculateSstoreCost(spec: SpecId, original: u256, current: u256, n
 
     return calculateFrontierSstoreCost(current, new);
 }
+
 /// Calculate the refund of an `SSTORE` opcode.
 pub inline fn calculateSstoreRefund(spec: SpecId, original: u256, current: u256, new: u256) i64 {
     if (spec.enabled(.ISTANBUL)) {
@@ -281,6 +299,7 @@ pub inline fn calculateSstoreRefund(spec: SpecId, original: u256, current: u256,
 
     return if (current != 0 and new == 0) constants.REFUND_SSTORE_CLEARS else 0;
 }
+
 /// Calculate the cost of an `SELFDESTRUCT` opcode based on the spec and it's result.
 pub inline fn calculateSelfDestructCost(spec: SpecId, result: SelfDestructResult) u64 {
     const charge_topup = if (spec.enabled(.SPURIOUS_DRAGON)) result.had_value and !result.target_exists else !result.target_exists;
@@ -294,6 +313,7 @@ pub inline fn calculateSelfDestructCost(spec: SpecId, result: SelfDestructResult
 
     return gas;
 }
+
 /// Returns the gas cost for reading from a `warm` or `cold` storage slot.
 pub inline fn warmOrColdCost(cold: bool) u64 {
     return if (cold) constants.COLD_ACCOUNT_ACCESS_COST else constants.WARM_STORAGE_READ_COST;

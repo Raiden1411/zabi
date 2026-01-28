@@ -64,8 +64,11 @@ pub fn Stack(comptime T: type) type {
             self: *Self,
             position: usize,
         ) Self.Error!void {
-            if (self.inner.items.len < position)
+            if (self.inner.items.len < position) {
+                @branchHint(.unlikely);
+
                 return error.StackUnderflow;
+            }
 
             const item = self.inner.items[self.inner.items.len - position];
             try self.pushUnsafe(item);
@@ -242,7 +245,7 @@ pub fn BoundedStack(comptime size: usize) type {
             self: *Self,
             position_swap: usize,
         ) error{StackUnderflow}!void {
-            if (self.len <= position_swap) {
+            if (self.len < position_swap) {
                 @branchHint(.unlikely);
                 return error.StackUnderflow;
             }
@@ -263,7 +266,7 @@ pub fn BoundedStack(comptime size: usize) type {
             position: usize,
         ) Self.Error!void {
             if (self.len < position) {
-                @branchHint(.cold);
+                @branchHint(.unlikely);
                 return error.StackUnderflow;
             }
 
@@ -333,6 +336,8 @@ pub fn BoundedStack(comptime size: usize) type {
 
         /// Pops item from the stack.
         pub inline fn pop(self: *Self) u256 {
+            std.debug.assert(self.len > 0);
+
             self.len -= 1;
             const item = self.inner[self.len];
 

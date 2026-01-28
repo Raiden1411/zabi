@@ -49,7 +49,7 @@ pub fn main(init: std.process.Init.Minimal) !void {
 
     try interpreter.init(
         allocator,
-        contract_instance,
+        &contract_instance,
         plain.host(),
         .{ .gas_limit = 300_000_000 },
     );

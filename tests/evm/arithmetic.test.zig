@@ -17,14 +17,14 @@ test "Addition" {
         try interpreter.stack.pushUnsafe(2);
         try evm.instructions.arithmetic.addInstruction(&interpreter);
         try testing.expectEqual(3, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(3, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(std.math.maxInt(u256));
         try interpreter.stack.pushUnsafe(1);
         try evm.instructions.arithmetic.addInstruction(&interpreter);
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(6, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(6, interpreter.gas_tracker.usedAmount());
     }
 }
 test "Multiplication" {
@@ -39,14 +39,14 @@ test "Multiplication" {
         try interpreter.stack.pushUnsafe(2);
         try evm.instructions.arithmetic.mulInstruction(&interpreter);
         try testing.expectEqual(2, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(5, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(std.math.maxInt(u256));
         try interpreter.stack.pushUnsafe(2);
         try evm.instructions.arithmetic.mulInstruction(&interpreter);
         try testing.expectEqual(std.math.maxInt(u256) - 1, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(10, interpreter.gas_tracker.usedAmount());
     }
 }
 test "Subtraction" {
@@ -61,14 +61,14 @@ test "Subtraction" {
         try interpreter.stack.pushUnsafe(1);
         try evm.instructions.arithmetic.subInstruction(&interpreter);
         try testing.expectEqual(std.math.maxInt(u256), interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(3, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(1);
         try interpreter.stack.pushUnsafe(2);
         try evm.instructions.arithmetic.subInstruction(&interpreter);
         try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(6, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(6, interpreter.gas_tracker.usedAmount());
     }
 }
 test "Division" {
@@ -84,14 +84,14 @@ test "Division" {
         try interpreter.stack.pushUnsafe(1);
         try evm.instructions.arithmetic.divInstruction(&interpreter);
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(5, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(1);
         try interpreter.stack.pushUnsafe(2);
         try evm.instructions.arithmetic.divInstruction(&interpreter);
         try testing.expectEqual(2, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(10, interpreter.gas_tracker.usedAmount());
     }
 }
 test "Signed Division" {
@@ -106,14 +106,14 @@ test "Signed Division" {
         try interpreter.stack.pushUnsafe(std.math.maxInt(u256));
         try evm.instructions.arithmetic.signedDivInstruction(&interpreter);
         try testing.expectEqual(0, @as(i256, @bitCast(interpreter.stack.popUnsafe().?)));
-        try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(5, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(1);
         try interpreter.stack.pushUnsafe(2);
         try evm.instructions.arithmetic.divInstruction(&interpreter);
         try testing.expectEqual(2, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(10, interpreter.gas_tracker.usedAmount());
     }
 }
 test "Mod" {
@@ -128,14 +128,14 @@ test "Mod" {
         try interpreter.stack.pushUnsafe(1);
         try evm.instructions.arithmetic.modInstruction(&interpreter);
         try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(5, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(1);
         try interpreter.stack.pushUnsafe(2);
         try evm.instructions.arithmetic.modInstruction(&interpreter);
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(10, interpreter.gas_tracker.usedAmount());
     }
 }
 test "Signed Mod" {
@@ -150,14 +150,14 @@ test "Signed Mod" {
         try interpreter.stack.pushUnsafe(std.math.maxInt(u256));
         try evm.instructions.arithmetic.signedModInstruction(&interpreter);
         try testing.expectEqual(-1, @as(i256, @bitCast(interpreter.stack.popUnsafe().?)));
-        try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(5, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(2);
         try interpreter.stack.pushUnsafe(1);
         try evm.instructions.arithmetic.signedModInstruction(&interpreter);
         try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(10, interpreter.gas_tracker.usedAmount());
     }
 }
 test "Addition and Mod" {
@@ -173,7 +173,7 @@ test "Addition and Mod" {
         try interpreter.stack.pushUnsafe(1);
         try evm.instructions.arithmetic.modAdditionInstruction(&interpreter);
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(8, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(8, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(2);
@@ -181,7 +181,7 @@ test "Addition and Mod" {
         try interpreter.stack.pushUnsafe(2);
         try evm.instructions.arithmetic.modAdditionInstruction(&interpreter);
         try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(16, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(16, interpreter.gas_tracker.usedAmount());
     }
 }
 test "Multiplication and Mod" {
@@ -197,7 +197,7 @@ test "Multiplication and Mod" {
         try interpreter.stack.pushUnsafe(1);
         try evm.instructions.arithmetic.modMultiplicationInstruction(&interpreter);
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(8, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(8, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(4);
@@ -205,7 +205,7 @@ test "Multiplication and Mod" {
         try interpreter.stack.pushUnsafe(2);
         try evm.instructions.arithmetic.modMultiplicationInstruction(&interpreter);
         try testing.expectEqual(2, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(16, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(16, interpreter.gas_tracker.usedAmount());
     }
 }
 test "Exponent" {
@@ -220,14 +220,14 @@ test "Exponent" {
         try interpreter.stack.pushUnsafe(2);
         try evm.instructions.arithmetic.exponentInstruction(&interpreter);
         try testing.expectEqual(4, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(60, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(60, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(1);
         try interpreter.stack.pushUnsafe(std.math.maxInt(u16));
         try evm.instructions.arithmetic.exponentInstruction(&interpreter);
         try testing.expectEqual(std.math.maxInt(u16), interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(120, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(120, interpreter.gas_tracker.usedAmount());
     }
 }
 test "Sign Extend" {
@@ -242,20 +242,20 @@ test "Sign Extend" {
         try interpreter.stack.pushUnsafe(0);
         try evm.instructions.arithmetic.signExtendInstruction(&interpreter);
         try testing.expectEqual(std.math.maxInt(u256), interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(5, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(0x7f);
         try interpreter.stack.pushUnsafe(0);
         try evm.instructions.arithmetic.signExtendInstruction(&interpreter);
         try testing.expectEqual(0x7f, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(10, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(10, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(0x7f);
         try interpreter.stack.pushUnsafe(0xFF);
         try evm.instructions.arithmetic.signExtendInstruction(&interpreter);
         try testing.expectEqual(0x7f, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(15, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(15, interpreter.gas_tracker.usedAmount());
     }
 }

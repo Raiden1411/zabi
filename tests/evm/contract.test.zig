@@ -43,7 +43,7 @@ test "Create" {
         try testing.expect(interpreter.next_action == .create_action);
         defer testing.allocator.free(interpreter.next_action.create_action.init_code);
 
-        try testing.expectEqual(29531750, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(29531750, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .FRONTIER;
@@ -56,7 +56,7 @@ test "Create" {
         try testing.expect(interpreter.next_action == .create_action);
         defer testing.allocator.free(interpreter.next_action.create_action.init_code);
 
-        try testing.expectEqual(30_000_000, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(30_000_000, interpreter.gas_tracker.usedAmount());
     }
 }
 
@@ -103,7 +103,7 @@ test "Create2" {
         try testing.expect(interpreter.next_action.create_action.scheme == .create2);
         defer testing.allocator.free(interpreter.next_action.create_action.init_code);
 
-        try testing.expectEqual(29531750, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(29531750, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .FRONTIER;
@@ -158,7 +158,7 @@ test "Call" {
         try testing.expect(interpreter.next_action.call_action.scheme == .call);
         defer testing.allocator.free(interpreter.next_action.call_action.inputs);
 
-        try testing.expectEqual(65635, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(65635, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(0);
@@ -176,7 +176,7 @@ test "Call" {
         try testing.expect(interpreter.next_action.call_action.scheme == .call);
         defer testing.allocator.free(interpreter.next_action.call_action.inputs);
 
-        try testing.expectEqual(131273, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(131273, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.is_static = true;
@@ -241,7 +241,7 @@ test "CallCode" {
         try testing.expect(interpreter.next_action.call_action.scheme == .callcode);
         defer testing.allocator.free(interpreter.next_action.call_action.inputs);
 
-        try testing.expectEqual(65635, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(65635, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(0);
@@ -259,7 +259,7 @@ test "CallCode" {
         try testing.expect(interpreter.next_action.call_action.scheme == .callcode);
         defer testing.allocator.free(interpreter.next_action.call_action.inputs);
 
-        try testing.expectEqual(131273, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(131273, interpreter.gas_tracker.usedAmount());
     }
 }
 
@@ -310,7 +310,7 @@ test "DelegateCall" {
         try testing.expect(interpreter.next_action.call_action.value == .limbo);
         defer testing.allocator.free(interpreter.next_action.call_action.inputs);
 
-        try testing.expectEqual(65635, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(65635, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .FRONTIER;
@@ -364,7 +364,7 @@ test "StaticCall" {
         try testing.expect(interpreter.next_action.call_action.scheme == .static);
         defer testing.allocator.free(interpreter.next_action.call_action.inputs);
 
-        try testing.expectEqual(65635, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(65635, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .FRONTIER;

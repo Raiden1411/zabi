@@ -18,7 +18,7 @@ test "Program counter" {
     try evm.instructions.control.programCounterInstruction(&interpreter);
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "Unknown" {
@@ -66,7 +66,7 @@ test "Jumpdest" {
 
     try evm.instructions.control.jumpDestInstruction(&interpreter);
 
-    try testing.expectEqual(1, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(1, interpreter.gas_tracker.usedAmount());
 }
 
 test "Jump" {
@@ -92,14 +92,14 @@ test "Jump" {
         try interpreter.stack.pushUnsafe(31);
         try evm.instructions.control.jumpInstruction(&interpreter);
 
-        try testing.expectEqual(8, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(8, interpreter.gas_tracker.usedAmount());
         try testing.expectEqual(30, interpreter.program_counter);
     }
     {
         try interpreter.stack.pushUnsafe(30);
         try evm.instructions.control.jumpInstruction(&interpreter);
 
-        try testing.expectEqual(16, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(16, interpreter.gas_tracker.usedAmount());
         try testing.expectEqual(30, interpreter.program_counter);
         try testing.expectEqual(.invalid_jump, interpreter.status);
     }
@@ -129,7 +129,7 @@ test "Conditional Jump" {
         try interpreter.stack.pushUnsafe(31);
         try evm.instructions.control.conditionalJumpInstruction(&interpreter);
 
-        try testing.expectEqual(8, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(8, interpreter.gas_tracker.usedAmount());
         try testing.expectEqual(30, interpreter.program_counter);
     }
     {
@@ -137,7 +137,7 @@ test "Conditional Jump" {
         try interpreter.stack.pushUnsafe(30);
         try evm.instructions.control.conditionalJumpInstruction(&interpreter);
 
-        try testing.expectEqual(16, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(16, interpreter.gas_tracker.usedAmount());
         try testing.expectEqual(30, interpreter.program_counter);
         try testing.expectEqual(.invalid_jump, interpreter.status);
     }
@@ -146,7 +146,7 @@ test "Conditional Jump" {
         try interpreter.stack.pushUnsafe(30);
         try evm.instructions.control.conditionalJumpInstruction(&interpreter);
 
-        try testing.expectEqual(24, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(24, interpreter.gas_tracker.usedAmount());
     }
 }
 
@@ -171,7 +171,7 @@ test "Reverted" {
         try evm.instructions.control.revertInstruction(&interpreter);
 
         try testing.expectEqual(.reverted, interpreter.status);
-        try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(3, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .FRONTIER;
@@ -198,5 +198,5 @@ test "Return" {
     try evm.instructions.control.returnInstruction(&interpreter);
 
     try testing.expectEqual(.returned, interpreter.status);
-    try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(3, interpreter.gas_tracker.usedAmount());
 }

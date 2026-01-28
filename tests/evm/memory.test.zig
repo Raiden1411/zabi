@@ -132,7 +132,7 @@ test "Mstore" {
         try evm.instructions.memory.mstoreInstruction(&interpreter);
 
         try testing.expectEqual(69, interpreter.memory.wordToInt(0));
-        try testing.expectEqual(6, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(6, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(69);
@@ -141,7 +141,7 @@ test "Mstore" {
         try evm.instructions.memory.mstoreInstruction(&interpreter);
 
         try testing.expectEqual(69, interpreter.memory.wordToInt(1));
-        try testing.expectEqual(12, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(12, interpreter.gas_tracker.usedAmount());
     }
 }
 
@@ -164,7 +164,7 @@ test "Mstore8" {
         try evm.instructions.memory.mstore8Instruction(&interpreter);
 
         try testing.expectEqual(0xFF, interpreter.memory.getMemoryByte(0));
-        try testing.expectEqual(6, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(6, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(0x1F);
@@ -173,7 +173,7 @@ test "Mstore8" {
         try evm.instructions.memory.mstore8Instruction(&interpreter);
 
         try testing.expectEqual(0x1F, interpreter.memory.getMemoryByte(1));
-        try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(9, interpreter.gas_tracker.usedAmount());
     }
 }
 
@@ -193,7 +193,7 @@ test "Msize" {
         try evm.instructions.memory.msizeInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
     }
     {
         try evm.instructions.memory.msizeInstruction(&interpreter);
@@ -201,7 +201,7 @@ test "Msize" {
         try evm.instructions.memory.msizeInstruction(&interpreter);
 
         try testing.expectEqual(32, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(12, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(12, interpreter.gas_tracker.usedAmount());
     }
 }
 
@@ -228,7 +228,7 @@ test "MCopy" {
     try evm.instructions.memory.mcopyInstruction(&interpreter);
 
     try testing.expectEqual(0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f, interpreter.memory.wordToInt(0));
-    try testing.expectEqual(15, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(15, interpreter.gas_tracker.usedAmount());
 
     {
         interpreter.spec = .FRONTIER;

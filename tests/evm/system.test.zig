@@ -30,7 +30,7 @@ test "Address" {
     try evm.instructions.system.addressInstruction(&interpreter);
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "Caller" {
@@ -56,7 +56,7 @@ test "Caller" {
     try evm.instructions.system.callerInstruction(&interpreter);
 
     try testing.expectEqual(@as(u160, @bitCast([_]u8{1} ** 20)), interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "Value" {
@@ -82,7 +82,7 @@ test "Value" {
     try evm.instructions.system.callValueInstruction(&interpreter);
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "CodeSize" {
@@ -108,7 +108,7 @@ test "CodeSize" {
     try evm.instructions.system.codeSizeInstruction(&interpreter);
 
     try testing.expectEqual(33, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "CallDataSize" {
@@ -134,7 +134,7 @@ test "CallDataSize" {
     try evm.instructions.system.callDataSizeInstruction(&interpreter);
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "Gas" {
@@ -160,7 +160,7 @@ test "Gas" {
     try evm.instructions.system.gasInstruction(&interpreter);
 
     try testing.expectEqual(998, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "ReturnDataSize" {
@@ -187,7 +187,7 @@ test "ReturnDataSize" {
     try evm.instructions.system.returnDataSizeInstruction(&interpreter);
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "CallDataLoad" {
@@ -216,14 +216,14 @@ test "CallDataLoad" {
         try evm.instructions.system.callDataLoadInstruction(&interpreter);
 
         try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(3, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(33);
         try evm.instructions.system.callDataLoadInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(6, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(6, interpreter.gas_tracker.usedAmount());
     }
 }
 
@@ -260,7 +260,7 @@ test "CallDataCopy" {
         try evm.instructions.system.callDataCopyInstruction(&interpreter);
 
         try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.memory.wordToInt(0));
-        try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(9, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(32);
@@ -270,7 +270,7 @@ test "CallDataCopy" {
         try evm.instructions.system.callDataCopyInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.memory.wordToInt(0));
-        try testing.expectEqual(15, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(15, interpreter.gas_tracker.usedAmount());
     }
 }
 
@@ -306,7 +306,7 @@ test "CodeCopy" {
     try evm.instructions.system.codeCopyInstruction(&interpreter);
 
     try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.memory.wordToInt(0));
-    try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(9, interpreter.gas_tracker.usedAmount());
 }
 
 test "Keccak256" {
@@ -344,7 +344,7 @@ test "Keccak256" {
         try evm.instructions.system.keccakInstruction(&interpreter);
 
         try testing.expectEqual(0x29045a592007d0c246ef02c2223570da9522d0cf0f73282c79a1bc8f0bb2c238, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(36, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(36, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(0);
@@ -353,7 +353,7 @@ test "Keccak256" {
         try evm.instructions.system.keccakInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(66, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(66, interpreter.gas_tracker.usedAmount());
     }
 }
 
@@ -391,6 +391,6 @@ test "ReturnDataCopy" {
         try evm.instructions.system.returnDataCopyInstruction(&interpreter);
 
         try testing.expectEqual(@as(u256, @bitCast(data)), interpreter.memory.wordToInt(0));
-        try testing.expectEqual(9, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(9, interpreter.gas_tracker.usedAmount());
     }
 }

@@ -27,7 +27,7 @@ test "BaseFee" {
     try evm.instructions.enviroment.baseFeeInstruction(&interpreter);
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "BlobBaseFee" {
@@ -49,7 +49,7 @@ test "BlobBaseFee" {
         try evm.instructions.enviroment.blobBaseFeeInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .FRONTIER;
@@ -78,7 +78,7 @@ test "BlobHash" {
         try evm.instructions.enviroment.blobHashInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(3, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(3, interpreter.gas_tracker.usedAmount());
     }
     {
         host.env.tx.blob_hashes = &.{[_]u8{1} ** 32};
@@ -87,7 +87,7 @@ test "BlobHash" {
         try evm.instructions.enviroment.blobHashInstruction(&interpreter);
 
         try testing.expectEqual(@as(u256, @bitCast([_]u8{1} ** 32)), interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(6, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(6, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .FRONTIER;
@@ -112,7 +112,7 @@ test "Timestamp" {
     try evm.instructions.enviroment.timestampInstruction(&interpreter);
 
     try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "BlockNumber" {
@@ -131,7 +131,7 @@ test "BlockNumber" {
     try evm.instructions.enviroment.blockNumberInstruction(&interpreter);
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "ChainId" {
@@ -152,7 +152,7 @@ test "ChainId" {
         try evm.instructions.enviroment.chainIdInstruction(&interpreter);
 
         try testing.expectEqual(1, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .FRONTIER;
@@ -177,7 +177,7 @@ test "Coinbase" {
     try evm.instructions.enviroment.coinbaseInstruction(&interpreter);
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "Difficulty" {
@@ -196,7 +196,7 @@ test "Difficulty" {
     try evm.instructions.enviroment.difficultyInstruction(&interpreter);
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "GasPrice" {
@@ -215,7 +215,7 @@ test "GasPrice" {
     try evm.instructions.enviroment.gasPriceInstruction(&interpreter);
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "Origin" {
@@ -234,7 +234,7 @@ test "Origin" {
     try evm.instructions.enviroment.originInstruction(&interpreter);
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "GasLimit" {
@@ -253,7 +253,7 @@ test "GasLimit" {
     try evm.instructions.enviroment.gasLimitInstruction(&interpreter);
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(2, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(2, interpreter.gas_tracker.usedAmount());
 }
 
 test "insufficient balance" {

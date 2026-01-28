@@ -108,7 +108,7 @@ test "RunInstruction" {
 
     try testing.expect(result == .return_action);
     try testing.expectEqual(.stopped, result.return_action.result);
-    try testing.expectEqual(9, result.return_action.gas.used_amount);
+    try testing.expectEqual(9, result.return_action.gas.usedAmount());
     try testing.expectEqual(3, try interpreter.stack.tryPopUnsafe());
 }
 
@@ -146,7 +146,7 @@ test "RunInstruction Create" {
     try testing.expect(result == .create_action);
     try testing.expect(result.create_action.scheme == .create);
     try testing.expect(interpreter.status == .call_or_create);
-    try testing.expectEqual(29531751, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(29531751, interpreter.gas_tracker.usedAmount());
 
     try testing.expectEqualSlices(u8, &[_]u8{ 0x63, 0xFF, 0xFF, 0xFF, 0xFF, 0x60, 0x00, 0x52, 0x60, 0x04, 0x60, 0x1C, 0xF3 }, result.create_action.init_code);
 }
@@ -185,7 +185,7 @@ test "RunInstruction Create2" {
     try testing.expect(result == .create_action);
     try testing.expect(result.create_action.scheme == .create2);
     try testing.expect(interpreter.status == .call_or_create);
-    try testing.expectEqual(29531751, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(29531751, interpreter.gas_tracker.usedAmount());
     try testing.expectEqualSlices(u8, &[_]u8{ 0x63, 0xFF, 0xFF, 0xFF, 0xFF, 0x60, 0x00, 0x52, 0x60, 0x04, 0x60, 0x1C, 0xF3 }, result.create_action.init_code);
 }
 
@@ -223,7 +223,7 @@ test "Running With Jump" {
 
         try testing.expect(result == .return_action);
         try testing.expectEqual(.stopped, result.return_action.result);
-        try testing.expectEqual(15, result.return_action.gas.used_amount);
+        try testing.expectEqual(15, result.return_action.gas.usedAmount());
     }
     {
         var code = [_]u8{ 0x60, 0x03, 0x56, 0xfd, 0x5b, 0x60, 0x01 };

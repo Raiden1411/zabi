@@ -28,7 +28,7 @@ test "Balance" {
         try evm.instructions.host.balanceInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(100, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .ISTANBUL;
@@ -36,7 +36,7 @@ test "Balance" {
         try evm.instructions.host.balanceInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(800, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(800, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .TANGERINE;
@@ -44,7 +44,7 @@ test "Balance" {
         try evm.instructions.host.balanceInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(1200, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1200, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .FRONTIER;
@@ -52,7 +52,7 @@ test "Balance" {
         try evm.instructions.host.balanceInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(1220, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1220, interpreter.gas_tracker.usedAmount());
     }
 }
 
@@ -73,7 +73,7 @@ test "BlockHash" {
     try evm.instructions.host.blockHashInstruction(&interpreter);
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(20, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(20, interpreter.gas_tracker.usedAmount());
 }
 
 test "ExtCodeCopy" {
@@ -97,7 +97,7 @@ test "ExtCodeCopy" {
 
     try evm.instructions.host.extCodeCopyInstruction(&interpreter);
 
-    try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(100, interpreter.gas_tracker.usedAmount());
 }
 
 test "ExtCodeHash" {
@@ -119,7 +119,7 @@ test "ExtCodeHash" {
         try evm.instructions.host.extCodeHashInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(100, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .ISTANBUL;
@@ -127,7 +127,7 @@ test "ExtCodeHash" {
         try evm.instructions.host.extCodeHashInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(800, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(800, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .TANGERINE;
@@ -135,7 +135,7 @@ test "ExtCodeHash" {
         try evm.instructions.host.extCodeHashInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(1200, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1200, interpreter.gas_tracker.usedAmount());
     }
 }
 
@@ -158,7 +158,7 @@ test "ExtCodeSize" {
         try evm.instructions.host.extCodeSizeInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(100, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .TANGERINE;
@@ -166,7 +166,7 @@ test "ExtCodeSize" {
         try evm.instructions.host.extCodeSizeInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(800, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(800, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .FRONTIER;
@@ -174,7 +174,7 @@ test "ExtCodeSize" {
         try evm.instructions.host.extCodeSizeInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(820, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(820, interpreter.gas_tracker.usedAmount());
     }
 }
 
@@ -214,7 +214,7 @@ test "Log" {
         try interpreter.stack.pushUnsafe(32);
         try evm.instructions.host.logInstruction(&interpreter, 0);
 
-        try testing.expectEqual(375, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(375, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(0);
@@ -222,7 +222,7 @@ test "Log" {
         try interpreter.stack.pushUnsafe(0);
         try evm.instructions.host.logInstruction(&interpreter, 1);
 
-        try testing.expectEqual(1384, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(1384, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(0);
@@ -231,7 +231,7 @@ test "Log" {
         try interpreter.stack.pushUnsafe(0);
         try evm.instructions.host.logInstruction(&interpreter, 2);
 
-        try testing.expectEqual(2509, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2509, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(0);
@@ -241,7 +241,7 @@ test "Log" {
         try interpreter.stack.pushUnsafe(2);
         try evm.instructions.host.logInstruction(&interpreter, 3);
 
-        try testing.expectEqual(4017, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(4017, interpreter.gas_tracker.usedAmount());
     }
     {
         try interpreter.stack.pushUnsafe(0);
@@ -252,7 +252,7 @@ test "Log" {
         try interpreter.stack.pushUnsafe(3);
         try evm.instructions.host.logInstruction(&interpreter, 4);
 
-        try testing.expectEqual(5908, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(5908, interpreter.gas_tracker.usedAmount());
     }
 }
 
@@ -285,7 +285,7 @@ test "SelfBalance" {
     try evm.instructions.host.selfBalanceInstruction(&interpreter);
 
     try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-    try testing.expectEqual(5, interpreter.gas_tracker.used_amount);
+    try testing.expectEqual(5, interpreter.gas_tracker.usedAmount());
 
     {
         interpreter.spec = .HOMESTEAD;
@@ -324,7 +324,7 @@ test "Sload" {
         try evm.instructions.host.sloadInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(2600, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2600, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .ISTANBUL;
@@ -332,7 +332,7 @@ test "Sload" {
         try evm.instructions.host.sloadInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(3400, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(3400, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .TANGERINE;
@@ -340,7 +340,7 @@ test "Sload" {
         try evm.instructions.host.sloadInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(3600, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(3600, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .FRONTIER;
@@ -348,7 +348,7 @@ test "Sload" {
         try evm.instructions.host.sloadInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(3650, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(3650, interpreter.gas_tracker.usedAmount());
     }
 }
 
@@ -383,7 +383,7 @@ test "Sstore" {
         try interpreter.stack.pushUnsafe(32);
         try evm.instructions.host.sstoreInstruction(&interpreter);
 
-        try testing.expectEqual(2200, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2200, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .ISTANBUL;
@@ -391,7 +391,7 @@ test "Sstore" {
         try interpreter.stack.pushUnsafe(32);
         try evm.instructions.host.sstoreInstruction(&interpreter);
 
-        try testing.expectEqual(2300, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(2300, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .TANGERINE;
@@ -399,7 +399,7 @@ test "Sstore" {
         try interpreter.stack.pushUnsafe(32);
         try evm.instructions.host.sstoreInstruction(&interpreter);
 
-        try testing.expectEqual(7300, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(7300, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .FRONTIER;
@@ -407,7 +407,7 @@ test "Sstore" {
         try interpreter.stack.pushUnsafe(32);
         try evm.instructions.host.sstoreInstruction(&interpreter);
 
-        try testing.expectEqual(12300, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(12300, interpreter.gas_tracker.usedAmount());
     }
 }
 
@@ -442,7 +442,7 @@ test "Tload" {
         try evm.instructions.host.tloadInstruction(&interpreter);
 
         try testing.expectEqual(0, interpreter.stack.popUnsafe().?);
-        try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(100, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .HOMESTEAD;
@@ -482,7 +482,7 @@ test "Tstore" {
         try interpreter.stack.pushUnsafe(32);
         try evm.instructions.host.tstoreInstruction(&interpreter);
 
-        try testing.expectEqual(100, interpreter.gas_tracker.used_amount);
+        try testing.expectEqual(100, interpreter.gas_tracker.usedAmount());
     }
     {
         interpreter.spec = .HOMESTEAD;

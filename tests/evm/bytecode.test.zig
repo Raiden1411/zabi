@@ -6,7 +6,7 @@ const JumpTable = @import("zabi").evm.bytecode.JumpTable;
 test "JumpTable" {
     // With false as the initial value.
     {
-        const table = try JumpTable.init(testing.allocator, false, 64);
+        var table = try JumpTable.init(testing.allocator, false, 64);
         defer table.deinit(testing.allocator);
 
         try testing.expectEqual(8, table.bytes.len);
@@ -24,7 +24,7 @@ test "JumpTable" {
 
     // With true as the initial value.
     {
-        const table = try JumpTable.init(testing.allocator, true, 64);
+        var table = try JumpTable.init(testing.allocator, true, 64);
         defer table.deinit(testing.allocator);
 
         try testing.expectEqual(8, table.bytes.len);

@@ -20,6 +20,7 @@ pub fn conditionalJumpInstruction(self: *Interpreter) (Interpreter.InstructionEr
 
     if (condition != 0) {
         if (!self.contract.isValidJump(as_usize)) {
+            @branchHint(.unlikely);
             self.status = .invalid_jump;
             return;
         }
@@ -31,12 +32,14 @@ pub fn conditionalJumpInstruction(self: *Interpreter) (Interpreter.InstructionEr
         return;
     }
 }
+
 /// Runs the pc instruction opcode for the interpreter.
 /// 0x58 -> PC
 pub fn programCounterInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(self.program_counter);
 }
+
 /// Runs the jump instruction opcode for the interpreter.
 /// 0x56 -> JUMP
 pub fn jumpInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InvalidJump})!void {
@@ -46,6 +49,7 @@ pub fn jumpInstruction(self: *Interpreter) (Interpreter.InstructionErrors || err
     const as_usize = std.math.cast(usize, target) orelse return error.InvalidJump;
 
     if (!self.contract.isValidJump(as_usize)) {
+        @branchHint(.unlikely);
         self.status = .invalid_jump;
         return;
     }
@@ -55,26 +59,31 @@ pub fn jumpInstruction(self: *Interpreter) (Interpreter.InstructionErrors || err
     // updated before the next loop starts
     self.program_counter = as_usize - 1;
 }
+
 /// Runs the jumpdest instruction opcode for the interpreter.
 /// 0x5B -> JUMPDEST
 pub fn jumpDestInstruction(self: *Interpreter) GasTracker.Error!void {
     try self.gas_tracker.updateTracker(constants.JUMPDEST);
 }
+
 /// Runs the invalid instruction opcode for the interpreter.
 /// 0xFE -> INVALID
 pub fn invalidInstruction(self: *Interpreter) !void {
     self.status = .invalid;
 }
+
 /// Runs the stop instruction opcode for the interpreter.
 /// 0x00 -> STOP
 pub fn stopInstruction(self: *Interpreter) !void {
     self.status = .stopped;
 }
+
 /// Runs the return instruction opcode for the interpreter.
 /// 0xF3 -> RETURN
 pub fn returnInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
     return returnAction(self, .returned);
 }
+
 /// Runs the rever instruction opcode for the interpreter.
 /// 0xFD -> REVERT
 pub fn revertInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{ Overflow, InstructionNotEnabled })!void {
@@ -83,6 +92,7 @@ pub fn revertInstruction(self: *Interpreter) (Interpreter.InstructionErrors || M
 
     return returnAction(self, .reverted);
 }
+
 /// Instructions that gets ran if there is no associated opcode.
 pub fn unknownInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     self.status = .opcode_not_found;
@@ -104,5 +114,6 @@ fn returnAction(self: *Interpreter, status: Interpreter.InterpreterStatus) (Inte
         @memcpy(return_buffer, slice[off .. off + len]);
         self.return_data = return_buffer;
     }
+
     self.status = status;
 }

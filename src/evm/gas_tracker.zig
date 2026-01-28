@@ -13,42 +13,40 @@ pub const GasTracker = struct {
     /// Set of errors that can be returned while updating the tracker.
     pub const Error = error{ OutOfGas, GasOverflow };
 
-    /// The gas size limit that the interpreter can run.
-    gas_limit: u64,
-    /// The amount of gas that has already been used.
-    used_amount: u64,
+    /// The total amount of gas that was available to be used
+    total: u64,
+    /// The remaining amount of gas available for usage
+    available: u64,
     /// The amount of gas to refund to the caller.
     refund_amount: i64,
 
     /// Sets the tracker's initial state.
     pub fn init(gas_limit: u64) GasTracker {
         return .{
-            .gas_limit = gas_limit,
-            .used_amount = 0,
+            .total = gas_limit,
+            .available = gas_limit,
             .refund_amount = 0,
         };
     }
 
+    /// Returns the current used amount of gas.
+    pub inline fn usedAmount(self: *const GasTracker) u64 {
+        return self.total - self.available;
+    }
+
     /// Returns the remaining gas that can be used.
     pub inline fn availableGas(self: *const GasTracker) u64 {
-        return self.gas_limit - self.used_amount;
+        return self.available;
     }
 
     /// Updates the gas tracker based on the opcode cost.
     pub inline fn updateTracker(self: *GasTracker, cost: u64) GasTracker.Error!void {
-        const total, const overflow = @addWithOverflow(self.used_amount, cost);
-
-        if (@bitCast(overflow)) {
-            @branchHint(.unlikely);
-            return error.GasOverflow;
-        }
-
-        if (total > self.gas_limit) {
+        if (cost > self.available) {
             @branchHint(.unlikely);
             return error.OutOfGas;
         }
 
-        self.used_amount = total;
+        self.available -= cost;
     }
 };
 

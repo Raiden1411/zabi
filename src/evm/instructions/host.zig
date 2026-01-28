@@ -36,6 +36,7 @@ pub fn balanceInstruction(self: *Interpreter) HostInstructionErrors!void {
 
     try self.stack.pushUnsafe(bal);
 }
+
 /// Runs the blockhash opcode for the interpreter.
 /// 0x40 -> BLOCKHASH
 pub fn blockHashInstruction(self: *Interpreter) HostInstructionErrors!void {
@@ -48,6 +49,7 @@ pub fn blockHashInstruction(self: *Interpreter) HostInstructionErrors!void {
 
     try self.stack.pushUnsafe(@bitCast(hash));
 }
+
 /// Runs the extcodecopy opcode for the interpreter.
 /// 0x3B -> EXTCODECOPY
 pub fn extCodeCopyInstruction(self: *Interpreter) (HostInstructionErrors || Memory.Error || error{Overflow})!void {
@@ -73,6 +75,7 @@ pub fn extCodeCopyInstruction(self: *Interpreter) (HostInstructionErrors || Memo
 
     self.memory.writeData(offset_usize, code_offset_len, len, code.getCodeBytes());
 }
+
 /// Runs the extcodehash opcode for the interpreter.
 /// 0x3F -> EXTCODEHASH
 pub fn extCodeHashInstruction(self: *Interpreter) HostInstructionErrors!void {
@@ -93,6 +96,7 @@ pub fn extCodeHashInstruction(self: *Interpreter) HostInstructionErrors!void {
 
     try self.stack.pushUnsafe(@bitCast(code_hash));
 }
+
 /// Runs the extcodesize opcode for the interpreter.
 /// 0x3B -> EXTCODESIZE
 pub fn extCodeSizeInstruction(self: *Interpreter) HostInstructionErrors!void {
@@ -104,9 +108,10 @@ pub fn extCodeSizeInstruction(self: *Interpreter) HostInstructionErrors!void {
 
     try self.stack.pushUnsafe(code.getCodeBytes().len);
 }
+
 /// Runs the logs opcode for the interpreter.
 /// 0xA0..0xA4 -> LOG0..LOG4
-pub fn logInstruction(self: *Interpreter, size: u8) (HostInstructionErrors || Memory.Error || error{Overflow})!void {
+pub inline fn logInstruction(self: *Interpreter, size: u8) (HostInstructionErrors || Memory.Error || error{Overflow})!void {
     std.debug.assert(!self.is_static); // Requires non static calls.
 
     const offset = try self.stack.tryPopUnsafe();
@@ -146,6 +151,7 @@ pub fn logInstruction(self: *Interpreter, size: u8) (HostInstructionErrors || Me
 
     self.host.log(log) catch return error.UnexpectedError;
 }
+
 /// Runs the selfbalance opcode for the interpreter.
 /// 0x47 -> SELFBALANCE
 pub fn selfBalanceInstruction(self: *Interpreter) (HostInstructionErrors || error{InstructionNotEnabled})!void {
@@ -157,6 +163,7 @@ pub fn selfBalanceInstruction(self: *Interpreter) (HostInstructionErrors || erro
     try self.gas_tracker.updateTracker(constants.FAST_STEP);
     try self.stack.pushUnsafe(bal);
 }
+
 /// Runs the selfbalance opcode for the interpreter.
 /// 0xFF -> SELFDESTRUCT
 pub fn selfDestructInstruction(self: *Interpreter) HostInstructionErrors!void {
@@ -173,6 +180,7 @@ pub fn selfDestructInstruction(self: *Interpreter) HostInstructionErrors!void {
 
     self.status = .self_destructed;
 }
+
 /// Runs the sload opcode for the interpreter.
 /// 0x54 -> SLOAD
 pub fn sloadInstruction(self: *Interpreter) HostInstructionErrors!void {
@@ -185,6 +193,7 @@ pub fn sloadInstruction(self: *Interpreter) HostInstructionErrors!void {
 
     try self.stack.pushUnsafe(value.data);
 }
+
 /// Runs the sstore opcode for the interpreter.
 /// 0x55 -> SSTORE
 pub fn sstoreInstruction(self: *Interpreter) HostInstructionErrors!void {
@@ -213,6 +222,7 @@ pub fn sstoreInstruction(self: *Interpreter) HostInstructionErrors!void {
         result.data.new_value,
     );
 }
+
 /// Runs the tload opcode for the interpreter.
 /// 0x5C -> TLOAD
 pub fn tloadInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
@@ -226,6 +236,7 @@ pub fn tloadInstruction(self: *Interpreter) (Interpreter.InstructionErrors || er
 
     try self.stack.pushUnsafe(load orelse 0);
 }
+
 /// Runs the tstore opcode for the interpreter.
 /// 0x5D -> TSTORE
 pub fn tstoreInstruction(self: *Interpreter) (HostInstructionErrors || error{InstructionNotEnabled})!void {

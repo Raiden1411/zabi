@@ -14,12 +14,14 @@ pub fn addressInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(@as(u160, @bitCast(self.contract.target_address)));
 }
+
 /// Runs the caller instructions opcodes for the interpreter.
 /// 0x33 -> CALLER
 pub fn callerInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(@as(u160, @bitCast(self.contract.caller)));
 }
+
 /// Runs the calldatacopy instructions opcodes for the interpreter.
 /// 0x35 -> CALLDATACOPY
 pub fn callDataCopyInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
@@ -39,6 +41,7 @@ pub fn callDataCopyInstruction(self: *Interpreter) (Interpreter.InstructionError
 
     self.memory.writeData(offset_usize, data_offset, len, self.contract.input);
 }
+
 /// Runs the calldataload instructions opcodes for the interpreter.
 /// 0x37 -> CALLDATALOAD
 pub fn callDataLoadInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{Overflow})!void {
@@ -60,6 +63,7 @@ pub fn callDataLoadInstruction(self: *Interpreter) (Interpreter.InstructionError
 
     try self.stack.pushUnsafe(as_int);
 }
+
 /// Runs the calldatasize instructions opcodes for the interpreter.
 /// 0x36 -> CALLDATASIZE
 pub fn callDataSizeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -67,6 +71,7 @@ pub fn callDataSizeInstruction(self: *Interpreter) Interpreter.InstructionErrors
 
     try self.stack.pushUnsafe(self.contract.input.len);
 }
+
 /// Runs the calldatasize instructions opcodes for the interpreter.
 /// 0x34 -> CALLVALUE
 pub fn callValueInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -74,6 +79,7 @@ pub fn callValueInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
 
     try self.stack.pushUnsafe(self.contract.value);
 }
+
 /// Runs the codecopy instructions opcodes for the interpreter.
 /// 0x39 -> CODECOPY
 pub fn codeCopyInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
@@ -93,12 +99,14 @@ pub fn codeCopyInstruction(self: *Interpreter) (Interpreter.InstructionErrors ||
 
     self.memory.writeData(offset_usize, code_offset, len, self.contract.bytecode.getCodeBytes());
 }
+
 /// Runs the codesize instructions opcodes for the interpreter.
 /// 0x38 -> CODESIZE
 pub fn codeSizeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(self.contract.bytecode.getCodeBytes().len);
 }
+
 /// Runs the gas instructions opcodes for the interpreter.
 /// 0x3A -> GAS
 pub fn gasInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -106,6 +114,7 @@ pub fn gasInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
 
     try self.stack.pushUnsafe(self.gas_tracker.availableGas());
 }
+
 /// Runs the keccak instructions opcodes for the interpreter.
 /// 0x20 -> KECCAK
 pub fn keccakInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
@@ -134,6 +143,7 @@ pub fn keccakInstruction(self: *Interpreter) (Interpreter.InstructionErrors || M
 
     length.* = std.mem.readInt(u256, &buffer, .big);
 }
+
 /// Runs the returndatasize instructions opcodes for the interpreter.
 /// 0x3D -> RETURNDATACOPY
 pub fn returnDataSizeInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
@@ -143,6 +153,7 @@ pub fn returnDataSizeInstruction(self: *Interpreter) (Interpreter.InstructionErr
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(self.return_data.len);
 }
+
 /// Runs the returndatasize instructions opcodes for the interpreter.
 /// 0x3E -> RETURNDATASIZE
 pub fn returnDataCopyInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {

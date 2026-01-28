@@ -16,6 +16,7 @@ pub fn baseFeeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(fee);
 }
+
 /// Performs the blobbasefee instruction for the interpreter.
 /// 0x4A -> BLOBBASEFEE
 pub fn blobBaseFeeInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
@@ -31,6 +32,7 @@ pub fn blobBaseFeeInstruction(self: *Interpreter) (Interpreter.InstructionErrors
 
     try self.stack.pushUnsafe(blob_price.blob_gasprice);
 }
+
 /// Performs the blobhash instruction for the interpreter.
 /// 0x49 -> BLOBHASH
 pub fn blobHashInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
@@ -49,6 +51,7 @@ pub fn blobHashInstruction(self: *Interpreter) (Interpreter.InstructionErrors ||
 
     try self.stack.pushUnsafe(@bitCast(hash));
 }
+
 /// Performs the number instruction for the interpreter.
 /// 0x43 -> NUMBER
 pub fn blockNumberInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -57,6 +60,7 @@ pub fn blockNumberInstruction(self: *Interpreter) Interpreter.InstructionErrors!
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(number);
 }
+
 /// Performs the chainid instruction for the interpreter.
 /// 0x46 -> CHAINID
 pub fn chainIdInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
@@ -68,6 +72,7 @@ pub fn chainIdInstruction(self: *Interpreter) (Interpreter.InstructionErrors || 
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(chainId);
 }
+
 /// Performs the coinbase instruction for the interpreter.
 /// 0x41 -> COINBASE
 pub fn coinbaseInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -76,6 +81,7 @@ pub fn coinbaseInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(@as(u160, @bitCast(coinbase)));
 }
+
 /// Performs the prevrandao/difficulty instruction for the interpreter.
 /// 0x44 -> PREVRANDAO/DIFFICULTY
 pub fn difficultyInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -85,6 +91,7 @@ pub fn difficultyInstruction(self: *Interpreter) Interpreter.InstructionErrors!v
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(difficulty);
 }
+
 /// Performs the gaslimit instruction for the interpreter.
 /// 0x45 -> GASLIMIT
 pub fn gasLimitInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -93,6 +100,7 @@ pub fn gasLimitInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(gas_price);
 }
+
 /// Performs the gasprice instruction for the interpreter.
 /// 0x3A -> GASPRICE
 pub fn gasPriceInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -101,6 +109,7 @@ pub fn gasPriceInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(gas_price);
 }
+
 /// Performs the origin instruction for the interpreter.
 /// 0x32 -> ORIGIN
 pub fn originInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -109,6 +118,7 @@ pub fn originInstruction(self: *Interpreter) Interpreter.InstructionErrors!void 
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(@as(u160, @bitCast(origin)));
 }
+
 /// Performs the timestamp instruction for the interpreter.
 /// 0x42 -> TIMESTAMP
 pub fn timestampInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {

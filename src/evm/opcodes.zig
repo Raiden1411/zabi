@@ -388,6 +388,7 @@ pub fn makeDupInstruction(comptime dup_size: u8) *const fn (ctx: *Interpreter) a
         }
     }.dup;
 }
+
 /// Creates the push instructions for the instruction table.
 pub fn makePushInstruction(comptime push_size: u8) *const fn (ctx: *Interpreter) anyerror!void {
     return struct {
@@ -396,6 +397,7 @@ pub fn makePushInstruction(comptime push_size: u8) *const fn (ctx: *Interpreter)
         }
     }.push;
 }
+
 /// Creates the swap instructions for the instruction table.
 pub fn makeSwapInstruction(comptime swap_size: u8) *const fn (ctx: *Interpreter) anyerror!void {
     return struct {
@@ -404,6 +406,7 @@ pub fn makeSwapInstruction(comptime swap_size: u8) *const fn (ctx: *Interpreter)
         }
     }.swap;
 }
+
 /// Creates the log instructions for the instruction table.
 pub fn makeLogInstruction(comptime swap_size: u8) *const fn (ctx: *Interpreter) anyerror!void {
     return struct {
@@ -412,6 +415,7 @@ pub fn makeLogInstruction(comptime swap_size: u8) *const fn (ctx: *Interpreter) 
         }
     }.log;
 }
+
 /// Creates the log instructions for the instruction table.
 pub fn makeCreateInstruction(comptime is_create2: bool) *const fn (ctx: *Interpreter) anyerror!void {
     return struct {
@@ -420,6 +424,7 @@ pub fn makeCreateInstruction(comptime is_create2: bool) *const fn (ctx: *Interpr
         }
     }.log;
 }
+
 /// Stack bounds for an opcode operation.
 pub const StackBounds = struct {
     min_stack: u16,

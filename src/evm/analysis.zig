@@ -14,10 +14,11 @@ pub fn analyzeBytecode(allocator: Allocator, code: Bytecode) Allocator.Error!Byt
         .raw => |raw| return .{ .analyzed = try bytecode.AnalyzedBytecode.init(allocator, raw) },
     }
 }
+
 /// Creates the jump table based on the provided bytecode. Assumes that
 /// this was already padded in advance.
 pub fn createJumpTable(allocator: Allocator, prepared_code: []u8) Allocator.Error!JumpTable {
-    const table = try JumpTable.init(allocator, false, prepared_code.len);
+    var table = try JumpTable.init(allocator, false, prepared_code.len);
     errdefer table.deinit(allocator);
 
     var start: usize = 0;

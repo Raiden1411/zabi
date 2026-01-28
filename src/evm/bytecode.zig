@@ -16,17 +16,19 @@ pub const Bytecode = union(enum) {
             .analyzed => |analyzed| analyzed.deinit(allocator),
         }
     }
+
     /// Returns the jump_table is the bytecode state is `analyzed`
     /// otherwise it will return null.
-    pub fn getJumpTable(self: @This()) ?JumpTable {
-        switch (self) {
+    pub fn getJumpTable(self: *const @This()) ?JumpTable {
+        switch (self.*) {
             .raw => return null,
             .analyzed => |analyzed| return analyzed.jump_table,
         }
     }
+
     /// Grabs the bytecode independent of the current state.
-    pub fn getCodeBytes(self: @This()) []u8 {
-        return switch (self) {
+    pub fn getCodeBytes(self: *const @This()) []u8 {
+        return switch (self.*) {
             .raw => |bytes| return bytes,
             .analyzed => |analyzed_bytes| return analyzed_bytes.bytecode,
         };
@@ -86,7 +88,7 @@ pub const JumpTable = struct {
 
     /// Sets or unset a bit at the given position.
     pub fn set(
-        self: @This(),
+        self: *@This(),
         position: usize,
         value: bool,
     ) void {
@@ -98,8 +100,9 @@ pub const JumpTable = struct {
         self.bytes[byte_index] &= ~(@as(u8, 1) << bit_index);
         self.bytes[byte_index] |= @as(u8, @intFromBool(value)) << bit_index;
     }
+
     /// Gets if a bit is set at a given position.
-    pub fn peek(self: @This(), position: usize) u1 {
+    pub fn peek(self: *const @This(), position: usize) u1 {
         const byte_index = position >> 3;
         const bit_index: u3 = @intCast(position & 7);
 
@@ -107,8 +110,9 @@ pub const JumpTable = struct {
 
         return @intCast((self.bytes[byte_index] >> bit_index) & 1);
     }
+
     /// Check if the provided position results in a valid bit set.
-    pub fn isValid(self: @This(), position: usize) bool {
+    pub fn isValid(self: *const @This(), position: usize) bool {
         return position >> 3 < self.bytes.len and @as(bool, @bitCast(self.peek(position)));
     }
 };

@@ -196,8 +196,14 @@ pub fn runInstruction(self: *Interpreter) AllInstructionErrors!void {
     const opcode_bit = self.code[self.program_counter];
 
     const operation = opcode.instruction_table.getInstruction(opcode_bit);
+    const stack_height = self.stack.stackHeight();
 
-    if (self.stack.stackHeight() > operation.max_stack) {
+    if (stack_height < operation.min_stack) {
+        @branchHint(.unlikely);
+        return error.StackUnderflow;
+    }
+
+    if (stack_height > operation.max_stack) {
         @branchHint(.unlikely);
         return error.StackOverflow;
     }

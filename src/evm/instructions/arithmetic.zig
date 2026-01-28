@@ -17,6 +17,7 @@ pub fn addInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
 
     second.* = addition;
 }
+
 /// Performs div instruction for the interpreter.
 /// DIV -> 0x04
 pub fn divInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
@@ -34,6 +35,8 @@ pub fn divInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     if (fitsInU128(first) and fitsInU128(second.*)) {
         @branchHint(.likely);
         second.* = @as(u128, @truncate(first)) / @as(u128, @truncate(second.*));
+
+        return;
     }
 
     second.* = first / second.*;
@@ -191,7 +194,6 @@ pub fn signedModInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
 
     if (second.* == 0) {
         @branchHint(.cold);
-        second.* = 0;
 
         return;
     }
@@ -208,7 +210,7 @@ pub fn signedModInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
     const abs_res = blk: {
         if (fitsInU128(abs_n_u) and fitsInU128(abs_d_u)) {
             @branchHint(.likely);
-            break :blk @as(u128, @truncate(abs_n_u)) / @as(u128, @truncate(abs_d_u));
+            break :blk @as(u128, @truncate(abs_n_u)) % @as(u128, @truncate(abs_d_u));
         } else break :blk abs_n_u / abs_d_u;
     };
 

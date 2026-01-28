@@ -34,6 +34,7 @@ pub fn mcopyInstruction(self: *Interpreter) (MemoryInstructionErrors || error{In
 
     self.memory.memoryCopy(destination_usize, source_usize, len);
 }
+
 /// Runs the mload opcode for the interpreter.
 /// 0x51 -> MLOAD
 pub fn mloadInstruction(self: *Interpreter) MemoryInstructionErrors!void {
@@ -47,12 +48,14 @@ pub fn mloadInstruction(self: *Interpreter) MemoryInstructionErrors!void {
 
     offset.* = self.memory.wordToInt(as_usize);
 }
+
 /// Runs the msize opcode for the interpreter.
 /// 0x59 -> MSIZE
 pub fn msizeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
     try self.stack.pushUnsafe(self.memory.getCurrentMemorySize());
 }
+
 /// Runs the mstore opcode for the interpreter.
 /// 0x52 -> MSTORE
 pub fn mstoreInstruction(self: *Interpreter) MemoryInstructionErrors!void {
@@ -67,6 +70,7 @@ pub fn mstoreInstruction(self: *Interpreter) MemoryInstructionErrors!void {
 
     self.memory.writeInt(as_usize, value);
 }
+
 /// Runs the mstore8 opcode for the interpreter.
 /// 0x53 -> MSTORE8
 pub fn mstore8Instruction(self: *Interpreter) MemoryInstructionErrors!void {
@@ -79,8 +83,5 @@ pub fn mstore8Instruction(self: *Interpreter) MemoryInstructionErrors!void {
     const new_size = as_usize +| 1;
     try self.resize(new_size);
 
-    var buffer: [32]u8 = undefined;
-    std.mem.writeInt(u256, &buffer, value, .little);
-
-    self.memory.writeByte(as_usize, buffer[0]);
+    self.memory.writeByte(as_usize, @truncate(value));
 }

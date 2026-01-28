@@ -38,6 +38,7 @@ pub fn Stack(comptime T: type) type {
                 .max_size = max_size orelse std.math.maxInt(usize),
             };
         }
+
         /// Starts the stack and grows the capacity to the max size.
         /// This is best to use when you would like a static size stack.
         pub fn initWithCapacity(
@@ -51,10 +52,12 @@ pub fn Stack(comptime T: type) type {
                 .max_size = max_size,
             };
         }
+
         /// Clears the stack.
         pub fn deinit(self: *Self) void {
             self.inner.deinit();
         }
+
         /// Duplicates an item from the stack. Appends it to the top.
         /// This is not thread safe.
         pub fn dupUnsafe(
@@ -67,6 +70,7 @@ pub fn Stack(comptime T: type) type {
             const item = self.inner.items[self.inner.items.len - position];
             try self.pushUnsafe(item);
         }
+
         /// Appends an item to the stack.
         /// This is not thread safe.
         pub fn pushUnsafe(
@@ -79,11 +83,13 @@ pub fn Stack(comptime T: type) type {
             try self.inner.ensureUnusedCapacity(1);
             self.inner.appendAssumeCapacity(item);
         }
+
         /// Pops an item off the stack.
         /// This is not thread safe.
         pub fn popUnsafe(self: *Self) ?T {
             return self.inner.pop();
         }
+
         /// Appends an item to the stack.
         /// This is thread safe and blocks until it can
         /// append the item.
@@ -102,6 +108,7 @@ pub fn Stack(comptime T: type) type {
                 continue;
             };
         }
+
         /// Pops an item off the stack.
         /// This is thread safe and blocks until it can
         /// remove the item.
@@ -117,6 +124,7 @@ pub fn Stack(comptime T: type) type {
                 continue;
             };
         }
+
         /// Pops an item off the stack. Returns null if the stack is empty.
         /// This is thread safe,
         pub fn popOrNull(self: *Self) ?T {
@@ -129,6 +137,7 @@ pub fn Stack(comptime T: type) type {
 
             return null;
         }
+
         /// Swaps the top value of the stack with the different position.
         /// This is not thread safe.
         pub fn swapToTopUnsafe(
@@ -145,6 +154,7 @@ pub fn Stack(comptime T: type) type {
             self.inner.items[second] ^= self.inner.items[top];
             self.inner.items[top] ^= self.inner.items[second];
         }
+
         /// Swap an item from the stack depending on the provided positions.
         /// This is not thread safe.
         pub fn swapUnsafe(
@@ -164,6 +174,7 @@ pub fn Stack(comptime T: type) type {
             self.inner.items[position] = second;
             self.inner.items[second_position] = first;
         }
+
         /// Pops item from the stack. Returns `StackUnderflow` if it cannot.
         /// This is not thread safe,
         pub fn tryPopUnsafe(
@@ -171,6 +182,7 @@ pub fn Stack(comptime T: type) type {
         ) error{StackUnderflow}!T {
             return self.popUnsafe() orelse error.StackUnderflow;
         }
+
         /// Pops item from the stack. Returns `StackUnderflow` if it cannot.
         /// This is thread safe,
         pub fn tryPop(
@@ -184,6 +196,7 @@ pub fn Stack(comptime T: type) type {
 
             self.writeable.signal();
         }
+
         /// Pushes an item to the stack.
         /// This is thread safe,
         pub fn tryPush(
@@ -197,12 +210,14 @@ pub fn Stack(comptime T: type) type {
 
             self.readable.signal();
         }
+
         /// Returns the current stack size.
         pub fn stackHeight(self: *Self) usize {
             return self.inner.items.len;
         }
+
         /// Returns number of items available in the stack
-        pub fn availableSize(self: Self) usize {
+        pub fn availableSize(self: *const Self) usize {
             return self.max_size - self.inner.items.len;
         }
     };
@@ -223,11 +238,11 @@ pub fn BoundedStack(comptime size: usize) type {
 
         /// Swaps the top value of the stack with the different position.
         /// This is not thread safe.
-        pub fn swapToTopUnsafe(
+        pub inline fn swapToTopUnsafe(
             self: *Self,
             position_swap: usize,
         ) error{StackUnderflow}!void {
-            if (self.inner.len < position_swap) {
+            if (self.len <= position_swap) {
                 @branchHint(.unlikely);
                 return error.StackUnderflow;
             }
@@ -235,49 +250,53 @@ pub fn BoundedStack(comptime size: usize) type {
             const top = self.len - 1;
             const second = top - position_swap;
 
-            self.inner[top] ^= self.inner[second];
-            self.inner[second] ^= self.inner[top];
-            self.inner[top] ^= self.inner[second];
+            const tmp = self.inner[top];
+            self.inner[top] = self.inner[second];
+            self.inner[second] = tmp;
         }
+
         /// Duplicates an item from the stack. Appends it to the top.
         ///
         /// This is not thread safe.
-        pub fn dupUnsafe(
+        pub inline fn dupUnsafe(
             self: *Self,
             position: usize,
         ) Self.Error!void {
-            if (self.inner.len < position) {
-                @branchHint(.unlikely);
+            if (self.len < position) {
+                @branchHint(.cold);
                 return error.StackUnderflow;
             }
 
             const item = self.inner[self.len - position];
             try self.pushUnsafe(item);
         }
+
         /// Pops item from the stack. Returns `StackUnderflow` if it cannot.
         ///
         /// This is not thread safe,
-        pub fn pushUnsafe(
+        pub inline fn pushUnsafe(
             self: *Self,
             item: u256,
         ) error{StackOverflow}!void {
             try self.ensureUnusedCapacity(1);
             self.appendAssumeCapacity(item);
         }
+
         /// Appends item to the inner buffer. Increments the `len` of this array.
-        pub fn appendAssumeCapacity(
+        pub inline fn appendAssumeCapacity(
             self: *Self,
             item: u256,
         ) void {
             std.debug.assert(self.len < size);
 
+            self.inner[self.len] = item;
             self.len += 1;
-            self.inner[self.len - 1] = item;
         }
+
         /// Ensures that the stack has enough room to grow.
         /// Otherwise it returns `StackOverflow`.
-        pub fn ensureUnusedCapacity(
-            self: Self,
+        pub inline fn ensureUnusedCapacity(
+            self: *const Self,
             grow: usize,
         ) error{StackOverflow}!void {
             if (self.len + grow > size) {
@@ -285,19 +304,25 @@ pub fn BoundedStack(comptime size: usize) type {
                 return error.StackOverflow;
             }
         }
+
         /// Pops item from the stack. Returns `null` if it cannot.
         /// This is not thread safe,
-        pub fn popUnsafe(self: *Self) ?u256 {
+        pub inline fn popUnsafe(self: *Self) ?u256 {
             return self.popOrNull();
         }
+
         /// Pops item from the stack. Returns `StackUnderflow` if it cannot.
         /// This is not thread safe,
-        pub fn tryPopUnsafe(self: *Self) error{StackUnderflow}!u256 {
-            return self.popOrNull() orelse error.StackUnderflow;
+        pub inline fn tryPopUnsafe(self: *Self) error{StackUnderflow}!u256 {
+            return self.popOrNull() orelse {
+                @branchHint(.unlikely);
+                return error.StackUnderflow;
+            };
         }
+
         /// Pops item from the stack.
         /// Returns null if the `len` is 0.
-        pub fn popOrNull(self: *Self) ?u256 {
+        pub inline fn popOrNull(self: *Self) ?u256 {
             if (self.len == 0) {
                 @branchHint(.unlikely);
                 return null;
@@ -305,17 +330,19 @@ pub fn BoundedStack(comptime size: usize) type {
 
             return self.pop();
         }
+
         /// Pops item from the stack.
-        pub fn pop(self: *Self) u256 {
-            const item = self.inner[self.len - 1];
+        pub inline fn pop(self: *Self) u256 {
             self.len -= 1;
+            const item = self.inner[self.len];
 
             return item;
         }
+
         /// Peek the last element of the stack and returns it's pointer.
         ///
         /// Returns null if len is 0;
-        pub fn peek(self: *Self) ?*u256 {
+        pub inline fn peek(self: *Self) ?*u256 {
             if (self.len == 0) {
                 @branchHint(.unlikely);
                 return null;
@@ -323,20 +350,25 @@ pub fn BoundedStack(comptime size: usize) type {
 
             return &self.inner[self.len - 1];
         }
+
         /// Peek the last element of the stack and returns it's pointer.
         ///
         /// Returns `StackUnderflow` if len is 0;
-        pub fn tryPeek(self: *Self) error{StackUnderflow}!*u256 {
-            return self.peek() orelse error.StackUnderflow;
+        pub inline fn tryPeek(self: *Self) error{StackUnderflow}!*u256 {
+            return self.peek() orelse {
+                @branchHint(.unlikely);
+                return error.StackUnderflow;
+            };
         }
+
         /// Returns the current stack size.
-        pub fn stackHeight(self: *Self) usize {
+        pub inline fn stackHeight(self: *const Self) usize {
             return self.len;
         }
+
         /// Returns number of items available in the stack
-        pub fn availableSize(self: Self) usize {
-            std.debug.assert(self.inner.len > self.len);
-            return self.inner.len - self.len;
+        pub inline fn availableSize(self: *const Self) usize {
+            return size - self.len;
         }
     };
 }

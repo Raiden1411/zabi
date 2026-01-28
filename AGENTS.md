@@ -17,6 +17,7 @@ A file for [guiding coding agents](https://agents.md/).
 ### Notes
 For testing the use of `-Dload_variables` loads the `.env` file present in the root. This depends on `anvil` being run in another process.
 For coverage and benchmark the testing this is ran `tests/root_benchmark.zig` and excludes rpc client tests. Doesnt depend on `anvil`
+For test filters this will only work if specifing the module names. To find them please go to `./src/root.zig`. To check specific tests inside of those modules use grep or rg.
 
 ## Directory Structure
 

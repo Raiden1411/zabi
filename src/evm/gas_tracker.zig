@@ -145,10 +145,13 @@ pub inline fn calculateExtCodeCopyCost(spec: SpecId, len: u64, is_cold: bool) ?u
 pub inline fn calculateKeccakCost(length: u64) ?u64 {
     const word_cost = calculateCostPerMemoryWord(length, constants.KECCAK256WORD);
     if (word_cost) |word| {
+        @branchHint(.likely);
         const result, const overflow = @addWithOverflow(constants.KECCAK256, word);
 
-        if (@bitCast(overflow))
+        if (@bitCast(overflow)) {
+            @branchHint(.unlikely);
             return null;
+        }
 
         return result;
     } else return null;

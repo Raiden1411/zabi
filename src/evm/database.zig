@@ -38,14 +38,17 @@ pub const Database = struct {
     pub inline fn basic(self: Self, address: Address) anyerror!?AccountInfo {
         return self.vtable.basic(self.ptr, address);
     }
+
     /// Gets the block hash from a given block number
     pub inline fn codeByHash(self: Self, code_hash: Hash) anyerror!Bytecode {
         return self.vtable.codeByHash(self.ptr, code_hash);
     }
+
     /// Gets the code of an `address` and if that address is cold.
     pub inline fn storage(self: Self, address: Address, index: u256) anyerror!u256 {
         return self.vtable.storage(self.ptr, address, index);
     }
+
     /// Gets the code hash of an `address` and if that address is cold.
     pub inline fn blockHash(self: Self, number: u64) anyerror!Hash {
         return self.vtable.blockHash(self.ptr, number);
@@ -146,6 +149,7 @@ pub const MemoryDatabase = struct {
             },
         };
     }
+
     /// Adds the contract code of an account into the `contracts` hashmap.
     pub fn addContract(
         self: *Self,
@@ -167,6 +171,7 @@ pub const MemoryDatabase = struct {
         if (@as(u256, @bitCast(account.code_hash)) == 0)
             account.code_hash = constants.EMPTY_HASH;
     }
+
     /// Adds the account information to the account associated with the provided address.
     pub fn addAccountInfo(
         self: *Self,
@@ -189,6 +194,7 @@ pub const MemoryDatabase = struct {
 
         try self.account.put(self.allocator, address, new_db_account);
     }
+
     /// Updates the account storage for the given slot index with the provided value.
     pub fn addAccountStorage(
         self: *Self,
@@ -200,6 +206,7 @@ pub const MemoryDatabase = struct {
 
         try db_acc.storage.put(slot, value);
     }
+
     /// Loads the account information from the database.
     pub fn basic(
         self: *anyopaque,
@@ -234,6 +241,7 @@ pub const MemoryDatabase = struct {
 
         return account_info.info;
     }
+
     /// Gets the associated bytecode to the provided `code_hash`.
     pub fn codeByHash(
         self: *anyopaque,
@@ -246,6 +254,7 @@ pub const MemoryDatabase = struct {
 
         return db_self.db.codeByHash(code_hash) catch error.UnexpectedError;
     }
+
     /// Get the value in an account's storage slot.
     ///
     /// It is assumed that account is already loaded.
@@ -306,6 +315,7 @@ pub const MemoryDatabase = struct {
 
         return 0;
     }
+
     /// Gets the associated block_hashes from the provided number.
     pub fn blockHash(
         self: *anyopaque,
@@ -321,6 +331,7 @@ pub const MemoryDatabase = struct {
 
         return db_hash;
     }
+
     /// Commits all of the changes to the database.
     pub fn commit(
         self: *Self,
@@ -372,6 +383,7 @@ pub const MemoryDatabase = struct {
                 db_acc.storage.putAssumeCapacity(entries.key_ptr.*, entries.value_ptr.*);
         }
     }
+
     /// Updates the storage from a given account.
     pub fn updateAccountStorage(
         self: *Self,
@@ -385,6 +397,7 @@ pub const MemoryDatabase = struct {
         db_acc.storage = account_storage;
         db_acc.account_state = .storage_cleared;
     }
+
     /// Loads an account from the database.
     pub fn loadAccount(
         self: *Self,

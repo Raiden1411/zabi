@@ -115,11 +115,13 @@ pub const JournaledState = struct {
 
         return point;
     }
+
     /// Commits the checkpoint
     pub fn commitCheckpoint(self: *JournaledState) void {
         std.debug.assert(self.depth > 0);
         self.depth -= 1;
     }
+
     /// Creates an account with a checkpoint so that in case the account already exists
     /// or the account is out of funds it's able to revert any journal entries.
     ///
@@ -176,6 +178,7 @@ pub const JournaledState = struct {
 
         return point;
     }
+
     /// Increments the nonce of an account.
     ///
     /// A `nonce_changed` entry will be emitted.
@@ -199,6 +202,7 @@ pub const JournaledState = struct {
 
         return add;
     }
+
     /// Loads an account from the state.
     ///
     /// A `account_warmed` entry is added to the journal if the load was cold.
@@ -217,6 +221,7 @@ pub const JournaledState = struct {
 
         return state;
     }
+
     /// Loads the bytecode from an account
     ///
     /// Returns empty bytecode if the code hash is equal to the Keccak256 hash of an empty string.
@@ -243,10 +248,12 @@ pub const JournaledState = struct {
 
         return state;
     }
+
     /// Appends the log to the log event list.
     pub fn log(self: *JournaledState, event: Log) Allocator.Error!void {
         return self.log_storage.append(self.allocator, event);
     }
+
     /// Reverts a checkpoint and uncommit's all of the journal entries.
     pub fn revertCheckpoint(
         self: *JournaledState,
@@ -266,6 +273,7 @@ pub const JournaledState = struct {
         self.journal.shrinkAndFree(self.allocator, point.journal_checkpoint);
         self.log_storage.shrinkAndFree(self.allocator, point.logs_checkpoint);
     }
+
     /// Reverts a list of journal entries. Depending on the type of entry different actions will be taken.
     pub fn revertJournal(
         self: *JournaledState,
@@ -350,6 +358,7 @@ pub const JournaledState = struct {
             }
         }
     }
+
     /// Performs the self destruct action
     ///
     /// Transfer the balance to the target address.
@@ -423,6 +432,7 @@ pub const JournaledState = struct {
             },
         };
     }
+
     /// Sets the bytecode for an account and generates the associated Keccak256 hash for that bytecode.
     ///
     /// A `code_changed` entry will be emitted.
@@ -438,6 +448,7 @@ pub const JournaledState = struct {
 
         return self.setCodeAndHash(address, code, buffer);
     }
+
     /// Sets the bytecode and the Keccak256 hash for an associated account.
     ///
     /// A `code_changed` entry will be emitted.
@@ -458,6 +469,7 @@ pub const JournaledState = struct {
         account.info.code = code;
         account.info.code_hash = hash;
     }
+
     /// Loads a value from the account storage based on the provided key.
     ///
     /// Returns if the load was cold or not.
@@ -515,6 +527,7 @@ pub const JournaledState = struct {
 
         return state;
     }
+
     /// Stores a value to the account's storage based on the provided index.
     ///
     /// Returns if store was cold or not.
@@ -563,6 +576,7 @@ pub const JournaledState = struct {
             .cold = present.cold,
         };
     }
+
     /// Read transient storage tied to the account.
     ///
     /// EIP-1153: Transient storage opcodes
@@ -573,6 +587,7 @@ pub const JournaledState = struct {
     ) u256 {
         return self.transient_storage.get(.{ address, key }) orelse 0;
     }
+
     /// Sets an account as touched.
     pub fn touchAccount(
         self: *JournaledState,
@@ -638,6 +653,7 @@ pub const JournaledState = struct {
             },
         });
     }
+
     /// Store transient storage tied to the account.
     ///
     /// If values is different add entry to the journal
@@ -681,6 +697,7 @@ pub const JournaledState = struct {
             });
         }
     }
+
     /// Updates the spec id for this journal.
     pub fn updateSpecId(
         self: *JournaledState,

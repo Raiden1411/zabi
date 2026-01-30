@@ -48,36 +48,40 @@ pub const EVMEnviroment = struct {
             .tx = TxEnviroment.default(),
         };
     }
+
     /// Calculates the effective gas price of the transaction.
-    pub fn effectiveGasPrice(self: EVMEnviroment) u256 {
+    pub fn effectiveGasPrice(self: *const EVMEnviroment) u256 {
         if (self.tx.gas_priority_fee) |fee| {
             return @min(self.tx.gas_price, self.block.base_fee + fee);
         } else return self.tx.gas_price;
     }
+
     /// Calculates the `data_fee` of the transaction.
     /// This will return null if cancun is not enabled.
     ///
     /// See EIP-4844:
     /// <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md#execution-layer-validation>
-    pub fn calculateDataFee(self: EVMEnviroment) ?u256 {
+    pub fn calculateDataFee(self: *const EVMEnviroment) ?u256 {
         if (self.block.blob_excess_gas_and_price) |fees| {
             return fees.blob_gasprice * self.tx.getTotalBlobGas();
         } else return null;
     }
+
     /// Calculates the max `data_fee` of the transaction.
     /// This will return null if cancun is not enabled.
     ///
     /// See EIP-4844:
     /// <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md#execution-layer-validation>
-    pub fn calculateMaxDataFee(self: EVMEnviroment) ?u256 {
+    pub fn calculateMaxDataFee(self: *const EVMEnviroment) ?u256 {
         if (self.tx.max_fee_per_blob_gas) |fee| {
             return @truncate(fee * self.tx.getTotalBlobGas());
         } else return null;
     }
+
     /// Calculates the minimum balance required to execute this transaction.
     /// Returns: gas_limit * gas_price + value + blob_data_fee (if applicable).
     /// For Optimism deposit txs, the `mint` amount is subtracted from required balance.
-    pub fn calculateRequiredBalance(self: EVMEnviroment) u256 {
+    pub fn calculateRequiredBalance(self: *const EVMEnviroment) u256 {
         const gas_cost = @as(u256, self.tx.gas_limit) * self.tx.gas_price;
         var total = gas_cost + self.tx.value;
 
@@ -91,9 +95,10 @@ pub const EVMEnviroment = struct {
 
         return total;
     }
+
     /// Validates the inner block enviroment based on the provided `SpecId`
     pub fn validateBlockEnviroment(
-        self: EVMEnviroment,
+        self: *const EVMEnviroment,
         spec: SpecId,
     ) error{ PrevRandaoNotSet, ExcessBlobGasNotSet }!void {
         if (spec.enabled(.MERGE) and self.block.prevrandao == null)
@@ -102,13 +107,14 @@ pub const EVMEnviroment = struct {
         if (spec.enabled(.CANCUN) and self.block.blob_excess_gas_and_price == null)
             return error.ExcessBlobGasNotSet;
     }
+
     /// Validates the transaction enviroment.
     /// For `CANCUN` enabled and later checks the gas price is not more than the transactions max
     /// and checks if the blob_hashes are correctly set.
     ///
     /// For before `CANCUN` checks if `blob_hashes` and `max_fee_per_blob_gas` are null / empty.
     pub fn validateTransaction(
-        self: EVMEnviroment,
+        self: *const EVMEnviroment,
         spec: SpecId,
     ) ValidationErrors!void {
         if (spec.enabled(.LONDON)) {
@@ -162,6 +168,7 @@ pub const EVMEnviroment = struct {
                 return error.MaxFeePerBlobGasNotSupported;
         }
     }
+
     /// Validates the transaction against the sender's account state.
     /// This should be called after `validateTransaction` with access to state.
     ///
@@ -170,7 +177,7 @@ pub const EVMEnviroment = struct {
     /// - Sender has no deployed code (EIP-3607, unless `disable_eip3607` is set)
     /// - Sender has sufficient balance (unless `disable_balance_check` is set)
     pub fn validateAgainstState(
-        self: EVMEnviroment,
+        self: *const EVMEnviroment,
         sender_info: AccountInfo,
     ) ValidationErrors!void {
         if (self.tx.nonce) |expected_nonce| {
@@ -381,7 +388,7 @@ pub const TxEnviroment = struct {
         };
     }
     /// Gets the total blob gas in this `TxEnviroment`.
-    pub fn getTotalBlobGas(self: TxEnviroment) u64 {
+    pub fn getTotalBlobGas(self: *const TxEnviroment) u64 {
         return @intCast(constants.GAS_PER_BLOB * self.blob_hashes.len);
     }
 };

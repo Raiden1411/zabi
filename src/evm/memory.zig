@@ -184,9 +184,9 @@ pub const Memory = struct {
         self: *const Memory,
         offset: usize,
     ) u256 {
-        const word = self.getMemoryWord(offset);
+        const slice = self.getSlice();
 
-        return std.mem.readInt(u256, &word, .big);
+        return std.mem.readInt(u256, slice[offset..][0..32], .big);
     }
 
     /// Writes a single byte into this memory buffer.
@@ -218,11 +218,9 @@ pub const Memory = struct {
         offset: usize,
         data: u256,
     ) void {
-        var buffer: [32]u8 = undefined;
+        const slice = self.getSlice();
 
-        std.mem.writeInt(u256, &buffer, data, .big);
-
-        return self.write(offset, buffer[0..]);
+        return std.mem.writeInt(u256, slice[offset..][0..32], data, .big);
     }
 
     /// Writes a slice to the memory buffer based on a offset.
@@ -271,10 +269,7 @@ pub const Memory = struct {
     }
 
     /// Adapted from `ArrayList` growCapacity function.
-    fn growCapacity(
-        current: usize,
-        minimum: usize,
-    ) usize {
+    fn growCapacity(current: usize, minimum: usize) usize {
         var new = current;
         while (true) {
             new +|= new + init_capacity;

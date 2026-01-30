@@ -24,7 +24,7 @@ const Stack = @import("zabi-utils").stack.BoundedStack(1024);
 const Interpreter = @This();
 
 /// Set of common errors when running indivual instructions.
-pub const InstructionErrors = Allocator.Error || error{ StackUnderflow, StackOverflow, Overflow } || GasTracker.Error;
+pub const InstructionErrors = Allocator.Error || error{ StackUnderflow, StackOverflow, Overflow, FailedToLoadAccount } || GasTracker.Error;
 
 /// Set of all possible errors of interpreter instructions.
 pub const AllInstructionErrors = InstructionErrors || Memory.Error || error{
@@ -278,8 +278,7 @@ pub fn run(self: *Interpreter) (AllInstructionErrors || InterpreterStatusErrors)
     }
 }
 
-/// Resizes the inner memory size. Adds gas expansion cost to
-/// the gas tracker.
+/// Resizes the inner memory size. Adds gas expansion cost to the gas tracker.
 pub fn resize(
     self: *Interpreter,
     new_size: usize,

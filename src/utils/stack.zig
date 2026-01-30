@@ -430,6 +430,15 @@ pub fn BoundedStack(comptime size: usize) type {
         ///
         /// Returns null if len is 0;
         pub inline fn peek(self: *Self) ?*u256 {
+            std.debug.assert(self.len > 0);
+
+            return &self.inner[self.len - 1];
+        }
+
+        /// Peek the last element of the stack and returns it's pointer.
+        ///
+        /// Returns null if len is 0;
+        pub inline fn peekOrNull(self: *Self) ?*u256 {
             if (self.len == 0) {
                 @branchHint(.unlikely);
                 return null;
@@ -442,7 +451,7 @@ pub fn BoundedStack(comptime size: usize) type {
         ///
         /// Returns `StackUnderflow` if len is 0;
         pub inline fn tryPeek(self: *Self) error{StackUnderflow}!*u256 {
-            return self.peek() orelse {
+            return self.peekOrNull() orelse {
                 @branchHint(.unlikely);
                 return error.StackUnderflow;
             };

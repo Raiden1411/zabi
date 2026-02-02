@@ -20,20 +20,20 @@ pub export fn instanciateContract(
     if (contract_len % 2 != 0 or calldata_len % 2 != 0)
         wasm.panic("Contract length and calldata length must follow two's complement", null, null);
 
-    const alloced = wasm.allocator.alloc(u8, contract_len / 2) catch wasm.panic("Failed to allocate memory", null, null);
-    defer wasm.allocator.free(alloced);
+    const bytecode = wasm.allocator.alloc(u8, contract_len / 2) catch wasm.panic("Failed to allocate memory", null, null);
+    errdefer wasm.allocator.free(bytecode);
 
-    _ = std.fmt.hexToBytes(alloced, contract_code[0..contract_len]) catch wasm.panic("Failed to decode contract_code", null, null);
+    _ = std.fmt.hexToBytes(bytecode, contract_code[0..contract_len]) catch wasm.panic("Failed to decode contract_code", null, null);
 
-    const alloced_calldata = wasm.allocator.alloc(u8, calldata_len / 2) catch wasm.panic("Failed to allocate memory", null, null);
-    defer wasm.allocator.free(alloced_calldata);
+    const input = wasm.allocator.alloc(u8, calldata_len / 2) catch wasm.panic("Failed to allocate memory", null, null);
+    errdefer wasm.allocator.free(input);
 
-    _ = std.fmt.hexToBytes(alloced_calldata, calldata[0..calldata_len]) catch wasm.panic("Failed to decode contract_code", null, null);
+    _ = std.fmt.hexToBytes(input, calldata[0..calldata_len]) catch wasm.panic("Failed to decode calldata", null, null);
 
     contract.* = Contract.init(
         wasm.allocator,
-        alloced_calldata,
-        .{ .raw = alloced },
+        input,
+        .{ .raw = bytecode },
         null,
         0,
         [_]u8{1} ** 20,
@@ -60,13 +60,13 @@ pub export fn generateHost(plain: *PlainHost) *Host {
 }
 
 pub export fn runCode(
-    contract: *Contract,
+    contract: *const Contract,
     host: *Host,
 ) String {
     var interpreter: Interpreter = undefined;
     defer interpreter.deinit();
 
-    interpreter.init(wasm.allocator, contract.*, host.*, .{ .gas_limit = 300_000_000 }) catch
+    interpreter.init(wasm.allocator, contract, host.*, .{ .gas_limit = 300_000_000 }) catch
         wasm.panic("Failed to start interpreter", null, null);
 
     const result = interpreter.run() catch |err| {
@@ -76,9 +76,17 @@ pub export fn runCode(
     defer result.deinit(wasm.allocator);
 
     switch (result) {
-        .no_action => return String.init(""),
-        .call_action => |action| return String.init(wasm.allocator.dupe(u8, action.inputs) catch wasm.panic("Failed to allocate memory", null, null)),
-        .create_action => |action| return String.init(wasm.allocator.dupe(u8, action.init_code) catch wasm.panic("Failed to allocate memory", null, null)),
-        .return_action => |action| return String.init(wasm.allocator.dupe(u8, action.output) catch wasm.panic("Failed to allocate memory", null, null)),
+        .no_action => return .{ .ptr = 0, .len = 0 },
+        .call_action => |action| return dupeToString(action.inputs),
+        .create_action => |action| return dupeToString(action.init_code),
+        .return_action => |action| return dupeToString(action.output),
     }
+}
+
+fn dupeToString(data: []const u8) String {
+    if (data.len == 0) {
+        return .{ .ptr = 0, .len = 0 };
+    }
+    const duped = wasm.allocator.dupe(u8, data) catch wasm.panic("Failed to allocate memory", null, null);
+    return String.init(duped);
 }

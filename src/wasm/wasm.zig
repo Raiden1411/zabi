@@ -1,11 +1,32 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const options = @import("build_options");
+const log = @import("log.zig");
 
 comptime {
     if (!builtin.target.cpu.arch.isWasm())
         @compileError("wasm.zig should only be analyzed for wasm32 builds");
 }
+
+pub const std_options: std.Options = options: {
+    if (builtin.target.cpu.arch.isWasm()) break :options .{
+        // Wasm builds we specifically want to optimize for space with small
+        // releases so we bump up to warn. Everything else acts pretty normal.
+        .log_level = switch (builtin.mode) {
+            .Debug => .debug,
+            .ReleaseSmall => .warn,
+            else => .info,
+        },
+
+        // Wasm doesn't have access to stdio so we have a custom log function.
+        .logFn = log.log,
+    };
+
+    break :options .{};
+};
+
+/// Wasm panic handled in JS land.
+pub const panic = log.panic;
 
 /// True if we're in shared memory mode. If true, then the memory buffer
 /// in JS will be backed by a SharedArrayBuffer and some behaviors change.
@@ -47,14 +68,7 @@ pub export fn free(ptr: ?[*]u8) void {
         }
     }
 }
-/// Send message over to JS land and traps in wasm.
-pub fn panic(message: []const u8, stack_trace: ?*std.builtin.StackTrace, addr: ?usize) noreturn {
-    _ = stack_trace;
-    _ = addr;
 
-    std.log.err("Paniced: {s}", .{message});
-    @trap();
-}
 /// Handly type function to return slices with ptr and len.
 pub fn Slice(comptime T: type) type {
     return packed struct(u64) {

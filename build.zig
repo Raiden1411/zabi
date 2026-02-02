@@ -206,7 +206,7 @@ pub fn build(b: *std.Build) void {
     buildExamples(b, target, optimize, zabi);
 
     // Build the wasm file. Always build in `ReleaseSmall` on `wasm32-freestanding`.
-    buildWasm(b, zabi);
+    buildWasm(b);
 }
 
 // Builds and runs the main tests of zabi or the coverage from kcov.
@@ -315,7 +315,7 @@ fn buildTestOrCoverage(
 }
 
 /// Build the wasm binary.
-fn buildWasm(b: *std.Build, module: *std.Build.Module) void {
+fn buildWasm(b: *std.Build) void {
     const wasm_crosstarget: std.Target.Query = .{
         .cpu_arch = .wasm32,
         .os_tag = .freestanding,
@@ -328,16 +328,26 @@ fn buildWasm(b: *std.Build, module: *std.Build.Module) void {
         }),
     };
 
+    const wasm_target = b.resolveTargetQuery(wasm_crosstarget);
+
+    // Build a wasm-compatible zabi module (without C dependencies like c_kzg_4844)
+    const zabi_wasm_mod = b.addModule("zabi-wasm-internal", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = wasm_target,
+        .optimize = .ReleaseSmall,
+    });
+    addWasmDependencies(b, zabi_wasm_mod, wasm_target);
+
     const wasm_mod = b.createModule(.{
         .root_source_file = b.path("src/root_wasm.zig"),
-        .target = b.resolveTargetQuery(wasm_crosstarget),
+        .target = wasm_target,
         .optimize = .ReleaseSmall,
     });
     const wasm = b.addExecutable(.{
         .name = "zabi_wasm",
         .root_module = wasm_mod,
     });
-    wasm.root_module.addImport("zabi", module);
+    wasm.root_module.addImport("zabi", zabi_wasm_mod);
 
     // Browser target
     wasm.entry = .disabled;
@@ -347,9 +357,7 @@ fn buildWasm(b: *std.Build, module: *std.Build.Module) void {
     wasm.initial_memory = 65536 * 32;
     wasm.max_memory = 65536 * 65336;
 
-    wasm.root_module.stack_protector = true;
-
-    const wasm_install = b.addInstallArtifact(wasm, .{});
+    const wasm_install = b.addInstallArtifact(wasm, .{ .dest_dir = .{ .override = .{ .custom = "." } } });
     const wasm_step = b.step("wasm", "Build wasm library");
 
     wasm_step.dependOn(&wasm_install.step);
@@ -369,6 +377,118 @@ fn addDependencies(
 
     mod.addImport("c_kzg_4844", c_kzg_4844_dep.module("c_kzg_4844"));
     mod.linkLibrary(c_kzg_4844_dep.artifact("c_kzg_4844"));
+}
+
+/// Adds wasm-compatible dependencies
+fn addWasmDependencies(
+    b: *std.Build,
+    zabi: *std.Build.Module,
+    wasm_target: std.Build.ResolvedTarget,
+) void {
+    const optimize = std.builtin.OptimizeMode.ReleaseSmall;
+
+    // Build the sub-modules for wasm target
+    const zabi_abi = b.createModule(.{
+        .root_source_file = b.path("src/abi/root.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
+
+    const zabi_ast = b.createModule(.{
+        .root_source_file = b.path("src/ast/root.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
+
+    const zabi_crypto = b.createModule(.{
+        .root_source_file = b.path("src/crypto/root.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
+
+    const zabi_decoding = b.createModule(.{
+        .root_source_file = b.path("src/decoding/root.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
+
+    const zabi_encoding = b.createModule(.{
+        .root_source_file = b.path("src/encoding/root.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
+
+    const zabi_evm = b.createModule(.{
+        .root_source_file = b.path("src/evm/root.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
+
+    const zabi_human = b.createModule(.{
+        .root_source_file = b.path("src/human-readable/root.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
+
+    const zabi_meta = b.createModule(.{
+        .root_source_file = b.path("src/meta/root.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
+
+    const zabi_types = b.createModule(.{
+        .root_source_file = b.path("src/types/root.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
+
+    const zabi_utils = b.createModule(.{
+        .root_source_file = b.path("src/utils/root.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
+
+    // Add imports to the main zabi module
+    zabi.addImport("zabi-abi", zabi_abi);
+    zabi.addImport("zabi-ast", zabi_ast);
+    zabi.addImport("zabi-evm", zabi_evm);
+    zabi.addImport("zabi-human", zabi_human);
+    zabi.addImport("zabi-utils", zabi_utils);
+
+    // Wire up inter-module dependencies (same as in build())
+    zabi_abi.addImport("zabi-decoding", zabi_decoding);
+    zabi_abi.addImport("zabi-encoding", zabi_encoding);
+    zabi_abi.addImport("zabi-human", zabi_human);
+    zabi_abi.addImport("zabi-meta", zabi_meta);
+    zabi_abi.addImport("zabi-types", zabi_types);
+
+    zabi_decoding.addImport("zabi-meta", zabi_meta);
+    zabi_decoding.addImport("zabi-types", zabi_types);
+    zabi_decoding.addImport("zabi-utils", zabi_utils);
+
+    zabi_encoding.addImport("zabi-abi", zabi_abi);
+    zabi_encoding.addImport("zabi-crypto", zabi_crypto);
+    zabi_encoding.addImport("zabi-meta", zabi_meta);
+    zabi_encoding.addImport("zabi-types", zabi_types);
+    zabi_encoding.addImport("zabi-utils", zabi_utils);
+
+    zabi_evm.addImport("zabi-utils", zabi_utils);
+    zabi_evm.addImport("zabi-meta", zabi_meta);
+    zabi_evm.addImport("zabi-types", zabi_types);
+
+    zabi_human.addImport("zabi-abi", zabi_abi);
+    zabi_human.addImport("zabi-meta", zabi_meta);
+
+    zabi_meta.addImport("zabi-abi", zabi_abi);
+    zabi_meta.addImport("zabi-types", zabi_types);
+    zabi_meta.addImport("zabi-utils", zabi_utils);
+
+    zabi_types.addImport("zabi-abi", zabi_abi);
+    zabi_types.addImport("zabi-meta", zabi_meta);
+    zabi_types.addImport("zabi-utils", zabi_utils);
+
+    zabi_utils.addImport("zabi-meta", zabi_meta);
+    zabi_utils.addImport("zabi-types", zabi_types);
 }
 
 /// Builds and runs the benchmarks

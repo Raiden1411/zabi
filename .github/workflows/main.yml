@@ -36,6 +36,9 @@ jobs:
       - name: Build
         run: zig build
 
+      - name: Build
+        run: zig build wasm
+
       - name: Run Tests
         run: zig build test-ci -freference-trace=256
         env:

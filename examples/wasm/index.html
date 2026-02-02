@@ -1,66 +1,893 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>Zig WASM Test</title>
+    <title>Zabi — EVM Toolkit</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style type="text/css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --bg-void: #0a0a0c;
+        --bg-panel: #101114;
+        --bg-input: #0d0d10;
+        --text-bright: #f0f0f2;
+        --text-dim: #6b6b7b;
+        --text-muted: #3d3d4a;
+        --glow-primary: #00ff9d;
+        --glow-secondary: #00d4ff;
+        --glow-warning: #ff6b35;
+        --border-dim: #1e1e26;
+        --border-glow: #00ff9d33;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        font-size: 16px;
+      }
+
       body {
-        font-family: system-ui, -apple-system, Roboto, "Segoe UI", sans-serif;
-        color: #000000;
+        font-family: 'Outfit', sans-serif;
+        background: var(--bg-void);
+        color: var(--text-bright);
+        min-height: 100vh;
+        position: relative;
+        overflow-x: hidden;
       }
 
-      .hidden {
+      body::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: 
+          repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 255, 157, 0.015) 2px,
+            rgba(0, 255, 157, 0.015) 4px
+          );
+        pointer-events: none;
+        z-index: 1000;
+      }
+
+      body::after {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: radial-gradient(ellipse at 50% 0%, rgba(0, 255, 157, 0.08) 0%, transparent 50%);
+        pointer-events: none;
+        z-index: -1;
+      }
+
+      .noise {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        opacity: 0.03;
+        pointer-events: none;
+        z-index: 999;
+      }
+
+      .container {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 3rem 1.5rem;
+        position: relative;
+        z-index: 1;
+      }
+
+      header {
+        margin-bottom: 3rem;
+        animation: fadeInUp 0.6s ease-out;
+      }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      .logo-icon {
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, var(--glow-primary) 0%, var(--glow-secondary) 100%);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 700;
+        font-size: 1.25rem;
+        color: var(--bg-void);
+        box-shadow: 0 0 30px rgba(0, 255, 157, 0.3);
+        position: relative;
+      }
+
+      .logo-icon::after {
+        content: '';
+        position: absolute;
+        inset: -2px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, var(--glow-primary), var(--glow-secondary));
+        z-index: -1;
+        opacity: 0.4;
+        filter: blur(8px);
+      }
+
+      header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        background: linear-gradient(135deg, var(--text-bright) 0%, var(--text-dim) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .tagline {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.875rem;
+        color: var(--text-dim);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .tagline::before {
+        content: '>';
+        color: var(--glow-primary);
+        animation: blink 1s step-end infinite;
+      }
+
+      @keyframes blink {
+        50% { opacity: 0; }
+      }
+
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .tabs {
+        display: flex;
+        gap: 0;
+        margin-bottom: 0;
+        background: var(--bg-panel);
+        border-radius: 12px 12px 0 0;
+        border: 1px solid var(--border-dim);
+        border-bottom: none;
+        overflow: hidden;
+        animation: fadeInUp 0.6s ease-out 0.1s both;
+      }
+
+      .tab {
+        flex: 1;
+        padding: 1rem 1.5rem;
+        border: none;
+        background: transparent;
+        color: var(--text-dim);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        position: relative;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+
+      .tab::before {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: var(--glow-primary);
+        transform: scaleX(0);
+        transition: transform 0.2s ease;
+      }
+
+      .tab:hover {
+        color: var(--text-bright);
+        background: rgba(0, 255, 157, 0.03);
+      }
+
+      .tab.active {
+        color: var(--glow-primary);
+        background: rgba(0, 255, 157, 0.05);
+      }
+
+      .tab.active::before {
+        transform: scaleX(1);
+      }
+
+      .tab-icon {
+        display: inline-block;
+        margin-right: 0.5rem;
+        opacity: 0.7;
+      }
+
+      .panel {
         display: none;
+        animation: fadeIn 0.3s ease-out;
       }
 
-      .run {
-        display: flex;
-        flex-direction: column;
-        gap: 8px; 
+      .panel.active {
+        display: block;
       }
 
-      .contract_code_area {
-        display: flex;
-        flex-direction: column;
-        gap: 8px; 
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+      .card {
+        background: var(--bg-panel);
+        border: 1px solid var(--border-dim);
+        border-top: none;
+        border-radius: 0 0 12px 12px;
+        padding: 2rem;
+        position: relative;
+        animation: fadeInUp 0.6s ease-out 0.2s both;
+      }
+
+      .card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 2rem;
+        right: 2rem;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--border-dim), transparent);
+      }
+
+      .form-group {
+        margin-bottom: 1.5rem;
       }
 
       label {
-        font-size: 14px; 
-        font-weight: bold;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--text-dim);
+        margin-bottom: 0.75rem;
+      }
+
+      label .hint {
+        font-size: 0.65rem;
+        color: var(--text-muted);
+        text-transform: none;
+        letter-spacing: 0;
       }
 
       textarea {
-        width: 50%; 
-        padding: 10px;
-        font-size: 16px;
-        border: 1px solid #ccc;
-        border-radius: 4px; 
-        resize: vertical; 
+        width: 100%;
+        padding: 1rem 1.25rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.875rem;
+        line-height: 1.6;
+        background: var(--bg-input);
+        color: var(--text-bright);
+        border: 1px solid var(--border-dim);
+        border-radius: 8px;
+        resize: vertical;
+        transition: all 0.2s ease;
       }
 
-      @media (prefers-color-scheme: dark) {
-        body {
-          background-color: #111;
-          color: #bbb;
+      textarea:focus {
+        outline: none;
+        border-color: var(--glow-primary);
+        box-shadow: 
+          0 0 0 3px rgba(0, 255, 157, 0.1),
+          0 0 20px rgba(0, 255, 157, 0.1);
+      }
+
+      textarea::placeholder {
+        color: var(--text-muted);
+      }
+
+      textarea::selection {
+        background: rgba(0, 255, 157, 0.3);
+      }
+
+      .actions {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.625rem;
+        padding: 0.875rem 1.75rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--bg-void);
+        background: linear-gradient(135deg, var(--glow-primary) 0%, #00cc7d 100%);
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .btn::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, transparent 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
+        transform: translateX(-100%);
+        transition: transform 0.4s ease;
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0, 255, 157, 0.35);
+      }
+
+      .btn:hover::before {
+        transform: translateX(100%);
+      }
+
+      .btn:active {
+        transform: translateY(0);
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .btn svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      .output-section {
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px dashed var(--border-dim);
+      }
+
+      .output-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+      }
+
+      .output-header h3 {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--text-dim);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .output-header h3::before {
+        content: '//';
+        color: var(--glow-primary);
+      }
+
+      .output {
+        background: var(--bg-void);
+        border: 1px solid var(--border-dim);
+        border-radius: 8px;
+        padding: 1.25rem;
+        min-height: 140px;
+        max-height: 400px;
+        overflow: auto;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8125rem;
+        line-height: 1.7;
+        white-space: pre-wrap;
+        word-break: break-all;
+        position: relative;
+      }
+
+      .output::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 3px;
+        height: 100%;
+        background: linear-gradient(180deg, var(--glow-primary), var(--glow-secondary));
+        border-radius: 8px 0 0 8px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+      }
+
+      .output:not(.empty)::before {
+        opacity: 1;
+      }
+
+      .output.empty {
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-style: italic;
+      }
+
+      .output::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .output::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      .output::-webkit-scrollbar-thumb {
+        background: var(--border-dim);
+        border-radius: 3px;
+      }
+
+      .output::-webkit-scrollbar-thumb:hover {
+        background: var(--text-muted);
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.7rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 0.375rem 0.75rem;
+        border-radius: 6px;
+        border: 1px solid;
+      }
+
+      .status.loading {
+        color: var(--glow-secondary);
+        background: rgba(0, 212, 255, 0.08);
+        border-color: rgba(0, 212, 255, 0.2);
+      }
+
+      .status.ready {
+        color: var(--glow-primary);
+        background: rgba(0, 255, 157, 0.08);
+        border-color: rgba(0, 255, 157, 0.2);
+      }
+
+      .status.error {
+        color: var(--glow-warning);
+        background: rgba(255, 107, 53, 0.08);
+        border-color: rgba(255, 107, 53, 0.2);
+      }
+
+      .status-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        box-shadow: 0 0 8px currentColor;
+      }
+
+      .status.loading .status-dot {
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0%, 100% { 
+          opacity: 1; 
+          transform: scale(1);
         }
+        50% { 
+          opacity: 0.4; 
+          transform: scale(0.8);
+        }
+      }
+
+      footer {
+        text-align: center;
+        margin-top: 4rem;
+        padding: 2rem;
+        animation: fadeInUp 0.6s ease-out 0.3s both;
+      }
+
+      .footer-links {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2rem;
+        margin-bottom: 1rem;
+      }
+
+      .footer-link {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+        color: var(--text-dim);
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: color 0.2s ease;
+      }
+
+      .footer-link:hover {
+        color: var(--glow-primary);
+      }
+
+      .footer-link svg {
+        width: 16px;
+        height: 16px;
+        opacity: 0.7;
+      }
+
+      .footer-credit {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      .footer-credit a {
+        color: var(--text-dim);
+        text-decoration: none;
+        border-bottom: 1px dashed var(--text-muted);
+        transition: all 0.2s ease;
+      }
+
+      .footer-credit a:hover {
+        color: var(--glow-primary);
+        border-color: var(--glow-primary);
+      }
+
+      /* Toast Notifications */
+      .toast-container {
+        position: fixed;
+        top: 1.5rem;
+        right: 1.5rem;
+        z-index: 2000;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        pointer-events: none;
+      }
+
+      .toast {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 1rem 1.25rem;
+        background: var(--bg-panel);
+        border: 1px solid var(--border-dim);
+        border-radius: 10px;
+        box-shadow: 
+          0 4px 24px rgba(0, 0, 0, 0.4),
+          0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+        max-width: 380px;
+        pointer-events: auto;
+        transform: translateX(120%);
+        opacity: 0;
+        animation: toastIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+
+      .toast.hiding {
+        animation: toastOut 0.3s cubic-bezier(0.4, 0, 1, 1) forwards;
+      }
+
+      @keyframes toastIn {
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      @keyframes toastOut {
+        to {
+          transform: translateX(120%);
+          opacity: 0;
+        }
+      }
+
+      .toast-icon {
+        flex-shrink: 0;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 700;
+        margin-top: 1px;
+      }
+
+      .toast.error {
+        border-color: rgba(255, 107, 53, 0.3);
+        background: linear-gradient(135deg, var(--bg-panel) 0%, rgba(255, 107, 53, 0.05) 100%);
+      }
+
+      .toast.error .toast-icon {
+        background: var(--glow-warning);
+        color: var(--bg-void);
+        box-shadow: 0 0 12px rgba(255, 107, 53, 0.4);
+      }
+
+      .toast.success {
+        border-color: rgba(0, 255, 157, 0.3);
+        background: linear-gradient(135deg, var(--bg-panel) 0%, rgba(0, 255, 157, 0.05) 100%);
+      }
+
+      .toast.success .toast-icon {
+        background: var(--glow-primary);
+        color: var(--bg-void);
+        box-shadow: 0 0 12px rgba(0, 255, 157, 0.4);
+      }
+
+      .toast-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .toast-title {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.25rem;
+      }
+
+      .toast.error .toast-title {
+        color: var(--glow-warning);
+      }
+
+      .toast.success .toast-title {
+        color: var(--glow-primary);
+      }
+
+      .toast-message {
+        font-size: 0.85rem;
+        color: var(--text-dim);
+        line-height: 1.4;
+        word-break: break-word;
+      }
+
+      .toast-close {
+        flex-shrink: 0;
+        width: 20px;
+        height: 20px;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: all 0.15s ease;
+        font-size: 1rem;
+        line-height: 1;
+      }
+
+      .toast-close:hover {
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-bright);
+      }
+
+      .toast-progress {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 0 0 10px 10px;
+        overflow: hidden;
+      }
+
+      .toast-progress-bar {
+        height: 100%;
+        animation: progressShrink 4s linear forwards;
+      }
+
+      .toast.error .toast-progress-bar {
+        background: var(--glow-warning);
+      }
+
+      .toast.success .toast-progress-bar {
+        background: var(--glow-primary);
+      }
+
+      @keyframes progressShrink {
+        from { width: 100%; }
+        to { width: 0%; }
+      }
+
+      .corner-accent {
+        position: fixed;
+        width: 200px;
+        height: 200px;
+        pointer-events: none;
+        z-index: -1;
+      }
+
+      .corner-accent.top-right {
+        top: 0;
+        right: 0;
+        background: radial-gradient(circle at 100% 0%, rgba(0, 212, 255, 0.08) 0%, transparent 50%);
+      }
+
+      .corner-accent.bottom-left {
+        bottom: 0;
+        left: 0;
+        background: radial-gradient(circle at 0% 100%, rgba(0, 255, 157, 0.06) 0%, transparent 50%);
       }
     </style>
   </head>
-  <title>ZIG WASM INTERPRETER</title>
   <body>
-    <h1 class="interpreter">Interpreter</h1>
-    <div class="contract_code_area">
-      <label for="code_label">Contract Code:</label>
-      <textarea id="contract_code" name="message" rows="4"></textarea>
-      <label for="calldata_label">Calldata:</label>
-      <textarea id="calldata"></textarea>
+    <div class="noise"></div>
+    <div class="corner-accent top-right"></div>
+    <div class="corner-accent bottom-left"></div>
+    <div id="toast-container" class="toast-container"></div>
+    <div class="container">
+      <header>
+        <div class="logo">
+          <div class="logo-icon">Z</div>
+          <h1>Zabi</h1>
+        </div>
+        <p class="tagline">Ethereum toolkit compiled to WebAssembly</p>
+      </header>
+      <div class="tabs">
+        <button class="tab active" data-panel="interpreter">
+          <span class="tab-icon">▸</span>EVM Interpreter
+        </button>
+        <button class="tab" data-panel="formatter">
+          <span class="tab-icon">◈</span>Solidity Formatter
+        </button>
+      </div>
+      <div id="interpreter" class="panel active">
+        <div class="card">
+          <div class="form-group">
+            <label for="contract_code">
+              Contract Bytecode
+              <span class="hint">hex-encoded</span>
+            </label>
+            <textarea
+              id="contract_code"
+              rows="4"
+              placeholder="0x6080604052..."
+            ></textarea>
+          </div>
+          <div class="form-group">
+            <label for="calldata">
+              Calldata
+              <span class="hint">optional · hex-encoded</span>
+            </label>
+            <textarea
+              id="calldata"
+              rows="2"
+              placeholder="0x..."
+            ></textarea>
+          </div>
+          <div class="actions">
+            <button type="button" id="run-interpreter" class="btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none"></polygon>
+              </svg>
+              Execute
+            </button>
+          </div>
+          <div class="output-section">
+            <div class="output-header">
+              <h3>Execution Result</h3>
+              <span id="interpreter-status" class="status loading">
+                <span class="status-dot"></span>
+                Initializing
+              </span>
+            </div>
+            <div id="interpreter-result" class="output empty">Awaiting bytecode...</div>
+          </div>
+        </div>
+      </div>
+      <div id="formatter" class="panel">
+        <div class="card">
+          <div class="form-group">
+            <label for="solidity_code">
+              Solidity Source
+              <span class="hint">.sol</span>
+            </label>
+            <textarea
+              id="solidity_code"
+              rows="14"
+              placeholder="// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Example {
+    function greet() public pure returns (string memory) {
+        return &quot;gm&quot;;
+    }
+}"
+            ></textarea>
+          </div>
+          <div class="actions">
+            <button type="button" id="run-formatter" class="btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 7V4h16v3"></path>
+                <path d="M9 20h6"></path>
+                <path d="M12 4v16"></path>
+              </svg>
+              Format
+            </button>
+          </div>
+          <div class="output-section">
+            <div class="output-header">
+              <h3>Formatted Output</h3>
+              <span id="formatter-status" class="status loading">
+                <span class="status-dot"></span>
+                Initializing
+              </span>
+            </div>
+            <div id="formatter-result" class="output empty">Paste your Solidity code above...</div>
+          </div>
+        </div>
+      </div>
+      <footer>
+        <div class="footer-links">
+          <a href="https://github.com/Raiden1411/zabi" target="_blank" class="footer-link">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+            GitHub
+          </a>
+          <a href="https://ziglang.org" target="_blank" class="footer-link">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M23.53 1.02L7.67 6.4 6.7 6.77l-.06.01L.02 9.2v.01l.02.02 6.3 3.97-.03.03 2.29 7.06.02.02.02-.01 3.47-2.52 5.35 3.35.02.01.02-.02 5.49-19.97.02-.12zm-8.7 17.94l-4.55-2.86-.03-.02-.02.02-2.14 1.55-1.76-5.44 13.87-9.54-5.37 16.29z"/>
+            </svg>
+            Zig
+          </a>
+        </div>
+        <p class="footer-credit">
+          Built with
+          <a href="https://github.com/Raiden1411/zabi" target="_blank">Zabi</a>
+          — Zig + Ethereum
+        </p>
+      </footer>
     </div>
-    <br>
-    <button type="button" id="run">Run</button>
-    <h2>Output:</h2>
-    <h3 id="result"></h3>
     <script src="./main.js"></script>
   </body>
 </html>

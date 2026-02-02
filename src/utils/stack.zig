@@ -323,6 +323,22 @@ pub fn BoundedStack(comptime size: usize) type {
 
         /// Swaps the top value of the stack with the different position.
         /// This is not thread safe.
+        pub inline fn swapToTop(
+            self: *Self,
+            position_swap: usize,
+        ) void {
+            std.debug.assert(self.len >= position_swap);
+
+            const top = self.len - 1;
+            const second = top - position_swap;
+
+            const tmp = self.inner[top];
+            self.inner[top] = self.inner[second];
+            self.inner[second] = tmp;
+        }
+
+        /// Swaps the top value of the stack with the different position.
+        /// This is not thread safe.
         pub inline fn swapToTopUnsafe(
             self: *Self,
             position_swap: usize,
@@ -338,6 +354,17 @@ pub fn BoundedStack(comptime size: usize) type {
             const tmp = self.inner[top];
             self.inner[top] = self.inner[second];
             self.inner[second] = tmp;
+        }
+
+        /// Duplicates an item from the stack. Appends it to the top.
+        ///
+        /// This is not thread safe.
+        pub inline fn dup(
+            self: *Self,
+            position: usize,
+        ) void {
+            const item = self.inner[self.len - position];
+            self.appendAssumeCapacity(item);
         }
 
         /// Duplicates an item from the stack. Appends it to the top.
@@ -429,7 +456,7 @@ pub fn BoundedStack(comptime size: usize) type {
         /// Peek the last element of the stack and returns it's pointer.
         ///
         /// Returns null if len is 0;
-        pub inline fn peek(self: *Self) ?*u256 {
+        pub inline fn peek(self: *Self) *u256 {
             std.debug.assert(self.len > 0);
 
             return &self.inner[self.len - 1];

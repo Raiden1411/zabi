@@ -8,62 +8,11 @@ const GasTracker = gas.GasTracker;
 const Interpreter = @import("../Interpreter.zig");
 const Memory = @import("../memory.zig").Memory;
 
-/// Runs the jumpi instruction opcode for the interpreter.
-/// 0x57 -> JUMPI
-pub fn conditionalJumpInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InvalidJump})!void {
-    try self.gas_tracker.updateTracker(constants.MID_STEP);
-
-    const target = try self.stack.tryPopUnsafe();
-    const condition = try self.stack.tryPopUnsafe();
-
-    const as_usize = std.math.cast(usize, target) orelse return error.InvalidJump;
-
-    if (condition != 0) {
-        if (!self.contract.isValidJump(as_usize)) {
-            @branchHint(.unlikely);
-            self.status = .invalid_jump;
-            return;
-        }
-
-        // Since this runs inside a while loop
-        // we decrement it here by once since it will get
-        // updated before the next loop starts
-        self.program_counter = as_usize - 1;
-        return;
-    }
-}
-
 /// Runs the pc instruction opcode for the interpreter.
 /// 0x58 -> PC
 pub fn programCounterInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
-    try self.stack.pushUnsafe(self.program_counter);
-}
-
-/// Runs the jump instruction opcode for the interpreter.
-/// 0x56 -> JUMP
-pub fn jumpInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InvalidJump})!void {
-    try self.gas_tracker.updateTracker(constants.MID_STEP);
-    const target = try self.stack.tryPopUnsafe();
-
-    const as_usize = std.math.cast(usize, target) orelse return error.InvalidJump;
-
-    if (!self.contract.isValidJump(as_usize)) {
-        @branchHint(.unlikely);
-        self.status = .invalid_jump;
-        return;
-    }
-
-    // Since this runs inside a while loop
-    // we decrement it here by once since it will get
-    // updated before the next loop starts
-    self.program_counter = as_usize - 1;
-}
-
-/// Runs the jumpdest instruction opcode for the interpreter.
-/// 0x5B -> JUMPDEST
-pub fn jumpDestInstruction(self: *Interpreter) GasTracker.Error!void {
-    try self.gas_tracker.updateTracker(constants.JUMPDEST);
+    self.stack.appendAssumeCapacity(self.program_counter);
 }
 
 /// Runs the invalid instruction opcode for the interpreter.
@@ -100,8 +49,8 @@ pub fn unknownInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 
 // Internal action for return type instructions.
 fn returnAction(self: *Interpreter, status: Interpreter.InterpreterStatus) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
-    const offset = try self.stack.tryPopUnsafe();
-    const length = try self.stack.tryPopUnsafe();
+    const offset = self.stack.pop();
+    const length = self.stack.pop();
 
     const len = std.math.cast(usize, length) orelse return error.Overflow;
     const off = std.math.cast(usize, offset) orelse return error.Overflow;

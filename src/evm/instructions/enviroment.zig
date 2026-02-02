@@ -14,7 +14,7 @@ pub fn baseFeeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
     const fee = env.block.base_fee;
 
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
-    try self.stack.pushUnsafe(fee);
+    self.stack.appendAssumeCapacity(fee);
 }
 
 /// Performs the blobbasefee instruction for the interpreter.
@@ -30,7 +30,7 @@ pub fn blobBaseFeeInstruction(self: *Interpreter) (Interpreter.InstructionErrors
         .blob_excess_gas = 0,
     };
 
-    try self.stack.pushUnsafe(blob_price.blob_gasprice);
+    self.stack.appendAssumeCapacity(blob_price.blob_gasprice);
 }
 
 /// Performs the blobhash instruction for the interpreter.
@@ -39,17 +39,17 @@ pub fn blobHashInstruction(self: *Interpreter) (Interpreter.InstructionErrors ||
     if (!self.spec.enabled(.CANCUN))
         return error.InstructionNotEnabled;
 
-    const index = try self.stack.tryPopUnsafe();
+    const index = self.stack.pop();
     try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
     if (index >= self.host.getEnviroment().tx.blob_hashes.len) {
-        try self.stack.pushUnsafe(0);
+        self.stack.appendAssumeCapacity(0);
         return;
     }
 
     const hash = self.host.getEnviroment().tx.blob_hashes[@intCast(index)];
 
-    try self.stack.pushUnsafe(@bitCast(hash));
+    self.stack.appendAssumeCapacity(@bitCast(hash));
 }
 
 /// Performs the number instruction for the interpreter.
@@ -58,7 +58,7 @@ pub fn blockNumberInstruction(self: *Interpreter) Interpreter.InstructionErrors!
     const number = self.host.getEnviroment().block.number;
 
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
-    try self.stack.pushUnsafe(number);
+    self.stack.appendAssumeCapacity(number);
 }
 
 /// Performs the chainid instruction for the interpreter.
@@ -70,7 +70,7 @@ pub fn chainIdInstruction(self: *Interpreter) (Interpreter.InstructionErrors || 
     const chainId = self.host.getEnviroment().config.chain_id;
 
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
-    try self.stack.pushUnsafe(chainId);
+    self.stack.appendAssumeCapacity(chainId);
 }
 
 /// Performs the coinbase instruction for the interpreter.
@@ -79,7 +79,7 @@ pub fn coinbaseInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
     const coinbase = self.host.getEnviroment().block.coinbase;
 
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
-    try self.stack.pushUnsafe(@as(u160, @bitCast(coinbase)));
+    self.stack.appendAssumeCapacity(@as(u160, @bitCast(coinbase)));
 }
 
 /// Performs the prevrandao/difficulty instruction for the interpreter.
@@ -89,7 +89,7 @@ pub fn difficultyInstruction(self: *Interpreter) Interpreter.InstructionErrors!v
     const difficulty = if (self.spec.enabled(.MERGE)) env.block.prevrandao orelse 0 else env.block.difficulty;
 
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
-    try self.stack.pushUnsafe(difficulty);
+    self.stack.appendAssumeCapacity(difficulty);
 }
 
 /// Performs the gaslimit instruction for the interpreter.
@@ -98,7 +98,7 @@ pub fn gasLimitInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
     const gas_price = self.host.getEnviroment().block.gas_limit;
 
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
-    try self.stack.pushUnsafe(gas_price);
+    self.stack.appendAssumeCapacity(gas_price);
 }
 
 /// Performs the gasprice instruction for the interpreter.
@@ -107,7 +107,7 @@ pub fn gasPriceInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
     const gas_price = self.host.getEnviroment().effectiveGasPrice();
 
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
-    try self.stack.pushUnsafe(gas_price);
+    self.stack.appendAssumeCapacity(gas_price);
 }
 
 /// Performs the origin instruction for the interpreter.
@@ -116,7 +116,7 @@ pub fn originInstruction(self: *Interpreter) Interpreter.InstructionErrors!void 
     const origin = self.host.getEnviroment().tx.caller;
 
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
-    try self.stack.pushUnsafe(@as(u160, @bitCast(origin)));
+    self.stack.appendAssumeCapacity(@as(u160, @bitCast(origin)));
 }
 
 /// Performs the timestamp instruction for the interpreter.
@@ -125,5 +125,5 @@ pub fn timestampInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
     const timestamp = self.host.getEnviroment().block.timestamp;
 
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
-    try self.stack.pushUnsafe(timestamp);
+    self.stack.appendAssumeCapacity(timestamp);
 }

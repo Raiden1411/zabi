@@ -7,30 +7,30 @@ const Interpreter = @import("Interpreter.zig");
 /// Comptime generated table from EVM instructions.
 pub const instruction_table = InstructionTable.generateTable(.{
     .STOP = .{ .execution = instructions.control.stopInstruction, .min_stack = stackBounds(1024, 0, 0).min_stack, .max_stack = stackBounds(1024, 0, 0).max_stack },
-    .ADD = .{ .execution = instructions.arithmetic.addInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .MUL = .{ .execution = instructions.arithmetic.mulInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .SUB = .{ .execution = instructions.arithmetic.subInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .DIV = .{ .execution = instructions.arithmetic.divInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .SDIV = .{ .execution = instructions.arithmetic.signedDivInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .MOD = .{ .execution = instructions.arithmetic.modInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .ADD = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .MUL = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .SUB = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .DIV = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .SDIV = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .MOD = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
     .SMOD = .{ .execution = instructions.arithmetic.signedModInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
     .ADDMOD = .{ .execution = instructions.arithmetic.modAdditionInstruction, .min_stack = stackBounds(1024, 3, 1).min_stack, .max_stack = stackBounds(1024, 3, 1).max_stack },
     .MULMOD = .{ .execution = instructions.arithmetic.modMultiplicationInstruction, .min_stack = stackBounds(1024, 3, 1).min_stack, .max_stack = stackBounds(1024, 3, 1).max_stack },
     .EXP = .{ .execution = instructions.arithmetic.exponentInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
     .SIGNEXTEND = .{ .execution = instructions.arithmetic.signExtendInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .LT = .{ .execution = instructions.bitwise.lowerThanInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .GT = .{ .execution = instructions.bitwise.greaterThanInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .SLT = .{ .execution = instructions.bitwise.signedLowerThanInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .SGT = .{ .execution = instructions.bitwise.signedGreaterThanInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .EQ = .{ .execution = instructions.bitwise.equalInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .ISZERO = .{ .execution = instructions.bitwise.isZeroInstruction, .min_stack = stackBounds(1024, 1, 1).min_stack, .max_stack = stackBounds(1024, 1, 1).max_stack },
-    .AND = .{ .execution = instructions.bitwise.andInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .OR = .{ .execution = instructions.bitwise.orInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .XOR = .{ .execution = instructions.bitwise.xorInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .NOT = .{ .execution = instructions.bitwise.notInstruction, .min_stack = stackBounds(1024, 1, 1).min_stack, .max_stack = stackBounds(1024, 1, 1).max_stack },
-    .BYTE = .{ .execution = instructions.bitwise.byteInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .SHL = .{ .execution = instructions.bitwise.shiftLeftInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
-    .SHR = .{ .execution = instructions.bitwise.shiftRightInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .LT = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .GT = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .SLT = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .SGT = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .EQ = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .ISZERO = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 1, 1).min_stack, .max_stack = stackBounds(1024, 1, 1).max_stack },
+    .AND = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .OR = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .XOR = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .NOT = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 1, 1).min_stack, .max_stack = stackBounds(1024, 1, 1).max_stack },
+    .BYTE = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .SHL = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
+    .SHR = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
     .SAR = .{ .execution = instructions.bitwise.signedShiftRightInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
     .KECCAK256 = .{ .execution = instructions.system.keccakInstruction, .min_stack = stackBounds(1024, 2, 1).min_stack, .max_stack = stackBounds(1024, 2, 1).max_stack },
     .ADDRESS = .{ .execution = instructions.system.addressInstruction, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
@@ -60,86 +60,87 @@ pub const instruction_table = InstructionTable.generateTable(.{
     .BASEFEE = .{ .execution = instructions.enviroment.baseFeeInstruction, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
     .BLOBHASH = .{ .execution = instructions.enviroment.blobHashInstruction, .min_stack = stackBounds(1024, 1, 1).min_stack, .max_stack = stackBounds(1024, 1, 1).max_stack },
     .BLOBBASEFEE = .{ .execution = instructions.enviroment.blobBaseFeeInstruction, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .POP = .{ .execution = instructions.stack.popInstruction, .min_stack = stackBounds(1024, 1, 0).min_stack, .max_stack = stackBounds(1024, 1, 0).max_stack },
-    .MLOAD = .{ .execution = instructions.memory.mloadInstruction, .min_stack = stackBounds(1024, 1, 1).min_stack, .max_stack = stackBounds(1024, 1, 1).max_stack },
-    .MSTORE = .{ .execution = instructions.memory.mstoreInstruction, .min_stack = stackBounds(1024, 2, 0).min_stack, .max_stack = stackBounds(1024, 2, 0).max_stack },
-    .MSTORE8 = .{ .execution = instructions.memory.mstore8Instruction, .min_stack = stackBounds(1024, 2, 0).min_stack, .max_stack = stackBounds(1024, 2, 0).max_stack },
+    .POP = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 1, 0).min_stack, .max_stack = stackBounds(1024, 1, 0).max_stack },
+    .MLOAD = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 1, 1).min_stack, .max_stack = stackBounds(1024, 1, 1).max_stack },
+    .MSTORE = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 0).min_stack, .max_stack = stackBounds(1024, 2, 0).max_stack },
+    .MSTORE8 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 0).min_stack, .max_stack = stackBounds(1024, 2, 0).max_stack },
     .SLOAD = .{ .execution = instructions.host.sloadInstruction, .min_stack = stackBounds(1024, 1, 1).min_stack, .max_stack = stackBounds(1024, 1, 1).max_stack },
     .SSTORE = .{ .execution = instructions.host.sstoreInstruction, .min_stack = stackBounds(1024, 2, 0).min_stack, .max_stack = stackBounds(1024, 2, 0).max_stack },
-    .JUMP = .{ .execution = instructions.control.jumpInstruction, .min_stack = stackBounds(1024, 1, 0).min_stack, .max_stack = stackBounds(1024, 1, 0).max_stack },
-    .JUMPI = .{ .execution = instructions.control.conditionalJumpInstruction, .min_stack = stackBounds(1024, 2, 0).min_stack, .max_stack = stackBounds(1024, 2, 0).max_stack },
+
+    .JUMP = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 1, 0).min_stack, .max_stack = stackBounds(1024, 1, 0).max_stack },
+    .JUMPI = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 0).min_stack, .max_stack = stackBounds(1024, 2, 0).max_stack },
     .PC = .{ .execution = instructions.control.programCounterInstruction, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .MSIZE = .{ .execution = instructions.memory.msizeInstruction, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .MSIZE = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
     .GAS = .{ .execution = instructions.system.gasInstruction, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .JUMPDEST = .{ .execution = instructions.control.jumpDestInstruction, .min_stack = stackBounds(1024, 0, 0).min_stack, .max_stack = stackBounds(1024, 0, 0).max_stack },
+    .JUMPDEST = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 0).min_stack, .max_stack = stackBounds(1024, 0, 0).max_stack },
     .TLOAD = .{ .execution = instructions.host.tloadInstruction, .min_stack = stackBounds(1024, 1, 1).min_stack, .max_stack = stackBounds(1024, 1, 1).max_stack },
     .TSTORE = .{ .execution = instructions.host.tstoreInstruction, .min_stack = stackBounds(1024, 2, 0).min_stack, .max_stack = stackBounds(1024, 2, 0).max_stack },
     .MCOPY = .{ .execution = instructions.memory.mcopyInstruction, .min_stack = stackBounds(1024, 3, 0).min_stack, .max_stack = stackBounds(1024, 3, 0).max_stack },
-    .PUSH0 = .{ .execution = instructions.stack.pushZeroInstruction, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH1 = .{ .execution = makePushInstruction(1), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH2 = .{ .execution = makePushInstruction(2), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH3 = .{ .execution = makePushInstruction(3), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH4 = .{ .execution = makePushInstruction(4), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH5 = .{ .execution = makePushInstruction(5), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH6 = .{ .execution = makePushInstruction(6), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH7 = .{ .execution = makePushInstruction(7), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH8 = .{ .execution = makePushInstruction(8), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH9 = .{ .execution = makePushInstruction(9), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH10 = .{ .execution = makePushInstruction(10), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH11 = .{ .execution = makePushInstruction(11), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH12 = .{ .execution = makePushInstruction(12), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH13 = .{ .execution = makePushInstruction(13), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH14 = .{ .execution = makePushInstruction(14), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH15 = .{ .execution = makePushInstruction(15), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH16 = .{ .execution = makePushInstruction(16), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH17 = .{ .execution = makePushInstruction(17), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH18 = .{ .execution = makePushInstruction(18), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH19 = .{ .execution = makePushInstruction(19), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH20 = .{ .execution = makePushInstruction(20), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH21 = .{ .execution = makePushInstruction(21), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH22 = .{ .execution = makePushInstruction(22), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH23 = .{ .execution = makePushInstruction(23), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH24 = .{ .execution = makePushInstruction(24), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH25 = .{ .execution = makePushInstruction(25), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH26 = .{ .execution = makePushInstruction(26), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH27 = .{ .execution = makePushInstruction(27), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH28 = .{ .execution = makePushInstruction(28), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH29 = .{ .execution = makePushInstruction(29), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH30 = .{ .execution = makePushInstruction(30), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH31 = .{ .execution = makePushInstruction(31), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .PUSH32 = .{ .execution = makePushInstruction(32), .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
-    .DUP1 = .{ .execution = makeDupInstruction(1), .min_stack = stackBounds(1024, 1, 2).min_stack, .max_stack = stackBounds(1024, 1, 2).max_stack },
-    .DUP2 = .{ .execution = makeDupInstruction(2), .min_stack = stackBounds(1024, 2, 3).min_stack, .max_stack = stackBounds(1024, 2, 3).max_stack },
-    .DUP3 = .{ .execution = makeDupInstruction(3), .min_stack = stackBounds(1024, 3, 4).min_stack, .max_stack = stackBounds(1024, 3, 4).max_stack },
-    .DUP4 = .{ .execution = makeDupInstruction(4), .min_stack = stackBounds(1024, 4, 5).min_stack, .max_stack = stackBounds(1024, 4, 5).max_stack },
-    .DUP5 = .{ .execution = makeDupInstruction(5), .min_stack = stackBounds(1024, 5, 6).min_stack, .max_stack = stackBounds(1024, 5, 6).max_stack },
-    .DUP6 = .{ .execution = makeDupInstruction(6), .min_stack = stackBounds(1024, 6, 7).min_stack, .max_stack = stackBounds(1024, 6, 7).max_stack },
-    .DUP7 = .{ .execution = makeDupInstruction(7), .min_stack = stackBounds(1024, 7, 8).min_stack, .max_stack = stackBounds(1024, 7, 8).max_stack },
-    .DUP8 = .{ .execution = makeDupInstruction(8), .min_stack = stackBounds(1024, 8, 9).min_stack, .max_stack = stackBounds(1024, 8, 9).max_stack },
-    .DUP9 = .{ .execution = makeDupInstruction(9), .min_stack = stackBounds(1024, 9, 10).min_stack, .max_stack = stackBounds(1024, 9, 10).max_stack },
-    .DUP10 = .{ .execution = makeDupInstruction(10), .min_stack = stackBounds(1024, 10, 11).min_stack, .max_stack = stackBounds(1024, 10, 11).max_stack },
-    .DUP11 = .{ .execution = makeDupInstruction(11), .min_stack = stackBounds(1024, 11, 12).min_stack, .max_stack = stackBounds(1024, 11, 12).max_stack },
-    .DUP12 = .{ .execution = makeDupInstruction(12), .min_stack = stackBounds(1024, 12, 13).min_stack, .max_stack = stackBounds(1024, 12, 13).max_stack },
-    .DUP13 = .{ .execution = makeDupInstruction(13), .min_stack = stackBounds(1024, 13, 14).min_stack, .max_stack = stackBounds(1024, 13, 14).max_stack },
-    .DUP14 = .{ .execution = makeDupInstruction(14), .min_stack = stackBounds(1024, 14, 15).min_stack, .max_stack = stackBounds(1024, 14, 15).max_stack },
-    .DUP15 = .{ .execution = makeDupInstruction(15), .min_stack = stackBounds(1024, 15, 16).min_stack, .max_stack = stackBounds(1024, 15, 16).max_stack },
-    .DUP16 = .{ .execution = makeDupInstruction(16), .min_stack = stackBounds(1024, 16, 17).min_stack, .max_stack = stackBounds(1024, 16, 17).max_stack },
-    .SWAP1 = .{ .execution = makeSwapInstruction(1), .min_stack = stackBounds(1024, 2, 2).min_stack, .max_stack = stackBounds(1024, 2, 2).max_stack },
-    .SWAP2 = .{ .execution = makeSwapInstruction(2), .min_stack = stackBounds(1024, 3, 3).min_stack, .max_stack = stackBounds(1024, 3, 3).max_stack },
-    .SWAP3 = .{ .execution = makeSwapInstruction(3), .min_stack = stackBounds(1024, 4, 4).min_stack, .max_stack = stackBounds(1024, 4, 4).max_stack },
-    .SWAP4 = .{ .execution = makeSwapInstruction(4), .min_stack = stackBounds(1024, 5, 5).min_stack, .max_stack = stackBounds(1024, 5, 5).max_stack },
-    .SWAP5 = .{ .execution = makeSwapInstruction(5), .min_stack = stackBounds(1024, 6, 6).min_stack, .max_stack = stackBounds(1024, 6, 6).max_stack },
-    .SWAP6 = .{ .execution = makeSwapInstruction(6), .min_stack = stackBounds(1024, 7, 7).min_stack, .max_stack = stackBounds(1024, 7, 7).max_stack },
-    .SWAP7 = .{ .execution = makeSwapInstruction(7), .min_stack = stackBounds(1024, 8, 8).min_stack, .max_stack = stackBounds(1024, 8, 8).max_stack },
-    .SWAP8 = .{ .execution = makeSwapInstruction(8), .min_stack = stackBounds(1024, 9, 9).min_stack, .max_stack = stackBounds(1024, 9, 9).max_stack },
-    .SWAP9 = .{ .execution = makeSwapInstruction(9), .min_stack = stackBounds(1024, 10, 10).min_stack, .max_stack = stackBounds(1024, 10, 10).max_stack },
-    .SWAP10 = .{ .execution = makeSwapInstruction(10), .min_stack = stackBounds(1024, 11, 11).min_stack, .max_stack = stackBounds(1024, 11, 11).max_stack },
-    .SWAP11 = .{ .execution = makeSwapInstruction(11), .min_stack = stackBounds(1024, 12, 12).min_stack, .max_stack = stackBounds(1024, 12, 12).max_stack },
-    .SWAP12 = .{ .execution = makeSwapInstruction(12), .min_stack = stackBounds(1024, 13, 13).min_stack, .max_stack = stackBounds(1024, 13, 13).max_stack },
-    .SWAP13 = .{ .execution = makeSwapInstruction(13), .min_stack = stackBounds(1024, 14, 14).min_stack, .max_stack = stackBounds(1024, 14, 14).max_stack },
-    .SWAP14 = .{ .execution = makeSwapInstruction(14), .min_stack = stackBounds(1024, 15, 15).min_stack, .max_stack = stackBounds(1024, 15, 15).max_stack },
-    .SWAP15 = .{ .execution = makeSwapInstruction(15), .min_stack = stackBounds(1024, 16, 16).min_stack, .max_stack = stackBounds(1024, 16, 16).max_stack },
-    .SWAP16 = .{ .execution = makeSwapInstruction(16), .min_stack = stackBounds(1024, 17, 17).min_stack, .max_stack = stackBounds(1024, 17, 17).max_stack },
+    .PUSH0 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH1 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH2 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH3 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH4 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH5 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH6 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH7 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH8 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH9 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH10 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH11 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH12 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH13 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH14 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH15 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH16 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH17 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH18 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH19 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH20 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH21 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH22 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH23 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH24 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH25 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH26 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH27 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH28 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH29 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH30 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH31 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .PUSH32 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
+    .DUP1 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 1, 2).min_stack, .max_stack = stackBounds(1024, 1, 2).max_stack },
+    .DUP2 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 3).min_stack, .max_stack = stackBounds(1024, 2, 3).max_stack },
+    .DUP3 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 3, 4).min_stack, .max_stack = stackBounds(1024, 3, 4).max_stack },
+    .DUP4 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 4, 5).min_stack, .max_stack = stackBounds(1024, 4, 5).max_stack },
+    .DUP5 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 5, 6).min_stack, .max_stack = stackBounds(1024, 5, 6).max_stack },
+    .DUP6 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 6, 7).min_stack, .max_stack = stackBounds(1024, 6, 7).max_stack },
+    .DUP7 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 7, 8).min_stack, .max_stack = stackBounds(1024, 7, 8).max_stack },
+    .DUP8 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 8, 9).min_stack, .max_stack = stackBounds(1024, 8, 9).max_stack },
+    .DUP9 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 9, 10).min_stack, .max_stack = stackBounds(1024, 9, 10).max_stack },
+    .DUP10 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 10, 11).min_stack, .max_stack = stackBounds(1024, 10, 11).max_stack },
+    .DUP11 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 11, 12).min_stack, .max_stack = stackBounds(1024, 11, 12).max_stack },
+    .DUP12 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 12, 13).min_stack, .max_stack = stackBounds(1024, 12, 13).max_stack },
+    .DUP13 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 13, 14).min_stack, .max_stack = stackBounds(1024, 13, 14).max_stack },
+    .DUP14 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 14, 15).min_stack, .max_stack = stackBounds(1024, 14, 15).max_stack },
+    .DUP15 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 15, 16).min_stack, .max_stack = stackBounds(1024, 15, 16).max_stack },
+    .DUP16 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 16, 17).min_stack, .max_stack = stackBounds(1024, 16, 17).max_stack },
+    .SWAP1 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 2, 2).min_stack, .max_stack = stackBounds(1024, 2, 2).max_stack },
+    .SWAP2 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 3, 3).min_stack, .max_stack = stackBounds(1024, 3, 3).max_stack },
+    .SWAP3 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 4, 4).min_stack, .max_stack = stackBounds(1024, 4, 4).max_stack },
+    .SWAP4 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 5, 5).min_stack, .max_stack = stackBounds(1024, 5, 5).max_stack },
+    .SWAP5 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 6, 6).min_stack, .max_stack = stackBounds(1024, 6, 6).max_stack },
+    .SWAP6 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 7, 7).min_stack, .max_stack = stackBounds(1024, 7, 7).max_stack },
+    .SWAP7 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 8, 8).min_stack, .max_stack = stackBounds(1024, 8, 8).max_stack },
+    .SWAP8 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 9, 9).min_stack, .max_stack = stackBounds(1024, 9, 9).max_stack },
+    .SWAP9 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 10, 10).min_stack, .max_stack = stackBounds(1024, 10, 10).max_stack },
+    .SWAP10 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 11, 11).min_stack, .max_stack = stackBounds(1024, 11, 11).max_stack },
+    .SWAP11 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 12, 12).min_stack, .max_stack = stackBounds(1024, 12, 12).max_stack },
+    .SWAP12 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 13, 13).min_stack, .max_stack = stackBounds(1024, 13, 13).max_stack },
+    .SWAP13 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 14, 14).min_stack, .max_stack = stackBounds(1024, 14, 14).max_stack },
+    .SWAP14 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 15, 15).min_stack, .max_stack = stackBounds(1024, 15, 15).max_stack },
+    .SWAP15 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 16, 16).min_stack, .max_stack = stackBounds(1024, 16, 16).max_stack },
+    .SWAP16 = .{ .execution = inlinedOpcode, .min_stack = stackBounds(1024, 17, 17).min_stack, .max_stack = stackBounds(1024, 17, 17).max_stack },
     .LOG0 = .{ .execution = makeLogInstruction(0), .min_stack = stackBounds(1024, 2, 0).min_stack, .max_stack = stackBounds(1024, 2, 0).max_stack },
     .LOG1 = .{ .execution = makeLogInstruction(1), .min_stack = stackBounds(1024, 3, 0).min_stack, .max_stack = stackBounds(1024, 3, 0).max_stack },
     .LOG2 = .{ .execution = makeLogInstruction(2), .min_stack = stackBounds(1024, 4, 0).min_stack, .max_stack = stackBounds(1024, 4, 0).max_stack },
@@ -373,53 +374,26 @@ pub const InstructionTable = struct {
 /// Opcode operations and checks.
 pub const Operations = struct {
     /// The execution function attached to the opcode.
-    execution: *const fn (ctx: *Interpreter) anyerror!void,
+    execution: *const fn (ctx: *Interpreter) Interpreter.AllInstructionErrors!void,
     /// The minimum required stack items before executing
     min_stack: u16,
     /// The max allowed size of the stack
     max_stack: u16,
 };
 
-/// Creates the dup instructions for the instruction table.
-pub fn makeDupInstruction(comptime dup_size: u8) *const fn (ctx: *Interpreter) anyerror!void {
-    return struct {
-        pub fn dup(self: *Interpreter) anyerror!void {
-            return instructions.stack.dupInstruction(self, dup_size);
-        }
-    }.dup;
-}
-
-/// Creates the push instructions for the instruction table.
-pub fn makePushInstruction(comptime push_size: u8) *const fn (ctx: *Interpreter) anyerror!void {
-    return struct {
-        pub fn push(self: *Interpreter) anyerror!void {
-            return instructions.stack.pushInstruction(self, push_size);
-        }
-    }.push;
-}
-
-/// Creates the swap instructions for the instruction table.
-pub fn makeSwapInstruction(comptime swap_size: u8) *const fn (ctx: *Interpreter) anyerror!void {
-    return struct {
-        pub fn swap(self: *Interpreter) anyerror!void {
-            return instructions.stack.swapInstruction(self, swap_size);
-        }
-    }.swap;
-}
-
 /// Creates the log instructions for the instruction table.
-pub fn makeLogInstruction(comptime swap_size: u8) *const fn (ctx: *Interpreter) anyerror!void {
+pub fn makeLogInstruction(comptime swap_size: u8) *const fn (ctx: *Interpreter) Interpreter.AllInstructionErrors!void {
     return struct {
-        pub fn log(self: *Interpreter) anyerror!void {
+        pub fn log(self: *Interpreter) Interpreter.AllInstructionErrors!void {
             return instructions.host.logInstruction(self, swap_size);
         }
     }.log;
 }
 
 /// Creates the log instructions for the instruction table.
-pub fn makeCreateInstruction(comptime is_create2: bool) *const fn (ctx: *Interpreter) anyerror!void {
+pub fn makeCreateInstruction(comptime is_create2: bool) *const fn (ctx: *Interpreter) Interpreter.AllInstructionErrors!void {
     return struct {
-        pub fn log(self: *Interpreter) anyerror!void {
+        pub fn log(self: *Interpreter) Interpreter.AllInstructionErrors!void {
             return instructions.contract.createInstruction(self, is_create2);
         }
     }.log;
@@ -430,6 +404,12 @@ pub const StackBounds = struct {
     min_stack: u16,
     max_stack: u16,
 };
+
+/// Sentinel function for opcodes handled inline in Interpreter.run().
+/// Using this instead of `undefined` provides safety in debug builds.
+fn inlinedOpcode(_: *Interpreter) Interpreter.AllInstructionErrors!void {
+    unreachable;
+}
 
 /// Calculates the stack bounds for the operation to execute.
 pub fn stackBounds(

@@ -12,6 +12,11 @@ const EthCall = transaction.EthCall;
 const Hash = types.Hash;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
+/// Check if a u256 fits in u128 by examining the high bits.
+pub inline fn fitsInU128(value: u256) bool {
+    return @as(u128, @truncate(value >> 128)) == 0;
+}
+
 /// Checks if a given type is static
 pub inline fn isStaticType(comptime T: type) bool {
     const info = @typeInfo(T);

@@ -14,11 +14,11 @@ const PlainHost = @import("../host.zig").PlainHost;
 /// Performs call instruction for the interpreter.
 /// CALL -> 0xF1
 pub fn callInstruction(self: *Interpreter) (error{FailedToLoadAccount} || Interpreter.InstructionErrors)!void {
-    const gas_limit = try self.stack.tryPopUnsafe();
-    const to = try self.stack.tryPopUnsafe();
+    const gas_limit = self.stack.pop();
+    const to = self.stack.pop();
 
     const limit = std.math.cast(u64, gas_limit) orelse std.math.maxInt(u64);
-    const value = try self.stack.tryPopUnsafe();
+    const value = self.stack.pop();
 
     if (self.is_static and value != 0) {
         self.status = .call_with_value_not_allowed_in_static_call;
@@ -55,11 +55,11 @@ pub fn callInstruction(self: *Interpreter) (error{FailedToLoadAccount} || Interp
 /// Performs callcode instruction for the interpreter.
 /// CALLCODE -> 0xF2
 pub fn callCodeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    const gas_limit = try self.stack.tryPopUnsafe();
-    const to = try self.stack.tryPopUnsafe();
+    const gas_limit = self.stack.pop();
+    const to = self.stack.pop();
 
     const limit = std.math.cast(u64, gas_limit) orelse std.math.maxInt(u64);
-    const value = try self.stack.tryPopUnsafe();
+    const value = self.stack.pop();
 
     const input, const range = getMemoryInputsAndRanges(self) catch return;
 
@@ -102,9 +102,9 @@ pub inline fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ I
         return error.InstructionNotEnabled;
     }
 
-    const value = try self.stack.tryPopUnsafe();
-    const code_offset = try self.stack.tryPopUnsafe();
-    const length = try self.stack.tryPopUnsafe();
+    const value = self.stack.pop();
+    const code_offset = self.stack.pop();
+    const length = self.stack.pop();
 
     const len = std.math.cast(usize, length) orelse return error.Overflow;
 
@@ -137,7 +137,7 @@ pub inline fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ I
 
     const scheme: CreateScheme = blk: {
         if (is_create_2) {
-            const salt = try self.stack.tryPopUnsafe();
+            const salt = self.stack.pop();
             const cost = gas.calculateCreate2Cost(len);
             try self.gas_tracker.updateTracker(cost orelse return error.GasOverflow);
 
@@ -176,8 +176,8 @@ pub fn delegateCallInstruction(self: *Interpreter) (error{InstructionNotEnabled}
         return error.InstructionNotEnabled;
     }
 
-    const gas_limit = try self.stack.tryPopUnsafe();
-    const to = try self.stack.tryPopUnsafe();
+    const gas_limit = self.stack.pop();
+    const to = self.stack.pop();
 
     const limit = std.math.cast(u64, gas_limit) orelse std.math.maxInt(u64);
     const input, const range = getMemoryInputsAndRanges(self) catch return;
@@ -216,8 +216,8 @@ pub fn staticCallInstruction(self: *Interpreter) (error{InstructionNotEnabled} |
         return error.InstructionNotEnabled;
     }
 
-    const gas_limit = try self.stack.tryPopUnsafe();
-    const to = try self.stack.tryPopUnsafe();
+    const gas_limit = self.stack.pop();
+    const to = self.stack.pop();
 
     const limit = std.math.cast(u64, gas_limit) orelse std.math.maxInt(u64);
     const input, const range = getMemoryInputsAndRanges(self) catch return;
@@ -272,10 +272,10 @@ pub inline fn calculateCall(self: *Interpreter, values_transfered: bool, is_cold
 /// Gets the memory slice and the ranges used to grab it.
 /// This also resizes the interpreter's memory.
 pub fn getMemoryInputsAndRanges(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!struct { []u8, struct { usize, usize } } {
-    const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPopUnsafe();
-    const third = try self.stack.tryPopUnsafe();
-    const fourth = try self.stack.tryPopUnsafe();
+    const first = self.stack.pop();
+    const second = self.stack.pop();
+    const third = self.stack.pop();
+    const fourth = self.stack.pop();
 
     const offset, const len = try resizeMemoryAndGetRange(self, first, second);
 

@@ -16,7 +16,7 @@ pub const HostInstructionErrors = Interpreter.InstructionErrors || error{Unexpec
 /// Runs the balance opcode for the interpreter.
 /// 0x31 -> BALANCE
 pub fn balanceInstruction(self: *Interpreter) HostInstructionErrors!void {
-    const address = try self.stack.tryPopUnsafe();
+    const address = self.stack.pop();
     const bal, const is_cold = self.host.balance(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
     const gas_usage: u64 = blk: {
@@ -34,29 +34,29 @@ pub fn balanceInstruction(self: *Interpreter) HostInstructionErrors!void {
 
     try self.gas_tracker.updateTracker(gas_usage);
 
-    try self.stack.pushUnsafe(bal);
+    self.stack.appendAssumeCapacity(bal);
 }
 
 /// Runs the blockhash opcode for the interpreter.
 /// 0x40 -> BLOCKHASH
 pub fn blockHashInstruction(self: *Interpreter) HostInstructionErrors!void {
-    const number = try self.stack.tryPopUnsafe();
+    const number = self.stack.pop();
     const as_u64 = std.math.cast(u64, number) orelse return error.Overflow;
 
     const hash = self.host.blockHash(as_u64) orelse return error.UnexpectedError;
 
     try self.gas_tracker.updateTracker(constants.BLOCKHASH);
 
-    try self.stack.pushUnsafe(@bitCast(hash));
+    self.stack.appendAssumeCapacity(@bitCast(hash));
 }
 
 /// Runs the extcodecopy opcode for the interpreter.
 /// 0x3B -> EXTCODECOPY
 pub fn extCodeCopyInstruction(self: *Interpreter) (HostInstructionErrors || Memory.Error || error{Overflow})!void {
-    const address = try self.stack.tryPopUnsafe();
-    const offset = try self.stack.tryPopUnsafe();
-    const code_offset = try self.stack.tryPopUnsafe();
-    const length = try self.stack.tryPopUnsafe();
+    const address = self.stack.pop();
+    const offset = self.stack.pop();
+    const code_offset = self.stack.pop();
+    const length = self.stack.pop();
 
     const code, const is_cold = self.host.code(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
@@ -79,7 +79,7 @@ pub fn extCodeCopyInstruction(self: *Interpreter) (HostInstructionErrors || Memo
 /// Runs the extcodehash opcode for the interpreter.
 /// 0x3F -> EXTCODEHASH
 pub fn extCodeHashInstruction(self: *Interpreter) HostInstructionErrors!void {
-    const address = try self.stack.tryPopUnsafe();
+    const address = self.stack.pop();
     const code_hash, const is_cold = self.host.codeHash(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
     const gas_usage: u64 = blk: {
@@ -94,19 +94,19 @@ pub fn extCodeHashInstruction(self: *Interpreter) HostInstructionErrors!void {
 
     try self.gas_tracker.updateTracker(gas_usage);
 
-    try self.stack.pushUnsafe(@bitCast(code_hash));
+    self.stack.appendAssumeCapacity(@bitCast(code_hash));
 }
 
 /// Runs the extcodesize opcode for the interpreter.
 /// 0x3B -> EXTCODESIZE
 pub fn extCodeSizeInstruction(self: *Interpreter) HostInstructionErrors!void {
-    const address = try self.stack.tryPopUnsafe();
+    const address = self.stack.pop();
     const code, const is_cold = self.host.code(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
     const gas_usage = gas.calculateCodeSizeCost(self.spec, is_cold);
     try self.gas_tracker.updateTracker(gas_usage);
 
-    try self.stack.pushUnsafe(code.getCodeBytes().len);
+    self.stack.appendAssumeCapacity(code.getCodeBytes().len);
 }
 
 /// Runs the logs opcode for the interpreter.
@@ -114,8 +114,8 @@ pub fn extCodeSizeInstruction(self: *Interpreter) HostInstructionErrors!void {
 pub inline fn logInstruction(self: *Interpreter, size: u8) (HostInstructionErrors || Memory.Error || error{Overflow})!void {
     std.debug.assert(!self.is_static); // Requires non static calls.
 
-    const offset = try self.stack.tryPopUnsafe();
-    const length = try self.stack.tryPopUnsafe();
+    const offset = self.stack.pop();
+    const length = self.stack.pop();
 
     const len = std.math.cast(usize, length) orelse return error.Overflow;
     try self.gas_tracker.updateTracker(gas.calculateLogCost(size, len) orelse return error.GasOverflow);
@@ -161,7 +161,7 @@ pub fn selfBalanceInstruction(self: *Interpreter) (HostInstructionErrors || erro
     const bal, _ = self.host.balance(self.contract.target_address) orelse return error.UnexpectedError;
 
     try self.gas_tracker.updateTracker(constants.FAST_STEP);
-    try self.stack.pushUnsafe(bal);
+    self.stack.appendAssumeCapacity(bal);
 }
 
 /// Runs the selfbalance opcode for the interpreter.
@@ -169,7 +169,7 @@ pub fn selfBalanceInstruction(self: *Interpreter) (HostInstructionErrors || erro
 pub fn selfDestructInstruction(self: *Interpreter) HostInstructionErrors!void {
     std.debug.assert(!self.is_static); // requires non static calls.
 
-    const address = try self.stack.tryPopUnsafe();
+    const address = self.stack.pop();
     const result = self.host.selfDestruct(self.contract.target_address, @bitCast(@as(u160, @intCast(address)))) catch return error.UnexpectedError;
 
     if (self.spec.enabled(.LONDON) and !result.data.previously_destroyed)
@@ -184,14 +184,14 @@ pub fn selfDestructInstruction(self: *Interpreter) HostInstructionErrors!void {
 /// Runs the sload opcode for the interpreter.
 /// 0x54 -> SLOAD
 pub fn sloadInstruction(self: *Interpreter) HostInstructionErrors!void {
-    const index = try self.stack.tryPopUnsafe();
+    const index = self.stack.pop();
 
     const value = self.host.sload(self.contract.target_address, index) catch return error.UnexpectedError;
 
     const gas_usage = gas.calculateSloadCost(self.spec, value.cold);
     try self.gas_tracker.updateTracker(gas_usage);
 
-    try self.stack.pushUnsafe(value.data);
+    self.stack.appendAssumeCapacity(value.data);
 }
 
 /// Runs the sstore opcode for the interpreter.
@@ -199,8 +199,8 @@ pub fn sloadInstruction(self: *Interpreter) HostInstructionErrors!void {
 pub fn sstoreInstruction(self: *Interpreter) HostInstructionErrors!void {
     std.debug.assert(!self.is_static); // Requires non static calls.
 
-    const index = try self.stack.tryPopUnsafe();
-    const value = try self.stack.tryPopUnsafe();
+    const index = self.stack.pop();
+    const value = self.stack.pop();
 
     const result = self.host.sstore(self.contract.target_address, index, value) catch return error.UnexpectedError;
     const gas_remaining = self.gas_tracker.availableGas();
@@ -229,12 +229,12 @@ pub fn tloadInstruction(self: *Interpreter) (Interpreter.InstructionErrors || er
     if (!self.spec.enabled(.CANCUN))
         return error.InstructionNotEnabled;
 
-    const index = try self.stack.tryPopUnsafe();
+    const index = self.stack.pop();
 
     const load = self.host.tload(self.contract.target_address, index);
     try self.gas_tracker.updateTracker(constants.WARM_STORAGE_READ_COST);
 
-    try self.stack.pushUnsafe(load orelse 0);
+    self.stack.appendAssumeCapacity(load orelse 0);
 }
 
 /// Runs the tstore opcode for the interpreter.
@@ -245,8 +245,8 @@ pub fn tstoreInstruction(self: *Interpreter) (HostInstructionErrors || error{Ins
     if (!self.spec.enabled(.CANCUN))
         return error.InstructionNotEnabled;
 
-    const index = try self.stack.tryPopUnsafe();
-    const value = try self.stack.tryPopUnsafe();
+    const index = self.stack.pop();
+    const value = self.stack.pop();
 
     self.host.tstore(self.contract.target_address, index, value) catch return error.UnexpectedError;
     try self.gas_tracker.updateTracker(constants.WARM_STORAGE_READ_COST);

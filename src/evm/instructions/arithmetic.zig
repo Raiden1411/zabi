@@ -5,46 +5,11 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Interpreter = @import("../Interpreter.zig");
 
-/// Performs add instruction for the interpreter.
-/// ADD -> 0x01
-pub fn addInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
-
-    const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPeek();
-
-    second.* = first +% second.*;
-}
-
-/// Performs div instruction for the interpreter.
-/// DIV -> 0x04
-pub fn divInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(constants.FAST_STEP);
-
-    const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPeek();
-
-    if (second.* == 0) {
-        @branchHint(.cold);
-
-        return;
-    }
-
-    if (fitsInU128(first) and fitsInU128(second.*)) {
-        @branchHint(.likely);
-        second.* = @as(u128, @truncate(first)) / @as(u128, @truncate(second.*));
-
-        return;
-    }
-
-    second.* = first / second.*;
-}
-
 /// Performs exponent instruction for the interpreter.
 /// EXP -> 0x0A
 pub fn exponentInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{Overflow})!void {
-    const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPeek();
+    const first = self.stack.pop();
+    const second = self.stack.peek();
 
     const exp_gas = try gas.calculateExponentCost(second.*, self.spec);
     try self.gas_tracker.updateTracker(exp_gas);
@@ -59,37 +24,13 @@ pub fn exponentInstruction(self: *Interpreter) (Interpreter.InstructionErrors ||
 pub fn modAdditionInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.MID_STEP);
 
-    const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPopUnsafe();
-    const third = try self.stack.tryPeek();
+    const first = self.stack.pop();
+    const second = self.stack.pop();
+    const third = self.stack.peek();
 
     const add = first +% second;
 
     third.* = if (third.* == 0) add else @mod(add, third.*);
-}
-
-/// Performs mod instruction for the interpreter.
-/// MOD -> 0x06
-pub fn modInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(constants.FAST_STEP);
-
-    const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPeek();
-
-    if (second.* == 0) {
-        @branchHint(.cold);
-
-        return;
-    }
-
-    if (fitsInU128(first) and fitsInU128(second.*)) {
-        @branchHint(.likely);
-        second.* = @as(u128, @truncate(first)) % @as(u128, @truncate(second.*));
-
-        return;
-    }
-
-    second.* = @mod(first, second.*);
 }
 
 /// Performs mul + mod instruction for the interpreter.
@@ -97,9 +38,9 @@ pub fn modInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
 pub fn modMultiplicationInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.MID_STEP);
 
-    const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPopUnsafe();
-    const third = try self.stack.tryPeek();
+    const first = self.stack.pop();
+    const second = self.stack.pop();
+    const third = self.stack.peek();
 
     const mul = first *% second;
 
@@ -113,62 +54,13 @@ pub fn modMultiplicationInstruction(self: *Interpreter) Interpreter.InstructionE
     third.* = @mod(mul, third.*);
 }
 
-/// Performs mul instruction for the interpreter.
-/// MUL -> 0x02
-pub fn mulInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(constants.FAST_STEP);
-
-    const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPeek();
-
-    const mul = first *% second.*;
-
-    second.* = mul;
-}
-
-/// Performs signed division instruction for the interpreter.
-/// SDIV -> 0x05
-pub fn signedDivInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(constants.FAST_STEP);
-
-    const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPeek();
-
-    if (second.* == 0) {
-        @branchHint(.unlikely);
-        second.* = 0;
-
-        return;
-    }
-
-    const casted_first: i256 = @bitCast(first);
-    const casted_second: i256 = @bitCast(second.*);
-
-    const sign: u256 = @bitCast((casted_first ^ casted_second) >> 255);
-
-    const abs_n = (casted_first ^ (casted_first >> 255)) -% (casted_first >> 255);
-    const abs_d = (casted_second ^ (casted_second >> 255)) -% (casted_second >> 255);
-
-    const abs_n_u: u256 = @bitCast(abs_n);
-    const abs_d_u: u256 = @bitCast(abs_d);
-
-    const res = blk: {
-        if (fitsInU128(abs_n_u) and fitsInU128(abs_d_u)) {
-            @branchHint(.likely);
-            break :blk @as(u128, @truncate(abs_n_u)) / @as(u128, @truncate(abs_d_u));
-        } else break :blk abs_n_u / abs_d_u;
-    };
-
-    second.* = (res ^ sign) -% sign;
-}
-
 /// Performs signextend instruction for the interpreter.
 /// SIGNEXTEND -> 0x0B
 pub fn signExtendInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.FAST_STEP);
 
-    const ext = try self.stack.tryPopUnsafe();
-    const x = try self.stack.tryPopUnsafe();
+    const ext = self.stack.pop();
+    const x = self.stack.pop();
 
     if (ext < 31) {
         const bit_index: usize = 8 * @as(usize, @intCast(ext)) + 7;
@@ -176,9 +68,9 @@ pub fn signExtendInstruction(self: *Interpreter) Interpreter.InstructionErrors!v
         const value_mask = mask - 1;
 
         const neg = (x & mask) != 0;
-        try self.stack.pushUnsafe(if (neg) x | ~value_mask else x & value_mask);
+        self.stack.appendAssumeCapacity(if (neg) x | ~value_mask else x & value_mask);
     } else {
-        try self.stack.pushUnsafe(x);
+        self.stack.appendAssumeCapacity(x);
     }
 }
 
@@ -187,8 +79,8 @@ pub fn signExtendInstruction(self: *Interpreter) Interpreter.InstructionErrors!v
 pub fn signedModInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.FAST_STEP);
 
-    const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPeek();
+    const first = self.stack.pop();
+    const second = self.stack.peek();
 
     if (second.* == 0) {
         @branchHint(.cold);
@@ -215,19 +107,6 @@ pub fn signedModInstruction(self: *Interpreter) Interpreter.InstructionErrors!vo
     // Apply sign of dividend
     const sign: u256 = @bitCast(casted_first >> 255);
     second.* = (abs_res ^ sign) -% sign;
-}
-
-/// Performs sub instruction for the interpreter.
-/// SUB -> 0x03
-pub fn subInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
-    try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
-
-    const first = try self.stack.tryPopUnsafe();
-    const second = try self.stack.tryPeek();
-
-    const sub = first -% second.*;
-
-    second.* = sub;
 }
 
 /// Check if a u256 fits in u128 by examining the high bits.

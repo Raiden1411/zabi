@@ -12,22 +12,22 @@ const Memory = @import("../memory.zig").Memory;
 /// 0x30 -> ADDRESS
 pub fn addressInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
-    try self.stack.pushUnsafe(@as(u160, @bitCast(self.contract.target_address)));
+    self.stack.appendAssumeCapacity(@as(u160, @bitCast(self.contract.target_address)));
 }
 
 /// Runs the caller instructions opcodes for the interpreter.
 /// 0x33 -> CALLER
 pub fn callerInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
-    try self.stack.pushUnsafe(@as(u160, @bitCast(self.contract.caller)));
+    self.stack.appendAssumeCapacity(@as(u160, @bitCast(self.contract.caller)));
 }
 
 /// Runs the calldatacopy instructions opcodes for the interpreter.
 /// 0x35 -> CALLDATACOPY
 pub fn callDataCopyInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
-    const offset = try self.stack.tryPopUnsafe();
-    const data = try self.stack.tryPopUnsafe();
-    const length = try self.stack.tryPopUnsafe();
+    const offset = self.stack.pop();
+    const data = self.stack.pop();
+    const length = self.stack.pop();
 
     const len = std.math.cast(usize, length) orelse return error.Overflow;
 
@@ -47,7 +47,7 @@ pub fn callDataCopyInstruction(self: *Interpreter) (Interpreter.InstructionError
 pub fn callDataLoadInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{Overflow})!void {
     try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
-    const first = try self.stack.tryPopUnsafe();
+    const first = self.stack.pop();
     const offset = std.math.cast(usize, first) orelse return error.Overflow;
 
     var buffer: [32]u8 = [_]u8{0} ** 32;
@@ -61,7 +61,7 @@ pub fn callDataLoadInstruction(self: *Interpreter) (Interpreter.InstructionError
 
     const as_int = std.mem.readInt(u256, &buffer, .big);
 
-    try self.stack.pushUnsafe(as_int);
+    self.stack.appendAssumeCapacity(as_int);
 }
 
 /// Runs the calldatasize instructions opcodes for the interpreter.
@@ -69,7 +69,7 @@ pub fn callDataLoadInstruction(self: *Interpreter) (Interpreter.InstructionError
 pub fn callDataSizeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
 
-    try self.stack.pushUnsafe(self.contract.input.len);
+    self.stack.appendAssumeCapacity(self.contract.input.len);
 }
 
 /// Runs the calldatasize instructions opcodes for the interpreter.
@@ -77,15 +77,15 @@ pub fn callDataSizeInstruction(self: *Interpreter) Interpreter.InstructionErrors
 pub fn callValueInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
 
-    try self.stack.pushUnsafe(self.contract.value);
+    self.stack.appendAssumeCapacity(self.contract.value);
 }
 
 /// Runs the codecopy instructions opcodes for the interpreter.
 /// 0x39 -> CODECOPY
 pub fn codeCopyInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
-    const offset = try self.stack.tryPopUnsafe();
-    const code = try self.stack.tryPopUnsafe();
-    const length = try self.stack.tryPopUnsafe();
+    const offset = self.stack.pop();
+    const code = self.stack.pop();
+    const length = self.stack.pop();
 
     const len = std.math.cast(usize, length) orelse return error.Overflow;
 
@@ -104,7 +104,7 @@ pub fn codeCopyInstruction(self: *Interpreter) (Interpreter.InstructionErrors ||
 /// 0x38 -> CODESIZE
 pub fn codeSizeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
-    try self.stack.pushUnsafe(self.contract.bytecode.getCodeBytes().len);
+    self.stack.appendAssumeCapacity(self.contract.bytecode.getCodeBytes().len);
 }
 
 /// Runs the gas instructions opcodes for the interpreter.
@@ -112,14 +112,14 @@ pub fn codeSizeInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
 pub fn gasInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
 
-    try self.stack.pushUnsafe(self.gas_tracker.availableGas());
+    self.stack.appendAssumeCapacity(self.gas_tracker.availableGas());
 }
 
 /// Runs the keccak instructions opcodes for the interpreter.
 /// 0x20 -> KECCAK
 pub fn keccakInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
-    const offset = try self.stack.tryPopUnsafe();
-    const length = try self.stack.tryPeek();
+    const offset = self.stack.pop();
+    const length = self.stack.peek();
 
     const len = std.math.cast(usize, length.*) orelse return error.Overflow;
     const offset_usize = std.math.cast(usize, offset) orelse return error.Overflow;
@@ -151,15 +151,15 @@ pub fn returnDataSizeInstruction(self: *Interpreter) (Interpreter.InstructionErr
         return error.InstructionNotEnabled;
 
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
-    try self.stack.pushUnsafe(self.return_data.len);
+    self.stack.appendAssumeCapacity(self.return_data.len);
 }
 
 /// Runs the returndatasize instructions opcodes for the interpreter.
 /// 0x3E -> RETURNDATASIZE
 pub fn returnDataCopyInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
-    const offset = try self.stack.tryPopUnsafe();
-    const data = try self.stack.tryPopUnsafe();
-    const length = try self.stack.tryPopUnsafe();
+    const offset = self.stack.pop();
+    const data = self.stack.pop();
+    const length = self.stack.pop();
 
     const len = std.math.cast(usize, length) orelse return error.Overflow;
 

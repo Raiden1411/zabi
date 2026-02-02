@@ -12,8 +12,6 @@ pub const enviroment = @import("enviroment.zig");
 pub const host = @import("host.zig");
 /// Memory interpreter instructions
 pub const memory = @import("memory.zig");
-/// Stack interpreter instructions
-pub const stack = @import("stack.zig");
 /// System interpreter instructions
 pub const system = @import("system.zig");
 
@@ -25,6 +23,5 @@ test {
     _ = @import("enviroment.zig");
     _ = @import("host.zig");
     _ = @import("memory.zig");
-    _ = @import("stack.zig");
     _ = @import("system.zig");
 }

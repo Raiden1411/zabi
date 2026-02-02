@@ -1,4 +1,5 @@
 const actions = @import("actions.zig");
+const constants = zabi_utils.constants;
 const contract_type = @import("contract.zig");
 const gas = @import("gas_tracker.zig");
 const host_type = @import("host.zig");
@@ -7,19 +8,22 @@ const opcode = @import("opcodes.zig");
 const specid = @import("specification.zig");
 const std = @import("std");
 const testing = std.testing;
+const utils = zabi_utils.utils;
+const zabi_utils = @import("zabi-utils");
 
 const Allocator = std.mem.Allocator;
 const CallAction = actions.CallAction;
 const Contract = contract_type.Contract;
 const CreateAction = actions.CreateAction;
 const GasTracker = gas.GasTracker;
-const InstructionTable = opcode.InstructionTable;
 const Host = host_type.Host;
+const InstructionTable = opcode.InstructionTable;
 const Memory = mem.Memory;
+const Opcodes = opcode.Opcodes;
 const PlainHost = host_type.PlainHost;
 const ReturnAction = actions.ReturnAction;
 const SpecId = specid.SpecId;
-const Stack = @import("zabi-utils").stack.BoundedStack(1024);
+const Stack = zabi_utils.stack.BoundedStack(1024);
 
 const Interpreter = @This();
 
@@ -82,7 +86,6 @@ pub const InterpreterStatus = enum {
     call_with_value_not_allowed_in_static_call,
     create_code_size_limit,
     invalid,
-    invalid_jump,
     invalid_offset,
     opcode_not_found,
     returned,
@@ -193,27 +196,6 @@ pub fn advanceProgramCounter(self: *Interpreter) void {
     self.program_counter += 1;
 }
 
-/// Runs a single instruction based on the `program_counter`
-/// position and the associated bytecode. Doesn't move the counter.
-pub fn runInstruction(self: *Interpreter) AllInstructionErrors!void {
-    const opcode_bit = self.code[self.program_counter];
-
-    const operation = opcode.instruction_table.getInstruction(opcode_bit);
-    const stack_height = self.stack.stackHeight();
-
-    if (stack_height < operation.min_stack) {
-        @branchHint(.unlikely);
-        return error.StackUnderflow;
-    }
-
-    if (stack_height > operation.max_stack) {
-        @branchHint(.unlikely);
-        return error.StackOverflow;
-    }
-
-    return @errorCast(operation.execution(self));
-}
-
 /// Runs the associated contract bytecode.
 ///
 /// Depending on the interperter final `status` this can return errors.\
@@ -247,32 +229,359 @@ pub fn runInstruction(self: *Interpreter) AllInstructionErrors!void {
 /// defer result.deinit(testing.allocator);
 /// ```
 pub fn run(self: *Interpreter) (AllInstructionErrors || InterpreterStatusErrors)!InterpreterActions {
-    while (self.status == .running) : (self.advanceProgramCounter())
-        try self.runInstruction();
+    while (self.status == .running) {
+        const op = self.code[self.program_counter];
+        self.advanceProgramCounter();
 
-    // Handles the different status of the interperter after it's finished
+        const operation = opcode.instruction_table.getInstruction(op);
+        const stack_height = self.stack.stackHeight();
+
+        if (stack_height < operation.min_stack) {
+            @branchHint(.unlikely);
+            return error.StackUnderflow;
+        }
+
+        if (stack_height > operation.max_stack) {
+            @branchHint(.unlikely);
+            return error.StackOverflow;
+        }
+
+        switch (op) {
+            @intFromEnum(Opcodes.JUMP) => {
+                try self.gas_tracker.updateTracker(constants.MID_STEP);
+
+                const target = self.stack.pop();
+                const target_usize = std.math.cast(usize, target) orelse {
+                    @branchHint(.unlikely);
+                    return error.InvalidJump;
+                };
+
+                if (!self.contract.isValidJump(target_usize)) {
+                    @branchHint(.unlikely);
+                    return error.InvalidJump;
+                }
+
+                self.program_counter = target_usize;
+            },
+            @intFromEnum(Opcodes.JUMPI) => {
+                try self.gas_tracker.updateTracker(constants.MID_STEP);
+
+                const target = self.stack.pop();
+                const condition = self.stack.pop();
+
+                if (condition != 0) {
+                    const target_usize = std.math.cast(usize, target) orelse {
+                        @branchHint(.unlikely);
+                        return error.InvalidJump;
+                    };
+
+                    if (!self.contract.isValidJump(target_usize)) {
+                        @branchHint(.unlikely);
+                        return error.InvalidJump;
+                    }
+
+                    self.program_counter = target_usize;
+                }
+            },
+            @intFromEnum(Opcodes.JUMPDEST) => try self.gas_tracker.updateTracker(constants.JUMPDEST),
+            @intFromEnum(Opcodes.POP) => {
+                try self.gas_tracker.updateTracker(constants.QUICK_STEP);
+                _ = self.stack.pop();
+            },
+            @intFromEnum(Opcodes.PUSH0) => {
+                if (!self.spec.enabled(.SHANGHAI)) {
+                    @branchHint(.unlikely);
+                    return error.OpcodeNotFound;
+                }
+
+                try self.gas_tracker.updateTracker(constants.QUICK_STEP);
+                self.stack.appendAssumeCapacity(0);
+            },
+            @intFromEnum(Opcodes.PUSH1)...@intFromEnum(Opcodes.PUSH32) => |push_op| {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const size: usize = push_op - 0x5f;
+                const end = @min(self.program_counter + size, self.code.len);
+
+                var value: u256 = 0;
+                for (self.code[self.program_counter..end]) |byte|
+                    value = (value << 8) | byte;
+
+                self.stack.appendAssumeCapacity(value);
+                self.program_counter += size;
+            },
+            @intFromEnum(Opcodes.DUP1)...@intFromEnum(Opcodes.DUP16) => |dup_op| {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+                const position: usize = dup_op - 0x7f;
+
+                self.stack.dup(position);
+            },
+            @intFromEnum(Opcodes.SWAP1)...@intFromEnum(Opcodes.SWAP16) => |swap_op| {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+                const position: usize = swap_op - 0x8f;
+
+                self.stack.swapToTop(position);
+            },
+            @intFromEnum(Opcodes.ADD) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const a = self.stack.pop();
+                const b = self.stack.peek();
+
+                b.* = a +% b.*;
+            },
+            @intFromEnum(Opcodes.SUB) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const a = self.stack.pop();
+                const b = self.stack.peek();
+
+                b.* = a -% b.*;
+            },
+            @intFromEnum(Opcodes.MUL) => {
+                try self.gas_tracker.updateTracker(constants.FAST_STEP);
+
+                const a = self.stack.pop();
+                const b = self.stack.peek();
+
+                b.* = a *% b.*;
+            },
+            @intFromEnum(Opcodes.DIV) => {
+                try self.gas_tracker.updateTracker(constants.FAST_STEP);
+
+                const a = self.stack.pop();
+                const b = self.stack.peek();
+
+                if (b.* == 0) {
+                    @branchHint(.cold);
+                    continue;
+                }
+
+                b.* = a / b.*;
+            },
+            @intFromEnum(Opcodes.SDIV) => {
+                try self.gas_tracker.updateTracker(constants.FAST_STEP);
+
+                const a = self.stack.pop();
+                const b = self.stack.peek();
+
+                if (b.* == 0) {
+                    @branchHint(.unlikely);
+                    continue;
+                }
+
+                const casted_first: i256 = @bitCast(a);
+                const casted_second: i256 = @bitCast(b.*);
+
+                const sign: u256 = @bitCast((casted_first ^ casted_second) >> 255);
+
+                const abs_n = (casted_first ^ (casted_first >> 255)) -% (casted_first >> 255);
+                const abs_d = (casted_second ^ (casted_second >> 255)) -% (casted_second >> 255);
+
+                const abs_n_u: u256 = @bitCast(abs_n);
+                const abs_d_u: u256 = @bitCast(abs_d);
+
+                const res = blk: {
+                    if (utils.fitsInU128(abs_n_u) and utils.fitsInU128(abs_d_u)) {
+                        @branchHint(.likely);
+                        break :blk @as(u128, @truncate(abs_n_u)) / @as(u128, @truncate(abs_d_u));
+                    } else break :blk abs_n_u / abs_d_u;
+                };
+
+                b.* = (res ^ sign) -% sign;
+            },
+            @intFromEnum(Opcodes.MOD) => {
+                try self.gas_tracker.updateTracker(constants.FAST_STEP);
+
+                const a = self.stack.pop();
+                const b = self.stack.peek();
+
+                if (b.* == 0) {
+                    @branchHint(.unlikely);
+                    continue;
+                }
+
+                b.* = @mod(a, b.*);
+            },
+            @intFromEnum(Opcodes.ISZERO) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const a = self.stack.peek();
+                a.* = @intFromBool(a.* == 0);
+            },
+            @intFromEnum(Opcodes.LT) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const a = self.stack.pop();
+                const b = self.stack.peek();
+
+                b.* = @intFromBool(a < b.*);
+            },
+            @intFromEnum(Opcodes.GT) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const a = self.stack.pop();
+                const b = self.stack.peek();
+
+                b.* = @intFromBool(a > b.*);
+            },
+            @intFromEnum(Opcodes.SLT) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const a = self.stack.pop();
+                const b = self.stack.peek();
+
+                b.* = @intFromBool(@as(i256, @bitCast(a)) < @as(i256, @bitCast(b.*)));
+            },
+            @intFromEnum(Opcodes.SGT) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const a = self.stack.pop();
+                const b = self.stack.peek();
+
+                b.* = @intFromBool(@as(i256, @bitCast(a)) > @as(i256, @bitCast(b.*)));
+            },
+            @intFromEnum(Opcodes.EQ) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const a = self.stack.pop();
+                const b = self.stack.peek();
+
+                b.* = @intFromBool(a == b.*);
+            },
+            @intFromEnum(Opcodes.AND) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const a = self.stack.pop();
+                const b = self.stack.peek();
+
+                b.* = a & b.*;
+            },
+            @intFromEnum(Opcodes.OR) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const a = self.stack.pop();
+                const b = self.stack.peek();
+
+                b.* = a | b.*;
+            },
+            @intFromEnum(Opcodes.XOR) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const a = self.stack.pop();
+                const b = self.stack.peek();
+
+                b.* = a ^ b.*;
+            },
+            @intFromEnum(Opcodes.NOT) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const a = self.stack.peek();
+                a.* = ~a.*;
+            },
+            @intFromEnum(Opcodes.SHL) => {
+                try self.gas_tracker.updateTracker(constants.FAST_STEP);
+
+                const shift = self.stack.pop();
+                const value = self.stack.peek();
+
+                value.* = std.math.shl(u256, value.*, shift);
+            },
+            @intFromEnum(Opcodes.SHR) => {
+                try self.gas_tracker.updateTracker(constants.FAST_STEP);
+
+                const shift = self.stack.pop();
+                const value = self.stack.peek();
+
+                value.* = std.math.shr(u256, value.*, shift);
+            },
+            @intFromEnum(Opcodes.BYTE) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const i = self.stack.pop();
+                const x = self.stack.peek();
+
+                if (i >= 32) {
+                    @branchHint(.unlikely);
+                    x.* = 0;
+                    continue;
+                }
+
+                x.* = (x.* >> @intCast((31 - i) * 8)) & 0xff;
+            },
+            @intFromEnum(Opcodes.MLOAD) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const offset = self.stack.peek();
+                const as_usize = std.math.cast(usize, offset.*) orelse {
+                    @branchHint(.unlikely);
+                    return error.InvalidOffset;
+                };
+
+                const new_size = as_usize +| 32;
+                try self.resize(new_size);
+
+                offset.* = self.memory.wordToInt(as_usize);
+            },
+            @intFromEnum(Opcodes.MSTORE) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const offset = self.stack.pop();
+                const value = self.stack.pop();
+                const as_usize = std.math.cast(usize, offset) orelse {
+                    @branchHint(.unlikely);
+                    return error.Overflow;
+                };
+
+                const new_size = as_usize +| 32;
+                try self.resize(new_size);
+
+                self.memory.writeInt(as_usize, value);
+            },
+            @intFromEnum(Opcodes.MSTORE8) => {
+                try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
+
+                const offset = self.stack.pop();
+                const value = self.stack.pop();
+                const as_usize = std.math.cast(usize, offset) orelse {
+                    @branchHint(.unlikely);
+                    return error.Overflow;
+                };
+
+                const new_size = as_usize +| 1;
+                try self.resize(new_size);
+
+                self.memory.writeByte(as_usize, @truncate(value));
+            },
+            @intFromEnum(Opcodes.MSIZE) => {
+                try self.gas_tracker.updateTracker(constants.QUICK_STEP);
+                self.stack.appendAssumeCapacity(self.memory.getCurrentMemorySize());
+            },
+            else => try operation.execution(self),
+        }
+    }
+
+    // Handle the different status of the interpreter after it's finished
     switch (self.status) {
+        .running => unreachable,
         .opcode_not_found => return error.OpcodeNotFound,
         .call_with_value_not_allowed_in_static_call => return error.CallWithValueNotAllowedInStaticCall,
         .invalid => return error.InvalidInstructionOpcode,
         .reverted => return error.InterpreterReverted,
         .create_code_size_limit => return error.CreateCodeSizeLimit,
         .invalid_offset => return error.InvalidOffset,
-        .invalid_jump => return error.InvalidJump,
-        else => {},
-    }
-
-    switch (self.next_action) {
-        .return_action,
-        .call_action,
-        .create_action,
-        => return self.next_action,
-        .no_action,
-        => return .{
-            .return_action = .{
-                .gas = self.gas_tracker,
-                .output = try self.allocator.dupe(u8, self.return_data),
-                .result = self.status,
+        inline else => |status| switch (self.next_action) {
+            .return_action,
+            .call_action,
+            .create_action,
+            => return self.next_action,
+            .no_action,
+            => return .{
+                .return_action = .{
+                    .gas = self.gas_tracker,
+                    .output = try self.allocator.dupe(u8, self.return_data),
+                    .result = status,
+                },
             },
         },
     }

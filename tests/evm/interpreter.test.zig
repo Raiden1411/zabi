@@ -256,3 +256,81 @@ test "Running With Jump" {
         try testing.expectError(error.InvalidJump, interpreter.run());
     }
 }
+
+test "DUP and SWAP" {
+    // PUSH1 1, PUSH1 2, PUSH1 3, DUP2, SWAP1
+    var code = [_]u8{ 0x60, 0x01, 0x60, 0x02, 0x60, 0x03, 0x81, 0x90 };
+    const contract_instance = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &code },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract_instance.deinit(testing.allocator);
+
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
+
+    plain.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.deinit();
+
+    try interpreter.init(
+        testing.allocator,
+        &contract_instance,
+        plain.host(),
+        .{},
+    );
+
+    const result = try interpreter.run();
+    defer result.deinit(testing.allocator);
+
+    try testing.expect(result == .return_action);
+    try testing.expectEqual(.stopped, result.return_action.result);
+    // Stack should be: 1, 2, 2, 3 (after SWAP: 1, 2, 3, 2)
+    try testing.expectEqual(3, try interpreter.stack.tryPopUnsafe());
+    try testing.expectEqual(2, try interpreter.stack.tryPopUnsafe());
+    try testing.expectEqual(2, try interpreter.stack.tryPopUnsafe());
+    try testing.expectEqual(1, try interpreter.stack.tryPopUnsafe());
+}
+
+test "Memory Operations" {
+    // PUSH1 0x42, PUSH1 0, MSTORE, PUSH1 0, MLOAD
+    var code = [_]u8{ 0x60, 0x42, 0x60, 0x00, 0x52, 0x60, 0x00, 0x51 };
+    const contract_instance = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = &code },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract_instance.deinit(testing.allocator);
+
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
+
+    plain.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.deinit();
+
+    try interpreter.init(
+        testing.allocator,
+        &contract_instance,
+        plain.host(),
+        .{},
+    );
+
+    const result = try interpreter.run();
+    defer result.deinit(testing.allocator);
+
+    try testing.expect(result == .return_action);
+    try testing.expectEqual(.stopped, result.return_action.result);
+    try testing.expectEqual(0x42, try interpreter.stack.tryPopUnsafe());
+}

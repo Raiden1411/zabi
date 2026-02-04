@@ -23,11 +23,13 @@ For test filters this will only work if specifing the module names. To find them
 
 - Zig core: `src/`
 - Testing core: `tests/`
-- Builtin packages: `pkg/`
+- Builtin c packages: `pkg/`
 - Example code: `examples/`
 - Build code dependencies: `build/`
 
-## Core structure
+## Core structure / Module names
+
+- For module names remove the "src/"
 
 - `src/abi` has all solidity abi types and custom logic to handle json parsing. Also include dedicated methods for encoding and decoding
 - `src/types` has all types that are shared in zabi with custom json parsing.
@@ -42,7 +44,7 @@ For test filters this will only work if specifing the module names. To find them
 - `src/meta` custom implementation of json parsing to support hex encoded strings and also some compile time type generation.
 
 ## Testing stratagy
-- Unit tests in each module
+- Unit tests in each module. Error and Success cases must be added for new functionality.
 - Example projects that demonstrate module usage
 - Benchmark if needed when core logic is updated
 - Prefer the use of `zig build test -Dtest-filter="<module name>" -freference-trace=256 -Dload_variables` if not testing any RPC clients.
@@ -51,3 +53,9 @@ For test filters this will only work if specifing the module names. To find them
 When adding new features:
 - Include tests for new functionality
 - Update relevant examples if needed
+
+## General Contributing Guidelines
+
+This codebase will outlive you. Every shortcut becomes someone else's burden. Every hack compounds into technical debt that slows down development. 
+You are not just writting code. You are shaping the future of this project. The patterns you establish will be copied. The corners you cut will be cut again.
+Fight entropy. Leave the codebase better that you found it.

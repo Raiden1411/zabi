@@ -26,5 +26,8 @@ pub const opcode = @import("opcodes.zig");
 /// The EVM specifications by hardfork.
 pub const specification = @import("specification.zig");
 
+/// The EVM driver/orchestrator.
+pub const EVM = @import("Evm.zig");
+
 /// The EVM interpreter implementation.
 pub const Interpreter = @import("Interpreter.zig");

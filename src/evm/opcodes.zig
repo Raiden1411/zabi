@@ -45,7 +45,7 @@ pub const instruction_table = InstructionTable.generateTable(.{
     .CODECOPY = .{ .execution = instructions.system.codeCopyInstruction, .min_stack = stackBounds(1024, 3, 0).min_stack, .max_stack = stackBounds(1024, 3, 0).max_stack },
     .GASPRICE = .{ .execution = instructions.enviroment.gasPriceInstruction, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
     .EXTCODESIZE = .{ .execution = instructions.host.extCodeSizeInstruction, .min_stack = stackBounds(1024, 1, 1).min_stack, .max_stack = stackBounds(1024, 1, 1).max_stack },
-    .EXTCODECOPY = .{ .execution = instructions.host.extCodeSizeInstruction, .min_stack = stackBounds(1024, 4, 0).min_stack, .max_stack = stackBounds(1024, 4, 0).max_stack },
+    .EXTCODECOPY = .{ .execution = instructions.host.extCodeCopyInstruction, .min_stack = stackBounds(1024, 4, 0).min_stack, .max_stack = stackBounds(1024, 4, 0).max_stack },
     .RETURNDATASIZE = .{ .execution = instructions.system.returnDataSizeInstruction, .min_stack = stackBounds(1024, 0, 1).min_stack, .max_stack = stackBounds(1024, 0, 1).max_stack },
     .RETURNDATACOPY = .{ .execution = instructions.system.returnDataCopyInstruction, .min_stack = stackBounds(1024, 3, 0).min_stack, .max_stack = stackBounds(1024, 3, 0).max_stack },
     .EXTCODEHASH = .{ .execution = instructions.host.extCodeHashInstruction, .min_stack = stackBounds(1024, 1, 1).min_stack, .max_stack = stackBounds(1024, 1, 1).max_stack },

@@ -51,7 +51,7 @@ pub fn blockHashInstruction(self: *Interpreter) HostInstructionErrors!void {
 }
 
 /// Runs the extcodecopy opcode for the interpreter.
-/// 0x3B -> EXTCODECOPY
+/// 0x3C -> EXTCODECOPY
 pub fn extCodeCopyInstruction(self: *Interpreter) (HostInstructionErrors || Memory.Error || error{Overflow})!void {
     const address = self.stack.pop();
     const offset = self.stack.pop();

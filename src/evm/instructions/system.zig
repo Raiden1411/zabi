@@ -23,7 +23,7 @@ pub fn callerInstruction(self: *Interpreter) Interpreter.InstructionErrors!void 
 }
 
 /// Runs the calldatacopy instructions opcodes for the interpreter.
-/// 0x35 -> CALLDATACOPY
+/// 0x37 -> CALLDATACOPY
 pub fn callDataCopyInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
     const offset = self.stack.pop();
     const data = self.stack.pop();
@@ -43,7 +43,7 @@ pub fn callDataCopyInstruction(self: *Interpreter) (Interpreter.InstructionError
 }
 
 /// Runs the calldataload instructions opcodes for the interpreter.
-/// 0x37 -> CALLDATALOAD
+/// 0x35 -> CALLDATALOAD
 pub fn callDataLoadInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{Overflow})!void {
     try self.gas_tracker.updateTracker(constants.FASTEST_STEP);
 
@@ -108,7 +108,7 @@ pub fn codeSizeInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
 }
 
 /// Runs the gas instructions opcodes for the interpreter.
-/// 0x3A -> GAS
+/// 0x5A -> GAS
 pub fn gasInstruction(self: *Interpreter) Interpreter.InstructionErrors!void {
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
 
@@ -145,7 +145,7 @@ pub fn keccakInstruction(self: *Interpreter) (Interpreter.InstructionErrors || M
 }
 
 /// Runs the returndatasize instructions opcodes for the interpreter.
-/// 0x3D -> RETURNDATACOPY
+/// 0x3D -> RETURNDATASIZE
 pub fn returnDataSizeInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
     if (!self.spec.enabled(.BYZANTIUM))
         return error.InstructionNotEnabled;
@@ -154,8 +154,8 @@ pub fn returnDataSizeInstruction(self: *Interpreter) (Interpreter.InstructionErr
     self.stack.appendAssumeCapacity(self.return_data.len);
 }
 
-/// Runs the returndatasize instructions opcodes for the interpreter.
-/// 0x3E -> RETURNDATASIZE
+/// Runs the returndatacopy instructions opcodes for the interpreter.
+/// 0x3E -> RETURNDATACOPY
 pub fn returnDataCopyInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{Overflow})!void {
     const offset = self.stack.pop();
     const data = self.stack.pop();

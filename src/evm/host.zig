@@ -15,6 +15,7 @@ const Bytecode = @import("bytecode.zig").Bytecode;
 const EVMEnviroment = env.EVMEnviroment;
 const Hash = types.Hash;
 const JournaledState = journal.JournaledState;
+const JournalCheckpoint = journal.JournalCheckpoint;
 const Log = log_types.Log;
 const StateLoaded = journal.StateLoaded;
 const Storage = std.AutoHashMap(u256, u256);
@@ -97,16 +98,22 @@ pub const Host = struct {
         balance: *const fn (self: *anyopaque, address: Address) ?struct { u256, bool },
         /// Gets the block hash from a given block number
         blockHash: *const fn (self: *anyopaque, block_number: u64) ?Hash,
+        /// Creates a new checkpoint for state rollback and increases call depth.
+        checkpoint: *const fn (self: *anyopaque) anyerror!JournalCheckpoint,
         /// Gets the code of an `address` and if that address is cold.
         code: *const fn (self: *anyopaque, address: Address) ?struct { Bytecode, bool },
         /// Gets the code hash of an `address` and if that address is cold.
         codeHash: *const fn (self: *anyopaque, address: Address) ?struct { Hash, bool },
+        /// Commits the current checkpoint, making state changes permanent.
+        commitCheckpoint: *const fn (self: *anyopaque) void,
         /// Gets the host's `Enviroment`.
         getEnviroment: *const fn (self: *anyopaque) EVMEnviroment,
         /// Loads an account.
         loadAccount: *const fn (self: *anyopaque, address: Address) ?AccountResult,
         /// Emits a log owned by an address with the log data.
         log: *const fn (self: *anyopaque, log: Log) anyerror!void,
+        /// Reverts state changes back to the given checkpoint.
+        revertCheckpoint: *const fn (self: *anyopaque, checkpoint: JournalCheckpoint) anyerror!void,
         /// Sets the address to be deleted and any funds it might have to `target` address.
         selfDestruct: *const fn (self: *anyopaque, address: Address, target: Address) anyerror!StateLoaded(SelfDestructResult),
         /// Gets the storage value of an `address` at a given `index` and if that address is cold.
@@ -127,6 +134,10 @@ pub const Host = struct {
     pub inline fn blockHash(self: SelfHost, block_number: u64) ?Hash {
         return self.vtable.blockHash(self.ptr, block_number);
     }
+    /// Creates a new checkpoint for state rollback and increases call depth.
+    pub inline fn checkpoint(self: SelfHost) anyerror!JournalCheckpoint {
+        return self.vtable.checkpoint(self.ptr);
+    }
     /// Gets the code of an `address` and if that address is cold.
     pub inline fn code(self: SelfHost, address: Address) ?struct { Bytecode, bool } {
         return self.vtable.code(self.ptr, address);
@@ -135,7 +146,11 @@ pub const Host = struct {
     pub inline fn codeHash(self: SelfHost, address: Address) ?struct { Hash, bool } {
         return self.vtable.codeHash(self.ptr, address);
     }
-    /// Gets the code hash of an `address` and if that address is cold.
+    /// Commits the current checkpoint, making state changes permanent.
+    pub inline fn commitCheckpoint(self: SelfHost) void {
+        return self.vtable.commitCheckpoint(self.ptr);
+    }
+    /// Gets the host's `Enviroment`.
     pub inline fn getEnviroment(self: SelfHost) EVMEnviroment {
         return self.vtable.getEnviroment(self.ptr);
     }
@@ -146,6 +161,10 @@ pub const Host = struct {
     /// Emits a log owned by an address with the log data.
     pub inline fn log(self: SelfHost, log_event: Log) anyerror!void {
         return self.vtable.log(self.ptr, log_event);
+    }
+    /// Reverts state changes back to the given checkpoint.
+    pub inline fn revertCheckpoint(self: SelfHost, point: JournalCheckpoint) anyerror!void {
+        return self.vtable.revertCheckpoint(self.ptr, point);
     }
     /// Sets the address to be deleted and any funds it might have to `target` address.
     pub inline fn selfDestruct(self: SelfHost, address: Address, target: Address) anyerror!StateLoaded(SelfDestructResult) {
@@ -163,7 +182,7 @@ pub const Host = struct {
     pub inline fn tload(self: SelfHost, address: Address, index: u256) ?u256 {
         return self.vtable.tload(self.ptr, address, index);
     }
-    /// Emits a log owned by an address with the log data.
+    /// Sets the transient storage value of an `address` at a given `index`.
     pub inline fn tstore(self: SelfHost, address: Address, index: u256, value: u256) anyerror!void {
         return self.vtable.tstore(self.ptr, address, index, value);
     }
@@ -189,7 +208,7 @@ pub const PlainHost = struct {
         const logs = ArrayList(Log).init(allocator);
 
         self.* = .{
-            .env = EVMEnviroment.default(),
+            .env = .{},
             .storage = storage,
             .transient_storage = transient_storage,
             .log_storage = logs,
@@ -205,6 +224,7 @@ pub const PlainHost = struct {
         self.storage.deinit();
         self.transient_storage.deinit();
     }
+
     /// Returns the `Host` implementation for this instance.
     pub fn host(self: *Self) Host {
         return .{
@@ -212,11 +232,14 @@ pub const PlainHost = struct {
             .vtable = &.{
                 .balance = balance,
                 .blockHash = blockHash,
+                .checkpoint = checkpoint,
                 .code = code,
                 .codeHash = codeHash,
+                .commitCheckpoint = commitCheckpoint,
                 .getEnviroment = getEnviroment,
                 .loadAccount = loadAccount,
                 .log = log,
+                .revertCheckpoint = revertCheckpoint,
                 .selfDestruct = selfDestruct,
                 .sload = sload,
                 .sstore = sstore,
@@ -234,6 +257,10 @@ pub const PlainHost = struct {
         return [_]u8{0} ** 32;
     }
 
+    fn checkpoint(_: *anyopaque) error{}!JournalCheckpoint {
+        return .{ .journal_checkpoint = 0, .logs_checkpoint = 0 };
+    }
+
     fn code(_: *anyopaque, _: Address) ?struct { Bytecode, bool } {
         return .{ .{ .raw = &[_]u8{} }, false };
     }
@@ -241,6 +268,8 @@ pub const PlainHost = struct {
     fn codeHash(_: *anyopaque, _: Address) ?struct { Hash, bool } {
         return .{ [_]u8{0} ** 32, false };
     }
+
+    fn commitCheckpoint(_: *anyopaque) void {}
 
     fn getEnviroment(ctx: *anyopaque) EVMEnviroment {
         const self: *Self = @ptrCast(@alignCast(ctx));
@@ -258,6 +287,8 @@ pub const PlainHost = struct {
         try self.log_storage.ensureUnusedCapacity(1);
         self.log_storage.appendAssumeCapacity(log_event);
     }
+
+    fn revertCheckpoint(_: *anyopaque, _: JournalCheckpoint) error{}!void {}
 
     fn selfDestruct(_: *anyopaque, _: Address, _: Address) error{}!StateLoaded(SelfDestructResult) {
         @panic("selfDestruct is not implemented on this host");
@@ -350,11 +381,14 @@ pub const JournaledHost = struct {
             .vtable = &.{
                 .balance = balance,
                 .blockHash = blockHash,
+                .checkpoint = checkpoint,
                 .code = code,
                 .codeHash = codeHash,
+                .commitCheckpoint = commitCheckpoint,
                 .getEnviroment = getEnviroment,
                 .loadAccount = loadAccount,
                 .log = log,
+                .revertCheckpoint = revertCheckpoint,
                 .selfDestruct = selfDestruct,
                 .sload = sload,
                 .sstore = sstore,
@@ -365,8 +399,8 @@ pub const JournaledHost = struct {
     }
 
     // Implementation of the interface.
-    pub fn balance(ctx: *anyopaque, address: Address) ?struct { u256, bool } {
-        const self: Self = @ptrCast(@alignCast(ctx));
+    fn balance(ctx: *anyopaque, address: Address) ?struct { u256, bool } {
+        const self: *Self = @ptrCast(@alignCast(ctx));
         const account = self.journal.loadAccount(address) catch return null;
 
         return .{
@@ -375,8 +409,8 @@ pub const JournaledHost = struct {
         };
     }
 
-    pub fn blockHash(ctx: *anyopaque, number: u64) ?Hash {
-        const self: Self = @ptrCast(@alignCast(ctx));
+    fn blockHash(ctx: *anyopaque, number: u64) ?Hash {
+        const self: *Self = @ptrCast(@alignCast(ctx));
 
         const diff, const overflow = @subWithOverflow(self.env.block.number, number);
 
@@ -392,8 +426,13 @@ pub const JournaledHost = struct {
         }
     }
 
-    pub fn code(ctx: *anyopaque, address: Address) ?struct { Bytecode, bool } {
-        const self: Self = @ptrCast(@alignCast(ctx));
+    fn checkpoint(ctx: *anyopaque) anyerror!JournalCheckpoint {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        return self.journal.checkpoint();
+    }
+
+    fn code(ctx: *anyopaque, address: Address) ?struct { Bytecode, bool } {
+        const self: *Self = @ptrCast(@alignCast(ctx));
 
         const account = self.journal.loadCode(address) catch return null;
 
@@ -403,8 +442,8 @@ pub const JournaledHost = struct {
         };
     }
 
-    pub fn codeHash(ctx: *anyopaque, address: Address) ?struct { Hash, bool } {
-        const self: Self = @ptrCast(@alignCast(ctx));
+    fn codeHash(ctx: *anyopaque, address: Address) ?struct { Hash, bool } {
+        const self: *Self = @ptrCast(@alignCast(ctx));
 
         const account = self.journal.loadCode(address) catch return null;
 
@@ -414,13 +453,18 @@ pub const JournaledHost = struct {
         };
     }
 
-    pub fn getEnviroment(ctx: *anyopaque) EVMEnviroment {
+    fn commitCheckpoint(ctx: *anyopaque) void {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        self.journal.commitCheckpoint();
+    }
+
+    fn getEnviroment(ctx: *anyopaque) EVMEnviroment {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
         return self.env;
     }
 
-    pub fn loadAccount(ctx: *anyopaque, address: Address) ?AccountResult {
+    fn loadAccount(ctx: *anyopaque, address: Address) ?AccountResult {
         const self: *Self = @ptrCast(@alignCast(ctx));
         const account = self.journal.loadAccount(address) catch return null;
 
@@ -430,14 +474,19 @@ pub const JournaledHost = struct {
         };
     }
 
-    pub fn log(ctx: *anyopaque, log_event: Log) !void {
+    fn log(ctx: *anyopaque, log_event: Log) !void {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
         try self.journal.log_storage.ensureUnusedCapacity(1);
         self.journal.log_storage.appendAssumeCapacity(log_event);
     }
 
-    pub fn selfDestruct(ctx: *anyopaque, from: Address, target: Address) !StateLoaded(SelfDestructResult) {
+    fn revertCheckpoint(ctx: *anyopaque, point: JournalCheckpoint) anyerror!void {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        return self.journal.revertCheckpoint(point);
+    }
+
+    fn selfDestruct(ctx: *anyopaque, from: Address, target: Address) !StateLoaded(SelfDestructResult) {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
         const result = try self.journal.selfDestruct(from, target);
@@ -445,25 +494,25 @@ pub const JournaledHost = struct {
         return result.data;
     }
 
-    pub fn sload(ctx: *anyopaque, address: Address, index: u256) !StateLoaded(u256) {
+    fn sload(ctx: *anyopaque, address: Address, index: u256) !StateLoaded(u256) {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
         return self.journal.sload(address, index);
     }
 
-    pub fn sstore(ctx: *anyopaque, address: Address, index: u256, value: u256) !StateLoaded(SStoreResult) {
+    fn sstore(ctx: *anyopaque, address: Address, index: u256, value: u256) !StateLoaded(SStoreResult) {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
         return self.journal.sstore(address, index, value);
     }
 
-    pub fn tload(ctx: *anyopaque, address: Address, index: u256) ?u256 {
+    fn tload(ctx: *anyopaque, address: Address, index: u256) ?u256 {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
         return self.journal.tload(address, index);
     }
 
-    pub fn tstore(ctx: *anyopaque, address: Address, index: u256, value: u256) Allocator.Error!void {
+    fn tstore(ctx: *anyopaque, address: Address, index: u256, value: u256) Allocator.Error!void {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
         return self.journal.tstore(address, index, value);

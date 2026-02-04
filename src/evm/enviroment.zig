@@ -34,18 +34,18 @@ pub const ValidationErrors = error{
 /// The EVM inner enviroment.
 pub const EVMEnviroment = struct {
     /// Configuration of the EVM.
-    config: ConfigEnviroment,
+    config: ConfigEnviroment = .{},
     /// Configuration of the block the transaction is in.
-    block: BlockEnviroment,
+    block: BlockEnviroment = .{},
     /// Configuration of the transaction that is being executed.
-    tx: TxEnviroment,
+    tx: TxEnviroment = .{},
 
-    /// Creates a default EVM enviroment.
-    pub fn default() EVMEnviroment {
+    /// Creates a default EVM with a specific transaction provided.
+    pub fn initDefaultWithTransaction(tx: TxEnviroment) EVMEnviroment {
         return .{
-            .config = ConfigEnviroment.default(),
-            .block = BlockEnviroment.default(),
-            .tx = TxEnviroment.default(),
+            .config = .{},
+            .block = .{},
+            .tx = tx,
         };
     }
 
@@ -89,8 +89,9 @@ pub const EVMEnviroment = struct {
             total += blob_fee;
         }
 
-        if (self.tx.optimism.mint) |mint| {
-            total -|= @as(u256, mint);
+        if (self.tx.optimism) |op| {
+            if (op.mint) |mint|
+                total -|= @as(u256, mint);
         }
 
         return total;
@@ -99,12 +100,11 @@ pub const EVMEnviroment = struct {
     /// Validates the inner block enviroment based on the provided `SpecId`
     pub fn validateBlockEnviroment(
         self: *const EVMEnviroment,
-        spec: SpecId,
     ) error{ PrevRandaoNotSet, ExcessBlobGasNotSet }!void {
-        if (spec.enabled(.MERGE) and self.block.prevrandao == null)
+        if (self.config.spec_id.enabled(.MERGE) and self.block.prevrandao == null)
             return error.PrevRandaoNotSet;
 
-        if (spec.enabled(.CANCUN) and self.block.blob_excess_gas_and_price == null)
+        if (self.config.spec_id.enabled(.CANCUN) and self.block.blob_excess_gas_and_price == null)
             return error.ExcessBlobGasNotSet;
     }
 
@@ -115,9 +115,8 @@ pub const EVMEnviroment = struct {
     /// For before `CANCUN` checks if `blob_hashes` and `max_fee_per_blob_gas` are null / empty.
     pub fn validateTransaction(
         self: *const EVMEnviroment,
-        spec: SpecId,
     ) ValidationErrors!void {
-        if (spec.enabled(.LONDON)) {
+        if (self.config.spec_id.enabled(.LONDON)) {
             if (self.tx.gas_priority_fee) |fee| {
                 if (fee > self.tx.gas_price)
                     return error.PriorityFeeGreaterThanMaxFee;
@@ -135,11 +134,11 @@ pub const EVMEnviroment = struct {
                 return error.InvalidChainId;
         }
 
-        if (!spec.enabled(.BERLIN) and self.tx.access_list.len != 0) {
+        if (!self.config.spec_id.enabled(.BERLIN) and self.tx.access_list.len != 0) {
             return error.AccessListNotSupported;
         }
 
-        if (spec.enabled(.CANCUN)) {
+        if (self.config.spec_id.enabled(.CANCUN)) {
             if (self.tx.max_fee_per_blob_gas) |max| {
                 const price = self.block.blob_excess_gas_and_price orelse return error.ExpectedBlobPrice;
 
@@ -203,55 +202,41 @@ pub const EVMEnviroment = struct {
 /// The EVM Configuration enviroment.
 pub const ConfigEnviroment = struct {
     /// The chain id of the EVM. It will be compared with the `tx` chain id.
-    chain_id: u64,
+    chain_id: u64 = 1,
     /// Whether to perform analysis on the bytecode.
-    perform_analysis: AnalysisKind,
+    perform_analysis: AnalysisKind = .analyse,
     /// The contract code's size limit.
     ///
     /// By default if should be 24kb as part of the Spurious Dragon upgrade via [EIP-155].
     ///
     /// [EIP-155]: https://eips.ethereum.org/EIPS/eip-155
-    limit_contract_size: ?usize,
+    limit_contract_size: ?usize = 0x600,
     /// The max size that the memory can grow too with failing with `OutOfGas` errors.
-    memory_limit: u64,
+    memory_limit: u64 = std.math.maxInt(u32),
     /// Skips balance checks if enabled. Adds transaction cost to ensure execution doesn't fail.
-    disable_balance_check: bool,
+    disable_balance_check: bool = false,
     /// There are use cases where it's allowed to provide a gas limit that's higher than a block's gas limit.
     /// To that end, you can disable the block gas limit validation.
-    disable_block_gas_limit: bool,
+    disable_block_gas_limit: bool = false,
     /// EIP-3607 rejects transactions from senders with deployed code. In development, it can be desirable to simulate
     /// calls from contracts, which this setting allows.
-    disable_eip3607: bool,
+    disable_eip3607: bool = false,
     /// Disables all gas refunds. This is useful when using chains that have gas refunds disabled e.g. Avalanche.
     /// Reasoning behind removing gas refunds can be found in EIP-3298.
-    disable_gas_refund: bool,
+    disable_gas_refund: bool = false,
     /// Disables base fee checks for EIP-1559 transactions.
     /// This is useful for testing method calls with zero gas price.
-    disable_base_fee: bool,
+    disable_base_fee: bool = false,
     /// Disables the payout of the reward to the beneficiary.
-    disable_beneficiary_reward: bool,
-
-    /// Returns the set of default values for a `ConfigEnviroment`.
-    pub fn default() ConfigEnviroment {
-        return .{
-            .chain_id = 1,
-            .perform_analysis = .analyse,
-            .limit_contract_size = 0x600,
-            .memory_limit = std.math.maxInt(u32),
-            .disable_eip3607 = false,
-            .disable_balance_check = false,
-            .disable_base_fee = false,
-            .disable_beneficiary_reward = false,
-            .disable_block_gas_limit = false,
-            .disable_gas_refund = false,
-        };
-    }
+    disable_beneficiary_reward: bool = false,
+    /// The hardfork specification to use for opcode availability and gas costs.
+    spec_id: SpecId = .LATEST,
 };
 
 /// Type that representes the excess blob gas and it's price.
 pub const BlobExcessGasAndPrice = struct {
-    blob_gasprice: u256,
-    blob_excess_gas: u256,
+    blob_gasprice: u256 = 0,
+    blob_excess_gas: u256 = 0,
 
     /// Calculates the price based on the provided `excess_gas`.
     pub fn init(excess_gas: u64) BlobExcessGasAndPrice {
@@ -267,23 +252,23 @@ pub const BlobExcessGasAndPrice = struct {
 /// The block enviroment.
 pub const BlockEnviroment = struct {
     /// The number of previous blocks of this block (block height).
-    number: u256,
+    number: u256 = 0,
     /// Coinbase or miner or address that created and signed the block.
     ///
     /// This is the receiver address of all the gas spent in the block.
-    coinbase: Address,
+    coinbase: Address = [_]u8{0} ** 20,
     /// The timestamp of the block in seconds since the UNIX epoch.
-    timestamp: u256,
+    timestamp: u256 = 1,
     /// The gas limit of the block.
-    gas_limit: u256,
+    gas_limit: u256 = 0,
     /// The base fee per gas, added in the London upgrade with [EIP-1559].
     ///
     /// [EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
-    base_fee: u256,
+    base_fee: u256 = 0,
     /// The difficulty of the block.
     ///
     /// Unused after the Paris (AKA the merge) upgrade, and replaced by `prevrandao`.
-    difficulty: u256,
+    difficulty: u256 = 0,
     /// The output of the randomness beacon provided by the beacon chain.
     ///
     /// Replaces `difficulty` after the Paris (AKA the merge) upgrade with [EIP-4399].
@@ -291,102 +276,67 @@ pub const BlockEnviroment = struct {
     /// NOTE: `prevrandao` can be found in a block in place of `mix_hash`.
     ///
     /// [EIP-4399]: https://eips.ethereum.org/EIPS/eip-4399
-    prevrandao: ?u256,
+    prevrandao: ?u256 = 0,
     /// Excess blob gas and blob gasprice. Check `BlobExcessGasAndPrice`
     ///
     /// Incorporated as part of the Cancun upgrade via [EIP-4844].
     ///
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
-    blob_excess_gas_and_price: ?BlobExcessGasAndPrice,
-
-    /// Returns a set of default values for this `BlockEnviroment`.
-    pub fn default() BlockEnviroment {
-        return .{
-            .number = 0,
-            .coinbase = [_]u8{0} ** 20,
-            .timestamp = 1,
-            .base_fee = 0,
-            .difficulty = 0,
-            .prevrandao = 0,
-            .gas_limit = 0,
-            .blob_excess_gas_and_price = .{
-                .blob_gasprice = 0,
-                .blob_excess_gas = 0,
-            },
-        };
-    }
+    blob_excess_gas_and_price: ?BlobExcessGasAndPrice = .{},
 };
 
 /// The transaction enviroment.
 pub const TxEnviroment = struct {
     /// The signer of this transaction.
-    caller: Address,
+    caller: Address = [_]u8{0} ** 20,
     /// The gas limit for this transaction.
-    gas_limit: u64,
+    gas_limit: u64 = 0,
     /// The gas price for this transaction.
-    gas_price: u256,
+    gas_price: u256 = 0,
     /// The target of this transaction.
-    transact_to: AddressKind,
+    transact_to: AddressKind = .{ .call = [_]u8{1} ** 20 },
     /// The value sent in this transaction.
-    value: u256,
+    value: u256 = 0,
     /// The data of the transaction.
-    data: []u8,
+    data: []u8 = &.{},
     /// The nonce of this transaction.
     ///
     /// Caution: If set to `null`, then nonce validation against the account's nonce is skipped.
-    nonce: ?u64,
+    nonce: ?u64 = 0,
     /// The chain ID of the transaction. If set to `null`, no checks are performed.
     ///
     /// Incorporated as part of the Spurious Dragon upgrade via [EIP-155].
     ///
     /// [EIP-155]: https://eips.ethereum.org/EIPS/eip-155
-    chain_id: ?u64,
+    chain_id: ?u64 = 1,
     /// A list of addresses and storage keys that the transaction plans to access.
     ///
     /// Added in [EIP-2930].
     ///
     /// [EIP-2930]: https://eips.ethereum.org/EIPS/eip-2930
-    access_list: []const AccessList,
+    access_list: []const AccessList = &.{},
     /// The priority fee per gas.
     ///
     /// Incorporated as part of the London upgrade via [EIP-1559].
     ///
     /// [EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
-    gas_priority_fee: ?u256,
+    gas_priority_fee: ?u256 = 0,
     /// The list of blob versioned hashes. Per EIP there should be at least
     /// one blob present if `max_fee_per_blob_gas` isn't null.
     ///
     /// Incorporated as part of the Cancun upgrade via [EIP-4844].
     ///
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
-    blob_hashes: []const Hash,
+    blob_hashes: []const Hash = &.{},
     /// The max fee per blob gas.
     ///
     /// Incorporated as part of the Cancun upgrade via [EIP-4844].
     ///
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
-    max_fee_per_blob_gas: ?u256,
+    max_fee_per_blob_gas: ?u256 = 0,
     /// `Optimism` dedicated fields.
-    optimism: OptimismFields,
+    optimism: ?OptimismFields = null,
 
-    /// Returns a default `TxEnviroment`.
-    pub fn default() TxEnviroment {
-        return .{
-            .caller = [_]u8{0} ** 20,
-            .gas_limit = 0,
-            .gas_price = 0,
-            .transact_to = .{ .call = [_]u8{1} ** 20 },
-            .value = 0,
-            .data = &.{},
-            .nonce = 0,
-            .chain_id = 1,
-            .access_list = &.{},
-            .gas_priority_fee = 0,
-            .blob_hashes = &.{},
-            .max_fee_per_blob_gas = 0,
-            .optimism = OptimismFields.default(),
-        };
-    }
     /// Gets the total blob gas in this `TxEnviroment`.
     pub fn getTotalBlobGas(self: *const TxEnviroment) u64 {
         return @intCast(constants.GAS_PER_BLOB * self.blob_hashes.len);
@@ -406,14 +356,14 @@ pub const OptimismFields = struct {
     ///
     /// These two deposit transaction sources specify a domain in the outer
     /// hash so there are no collisions.
-    source_hash: ?u256,
+    source_hash: ?u256 = 0,
     /// The amount to increase the balance of the `from` account as part of
     /// a deposit transaction. This is unconditional and is applied to the
     /// `from` account even if the deposit transaction fails since
     /// the deposit is pre-paid on L1.
-    mint: ?u128,
+    mint: ?u128 = 0,
     /// Whether or not the transaction is a system transaction.
-    is_system_tx: ?bool,
+    is_system_tx: ?bool = false,
     /// An enveloped EIP-2718 typed transaction. This is used
     /// to compute the L1 tx cost using the L1 block info, as
     /// opposed to requiring downstream apps to compute the cost
@@ -421,17 +371,7 @@ pub const OptimismFields = struct {
     /// This field is optional to allow the `TxEnviroment` to be constructed
     /// for non-optimism chains when the `optimism` feature is enabled,
     /// but the `ConfigEnviroment` and `optimism` field is set to false.
-    enveloped_tx: ?[]u8,
-
-    /// Returns default values for `OptimismFields`
-    pub fn default() OptimismFields {
-        return .{
-            .source_hash = 0,
-            .mint = 0,
-            .is_system_tx = false,
-            .enveloped_tx = &.{},
-        };
-    }
+    enveloped_tx: ?[]u8 = null,
 };
 
 /// The target address kind.

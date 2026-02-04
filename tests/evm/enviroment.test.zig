@@ -257,7 +257,7 @@ test "GasLimit" {
 }
 
 test "insufficient balance" {
-    var env = EVMEnviroment.default();
+    var env: EVMEnviroment = .{};
     env.tx.gas_limit = 21000;
     env.tx.gas_price = 1_000_000_000;
     env.tx.value = 1_000_000_000_000_000_000;
@@ -273,7 +273,7 @@ test "insufficient balance" {
 }
 
 test "sufficient balance passes" {
-    var env = EVMEnviroment.default();
+    var env: EVMEnviroment = .{};
     env.tx.gas_limit = 21000;
     env.tx.gas_price = 1_000_000_000;
     env.tx.value = 0;
@@ -289,7 +289,7 @@ test "sufficient balance passes" {
 }
 
 test "invalid nonce" {
-    var env = EVMEnviroment.default();
+    var env: EVMEnviroment = .{};
     env.tx.nonce = 5;
 
     const sender_info = AccountInfo{
@@ -303,7 +303,7 @@ test "invalid nonce" {
 }
 
 test "nonce null bypasses check" {
-    var env = EVMEnviroment.default();
+    var env: EVMEnviroment = .{};
     env.tx.nonce = null;
 
     const sender_info = AccountInfo{
@@ -317,7 +317,7 @@ test "nonce null bypasses check" {
 }
 
 test "sender has code (EIP-3607)" {
-    var env = EVMEnviroment.default();
+    var env: EVMEnviroment = .{};
     env.tx.nonce = 0;
 
     const sender_info = AccountInfo{
@@ -331,7 +331,7 @@ test "sender has code (EIP-3607)" {
 }
 
 test "disable_eip3607 bypasses code check" {
-    var env = EVMEnviroment.default();
+    var env: EVMEnviroment = .{};
     env.config.disable_eip3607 = true;
     env.tx.nonce = 0;
 
@@ -346,7 +346,7 @@ test "disable_eip3607 bypasses code check" {
 }
 
 test "disable_balance_check bypasses balance" {
-    var env = EVMEnviroment.default();
+    var env: EVMEnviroment = .{};
     env.config.disable_balance_check = true;
     env.tx.gas_limit = 21000;
     env.tx.gas_price = 1_000_000_000;
@@ -363,11 +363,13 @@ test "disable_balance_check bypasses balance" {
 }
 
 test "optimism mint reduces required balance" {
-    var env = EVMEnviroment.default();
+    var env: EVMEnviroment = .{};
     env.tx.gas_limit = 21000;
     env.tx.gas_price = 1_000_000_000;
     env.tx.value = 1_000_000_000_000_000_000;
-    env.tx.optimism.mint = 1_000_000_000_000_000_000;
+    env.tx.optimism = .{
+        .mint = 1_000_000_000_000_000_000,
+    };
 
     const sender_info = AccountInfo{
         .balance = 21000 * 1_000_000_000,

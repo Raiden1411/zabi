@@ -9,8 +9,10 @@ test "EVM Interpreter root" {
     _ = @import("host.test.zig");
     _ = @import("interpreter.test.zig");
     _ = @import("memory.test.zig");
+    _ = @import("opcodes.test.zig");
     _ = @import("stack.test.zig");
     _ = @import("system.test.zig");
     _ = @import("database.test.zig");
+    _ = @import("evm.test.zig");
     _ = @import("journal.test.zig");
 }

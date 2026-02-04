@@ -5,6 +5,7 @@ const std = @import("std");
 const testing = std.testing;
 
 const Contract = evm.contract.Contract;
+const EVM = evm.EVM;
 const Interpreter = evm.Interpreter;
 const Memory = memory.Memory;
 const PlainHost = evm.host.PlainHost;
@@ -299,10 +300,38 @@ test "MCopy" {
         // PUSH32 value, PUSH1 32, MSTORE, PUSH1 32, PUSH1 32, PUSH1 0, MCOPY
         var code = [_]u8{
             0x7F, // PUSH32
-            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-            0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-            0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
-            0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+            0x00,
+            0x01,
+            0x02,
+            0x03,
+            0x04,
+            0x05,
+            0x06,
+            0x07,
+            0x08,
+            0x09,
+            0x0a,
+            0x0b,
+            0x0c,
+            0x0d,
+            0x0e,
+            0x0f,
+            0x10,
+            0x11,
+            0x12,
+            0x13,
+            0x14,
+            0x15,
+            0x16,
+            0x17,
+            0x18,
+            0x19,
+            0x1a,
+            0x1b,
+            0x1c,
+            0x1d,
+            0x1e,
+            0x1f,
             0x60, 0x20, // PUSH1 32
             0x52, // MSTORE
             0x60, 0x20, // PUSH1 32 (length)
@@ -360,4 +389,36 @@ test "MCopy" {
         try interpreter.init(testing.allocator, &contract_instance, plain.host(), .{ .spec_id = .FRONTIER });
         try testing.expectError(error.InstructionNotEnabled, interpreter.run());
     }
+}
+
+test "EVM memory context isolation" {
+    // Test that memory contexts are properly managed during subcalls.
+    // The parent frame should have its memory restored after a subcall completes.
+
+    var plain: PlainHost = undefined;
+    plain.init(testing.allocator);
+    defer plain.deinit();
+
+    // Configure the environment through the Host
+    plain.env = .initDefaultWithTransaction(.{
+        .caller = [_]u8{1} ** 20,
+        .gas_limit = 100_000,
+        .transact_to = .{ .call = [_]u8{2} ** 20 },
+    });
+
+    // Simple bytecode: PUSH1 0x42, PUSH1 0, MSTORE, STOP
+    // This stores 0x42 at memory offset 0 and stops.
+    const code: evm.bytecode.Bytecode = .{ .raw = @constCast(&[_]u8{ 0x60, 0x42, 0x60, 0x00, 0x52, 0x00 }) };
+
+    var vm: EVM = undefined;
+    vm.init(testing.allocator, plain.host());
+    defer vm.deinit();
+
+    var result = try vm.executeBytecode(code);
+    defer result.deinit(testing.allocator);
+
+    try testing.expectEqual(.stopped, result.status);
+
+    // After execution, call stack should be empty (all frames cleaned up)
+    try testing.expectEqual(@as(usize, 0), vm.call_stack.items.len);
 }

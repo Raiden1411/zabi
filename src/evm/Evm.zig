@@ -6,9 +6,9 @@ const encoding = @import("zabi-encoding");
 const enviroment = @import("enviroment.zig");
 const gas_tracker = @import("gas_tracker.zig");
 const host_type = @import("host.zig");
-const interpreter_type = @import("Interpreter.zig");
 const journal = @import("journal.zig");
 const mem = @import("memory.zig");
+const precompiles = @import("precompiles.zig");
 const specification = @import("specification.zig");
 const std = @import("std");
 const zabi_utils = @import("zabi-utils");
@@ -22,18 +22,21 @@ const CallScheme = actions.CallScheme;
 const Contract = contract_type.Contract;
 const CreateAction = actions.CreateAction;
 const CreateScheme = actions.CreateScheme;
+const EVMEnviroment = enviroment.EVMEnviroment;
 const GasTracker = gas_tracker.GasTracker;
 const Host = host_type.Host;
-const Interpreter = interpreter_type;
-const InterpreterActions = interpreter_type.InterpreterActions;
-const InterpreterStatus = interpreter_type.InterpreterStatus;
+const Interpreter = @import("Interpreter.zig");
+const InterpreterActions = Interpreter.InterpreterActions;
+const InterpreterStatus = Interpreter.InterpreterStatus;
 const JournalCheckpoint = journal.JournalCheckpoint;
 const JournaledState = journal.JournaledState;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Memory = mem.Memory;
+const PrecompileId = precompiles.PrecompileId;
 const ReturnAction = actions.ReturnAction;
 const RlpEncoder = encoding.RlpEncoder;
 const SpecId = specification.SpecId;
+const PrecompileResult = precompiles.PrecompileResult;
 const ValidationErrors = enviroment.ValidationErrors;
 
 /// The EVM driver that orchestrates contract execution.
@@ -106,6 +109,10 @@ pub const ExecutionError = error{
     InvalidBytecode,
     /// Deployed contract exceeds maximum code size (EIP-170).
     ContractSizeLimit,
+    /// PrevRandao is not set if spec is at least MERGE
+    PrevRandaoNotSet,
+    /// Blob excess gas not set if spec is at least CANCUN
+    ExcessBlobGasNotSet,
 } || Interpreter.InterpreterRunErrors || RlpEncoder.Error || ValidationErrors || JournaledState.CreateAccountErrors;
 
 allocator: Allocator,
@@ -150,12 +157,13 @@ pub fn deinit(self: *EVM) void {
 pub fn executeTransaction(self: *EVM) ExecutionError!ExecutionResult {
     const env = self.host.getEnviroment();
 
+    // Validate block parameters (block number, blobs)
+    try env.validateBlockEnviroment();
     // Validate transaction parameters (gas, blobs, chain id, etc.)
     try env.validateTransaction();
 
     // Validate sender state (nonce, balance, EIP-3607 code check)
     const sender_info = self.host.accountInfo(env.tx.caller) orelse
-        // TODO: Validate if not present the account needs to be created.
         return error.NonExistentAccount;
     try env.validateAgainstState(sender_info);
 
@@ -314,22 +322,44 @@ fn runExecutionLoop(self: *EVM) ExecutionError!ExecutionResult {
 
             self.host.revertCheckpoint(frame.checkpoint) catch {};
 
-            // Top-level interpreter errors are surfaced to callers.
-            if (self.call_stack.items.len == 0)
+            if (err == error.OutOfMemory)
                 return err;
+
+            if (self.call_stack.items.len == 0) {
+                const gas_used = frame.interpreter.gas_tracker.usedAmount();
+
+                switch (err) {
+                    error.InterpreterReverted => {
+                        const output = try self.allocator.dupe(u8, frame.interpreter.return_data);
+                        return .{
+                            .status = .reverted,
+                            .output = output,
+                            .gas_used = gas_used,
+                            .gas_refunded = 0,
+                        };
+                    },
+                    error.InvalidInstructionOpcode => {
+                        return .{
+                            .status = .invalid,
+                            .output = &.{},
+                            .gas_used = gas_used,
+                            .gas_refunded = 0,
+                        };
+                    },
+                    else => return err,
+                }
+            }
+
+            const output: []u8 = switch (err) {
+                error.InterpreterReverted => try self.allocator.dupe(u8, frame.interpreter.return_data),
+                else => &.{},
+            };
 
             const ret: ReturnAction = .{
                 .result = .reverted,
-                .output = &.{},
+                .output = output,
                 .gas = frame.interpreter.gas_tracker,
             };
-
-            switch (err) {
-                error.OutOfMemory => return err,
-                // REVERT preserves child return data for RETURNDATACOPY.
-                error.InterpreterReverted => @memmove(ret.output, frame.interpreter.return_data),
-                else => {},
-            }
 
             const parent_frame = &self.call_stack.items[self.call_stack.items.len - 1];
             try self.handleReturnFromCall(parent_frame, &frame, ret);
@@ -351,6 +381,7 @@ fn runExecutionLoop(self: *EVM) ExecutionError!ExecutionResult {
                 switch (ret.result) {
                     .stopped,
                     .returned,
+                    .self_destructed,
                     => self.host.commitCheckpoint(),
                     else => self.host.revertCheckpoint(frame.checkpoint) catch {},
                 }
@@ -441,13 +472,15 @@ fn handleReturnFromCall(
             }
 
             const env = self.host.getEnviroment();
+            retain_output = env.config.perform_analysis == .raw;
+
             const prepared_code: Bytecode = switch (env.config.perform_analysis) {
                 .analyse => try analysis.analyzeBytecode(self.allocator, .{ .raw = ret.output }),
                 .raw => .{ .raw = ret.output },
             };
-            retain_output = env.config.perform_analysis == .raw;
 
             try self.host.setCode(child_frame.contract.target_address, prepared_code);
+
             parent_frame.interpreter.stack.appendAssumeCapacity(std.mem.nativeToBig(u160, @bitCast(child_frame.contract.target_address)));
             parent_frame.interpreter.status = .running;
 
@@ -475,10 +508,13 @@ fn handleReturnFromCall(
 /// Loads target bytecode, sets up the call context based on the scheme,
 /// creates a new call frame, and prepares parent memory for subcall.
 fn executeCallAction(self: *EVM, call: CallAction) ExecutionError!void {
+    var owns_call_inputs = true;
+    defer if (owns_call_inputs) self.allocator.free(call.inputs);
+
     if (self.call_stack.items.len >= MAX_CALL_STACK_DEPTH) {
         const parent_frame = &self.call_stack.items[self.call_stack.items.len - 1];
 
-        self.return_data = &[_]u8{};
+        self.return_data = &.{};
 
         parent_frame.interpreter.gas_tracker.available += call.gas_limit;
         parent_frame.interpreter.stack.appendAssumeCapacity(0);
@@ -502,6 +538,16 @@ fn executeCallAction(self: *EVM, call: CallAction) ExecutionError!void {
     if (call.value == .transfer and value > 0)
         self.host.transfer(call.caller, call.target_address, value) catch return self.revertToLastCheckpoint(checkpoint);
 
+    const env = self.host.getEnviroment();
+    if (PrecompileId.fromAddress(env.config.spec_id, call.bytecode_address) != null) {
+        const precompile_result = try self.executePrecompile(call, checkpoint);
+
+        const parent_frame = &self.call_stack.items[self.call_stack.items.len - 1];
+        try self.handleReturnFromPrecompile(parent_frame, call, precompile_result);
+
+        return;
+    }
+
     const code, _ = self.host.code(call.bytecode_address) orelse {
         self.host.commitCheckpoint();
         const parent_frame = &self.call_stack.items[self.call_stack.items.len - 1];
@@ -511,8 +557,6 @@ fn executeCallAction(self: *EVM, call: CallAction) ExecutionError!void {
 
         return;
     };
-
-    const env = self.host.getEnviroment();
 
     const prepared_code = switch (env.config.perform_analysis) {
         .analyse => try analysis.analyzeBytecode(self.allocator, code),
@@ -558,6 +602,73 @@ fn executeCallAction(self: *EVM, call: CallAction) ExecutionError!void {
     };
 
     try self.call_stack.append(self.allocator, frame);
+    owns_call_inputs = false;
+}
+
+/// Executes a precompile call within the current call context.
+///
+/// Uses the caller-provided checkpoint to commit on success or revert on failure,
+/// returning the precompile output and post-call gas tracker to the parent frame.
+fn executePrecompile(
+    self: *EVM,
+    call: CallAction,
+    checkpoint: JournalCheckpoint,
+) ExecutionError!PrecompileResult {
+    const output = precompiles.executePrecompile(
+        self.allocator,
+        self.host.getEnviroment().config.spec_id,
+        call.bytecode_address,
+        call.inputs,
+        call.gas_limit,
+    ) catch |err| {
+        self.host.revertCheckpoint(checkpoint) catch {};
+        return err;
+    };
+
+    if (output.status == .reverted) {
+        self.host.revertCheckpoint(checkpoint) catch {};
+        return output;
+    }
+
+    self.host.commitCheckpoint();
+
+    return output;
+}
+
+/// Applies precompile return data and status to the parent interpreter frame.
+///
+/// Refunds unused call gas to the parent, updates `RETURNDATA`, writes output
+/// into the requested return memory window on success, and pushes a success flag.
+fn handleReturnFromPrecompile(
+    self: *EVM,
+    parent_frame: *CallFrame,
+    call: CallAction,
+    precompile_result: PrecompileResult,
+) ExecutionError!void {
+    parent_frame.interpreter.gas_tracker.available += precompile_result.gas.availableGas();
+
+    self.allocator.free(self.return_data);
+    self.return_data = try self.allocator.dupe(u8, precompile_result.output);
+
+    const success = precompile_result.status == .returned or precompile_result.status == .stopped;
+
+    if (success) {
+        const offset, const len = call.return_memory_offset;
+        if (len > 0) {
+            const copy_len = @min(len, precompile_result.output.len);
+            if (copy_len > 0) {
+                const new_size = offset +| copy_len;
+
+                try parent_frame.interpreter.resize(new_size);
+                parent_frame.interpreter.memory.write(offset, precompile_result.output[0..copy_len]);
+            }
+        }
+    }
+
+    self.allocator.free(precompile_result.output);
+
+    parent_frame.interpreter.stack.appendAssumeCapacity(@intFromBool(success));
+    parent_frame.interpreter.status = .running;
 }
 
 /// Executes a CREATE or CREATE2 action.
@@ -567,7 +678,7 @@ fn executeCreateAction(self: *EVM, create: CreateAction) ExecutionError!void {
     if (self.call_stack.items.len >= MAX_CALL_STACK_DEPTH) {
         const parent_frame = &self.call_stack.items[self.call_stack.items.len - 1];
 
-        self.return_data = &[_]u8{};
+        self.return_data = &.{};
 
         parent_frame.interpreter.gas_tracker.available += create.gas_limit;
         parent_frame.interpreter.stack.appendAssumeCapacity(0);

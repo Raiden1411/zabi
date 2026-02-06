@@ -3,8 +3,10 @@ const gas = @import("../gas_tracker.zig");
 const host = @import("../host.zig");
 const log_types = @import("zabi-types").log;
 const std = @import("std");
+const types = @import("zabi-types").ethereum;
 const utils = @import("zabi-utils").utils;
 
+const Address = types.Address;
 const Interpreter = @import("../Interpreter.zig");
 const Log = log_types.Log;
 const PlainHost = host.PlainHost;
@@ -17,7 +19,7 @@ pub const HostInstructionErrors = Interpreter.InstructionErrors || error{Unexpec
 /// 0x31 -> BALANCE
 pub fn balanceInstruction(self: *Interpreter) HostInstructionErrors!void {
     const address = self.stack.pop();
-    const bal, const is_cold = self.host.balance(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
+    const bal, const is_cold = self.host.balance(@bitCast(std.mem.nativeToBig(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
     const gas_usage: u64 = blk: {
         if (self.spec.enabled(.BERLIN))
@@ -58,7 +60,7 @@ pub fn extCodeCopyInstruction(self: *Interpreter) (HostInstructionErrors || Memo
     const code_offset = self.stack.pop();
     const length = self.stack.pop();
 
-    const code, const is_cold = self.host.code(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
+    const code, const is_cold = self.host.code(@bitCast(std.mem.nativeToBig(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
     const len = std.math.cast(usize, length) orelse return error.Overflow;
     const offset_usize = std.math.cast(usize, offset) orelse return error.Overflow;
@@ -80,7 +82,7 @@ pub fn extCodeCopyInstruction(self: *Interpreter) (HostInstructionErrors || Memo
 /// 0x3F -> EXTCODEHASH
 pub fn extCodeHashInstruction(self: *Interpreter) HostInstructionErrors!void {
     const address = self.stack.pop();
-    const code_hash, const is_cold = self.host.codeHash(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
+    const code_hash, const is_cold = self.host.codeHash(@bitCast(std.mem.nativeToBig(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
     const gas_usage: u64 = blk: {
         if (self.spec.enabled(.BERLIN))
@@ -101,7 +103,7 @@ pub fn extCodeHashInstruction(self: *Interpreter) HostInstructionErrors!void {
 /// 0x3B -> EXTCODESIZE
 pub fn extCodeSizeInstruction(self: *Interpreter) HostInstructionErrors!void {
     const address = self.stack.pop();
-    const code, const is_cold = self.host.code(@bitCast(@as(u160, @intCast(address)))) orelse return error.UnexpectedError;
+    const code, const is_cold = self.host.code(@bitCast(std.mem.nativeToBig(u160, @intCast(address)))) orelse return error.UnexpectedError;
 
     const gas_usage = gas.calculateCodeSizeCost(self.spec, is_cold);
     try self.gas_tracker.updateTracker(gas_usage);
@@ -170,7 +172,7 @@ pub fn selfDestructInstruction(self: *Interpreter) HostInstructionErrors!void {
     std.debug.assert(!self.is_static); // requires non static calls.
 
     const address = self.stack.pop();
-    const result = self.host.selfDestruct(self.contract.target_address, @bitCast(@as(u160, @intCast(address)))) catch return error.UnexpectedError;
+    const result = self.host.selfDestruct(self.contract.target_address, @bitCast(std.mem.nativeToBig(u160, @intCast(address)))) catch return error.UnexpectedError;
 
     if (self.spec.enabled(.LONDON) and !result.data.previously_destroyed)
         self.gas_tracker.refund_amount += 24000;

@@ -3,8 +3,10 @@ const constants = @import("zabi-utils").constants;
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 const utils = @import("zabi-utils").utils;
+const types = @import("zabi-types").ethereum;
 
 const Allocator = std.mem.Allocator;
+const Address = types.Address;
 const CallAction = actions.CallAction;
 const CreateScheme = actions.CreateScheme;
 const Interpreter = @import("../Interpreter.zig");
@@ -27,7 +29,8 @@ pub fn callInstruction(self: *Interpreter) (error{FailedToLoadAccount} || Interp
 
     const input, const range = getMemoryInputsAndRanges(self) catch return;
 
-    const account = self.host.loadAccount(@bitCast(@as(u160, @intCast(to)))) orelse return error.FailedToLoadAccount;
+    const to_address: Address = @bitCast(std.mem.nativeToBig(u160, @intCast(to)));
+    const account = self.host.loadAccount(to_address) orelse return error.FailedToLoadAccount;
     var calc_limit = calculateCall(self, value != 0, account.is_cold, account.is_new_account, limit) orelse return;
 
     try self.gas_tracker.updateTracker(calc_limit);
@@ -41,8 +44,8 @@ pub fn callInstruction(self: *Interpreter) (error{FailedToLoadAccount} || Interp
             .inputs = input,
             .caller = self.contract.target_address,
             .gas_limit = calc_limit,
-            .bytecode_address = @bitCast(@as(u160, @intCast(to))),
-            .target_address = @bitCast(@as(u160, @intCast(to))),
+            .bytecode_address = to_address,
+            .target_address = to_address,
             .scheme = .call,
             .is_static = self.is_static,
             .return_memory_offset = range,
@@ -63,7 +66,8 @@ pub fn callCodeInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
 
     const input, const range = getMemoryInputsAndRanges(self) catch return;
 
-    const account = self.host.loadAccount(@bitCast(@as(u160, @intCast(to)))) orelse {
+    const to_address: Address = @bitCast(std.mem.nativeToBig(u160, @intCast(to)));
+    const account = self.host.loadAccount(to_address) orelse {
         self.status = .invalid;
         return;
     };
@@ -82,7 +86,7 @@ pub fn callCodeInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
             .caller = self.contract.target_address,
             .gas_limit = calc_limit,
             .bytecode_address = self.contract.target_address,
-            .target_address = @bitCast(@as(u160, @intCast(to))),
+            .target_address = to_address,
             .scheme = .callcode,
             .is_static = self.is_static,
             .return_memory_offset = range,
@@ -177,7 +181,8 @@ pub fn delegateCallInstruction(self: *Interpreter) (error{InstructionNotEnabled}
     const limit = std.math.cast(u64, gas_limit) orelse std.math.maxInt(u64);
     const input, const range = getMemoryInputsAndRanges(self) catch return;
 
-    const account = self.host.loadAccount(@bitCast(@as(u160, @intCast(to)))) orelse {
+    const to_address: Address = @bitCast(std.mem.nativeToBig(u160, @intCast(to)));
+    const account = self.host.loadAccount(to_address) orelse {
         self.status = .invalid;
         return;
     };
@@ -192,7 +197,7 @@ pub fn delegateCallInstruction(self: *Interpreter) (error{InstructionNotEnabled}
             .inputs = input,
             .caller = self.contract.caller,
             .gas_limit = calc_limit,
-            .bytecode_address = @bitCast(@as(u160, @intCast(to))),
+            .bytecode_address = to_address,
             .target_address = self.contract.target_address,
             .scheme = .delegate,
             .is_static = self.is_static,
@@ -217,7 +222,8 @@ pub fn staticCallInstruction(self: *Interpreter) (error{InstructionNotEnabled} |
     const limit = std.math.cast(u64, gas_limit) orelse std.math.maxInt(u64);
     const input, const range = getMemoryInputsAndRanges(self) catch return;
 
-    const account = self.host.loadAccount(@bitCast(@as(u160, @intCast(to)))) orelse {
+    const to_address: Address = @bitCast(std.mem.nativeToBig(u160, @intCast(to)));
+    const account = self.host.loadAccount(to_address) orelse {
         self.status = .invalid;
         return;
     };
@@ -232,8 +238,8 @@ pub fn staticCallInstruction(self: *Interpreter) (error{InstructionNotEnabled} |
             .inputs = input,
             .caller = self.contract.target_address,
             .gas_limit = calc_limit,
-            .bytecode_address = @bitCast(@as(u160, @intCast(to))),
-            .target_address = @bitCast(@as(u160, @intCast(to))),
+            .bytecode_address = to_address,
+            .target_address = to_address,
             .scheme = .static,
             .is_static = true,
             .return_memory_offset = range,
@@ -277,7 +283,7 @@ pub fn getMemoryInputsAndRanges(self: *Interpreter) (Interpreter.InstructionErro
     const buffer = try self.allocator.alloc(u8, @intCast(len));
     errdefer self.allocator.free(buffer);
 
-    if (offset != 0 and len != 0)
+    if (len != 0)
         @memcpy(buffer, self.memory.getSlice()[offset .. offset + len]);
 
     const result = try resizeMemoryAndGetRange(self, third, fourth);

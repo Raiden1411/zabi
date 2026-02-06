@@ -21,6 +21,8 @@ pub const instructions = @import("instructions/root.zig");
 pub const journal = @import("journal.zig");
 /// A expandable memory buffer. Word size is 32.
 pub const memory = @import("memory.zig");
+/// EVM precompile implementations.
+pub const precompiles = @import("precompiles.zig");
 /// Enum of the EVM opcodes and the instruction table.
 pub const opcode = @import("opcodes.zig");
 /// The EVM specifications by hardfork.

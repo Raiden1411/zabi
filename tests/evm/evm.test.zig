@@ -1,5 +1,6 @@
 const constants = @import("zabi").utils.constants;
 const evm_mod = @import("zabi").evm;
+const crypto = @import("zabi").crypto;
 const std = @import("std");
 const testing = std.testing;
 
@@ -15,6 +16,7 @@ const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const MemoryDatabase = evm_mod.database.MemoryDatabase;
 const PlainDatabase = evm_mod.database.PlainDatabase;
 const StorageSlot = evm_mod.host.StorageSlot;
+const Signer = crypto.Signer;
 
 var mem_db: MemoryDatabase = undefined;
 var journal_state: JournaledState = undefined;
@@ -50,6 +52,14 @@ const TestBytecode = struct {
     };
 
     const revert_empty = &[_]u8{ 0x60, 0x00, 0x60, 0x00, 0xfd };
+    const revert_with_data = &[_]u8{
+        0x60, 0x42, // PUSH1 0x42
+        0x60, 0x00, // PUSH1 0x00
+        0x52, // MSTORE
+        0x60, 0x20, // PUSH1 0x20
+        0x60, 0x00, // PUSH1 0x00
+        0xfd, // REVERT
+    };
 
     const invalid_opcode = &[_]u8{0xfe};
 
@@ -189,8 +199,113 @@ test "EVM initializes with empty call stack and return data" {
     try testing.expectEqual(@as(usize, 0), vm.return_data.len);
 }
 
-test "EVM max call stack depth is 1024" {
-    try testing.expectEqual(@as(usize, 1024), EVM.MAX_CALL_STACK_DEPTH);
+test "EVM Validate block context" {
+    {
+        try mem_db.init(testing.allocator);
+
+        var caller_info: AccountInfo = .{
+            .code_hash = constants.EMPTY_HASH,
+            .nonce = 0,
+            .code = null,
+            .balance = 1_000_000,
+        };
+        try mem_db.addAccountInfo(TestAddresses.caller, &caller_info);
+
+        var code_hash: [32]u8 = undefined;
+        Keccak256.hash(TestBytecode.sstore_then_revert, &code_hash, .{});
+
+        var target_info: AccountInfo = .{
+            .code_hash = code_hash,
+            .nonce = 0,
+            .code = .{ .raw = @constCast(TestBytecode.sstore_then_revert) },
+            .balance = 0,
+        };
+        try mem_db.addAccountInfo(TestAddresses.target, &target_info);
+        try mem_db.addAccountStorage(TestAddresses.target, 0, 100);
+
+        var journal: JournaledState = undefined;
+        journal.init(testing.allocator, .LATEST, mem_db.database());
+
+        var host: JournaledHost = .{
+            .journal = journal,
+            .env = .{
+                .config = .{ .spec_id = .LATEST, .disable_block_gas_limit = true },
+                .block = .{ .gas_limit = 30_000_000, .prevrandao = null },
+                .tx = .{
+                    .caller = TestAddresses.caller,
+                    .gas_limit = 100_000,
+                    .transact_to = .{ .call = TestAddresses.target },
+                    .value = 0,
+                    .nonce = 0,
+                    .max_fee_per_blob_gas = null,
+                },
+            },
+        };
+
+        var vm: EVM = undefined;
+        defer {
+            vm.deinit();
+            host.journal.deinit();
+            mem_db.deinit();
+        }
+
+        vm.init(testing.allocator, host.host());
+
+        try testing.expectError(error.PrevRandaoNotSet, vm.executeTransaction());
+    }
+    {
+        try mem_db.init(testing.allocator);
+
+        var caller_info: AccountInfo = .{
+            .code_hash = constants.EMPTY_HASH,
+            .nonce = 0,
+            .code = null,
+            .balance = 1_000_000,
+        };
+        try mem_db.addAccountInfo(TestAddresses.caller, &caller_info);
+
+        var code_hash: [32]u8 = undefined;
+        Keccak256.hash(TestBytecode.sstore_then_revert, &code_hash, .{});
+
+        var target_info: AccountInfo = .{
+            .code_hash = code_hash,
+            .nonce = 0,
+            .code = .{ .raw = @constCast(TestBytecode.sstore_then_revert) },
+            .balance = 0,
+        };
+        try mem_db.addAccountInfo(TestAddresses.target, &target_info);
+        try mem_db.addAccountStorage(TestAddresses.target, 0, 100);
+
+        var journal: JournaledState = undefined;
+        journal.init(testing.allocator, .LATEST, mem_db.database());
+
+        var host: JournaledHost = .{
+            .journal = journal,
+            .env = .{
+                .config = .{ .spec_id = .LATEST, .disable_block_gas_limit = true },
+                .block = .{ .gas_limit = 30_000_000, .blob_excess_gas_and_price = null },
+                .tx = .{
+                    .caller = TestAddresses.caller,
+                    .gas_limit = 100_000,
+                    .transact_to = .{ .call = TestAddresses.target },
+                    .value = 0,
+                    .nonce = 0,
+                    .max_fee_per_blob_gas = null,
+                },
+            },
+        };
+
+        var vm: EVM = undefined;
+        defer {
+            vm.deinit();
+            host.journal.deinit();
+            mem_db.deinit();
+        }
+
+        vm.init(testing.allocator, host.host());
+
+        try testing.expectError(error.ExcessBlobGasNotSet, vm.executeTransaction());
+    }
 }
 
 test "executeTransaction succeeds with simple PUSH ADD STOP bytecode" {
@@ -322,8 +437,11 @@ test "executeTransaction reverts storage changes on REVERT" {
 
     vm.init(testing.allocator, host.host());
 
-    const result = vm.executeTransaction();
-    try testing.expectError(error.InterpreterReverted, result);
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    try testing.expectEqual(.reverted, result.status);
+    try testing.expectEqual(@as(usize, 0), result.output.len);
 
     const stored_value = try host.journal.sload(TestAddresses.target, 0);
     try testing.expectEqual(@as(u256, 100), stored_value.data);
@@ -473,7 +591,7 @@ test "executeTransaction succeeds when balance check is disabled" {
     try testing.expectEqual(.stopped, result.status);
 }
 
-test "executeTransaction returns InterpreterReverted on REVERT opcode" {
+test "executeTransaction returns reverted status on REVERT opcode" {
     var fixture = try createTestEnvironment(.{
         .target_code = TestBytecode.revert_empty,
     });
@@ -484,12 +602,34 @@ test "executeTransaction returns InterpreterReverted on REVERT opcode" {
 
     vm.init(testing.allocator, fixture.host.host());
 
-    const result = vm.executeTransaction();
-    try testing.expectError(error.InterpreterReverted, result);
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    try testing.expectEqual(.reverted, result.status);
+    try testing.expectEqual(@as(usize, 0), result.output.len);
     try testing.expectEqual(@as(usize, 0), vm.call_stack.items.len);
 }
 
-test "executeTransaction returns InvalidOpcode on INVALID opcode" {
+test "executeTransaction returns revert data on REVERT opcode" {
+    var fixture = try createTestEnvironment(.{
+        .target_code = TestBytecode.revert_with_data,
+    });
+    defer fixture.deinit();
+
+    var vm: EVM = undefined;
+    defer vm.deinit();
+
+    vm.init(testing.allocator, fixture.host.host());
+
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    try testing.expectEqual(.reverted, result.status);
+    try testing.expectEqual(@as(usize, 32), result.output.len);
+    try testing.expectEqual(@as(u8, 0x42), result.output[31]);
+}
+
+test "executeTransaction returns invalid status on INVALID opcode" {
     var fixture = try createTestEnvironment(.{
         .target_code = TestBytecode.invalid_opcode,
     });
@@ -500,8 +640,98 @@ test "executeTransaction returns InvalidOpcode on INVALID opcode" {
 
     vm.init(testing.allocator, fixture.host.host());
 
-    const result = vm.executeTransaction();
-    try testing.expectError(error.InvalidInstructionOpcode, result);
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    try testing.expectEqual(.invalid, result.status);
+}
+
+test "executeTransaction commits SELFDESTRUCT state changes" {
+    const beneficiary: [20]u8 = TestAddresses.caller;
+    const contract_balance: u256 = 5_000;
+
+    const selfdestruct_code = &[_]u8{
+        0x73, // PUSH20 beneficiary
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xCA,
+        0xFF, // SELFDESTRUCT
+    };
+
+    try mem_db.init(testing.allocator);
+
+    var caller_info: AccountInfo = .{
+        .code_hash = constants.EMPTY_HASH,
+        .nonce = 0,
+        .code = null,
+        .balance = 1_000_000,
+    };
+    try mem_db.addAccountInfo(TestAddresses.caller, &caller_info);
+
+    var code_hash: [32]u8 = undefined;
+    Keccak256.hash(selfdestruct_code, &code_hash, .{});
+    var target_info: AccountInfo = .{
+        .code_hash = code_hash,
+        .nonce = 0,
+        .code = .{ .raw = @constCast(selfdestruct_code) },
+        .balance = contract_balance,
+    };
+    try mem_db.addAccountInfo(TestAddresses.target, &target_info);
+
+    journal_state.init(testing.allocator, .SHANGHAI, mem_db.database());
+
+    var host: JournaledHost = .{
+        .journal = journal_state,
+        .env = .{
+            .config = .{ .spec_id = .LATEST, .disable_block_gas_limit = true },
+            .block = .{ .gas_limit = 30_000_000 },
+            .tx = .{
+                .caller = TestAddresses.caller,
+                .gas_limit = 100_000,
+                .transact_to = .{ .call = TestAddresses.target },
+                .value = 0,
+                .nonce = 0,
+                .max_fee_per_blob_gas = null,
+            },
+        },
+    };
+
+    var vm: EVM = undefined;
+    defer {
+        vm.deinit();
+        host.journal.deinit();
+        mem_db.deinit();
+    }
+
+    vm.init(testing.allocator, host.host());
+
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    try testing.expectEqual(.self_destructed, result.status);
+
+    const caller_account = host.journal.state.get(beneficiary).?;
+    const target_account = host.journal.state.get(TestAddresses.target).?;
+
+    try testing.expectEqual(@as(u256, 1_000_000 + contract_balance), caller_account.info.balance);
+    try testing.expectEqual(@as(u256, 0), target_account.info.balance);
 }
 
 test "executeTransaction returns StackUnderflow on stack underflow" {
@@ -616,6 +846,759 @@ test "executeTransaction succeeds when calling EOA with no code" {
     try testing.expectEqual(@as(u256, 1_000), target_account.info.balance);
     try testing.expectEqual(@as(u64, 1), caller_account.info.nonce);
     try testing.expectEqual(@as(u64, 0), target_account.info.nonce);
+}
+
+test "CALL to precompile 0x01 executes ECRECOVER" {
+    const message_hash: [32]u8 = [_]u8{0x11} ** 32;
+    const private_key: [32]u8 = [_]u8{0x22} ** 32;
+
+    const signer = try Signer.init(private_key);
+    const signature = try signer.sign(message_hash);
+
+    var input: [128]u8 = [_]u8{0} ** 128;
+    @memcpy(input[0..32], message_hash[0..]);
+    const v_value: u256 = @as(u256, signature.v) + 27;
+    std.mem.writeInt(u256, input[32..64], v_value, .big);
+    std.mem.writeInt(u256, input[64..96], signature.r, .big);
+    std.mem.writeInt(u256, input[96..128], signature.s, .big);
+
+    // Parent bytecode to call precompile and return output
+    const parent_code = &[_]u8{
+        0x7F, // PUSH32 input (first 32 bytes)
+        input[0],
+        input[1],
+        input[2],
+        input[3],
+        input[4],
+        input[5],
+        input[6],
+        input[7],
+        input[8],
+        input[9],
+        input[10],
+        input[11],
+        input[12],
+        input[13],
+        input[14],
+        input[15],
+        input[16],
+        input[17],
+        input[18],
+        input[19],
+        input[20],
+        input[21],
+        input[22],
+        input[23],
+        input[24],
+        input[25],
+        input[26],
+        input[27],
+        input[28],
+        input[29],
+        input[30],
+        input[31],
+        0x60, 0x00, // PUSH1 0
+        0x52, // MSTORE
+        0x7F, // PUSH32 input (second 32 bytes)
+        input[32],
+        input[33],
+        input[34],
+        input[35],
+        input[36],
+        input[37],
+        input[38],
+        input[39],
+        input[40],
+        input[41],
+        input[42],
+        input[43],
+        input[44],
+        input[45],
+        input[46],
+        input[47],
+        input[48],
+        input[49],
+        input[50],
+        input[51],
+        input[52],
+        input[53],
+        input[54],
+        input[55],
+        input[56],
+        input[57],
+        input[58],
+        input[59],
+        input[60],
+        input[61],
+        input[62],
+        input[63],
+        0x60, 0x20, // PUSH1 32
+        0x52, // MSTORE
+        0x7F, // PUSH32 input (third 32 bytes)
+        input[64],
+        input[65],
+        input[66],
+        input[67],
+        input[68],
+        input[69],
+        input[70],
+        input[71],
+        input[72],
+        input[73],
+        input[74],
+        input[75],
+        input[76],
+        input[77],
+        input[78],
+        input[79],
+        input[80],
+        input[81],
+        input[82],
+        input[83],
+        input[84],
+        input[85],
+        input[86],
+        input[87],
+        input[88],
+        input[89],
+        input[90],
+        input[91],
+        input[92],
+        input[93],
+        input[94],
+        input[95],
+        0x60, 0x40, // PUSH1 64
+        0x52, // MSTORE
+        0x7F, // PUSH32 input (fourth 32 bytes)
+        input[96],
+        input[97],
+        input[98],
+        input[99],
+        input[100],
+        input[101],
+        input[102],
+        input[103],
+        input[104],
+        input[105],
+        input[106],
+        input[107],
+        input[108],
+        input[109],
+        input[110],
+        input[111],
+        input[112],
+        input[113],
+        input[114],
+        input[115],
+        input[116],
+        input[117],
+        input[118],
+        input[119],
+        input[120],
+        input[121],
+        input[122],
+        input[123],
+        input[124],
+        input[125],
+        input[126],
+        input[127],
+        0x60, 0x60, // PUSH1 96
+        0x52, // MSTORE
+        0x60, 0x20, // retSize
+        0x60, 0x00, // retOffset
+        0x60, 0x80, // argsSize
+        0x60, 0x00, // argsOffset
+        0x60, 0x00, // value
+        0x73, // PUSH20 precompile address
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x01,
+        0x62, 0x0F, 0xFF, 0xFF, // gas
+        0xF1, // CALL
+        0x50, // POP
+        0x60, 0x20, // RETURN size
+        0x60, 0x00, // RETURN offset
+        0xF3, // RETURN
+    };
+
+    try mem_db.init(testing.allocator);
+
+    var caller_info: AccountInfo = .{
+        .code_hash = constants.EMPTY_HASH,
+        .nonce = 0,
+        .code = null,
+        .balance = 1_000_000,
+    };
+    try mem_db.addAccountInfo(TestAddresses.caller, &caller_info);
+
+    var parent_hash: [32]u8 = undefined;
+    Keccak256.hash(parent_code, &parent_hash, .{});
+    var parent_info: AccountInfo = .{
+        .code_hash = parent_hash,
+        .nonce = 0,
+        .code = .{ .raw = @constCast(parent_code) },
+        .balance = 0,
+    };
+    try mem_db.addAccountInfo(TestAddresses.target, &parent_info);
+
+    journal_state.init(testing.allocator, .LATEST, mem_db.database());
+
+    var host: JournaledHost = .{
+        .journal = journal_state,
+        .env = .{
+            .config = .{ .spec_id = .LATEST, .disable_block_gas_limit = true },
+            .block = .{ .gas_limit = 30_000_000 },
+            .tx = .{
+                .caller = TestAddresses.caller,
+                .gas_limit = 500_000,
+                .transact_to = .{ .call = TestAddresses.target },
+                .value = 0,
+                .nonce = 0,
+                .max_fee_per_blob_gas = null,
+            },
+        },
+    };
+
+    var vm: EVM = undefined;
+    defer {
+        vm.deinit();
+        host.journal.deinit();
+        mem_db.deinit();
+    }
+
+    vm.init(testing.allocator, host.host());
+
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    try testing.expectEqual(.returned, result.status);
+    try testing.expectEqual(@as(usize, 32), result.output.len);
+
+    var expected: [32]u8 = [_]u8{0} ** 32;
+    @memcpy(expected[12..32], signer.address_bytes[0..]);
+    try testing.expectEqualSlices(u8, expected[0..], result.output);
+}
+
+test "CALL to precompile 0x02 executes SHA256" {
+    const input = "hello";
+
+    const parent_code = &[_]u8{
+        0x7F, // PUSH32 input padded
+        'h',
+        'e',
+        'l',
+        'l',
+        'o',
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0x60, 0x00, // PUSH1 0
+        0x52, // MSTORE
+        0x60, 0x20, // retSize
+        0x60, 0x00, // retOffset
+        0x60, 0x05, // argsSize
+        0x60, 0x00, // argsOffset
+        0x60, 0x00, // value
+        0x73, // PUSH20 precompile
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x02,
+        0x62, 0x0F, 0xFF, 0xFF, // gas
+        0xF1, // CALL
+        0x50, // POP
+        0x60, 0x20, // RETURN size
+        0x60, 0x00, // RETURN offset
+        0xF3, // RETURN
+    };
+
+    try mem_db.init(testing.allocator);
+
+    var caller_info: AccountInfo = .{
+        .code_hash = constants.EMPTY_HASH,
+        .nonce = 0,
+        .code = null,
+        .balance = 1_000_000,
+    };
+    try mem_db.addAccountInfo(TestAddresses.caller, &caller_info);
+
+    var parent_hash: [32]u8 = undefined;
+    Keccak256.hash(parent_code, &parent_hash, .{});
+    var parent_info: AccountInfo = .{
+        .code_hash = parent_hash,
+        .nonce = 0,
+        .code = .{ .raw = @constCast(parent_code) },
+        .balance = 0,
+    };
+    try mem_db.addAccountInfo(TestAddresses.target, &parent_info);
+
+    journal_state.init(testing.allocator, .LATEST, mem_db.database());
+
+    var host: JournaledHost = .{
+        .journal = journal_state,
+        .env = .{
+            .config = .{ .spec_id = .LATEST, .disable_block_gas_limit = true },
+            .block = .{ .gas_limit = 30_000_000 },
+            .tx = .{
+                .caller = TestAddresses.caller,
+                .gas_limit = 500_000,
+                .transact_to = .{ .call = TestAddresses.target },
+                .value = 0,
+                .nonce = 0,
+                .max_fee_per_blob_gas = null,
+            },
+        },
+    };
+
+    var vm: EVM = undefined;
+    defer {
+        vm.deinit();
+        host.journal.deinit();
+        mem_db.deinit();
+    }
+
+    vm.init(testing.allocator, host.host());
+
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    var expected: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(input, &expected, .{});
+
+    try testing.expectEqual(.returned, result.status);
+    try testing.expectEqualSlices(u8, expected[0..], result.output);
+}
+
+test "CALL to precompile 0x03 executes RIPEMD160" {
+    const precompile_address: [20]u8 = [_]u8{0} ** 19 ++ [_]u8{3};
+    const input = "hello";
+
+    const parent_code = &[_]u8{
+        0x7F, // PUSH32 input padded
+        'h',
+        'e',
+        'l',
+        'l',
+        'o',
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0x60, 0x00, // PUSH1 0
+        0x52, // MSTORE
+        0x60, 0x20, // retSize
+        0x60, 0x00, // retOffset
+        0x60, 0x05, // argsSize
+        0x60, 0x00, // argsOffset
+        0x60, 0x00, // value
+        0x73, // PUSH20 precompile
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x03,
+        0x62, 0x0F, 0xFF, 0xFF, // gas
+        0xF1, // CALL
+        0x50, // POP
+        0x60, 0x20, // RETURN size
+        0x60, 0x00, // RETURN offset
+        0xF3, // RETURN
+    };
+
+    try mem_db.init(testing.allocator);
+
+    var caller_info: AccountInfo = .{
+        .code_hash = constants.EMPTY_HASH,
+        .nonce = 0,
+        .code = null,
+        .balance = 1_000_000,
+    };
+    try mem_db.addAccountInfo(TestAddresses.caller, &caller_info);
+
+    var parent_hash: [32]u8 = undefined;
+    Keccak256.hash(parent_code, &parent_hash, .{});
+    var parent_info: AccountInfo = .{
+        .code_hash = parent_hash,
+        .nonce = 0,
+        .code = .{ .raw = @constCast(parent_code) },
+        .balance = 0,
+    };
+    try mem_db.addAccountInfo(TestAddresses.target, &parent_info);
+
+    journal_state.init(testing.allocator, .LATEST, mem_db.database());
+
+    var host: JournaledHost = .{
+        .journal = journal_state,
+        .env = .{
+            .config = .{ .spec_id = .LATEST, .disable_block_gas_limit = true },
+            .block = .{ .gas_limit = 30_000_000 },
+            .tx = .{
+                .caller = TestAddresses.caller,
+                .gas_limit = 500_000,
+                .transact_to = .{ .call = TestAddresses.target },
+                .value = 0,
+                .nonce = 0,
+                .max_fee_per_blob_gas = null,
+            },
+        },
+    };
+
+    var vm: EVM = undefined;
+    defer {
+        vm.deinit();
+        host.journal.deinit();
+        mem_db.deinit();
+    }
+
+    vm.init(testing.allocator, host.host());
+
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    // Derive expected output through the same address-dispatched precompile entrypoint.
+    var expected_output = try evm_mod.precompiles.executePrecompile(
+        testing.allocator,
+        .LATEST,
+        precompile_address,
+        input,
+        500_000,
+    );
+    defer testing.allocator.free(expected_output.output);
+
+    try testing.expectEqual(.returned, result.status);
+    try testing.expectEqualSlices(u8, expected_output.output, result.output);
+}
+
+test "CALL to precompile 0x04 executes IDENTITY" {
+    const input = "hello world";
+
+    const parent_code = &[_]u8{
+        0x7F, // PUSH32 input padded
+        'h',
+        'e',
+        'l',
+        'l',
+        'o',
+        ' ',
+        'w',
+        'o',
+        'r',
+        'l',
+        'd',
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0x60, 0x00, // PUSH1 0
+        0x52, // MSTORE
+        0x60, 0x0B, // retSize
+        0x60, 0x00, // retOffset
+        0x60, 0x0B, // argsSize
+        0x60, 0x00, // argsOffset
+        0x60, 0x00, // value
+        0x73, // PUSH20 precompile
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x04,
+        0x62, 0x0F, 0xFF, 0xFF, // gas
+        0xF1, // CALL
+        0x50, // POP
+        0x60, 0x0B, // RETURN size
+        0x60, 0x00, // RETURN offset
+        0xF3, // RETURN
+    };
+
+    try mem_db.init(testing.allocator);
+
+    var caller_info: AccountInfo = .{
+        .code_hash = constants.EMPTY_HASH,
+        .nonce = 0,
+        .code = null,
+        .balance = 1_000_000,
+    };
+    try mem_db.addAccountInfo(TestAddresses.caller, &caller_info);
+
+    var parent_hash: [32]u8 = undefined;
+    Keccak256.hash(parent_code, &parent_hash, .{});
+    var parent_info: AccountInfo = .{
+        .code_hash = parent_hash,
+        .nonce = 0,
+        .code = .{ .raw = @constCast(parent_code) },
+        .balance = 0,
+    };
+    try mem_db.addAccountInfo(TestAddresses.target, &parent_info);
+
+    journal_state.init(testing.allocator, .LATEST, mem_db.database());
+
+    var host: JournaledHost = .{
+        .journal = journal_state,
+        .env = .{
+            .config = .{ .spec_id = .LATEST, .disable_block_gas_limit = true },
+            .block = .{ .gas_limit = 30_000_000 },
+            .tx = .{
+                .caller = TestAddresses.caller,
+                .gas_limit = 500_000,
+                .transact_to = .{ .call = TestAddresses.target },
+                .value = 0,
+                .nonce = 0,
+                .max_fee_per_blob_gas = null,
+            },
+        },
+    };
+
+    var vm: EVM = undefined;
+    defer {
+        vm.deinit();
+        host.journal.deinit();
+        mem_db.deinit();
+    }
+
+    vm.init(testing.allocator, host.host());
+
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    try testing.expectEqual(.returned, result.status);
+    try testing.expectEqualSlices(u8, input, result.output);
+}
+
+test "CALL to precompile 0x05 executes MODEXP" {
+    // base=2, exp=5, mod=13 -> 2^5 mod 13 = 6
+    const parent_code = &[_]u8{
+        0x60, 0x01, // PUSH1 1 (base length)
+        0x60, 0x00, // PUSH1 0
+        0x52, // MSTORE
+        0x60, 0x01, // PUSH1 1 (exp length)
+        0x60, 0x20, // PUSH1 32
+        0x52, // MSTORE
+        0x60, 0x01, // PUSH1 1 (mod length)
+        0x60, 0x40, // PUSH1 64
+        0x52, // MSTORE
+        0x60, 0x02, // PUSH1 2 (base value)
+        0x60, 0x60, // PUSH1 96
+        0x53, // MSTORE8
+        0x60, 0x05, // PUSH1 5 (exp value)
+        0x60, 0x61, // PUSH1 97
+        0x53, // MSTORE8
+        0x60, 0x0D, // PUSH1 13 (mod value)
+        0x60, 0x62, // PUSH1 98
+        0x53, // MSTORE8
+        0x60, 0x01, // retSize
+        0x60, 0x00, // retOffset
+        0x60, 0x63, // argsSize (99)
+        0x60, 0x00, // argsOffset
+        0x60, 0x00, // value
+        0x73, // PUSH20 precompile address
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x05,
+        0x62, 0x0F, 0xFF, 0xFF, // gas
+        0xF1, // CALL
+        0x50, // POP
+        0x60, 0x01, // RETURN size
+        0x60, 0x00, // RETURN offset
+        0xF3, // RETURN
+    };
+
+    try mem_db.init(testing.allocator);
+
+    var caller_info: AccountInfo = .{
+        .code_hash = constants.EMPTY_HASH,
+        .nonce = 0,
+        .code = null,
+        .balance = 1_000_000,
+    };
+    try mem_db.addAccountInfo(TestAddresses.caller, &caller_info);
+
+    var parent_hash: [32]u8 = undefined;
+    Keccak256.hash(parent_code, &parent_hash, .{});
+    var parent_info: AccountInfo = .{
+        .code_hash = parent_hash,
+        .nonce = 0,
+        .code = .{ .raw = @constCast(parent_code) },
+        .balance = 0,
+    };
+    try mem_db.addAccountInfo(TestAddresses.target, &parent_info);
+
+    journal_state.init(testing.allocator, .LATEST, mem_db.database());
+
+    var host: JournaledHost = .{
+        .journal = journal_state,
+        .env = .{
+            .config = .{ .spec_id = .LATEST, .disable_block_gas_limit = true },
+            .block = .{ .gas_limit = 30_000_000 },
+            .tx = .{
+                .caller = TestAddresses.caller,
+                .gas_limit = 500_000,
+                .transact_to = .{ .call = TestAddresses.target },
+                .value = 0,
+                .nonce = 0,
+                .max_fee_per_blob_gas = null,
+            },
+        },
+    };
+
+    var vm: EVM = undefined;
+    defer {
+        vm.deinit();
+        host.journal.deinit();
+        mem_db.deinit();
+    }
+
+    vm.init(testing.allocator, host.host());
+
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    try testing.expectEqual(.returned, result.status);
+    try testing.expectEqual(@as(usize, 1), result.output.len);
+    try testing.expectEqual(@as(u8, 6), result.output[0]);
 }
 
 test "ExecutionResult deinit frees output buffer" {

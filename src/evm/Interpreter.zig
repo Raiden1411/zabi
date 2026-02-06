@@ -574,7 +574,12 @@ pub fn run(self: *Interpreter) (AllInstructionErrors || InterpreterStatusErrors)
             .return_action,
             .call_action,
             .create_action,
-            => return self.next_action,
+            => {
+                const action = self.next_action;
+                self.next_action = .no_action;
+
+                return action;
+            },
             .no_action,
             => return .{
                 .return_action = .{

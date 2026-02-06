@@ -57,7 +57,7 @@ pub const JournaledState = struct {
     /// The current call stack depth.
     depth: usize,
     /// The journal of state changes. One for each call.
-    journal: ArrayListUnmanaged(ArrayListUnmanaged(JournalEntry)),
+    journal: ArrayListUnmanaged(JournalEntry),
     /// The spec id for the journal. Changes the behaviour depending on the current spec.
     spec: SpecId,
     /// Warm loaded addresses are used to check if loaded address
@@ -87,12 +87,20 @@ pub const JournaledState = struct {
 
     /// Clears any allocated memory.
     pub fn deinit(self: *JournaledState) void {
-        for (0..self.journal.items.len) |index|
-            (&self.journal.items[index]).deinit(self.allocator);
-
         var iter = self.state.valueIterator();
-        while (iter.next()) |entry|
+        while (iter.next()) |entry| {
+            // Code for CREATE'd contracts can be analyzed bytecode allocated by
+            // this VM run. Loaded code from the backing database is borrowed and
+            // must not be freed here.
+            if (entry.status.created != 0) {
+                if (entry.info.code) |code| switch (code) {
+                    .analyzed => |analyzed| analyzed.deinit(self.allocator),
+                    .raw => {},
+                };
+            }
+
             entry.storage.deinit();
+        }
 
         self.journal.deinit(self.allocator);
         self.state.deinit(self.allocator);
@@ -111,7 +119,6 @@ pub const JournaledState = struct {
         };
 
         self.depth += 1;
-        try self.journal.append(self.allocator, .empty);
 
         return point;
     }
@@ -133,25 +140,24 @@ pub const JournaledState = struct {
         balance: u256,
     ) CreateAccountErrors!JournalCheckpoint {
         const point = try self.checkpoint();
+        errdefer self.revertCheckpoint(point) catch {};
+
+        _ = try self.loadAccount(caller);
+        _ = try self.loadAccount(target_address);
 
         var caller_acc = self.state.getPtr(caller) orelse return error.NonExistentAccount;
 
         if (caller_acc.info.balance < balance) {
-            try self.revertCheckpoint(point);
             return error.OutOfFunds;
         }
 
         var target_acc = self.state.getPtr(target_address) orelse return error.NonExistentAccount;
 
         if (@as(u256, @bitCast(target_acc.info.code_hash)) != @as(u256, @bitCast(constants.EMPTY_HASH)) or target_acc.info.nonce != 0) {
-            try self.revertCheckpoint(point);
             return error.CreateCollision;
         }
 
-        std.debug.assert(self.journal.items.len > 0);
-
-        var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-        try reference.append(self.allocator, .{ .account_created = .{ .address = target_address } });
+        try self.journal.append(self.allocator, .{ .account_created = .{ .address = target_address } });
 
         target_acc.status.created = 1;
         target_acc.info.code = null;
@@ -160,21 +166,24 @@ pub const JournaledState = struct {
             target_acc.info.nonce = 1;
 
         try self.touchAccount(target_address);
-        const add, const overflow = @addWithOverflow(target_acc.info.balance, balance);
 
-        if (overflow != 0)
-            return error.BalanceOverflow;
+        if (balance > 0) {
+            const add, const overflow = @addWithOverflow(target_acc.info.balance, balance);
 
-        target_acc.info.balance = add;
-        caller_acc.info.balance -= balance;
+            if (overflow != 0)
+                return error.BalanceOverflow;
 
-        try reference.append(self.allocator, .{
-            .balance_transfer = .{
-                .from = caller,
-                .to = target_address,
-                .balance = balance,
-            },
-        });
+            target_acc.info.balance = add;
+            caller_acc.info.balance -= balance;
+
+            try self.journal.append(self.allocator, .{
+                .balance_transfer = .{
+                    .from = caller,
+                    .to = target_address,
+                    .balance = balance,
+                },
+            });
+        }
 
         return point;
     }
@@ -193,10 +202,7 @@ pub const JournaledState = struct {
         if (overflow != 0)
             return null;
 
-        std.debug.assert(self.journal.items.len > 0);
-
-        var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-        try reference.append(self.allocator, .{ .nonce_changed = .{ .address = address } });
+        try self.journal.append(self.allocator, .{ .nonce_changed = .{ .address = address } });
 
         account.info.nonce = add;
 
@@ -212,12 +218,8 @@ pub const JournaledState = struct {
     ) BasicErrors!StateLoaded(Account) {
         const state = try self.load(address);
 
-        if (state.cold) {
-            std.debug.assert(self.journal.items.len > 0);
-
-            var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-            try reference.append(self.allocator, .{ .account_warmed = .{ .address = address } });
-        }
+        if (state.cold)
+            try self.journal.append(self.allocator, .{ .account_warmed = .{ .address = address } });
 
         return state;
     }
@@ -232,12 +234,8 @@ pub const JournaledState = struct {
     ) BasicErrors!StateLoaded(Account) {
         var state = try self.load(address);
 
-        if (state.cold) {
-            std.debug.assert(self.journal.items.len > 0);
-
-            var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-            try reference.append(self.allocator, .{ .account_warmed = .{ .address = address } });
-        }
+        if (state.cold)
+            try self.journal.append(self.allocator, .{ .account_warmed = .{ .address = address } });
 
         if (@as(u256, @bitCast(state.data.info.code_hash)) == @as(u256, @bitCast(constants.EMPTY_HASH))) {
             state.data.info.code = .{ .raw = @constCast("") };
@@ -261,101 +259,100 @@ pub const JournaledState = struct {
     ) RevertCheckpointError!void {
         self.commitCheckpoint();
 
-        const length = self.journal.items.len - point.journal_checkpoint;
+        if (self.journal.items.len > point.journal_checkpoint) {
+            var length = self.journal.items.len - point.journal_checkpoint;
 
-        for (0..length) |_| {
-            var reference: ArrayListUnmanaged(JournalEntry) = self.journal.pop() orelse unreachable;
-            defer reference.deinit(self.allocator);
+            while (length != 0) : (length -= 1) {
+                const reference = self.journal.pop().?;
+                try self.revertJournal(reference);
+            }
 
-            try self.revertJournal(&reference);
+            self.journal.shrinkAndFree(self.allocator, point.journal_checkpoint);
         }
 
-        self.journal.shrinkAndFree(self.allocator, point.journal_checkpoint);
         self.log_storage.shrinkAndFree(self.allocator, point.logs_checkpoint);
     }
 
     /// Reverts a list of journal entries. Depending on the type of entry different actions will be taken.
     pub fn revertJournal(
         self: *JournaledState,
-        journal_entry: *ArrayListUnmanaged(JournalEntry),
+        journal_entry: JournalEntry,
     ) RevertCheckpointError!void {
-        while (journal_entry.pop()) |entry| {
-            switch (entry) {
-                .account_warmed => |address| {
-                    var account = self.state.getPtr(address.address) orelse return error.NonExistentAccount;
-                    account.status.cold = 1;
-                },
-                .account_touched => |address| {
-                    var account = self.state.getPtr(address.address) orelse return error.NonExistentAccount;
-                    account.status.touched = 0;
-                },
-                .account_created => |address| {
-                    var account = self.state.getPtr(address.address) orelse return error.NonExistentAccount;
-                    account.status.created = 0;
-                    account.info.nonce = 0;
+        switch (journal_entry) {
+            .account_warmed => |address| {
+                var account = self.state.getPtr(address.address) orelse return error.NonExistentAccount;
+                account.status.cold = 1;
+            },
+            .account_touched => |address| {
+                var account = self.state.getPtr(address.address) orelse return error.NonExistentAccount;
+                account.status.touched = 0;
+            },
+            .account_created => |address| {
+                var account = self.state.getPtr(address.address) orelse return error.NonExistentAccount;
+                account.status.created = 0;
+                account.info.nonce = 0;
 
-                    var storage_iter = account.storage.valueIterator();
+                var storage_iter = account.storage.valueIterator();
 
-                    while (storage_iter.next()) |entry_value|
-                        entry_value.is_cold = true;
-                },
-                .account_destroyed => |info| {
-                    var account = self.state.getPtr(info.address) orelse return error.NonExistentAccount;
+                while (storage_iter.next()) |entry_value|
+                    entry_value.is_cold = true;
+            },
+            .account_destroyed => |info| {
+                var account = self.state.getPtr(info.address) orelse return error.NonExistentAccount;
 
-                    if (info.was_destroyed) {
-                        account.status.self_destructed = 1;
-                    } else {
-                        account.status.self_destructed = 0;
-                    }
+                if (info.was_destroyed) {
+                    account.status.self_destructed = 1;
+                } else {
+                    account.status.self_destructed = 0;
+                }
 
-                    account.info.balance += info.had_balance;
+                account.info.balance += info.had_balance;
 
-                    if (@as(u160, @bitCast(info.address)) != @as(u160, @bitCast(info.target))) {
-                        var target_acc = self.state.getPtr(info.target) orelse return error.NonExistentAccount;
+                if (@as(u160, @bitCast(info.address)) != @as(u160, @bitCast(info.target))) {
+                    var target_acc = self.state.getPtr(info.target) orelse return error.NonExistentAccount;
 
-                        std.debug.assert(target_acc.info.balance >= info.had_balance);
-                        target_acc.info.balance -= info.had_balance;
-                    }
-                },
-                .balance_transfer => |info| {
-                    var account_from = self.state.getPtr(info.from) orelse return error.NonExistentAccount;
-                    var account_to = self.state.getPtr(info.to) orelse return error.NonExistentAccount;
+                    std.debug.assert(target_acc.info.balance >= info.had_balance);
+                    target_acc.info.balance -= info.had_balance;
+                }
+            },
+            .balance_transfer => |info| {
+                var account_from = self.state.getPtr(info.from) orelse return error.NonExistentAccount;
+                var account_to = self.state.getPtr(info.to) orelse return error.NonExistentAccount;
 
-                    account_from.info.balance += info.balance;
+                account_from.info.balance += info.balance;
 
-                    std.debug.assert(account_from.info.balance >= info.balance);
-                    account_to.info.balance -= info.balance;
-                },
-                .code_changed => |address| {
-                    var account = self.state.getPtr(address.address) orelse return error.NonExistentAccount;
+                std.debug.assert(account_from.info.balance >= info.balance);
+                account_to.info.balance -= info.balance;
+            },
+            .code_changed => |address| {
+                var account = self.state.getPtr(address.address) orelse return error.NonExistentAccount;
 
-                    account.info.code = null;
-                    account.info.code_hash = constants.EMPTY_HASH;
-                },
-                .nonce_changed => |address| {
-                    var account = self.state.getPtr(address.address) orelse return error.NonExistentAccount;
+                account.info.code = null;
+                account.info.code_hash = constants.EMPTY_HASH;
+            },
+            .nonce_changed => |address| {
+                var account = self.state.getPtr(address.address) orelse return error.NonExistentAccount;
 
-                    std.debug.assert(account.info.nonce > 0);
-                    account.info.nonce -= 1;
-                },
-                .storage_warmed => |info| {
-                    var account = self.state.getPtr(info.address) orelse return error.NonExistentAccount;
-                    var storage = account.storage.getPtr(info.key) orelse return error.InvalidStorageKey;
-                    storage.is_cold = true;
-                },
-                .storage_changed => |info| {
-                    var account = self.state.getPtr(info.address) orelse return error.NonExistentAccount;
-                    var storage = account.storage.get(info.key) orelse return error.InvalidStorageKey;
-                    storage.present_value = info.had_value;
-                },
-                .transient_storage_changed => |info| {
-                    if (info.had_value == 0) {
-                        _ = self.transient_storage.remove(.{ info.address, info.key });
-                    } else {
-                        try self.transient_storage.put(self.allocator, .{ info.address, info.key }, info.had_value);
-                    }
-                },
-            }
+                std.debug.assert(account.info.nonce > 0);
+                account.info.nonce -= 1;
+            },
+            .storage_warmed => |info| {
+                var account = self.state.getPtr(info.address) orelse return error.NonExistentAccount;
+                var storage = account.storage.getPtr(info.key) orelse return error.InvalidStorageKey;
+                storage.is_cold = true;
+            },
+            .storage_changed => |info| {
+                var account = self.state.getPtr(info.address) orelse return error.NonExistentAccount;
+                var storage = account.storage.getPtr(info.key) orelse return error.InvalidStorageKey;
+                storage.present_value = info.had_value;
+            },
+            .transient_storage_changed => |info| {
+                if (info.had_value == 0) {
+                    _ = self.transient_storage.remove(.{ info.address, info.key });
+                } else {
+                    try self.transient_storage.put(self.allocator, .{ info.address, info.key }, info.had_value);
+                }
+            },
         }
     }
 
@@ -415,12 +412,8 @@ pub const JournaledState = struct {
             break :entry null;
         };
 
-        if (entry) |journal_entry| {
-            std.debug.assert(self.journal.items.len > 0);
-
-            var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-            try reference.append(self.allocator, journal_entry);
-        }
+        if (entry) |journal_entry|
+            try self.journal.append(self.allocator, journal_entry);
 
         return .{
             .cold = account.cold,
@@ -461,10 +454,7 @@ pub const JournaledState = struct {
         var account = self.state.getPtr(address) orelse return error.NonExistentAccount;
         try self.touchAccount(address);
 
-        std.debug.assert(self.journal.items.len > 0);
-
-        var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-        try reference.append(self.allocator, .{ .code_changed = .{ .address = address } });
+        try self.journal.append(self.allocator, .{ .code_changed = .{ .address = address } });
 
         account.info.code = code;
         account.info.code_hash = hash;
@@ -514,10 +504,7 @@ pub const JournaledState = struct {
         };
 
         if (state.cold) {
-            std.debug.assert(self.journal.items.len > 0);
-            var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-
-            try reference.append(self.allocator, .{
+            try self.journal.append(self.allocator, .{
                 .storage_warmed = .{
                     .address = address,
                     .key = key,
@@ -554,10 +541,7 @@ pub const JournaledState = struct {
             };
         }
 
-        std.debug.assert(self.journal.items.len > 0);
-        var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-
-        try reference.append(self.allocator, .{
+        try self.journal.append(self.allocator, .{
             .storage_changed = .{
                 .address = address,
                 .key = key,
@@ -595,8 +579,7 @@ pub const JournaledState = struct {
     ) Allocator.Error!void {
         if (self.state.getPtr(address)) |account| {
             if (account.status.touched == 0) {
-                var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-                try reference.append(self.allocator, .{ .account_touched = .{ .address = address } });
+                try self.journal.append(self.allocator, .{ .account_touched = .{ .address = address } });
 
                 account.status.touched = 1;
             }
@@ -641,11 +624,7 @@ pub const JournaledState = struct {
 
         to_acc.info.balance = add;
 
-        // Append journal_entry to the list.
-        std.debug.assert(self.journal.items.len > 0);
-        var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-
-        try reference.append(self.allocator, .{
+        try self.journal.append(self.allocator, .{
             .balance_transfer = .{
                 .from = from,
                 .to = to,
@@ -684,18 +663,14 @@ pub const JournaledState = struct {
             }
         };
 
-        if (had_value) |val| {
-            std.debug.assert(self.journal.items.len > 0);
-            var reference: *ArrayListUnmanaged(JournalEntry) = &self.journal.items[self.journal.items.len - 1];
-
-            try reference.append(self.allocator, .{
+        if (had_value) |val|
+            try self.journal.append(self.allocator, .{
                 .transient_storage_changed = .{
                     .address = address,
                     .key = key,
                     .had_value = val,
                 },
             });
-        }
     }
 
     /// Updates the spec id for this journal.
@@ -709,7 +684,7 @@ pub const JournaledState = struct {
     /// Performs a load from the state and represent if the account is cold or not
     ///
     /// Loads directly from the database if the account doesn't exists in the state.
-    fn load(
+    pub fn load(
         self: *JournaledState,
         address: Address,
     ) BasicErrors!StateLoaded(Account) {

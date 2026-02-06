@@ -99,6 +99,16 @@ const WsClient = @import("blocking/WebSocketClient.zig");
 /// Scoped logging for the JSON RPC client.
 const provider_log = std.log.scoped(.provider);
 
+vtable: *const VTable,
+/// The network config that the provider will connect to.
+network_config: NetworkConfig,
+/// Io implementation used in this provider.
+io: Io,
+
+const VTable = struct {
+    sendRpcRequest: *const fn (self: *Provider, request: []u8) anyerror!JsonParsed(Value),
+};
+
 pub const Call = struct {
     /// The target address.
     target: Address,
@@ -180,16 +190,6 @@ pub const aggregate3_abi: Function = .{
             },
         },
     },
-};
-
-vtable: *const VTable,
-/// The network config that the provider will connect to.
-network_config: NetworkConfig,
-/// Io implementation used in this provider.
-io: Io,
-
-const VTable = struct {
-    sendRpcRequest: *const fn (self: *Provider, request: []u8) anyerror!JsonParsed(Value),
 };
 
 /// Grabs the current base blob fee. Make sure that your endpoint supports `eth_blobBaseFee`

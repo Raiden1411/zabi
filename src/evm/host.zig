@@ -94,12 +94,16 @@ pub const Host = struct {
     vtable: *const VTable,
 
     pub const VTable = struct {
+        /// Gets the full account info for an `address`.
+        accountInfo: *const fn (self: *anyopaque, address: Address) ?AccountInfo,
         /// Gets the balance of an `address` and if that address is cold.
         balance: *const fn (self: *anyopaque, address: Address) ?struct { u256, bool },
         /// Gets the block hash from a given block number
         blockHash: *const fn (self: *anyopaque, block_number: u64) ?Hash,
         /// Creates a new checkpoint for state rollback and increases call depth.
         checkpoint: *const fn (self: *anyopaque) anyerror!JournalCheckpoint,
+        /// Creates a new checkpoint for state rollback and increases call depth.
+        createAccount: *const fn (self: *anyopaque, caller: Address, target_address: Address, value: u256) JournaledState.CreateAccountErrors!JournalCheckpoint,
         /// Gets the code of an `address` and if that address is cold.
         code: *const fn (self: *anyopaque, address: Address) ?struct { Bytecode, bool },
         /// Gets the code hash of an `address` and if that address is cold.
@@ -108,6 +112,8 @@ pub const Host = struct {
         commitCheckpoint: *const fn (self: *anyopaque) void,
         /// Gets the host's `Enviroment`.
         getEnviroment: *const fn (self: *anyopaque) EVMEnviroment,
+        /// Increments the nonce value with associated address account.
+        incrementNonce: *const fn (self: *anyopaque, address: Address) (Allocator.Error || error{Overflow})!u64,
         /// Loads an account.
         loadAccount: *const fn (self: *anyopaque, address: Address) ?AccountResult,
         /// Emits a log owned by an address with the log data.
@@ -116,6 +122,8 @@ pub const Host = struct {
         revertCheckpoint: *const fn (self: *anyopaque, checkpoint: JournalCheckpoint) anyerror!void,
         /// Sets the address to be deleted and any funds it might have to `target` address.
         selfDestruct: *const fn (self: *anyopaque, address: Address, target: Address) anyerror!StateLoaded(SelfDestructResult),
+        /// Sets the provided bytecode in the account of the provided address.
+        setCode: *const fn (self: *anyopaque, address: Address, bytecode: Bytecode) (Allocator.Error || error{NonExistentAccount})!void,
         /// Gets the storage value of an `address` at a given `index` and if that address is cold.
         sload: *const fn (self: *anyopaque, address: Address, index: u256) anyerror!StateLoaded(u256),
         /// Sets a storage value of an `address` at a given `index` and if that address is cold.
@@ -124,67 +132,108 @@ pub const Host = struct {
         tload: *const fn (self: *anyopaque, address: Address, index: u256) ?u256,
         /// Sets the transient storage value of an `address` at a given `index`.
         tstore: *const fn (self: *anyopaque, address: Address, index: u256, value: u256) anyerror!void,
+        /// Transfers value from one address to another.
+        transfer: *const fn (self: *anyopaque, from: Address, to: Address, value: u256) anyerror!void,
     };
+
+    /// Gets the full account info for an `address`.
+    pub inline fn accountInfo(self: SelfHost, address: Address) ?AccountInfo {
+        return self.vtable.accountInfo(self.ptr, address);
+    }
 
     /// Gets the balance of an `address` and if that address is cold.
     pub inline fn balance(self: SelfHost, address: Address) ?struct { u256, bool } {
         return self.vtable.balance(self.ptr, address);
     }
+
     /// Gets the block hash from a given block number
     pub inline fn blockHash(self: SelfHost, block_number: u64) ?Hash {
         return self.vtable.blockHash(self.ptr, block_number);
     }
+
     /// Creates a new checkpoint for state rollback and increases call depth.
     pub inline fn checkpoint(self: SelfHost) anyerror!JournalCheckpoint {
         return self.vtable.checkpoint(self.ptr);
     }
+
+    /// Creates a new checkpoint for state rollback and increases call depth.
+    pub inline fn createAccount(self: SelfHost, caller: Address, target_address: Address, value: u256) JournaledState.CreateAccountErrors!JournalCheckpoint {
+        return self.vtable.createAccount(self.ptr, caller, target_address, value);
+    }
+
     /// Gets the code of an `address` and if that address is cold.
     pub inline fn code(self: SelfHost, address: Address) ?struct { Bytecode, bool } {
         return self.vtable.code(self.ptr, address);
     }
+
     /// Gets the code hash of an `address` and if that address is cold.
     pub inline fn codeHash(self: SelfHost, address: Address) ?struct { Hash, bool } {
         return self.vtable.codeHash(self.ptr, address);
     }
+
     /// Commits the current checkpoint, making state changes permanent.
     pub inline fn commitCheckpoint(self: SelfHost) void {
         return self.vtable.commitCheckpoint(self.ptr);
     }
+
+    /// Transfers value from one address to another.
+    pub inline fn incrementNonce(self: SelfHost, from: Address) (Allocator.Error || error{Overflow})!u64 {
+        return self.vtable.incrementNonce(self.ptr, from);
+    }
+
     /// Gets the host's `Enviroment`.
     pub inline fn getEnviroment(self: SelfHost) EVMEnviroment {
         return self.vtable.getEnviroment(self.ptr);
     }
+
     /// Loads an account.
     pub inline fn loadAccount(self: SelfHost, address: Address) ?AccountResult {
         return self.vtable.loadAccount(self.ptr, address);
     }
+
     /// Emits a log owned by an address with the log data.
     pub inline fn log(self: SelfHost, log_event: Log) anyerror!void {
         return self.vtable.log(self.ptr, log_event);
     }
+
     /// Reverts state changes back to the given checkpoint.
     pub inline fn revertCheckpoint(self: SelfHost, point: JournalCheckpoint) anyerror!void {
         return self.vtable.revertCheckpoint(self.ptr, point);
     }
+
     /// Sets the address to be deleted and any funds it might have to `target` address.
     pub inline fn selfDestruct(self: SelfHost, address: Address, target: Address) anyerror!StateLoaded(SelfDestructResult) {
         return self.vtable.selfDestruct(self.ptr, address, target);
     }
+
+    /// Sets the provided bytecode in the account of the provided address.
+    pub inline fn setCode(self: SelfHost, address: Address, bytecode: Bytecode) (Allocator.Error || error{NonExistentAccount})!void {
+        return self.vtable.setCode(self.ptr, address, bytecode);
+    }
+
     /// Gets the storage value of an `address` at a given `index` and if that address is cold.
     pub inline fn sload(self: SelfHost, address: Address, index: u256) anyerror!StateLoaded(u256) {
         return self.vtable.sload(self.ptr, address, index);
     }
+
     /// Sets a storage value of an `address` at a given `index` and if that address is cold.
     pub inline fn sstore(self: SelfHost, address: Address, index: u256, value: u256) anyerror!StateLoaded(SStoreResult) {
         return self.vtable.sstore(self.ptr, address, index, value);
     }
+
     /// Gets the transient storage value of an `address` at a given `index`.
     pub inline fn tload(self: SelfHost, address: Address, index: u256) ?u256 {
         return self.vtable.tload(self.ptr, address, index);
     }
+
     /// Sets the transient storage value of an `address` at a given `index`.
     pub inline fn tstore(self: SelfHost, address: Address, index: u256, value: u256) anyerror!void {
         return self.vtable.tstore(self.ptr, address, index, value);
+    }
+
+    /// Transfers value from one address to another.
+    pub inline fn transfer(self: SelfHost, from: Address, to: Address, value: u256) anyerror!void {
+        return self.vtable.transfer(self.ptr, from, to, value);
     }
 };
 
@@ -230,22 +279,36 @@ pub const PlainHost = struct {
         return .{
             .ptr = self,
             .vtable = &.{
+                .accountInfo = accountInfo,
                 .balance = balance,
                 .blockHash = blockHash,
                 .checkpoint = checkpoint,
+                .createAccount = createAccount,
                 .code = code,
                 .codeHash = codeHash,
                 .commitCheckpoint = commitCheckpoint,
                 .getEnviroment = getEnviroment,
+                .incrementNonce = incrementNonce,
                 .loadAccount = loadAccount,
                 .log = log,
                 .revertCheckpoint = revertCheckpoint,
+                .setCode = setCode,
                 .selfDestruct = selfDestruct,
                 .sload = sload,
                 .sstore = sstore,
                 .tload = tload,
                 .tstore = tstore,
+                .transfer = transfer,
             },
+        };
+    }
+
+    fn accountInfo(_: *anyopaque, _: Address) ?AccountInfo {
+        return .{
+            .balance = 0,
+            .nonce = 0,
+            .code_hash = [_]u8{0} ** 32,
+            .code = null,
         };
     }
 
@@ -258,6 +321,10 @@ pub const PlainHost = struct {
     }
 
     fn checkpoint(_: *anyopaque) error{}!JournalCheckpoint {
+        return .{ .journal_checkpoint = 0, .logs_checkpoint = 0 };
+    }
+
+    fn createAccount(_: *anyopaque, _: Address, _: Address, _: u256) JournaledState.CreateAccountErrors!JournalCheckpoint {
         return .{ .journal_checkpoint = 0, .logs_checkpoint = 0 };
     }
 
@@ -277,6 +344,10 @@ pub const PlainHost = struct {
         return self.env;
     }
 
+    fn incrementNonce(_: *anyopaque, _: Address) (Allocator.Error || error{Overflow})!u64 {
+        return 0;
+    }
+
     fn loadAccount(_: *anyopaque, _: Address) ?AccountResult {
         return AccountResult{ .is_new_account = false, .is_cold = false };
     }
@@ -293,6 +364,8 @@ pub const PlainHost = struct {
     fn selfDestruct(_: *anyopaque, _: Address, _: Address) error{}!StateLoaded(SelfDestructResult) {
         @panic("selfDestruct is not implemented on this host");
     }
+
+    fn setCode(_: *anyopaque, _: Address, _: Bytecode) (Allocator.Error || error{NonExistentAccount})!void {}
 
     fn sload(ctx: *anyopaque, _: Address, index: u256) Allocator.Error!StateLoaded(u256) {
         const self: *Self = @ptrCast(@alignCast(ctx));
@@ -355,6 +428,8 @@ pub const PlainHost = struct {
 
         return self.transient_storage.put(index, value);
     }
+
+    fn transfer(_: *anyopaque, _: Address, _: Address, _: u256) error{}!void {}
 };
 
 /// EVM Journaled context.
@@ -367,7 +442,7 @@ pub const JournaledHost = struct {
     env: EVMEnviroment,
 
     /// Sets the initial state the journaled host.
-    pub fn init(enviroment: EVMEnviroment, journal_db: JournaledState) !void {
+    pub fn init(enviroment: EVMEnviroment, journal_db: JournaledState) Self {
         return .{
             .env = enviroment,
             .journal = journal_db,
@@ -379,26 +454,38 @@ pub const JournaledHost = struct {
         return .{
             .ptr = self,
             .vtable = &.{
+                .accountInfo = accountInfo,
                 .balance = balance,
                 .blockHash = blockHash,
                 .checkpoint = checkpoint,
+                .createAccount = createAccount,
                 .code = code,
                 .codeHash = codeHash,
                 .commitCheckpoint = commitCheckpoint,
                 .getEnviroment = getEnviroment,
+                .incrementNonce = incrementNonce,
                 .loadAccount = loadAccount,
                 .log = log,
                 .revertCheckpoint = revertCheckpoint,
                 .selfDestruct = selfDestruct,
+                .setCode = setCode,
                 .sload = sload,
                 .sstore = sstore,
                 .tload = tload,
                 .tstore = tstore,
+                .transfer = transfer,
             },
         };
     }
 
     // Implementation of the interface.
+    fn accountInfo(ctx: *anyopaque, address: Address) ?AccountInfo {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        const account = self.journal.loadAccount(address) catch return null;
+
+        return account.data.info;
+    }
+
     fn balance(ctx: *anyopaque, address: Address) ?struct { u256, bool } {
         const self: *Self = @ptrCast(@alignCast(ctx));
         const account = self.journal.loadAccount(address) catch return null;
@@ -429,6 +516,11 @@ pub const JournaledHost = struct {
     fn checkpoint(ctx: *anyopaque) anyerror!JournalCheckpoint {
         const self: *Self = @ptrCast(@alignCast(ctx));
         return self.journal.checkpoint();
+    }
+
+    fn createAccount(ctx: *anyopaque, caller: Address, target_address: Address, value: u256) JournaledState.CreateAccountErrors!JournalCheckpoint {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        return self.journal.createAccountCheckpoint(caller, target_address, value);
     }
 
     fn code(ctx: *anyopaque, address: Address) ?struct { Bytecode, bool } {
@@ -464,6 +556,13 @@ pub const JournaledHost = struct {
         return self.env;
     }
 
+    fn incrementNonce(ctx: *anyopaque, from: Address) (Allocator.Error || error{Overflow})!u64 {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        const current = try self.journal.incrementAccountNonce(from) orelse return error.Overflow;
+
+        return current - 1;
+    }
+
     fn loadAccount(ctx: *anyopaque, address: Address) ?AccountResult {
         const self: *Self = @ptrCast(@alignCast(ctx));
         const account = self.journal.loadAccount(address) catch return null;
@@ -477,7 +576,7 @@ pub const JournaledHost = struct {
     fn log(ctx: *anyopaque, log_event: Log) !void {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
-        try self.journal.log_storage.ensureUnusedCapacity(1);
+        try self.journal.log_storage.ensureUnusedCapacity(self.journal.allocator, 1);
         self.journal.log_storage.appendAssumeCapacity(log_event);
     }
 
@@ -486,12 +585,16 @@ pub const JournaledHost = struct {
         return self.journal.revertCheckpoint(point);
     }
 
+    fn setCode(ctx: *anyopaque, address: Address, bytecode: Bytecode) (Allocator.Error || error{NonExistentAccount})!void {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+
+        return self.journal.setCode(address, bytecode);
+    }
+
     fn selfDestruct(ctx: *anyopaque, from: Address, target: Address) !StateLoaded(SelfDestructResult) {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
-        const result = try self.journal.selfDestruct(from, target);
-
-        return result.data;
+        return self.journal.selfDestruct(from, target);
     }
 
     fn sload(ctx: *anyopaque, address: Address, index: u256) !StateLoaded(u256) {
@@ -516,5 +619,11 @@ pub const JournaledHost = struct {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
         return self.journal.tstore(address, index, value);
+    }
+
+    fn transfer(ctx: *anyopaque, from: Address, to: Address, value: u256) anyerror!void {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+
+        return self.journal.transfer(from, to, value);
     }
 };

@@ -12,23 +12,27 @@ const AccountInfo = host.AccountInfo;
 const Address = types.Address;
 const Hash = types.Hash;
 const SpecId = specification.SpecId;
+const TransactionTypes = zabi_types.transactions.TransactionTypes;
 
 /// Set of validation errors from a `EVMEnviroment`.
 pub const ValidationErrors = error{
-    PriorityFeeGreaterThanMaxFee,
-    GasPriceLessThanBaseFee,
-    GasLimitHigherThanBlock,
-    TooManyBlobs,
+    AccessListNotSupported,
     BlobCreateTransaction,
+    BlobGasPriceHigherThanMax,
     BlobVersionNotSupported,
     BlobVersionedHashesNotSupported,
-    BlobGasPriceHigherThanMax,
     EmptyBlobs,
-    InvalidChainId,
-    AccessListNotSupported,
+    ExpectedBlobPrice,
+    GasLimitHigherThanBlock,
+    GasPriceLessThanBaseFee,
     InsufficientBalance,
+    InvalidChainId,
     InvalidNonce,
+    MaxFeePerBlobGasNotSupported,
+    PriorityFeeGreaterThanMaxFee,
     SenderHasCode,
+    TooManyBlobs,
+    UnsupportedTxType,
 };
 
 /// The EVM inner enviroment.
@@ -116,55 +120,91 @@ pub const EVMEnviroment = struct {
     pub fn validateTransaction(
         self: *const EVMEnviroment,
     ) ValidationErrors!void {
-        if (self.config.spec_id.enabled(.LONDON)) {
-            if (self.tx.gas_priority_fee) |fee| {
-                if (fee > self.tx.gas_price)
-                    return error.PriorityFeeGreaterThanMaxFee;
-            }
-
-            if (!self.config.disable_base_fee and self.effectiveGasPrice() < self.block.base_fee)
-                return error.GasPriceLessThanBaseFee;
-        }
+        if (self.tx.chain_id) |chain_id|
+            if (chain_id != self.config.chain_id)
+                return error.InvalidChainId;
 
         if (!self.config.disable_block_gas_limit and self.tx.gas_limit > self.block.gas_limit)
             return error.GasLimitHigherThanBlock;
 
-        if (self.tx.chain_id) |chain_id| {
-            if (chain_id != self.config.chain_id)
-                return error.InvalidChainId;
-        }
+        switch (self.tx.tx_type) {
+            .legacy => {
+                if (self.tx.blob_hashes.len != 0)
+                    return error.BlobVersionedHashesNotSupported;
 
-        if (!self.config.spec_id.enabled(.BERLIN) and self.tx.access_list.len != 0) {
-            return error.AccessListNotSupported;
-        }
+                if (self.tx.max_fee_per_blob_gas != null)
+                    return error.MaxFeePerBlobGasNotSupported;
+            },
+            .berlin => {
+                if (self.tx.blob_hashes.len != 0)
+                    return error.BlobVersionedHashesNotSupported;
 
-        if (self.config.spec_id.enabled(.CANCUN)) {
-            if (self.tx.max_fee_per_blob_gas) |max| {
-                const price = self.block.blob_excess_gas_and_price orelse return error.ExpectedBlobPrice;
+                if (self.tx.max_fee_per_blob_gas != null)
+                    return error.MaxFeePerBlobGasNotSupported;
 
-                if (price.blob_gasprice > max)
-                    return error.BlobGasPriceHigherThanMax;
-            }
+                if (!self.config.spec_id.enabled(.BERLIN) and self.tx.access_list.len != 0)
+                    return error.AccessListNotSupported;
+            },
+            .london => {
+                if (self.tx.blob_hashes.len != 0)
+                    return error.BlobVersionedHashesNotSupported;
 
-            if (self.tx.blob_hashes.len == 0)
-                return error.EmptyBlobs;
+                if (self.tx.max_fee_per_blob_gas != null)
+                    return error.MaxFeePerBlobGasNotSupported;
 
-            if (self.tx.transact_to == .create)
-                return error.BlobCreateTransaction;
+                if (self.config.spec_id.enabled(.LONDON)) {
+                    if (self.tx.gas_priority_fee) |fee|
+                        if (fee > self.tx.gas_price)
+                            return error.PriorityFeeGreaterThanMaxFee;
 
-            for (self.tx.blob_hashes) |hashes| {
-                if (hashes[0] != constants.VERSIONED_HASH_VERSION_KZG)
-                    return error.BlobVersionNotSupported;
-            }
+                    if (!self.config.disable_base_fee and self.effectiveGasPrice() < self.block.base_fee)
+                        return error.GasPriceLessThanBaseFee;
+                }
+            },
+            .cancun => {
+                if (!self.config.disable_block_gas_limit and self.tx.gas_limit > self.block.gas_limit)
+                    return error.GasLimitHigherThanBlock;
 
-            if (self.tx.blob_hashes.len > constants.MAX_BLOB_NUMBER_PER_BLOCK)
-                return error.TooManyBlobs;
-        } else {
-            if (self.tx.blob_hashes.len != 0)
-                return error.BlobVersionedHashesNotSupported;
+                if (self.tx.blob_hashes.len != 0)
+                    return error.BlobVersionedHashesNotSupported;
 
-            if (self.tx.max_fee_per_blob_gas != null)
-                return error.MaxFeePerBlobGasNotSupported;
+                if (self.tx.max_fee_per_blob_gas != null)
+                    return error.MaxFeePerBlobGasNotSupported;
+
+                if (self.config.spec_id.enabled(.LONDON)) {
+                    if (self.tx.gas_priority_fee) |fee| {
+                        if (fee > self.tx.gas_price)
+                            return error.PriorityFeeGreaterThanMaxFee;
+                    }
+
+                    if (!self.config.disable_base_fee and self.effectiveGasPrice() < self.block.base_fee)
+                        return error.GasPriceLessThanBaseFee;
+                }
+
+                if (self.config.spec_id.enabled(.CANCUN)) {
+                    if (self.tx.max_fee_per_blob_gas) |max| {
+                        const price = self.block.blob_excess_gas_and_price orelse return error.ExpectedBlobPrice;
+
+                        if (price.blob_gasprice > max)
+                            return error.BlobGasPriceHigherThanMax;
+                    }
+
+                    if (self.tx.blob_hashes.len == 0)
+                        return error.EmptyBlobs;
+
+                    if (self.tx.transact_to == .create)
+                        return error.BlobCreateTransaction;
+
+                    for (self.tx.blob_hashes) |hashes| {
+                        if (hashes[0] != constants.VERSIONED_HASH_VERSION_KZG)
+                            return error.BlobVersionNotSupported;
+                    }
+
+                    if (self.tx.blob_hashes.len > constants.MAX_BLOB_NUMBER_PER_BLOCK)
+                        return error.TooManyBlobs;
+                }
+            },
+            else => return error.UnsupportedTxType,
         }
     }
 
@@ -185,9 +225,7 @@ pub const EVMEnviroment = struct {
         }
 
         if (!self.config.disable_eip3607) {
-            const has_code = @as(u256, @bitCast(sender_info.code_hash)) !=
-                @as(u256, @bitCast(constants.EMPTY_HASH));
-            if (has_code)
+            if (!std.mem.eql(u8, &sender_info.code_hash, &constants.EMPTY_HASH))
                 return error.SenderHasCode;
         }
 
@@ -210,7 +248,7 @@ pub const ConfigEnviroment = struct {
     /// By default if should be 24kb as part of the Spurious Dragon upgrade via [EIP-155].
     ///
     /// [EIP-155]: https://eips.ethereum.org/EIPS/eip-155
-    limit_contract_size: ?usize = 0x600,
+    limit_contract_size: usize = 0x600,
     /// The max size that the memory can grow too with failing with `OutOfGas` errors.
     memory_limit: u64 = std.math.maxInt(u32),
     /// Skips balance checks if enabled. Adds transaction cost to ensure execution doesn't fail.
@@ -287,6 +325,7 @@ pub const BlockEnviroment = struct {
 
 /// The transaction enviroment.
 pub const TxEnviroment = struct {
+    tx_type: TransactionTypes = .london,
     /// The signer of this transaction.
     caller: Address = [_]u8{0} ** 20,
     /// The gas limit for this transaction.
@@ -333,7 +372,7 @@ pub const TxEnviroment = struct {
     /// Incorporated as part of the Cancun upgrade via [EIP-4844].
     ///
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
-    max_fee_per_blob_gas: ?u256 = 0,
+    max_fee_per_blob_gas: ?u256 = null,
     /// `Optimism` dedicated fields.
     optimism: ?OptimismFields = null,
 

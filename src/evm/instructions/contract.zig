@@ -112,13 +112,8 @@ pub inline fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ I
 
     if (length != 0) {
         if (self.spec.enabled(.SHANGHAI)) {
-            const max_code_size: usize = blk: {
-                if (self.host.getEnviroment().config.limit_contract_size) |limit_size| {
-                    break :blk limit_size *| 2;
-                }
-
-                break :blk 0x600 * 2;
-            };
+            const max_code_size: usize =
+                self.host.getEnviroment().config.limit_contract_size *| 2;
 
             if (length > max_code_size) {
                 self.status = .create_code_size_limit;

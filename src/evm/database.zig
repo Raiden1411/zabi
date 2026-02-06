@@ -81,7 +81,7 @@ pub const MemoryDatabase = struct {
     pub const AccountLoadError = BasicErrors || error{AccountNonExistent};
 
     /// Set of possible basic database errors.
-    pub const BasicErrors = Allocator.Error || error{UnexpectedError};
+    pub const BasicErrors = Allocator.Error || error{ UnexpectedError, NoAssociatedHash };
 
     /// Hashmap of account associated with their addresses.
     account: AutoHashMapUnmanaged(Address, DatabaseAccount),
@@ -91,8 +91,6 @@ pub const MemoryDatabase = struct {
     block_hashes: AutoHashMapUnmanaged(u256, Hash),
     /// Hashmap of block_hashes and their associated bytecode.
     contracts: AutoHashMapUnmanaged(Hash, Bytecode),
-    /// Inner fallback database.
-    db: Database,
     /// List of emitted logs.
     logs: ArrayListUnmanaged(Log),
 
@@ -100,7 +98,6 @@ pub const MemoryDatabase = struct {
     pub fn init(
         self: *Self,
         allocator: Allocator,
-        db: Database,
     ) Allocator.Error!void {
         var contracts: AutoHashMapUnmanaged(Hash, Bytecode) = .empty;
         errdefer contracts.deinit(allocator);
@@ -113,7 +110,6 @@ pub const MemoryDatabase = struct {
             .allocator = allocator,
             .block_hashes = .empty,
             .contracts = contracts,
-            .db = db,
             .logs = .empty,
         };
     }
@@ -183,6 +179,7 @@ pub const MemoryDatabase = struct {
 
         if (db_account) |acc| {
             acc.info = account.*;
+
             return;
         }
 
@@ -217,25 +214,16 @@ pub const MemoryDatabase = struct {
         if (db_self.account.get(address)) |acc|
             return acc.info;
 
-        const db_info = db_self.db.basic(address) catch return error.UnexpectedError;
-
-        const account_info: DatabaseAccount = if (db_info) |info|
-            .{
-                .info = info,
-                .account_state = .none,
-                .storage = .init(db_self.allocator),
-            }
-        else
-            .{
-                .info = .{
-                    .balance = 0,
-                    .nonce = 0,
-                    .code_hash = constants.EMPTY_HASH,
-                    .code = .{ .raw = @constCast("") },
-                },
-                .account_state = .not_existing,
-                .storage = .init(db_self.allocator),
-            };
+        const account_info: DatabaseAccount = .{
+            .info = .{
+                .balance = 0,
+                .nonce = 0,
+                .code_hash = constants.EMPTY_HASH,
+                .code = .{ .raw = @constCast("") },
+            },
+            .account_state = .not_existing,
+            .storage = .init(db_self.allocator),
+        };
 
         try db_self.account.put(db_self.allocator, address, account_info);
 
@@ -246,13 +234,13 @@ pub const MemoryDatabase = struct {
     pub fn codeByHash(
         self: *anyopaque,
         code_hash: Hash,
-    ) error{UnexpectedError}!Bytecode {
+    ) error{ UnexpectedError, NoAssociatedBytecode }!Bytecode {
         const db_self: *MemoryDatabase = @ptrCast(@alignCast(self));
 
         if (db_self.contracts.get(code_hash)) |code|
             return code;
 
-        return db_self.db.codeByHash(code_hash) catch error.UnexpectedError;
+        return error.NoAssociatedBytecode;
     }
 
     /// Get the value in an account's storage slot.
@@ -269,35 +257,10 @@ pub const MemoryDatabase = struct {
             if (account.storage.get(index)) |value|
                 return value;
 
-            switch (account.account_state) {
-                .storage_cleared,
-                .not_existing,
-                => return 0,
-                else => {
-                    const slot = db_self.db.storage(address, index) catch return error.UnexpectedError;
-
-                    try account.storage.put(index, slot);
-
-                    return slot;
-                },
-            }
-        }
-
-        const db_info = db_self.db.basic(address) catch return error.UnexpectedError;
-
-        if (db_info) |info| {
-            const slot = db_self.db.storage(address, index) catch return error.UnexpectedError;
-
-            var db_account: DatabaseAccount = .{
-                .info = info,
-                .account_state = .none,
-                .storage = .init(db_self.allocator),
-            };
-
-            try db_account.storage.put(index, slot);
-            try db_self.account.put(db_self.allocator, address, db_account);
-
-            return slot;
+            // Storage slot not found. Return 0 for all account states.
+            // This handles both newly created accounts and existing accounts
+            // where the slot was never written.
+            return 0;
         }
 
         const db_account: DatabaseAccount = .{
@@ -326,10 +289,7 @@ pub const MemoryDatabase = struct {
         if (db_self.block_hashes.get(number)) |hash|
             return hash;
 
-        const db_hash = db_self.db.blockHash(number) catch return error.UnexpectedError;
-        try db_self.block_hashes.put(db_self.allocator, number, db_hash);
-
-        return db_hash;
+        return error.NoAssociatedHash;
     }
 
     /// Commits all of the changes to the database.
@@ -406,16 +366,7 @@ pub const MemoryDatabase = struct {
         if (self.account.getEntry(address)) |db_acc|
             return db_acc.value_ptr;
 
-        const account_info = (self.db.basic(address) catch return error.UnexpectedError) orelse return error.AccountNonExistent;
-        const db_acc: DatabaseAccount = .{
-            .info = account_info,
-            .storage = .init(self.allocator),
-            .account_state = .none,
-        };
-
-        try self.account.put(self.allocator, address, db_acc);
-
-        return self.account.getEntry(address).?.value_ptr;
+        return error.AccountNonExistent;
     }
 };
 

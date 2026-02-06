@@ -435,6 +435,82 @@ test "validateIntrinsicGas rejects transactions below intrinsic gas" {
     try testing.expectError(error.IntrinsicGasTooLow, env.validateIntrinsicGas());
 }
 
+test "validateTransaction rejects oversized create init code in Shanghai" {
+    var env: EVMEnviroment = .{};
+    env.config.spec_id = .SHANGHAI;
+    env.tx.transact_to = .create;
+
+    const max_len = env.config.limit_contract_size * 2;
+    const data = try testing.allocator.alloc(u8, max_len + 1);
+    defer testing.allocator.free(data);
+
+    @memset(data, 0x00);
+    env.tx.data = data;
+
+    try testing.expectError(error.InitCodeSizeLimitExceeded, env.validateTransaction());
+}
+
+test "validateTransaction accepts boundary create init code in Shanghai" {
+    var env: EVMEnviroment = .{};
+    env.config.spec_id = .SHANGHAI;
+    env.tx.transact_to = .create;
+
+    const max_len = env.config.limit_contract_size * 2;
+    const data = try testing.allocator.alloc(u8, max_len);
+    defer testing.allocator.free(data);
+
+    @memset(data, 0x00);
+    env.tx.data = data;
+
+    try env.validateTransaction();
+}
+
+test "calculateIntrinsicGas includes Shanghai init code word cost for create transactions" {
+    var init_code = [_]u8{0} ** 33;
+
+    var env: EVMEnviroment = .{};
+    env.tx.transact_to = .create;
+    env.tx.data = &init_code;
+
+    env.config.spec_id = .MERGE;
+    const pre_shanghai = try env.calculateIntrinsicGas();
+
+    env.config.spec_id = .SHANGHAI;
+    const shanghai = try env.calculateIntrinsicGas();
+
+    try testing.expectEqual(pre_shanghai + (2 * constants.INITCODE_WORD_COST), shanghai);
+}
+
+test "calculateIntrinsicGas does not include init code word cost before Shanghai" {
+    var init_code = [_]u8{0} ** 33;
+
+    var env: EVMEnviroment = .{};
+    env.config.spec_id = .MERGE;
+    env.tx.transact_to = .create;
+    env.tx.data = &init_code;
+
+    const intrinsic = try env.calculateIntrinsicGas();
+    const expected = constants.TRANSACTION +
+        constants.CREATE +
+        (33 * constants.TRANSACTION_ZERO_DATA);
+
+    try testing.expectEqual(expected, intrinsic);
+}
+
+test "validateIntrinsicGas rejects create transaction when init code word cost is missing by one gas" {
+    var init_code = [_]u8{0} ** 33;
+
+    var env: EVMEnviroment = .{};
+    env.config.spec_id = .SHANGHAI;
+    env.tx.transact_to = .create;
+    env.tx.data = &init_code;
+
+    const intrinsic = try env.calculateIntrinsicGas();
+    env.tx.gas_limit = intrinsic - 1;
+
+    try testing.expectError(error.IntrinsicGasTooLow, env.validateIntrinsicGas());
+}
+
 test "validateTransaction accepts a valid Cancun blob envelope" {
     var valid_hash = [_]u8{0} ** 32;
     valid_hash[0] = constants.VERSIONED_HASH_VERSION_KZG;

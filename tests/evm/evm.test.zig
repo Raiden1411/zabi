@@ -2033,6 +2033,100 @@ test "CALL to non-existent code succeeds with value transfer only" {
     try testing.expectEqual(@as(u8, 1), result.output[31]);
 }
 
+test "CALL to non-existent code refunds forwarded gas to the parent frame" {
+    const parent_code = &[_]u8{
+        0x60, 0x00, // retSize
+        0x60, 0x00, // retOffset
+        0x60, 0x00, // argsSize
+        0x60, 0x00, // argsOffset
+        0x60, 0x00, // value
+        0x73, // PUSH20 empty_address
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0xEE,
+        0x61, 0xFF, 0xFF, // gas
+        0xF1, // CALL
+        0x5A, // GAS
+        0x60, 0x00, // PUSH1 0
+        0x52, // MSTORE
+        0x60, 0x20, // PUSH1 32
+        0x60, 0x00, // PUSH1 0
+        0xF3, // RETURN
+    };
+
+    try mem_db.init(testing.allocator);
+
+    var caller_info: AccountInfo = .{
+        .code_hash = constants.EMPTY_HASH,
+        .nonce = 0,
+        .code = null,
+        .balance = 1_000_000,
+    };
+    try mem_db.addAccountInfo(TestAddresses.caller, &caller_info);
+
+    var parent_hash: [32]u8 = undefined;
+    Keccak256.hash(parent_code, &parent_hash, .{});
+    var parent_info: AccountInfo = .{
+        .code_hash = parent_hash,
+        .nonce = 0,
+        .code = .{ .raw = @constCast(parent_code) },
+        .balance = 0,
+    };
+    try mem_db.addAccountInfo(TestAddresses.target, &parent_info);
+
+    journal_state.init(testing.allocator, .SHANGHAI, mem_db.database());
+
+    var host: JournaledHost = .{
+        .journal = journal_state,
+        .env = .{
+            .config = .{ .spec_id = .LATEST, .disable_block_gas_limit = true },
+            .block = .{ .gas_limit = 30_000_000 },
+            .tx = .{
+                .caller = TestAddresses.caller,
+                .gas_limit = 24_200,
+                .transact_to = .{ .call = TestAddresses.target },
+                .value = 0,
+                .nonce = 0,
+                .max_fee_per_blob_gas = null,
+            },
+        },
+    };
+
+    var vm: EVM = undefined;
+    defer {
+        vm.deinit();
+        host.journal.deinit();
+        mem_db.deinit();
+    }
+
+    vm.init(testing.allocator, host.host());
+
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    try testing.expectEqual(.returned, result.status);
+
+    const remaining_gas = std.mem.readInt(u64, result.output[24..32], .big);
+    try testing.expect(remaining_gas > 100);
+}
+
 test "create transaction fails when gas limit is below create intrinsic cost" {
     try mem_db.init(testing.allocator);
 
@@ -2074,6 +2168,82 @@ test "create transaction fails when gas limit is below create intrinsic cost" {
 
     const result = vm.executeTransaction();
     try testing.expectError(error.IntrinsicGasTooLow, result);
+}
+
+test "CREATE collision is handled as a soft failure and pushes zero" {
+    const parent_code = &[_]u8{
+        0x60, 0x00, // size
+        0x60, 0x00, // offset
+        0x60, 0x00, // value
+        0xF0, // CREATE
+        0x60, 0x00, // PUSH1 0
+        0x52, // MSTORE
+        0x60, 0x20, // PUSH1 32
+        0x60, 0x00, // PUSH1 0
+        0xF3, // RETURN
+    };
+
+    try mem_db.init(testing.allocator);
+
+    var caller_info: AccountInfo = .{
+        .code_hash = constants.EMPTY_HASH,
+        .nonce = 0,
+        .code = null,
+        .balance = 1_000_000,
+    };
+    try mem_db.addAccountInfo(TestAddresses.caller, &caller_info);
+
+    var parent_hash: [32]u8 = undefined;
+    Keccak256.hash(parent_code, &parent_hash, .{});
+    var parent_info: AccountInfo = .{
+        .code_hash = parent_hash,
+        .nonce = 0,
+        .code = .{ .raw = @constCast(parent_code) },
+        .balance = 0,
+    };
+    try mem_db.addAccountInfo(TestAddresses.target, &parent_info);
+
+    const collision_address = try EVM.deriveCreateAddress(testing.allocator, .{ TestAddresses.target, 0 });
+    var collision_info: AccountInfo = .{
+        .code_hash = constants.EMPTY_HASH,
+        .nonce = 1,
+        .code = null,
+        .balance = 0,
+    };
+    try mem_db.addAccountInfo(collision_address, &collision_info);
+
+    journal_state.init(testing.allocator, .SHANGHAI, mem_db.database());
+
+    var host: JournaledHost = .{
+        .journal = journal_state,
+        .env = .{
+            .config = .{ .spec_id = .LATEST, .disable_block_gas_limit = true },
+            .block = .{ .gas_limit = 30_000_000 },
+            .tx = .{
+                .caller = TestAddresses.caller,
+                .gas_limit = 100_000,
+                .transact_to = .{ .call = TestAddresses.target },
+                .value = 0,
+                .nonce = 0,
+                .max_fee_per_blob_gas = null,
+            },
+        },
+    };
+
+    var vm: EVM = undefined;
+    defer {
+        vm.deinit();
+        host.journal.deinit();
+        mem_db.deinit();
+    }
+
+    vm.init(testing.allocator, host.host());
+
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    try testing.expectEqual(.returned, result.status);
+    try testing.expectEqual(@as(u8, 0), result.output[31]);
 }
 
 test "CREATE deploys new contract and pushes address to stack" {

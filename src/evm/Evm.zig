@@ -162,10 +162,12 @@ pub fn executeTransaction(self: *EVM) ExecutionError!ExecutionResult {
     // Validate transaction parameters (gas, blobs, chain id, etc.)
     try env.validateTransaction();
 
-    // Validate sender state (nonce, balance, EIP-3607 code check)
     const sender_info = self.host.accountInfo(env.tx.caller) orelse
         return error.NonExistentAccount;
+
+    // Validate sender state (nonce, balance, EIP-3607 code check)
     try env.validateAgainstState(sender_info);
+    // Validate instrinsic tx gas limit.
     const intrinsic_gas = try env.validateIntrinsicGas();
 
     _ = try self.host.incrementNonce(env.tx.caller);
@@ -192,46 +194,12 @@ pub fn executeBytecode(self: *EVM, code: Bytecode) ExecutionError!ExecutionResul
     return self.executeBytecodeWithIntrinsic(code, null);
 }
 
-/// Executes bytecode while optionally charging intrinsic gas for top-level calls.
-fn executeBytecodeWithIntrinsic(
-    self: *EVM,
-    code: Bytecode,
-    intrinsic_gas: ?u64,
-) ExecutionError!ExecutionResult {
-    const env = self.host.getEnviroment();
-    const contract: Contract = try .initFromEnviroment(self.allocator, env, code, null);
-
-    return self.executeWithContract(contract, false, .{ 0, 0 }, intrinsic_gas);
-}
-
 /// Executes a contract creation transaction.
 ///
 /// Derives the create address from sender and nonce, then executes
 /// the init code.
 pub fn executeCreate(self: *EVM) ExecutionError!ExecutionResult {
     return self.executeCreateWithIntrinsic(null);
-}
-
-/// Executes create bytecode while optionally charging intrinsic gas for top-level transactions.
-fn executeCreateWithIntrinsic(self: *EVM, intrinsic_gas: ?u64) ExecutionError!ExecutionResult {
-    const env = self.host.getEnviroment();
-    const create_address = try deriveCreateAddress(self.allocator, .{ env.tx.caller, env.tx.nonce });
-
-    const prepared_code: Bytecode = switch (env.config.perform_analysis) {
-        .analyse => try analysis.analyzeBytecode(self.allocator, .{ .raw = env.tx.data }),
-        .raw => .{ .raw = env.tx.data },
-    };
-
-    const contract: Contract = .{
-        .bytecode = prepared_code,
-        .caller = env.tx.caller,
-        .code_hash = null,
-        .input = &[_]u8{},
-        .target_address = create_address,
-        .value = env.tx.value,
-    };
-
-    return self.executeWithContract(contract, true, .{ 0, 0 }, intrinsic_gas);
 }
 
 /// Derives a CREATE address from sender and nonce using RLP encoding.
@@ -264,6 +232,40 @@ pub fn deriveCreate2Address(sender: Address, salt: u256, init_code: []const u8) 
     hasher.final(&hash);
 
     return hash[12..32].*;
+}
+
+/// Executes bytecode while optionally charging intrinsic gas for top-level calls.
+fn executeBytecodeWithIntrinsic(
+    self: *EVM,
+    code: Bytecode,
+    intrinsic_gas: ?u64,
+) ExecutionError!ExecutionResult {
+    const env = self.host.getEnviroment();
+    const contract: Contract = try .initFromEnviroment(self.allocator, env, code, null);
+
+    return self.executeWithContract(contract, false, .{ 0, 0 }, intrinsic_gas);
+}
+
+/// Executes create bytecode while optionally charging intrinsic gas for top-level transactions.
+fn executeCreateWithIntrinsic(self: *EVM, intrinsic_gas: ?u64) ExecutionError!ExecutionResult {
+    const env = self.host.getEnviroment();
+    const create_address = try deriveCreateAddress(self.allocator, .{ env.tx.caller, env.tx.nonce });
+
+    const prepared_code: Bytecode = switch (env.config.perform_analysis) {
+        .analyse => try analysis.analyzeBytecode(self.allocator, .{ .raw = env.tx.data }),
+        .raw => .{ .raw = env.tx.data },
+    };
+
+    const contract: Contract = .{
+        .bytecode = prepared_code,
+        .caller = env.tx.caller,
+        .code_hash = null,
+        .input = &[_]u8{},
+        .target_address = create_address,
+        .value = env.tx.value,
+    };
+
+    return self.executeWithContract(contract, true, .{ 0, 0 }, intrinsic_gas);
 }
 
 /// Pushes a new call frame and begins execution.
@@ -545,14 +547,7 @@ fn executeCallAction(self: *EVM, call: CallAction) ExecutionError!void {
     defer if (owns_call_inputs) self.allocator.free(call.inputs);
 
     if (self.call_stack.items.len >= MAX_CALL_STACK_DEPTH) {
-        const parent_frame = &self.call_stack.items[self.call_stack.items.len - 1];
-
-        self.return_data = &.{};
-
-        parent_frame.interpreter.gas_tracker.available += call.gas_limit;
-        parent_frame.interpreter.stack.appendAssumeCapacity(0);
-        parent_frame.interpreter.status = .running;
-
+        self.handleFailedCallSetup(call.gas_limit);
         return;
     }
 
@@ -560,16 +555,17 @@ fn executeCallAction(self: *EVM, call: CallAction) ExecutionError!void {
         inline else => |value| value,
     };
     const checkpoint = self.host.checkpoint() catch {
-        const parent_frame = &self.call_stack.items[self.call_stack.items.len - 1];
-
-        parent_frame.interpreter.stack.appendAssumeCapacity(0);
-        parent_frame.interpreter.status = .running;
-
+        self.handleFailedCallSetup(call.gas_limit);
         return;
     };
 
-    if (call.value == .transfer and value > 0)
-        self.host.transfer(call.caller, call.target_address, value) catch return self.revertToLastCheckpoint(checkpoint);
+    if (call.value == .transfer and value > 0) {
+        self.host.transfer(call.caller, call.target_address, value) catch {
+            self.host.revertCheckpoint(checkpoint) catch {};
+            self.handleFailedCallSetup(call.gas_limit);
+            return;
+        };
+    }
 
     const env = self.host.getEnviroment();
     if (PrecompileId.fromAddress(env.config.spec_id, call.bytecode_address) != null) {
@@ -585,6 +581,8 @@ fn executeCallAction(self: *EVM, call: CallAction) ExecutionError!void {
         self.host.commitCheckpoint();
         const parent_frame = &self.call_stack.items[self.call_stack.items.len - 1];
 
+        self.clearReturnData();
+        parent_frame.interpreter.gas_tracker.available += call.gas_limit;
         parent_frame.interpreter.stack.appendAssumeCapacity(1);
         parent_frame.interpreter.status = .running;
 
@@ -709,25 +707,17 @@ fn handleReturnFromPrecompile(
 /// Derives the target address and pushes a new create frame onto the stack.
 fn executeCreateAction(self: *EVM, create: CreateAction) ExecutionError!void {
     if (self.call_stack.items.len >= MAX_CALL_STACK_DEPTH) {
-        const parent_frame = &self.call_stack.items[self.call_stack.items.len - 1];
-
-        self.return_data = &.{};
-
-        parent_frame.interpreter.gas_tracker.available += create.gas_limit;
-        parent_frame.interpreter.stack.appendAssumeCapacity(0);
-        parent_frame.interpreter.status = .running;
-
+        self.handleFailedCreateSetup(create.gas_limit);
         return;
     }
 
     const env = self.host.getEnviroment();
 
-    const previous_nonce = self.host.incrementNonce(create.caller) catch {
-        const parent_frame = &self.call_stack.items[self.call_stack.items.len - 1];
+    const previous_nonce = self.host.incrementNonce(create.caller) catch |err| {
+        if (err == error.OutOfMemory)
+            return err;
 
-        parent_frame.interpreter.stack.appendAssumeCapacity(0);
-        parent_frame.interpreter.status = .running;
-
+        self.handleFailedCreateSetup(create.gas_limit);
         return;
     };
 
@@ -736,7 +726,13 @@ fn executeCreateAction(self: *EVM, create: CreateAction) ExecutionError!void {
         .create2 => |salt| deriveCreate2Address(create.caller, salt, create.init_code),
     };
 
-    const current_checkpoint = try self.host.createAccount(create.caller, create_address, create.value);
+    const current_checkpoint = self.host.createAccount(create.caller, create_address, create.value) catch |err| {
+        if (err == error.OutOfMemory)
+            return err;
+
+        self.handleFailedCreateSetup(create.gas_limit);
+        return;
+    };
 
     const prepared_code: Bytecode = switch (env.config.perform_analysis) {
         .analyse => analyzed: {
@@ -772,13 +768,32 @@ fn executeCreateAction(self: *EVM, create: CreateAction) ExecutionError!void {
     try self.call_stack.append(self.allocator, frame);
 }
 
-/// Reverts the host to the last checkpoint provided.
-fn revertToLastCheckpoint(self: *EVM, checkpoint: JournalCheckpoint) void {
-    self.host.revertCheckpoint(checkpoint) catch {};
+/// Frees any retained `RETURNDATA` and resets it to an empty slice.
+fn clearReturnData(self: *EVM) void {
+    self.allocator.free(self.return_data);
+    self.return_data = &.{};
+}
+
+/// Applies CALL setup failure semantics to the active parent frame.
+///
+/// The parent receives a zero success flag and any forwarded gas is returned.
+fn handleFailedCallSetup(self: *EVM, forwarded_gas: u64) void {
     const parent_frame = &self.call_stack.items[self.call_stack.items.len - 1];
 
+    self.clearReturnData();
+    parent_frame.interpreter.gas_tracker.available += forwarded_gas;
     parent_frame.interpreter.stack.appendAssumeCapacity(0);
     parent_frame.interpreter.status = .running;
+}
 
-    return;
+/// Applies CREATE setup failure semantics to the active parent frame.
+///
+/// The parent receives a zero create result and any forwarded gas is returned.
+fn handleFailedCreateSetup(self: *EVM, forwarded_gas: u64) void {
+    const parent_frame = &self.call_stack.items[self.call_stack.items.len - 1];
+
+    self.clearReturnData();
+    parent_frame.interpreter.gas_tracker.available += forwarded_gas;
+    parent_frame.interpreter.stack.appendAssumeCapacity(0);
+    parent_frame.interpreter.status = .running;
 }

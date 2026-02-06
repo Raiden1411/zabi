@@ -28,6 +28,7 @@ pub const ValidationErrors = error{
     InsufficientBalance,
     IntrinsicGasTooLow,
     InvalidChainId,
+    InitCodeSizeLimitExceeded,
     InvalidNonce,
     MaxFeePerBlobGasNotSupported,
     PriorityFeeGreaterThanMaxFee,
@@ -122,11 +123,17 @@ pub const EVMEnviroment = struct {
                 constants.TRANSACTION_ZERO_DATA
             else
                 non_zero_cost;
+
             try addGasCost(&total, byte_cost);
         }
 
-        if (self.tx.transact_to == .create)
+        if (self.tx.transact_to == .create) {
             try addGasCost(&total, constants.CREATE);
+            if (self.config.spec_id.enabled(.SHANGHAI)) {
+                const init_code_word_cost = try calculateInitCodeWordCost(self.tx.data.len);
+                try addGasCost(&total, init_code_word_cost);
+            }
+        }
 
         if (self.config.spec_id.enabled(.BERLIN) and self.tx.access_list.len != 0) {
             const access_list_cost = try multiplyGasCost(self.tx.access_list.len, constants.ACCESS_LIST_ADDRESS);
@@ -176,6 +183,8 @@ pub const EVMEnviroment = struct {
 
         if (!self.config.disable_block_gas_limit and self.tx.gas_limit > self.block.gas_limit)
             return error.GasLimitHigherThanBlock;
+
+        try self.validateInitCodeRules();
 
         switch (self.tx.tx_type) {
             .legacy => {
@@ -256,6 +265,25 @@ pub const EVMEnviroment = struct {
         }
     }
 
+    /// Validates Shanghai init code size rules for create transactions.
+    ///
+    /// Under Shanghai and later, create transaction init code size is limited to
+    /// `2 * config.limit_contract_size`.
+    pub fn validateInitCodeRules(self: *const EVMEnviroment) ValidationErrors!void {
+        if (!self.config.spec_id.enabled(.SHANGHAI))
+            return;
+
+        if (self.tx.transact_to != .create)
+            return;
+
+        const limit, const overflow = @mulWithOverflow(self.config.limit_contract_size, @as(usize, 2));
+        if (@bitCast(overflow))
+            return error.InitCodeSizeLimitExceeded;
+
+        if (self.tx.data.len > limit)
+            return error.InitCodeSizeLimitExceeded;
+    }
+
     /// Validates the transaction against the sender's account state.
     /// This should be called after `validateTransaction` with access to state.
     ///
@@ -299,6 +327,17 @@ pub const EVMEnviroment = struct {
             return error.Overflow;
 
         return total;
+    }
+
+    fn calculateInitCodeWordCost(data_len: usize) error{Overflow}!u64 {
+        const len = std.math.cast(u64, data_len) orelse return error.Overflow;
+        const words = std.math.divCeil(u64, len, 32) catch unreachable;
+        const cost, const overflow = @mulWithOverflow(words, constants.INITCODE_WORD_COST);
+
+        if (@bitCast(overflow))
+            return error.Overflow;
+
+        return cost;
     }
 };
 

@@ -169,6 +169,7 @@ pub fn build(b: *std.Build) void {
         zabi_evm.addImport("zabi-meta", zabi_meta);
         zabi_evm.addImport("zabi-types", zabi_types);
         zabi_evm.addImport("zabi-encoding", zabi_encoding);
+        zabi_evm.addImport("zabi-crypto", zabi_crypto);
     }
 
     // Adds the dependencies for `zabi-human` module.
@@ -477,6 +478,7 @@ fn addWasmDependencies(
     zabi_evm.addImport("zabi-meta", zabi_meta);
     zabi_evm.addImport("zabi-types", zabi_types);
     zabi_evm.addImport("zabi-encoding", zabi_encoding);
+    zabi_evm.addImport("zabi-crypto", zabi_crypto);
 
     zabi_human.addImport("zabi-abi", zabi_abi);
     zabi_human.addImport("zabi-meta", zabi_meta);

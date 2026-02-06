@@ -112,6 +112,81 @@ test "RunInstruction" {
     try testing.expectEqual(3, try interpreter.stack.tryPopUnsafe());
 }
 
+test "RunInstruction clears stale call action after resume" {
+    const code = &[_]u8{
+        0x60, 0x00, // retSize
+        0x60, 0x00, // retOffset
+        0x60, 0x00, // argsSize
+        0x60, 0x00, // argsOffset
+        0x60, 0x00, // value
+        0x73, // PUSH20 target
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0xCC,
+        0x62, 0x0F, 0xFF, 0xFF, // gas
+        0xF1, // CALL
+        0x00, // STOP
+    };
+
+    const contract_instance = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = @constCast(code) },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract_instance.deinit(testing.allocator);
+
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
+
+    plain.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.deinit();
+
+    try interpreter.init(
+        testing.allocator,
+        &contract_instance,
+        plain.host(),
+        .{},
+    );
+
+    const first = try interpreter.run();
+    defer first.deinit(testing.allocator);
+
+    try testing.expect(first == .call_action);
+    try testing.expect(interpreter.status == .call_or_create);
+
+    // Mirrors what the EVM does after a subcall completes.
+    interpreter.status = .running;
+
+    const second = try interpreter.run();
+    defer second.deinit(testing.allocator);
+
+    try testing.expect(second == .return_action);
+    try testing.expectEqual(.stopped, second.return_action.result);
+}
+
 test "RunInstruction Create" {
     // Example taken from evm.codes
     const contract_instance = try Contract.init(

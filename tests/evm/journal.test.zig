@@ -48,7 +48,6 @@ test "Account" {
                 .balance = 0,
             },
         });
-        try journal_db.journal.append(testing.allocator, .empty);
 
         const account = try journal_db.loadAccount([_]u8{1} ** 20);
         const account_1 = try journal_db.loadAccount([_]u8{2} ** 20);
@@ -74,8 +73,6 @@ test "Account" {
 
         journal_db.init(testing.allocator, .LATEST, plain.database());
 
-        try journal_db.journal.append(testing.allocator, .empty);
-
         const account = try journal_db.loadAccount([_]u8{1} ** 20);
 
         try testing.expectEqual(account.cold, true);
@@ -86,19 +83,15 @@ test "Account" {
         try testing.expectEqual(account.data.info.code.?.raw.len, 0);
     }
     {
-        var plain: PlainDatabase = .{};
-
         var journal_db: JournaledState = undefined;
         defer journal_db.deinit();
 
         var mem_db: MemoryDatabase = undefined;
         defer mem_db.deinit();
 
-        try mem_db.init(testing.allocator, plain.database());
+        try mem_db.init(testing.allocator);
 
         journal_db.init(testing.allocator, .LATEST, mem_db.database());
-
-        try journal_db.journal.append(testing.allocator, .empty);
 
         const account = try journal_db.loadAccount([_]u8{1} ** 20);
 
@@ -119,8 +112,6 @@ test "Load code" {
         defer journal_db.deinit();
 
         journal_db.init(testing.allocator, .LATEST, plain.database());
-
-        try journal_db.journal.append(testing.allocator, .empty);
 
         const account = try journal_db.loadCode([_]u8{1} ** 20);
 
@@ -149,7 +140,6 @@ test "Load code" {
                 .balance = 0,
             },
         });
-        try journal_db.journal.append(testing.allocator, .empty);
 
         const account = try journal_db.loadCode([_]u8{1} ** 20);
 
@@ -178,7 +168,7 @@ test "Checkpoint" {
     const checkpoint_1 = try journal_db.checkpoint();
 
     try testing.expectEqual(0, checkpoint_1.logs_checkpoint);
-    try testing.expectEqual(1, checkpoint_1.journal_checkpoint);
+    try testing.expectEqual(0, checkpoint_1.journal_checkpoint);
     try testing.expectEqual(2, journal_db.depth);
 
     journal_db.commitCheckpoint();
@@ -205,7 +195,6 @@ test "Touch account" {
 
     journal_db.init(testing.allocator, .LATEST, plain.database());
 
-    try journal_db.journal.append(testing.allocator, .empty);
     try journal_db.state.put(testing.allocator, [_]u8{1} ** 20, .{
         .status = .{ .loaded = 1 },
         .storage = .init(testing.allocator),
@@ -222,7 +211,7 @@ test "Touch account" {
     try testing.expectEqual(1, journal_db.state.get([_]u8{1} ** 20).?.status.touched);
 
     const list = journal_db.journal.items[0];
-    try testing.expect(list.items[0] == .account_touched);
+    try testing.expect(list == .account_touched);
 }
 
 test "Set code" {
@@ -233,7 +222,6 @@ test "Set code" {
 
     journal_db.init(testing.allocator, .LATEST, plain.database());
 
-    try journal_db.journal.append(testing.allocator, .empty);
     try journal_db.state.put(testing.allocator, [_]u8{1} ** 20, .{
         .status = .{ .loaded = 1 },
         .storage = .init(testing.allocator),
@@ -252,8 +240,8 @@ test "Set code" {
     try testing.expectEqualSlices(u8, &buffer, &journal_db.state.get([_]u8{1} ** 20).?.info.code_hash);
     try testing.expectEqualStrings(journal_db.state.get([_]u8{1} ** 20).?.info.code.?.raw, "6001");
 
-    const list = journal_db.journal.items[0];
-    try testing.expect(list.items[1] == .code_changed);
+    const list = journal_db.journal.items[1];
+    try testing.expect(list == .code_changed);
 }
 
 test "Set code and hash" {
@@ -264,7 +252,6 @@ test "Set code and hash" {
 
     journal_db.init(testing.allocator, .LATEST, plain.database());
 
-    try journal_db.journal.append(testing.allocator, .empty);
     try journal_db.state.put(testing.allocator, [_]u8{1} ** 20, .{
         .status = .{ .loaded = 1 },
         .storage = .init(testing.allocator),
@@ -280,8 +267,8 @@ test "Set code and hash" {
     try testing.expectEqualSlices(u8, &[_]u8{69} ** 32, &journal_db.state.get([_]u8{1} ** 20).?.info.code_hash);
     try testing.expectEqualStrings(journal_db.state.get([_]u8{1} ** 20).?.info.code.?.raw, "6001");
 
-    const list = journal_db.journal.items[0];
-    try testing.expect(list.items[1] == .code_changed);
+    const list = journal_db.journal.items[1];
+    try testing.expect(list == .code_changed);
 }
 
 test "Increment account nonce" {
@@ -293,7 +280,6 @@ test "Increment account nonce" {
 
         journal_db.init(testing.allocator, .LATEST, plain.database());
 
-        try journal_db.journal.append(testing.allocator, .empty);
         try journal_db.state.put(testing.allocator, [_]u8{1} ** 20, .{
             .status = .{ .loaded = 1 },
             .storage = .init(testing.allocator),
@@ -310,7 +296,7 @@ test "Increment account nonce" {
         try testing.expectEqual(1, nonce.?);
 
         const list = journal_db.journal.items[0];
-        try testing.expect(list.items[0] == .nonce_changed);
+        try testing.expect(list == .nonce_changed);
     }
 
     {
@@ -321,7 +307,6 @@ test "Increment account nonce" {
 
         journal_db.init(testing.allocator, .LATEST, plain.database());
 
-        try journal_db.journal.append(testing.allocator, .empty);
         try journal_db.state.put(testing.allocator, [_]u8{1} ** 20, .{
             .status = .{ .loaded = 1 },
             .storage = .init(testing.allocator),
@@ -347,7 +332,6 @@ test "Transfer" {
 
         journal_db.init(testing.allocator, .LATEST, plain.database());
 
-        try journal_db.journal.append(testing.allocator, .empty);
         try journal_db.transfer([_]u8{1} ** 20, [_]u8{2} ** 20, 0);
     }
     {
@@ -358,7 +342,6 @@ test "Transfer" {
 
         journal_db.init(testing.allocator, .LATEST, plain.database());
 
-        try journal_db.journal.append(testing.allocator, .empty);
         try journal_db.state.put(testing.allocator, [_]u8{1} ** 20, .{
             .status = .{ .loaded = 1 },
             .storage = .init(testing.allocator),
@@ -385,9 +368,9 @@ test "Transfer" {
         try testing.expectEqual(journal_db.state.get([_]u8{1} ** 20).?.info.balance, 69320);
         try testing.expectEqual(journal_db.state.get([_]u8{2} ** 20).?.info.balance, 42169);
 
-        const list = journal_db.journal.items[0];
-        try testing.expect(list.items[list.items.len - 1] == .balance_transfer);
-        try testing.expectEqual(list.items.len, 3);
+        const list = journal_db.journal.items[journal_db.journal.items.len - 1];
+        try testing.expect(list == .balance_transfer);
+        try testing.expectEqual(journal_db.journal.items.len, 3);
     }
 }
 
@@ -462,9 +445,9 @@ test "Create account" {
         try testing.expectEqual(null, journal_db.state.get([_]u8{2} ** 20).?.info.code);
         try testing.expectEqual(1, journal_db.state.get([_]u8{2} ** 20).?.info.nonce);
 
-        const list = journal_db.journal.items[0];
-        try testing.expect(list.items[list.items.len - 1] == .balance_transfer);
-        try testing.expectEqual(list.items.len, 3);
+        const list = journal_db.journal.items[journal_db.journal.items.len - 1];
+        try testing.expect(list == .balance_transfer);
+        try testing.expectEqual(journal_db.journal.items.len, 3);
     }
 }
 
@@ -477,7 +460,6 @@ test "Sload/Sstore" {
 
         journal_db.init(testing.allocator, .LATEST, plain.database());
 
-        try journal_db.journal.append(testing.allocator, .empty);
         try journal_db.state.put(testing.allocator, [_]u8{1} ** 20, .{
             .status = .{ .loaded = 1 },
             .storage = .init(testing.allocator),
@@ -493,9 +475,9 @@ test "Sload/Sstore" {
 
         try testing.expectEqual(0, value.data);
 
-        const list = journal_db.journal.items[0];
-        try testing.expect(list.items[list.items.len - 1] == .storage_warmed);
-        try testing.expectEqual(list.items.len, 1);
+        const list = journal_db.journal.items[journal_db.journal.items.len - 1];
+        try testing.expect(list == .storage_warmed);
+        try testing.expectEqual(journal_db.journal.items.len, 1);
     }
     {
         var plain: PlainDatabase = .{};
@@ -509,7 +491,6 @@ test "Sload/Sstore" {
         try storage.put(0, .{ .is_cold = true, .present_value = 69, .original_value = 69 });
         try storage.put(1, .{ .is_cold = false, .present_value = 69, .original_value = 69 });
 
-        try journal_db.journal.append(testing.allocator, .empty);
         try journal_db.state.put(testing.allocator, [_]u8{1} ** 20, .{
             .status = .{ .loaded = 1 },
             .storage = storage,
@@ -531,9 +512,9 @@ test "Sload/Sstore" {
         try testing.expectEqual(69, value_1.data);
         try testing.expectEqual(false, value_1.cold);
 
-        const list = journal_db.journal.items[0];
-        try testing.expect(list.items[list.items.len - 1] == .storage_warmed);
-        try testing.expectEqual(1, list.items.len);
+        const list = journal_db.journal.items[journal_db.journal.items.len - 1];
+        try testing.expect(list == .storage_warmed);
+        try testing.expectEqual(1, journal_db.journal.items.len);
     }
     {
         var plain: PlainDatabase = .{};
@@ -543,7 +524,6 @@ test "Sload/Sstore" {
 
         journal_db.init(testing.allocator, .LATEST, plain.database());
 
-        try journal_db.journal.append(testing.allocator, .empty);
         try journal_db.state.put(testing.allocator, [_]u8{1} ** 20, .{
             .status = .{ .loaded = 1 },
             .storage = .init(testing.allocator),
@@ -562,9 +542,9 @@ test "Sload/Sstore" {
         try testing.expectEqual(69, value.data.new_value);
         try testing.expectEqual(true, value.cold);
 
-        const list = journal_db.journal.items[0];
-        try testing.expect(list.items[list.items.len - 1] == .storage_changed);
-        try testing.expectEqual(2, list.items.len);
+        const list = journal_db.journal.items[journal_db.journal.items.len - 1];
+        try testing.expect(list == .storage_changed);
+        try testing.expectEqual(2, journal_db.journal.items.len);
 
         const value_1 = try journal_db.sstore([_]u8{1} ** 20, 1, 0);
 
@@ -596,7 +576,6 @@ test "Tload/Tstore" {
 
         journal_db.init(testing.allocator, .LATEST, plain.database());
 
-        try journal_db.journal.append(testing.allocator, .empty);
         try journal_db.transient_storage.put(testing.allocator, .{ [_]u8{2} ** 20, 69 }, 420);
 
         try journal_db.tstore([_]u8{1} ** 20, 0, 69);
@@ -621,7 +600,6 @@ test "Self destruct" {
 
         journal_db.init(testing.allocator, .LATEST, plain.database());
 
-        try journal_db.journal.append(testing.allocator, .empty);
         try journal_db.state.put(testing.allocator, [_]u8{2} ** 20, .{
             .status = .{ .non_existent = 1 },
             .storage = .init(testing.allocator),
@@ -647,7 +625,6 @@ test "Self destruct" {
 
         journal_db.init(testing.allocator, .LONDON, plain.database());
 
-        try journal_db.journal.append(testing.allocator, .empty);
         try journal_db.state.put(testing.allocator, [_]u8{1} ** 20, .{
             .status = .{ .created = 1 },
             .storage = .init(testing.allocator),
@@ -682,8 +659,6 @@ test "Self destruct" {
         defer journal_db.deinit();
 
         journal_db.init(testing.allocator, .LONDON, plain.database());
-
-        try journal_db.journal.append(testing.allocator, .empty);
 
         const value = try journal_db.selfDestruct([_]u8{1} ** 20, [_]u8{1} ** 20);
 
@@ -735,8 +710,7 @@ test "Revert" {
         _ = try journal_db.selfDestruct([_]u8{1} ** 20, [_]u8{2} ** 20);
     }
 
-    const list = journal_db.journal.items[0];
-    try testing.expectEqual(7, list.items.len);
+    try testing.expectEqual(12, journal_db.journal.items.len);
 
     try journal_db.revertCheckpoint(checkpoint);
     try testing.expectEqual(1, journal_db.depth);

@@ -20,6 +20,7 @@ const Log = types.log.Log;
 const SpecId = spec.SpecId;
 const SelfDestructResult = host.SelfDestructResult;
 const SStoreResult = host.SStoreResult;
+const WarmStorageKey = struct { Address, u256 };
 
 /// A journal of state changes internal to the EVM.
 ///
@@ -49,7 +50,7 @@ pub const JournaledState = struct {
     /// The database used to grab information in case the journal doesn't have it.
     database: Database,
     /// EIP-1153 transient storage
-    transient_storage: AutoHashMapUnmanaged(struct { Address, u256 }, u256),
+    transient_storage: AutoHashMapUnmanaged(WarmStorageKey, u256),
     /// The current journal state.
     state: AutoHashMapUnmanaged(Address, Account),
     /// List of emitted logs
@@ -64,6 +65,9 @@ pub const JournaledState = struct {
     /// should be considered cold or warm loaded when the account
     /// is first accessed.
     warm_preloaded_address: AutoHashMapUnmanaged(Address, void),
+    /// Warm loaded storage slots are used to check if loaded storage
+    /// should be considered cold or warm loaded when first accessed.
+    warm_preloaded_storage: AutoHashMapUnmanaged(WarmStorageKey, void),
 
     /// Sets up the initial state for this journal.
     pub fn init(
@@ -82,6 +86,7 @@ pub const JournaledState = struct {
             .journal = .empty,
             .spec = spec_id,
             .warm_preloaded_address = .empty,
+            .warm_preloaded_storage = .empty,
         };
     }
 
@@ -107,6 +112,7 @@ pub const JournaledState = struct {
         self.log_storage.deinit(self.allocator);
         self.transient_storage.deinit(self.allocator);
         self.warm_preloaded_address.deinit(self.allocator);
+        self.warm_preloaded_storage.deinit(self.allocator);
 
         self.* = undefined;
     }
@@ -347,7 +353,7 @@ pub const JournaledState = struct {
                 storage.present_value = info.had_value;
             },
             .transient_storage_changed => |info| {
-                if (info.had_value == 0) {
+                if (!info.had_value_existed) {
                     _ = self.transient_storage.remove(.{ info.address, info.key });
                 } else {
                     try self.transient_storage.put(self.allocator, .{ info.address, info.key }, info.had_value);
@@ -491,14 +497,17 @@ pub const JournaledState = struct {
             else
                 self.database.storage(address, key) catch return error.UnexpectedError;
 
+            const slot_key: WarmStorageKey = .{ address, key };
+            const cold = !self.warm_preloaded_storage.contains(slot_key);
+
             try account.storage.put(key, .{
-                .is_cold = true,
+                .is_cold = cold,
                 .present_value = value,
                 .original_value = value,
             });
 
             break :state .{
-                .cold = true,
+                .cold = cold,
                 .data = value,
             };
         };
@@ -645,32 +654,86 @@ pub const JournaledState = struct {
         key: u256,
         value: u256,
     ) Allocator.Error!void {
-        const had_value: ?u256 = blk: {
-            if (value == 0) {
-                const val = self.transient_storage.get(.{ address, key });
+        const had_value = self.transient_storage.get(.{ address, key });
+        const had_value_existed = had_value != null;
 
-                if (val != null)
-                    _ = self.transient_storage.remove(.{ address, key });
+        if (value == 0) {
+            if (!had_value_existed)
+                return;
 
-                break :blk val;
-            } else {
-                const previous = try self.transient_storage.fetchPut(self.allocator, .{ address, key }, value);
+            _ = self.transient_storage.remove(.{ address, key });
+        } else {
+            if (had_value_existed and had_value.? == value)
+                return;
 
-                if (previous) |previous_entry|
-                    break :blk previous_entry.value;
+            try self.transient_storage.put(self.allocator, .{ address, key }, value);
+        }
 
-                break :blk null;
+        try self.journal.append(self.allocator, .{
+            .transient_storage_changed = .{
+                .address = address,
+                .key = key,
+                .had_value = had_value orelse 0,
+                .had_value_existed = had_value_existed,
+            },
+        });
+    }
+
+    /// Clears all transient storage values.
+    ///
+    /// EIP-1153 values only live for the duration of one transaction.
+    pub fn clearTransientStorage(self: *JournaledState) void {
+        self.transient_storage.clearRetainingCapacity();
+    }
+
+    /// Resets warm preload state for a new top-level transaction.
+    ///
+    /// EIP-2929 warmness is transaction-scoped. Accounts and storage slots cached
+    /// in memory are marked cold again so each transaction starts from a clean baseline.
+    pub fn clearWarmPreloads(self: *JournaledState) void {
+        var state_iter = self.state.valueIterator();
+
+        while (state_iter.next()) |account| {
+            account.status.cold = 1;
+
+            var storage_iter = account.storage.valueIterator();
+            while (storage_iter.next()) |slot| {
+                slot.is_cold = true;
             }
-        };
+        }
 
-        if (had_value) |val|
-            try self.journal.append(self.allocator, .{
-                .transient_storage_changed = .{
-                    .address = address,
-                    .key = key,
-                    .had_value = val,
-                },
-            });
+        self.warm_preloaded_address.clearRetainingCapacity();
+        self.warm_preloaded_storage.clearRetainingCapacity();
+    }
+
+    /// Marks an account as warm for EIP-2929 account access tracking.
+    pub fn preloadWarmAddress(
+        self: *JournaledState,
+        address: Address,
+    ) Allocator.Error!void {
+        try self.warm_preloaded_address.put(self.allocator, address, {});
+
+        if (self.state.getPtr(address)) |account| {
+            account.status.cold = 0;
+        }
+    }
+
+    /// Marks an account storage key as warm for EIP-2930 access list tracking.
+    pub fn preloadWarmStorage(
+        self: *JournaledState,
+        address: Address,
+        key: u256,
+    ) Allocator.Error!void {
+        try self.preloadWarmAddress(address);
+
+        const slot_key: WarmStorageKey = .{ address, key };
+        try self.warm_preloaded_storage.put(self.allocator, slot_key, {});
+
+        if (self.state.getPtr(address)) |account| {
+            if (account.storage.getPtr(key)) |slot| {
+                slot.is_cold = false;
+            }
+        }
     }
 
     /// Updates the spec id for this journal.
@@ -792,6 +855,7 @@ pub const JournalEntry = union(enum) {
         address: Address,
         key: u256,
         had_value: u256,
+        had_value_existed: bool,
     },
     /// Entry used to change the bytecode associated with an account.
     code_changed: struct {

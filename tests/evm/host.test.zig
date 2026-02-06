@@ -488,4 +488,48 @@ test "Tstore" {
         interpreter.spec = .HOMESTEAD;
         try testing.expectError(error.InstructionNotEnabled, evm.instructions.host.tstoreInstruction(&interpreter));
     }
+    {
+        interpreter.spec = .LATEST;
+        interpreter.is_static = true;
+        interpreter.status = .running;
+        try interpreter.stack.pushUnsafe(0);
+        try interpreter.stack.pushUnsafe(1);
+        try evm.instructions.host.tstoreInstruction(&interpreter);
+
+        try testing.expectEqual(@as(usize, 2), interpreter.stack.stackHeight());
+        try testing.expectEqual(evm.Interpreter.InterpreterStatus.call_with_value_not_allowed_in_static_call, interpreter.status);
+    }
+}
+
+test "Tstore in static mode returns deterministic interpreter error" {
+    const bytecode = &[_]u8{
+        0x60, 0x01, // PUSH1 1
+        0x60, 0x00, // PUSH1 0
+        0x5d, // TSTORE
+        0x00, // STOP
+    };
+    const contract = try Contract.init(
+        testing.allocator,
+        &.{},
+        .{ .raw = @constCast(bytecode) },
+        null,
+        0,
+        [_]u8{1} ** 20,
+        [_]u8{0} ** 20,
+    );
+    defer contract.deinit(testing.allocator);
+
+    var plain: PlainHost = undefined;
+    defer plain.deinit();
+    plain.init(testing.allocator);
+
+    var interpreter: Interpreter = undefined;
+    defer interpreter.deinit();
+    try interpreter.init(testing.allocator, &contract, plain.host(), .{
+        .gas_limit = 30_000_000,
+        .spec_id = .LATEST,
+        .is_static = true,
+    });
+
+    try testing.expectError(error.CallWithValueNotAllowedInStaticCall, interpreter.run());
 }

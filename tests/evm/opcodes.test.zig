@@ -102,3 +102,73 @@ test "Opcode table wiring" {
         try testing.expectEqual(@as(u16, 6), op.min_stack);
     }
 }
+
+test "Fork-gated opcode enablement and Prague/Cancun parity" {
+    const GatedOpcode = evm.fork_rules.GatedOpcode;
+    const SpecId = evm.specification.SpecId;
+
+    const checks = [_]struct { opcode: GatedOpcode, disabled_at: SpecId, enabled_at: SpecId }{
+        .{ .opcode = .REVERT, .disabled_at = .HOMESTEAD, .enabled_at = .BYZANTIUM },
+        .{ .opcode = .RETURNDATASIZE, .disabled_at = .HOMESTEAD, .enabled_at = .BYZANTIUM },
+        .{ .opcode = .CHAINID, .disabled_at = .PETERSBURG, .enabled_at = .ISTANBUL },
+        .{ .opcode = .SELFBALANCE, .disabled_at = .PETERSBURG, .enabled_at = .ISTANBUL },
+        .{ .opcode = .CREATE2, .disabled_at = .BYZANTIUM, .enabled_at = .PETERSBURG },
+        .{ .opcode = .DELEGATECALL, .disabled_at = .FRONTIER, .enabled_at = .HOMESTEAD },
+        .{ .opcode = .STATICCALL, .disabled_at = .HOMESTEAD, .enabled_at = .BYZANTIUM },
+        .{ .opcode = .PUSH0, .disabled_at = .MERGE, .enabled_at = .SHANGHAI },
+        .{ .opcode = .BLOBHASH, .disabled_at = .SHANGHAI, .enabled_at = .CANCUN },
+        .{ .opcode = .BLOBBASEFEE, .disabled_at = .SHANGHAI, .enabled_at = .CANCUN },
+        .{ .opcode = .TLOAD, .disabled_at = .SHANGHAI, .enabled_at = .CANCUN },
+        .{ .opcode = .TSTORE, .disabled_at = .SHANGHAI, .enabled_at = .CANCUN },
+        .{ .opcode = .MCOPY, .disabled_at = .SHANGHAI, .enabled_at = .CANCUN },
+    };
+
+    inline for (checks) |check| {
+        try testing.expect(!check.opcode.isEnabled(check.disabled_at));
+        try testing.expect(check.opcode.isEnabled(check.enabled_at));
+    }
+
+    inline for (std.meta.tags(GatedOpcode)) |opcode| {
+        try testing.expectEqual(opcode.isEnabled(.CANCUN), opcode.isEnabled(.PRAGUE));
+    }
+}
+
+test "Prague and Cancun gas schedule parity for selected costs" {
+    const gas = evm.gas;
+    const SelfDestructResult = evm.host.SelfDestructResult;
+
+    try testing.expectEqual(
+        gas.calculateCallCost(.CANCUN, true, true, true),
+        gas.calculateCallCost(.PRAGUE, true, true, true),
+    );
+    try testing.expectEqual(
+        gas.calculateCodeSizeCost(.CANCUN, true),
+        gas.calculateCodeSizeCost(.PRAGUE, true),
+    );
+    try testing.expectEqual(
+        gas.calculateSloadCost(.CANCUN, true),
+        gas.calculateSloadCost(.PRAGUE, true),
+    );
+    try testing.expectEqual(
+        gas.calculateSloadCost(.CANCUN, false),
+        gas.calculateSloadCost(.PRAGUE, false),
+    );
+    try testing.expectEqual(
+        gas.calculateSstoreCost(.CANCUN, 1, 1, 2, 100_000, true),
+        gas.calculateSstoreCost(.PRAGUE, 1, 1, 2, 100_000, true),
+    );
+    try testing.expectEqual(
+        gas.calculateSelfDestructCost(.CANCUN, SelfDestructResult{
+            .had_value = true,
+            .target_exists = false,
+            .is_cold = true,
+            .previously_destroyed = false,
+        }),
+        gas.calculateSelfDestructCost(.PRAGUE, SelfDestructResult{
+            .had_value = true,
+            .target_exists = false,
+            .is_cold = true,
+            .previously_destroyed = false,
+        }),
+    );
+}

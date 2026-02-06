@@ -1,9 +1,11 @@
 const constants = @import("zabi-utils").constants;
 const enviroment = @import("../enviroment.zig");
+const fork_rules = @import("../fork_rules.zig");
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 
 const BlobExcessGasAndPrice = enviroment.BlobExcessGasAndPrice;
+const GatedOpcode = fork_rules.GatedOpcode;
 const Interpreter = @import("../Interpreter.zig");
 const PlainHost = @import("../host.zig").PlainHost;
 
@@ -20,7 +22,7 @@ pub fn baseFeeInstruction(self: *Interpreter) Interpreter.InstructionErrors!void
 /// Performs the blobbasefee instruction for the interpreter.
 /// 0x4A -> BLOBBASEFEE
 pub fn blobBaseFeeInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
-    if (!self.spec.enabled(.CANCUN))
+    if (!GatedOpcode.BLOBBASEFEE.isEnabled(self.spec))
         return error.InstructionNotEnabled;
 
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);
@@ -36,7 +38,7 @@ pub fn blobBaseFeeInstruction(self: *Interpreter) (Interpreter.InstructionErrors
 /// Performs the blobhash instruction for the interpreter.
 /// 0x49 -> BLOBHASH
 pub fn blobHashInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
-    if (!self.spec.enabled(.CANCUN))
+    if (!GatedOpcode.BLOBHASH.isEnabled(self.spec))
         return error.InstructionNotEnabled;
 
     const index = self.stack.pop();
@@ -64,7 +66,7 @@ pub fn blockNumberInstruction(self: *Interpreter) Interpreter.InstructionErrors!
 /// Performs the chainid instruction for the interpreter.
 /// 0x46 -> CHAINID
 pub fn chainIdInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
-    if (!self.spec.enabled(.ISTANBUL))
+    if (!GatedOpcode.CHAINID.isEnabled(self.spec))
         return error.InstructionNotEnabled;
 
     const chainId = self.host.getEnviroment().config.chain_id;

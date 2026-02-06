@@ -187,6 +187,56 @@ test "Update Spec Id" {
     try testing.expectEqual(17, @intFromEnum(journal_db.spec));
 }
 
+test "Warm preload marks account loads as warm and resets per transaction" {
+    var plain: PlainDatabase = .{};
+
+    var journal_db: JournaledState = undefined;
+    defer journal_db.deinit();
+
+    journal_db.init(testing.allocator, .LATEST, plain.database());
+
+    const address = [_]u8{9} ** 20;
+
+    try journal_db.preloadWarmAddress(address);
+    const warm_load = try journal_db.loadAccount(address);
+    try testing.expectEqual(false, warm_load.cold);
+    try testing.expectEqual(@as(usize, 0), journal_db.journal.items.len);
+
+    journal_db.clearWarmPreloads();
+    const cold_load = try journal_db.loadAccount(address);
+    try testing.expectEqual(true, cold_load.cold);
+    try testing.expectEqual(@as(usize, 1), journal_db.journal.items.len);
+    try testing.expect(journal_db.journal.items[0] == .account_warmed);
+}
+
+test "Warm preload marks storage slots as warm and resets per transaction" {
+    var plain: PlainDatabase = .{};
+
+    var journal_db: JournaledState = undefined;
+    defer journal_db.deinit();
+
+    journal_db.init(testing.allocator, .LATEST, plain.database());
+
+    const address = [_]u8{8} ** 20;
+    const key: u256 = 7;
+
+    try journal_db.preloadWarmStorage(address, key);
+    _ = try journal_db.loadAccount(address);
+    const warm_slot = try journal_db.sload(address, key);
+
+    try testing.expectEqual(false, warm_slot.cold);
+    try testing.expectEqual(@as(usize, 0), journal_db.journal.items.len);
+
+    journal_db.clearWarmPreloads();
+    _ = try journal_db.loadAccount(address);
+    const cold_slot = try journal_db.sload(address, key);
+
+    try testing.expectEqual(true, cold_slot.cold);
+    try testing.expectEqual(@as(usize, 2), journal_db.journal.items.len);
+    try testing.expect(journal_db.journal.items[0] == .account_warmed);
+    try testing.expect(journal_db.journal.items[1] == .storage_warmed);
+}
+
 test "Touch account" {
     var plain: PlainDatabase = .{};
 
@@ -589,6 +639,86 @@ test "Tload/Tstore" {
         try journal_db.tstore([_]u8{2} ** 20, 69, 0);
         try testing.expectEqual(null, journal_db.transient_storage.get(.{ [_]u8{2} ** 20, 69 }));
     }
+}
+
+test "Transient storage rollback semantics" {
+    {
+        var plain: PlainDatabase = .{};
+        var journal_db: JournaledState = undefined;
+        defer journal_db.deinit();
+        journal_db.init(testing.allocator, .LATEST, plain.database());
+
+        const checkpoint = try journal_db.checkpoint();
+        try journal_db.tstore([_]u8{1} ** 20, 0, 7);
+
+        try testing.expectEqual(@as(u256, 7), journal_db.tload([_]u8{1} ** 20, 0));
+        try journal_db.revertCheckpoint(checkpoint);
+        try testing.expectEqual(@as(u256, 0), journal_db.tload([_]u8{1} ** 20, 0));
+    }
+    {
+        var plain: PlainDatabase = .{};
+        var journal_db: JournaledState = undefined;
+        defer journal_db.deinit();
+        journal_db.init(testing.allocator, .LATEST, plain.database());
+        try journal_db.transient_storage.put(testing.allocator, .{ [_]u8{2} ** 20, 1 }, 11);
+
+        const checkpoint = try journal_db.checkpoint();
+        try journal_db.tstore([_]u8{2} ** 20, 1, 22);
+
+        try testing.expectEqual(@as(u256, 22), journal_db.tload([_]u8{2} ** 20, 1));
+        try journal_db.revertCheckpoint(checkpoint);
+        try testing.expectEqual(@as(u256, 11), journal_db.tload([_]u8{2} ** 20, 1));
+    }
+    {
+        var plain: PlainDatabase = .{};
+        var journal_db: JournaledState = undefined;
+        defer journal_db.deinit();
+        journal_db.init(testing.allocator, .LATEST, plain.database());
+        try journal_db.transient_storage.put(testing.allocator, .{ [_]u8{3} ** 20, 2 }, 33);
+
+        const checkpoint = try journal_db.checkpoint();
+        try journal_db.tstore([_]u8{3} ** 20, 2, 0);
+
+        try testing.expectEqual(@as(u256, 0), journal_db.tload([_]u8{3} ** 20, 2));
+        try journal_db.revertCheckpoint(checkpoint);
+        try testing.expectEqual(@as(u256, 33), journal_db.tload([_]u8{3} ** 20, 2));
+    }
+    {
+        var plain: PlainDatabase = .{};
+        var journal_db: JournaledState = undefined;
+        defer journal_db.deinit();
+        journal_db.init(testing.allocator, .LATEST, plain.database());
+        try journal_db.transient_storage.put(testing.allocator, .{ [_]u8{4} ** 20, 3 }, 44);
+
+        const len_before = journal_db.journal.items.len;
+        try journal_db.tstore([_]u8{4} ** 20, 3, 44);
+
+        try testing.expectEqual(len_before, journal_db.journal.items.len);
+        try testing.expectEqual(@as(u256, 44), journal_db.tload([_]u8{4} ** 20, 3));
+    }
+}
+
+test "Nested transient storage checkpoints isolate child changes" {
+    var plain: PlainDatabase = .{};
+    var journal_db: JournaledState = undefined;
+    defer journal_db.deinit();
+    journal_db.init(testing.allocator, .LATEST, plain.database());
+
+    try journal_db.transient_storage.put(testing.allocator, .{ [_]u8{9} ** 20, 1 }, 10);
+
+    const parent = try journal_db.checkpoint();
+    try journal_db.tstore([_]u8{9} ** 20, 1, 20);
+    try testing.expectEqual(@as(u256, 20), journal_db.tload([_]u8{9} ** 20, 1));
+
+    const child = try journal_db.checkpoint();
+    try journal_db.tstore([_]u8{9} ** 20, 1, 30);
+    try testing.expectEqual(@as(u256, 30), journal_db.tload([_]u8{9} ** 20, 1));
+
+    try journal_db.revertCheckpoint(child);
+    try testing.expectEqual(@as(u256, 20), journal_db.tload([_]u8{9} ** 20, 1));
+
+    try journal_db.revertCheckpoint(parent);
+    try testing.expectEqual(@as(u256, 10), journal_db.tload([_]u8{9} ** 20, 1));
 }
 
 test "Self destruct" {

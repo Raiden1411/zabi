@@ -1,6 +1,7 @@
 const actions = @import("actions.zig");
 const constants = zabi_utils.constants;
 const contract_type = @import("contract.zig");
+const fork_rules = @import("fork_rules.zig");
 const gas = @import("gas_tracker.zig");
 const host_type = @import("host.zig");
 const mem = @import("memory.zig");
@@ -15,6 +16,7 @@ const Allocator = std.mem.Allocator;
 const CallAction = actions.CallAction;
 const Contract = contract_type.Contract;
 const CreateAction = actions.CreateAction;
+const GatedOpcode = fork_rules.GatedOpcode;
 const GasTracker = gas.GasTracker;
 const Host = host_type.Host;
 const InstructionTable = opcode.InstructionTable;
@@ -289,7 +291,7 @@ pub fn run(self: *Interpreter) (AllInstructionErrors || InterpreterStatusErrors)
                 _ = self.stack.pop();
             },
             @intFromEnum(Opcodes.PUSH0) => {
-                if (!self.spec.enabled(.SHANGHAI)) {
+                if (!GatedOpcode.PUSH0.isEnabled(self.spec)) {
                     @branchHint(.unlikely);
                     return error.OpcodeNotFound;
                 }

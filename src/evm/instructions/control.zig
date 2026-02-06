@@ -1,9 +1,11 @@
 const constants = @import("zabi-utils").constants;
+const fork_rules = @import("../fork_rules.zig");
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 const utils = @import("zabi-utils").utils;
 
 const Contract = @import("../contract.zig").Contract;
+const GatedOpcode = fork_rules.GatedOpcode;
 const GasTracker = gas.GasTracker;
 const Interpreter = @import("../Interpreter.zig");
 const Memory = @import("../memory.zig").Memory;
@@ -36,7 +38,7 @@ pub fn returnInstruction(self: *Interpreter) (Interpreter.InstructionErrors || M
 /// Runs the rever instruction opcode for the interpreter.
 /// 0xFD -> REVERT
 pub fn revertInstruction(self: *Interpreter) (Interpreter.InstructionErrors || Memory.Error || error{ Overflow, InstructionNotEnabled })!void {
-    if (!self.spec.enabled(.BYZANTIUM))
+    if (!GatedOpcode.REVERT.isEnabled(self.spec))
         return error.InstructionNotEnabled;
 
     return returnAction(self, .reverted);

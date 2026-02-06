@@ -1,9 +1,11 @@
 const constants = @import("zabi-utils").constants;
+const fork_rules = @import("../fork_rules.zig");
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 const utils = @import("zabi-utils").utils;
 
 const Contract = @import("../contract.zig").Contract;
+const GatedOpcode = fork_rules.GatedOpcode;
 const Interpreter = @import("../Interpreter.zig");
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const Memory = @import("../memory.zig").Memory;
@@ -147,7 +149,7 @@ pub fn keccakInstruction(self: *Interpreter) (Interpreter.InstructionErrors || M
 /// Runs the returndatasize instructions opcodes for the interpreter.
 /// 0x3D -> RETURNDATASIZE
 pub fn returnDataSizeInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
-    if (!self.spec.enabled(.BYZANTIUM))
+    if (!GatedOpcode.RETURNDATASIZE.isEnabled(self.spec))
         return error.InstructionNotEnabled;
 
     try self.gas_tracker.updateTracker(constants.QUICK_STEP);

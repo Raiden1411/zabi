@@ -12,6 +12,8 @@ pub const database = @import("database.zig");
 pub const enviroment = @import("enviroment.zig");
 /// A gas tracker and  gas calculation functions and constants.
 pub const gas = @import("gas_tracker.zig");
+/// Centralized fork-gating rules for fork-sensitive opcodes.
+pub const fork_rules = @import("fork_rules.zig");
 /// The host interface that `Host` implementation must have.
 /// Contains a implementation of a journaled state host.
 pub const host = @import("host.zig");

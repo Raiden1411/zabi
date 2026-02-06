@@ -110,12 +110,20 @@ pub const Host = struct {
         codeHash: *const fn (self: *anyopaque, address: Address) ?struct { Hash, bool },
         /// Commits the current checkpoint, making state changes permanent.
         commitCheckpoint: *const fn (self: *anyopaque) void,
+        /// Clears all transient storage values for transaction-boundary cleanup.
+        clearTransientStorage: *const fn (self: *anyopaque) void,
+        /// Clears transaction-scoped warm preload state.
+        clearWarmPreloads: *const fn (self: *anyopaque) void,
         /// Gets the host's `Enviroment`.
         getEnviroment: *const fn (self: *anyopaque) EVMEnviroment,
         /// Increments the nonce value with associated address account.
         incrementNonce: *const fn (self: *anyopaque, address: Address) (Allocator.Error || error{Overflow})!u64,
         /// Loads an account.
         loadAccount: *const fn (self: *anyopaque, address: Address) ?AccountResult,
+        /// Marks an account as warm for transaction-scoped EIP-2929 tracking.
+        preloadWarmAddress: *const fn (self: *anyopaque, address: Address) anyerror!void,
+        /// Marks a storage key as warm for transaction-scoped EIP-2930 tracking.
+        preloadWarmStorage: *const fn (self: *anyopaque, address: Address, index: u256) anyerror!void,
         /// Emits a log owned by an address with the log data.
         log: *const fn (self: *anyopaque, log: Log) anyerror!void,
         /// Reverts state changes back to the given checkpoint.
@@ -176,6 +184,16 @@ pub const Host = struct {
         return self.vtable.commitCheckpoint(self.ptr);
     }
 
+    /// Clears all transient storage values for transaction-boundary cleanup.
+    pub inline fn clearTransientStorage(self: SelfHost) void {
+        return self.vtable.clearTransientStorage(self.ptr);
+    }
+
+    /// Clears transaction-scoped warm preload state.
+    pub inline fn clearWarmPreloads(self: SelfHost) void {
+        return self.vtable.clearWarmPreloads(self.ptr);
+    }
+
     /// Transfers value from one address to another.
     pub inline fn incrementNonce(self: SelfHost, from: Address) (Allocator.Error || error{Overflow})!u64 {
         return self.vtable.incrementNonce(self.ptr, from);
@@ -189,6 +207,16 @@ pub const Host = struct {
     /// Loads an account.
     pub inline fn loadAccount(self: SelfHost, address: Address) ?AccountResult {
         return self.vtable.loadAccount(self.ptr, address);
+    }
+
+    /// Marks an account as warm for transaction-scoped EIP-2929 tracking.
+    pub inline fn preloadWarmAddress(self: SelfHost, address: Address) anyerror!void {
+        return self.vtable.preloadWarmAddress(self.ptr, address);
+    }
+
+    /// Marks a storage key as warm for transaction-scoped EIP-2930 tracking.
+    pub inline fn preloadWarmStorage(self: SelfHost, address: Address, index: u256) anyerror!void {
+        return self.vtable.preloadWarmStorage(self.ptr, address, index);
     }
 
     /// Emits a log owned by an address with the log data.
@@ -287,9 +315,13 @@ pub const PlainHost = struct {
                 .code = code,
                 .codeHash = codeHash,
                 .commitCheckpoint = commitCheckpoint,
+                .clearTransientStorage = clearTransientStorage,
+                .clearWarmPreloads = clearWarmPreloads,
                 .getEnviroment = getEnviroment,
                 .incrementNonce = incrementNonce,
                 .loadAccount = loadAccount,
+                .preloadWarmAddress = preloadWarmAddress,
+                .preloadWarmStorage = preloadWarmStorage,
                 .log = log,
                 .revertCheckpoint = revertCheckpoint,
                 .setCode = setCode,
@@ -338,6 +370,13 @@ pub const PlainHost = struct {
 
     fn commitCheckpoint(_: *anyopaque) void {}
 
+    fn clearTransientStorage(ctx: *anyopaque) void {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        self.transient_storage.clearRetainingCapacity();
+    }
+
+    fn clearWarmPreloads(_: *anyopaque) void {}
+
     fn getEnviroment(ctx: *anyopaque) EVMEnviroment {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
@@ -351,6 +390,10 @@ pub const PlainHost = struct {
     fn loadAccount(_: *anyopaque, _: Address) ?AccountResult {
         return AccountResult{ .is_new_account = false, .is_cold = false };
     }
+
+    fn preloadWarmAddress(_: *anyopaque, _: Address) error{}!void {}
+
+    fn preloadWarmStorage(_: *anyopaque, _: Address, _: u256) error{}!void {}
 
     fn log(ctx: *anyopaque, log_event: Log) !void {
         const self: *Self = @ptrCast(@alignCast(ctx));
@@ -462,9 +505,13 @@ pub const JournaledHost = struct {
                 .code = code,
                 .codeHash = codeHash,
                 .commitCheckpoint = commitCheckpoint,
+                .clearTransientStorage = clearTransientStorage,
+                .clearWarmPreloads = clearWarmPreloads,
                 .getEnviroment = getEnviroment,
                 .incrementNonce = incrementNonce,
                 .loadAccount = loadAccount,
+                .preloadWarmAddress = preloadWarmAddress,
+                .preloadWarmStorage = preloadWarmStorage,
                 .log = log,
                 .revertCheckpoint = revertCheckpoint,
                 .selfDestruct = selfDestruct,
@@ -550,6 +597,16 @@ pub const JournaledHost = struct {
         self.journal.commitCheckpoint();
     }
 
+    fn clearTransientStorage(ctx: *anyopaque) void {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        self.journal.clearTransientStorage();
+    }
+
+    fn clearWarmPreloads(ctx: *anyopaque) void {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        self.journal.clearWarmPreloads();
+    }
+
     fn getEnviroment(ctx: *anyopaque) EVMEnviroment {
         const self: *Self = @ptrCast(@alignCast(ctx));
 
@@ -571,6 +628,16 @@ pub const JournaledHost = struct {
             .is_new_account = account.data.status.created != 0,
             .is_cold = account.cold,
         };
+    }
+
+    fn preloadWarmAddress(ctx: *anyopaque, address: Address) anyerror!void {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        return self.journal.preloadWarmAddress(address);
+    }
+
+    fn preloadWarmStorage(ctx: *anyopaque, address: Address, index: u256) anyerror!void {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        return self.journal.preloadWarmStorage(address, index);
     }
 
     fn log(ctx: *anyopaque, log_event: Log) !void {

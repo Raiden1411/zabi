@@ -1,4 +1,5 @@
 const constants = @import("zabi-utils").constants;
+const fork_rules = @import("../fork_rules.zig");
 const gas = @import("../gas_tracker.zig");
 const host = @import("../host.zig");
 const log_types = @import("zabi-types").log;
@@ -7,6 +8,7 @@ const types = @import("zabi-types").ethereum;
 const utils = @import("zabi-utils").utils;
 
 const Address = types.Address;
+const GatedOpcode = fork_rules.GatedOpcode;
 const Interpreter = @import("../Interpreter.zig");
 const Log = log_types.Log;
 const PlainHost = host.PlainHost;
@@ -157,7 +159,7 @@ pub inline fn logInstruction(self: *Interpreter, size: u8) (HostInstructionError
 /// Runs the selfbalance opcode for the interpreter.
 /// 0x47 -> SELFBALANCE
 pub fn selfBalanceInstruction(self: *Interpreter) (HostInstructionErrors || error{InstructionNotEnabled})!void {
-    if (!self.spec.enabled(.ISTANBUL))
+    if (!GatedOpcode.SELFBALANCE.isEnabled(self.spec))
         return error.InstructionNotEnabled;
 
     const bal, _ = self.host.balance(self.contract.target_address) orelse return error.UnexpectedError;
@@ -228,7 +230,7 @@ pub fn sstoreInstruction(self: *Interpreter) HostInstructionErrors!void {
 /// Runs the tload opcode for the interpreter.
 /// 0x5C -> TLOAD
 pub fn tloadInstruction(self: *Interpreter) (Interpreter.InstructionErrors || error{InstructionNotEnabled})!void {
-    if (!self.spec.enabled(.CANCUN))
+    if (!GatedOpcode.TLOAD.isEnabled(self.spec))
         return error.InstructionNotEnabled;
 
     const index = self.stack.pop();
@@ -242,9 +244,12 @@ pub fn tloadInstruction(self: *Interpreter) (Interpreter.InstructionErrors || er
 /// Runs the tstore opcode for the interpreter.
 /// 0x5D -> TSTORE
 pub fn tstoreInstruction(self: *Interpreter) (HostInstructionErrors || error{InstructionNotEnabled})!void {
-    std.debug.assert(!self.is_static); // requires non static calls.
+    if (self.is_static) {
+        self.status = .call_with_value_not_allowed_in_static_call;
+        return;
+    }
 
-    if (!self.spec.enabled(.CANCUN))
+    if (!GatedOpcode.TSTORE.isEnabled(self.spec))
         return error.InstructionNotEnabled;
 
     const index = self.stack.pop();

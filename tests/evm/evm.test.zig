@@ -15,6 +15,7 @@ const JournaledState = evm_mod.journal.JournaledState;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 const MemoryDatabase = evm_mod.database.MemoryDatabase;
 const PlainDatabase = evm_mod.database.PlainDatabase;
+const AccessList = @import("zabi").types.transactions.AccessList;
 const StorageSlot = evm_mod.host.StorageSlot;
 const Signer = crypto.Signer;
 
@@ -160,6 +161,34 @@ fn createTestEnvironment(config: TestConfig) !TestFixture {
     return .{ .host = host, .mem_db = mem_db };
 }
 
+fn hasAccountWarmedEntry(entries: []const evm_mod.journal.JournalEntry, address: [20]u8) bool {
+    for (entries) |entry| {
+        switch (entry) {
+            .account_warmed => |info| {
+                if (std.mem.eql(u8, &info.address, &address))
+                    return true;
+            },
+            else => {},
+        }
+    }
+
+    return false;
+}
+
+fn hasStorageWarmedEntry(entries: []const evm_mod.journal.JournalEntry, address: [20]u8, key: u256) bool {
+    for (entries) |entry| {
+        switch (entry) {
+            .storage_warmed => |info| {
+                if (std.mem.eql(u8, &info.address, &address) and info.key == key)
+                    return true;
+            },
+            else => {},
+        }
+    }
+
+    return false;
+}
+
 test "CREATE address derivation produces deterministic unique addresses" {
     const sender: [20]u8 = [_]u8{0x0a} ** 20;
 
@@ -197,6 +226,192 @@ test "EVM initializes with empty call stack and return data" {
 
     try testing.expectEqual(@as(usize, 0), vm.call_stack.items.len);
     try testing.expectEqual(@as(usize, 0), vm.return_data.len);
+}
+
+test "executeBytecode enforces perform_analysis for jump validation" {
+    const jump_code = &[_]u8{ 0x60, 0x04, 0x56, 0xfd, 0x5b, 0x00 };
+
+    {
+        var fixture = try createTestEnvironment(.{
+            .target_code = TestBytecode.push_add_stop,
+        });
+        defer fixture.deinit();
+
+        fixture.host.env.config.perform_analysis = .analyse;
+
+        var vm: EVM = undefined;
+        defer vm.deinit();
+        vm.init(testing.allocator, fixture.host.host());
+
+        var result = try vm.executeBytecode(.{ .raw = @constCast(jump_code) });
+        defer result.deinit(testing.allocator);
+
+        try testing.expectEqual(.stopped, result.status);
+    }
+
+    {
+        var fixture = try createTestEnvironment(.{
+            .target_code = TestBytecode.push_add_stop,
+        });
+        defer fixture.deinit();
+
+        fixture.host.env.config.perform_analysis = .raw;
+
+        var vm: EVM = undefined;
+        defer vm.deinit();
+        vm.init(testing.allocator, fixture.host.host());
+
+        try testing.expectError(error.InvalidJump, vm.executeBytecode(.{ .raw = @constCast(jump_code) }));
+    }
+}
+
+test "top-level executions clear transient storage between runs" {
+    const store_transient = &[_]u8{
+        0x60, 0x01, // PUSH1 1 (value)
+        0x60, 0x00, // PUSH1 0 (key)
+        0x5d, // TSTORE
+        0x00, // STOP
+    };
+    const read_transient = &[_]u8{
+        0x60, 0x00, // PUSH1 0 (key)
+        0x5c, // TLOAD
+        0x60, 0x00, // PUSH1 0
+        0x52, // MSTORE
+        0x60, 0x20, // PUSH1 32
+        0x60, 0x00, // PUSH1 0
+        0xf3, // RETURN
+    };
+
+    var fixture = try createTestEnvironment(.{
+        .target_code = TestBytecode.push_add_stop,
+    });
+    defer fixture.deinit();
+
+    var vm: EVM = undefined;
+    defer vm.deinit();
+    vm.init(testing.allocator, fixture.host.host());
+
+    var store_result = try vm.executeBytecode(.{ .raw = @constCast(store_transient) });
+    defer store_result.deinit(testing.allocator);
+    try testing.expectEqual(evm_mod.Interpreter.InterpreterStatus.stopped, store_result.status);
+
+    var read_result = try vm.executeBytecode(.{ .raw = @constCast(read_transient) });
+    defer read_result.deinit(testing.allocator);
+    try testing.expectEqual(evm_mod.Interpreter.InterpreterStatus.returned, read_result.status);
+    try testing.expectEqual(@as(usize, 32), read_result.output.len);
+    try testing.expectEqual(@as(u8, 0), read_result.output[31]);
+}
+
+test "executeTransaction applies account access list prewarming and resets it next transaction" {
+    const warm_address = [_]u8{0xAB} ** 20;
+    const access_list = [_]AccessList{
+        .{
+            .address = warm_address,
+            .storageKeys = &.{},
+        },
+    };
+    const code = &[_]u8{
+        0x73, // PUSH20 warm_address
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0xAB,
+        0x31, // BALANCE
+        0x50, // POP
+        0x00, // STOP
+    };
+
+    var fixture = try createTestEnvironment(.{
+        .target_code = code,
+        .nonce = 0,
+        .caller_nonce = 0,
+    });
+    defer fixture.deinit();
+
+    fixture.host.env.config.spec_id = .BERLIN;
+    fixture.host.env.tx.tx_type = .berlin;
+    fixture.host.env.tx.access_list = &access_list;
+
+    var vm: EVM = undefined;
+    defer vm.deinit();
+    vm.init(testing.allocator, fixture.host.host());
+
+    var first = try vm.executeTransaction();
+    defer first.deinit(testing.allocator);
+
+    try testing.expectEqual(.stopped, first.status);
+    try testing.expect(!hasAccountWarmedEntry(fixture.host.journal.journal.items, warm_address));
+
+    fixture.host.env.tx.access_list = &.{};
+    fixture.host.env.tx.nonce = 1;
+
+    var second = try vm.executeTransaction();
+    defer second.deinit(testing.allocator);
+
+    try testing.expectEqual(.stopped, second.status);
+    try testing.expect(hasAccountWarmedEntry(fixture.host.journal.journal.items, warm_address));
+}
+
+test "executeTransaction applies storage access list prewarming and resets it next transaction" {
+    const storage_key: [32]u8 = [_]u8{0} ** 32;
+    const access_list = [_]AccessList{
+        .{
+            .address = TestAddresses.target,
+            .storageKeys = &[_][32]u8{storage_key},
+        },
+    };
+    const code = &[_]u8{
+        0x60, 0x00, // PUSH1 0
+        0x54, // SLOAD
+        0x50, // POP
+        0x00, // STOP
+    };
+
+    var fixture = try createTestEnvironment(.{
+        .target_code = code,
+        .nonce = 0,
+        .caller_nonce = 0,
+    });
+    defer fixture.deinit();
+
+    fixture.host.env.config.spec_id = .BERLIN;
+    fixture.host.env.tx.tx_type = .berlin;
+    fixture.host.env.tx.access_list = &access_list;
+
+    var vm: EVM = undefined;
+    defer vm.deinit();
+    vm.init(testing.allocator, fixture.host.host());
+
+    var first = try vm.executeTransaction();
+    defer first.deinit(testing.allocator);
+
+    try testing.expectEqual(.stopped, first.status);
+    try testing.expect(!hasStorageWarmedEntry(fixture.host.journal.journal.items, TestAddresses.target, 0));
+
+    fixture.host.env.tx.access_list = &.{};
+    fixture.host.env.tx.nonce = 1;
+
+    var second = try vm.executeTransaction();
+    defer second.deinit(testing.allocator);
+
+    try testing.expectEqual(.stopped, second.status);
+    try testing.expect(hasStorageWarmedEntry(fixture.host.journal.journal.items, TestAddresses.target, 0));
 }
 
 test "EVM Validate block context" {

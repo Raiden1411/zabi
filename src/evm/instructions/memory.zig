@@ -1,8 +1,10 @@
 const constants = @import("zabi-utils").constants;
+const fork_rules = @import("../fork_rules.zig");
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 const utils = @import("zabi-utils").utils;
 
+const GatedOpcode = fork_rules.GatedOpcode;
 const Interpreter = @import("../Interpreter.zig");
 const Memory = @import("../memory.zig").Memory;
 
@@ -11,7 +13,7 @@ pub const MemoryInstructionErrors = Interpreter.InstructionErrors || Memory.Erro
 /// Runs the mcopy opcode for the interpreter.
 /// 0x5E -> MCOPY
 pub fn mcopyInstruction(self: *Interpreter) (MemoryInstructionErrors || error{InstructionNotEnabled})!void {
-    if (!self.spec.enabled(.CANCUN)) {
+    if (!GatedOpcode.MCOPY.isEnabled(self.spec)) {
         @branchHint(.cold);
         return error.InstructionNotEnabled;
     }

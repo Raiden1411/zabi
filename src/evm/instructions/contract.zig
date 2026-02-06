@@ -1,5 +1,6 @@
 const actions = @import("../actions.zig");
 const constants = @import("zabi-utils").constants;
+const fork_rules = @import("../fork_rules.zig");
 const gas = @import("../gas_tracker.zig");
 const std = @import("std");
 const utils = @import("zabi-utils").utils;
@@ -9,6 +10,7 @@ const Allocator = std.mem.Allocator;
 const Address = types.Address;
 const CallAction = actions.CallAction;
 const CreateScheme = actions.CreateScheme;
+const GatedOpcode = fork_rules.GatedOpcode;
 const Interpreter = @import("../Interpreter.zig");
 const Memory = @import("../memory.zig").Memory;
 const PlainHost = @import("../host.zig").PlainHost;
@@ -101,7 +103,7 @@ pub fn callCodeInstruction(self: *Interpreter) Interpreter.InstructionErrors!voi
 pub inline fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ InstructionNotEnabled, Overflow } || Memory.Error || Interpreter.InstructionErrors)!void {
     std.debug.assert(!self.is_static); // Requires non static call.
 
-    if (is_create_2 and !self.spec.enabled(.PETERSBURG)) {
+    if (is_create_2 and !GatedOpcode.CREATE2.isEnabled(self.spec)) {
         @branchHint(.cold);
         return error.InstructionNotEnabled;
     }
@@ -170,7 +172,7 @@ pub inline fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ I
 /// Performs delegatecall instruction for the interpreter.
 /// DELEGATECALL -> 0xF4
 pub fn delegateCallInstruction(self: *Interpreter) (error{InstructionNotEnabled} || Interpreter.InstructionErrors)!void {
-    if (!self.spec.enabled(.HOMESTEAD)) {
+    if (!GatedOpcode.DELEGATECALL.isEnabled(self.spec)) {
         @branchHint(.cold);
         return error.InstructionNotEnabled;
     }
@@ -211,7 +213,7 @@ pub fn delegateCallInstruction(self: *Interpreter) (error{InstructionNotEnabled}
 /// Performs staticcall instruction for the interpreter.
 /// STATICCALL -> 0xFA
 pub fn staticCallInstruction(self: *Interpreter) (error{InstructionNotEnabled} || Interpreter.InstructionErrors)!void {
-    if (!self.spec.enabled(.BYZANTIUM)) {
+    if (!GatedOpcode.STATICCALL.isEnabled(self.spec)) {
         @branchHint(.cold);
         return error.InstructionNotEnabled;
     }

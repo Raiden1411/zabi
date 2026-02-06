@@ -155,12 +155,19 @@ pub fn deinit(self: *EVM) void {
 /// Validates the transaction and sender state, then dispatches to either
 /// `executeBytecode` for calls or `executeCreate` for contract deployments.
 pub fn executeTransaction(self: *EVM) ExecutionError!ExecutionResult {
+    // EIP-1153 values are transaction-scoped. Always start from a clean slate.
+    self.host.clearTransientStorage();
+    // EIP-2929/2930 warm preloads are transaction-scoped.
+    self.host.clearWarmPreloads();
+
     const env = self.host.getEnviroment();
 
     // Validate block parameters (block number, blobs)
     try env.validateBlockEnviroment();
     // Validate transaction parameters (gas, blobs, chain id, etc.)
     try env.validateTransaction();
+    // Seed warm account/storage state before any stateful account access.
+    try self.initializeTransactionWarmSet(env);
 
     const sender_info = self.host.accountInfo(env.tx.caller) orelse
         return error.NonExistentAccount;
@@ -241,7 +248,22 @@ fn executeBytecodeWithIntrinsic(
     intrinsic_gas: ?u64,
 ) ExecutionError!ExecutionResult {
     const env = self.host.getEnviroment();
-    const contract: Contract = try .initFromEnviroment(self.allocator, env, code, null);
+    const prepared_code: Bytecode = switch (env.config.perform_analysis) {
+        .analyse => try analysis.analyzeBytecode(self.allocator, code),
+        .raw => code,
+    };
+    const contract_address = switch (env.tx.transact_to) {
+        .call => |addr| addr,
+        .create => [_]u8{0} ** 20,
+    };
+    const contract: Contract = .{
+        .input = env.tx.data,
+        .bytecode = prepared_code,
+        .code_hash = null,
+        .value = env.tx.value,
+        .caller = env.tx.caller,
+        .target_address = contract_address,
+    };
 
     return self.executeWithContract(contract, false, .{ 0, 0 }, intrinsic_gas);
 }
@@ -283,6 +305,9 @@ fn executeWithContract(
 
     const env = self.host.getEnviroment();
     const is_top_level = self.call_stack.items.len == 0;
+
+    if (is_top_level)
+        self.host.clearTransientStorage();
 
     const checkpoint = self.host.checkpoint() catch return error.OutOfGas;
 
@@ -796,4 +821,38 @@ fn handleFailedCreateSetup(self: *EVM, forwarded_gas: u64) void {
     parent_frame.interpreter.gas_tracker.available += forwarded_gas;
     parent_frame.interpreter.stack.appendAssumeCapacity(0);
     parent_frame.interpreter.status = .running;
+}
+
+/// Initializes transaction-scoped warm account/storage entries (EIP-2929/EIP-2930).
+fn initializeTransactionWarmSet(
+    self: *EVM,
+    env: EVMEnviroment,
+) ExecutionError!void {
+    self.host.preloadWarmAddress(env.tx.caller) catch return error.OutOfMemory;
+
+    switch (env.tx.transact_to) {
+        .call => |target| self.host.preloadWarmAddress(target) catch return error.OutOfMemory,
+        .create => {},
+    }
+
+    const max_precompile = @intFromEnum(PrecompileId.modexp);
+    for (1..max_precompile + 1) |raw_id| {
+        const address: [20]u8 = @bitCast(std.mem.nativeToBig(u160, raw_id)); // precompileAddress(@intCast(raw_id));
+
+        if (PrecompileId.fromAddress(env.config.spec_id, address) != null) {
+            self.host.preloadWarmAddress(address) catch return error.OutOfMemory;
+        }
+    }
+
+    if (!env.config.spec_id.enabled(.BERLIN))
+        return;
+
+    for (env.tx.access_list) |entry| {
+        self.host.preloadWarmAddress(entry.address) catch return error.OutOfMemory;
+
+        for (entry.storageKeys) |storage_key| {
+            const key = std.mem.readInt(u256, storage_key[0..], .big);
+            self.host.preloadWarmStorage(entry.address, key) catch return error.OutOfMemory;
+        }
+    }
 }

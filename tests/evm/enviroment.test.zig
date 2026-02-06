@@ -6,6 +6,7 @@ const std = @import("std");
 const testing = std.testing;
 
 const AccountInfo = evm.host.AccountInfo;
+const AccessList = @import("zabi").types.transactions.AccessList;
 const BlobExcessGasAndPrice = enviroment.BlobExcessGasAndPrice;
 const EVMEnviroment = enviroment.EVMEnviroment;
 const Interpreter = evm.Interpreter;
@@ -379,4 +380,130 @@ test "optimism mint reduces required balance" {
     };
 
     try env.validateAgainstState(sender_info);
+}
+
+test "calculateIntrinsicGas returns base transaction cost for empty call data" {
+    var env: EVMEnviroment = .{};
+    env.tx.data = &.{};
+    env.tx.transact_to = .{ .call = [_]u8{1} ** 20 };
+
+    const intrinsic = try env.calculateIntrinsicGas();
+    try testing.expectEqual(constants.TRANSACTION, intrinsic);
+}
+
+test "calculateIntrinsicGas uses pre and post Istanbul calldata pricing" {
+    var env: EVMEnviroment = .{};
+    env.tx.data = @constCast(&[_]u8{ 0x00, 0x01 });
+
+    env.config.spec_id = .FRONTIER;
+    const frontier_cost = try env.calculateIntrinsicGas();
+    try testing.expectEqual(constants.TRANSACTION + constants.TRANSACTION_ZERO_DATA + constants.TRANSACTION_NON_ZERO_DATA_FRONTIER, frontier_cost);
+
+    env.config.spec_id = .ISTANBUL;
+    const istanbul_cost = try env.calculateIntrinsicGas();
+    try testing.expectEqual(constants.TRANSACTION + constants.TRANSACTION_ZERO_DATA + constants.TRANSACTION_NON_ZERO_DATA_INIT, istanbul_cost);
+}
+
+test "calculateIntrinsicGas includes create and access list costs" {
+    const access_list = [_]AccessList{
+        .{
+            .address = [_]u8{0xAA} ** 20,
+            .storageKeys = &[_][32]u8{
+                [_]u8{0x01} ** 32,
+                [_]u8{0x02} ** 32,
+            },
+        },
+    };
+
+    var env: EVMEnviroment = .{};
+    env.config.spec_id = .BERLIN;
+    env.tx.transact_to = .create;
+    env.tx.access_list = &access_list;
+
+    const intrinsic = try env.calculateIntrinsicGas();
+    const expected = constants.TRANSACTION +
+        constants.CREATE +
+        constants.ACCESS_LIST_ADDRESS +
+        (2 * constants.ACCESS_LIST_STORAGE_KEY);
+    try testing.expectEqual(expected, intrinsic);
+}
+
+test "validateIntrinsicGas rejects transactions below intrinsic gas" {
+    var env: EVMEnviroment = .{};
+    env.tx.gas_limit = constants.TRANSACTION - 1;
+
+    try testing.expectError(error.IntrinsicGasTooLow, env.validateIntrinsicGas());
+}
+
+test "validateTransaction accepts a valid Cancun blob envelope" {
+    var valid_hash = [_]u8{0} ** 32;
+    valid_hash[0] = constants.VERSIONED_HASH_VERSION_KZG;
+
+    var env: EVMEnviroment = .{};
+    env.config.spec_id = .CANCUN;
+    env.tx.tx_type = .cancun;
+    env.tx.gas_price = 10;
+    env.tx.gas_priority_fee = 1;
+    env.block.base_fee = 1;
+    env.tx.max_fee_per_blob_gas = 5;
+    env.tx.blob_hashes = &[_][32]u8{valid_hash};
+    env.block.blob_excess_gas_and_price = .{ .blob_gasprice = 4, .blob_excess_gas = 0 };
+
+    try env.validateTransaction();
+}
+
+test "validateTransaction rejects invalid Cancun blob envelopes" {
+    var valid_hash = [_]u8{0} ** 32;
+    valid_hash[0] = constants.VERSIONED_HASH_VERSION_KZG;
+
+    {
+        var env: EVMEnviroment = .{};
+        env.config.spec_id = .CANCUN;
+        env.tx.tx_type = .cancun;
+        env.tx.max_fee_per_blob_gas = 1;
+        env.tx.blob_hashes = &.{};
+        env.block.blob_excess_gas_and_price = .{ .blob_gasprice = 1, .blob_excess_gas = 0 };
+
+        try testing.expectError(error.EmptyBlobs, env.validateTransaction());
+    }
+
+    {
+        var invalid_hash = [_]u8{0} ** 32;
+        invalid_hash[0] = constants.VERSIONED_HASH_VERSION_KZG + 1;
+
+        var env: EVMEnviroment = .{};
+        env.config.spec_id = .CANCUN;
+        env.tx.tx_type = .cancun;
+        env.tx.max_fee_per_blob_gas = 1;
+        env.tx.blob_hashes = &[_][32]u8{invalid_hash};
+        env.block.blob_excess_gas_and_price = .{ .blob_gasprice = 1, .blob_excess_gas = 0 };
+
+        try testing.expectError(error.BlobVersionNotSupported, env.validateTransaction());
+    }
+
+    {
+        var blob_hashes = [_][32]u8{[_]u8{0} ** 32} ** (constants.MAX_BLOB_NUMBER_PER_BLOCK + 1);
+        for (&blob_hashes) |*hash|
+            hash[0] = constants.VERSIONED_HASH_VERSION_KZG;
+
+        var env: EVMEnviroment = .{};
+        env.config.spec_id = .CANCUN;
+        env.tx.tx_type = .cancun;
+        env.tx.max_fee_per_blob_gas = 10;
+        env.tx.blob_hashes = &blob_hashes;
+        env.block.blob_excess_gas_and_price = .{ .blob_gasprice = 1, .blob_excess_gas = 0 };
+
+        try testing.expectError(error.TooManyBlobs, env.validateTransaction());
+    }
+
+    {
+        var env: EVMEnviroment = .{};
+        env.config.spec_id = .CANCUN;
+        env.tx.tx_type = .cancun;
+        env.tx.max_fee_per_blob_gas = 1;
+        env.tx.blob_hashes = &[_][32]u8{valid_hash};
+        env.block.blob_excess_gas_and_price = .{ .blob_gasprice = 2, .blob_excess_gas = 0 };
+
+        try testing.expectError(error.BlobGasPriceHigherThanMax, env.validateTransaction());
+    }
 }

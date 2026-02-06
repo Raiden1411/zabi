@@ -166,6 +166,7 @@ pub fn executeTransaction(self: *EVM) ExecutionError!ExecutionResult {
     const sender_info = self.host.accountInfo(env.tx.caller) orelse
         return error.NonExistentAccount;
     try env.validateAgainstState(sender_info);
+    const intrinsic_gas = try env.validateIntrinsicGas();
 
     _ = try self.host.incrementNonce(env.tx.caller);
 
@@ -175,11 +176,11 @@ pub fn executeTransaction(self: *EVM) ExecutionError!ExecutionResult {
             // (value transfer succeeds, gas is consumed). We return empty
             // bytecode execution which will succeed immediately.
             const code, _ = self.host.code(target) orelse
-                return self.executeBytecode(.{ .raw = &[_]u8{} });
+                return self.executeBytecodeWithIntrinsic(.{ .raw = &[_]u8{} }, intrinsic_gas);
 
-            return self.executeBytecode(code);
+            return self.executeBytecodeWithIntrinsic(code, intrinsic_gas);
         },
-        .create => return self.executeCreate(),
+        .create => return self.executeCreateWithIntrinsic(intrinsic_gas),
     }
 }
 
@@ -188,10 +189,19 @@ pub fn executeTransaction(self: *EVM) ExecutionError!ExecutionResult {
 /// Prepares the contract from the transaction environment and
 /// starts the execution loop.
 pub fn executeBytecode(self: *EVM, code: Bytecode) ExecutionError!ExecutionResult {
+    return self.executeBytecodeWithIntrinsic(code, null);
+}
+
+/// Executes bytecode while optionally charging intrinsic gas for top-level calls.
+fn executeBytecodeWithIntrinsic(
+    self: *EVM,
+    code: Bytecode,
+    intrinsic_gas: ?u64,
+) ExecutionError!ExecutionResult {
     const env = self.host.getEnviroment();
     const contract: Contract = try .initFromEnviroment(self.allocator, env, code, null);
 
-    return self.executeWithContract(contract, false, .{ 0, 0 });
+    return self.executeWithContract(contract, false, .{ 0, 0 }, intrinsic_gas);
 }
 
 /// Executes a contract creation transaction.
@@ -199,6 +209,11 @@ pub fn executeBytecode(self: *EVM, code: Bytecode) ExecutionError!ExecutionResul
 /// Derives the create address from sender and nonce, then executes
 /// the init code.
 pub fn executeCreate(self: *EVM) ExecutionError!ExecutionResult {
+    return self.executeCreateWithIntrinsic(null);
+}
+
+/// Executes create bytecode while optionally charging intrinsic gas for top-level transactions.
+fn executeCreateWithIntrinsic(self: *EVM, intrinsic_gas: ?u64) ExecutionError!ExecutionResult {
     const env = self.host.getEnviroment();
     const create_address = try deriveCreateAddress(self.allocator, .{ env.tx.caller, env.tx.nonce });
 
@@ -216,7 +231,7 @@ pub fn executeCreate(self: *EVM) ExecutionError!ExecutionResult {
         .value = env.tx.value,
     };
 
-    return self.executeWithContract(contract, true, .{ 0, 0 });
+    return self.executeWithContract(contract, true, .{ 0, 0 }, intrinsic_gas);
 }
 
 /// Derives a CREATE address from sender and nonce using RLP encoding.
@@ -259,18 +274,20 @@ fn executeWithContract(
     contract: Contract,
     is_create: bool,
     return_memory_offset: struct { usize, usize },
+    intrinsic_gas: ?u64,
 ) ExecutionError!ExecutionResult {
     if (self.call_stack.items.len >= MAX_CALL_STACK_DEPTH)
         return error.DepthLimitReached;
 
     const env = self.host.getEnviroment();
+    const is_top_level = self.call_stack.items.len == 0;
 
     const checkpoint = self.host.checkpoint() catch return error.OutOfGas;
 
     // Transfer value from caller to target for top-level transaction calls.
     // This must happen after checkpoint creation so the transfer can be reverted.
     // Skip transfer if balance check is disabled (for testing/simulation).
-    if (contract.value > 0 and self.call_stack.items.len == 0 and !env.config.disable_balance_check) {
+    if (contract.value > 0 and is_top_level and !env.config.disable_balance_check) {
         self.host.transfer(contract.caller, contract.target_address, contract.value) catch {
             self.host.revertCheckpoint(checkpoint) catch {};
             return error.InsufficientBalance;
@@ -298,6 +315,22 @@ fn executeWithContract(
 
         return err;
     };
+
+    if (is_top_level) {
+        if (intrinsic_gas) |cost| {
+            const current_frame = &self.call_stack.items[self.call_stack.items.len - 1];
+            current_frame.interpreter.gas_tracker.updateTracker(cost) catch {
+                var failed_frame = self.call_stack.pop().?;
+                defer {
+                    failed_frame.contract.deinit(self.allocator);
+                    failed_frame.interpreter.deinit();
+                }
+
+                self.host.revertCheckpoint(failed_frame.checkpoint) catch {};
+                return error.IntrinsicGasTooLow;
+            };
+        }
+    }
 
     return self.runExecutionLoop();
 }

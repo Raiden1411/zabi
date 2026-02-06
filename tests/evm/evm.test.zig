@@ -749,9 +749,25 @@ test "executeTransaction returns StackUnderflow on stack underflow" {
     try testing.expectError(error.StackUnderflow, result);
 }
 
-test "executeTransaction returns OutOfGas when gas is exhausted" {
+test "executeTransaction fails when gas limit is below intrinsic transaction cost" {
     var fixture = try createTestEnvironment(.{
-        .gas_limit = 1,
+        .gas_limit = constants.TRANSACTION - 1,
+        .target_code = TestBytecode.push_add_stop,
+    });
+    defer fixture.deinit();
+
+    var vm: EVM = undefined;
+    defer vm.deinit();
+
+    vm.init(testing.allocator, fixture.host.host());
+
+    const result = vm.executeTransaction();
+    try testing.expectError(error.IntrinsicGasTooLow, result);
+}
+
+test "executeTransaction returns OutOfGas when execution gas is exhausted after intrinsic charge" {
+    var fixture = try createTestEnvironment(.{
+        .gas_limit = constants.TRANSACTION + 1,
         .target_code = TestBytecode.push_add_stop,
     });
     defer fixture.deinit();
@@ -783,6 +799,25 @@ test "executeTransaction tracks gas consumption correctly" {
     try testing.expectEqual(.stopped, result.status);
     try testing.expect(result.gas_used > 0);
     try testing.expect(result.gas_used < 100_000);
+}
+
+test "executeTransaction charges intrinsic gas before opcode execution" {
+    var fixture = try createTestEnvironment(.{
+        .gas_limit = 100_000,
+        .target_code = TestBytecode.push_add_stop,
+    });
+    defer fixture.deinit();
+
+    var vm: EVM = undefined;
+    defer vm.deinit();
+
+    vm.init(testing.allocator, fixture.host.host());
+
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    try testing.expectEqual(.stopped, result.status);
+    try testing.expect(result.gas_used >= constants.TRANSACTION);
 }
 
 test "executeTransaction succeeds when calling EOA with no code" {
@@ -1996,6 +2031,49 @@ test "CALL to non-existent code succeeds with value transfer only" {
     try testing.expectEqual(.returned, result.status);
     // Success flag should be 1
     try testing.expectEqual(@as(u8, 1), result.output[31]);
+}
+
+test "create transaction fails when gas limit is below create intrinsic cost" {
+    try mem_db.init(testing.allocator);
+
+    var caller_info: AccountInfo = .{
+        .code_hash = constants.EMPTY_HASH,
+        .nonce = 0,
+        .code = null,
+        .balance = 1_000_000,
+    };
+    try mem_db.addAccountInfo(TestAddresses.caller, &caller_info);
+
+    journal_state.init(testing.allocator, .SHANGHAI, mem_db.database());
+
+    var host: JournaledHost = .{
+        .journal = journal_state,
+        .env = .{
+            .config = .{ .spec_id = .SHANGHAI, .disable_block_gas_limit = true },
+            .block = .{ .gas_limit = 30_000_000 },
+            .tx = .{
+                .caller = TestAddresses.caller,
+                .gas_limit = constants.TRANSACTION + constants.CREATE - 1,
+                .transact_to = .create,
+                .data = @constCast(&[_]u8{0x00}),
+                .value = 0,
+                .nonce = 0,
+                .max_fee_per_blob_gas = null,
+            },
+        },
+    };
+
+    var vm: EVM = undefined;
+    defer {
+        vm.deinit();
+        host.journal.deinit();
+        mem_db.deinit();
+    }
+
+    vm.init(testing.allocator, host.host());
+
+    const result = vm.executeTransaction();
+    try testing.expectError(error.IntrinsicGasTooLow, result);
 }
 
 test "CREATE deploys new contract and pushes address to stack" {

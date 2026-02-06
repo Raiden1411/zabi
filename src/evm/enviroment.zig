@@ -26,6 +26,7 @@ pub const ValidationErrors = error{
     GasLimitHigherThanBlock,
     GasPriceLessThanBaseFee,
     InsufficientBalance,
+    IntrinsicGasTooLow,
     InvalidChainId,
     InvalidNonce,
     MaxFeePerBlobGasNotSupported,
@@ -101,6 +102,55 @@ pub const EVMEnviroment = struct {
         return total;
     }
 
+    /// Calculates the intrinsic gas cost for the current transaction.
+    ///
+    /// Intrinsic gas includes:
+    /// - Base transaction cost (`constants.TRANSACTION`)
+    /// - Calldata byte cost (`TRANSACTION_ZERO_DATA` / `TRANSACTION_NON_ZERO_DATA_*`)
+    /// - Contract creation surcharge (`constants.CREATE`) for create transactions
+    /// - Access list surcharge (`ACCESS_LIST_ADDRESS` / `ACCESS_LIST_STORAGE_KEY`) when Berlin is enabled
+    pub fn calculateIntrinsicGas(self: *const EVMEnviroment) (error{Overflow} || ValidationErrors)!u64 {
+        var total: u64 = constants.TRANSACTION;
+
+        const non_zero_cost: u64 = if (self.config.spec_id.enabled(.ISTANBUL))
+            constants.TRANSACTION_NON_ZERO_DATA_INIT
+        else
+            constants.TRANSACTION_NON_ZERO_DATA_FRONTIER;
+
+        for (self.tx.data) |byte| {
+            const byte_cost: u64 = if (byte == 0)
+                constants.TRANSACTION_ZERO_DATA
+            else
+                non_zero_cost;
+            try addGasCost(&total, byte_cost);
+        }
+
+        if (self.tx.transact_to == .create)
+            try addGasCost(&total, constants.CREATE);
+
+        if (self.config.spec_id.enabled(.BERLIN) and self.tx.access_list.len != 0) {
+            const access_list_cost = try multiplyGasCost(self.tx.access_list.len, constants.ACCESS_LIST_ADDRESS);
+            try addGasCost(&total, access_list_cost);
+
+            for (self.tx.access_list) |entry| {
+                const storage_key_cost = try multiplyGasCost(entry.storageKeys.len, constants.ACCESS_LIST_STORAGE_KEY);
+                try addGasCost(&total, storage_key_cost);
+            }
+        }
+
+        return total;
+    }
+
+    /// Validates that the transaction gas limit can cover intrinsic gas.
+    pub fn validateIntrinsicGas(self: *const EVMEnviroment) ValidationErrors!u64 {
+        const intrinsic_gas = self.calculateIntrinsicGas() catch return error.IntrinsicGasTooLow;
+
+        if (self.tx.gas_limit < intrinsic_gas)
+            return error.IntrinsicGasTooLow;
+
+        return intrinsic_gas;
+    }
+
     /// Validates the inner block enviroment based on the provided `SpecId`
     pub fn validateBlockEnviroment(
         self: *const EVMEnviroment,
@@ -162,15 +212,6 @@ pub const EVMEnviroment = struct {
                 }
             },
             .cancun => {
-                if (!self.config.disable_block_gas_limit and self.tx.gas_limit > self.block.gas_limit)
-                    return error.GasLimitHigherThanBlock;
-
-                if (self.tx.blob_hashes.len != 0)
-                    return error.BlobVersionedHashesNotSupported;
-
-                if (self.tx.max_fee_per_blob_gas != null)
-                    return error.MaxFeePerBlobGasNotSupported;
-
                 if (self.config.spec_id.enabled(.LONDON)) {
                     if (self.tx.gas_priority_fee) |fee| {
                         if (fee > self.tx.gas_price)
@@ -181,28 +222,35 @@ pub const EVMEnviroment = struct {
                         return error.GasPriceLessThanBaseFee;
                 }
 
-                if (self.config.spec_id.enabled(.CANCUN)) {
-                    if (self.tx.max_fee_per_blob_gas) |max| {
-                        const price = self.block.blob_excess_gas_and_price orelse return error.ExpectedBlobPrice;
+                if (!self.config.spec_id.enabled(.CANCUN)) {
+                    if (self.tx.blob_hashes.len != 0)
+                        return error.BlobVersionedHashesNotSupported;
 
-                        if (price.blob_gasprice > max)
-                            return error.BlobGasPriceHigherThanMax;
-                    }
+                    if (self.tx.max_fee_per_blob_gas != null)
+                        return error.MaxFeePerBlobGasNotSupported;
 
-                    if (self.tx.blob_hashes.len == 0)
-                        return error.EmptyBlobs;
-
-                    if (self.tx.transact_to == .create)
-                        return error.BlobCreateTransaction;
-
-                    for (self.tx.blob_hashes) |hashes| {
-                        if (hashes[0] != constants.VERSIONED_HASH_VERSION_KZG)
-                            return error.BlobVersionNotSupported;
-                    }
-
-                    if (self.tx.blob_hashes.len > constants.MAX_BLOB_NUMBER_PER_BLOCK)
-                        return error.TooManyBlobs;
+                    return;
                 }
+
+                if (self.tx.blob_hashes.len == 0)
+                    return error.EmptyBlobs;
+
+                if (self.tx.transact_to == .create)
+                    return error.BlobCreateTransaction;
+
+                if (self.tx.blob_hashes.len > constants.MAX_BLOB_NUMBER_PER_BLOCK)
+                    return error.TooManyBlobs;
+
+                for (self.tx.blob_hashes) |hashes| {
+                    if (hashes[0] != constants.VERSIONED_HASH_VERSION_KZG)
+                        return error.BlobVersionNotSupported;
+                }
+
+                const max_blob_fee = self.tx.max_fee_per_blob_gas orelse return error.ExpectedBlobPrice;
+                const blob_price = self.block.blob_excess_gas_and_price orelse return error.ExpectedBlobPrice;
+
+                if (blob_price.blob_gasprice > max_blob_fee)
+                    return error.BlobGasPriceHigherThanMax;
             },
             else => return error.UnsupportedTxType,
         }
@@ -234,6 +282,23 @@ pub const EVMEnviroment = struct {
             if (sender_info.balance < required)
                 return error.InsufficientBalance;
         }
+    }
+
+    fn addGasCost(total: *u64, delta: u64) error{Overflow}!void {
+        const next, const overflow = @addWithOverflow(total.*, delta);
+        if (@bitCast(overflow))
+            return error.Overflow;
+
+        total.* = next;
+    }
+
+    fn multiplyGasCost(items: usize, unit_cost: u64) error{Overflow}!u64 {
+        const count = std.math.cast(u64, items) orelse return error.Overflow;
+        const total, const overflow = @mulWithOverflow(count, unit_cost);
+        if (@bitCast(overflow))
+            return error.Overflow;
+
+        return total;
     }
 };
 

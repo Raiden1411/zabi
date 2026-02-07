@@ -1381,7 +1381,7 @@ pub fn getSecondsToFinalize(
     defer data.deinit();
 
     const time = try zabi_utils.utils.bytesToInt(i64, data.response);
-    const time_since: i64 = @divFloor((try Io.Clock.real.now(self.io)).toSeconds(), 1000) - @as(i64, @truncate(@as(i128, @intCast(proven.timestamp))));
+    const time_since: i64 = @divFloor((Io.Clock.real.now(self.io)).toSeconds(), 1000) - @as(i64, @truncate(@as(i128, @intCast(proven.timestamp))));
 
     return if (time_since < 0) @intCast(0) else @intCast(time - time_since);
 }
@@ -1410,7 +1410,7 @@ pub fn getSecondsToFinalizeGame(
     if (time == 0)
         return error.WithdrawalNotProved;
 
-    const time_since: i64 = @divFloor((try Io.Clock.real.now(self.io)).toSeconds(), 1000) - @as(i64, @truncate(@as(i128, @intCast(proven.timestamp))));
+    const time_since: i64 = @divFloor((Io.Clock.real.now(self.io)).toSeconds(), 1000) - @as(i64, @truncate(@as(i128, @intCast(proven.timestamp))));
 
     return if (time_since < 0) @intCast(0) else @intCast(time - time_since);
 }
@@ -1446,7 +1446,7 @@ pub fn getSecondsUntilNextGame(
     const latest_timestamp: i64 = @intCast(latest_game.timestamp * 1000);
 
     const interval: i64 = @intFromFloat(@ceil(@as(f64, @floatFromInt(elapsed_time)) * interval_buffer) + 1);
-    const now = (try Io.Clock.real.now(self.io)).toSeconds() * 1000;
+    const now = (Io.Clock.real.now(self.io)).toSeconds() * 1000;
 
     const seconds: i64 = blk: {
         if (now < latest_timestamp)
@@ -2903,10 +2903,10 @@ pub const WebsocketProvider = struct {
     pub fn deinit(self: *WebsocketProvider) void {
         // There may be lingering memory from the json parsed data
         // in the channels so we must clean then up.
-        while (self.sub_channel.getOrNull()) |node|
+        while (self.sub_channel.getOrNull(self.provider.io)) |node|
             node.deinit();
 
-        while (self.rpc_channel.popOrNull()) |node|
+        while (self.rpc_channel.popOrNull(self.provider.io)) |node|
             node.deinit();
 
         // Deinits client and destroys any created pointers.
@@ -2937,7 +2937,7 @@ pub const WebsocketProvider = struct {
     /// Parses a subscription event `Value` into `T`.
     /// Usefull for events that currently zabi doesn't have custom support.
     pub fn parseSubscriptionEvent(self: *WebsocketProvider, comptime T: type) !RPCResponse(EthereumSubscribeResponse(T)) {
-        const event = self.sub_channel.get();
+        const event = self.sub_channel.get(self.provider.io);
         errdefer event.deinit();
 
         const parsed = try std.json.parseFromValueLeaky(
@@ -3007,11 +3007,11 @@ pub const WebsocketProvider = struct {
                     }
 
                     if (parsed.value.object.getKey("params") != null) {
-                        self.sub_channel.put(parsed);
+                        self.sub_channel.put(self.provider.io, parsed);
                         continue;
                     }
 
-                    self.rpc_channel.push(parsed);
+                    self.rpc_channel.push(self.provider.io, parsed);
                 },
                 .ping => try self.ws_client.writeFrame(@constCast(message.data), .pong),
                 // Ignore any other messages.
@@ -3038,7 +3038,7 @@ pub const WebsocketProvider = struct {
     /// Only call this if you are sure that the channel has messages
     /// because this will block until a message is able to be fetched.
     pub fn getCurrentRpcEvent(self: *WebsocketProvider) JsonParsed(Value) {
-        return self.rpc_channel.pop();
+        return self.rpc_channel.pop(self.provider.io);
     }
 
     /// Get the first event of the subscription channel.
@@ -3046,7 +3046,7 @@ pub const WebsocketProvider = struct {
     /// Only call this if you are sure that the channel has messages
     /// because this will block until a message is able to be fetched.
     pub fn getCurrentSubscriptionEvent(self: *WebsocketProvider) JsonParsed(Value) {
-        return self.sub_channel.get();
+        return self.sub_channel.get(self.provider.io);
     }
 
     /// Writes message to websocket server and parses the reponse from it.
@@ -3285,10 +3285,10 @@ pub const IpcProvider = struct {
     pub fn deinit(self: *IpcProvider) void {
         // There may be lingering memory from the json parsed data
         // in the channels so we must clean then up.
-        while (self.sub_channel.getOrNull()) |node|
+        while (self.sub_channel.getOrNull(self.provider.io)) |node|
             node.deinit();
 
-        while (self.rpc_channel.popOrNull()) |node|
+        while (self.rpc_channel.popOrNull(self.provider.io)) |node|
             node.deinit();
 
         self.sub_channel.deinit();
@@ -3318,7 +3318,7 @@ pub const IpcProvider = struct {
     /// Parses a subscription event `Value` into `T`.
     /// Usefull for events that currently zabi doesn't have custom support.
     pub fn parseSubscriptionEvent(self: *IpcProvider, comptime T: type) !RPCResponse(EthereumSubscribeResponse(T)) {
-        const event = self.sub_channel.get();
+        const event = self.sub_channel.get(self.provider.io);
         errdefer event.deinit();
 
         const parsed = try std.json.parseFromValueLeaky(
@@ -3362,11 +3362,11 @@ pub const IpcProvider = struct {
                 onEvent(parsed) catch return error.UnexpectedError;
 
             if (parsed.value.object.getKey("params") != null) {
-                self.sub_channel.put(parsed);
+                self.sub_channel.put(self.provider.io, parsed);
                 continue;
             }
 
-            self.rpc_channel.push(parsed);
+            self.rpc_channel.push(self.provider.io, parsed);
         }
     }
 
@@ -3383,7 +3383,7 @@ pub const IpcProvider = struct {
     /// Only call this if you are sure that the channel has messages
     /// because this will block until a message is able to be fetched.
     pub fn getCurrentRpcEvent(self: *IpcProvider) JsonParsed(Value) {
-        return self.rpc_channel.pop();
+        return self.rpc_channel.pop(self.provider.io);
     }
 
     /// Get the first event of the subscription channel.
@@ -3391,7 +3391,7 @@ pub const IpcProvider = struct {
     /// Only call this if you are sure that the channel has messages
     /// because this will block until a message is able to be fetched.
     pub fn getCurrentSubscriptionEvent(self: *IpcProvider) JsonParsed(Value) {
-        return self.sub_channel.get();
+        return self.sub_channel.get(self.provider.io);
     }
 
     /// Writes message to websocket server and parses the reponse from it.

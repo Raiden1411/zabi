@@ -371,8 +371,8 @@ test "Get First element With Nonce Manager" {
     defer wallet.deinit();
 
     {
-        const first = wallet.envelopes_pool.getFirstElementFromPool(wallet.allocator);
-        const last = wallet.envelopes_pool.getLastElementFromPool(wallet.allocator);
+        const first = wallet.envelopes_pool.getFirstElementFromPool(std.testing.io, wallet.allocator);
+        const last = wallet.envelopes_pool.getLastElementFromPool(std.testing.io, wallet.allocator);
         try testing.expect(first == null);
         try testing.expect(last == null);
     }
@@ -386,8 +386,8 @@ test "Get First element With Nonce Manager" {
     }
 
     {
-        const first = wallet.envelopes_pool.getFirstElementFromPool(wallet.allocator);
-        const last = wallet.envelopes_pool.getLastElementFromPool(wallet.allocator);
+        const first = wallet.envelopes_pool.getFirstElementFromPool(std.testing.io, wallet.allocator);
+        const last = wallet.envelopes_pool.getLastElementFromPool(std.testing.io, wallet.allocator);
         try testing.expect(first != null);
         try testing.expect(last != null);
 
@@ -494,8 +494,8 @@ test "Get First element" {
     defer wallet.deinit();
 
     {
-        const first = wallet.envelopes_pool.getFirstElementFromPool(wallet.allocator);
-        const last = wallet.envelopes_pool.getLastElementFromPool(wallet.allocator);
+        const first = wallet.envelopes_pool.getFirstElementFromPool(std.testing.io, wallet.allocator);
+        const last = wallet.envelopes_pool.getLastElementFromPool(std.testing.io, wallet.allocator);
         try testing.expect(first == null);
         try testing.expect(last == null);
     }
@@ -506,8 +506,8 @@ test "Get First element" {
     }
 
     {
-        const first = wallet.envelopes_pool.getFirstElementFromPool(wallet.allocator);
-        const last = wallet.envelopes_pool.getLastElementFromPool(wallet.allocator);
+        const first = wallet.envelopes_pool.getFirstElementFromPool(std.testing.io, wallet.allocator);
+        const last = wallet.envelopes_pool.getLastElementFromPool(std.testing.io, wallet.allocator);
         try testing.expect(first != null);
         try testing.expect(last != null);
     }

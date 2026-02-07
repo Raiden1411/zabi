@@ -55,7 +55,7 @@ const LegacyTransactionEnvelope = transaction.LegacyTransactionEnvelope;
 const LondonEthCall = transaction.LondonEthCall;
 const LondonTransactionEnvelope = transaction.LondonTransactionEnvelope;
 const L2Output = op_types.L2Output;
-const Mutex = std.Thread.Mutex;
+const Mutex = std.Io.Mutex;
 const PreparedWithdrawal = withdrawal_types.PreparedWithdrawal;
 const Provider = @import("Provider.zig");
 const RootProof = withdrawal_types.WithdrawalRootProof;
@@ -76,7 +76,7 @@ const WithdrawalRequest = withdrawal_types.WithdrawalRequest;
 
 /// Pool of prepared transaciton envelopes.
 pub const TransactionEnvelopePool = struct {
-    mutex: Mutex = .{},
+    mutex: Mutex = .init,
     /// DoublyLinkedList queue. Iterate from last to first (LIFO)
     pooled_envelopes: std.DoublyLinkedList,
 
@@ -99,11 +99,12 @@ pub const TransactionEnvelopePool = struct {
     /// Returns null if no transaction was found
     pub fn findTransactionEnvelope(
         pool: *TransactionEnvelopePool,
+        io: Io,
         allocator: Allocator,
         search: SearchCriteria,
     ) ?TransactionEnvelope {
-        pool.mutex.lock();
-        defer pool.mutex.unlock();
+        pool.mutex.lockUncancelable(io);
+        defer pool.mutex.unlock(io);
 
         var last_tx_node = pool.pooled_envelopes.last;
 
@@ -128,10 +129,11 @@ pub const TransactionEnvelopePool = struct {
     /// Adds a new node into the pool. This is thread safe.
     pub fn addEnvelopeToPool(
         pool: *TransactionEnvelopePool,
+        io: Io,
         node: *Node,
     ) void {
-        pool.mutex.lock();
-        defer pool.mutex.unlock();
+        pool.mutex.lockUncancelable(io);
+        defer pool.mutex.unlock(io);
 
         pool.pooled_envelopes.append(&node.pool_node);
     }
@@ -145,10 +147,11 @@ pub const TransactionEnvelopePool = struct {
     /// Removes a node from the pool. This is thread safe.
     pub fn releaseEnvelopeFromPool(
         pool: *TransactionEnvelopePool,
+        io: Io,
         node: *Node,
     ) void {
-        pool.mutex.lock();
-        defer pool.mutex.unlock();
+        pool.mutex.lockUncancelable(io);
+        defer pool.mutex.unlock(io);
 
         pool.pooled_envelopes.remove(&node.pool_node);
     }
@@ -156,10 +159,11 @@ pub const TransactionEnvelopePool = struct {
     /// This is thread safe.
     pub fn getFirstElementFromPool(
         pool: *TransactionEnvelopePool,
+        io: Io,
         allocator: Allocator,
     ) ?TransactionEnvelope {
-        pool.mutex.lock();
-        defer pool.mutex.unlock();
+        pool.mutex.lockUncancelable(io);
+        defer pool.mutex.unlock(io);
 
         if (pool.pooled_envelopes.popFirst()) |node| {
             const data: *Node = @alignCast(@fieldParentPtr("pool_node", node));
@@ -172,10 +176,11 @@ pub const TransactionEnvelopePool = struct {
     /// This is thread safe.
     pub fn getLastElementFromPool(
         pool: *TransactionEnvelopePool,
+        io: Io,
         allocator: Allocator,
     ) ?TransactionEnvelope {
-        pool.mutex.lock();
-        defer pool.mutex.unlock();
+        pool.mutex.lockUncancelable(io);
+        defer pool.mutex.unlock(io);
 
         if (pool.pooled_envelopes.pop()) |node| {
             const data: *Node = @alignCast(@fieldParentPtr("pool_node", node));
@@ -188,9 +193,10 @@ pub const TransactionEnvelopePool = struct {
     /// This is thread safe.
     pub fn deinit(
         pool: *TransactionEnvelopePool,
+        io: Io,
         allocator: Allocator,
     ) void {
-        pool.mutex.lock();
+        pool.mutex.lockUncancelable(io);
 
         var first = pool.pooled_envelopes.first;
         while (first) |node| {
@@ -360,7 +366,7 @@ pub fn initRandom(
 
 /// Clears memory and destroys any created pointers
 pub fn deinit(self: *Wallet) void {
-    self.envelopes_pool.deinit(self.allocator);
+    self.envelopes_pool.deinit(self.rpc_client.io, self.allocator);
 }
 
 /// Asserts that the transactions is ready to be sent.
@@ -579,7 +585,7 @@ pub fn findTransactionEnvelopeFromPool(
     self: *Wallet,
     search: TransactionEnvelopePool.SearchCriteria,
 ) ?TransactionEnvelope {
-    return self.envelopes_pool.findTransactionEnvelope(self.allocator, search);
+    return self.envelopes_pool.findTransactionEnvelope(self.rpc_client.io, self.allocator, search);
 }
 
 /// Invokes the contract method to `finalizeWithdrawalTransaction`. This will send
@@ -731,7 +737,7 @@ pub fn poolTransactionEnvelope(
     };
 
     envelope.data = try self.prepareTransaction(unprepared_envelope);
-    self.envelopes_pool.addEnvelopeToPool(envelope);
+    self.envelopes_pool.addEnvelopeToPool(self.rpc_client.io, envelope);
 }
 
 /// Prepares the deposit transaction. Will error if its a creation transaction
@@ -1371,7 +1377,7 @@ pub fn sendBlobTransaction(
     if (!trusted_setup.loaded)
         return error.TrustedSetupNotLoaded;
 
-    const prepared = self.envelopes_pool.getLastElementFromPool(self.allocator) orelse
+    const prepared = self.envelopes_pool.getLastElementFromPool(self.rpc_client.io, self.allocator) orelse
         try self.prepareTransaction(unprepared_envelope);
 
     try self.assertTransaction(prepared);
@@ -1399,7 +1405,7 @@ pub fn sendSidecarTransaction(
     if (unprepared_envelope.type != .cancun)
         return error.InvalidTransactionType;
 
-    const prepared = self.envelopes_pool.getLastElementFromPool(self.allocator) orelse
+    const prepared = self.envelopes_pool.getLastElementFromPool(self.rpc_client.io, self.allocator) orelse
         try self.prepareTransaction(unprepared_envelope);
 
     try self.assertTransaction(prepared);
@@ -1445,7 +1451,7 @@ pub fn sendTransaction(
     self: *Wallet,
     unprepared_envelope: UnpreparedTransactionEnvelope,
 ) !RPCResponse(Hash) {
-    const prepared = self.envelopes_pool.getLastElementFromPool(self.allocator) orelse
+    const prepared = self.envelopes_pool.getLastElementFromPool(self.rpc_client.io, self.allocator) orelse
         try self.prepareTransaction(unprepared_envelope);
 
     try self.assertTransaction(prepared);

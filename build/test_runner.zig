@@ -212,9 +212,9 @@ pub fn main(init: std.process.Init.Minimal) !void {
 
         try runner.writeTestName(iter.rest());
 
-        var timer = try std.time.Timer.start();
+        const timestamp = std.Io.Clock.awake.now(std.testing.io);
         const result = test_runner.func();
-        const elapsed = timer.read();
+        const elapsed: u64 = @intCast((timestamp.untilNow(std.testing.io, .awake)).toNanoseconds());
 
         if (result) |_| try runner.writeSuccess(elapsed) else |err| switch (err) {
             error.SkipZigTest => try runner.writeSkipped(elapsed),

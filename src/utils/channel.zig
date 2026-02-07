@@ -2,9 +2,9 @@ const std = @import("std");
 
 /// Types
 const Allocator = std.mem.Allocator;
-const Condition = std.Thread.Condition;
+const Condition = std.Io.Condition;
 const Deque = std.Deque;
-const Mutex = std.Thread.Mutex;
+const Mutex = std.Io.Mutex;
 
 /// Channel used to manages the messages between threads.
 /// Main use case is for the websocket client.
@@ -12,9 +12,9 @@ pub fn Channel(comptime T: type) type {
     return struct {
         allocator: Allocator,
         fifo: Deque(T) = .empty,
-        lock: Mutex = .{},
-        readable: Condition = .{},
-        writeable: Condition = .{},
+        lock: Mutex = .init,
+        readable: Condition = .init,
+        writeable: Condition = .init,
 
         const Self = @This();
 
@@ -36,15 +36,16 @@ pub fn Channel(comptime T: type) type {
         /// Blocks thread until it can add the item.
         pub fn put(
             self: *Self,
+            io: std.Io,
             item: T,
         ) void {
-            self.lock.lock();
+            self.lock.lockUncancelable(io);
             defer {
-                self.lock.unlock();
-                self.readable.signal();
+                self.lock.unlock(io);
+                self.readable.signal(io);
             }
             while (true) return self.fifo.pushBack(self.allocator, item) catch {
-                self.writeable.wait(&self.lock);
+                self.writeable.waitUncancelable(io, &self.lock);
                 continue;
             };
         }
@@ -52,56 +53,40 @@ pub fn Channel(comptime T: type) type {
         /// Tries to put in the channel. Will error if it can't.
         pub fn tryPut(
             self: *Self,
+            io: std.Io,
             item: T,
         ) Allocator.Error!void {
-            self.lock.lock();
-            defer self.lock.unlock();
+            self.lock.lockUncancelable(io);
+            defer self.lock.unlock(io);
 
             try self.fifo.pushBack(self.allocator, item);
 
-            self.readable.signal();
+            self.readable.signal(io);
         }
 
         /// Gets item from the channel. Blocks thread until it can get it.
-        pub fn get(self: *Self) T {
-            self.lock.lock();
+        pub fn get(self: *Self, io: std.Io) T {
+            self.lock.lockUncancelable(io);
             defer {
-                self.lock.unlock();
-                self.writeable.signal();
+                self.lock.unlock(io);
+                self.writeable.signal(io);
             }
 
             while (true) return self.fifo.popFront() orelse {
-                self.readable.wait(&self.lock);
-                continue;
-            };
-        }
-
-        /// Gets item from the channel.
-        ///
-        /// Wait with a maximum of 1ms to get a message.
-        /// If it cannot get the it fails.
-        pub fn tryGet(self: *Self) error{Timeout}!T {
-            self.lock.lock();
-            defer {
-                self.lock.unlock();
-                self.writeable.signal();
-            }
-
-            while (true) return self.fifo.popFront() orelse {
-                try self.readable.timedWait(&self.lock, 5 * std.time.ns_per_s);
+                self.readable.waitUncancelable(io, &self.lock);
                 continue;
             };
         }
 
         /// Tries to get item from the channel.
         /// Returns null if there are no items.
-        pub fn getOrNull(self: *Self) ?T {
-            self.lock.lock();
-            defer self.lock.unlock();
+        pub fn getOrNull(self: *Self, io: std.Io) ?T {
+            self.lock.lockUncancelable(io);
+            defer self.lock.unlock(io);
 
             if (self.fifo.popFront()) |item| return item;
 
-            self.writeable.signal();
+            self.writeable.signal(io);
 
             return null;
         }

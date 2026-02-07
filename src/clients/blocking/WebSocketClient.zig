@@ -294,7 +294,7 @@ pub const Connection = struct {
             var bundle: CertificateBundle = .{};
             defer bundle.deinit(allocator);
 
-            const time = try Io.Clock.real.now(io);
+            const time = Io.Clock.real.now(io);
             try bundle.rescan(allocator, io, time);
 
             tls.* = .{

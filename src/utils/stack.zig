@@ -2,8 +2,8 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 const ArrayList = std.array_list.Managed;
-const Condition = std.Thread.Condition;
-const Mutex = std.Thread.Mutex;
+const Condition = std.Io.Condition;
+const Mutex = std.Io.Mutex;
 
 /// Stack implemented using a `ArrayList` and
 /// with thread safety features added on to it.
@@ -21,9 +21,9 @@ pub fn Stack(comptime T: type) type {
         inner: ArrayList(T),
         /// Max size that the stack grow to
         max_size: usize,
-        mutex: Mutex = .{},
-        writeable: Condition = .{},
-        readable: Condition = .{},
+        mutex: Mutex = .init,
+        writeable: Condition = .init,
+        readable: Condition = .init,
 
         /// Starts the stack but doesn't set an initial capacity.
         /// This is best to use when you would like a dymanic size stack.
@@ -114,16 +114,17 @@ pub fn Stack(comptime T: type) type {
         /// append the item.
         pub fn push(
             self: *Self,
+            io: std.Io,
             item: T,
         ) void {
-            self.mutex.lock();
+            self.mutex.lockUncancelable(io);
             defer {
-                self.mutex.unlock();
-                self.readable.signal();
+                self.mutex.unlock(io);
+                self.readable.signal(io);
             }
 
             while (true) return self.pushUnsafe(item) catch {
-                self.writeable.wait(&self.mutex);
+                self.writeable.waitUncancelable(io, &self.mutex);
                 continue;
             };
         }
@@ -131,28 +132,28 @@ pub fn Stack(comptime T: type) type {
         /// Pops an item off the stack.
         /// This is thread safe and blocks until it can
         /// remove the item.
-        pub fn pop(self: *Self) T {
-            self.mutex.lock();
+        pub fn pop(self: *Self, io: std.Io) T {
+            self.mutex.lockUncancelable(io);
             defer {
-                self.mutex.unlock();
-                self.writeable.signal();
+                self.mutex.unlock(io);
+                self.writeable.signal(io);
             }
 
             while (true) return self.popUnsafe() orelse {
-                self.readable.wait(&self.mutex);
+                self.readable.waitUncancelable(io, &self.mutex);
                 continue;
             };
         }
 
         /// Pops an item off the stack. Returns null if the stack is empty.
         /// This is thread safe,
-        pub fn popOrNull(self: *Self) ?T {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+        pub fn popOrNull(self: *Self, io: std.Io) ?T {
+            self.mutex.lockUncancelable(io);
+            defer self.mutex.unlock(io);
 
             if (self.popUnsafe()) |item| return item;
 
-            self.writeable.signal();
+            self.writeable.signal(io);
 
             return null;
         }
@@ -210,14 +211,15 @@ pub fn Stack(comptime T: type) type {
         /// This is thread safe,
         pub fn tryPop(
             self: *Self,
+            io: std.Io,
             item: T,
-        ) error{StackUnderflow}!T {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+        ) error{ StackUnderflow, Cancelable }!T {
+            try self.mutex.lock(io);
+            defer self.mutex.unlock(io);
 
             self.popUnsafe(item) orelse error.StackUnderflow;
 
-            self.writeable.signal();
+            self.writeable.signal(io);
         }
 
         /// Peek the last element of the stack and returns it's pointer.
@@ -251,11 +253,11 @@ pub fn Stack(comptime T: type) type {
         /// Returns `StackUnderflow` if len is 0;
         ///
         /// This is thread safe
-        pub fn tryPeek(self: *Self) error{StackUnderflow}!*u256 {
-            self.mutex.lock();
+        pub fn tryPeek(self: *Self, io: std.Io) error{ StackUnderflow, Cancelable }!*u256 {
+            try self.mutex.lock(io);
             defer {
-                self.mutex.unlock();
-                self.writeable.signal();
+                self.mutex.unlock(io);
+                self.writeable.signal(io);
             }
 
             return self.peekUnsafe() orelse {
@@ -269,15 +271,15 @@ pub fn Stack(comptime T: type) type {
         /// Will block until it can get a value.
         ///
         /// This is thread safe
-        pub fn peek(self: *Self) *u256 {
-            self.mutex.lock();
+        pub fn peek(self: *Self, io: std.Io) *u256 {
+            self.mutex.lockUncancelable(io);
             defer {
-                self.mutex.unlock();
-                self.writeable.signal();
+                self.mutex.unlock(io);
+                self.writeable.signal(io);
             }
 
             while (true) return self.peekUnsafe() orelse {
-                self.readable.wait(&self.mutex);
+                self.readable.waitUncancelable(io, &self.mutex);
                 continue;
             };
         }
@@ -286,14 +288,15 @@ pub fn Stack(comptime T: type) type {
         /// This is thread safe,
         pub fn tryPush(
             self: *Self,
+            io: std.Io,
             item: T,
-        ) (Allocator.Error || error{StackOverflow})!void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+        ) (Allocator.Error || error{ StackOverflow, Cancelable })!void {
+            try self.mutex.lock(io);
+            defer self.mutex.unlock(io);
 
             try self.pushUnsafe(item);
 
-            self.readable.signal();
+            self.readable.signal(io);
         }
 
         /// Returns the current stack size.

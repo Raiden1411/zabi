@@ -113,6 +113,8 @@ pub const ExecutionError = error{
     PrevRandaoNotSet,
     /// Blob excess gas not set if spec is at least CANCUN
     ExcessBlobGasNotSet,
+    /// Error path for cases of a computed address matches the precompiled addresses.
+    ComputedPrecompiledAddress,
 } || Interpreter.InterpreterRunErrors || RlpEncoder.Error || ValidationErrors || JournaledState.CreateAccountErrors;
 
 allocator: Allocator,
@@ -306,19 +308,68 @@ fn executeWithContract(
     const env = self.host.getEnviroment();
     const is_top_level = self.call_stack.items.len == 0;
 
-    if (is_top_level)
+    const checkpoint = self.host.checkpoint();
+    if (is_top_level) {
+        @branchHint(.likely);
         self.host.clearTransientStorage();
 
-    const checkpoint = self.host.checkpoint() catch return error.OutOfGas;
+        // Transfer value from caller to target for top-level transaction calls.
+        // This must happen after checkpoint creation so the transfer can be reverted.
+        // Skip transfer if balance check is disabled (for testing/simulation).
+        if (contract.value > 0 and !env.config.disable_balance_check) {
+            self.host.transfer(contract.caller, contract.target_address, contract.value) catch {
+                self.host.revertCheckpoint(checkpoint) catch {};
 
-    // Transfer value from caller to target for top-level transaction calls.
-    // This must happen after checkpoint creation so the transfer can be reverted.
-    // Skip transfer if balance check is disabled (for testing/simulation).
-    if (contract.value > 0 and is_top_level and !env.config.disable_balance_check) {
-        self.host.transfer(contract.caller, contract.target_address, contract.value) catch {
-            self.host.revertCheckpoint(checkpoint) catch {};
-            return error.InsufficientBalance;
-        };
+                return error.InsufficientBalance;
+            };
+        }
+
+        // If the target_address is a precompiled address it executes it directly.
+        if (PrecompileId.fromAddress(env.config.spec_id, contract.target_address) != null) {
+            defer contract.deinit(self.allocator);
+
+            if (is_create) {
+                self.host.revertCheckpoint(checkpoint) catch {};
+
+                return error.ComputedPrecompiledAddress;
+            } else {
+                const cost = intrinsic_gas orelse 0;
+                const ret = precompiles.executePrecompile(
+                    self.allocator,
+                    env.config.spec_id,
+                    contract.target_address,
+                    env.tx.data,
+                    env.tx.gas_limit - cost,
+                ) catch |err| {
+                    self.host.revertCheckpoint(checkpoint) catch {};
+
+                    return err;
+                };
+
+                if (ret.status == .reverted) {
+                    self.host.revertCheckpoint(checkpoint) catch {};
+
+                    return .{
+                        .status = ret.status,
+                        .output = ret.output,
+                        .gas_used = ret.gas.usedAmount() + cost,
+                        .gas_refunded = 0,
+                    };
+                }
+
+                self.host.commitCheckpoint();
+
+                const gas_used = ret.gas.usedAmount() + cost;
+                const gas_refunded: i64 = if (env.config.disable_gas_refund) 0 else ret.gas.refund_amount;
+
+                return .{
+                    .status = ret.status,
+                    .output = ret.output,
+                    .gas_used = gas_used,
+                    .gas_refunded = gas_refunded,
+                };
+            }
+        }
     }
 
     var interpreter: Interpreter = undefined;
@@ -347,6 +398,8 @@ fn executeWithContract(
         if (intrinsic_gas) |cost| {
             const current_frame = &self.call_stack.items[self.call_stack.items.len - 1];
             current_frame.interpreter.gas_tracker.updateTracker(cost) catch {
+                // SAFETY:
+                // A frame was pushed previously so popping here is safe.
                 var failed_frame = self.call_stack.pop().?;
                 defer {
                     failed_frame.contract.deinit(self.allocator);
@@ -579,15 +632,13 @@ fn executeCallAction(self: *EVM, call: CallAction) ExecutionError!void {
     const value = switch (call.value) {
         inline else => |value| value,
     };
-    const checkpoint = self.host.checkpoint() catch {
-        self.handleFailedCallSetup(call.gas_limit);
-        return;
-    };
+    const checkpoint = self.host.checkpoint();
 
     if (call.value == .transfer and value > 0) {
         self.host.transfer(call.caller, call.target_address, value) catch {
             self.host.revertCheckpoint(checkpoint) catch {};
             self.handleFailedCallSetup(call.gas_limit);
+
             return;
         };
     }
@@ -837,7 +888,7 @@ fn initializeTransactionWarmSet(
 
     const max_precompile = @intFromEnum(PrecompileId.modexp);
     for (1..max_precompile + 1) |raw_id| {
-        const address: [20]u8 = @bitCast(std.mem.nativeToBig(u160, raw_id)); // precompileAddress(@intCast(raw_id));
+        const address: [20]u8 = @bitCast(std.mem.nativeToBig(u160, @intCast(raw_id))); // precompileAddress(@intCast(raw_id));
 
         if (PrecompileId.fromAddress(env.config.spec_id, address) != null) {
             self.host.preloadWarmAddress(address) catch return error.OutOfMemory;

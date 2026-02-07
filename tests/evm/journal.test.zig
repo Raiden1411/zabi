@@ -159,13 +159,13 @@ test "Checkpoint" {
 
     journal_db.init(testing.allocator, .LATEST, plain.database());
 
-    const checkpoint = try journal_db.checkpoint();
+    const checkpoint = journal_db.checkpoint();
 
     try testing.expectEqual(0, checkpoint.logs_checkpoint);
     try testing.expectEqual(0, checkpoint.journal_checkpoint);
     try testing.expectEqual(1, journal_db.depth);
 
-    const checkpoint_1 = try journal_db.checkpoint();
+    const checkpoint_1 = journal_db.checkpoint();
 
     try testing.expectEqual(0, checkpoint_1.logs_checkpoint);
     try testing.expectEqual(0, checkpoint_1.journal_checkpoint);
@@ -648,7 +648,7 @@ test "Transient storage rollback semantics" {
         defer journal_db.deinit();
         journal_db.init(testing.allocator, .LATEST, plain.database());
 
-        const checkpoint = try journal_db.checkpoint();
+        const checkpoint = journal_db.checkpoint();
         try journal_db.tstore([_]u8{1} ** 20, 0, 7);
 
         try testing.expectEqual(@as(u256, 7), journal_db.tload([_]u8{1} ** 20, 0));
@@ -662,7 +662,7 @@ test "Transient storage rollback semantics" {
         journal_db.init(testing.allocator, .LATEST, plain.database());
         try journal_db.transient_storage.put(testing.allocator, .{ [_]u8{2} ** 20, 1 }, 11);
 
-        const checkpoint = try journal_db.checkpoint();
+        const checkpoint = journal_db.checkpoint();
         try journal_db.tstore([_]u8{2} ** 20, 1, 22);
 
         try testing.expectEqual(@as(u256, 22), journal_db.tload([_]u8{2} ** 20, 1));
@@ -676,7 +676,7 @@ test "Transient storage rollback semantics" {
         journal_db.init(testing.allocator, .LATEST, plain.database());
         try journal_db.transient_storage.put(testing.allocator, .{ [_]u8{3} ** 20, 2 }, 33);
 
-        const checkpoint = try journal_db.checkpoint();
+        const checkpoint = journal_db.checkpoint();
         try journal_db.tstore([_]u8{3} ** 20, 2, 0);
 
         try testing.expectEqual(@as(u256, 0), journal_db.tload([_]u8{3} ** 20, 2));
@@ -706,11 +706,11 @@ test "Nested transient storage checkpoints isolate child changes" {
 
     try journal_db.transient_storage.put(testing.allocator, .{ [_]u8{9} ** 20, 1 }, 10);
 
-    const parent = try journal_db.checkpoint();
+    const parent = journal_db.checkpoint();
     try journal_db.tstore([_]u8{9} ** 20, 1, 20);
     try testing.expectEqual(@as(u256, 20), journal_db.tload([_]u8{9} ** 20, 1));
 
-    const child = try journal_db.checkpoint();
+    const child = journal_db.checkpoint();
     try journal_db.tstore([_]u8{9} ** 20, 1, 30);
     try testing.expectEqual(@as(u256, 30), journal_db.tload([_]u8{9} ** 20, 1));
 
@@ -827,7 +827,7 @@ test "Revert" {
     });
     try journal_db.transient_storage.put(testing.allocator, .{ [_]u8{1} ** 20, 1 }, 45);
 
-    const checkpoint = try journal_db.checkpoint();
+    const checkpoint = journal_db.checkpoint();
 
     {
         try journal_db.tstore([_]u8{1} ** 20, 1, 69);

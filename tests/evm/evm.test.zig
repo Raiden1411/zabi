@@ -189,6 +189,10 @@ fn hasStorageWarmedEntry(entries: []const evm_mod.journal.JournalEntry, address:
     return false;
 }
 
+fn precompileAddress(id: u8) [20]u8 {
+    return @bitCast(std.mem.nativeToBig(u160, @as(u160, id)));
+}
+
 test "CREATE address derivation produces deterministic unique addresses" {
     const sender: [20]u8 = [_]u8{0x0a} ** 20;
 
@@ -1096,6 +1100,190 @@ test "executeTransaction succeeds when calling EOA with no code" {
     try testing.expectEqual(@as(u256, 1_000), target_account.info.balance);
     try testing.expectEqual(@as(u64, 1), caller_account.info.nonce);
     try testing.expectEqual(@as(u64, 0), target_account.info.nonce);
+}
+
+test "executeTransaction dispatches top-level precompile and commits value transfer" {
+    const identity_precompile = precompileAddress(4);
+    const payload = "hello";
+
+    try mem_db.init(testing.allocator);
+
+    var caller_info: AccountInfo = .{
+        .code_hash = constants.EMPTY_HASH,
+        .nonce = 0,
+        .code = null,
+        .balance = 10_000,
+    };
+    try mem_db.addAccountInfo(TestAddresses.caller, &caller_info);
+
+    journal_state.init(testing.allocator, .SHANGHAI, mem_db.database());
+
+    var host: JournaledHost = .{
+        .journal = journal_state,
+        .env = .{
+            .config = .{
+                .spec_id = .LATEST,
+                .disable_block_gas_limit = true,
+            },
+            .block = .{ .gas_limit = 30_000_000 },
+            .tx = .{
+                .caller = TestAddresses.caller,
+                .gas_limit = 50_000,
+                .transact_to = .{ .call = identity_precompile },
+                .data = @constCast(payload),
+                .value = 1_000,
+                .nonce = 0,
+                .max_fee_per_blob_gas = null,
+            },
+        },
+    };
+
+    var vm: EVM = undefined;
+    defer {
+        vm.deinit();
+        host.journal.deinit();
+        mem_db.deinit();
+    }
+
+    vm.init(testing.allocator, host.host());
+
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    try testing.expectEqual(.returned, result.status);
+    try testing.expectEqualSlices(u8, payload, result.output);
+    try testing.expect(result.gas_used >= constants.TRANSACTION);
+    try testing.expect(result.gas_used < host.env.tx.gas_limit);
+
+    const caller_account = host.journal.state.get(TestAddresses.caller).?;
+    const precompile_account = host.journal.state.get(identity_precompile).?;
+
+    try testing.expectEqual(@as(u256, 9_000), caller_account.info.balance);
+    try testing.expectEqual(@as(u256, 1_000), precompile_account.info.balance);
+    try testing.expectEqual(@as(u64, 1), caller_account.info.nonce);
+}
+
+test "executeTransaction reverts top-level precompile and rolls back value transfer" {
+    const ecrecover_precompile = precompileAddress(1);
+
+    try mem_db.init(testing.allocator);
+
+    var caller_info: AccountInfo = .{
+        .code_hash = constants.EMPTY_HASH,
+        .nonce = 0,
+        .code = null,
+        .balance = 10_000,
+    };
+    try mem_db.addAccountInfo(TestAddresses.caller, &caller_info);
+
+    journal_state.init(testing.allocator, .SHANGHAI, mem_db.database());
+
+    var host: JournaledHost = .{
+        .journal = journal_state,
+        .env = .{
+            .config = .{
+                .spec_id = .LATEST,
+                .disable_block_gas_limit = true,
+            },
+            .block = .{ .gas_limit = 30_000_000 },
+            .tx = .{
+                .caller = TestAddresses.caller,
+                // Intrinsic call cost is 21_000, leaving 2_999 for precompile 0x01 (needs 3_000).
+                .gas_limit = constants.TRANSACTION + 2_999,
+                .transact_to = .{ .call = ecrecover_precompile },
+                .value = 1_000,
+                .nonce = 0,
+                .max_fee_per_blob_gas = null,
+            },
+        },
+    };
+
+    var vm: EVM = undefined;
+    defer {
+        vm.deinit();
+        host.journal.deinit();
+        mem_db.deinit();
+    }
+
+    vm.init(testing.allocator, host.host());
+
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    try testing.expectEqual(.reverted, result.status);
+    try testing.expectEqual(@as(usize, 0), result.output.len);
+    try testing.expectEqual(host.env.tx.gas_limit, result.gas_used);
+
+    const caller_account = host.journal.state.get(TestAddresses.caller).?;
+    try testing.expectEqual(@as(u256, 10_000), caller_account.info.balance);
+    try testing.expectEqual(@as(u64, 1), caller_account.info.nonce);
+
+    if (host.journal.state.get(ecrecover_precompile)) |precompile_account| {
+        try testing.expectEqual(@as(u256, 0), precompile_account.info.balance);
+    }
+}
+
+test "executeTransaction prioritizes top-level precompile dispatch over account code" {
+    const identity_precompile = precompileAddress(4);
+    const payload = "abc";
+    const fake_code = &[_]u8{0xfe}; // INVALID opcode if this bytecode were executed.
+
+    try mem_db.init(testing.allocator);
+
+    var caller_info: AccountInfo = .{
+        .code_hash = constants.EMPTY_HASH,
+        .nonce = 0,
+        .code = null,
+        .balance = 10_000,
+    };
+    try mem_db.addAccountInfo(TestAddresses.caller, &caller_info);
+
+    var fake_code_hash: [32]u8 = undefined;
+    Keccak256.hash(fake_code, &fake_code_hash, .{});
+    var target_info: AccountInfo = .{
+        .code_hash = fake_code_hash,
+        .nonce = 0,
+        .code = .{ .raw = @constCast(fake_code) },
+        .balance = 0,
+    };
+    try mem_db.addAccountInfo(identity_precompile, &target_info);
+
+    journal_state.init(testing.allocator, .SHANGHAI, mem_db.database());
+
+    var host: JournaledHost = .{
+        .journal = journal_state,
+        .env = .{
+            .config = .{
+                .spec_id = .LATEST,
+                .disable_block_gas_limit = true,
+            },
+            .block = .{ .gas_limit = 30_000_000 },
+            .tx = .{
+                .caller = TestAddresses.caller,
+                .gas_limit = 50_000,
+                .transact_to = .{ .call = identity_precompile },
+                .data = @constCast(payload),
+                .value = 0,
+                .nonce = 0,
+                .max_fee_per_blob_gas = null,
+            },
+        },
+    };
+
+    var vm: EVM = undefined;
+    defer {
+        vm.deinit();
+        host.journal.deinit();
+        mem_db.deinit();
+    }
+
+    vm.init(testing.allocator, host.host());
+
+    var result = try vm.executeTransaction();
+    defer result.deinit(testing.allocator);
+
+    try testing.expectEqual(.returned, result.status);
+    try testing.expectEqualSlices(u8, payload, result.output);
 }
 
 test "CALL to precompile 0x01 executes ECRECOVER" {

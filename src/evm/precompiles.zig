@@ -28,19 +28,15 @@ pub const PrecompileId = enum(u8) {
     ///
     /// Returns `null` when the address is not a precompile for the selected fork.
     pub fn fromAddress(spec: SpecId, address: Address) ?PrecompileId {
-        const start: u152 = @bitCast(address[0..19].*);
+        const id: u160 = std.mem.readInt(u160, &address, .big);
 
-        if (start != 0)
+        if (id == 0 or id > @intFromEnum(PrecompileId.modexp))
             return null;
 
-        const id_value = address[19];
-        if (id_value == 0 or id_value > @intFromEnum(PrecompileId.modexp))
+        if (id == @intFromEnum(PrecompileId.modexp) and !spec.enabled(.BYZANTIUM))
             return null;
 
-        if (id_value == @intFromEnum(PrecompileId.modexp) and !spec.enabled(.BYZANTIUM))
-            return null;
-
-        return @enumFromInt(id_value);
+        return @enumFromInt(id);
     }
 };
 

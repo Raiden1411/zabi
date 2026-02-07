@@ -101,7 +101,7 @@ pub const Host = struct {
         /// Gets the block hash from a given block number
         blockHash: *const fn (self: *anyopaque, block_number: u64) ?Hash,
         /// Creates a new checkpoint for state rollback and increases call depth.
-        checkpoint: *const fn (self: *anyopaque) anyerror!JournalCheckpoint,
+        checkpoint: *const fn (self: *anyopaque) JournalCheckpoint,
         /// Creates a new checkpoint for state rollback and increases call depth.
         createAccount: *const fn (self: *anyopaque, caller: Address, target_address: Address, value: u256) JournaledState.CreateAccountErrors!JournalCheckpoint,
         /// Gets the code of an `address` and if that address is cold.
@@ -160,7 +160,7 @@ pub const Host = struct {
     }
 
     /// Creates a new checkpoint for state rollback and increases call depth.
-    pub inline fn checkpoint(self: SelfHost) anyerror!JournalCheckpoint {
+    pub inline fn checkpoint(self: SelfHost) JournalCheckpoint {
         return self.vtable.checkpoint(self.ptr);
     }
 
@@ -352,7 +352,7 @@ pub const PlainHost = struct {
         return [_]u8{0} ** 32;
     }
 
-    fn checkpoint(_: *anyopaque) error{}!JournalCheckpoint {
+    fn checkpoint(_: *anyopaque) JournalCheckpoint {
         return .{ .journal_checkpoint = 0, .logs_checkpoint = 0 };
     }
 
@@ -560,7 +560,7 @@ pub const JournaledHost = struct {
         }
     }
 
-    fn checkpoint(ctx: *anyopaque) anyerror!JournalCheckpoint {
+    fn checkpoint(ctx: *anyopaque) JournalCheckpoint {
         const self: *Self = @ptrCast(@alignCast(ctx));
         return self.journal.checkpoint();
     }

@@ -118,7 +118,7 @@ pub const JournaledState = struct {
     }
 
     /// Creates a new checkpoint and increase the call depth.
-    pub fn checkpoint(self: *JournaledState) Allocator.Error!JournalCheckpoint {
+    pub fn checkpoint(self: *JournaledState) JournalCheckpoint {
         const point: JournalCheckpoint = .{
             .journal_checkpoint = self.journal.items.len,
             .logs_checkpoint = self.log_storage.items.len,
@@ -145,7 +145,7 @@ pub const JournaledState = struct {
         target_address: Address,
         balance: u256,
     ) CreateAccountErrors!JournalCheckpoint {
-        const point = try self.checkpoint();
+        const point = self.checkpoint();
         errdefer self.revertCheckpoint(point) catch {};
 
         _ = try self.loadAccount(caller);

@@ -538,6 +538,7 @@ fn buildExamples(
         "examples/watch/logs.zig",
         "examples/transfer/transfer.zig",
         "examples/interpreter/interpreter.zig",
+        "examples/evm/evm.zig",
         "examples/block_explorer/explorer.zig",
         "examples/wallet/wallet.zig",
         "examples/autobahn/autobahn.zig",

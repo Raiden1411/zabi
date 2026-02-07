@@ -159,7 +159,7 @@ pub fn BenchmarkRunner(
         pub fn printHeader(self: *Self, module: []const u8) ColorWriterStream.Error!void {
             var writer = &self.color_stream.writer;
 
-            const col = @divFloor(self.getColTerminalSize(), 2);
+            const col = self.getColTerminalSize();
             var buffer: [100]u8 = undefined;
 
             var discarding = std.Io.Writer.Discarding.init(&buffer);
@@ -171,11 +171,16 @@ pub fn BenchmarkRunner(
             try writer.splatByteAll('\n', 2);
 
             self.color_stream.setNextColor(.bright_green);
-            try writer.splatByteAll('=', col - @divFloor(discarding.count, 2));
+            const padding = col -| discarding.count;
+
+            const left_pad = @divFloor(padding, 2);
+            const right_pad = padding - left_pad;
+
+            try writer.splatByteAll('=', left_pad);
 
             try writer.writeAll(buffer[0..discarding.count]);
 
-            try writer.splatByteAll('=', col - @divFloor(discarding.count, 2));
+            try writer.splatByteAll('=', right_pad);
             try writer.splatByteAll('\n', 2);
         }
         /// Prints the a element of the slowest queue.

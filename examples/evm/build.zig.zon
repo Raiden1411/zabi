@@ -1,0 +1,11 @@
+.{
+    .name = .examples,
+    .version = "0.1.0",
+    .dependencies = .{ .zabi = .{ .path = "../../" } },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "evm.zig",
+    },
+    .fingerprint = 0x7bd0ad45fbb6c71b,
+}

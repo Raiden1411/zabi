@@ -189,12 +189,14 @@ fn parseArgValue(
         else => @compileError(std.fmt.comptimePrint("Unsupported type for parsing arguments. '{s}'", .{@typeName(T)})),
     }
 }
+
 /// Converts struct field in to a cli arg string.
 fn convertToArgFlag(comptime field_name: [:0]const u8) [:0]const u8 {
     const flag: [:0]const u8 = comptime "--" ++ field_name;
 
     return flag;
 }
+
 /// Wraps the default value into it's correct type
 fn convertDefaultValueType(comptime field: std.builtin.Type.StructField) ?field.type {
     return if (field.default_value_ptr) |opaque_value|
@@ -202,6 +204,7 @@ fn convertDefaultValueType(comptime field: std.builtin.Type.StructField) ?field.
     else
         null;
 }
+
 /// Fails with message and exit's the process.
 fn failWithMessage(
     comptime message: []const u8,

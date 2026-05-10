@@ -1,7 +1,5 @@
 /// Custom cli args parser
 pub const args = @import("args.zig");
-/// FIFO channel to pass messages between threads.
-pub const channel = @import("channel.zig");
 /// Constant values used in zabi.
 pub const constants = @import("constants.zig");
 /// Custom dotenv loader.

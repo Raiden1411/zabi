@@ -278,13 +278,14 @@ fn buildTestOrCoverage(
     // Build and run coverage test runner if `zig build coverage` was ran
     {
         const coverage_lib_tests_mod = b.createModule(.{
-            .root_source_file = b.path("tests/root_benchmark.zig"),
+            .root_source_file = b.path("tests/root.zig"),
             .target = target,
             .optimize = optimize,
         });
         const coverage_lib_unit_tests = b.addTest(.{
             .name = "zabi-tests-coverage",
             .root_module = coverage_lib_tests_mod,
+            .filters = test_filter,
             .test_runner = .{
                 .path = b.path("build/test_runner.zig"),
                 .mode = .simple,
@@ -295,6 +296,7 @@ fn buildTestOrCoverage(
 
         const kcov_collect = std.Build.Step.Run.create(b, "collect coverage");
         kcov_collect.rename_step_with_output_arg = false;
+        kcov_collect.stdio = .inherit;
 
         if (load_variables)
             loadVariables(b, env_file_path, kcov_collect);

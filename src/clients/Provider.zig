@@ -41,7 +41,6 @@ const BlockHashRequest = block.BlockHashRequest;
 const BlockNumberRequest = block.BlockNumberRequest;
 const BlockRequest = block.BlockRequest;
 const BlockTag = block.BlockTag;
-const Channel = zabi_utils.channel.Channel;
 const EthCall = transaction.EthCall;
 const ErrorResponse = types.ErrorResponse;
 const EthereumErrorCodes = types.EthereumErrorCodes;
@@ -82,6 +81,7 @@ const Provider = @This();
 const RPCResponse = types.RPCResponse;
 const SemanticVersion = std.SemanticVersion;
 const Stack = zabi_utils.stack.Stack;
+const SubscriptionQueue = Io.Queue(JsonParsed(Value));
 const Subscriptions = types.Subscriptions;
 const SyncProgress = sync.SyncStatus;
 const Transaction = transaction.Transaction;
@@ -95,6 +95,8 @@ const Value = std.json.Value;
 const WatchLogsRequest = log.WatchLogsRequest;
 const Withdrawal = withdrawal_types.Withdrawal;
 const WsClient = @import("blocking/WebSocketClient.zig");
+
+const subscription_queue_capacity = 1024;
 
 /// Scoped logging for the JSON RPC client.
 const provider_log = std.log.scoped(.provider);
@@ -2856,12 +2858,13 @@ pub const WebsocketProvider = struct {
     provider: Provider,
     /// Channel used to communicate between threads on rpc events.
     rpc_channel: Stack(JsonParsed(Value)),
-    /// Channel used to communicate between threads on subscription events.
-    sub_channel: Channel(JsonParsed(Value)),
+    /// Queue used to communicate between tasks on subscription events.
+    sub_channel: SubscriptionQueue,
+    sub_channel_buffer: []JsonParsed(Value),
     /// Callback function that will run once a error is parsed.
     onError: ?*const fn (args: []const u8) anyerror!void,
-    /// Seperate thread that will run the readLoop in case of non blocking
-    thread: ?std.Thread,
+    /// The async read loop scheduled on the provider's `std.Io`.
+    read_loop: ?Io.Future(void),
     /// The underlaying websocket client
     ws_client: WsClient,
 
@@ -2875,6 +2878,9 @@ pub const WebsocketProvider = struct {
 
         var buffer: [Io.net.HostName.max_len]u8 = undefined;
         const host = try uri.getHost(&buffer);
+
+        const sub_channel_buffer = try opts.allocator.alloc(JsonParsed(Value), subscription_queue_capacity);
+        errdefer opts.allocator.free(sub_channel_buffer);
 
         var client = try WsClient.connect(opts.allocator, opts.io, uri);
         try client.handshake(host.bytes);
@@ -2892,8 +2898,9 @@ pub const WebsocketProvider = struct {
             .onError = opts.onError,
             .onEvent = opts.onEvent,
             .rpc_channel = Stack(JsonParsed(Value)).init(opts.allocator, null),
-            .sub_channel = Channel(JsonParsed(Value)).init(opts.allocator),
-            .thread = null,
+            .sub_channel = .init(sub_channel_buffer),
+            .sub_channel_buffer = sub_channel_buffer,
+            .read_loop = null,
             .ws_client = client,
         };
     }
@@ -2901,21 +2908,30 @@ pub const WebsocketProvider = struct {
     /// If you are using the subscription channel this operation can take time
     /// as it will need to cleanup each node.
     pub fn deinit(self: *WebsocketProvider) void {
+        self.ws_client.deinit();
+        self.sub_channel.close(self.provider.io);
+
+        if (self.read_loop) |*read_loop| {
+            read_loop.cancel(self.provider.io);
+            self.read_loop = null;
+        }
+
         // There may be lingering memory from the json parsed data
         // in the channels so we must clean then up.
-        while (self.sub_channel.getOrNull(self.provider.io)) |node|
-            node.deinit();
+        var sub_buffer: [1]JsonParsed(Value) = undefined;
+        while (true) {
+            const count = self.sub_channel.get(self.provider.io, &sub_buffer, 0) catch break;
+            if (count == 0) break;
+
+            sub_buffer[0].deinit();
+        }
 
         while (self.rpc_channel.popOrNull(self.provider.io)) |node|
             node.deinit();
 
         // Deinits client and destroys any created pointers.
-        self.sub_channel.deinit();
         self.rpc_channel.deinit();
-        self.ws_client.deinit();
-
-        if (self.thread) |thread|
-            thread.join();
+        self.allocator.free(self.sub_channel_buffer);
 
         self.ws_client.connection.destroyConnection(self.allocator);
     }
@@ -2937,7 +2953,7 @@ pub const WebsocketProvider = struct {
     /// Parses a subscription event `Value` into `T`.
     /// Usefull for events that currently zabi doesn't have custom support.
     pub fn parseSubscriptionEvent(self: *WebsocketProvider, comptime T: type) !RPCResponse(EthereumSubscribeResponse(T)) {
-        const event = self.sub_channel.get(self.provider.io);
+        const event = self.sub_channel.getOneUncancelable(self.provider.io) catch unreachable;
         errdefer event.deinit();
 
         const parsed = try std.json.parseFromValueLeaky(
@@ -2950,16 +2966,14 @@ pub const WebsocketProvider = struct {
         return RPCResponse(EthereumSubscribeResponse(T)).fromJson(event.arena, parsed);
     }
 
-    /// Instanciates the read loop in a seperate thread.
-    ///
-    /// Will not work in single threaded mode.
+    /// Instanciates the read loop using the provider's `std.Io`.
     pub fn readLoopSeperateThread(self: *WebsocketProvider) !void {
-        self.thread = try std.Thread.spawn(.{}, readLoopOwned, .{self});
+        self.read_loop = try self.provider.io.concurrent(readLoopOwned, .{self});
     }
 
-    /// ReadLoop used mainly to run in seperate threads.
-    pub fn readLoopOwned(self: *WebsocketProvider) !void {
-        return self.readLoop() catch |err| {
+    /// ReadLoop used by the async task.
+    pub fn readLoopOwned(self: *WebsocketProvider) void {
+        self.readLoop() catch |err| {
             provider_log.debug("Read loop reported error: {s}", .{@errorName(err)});
         };
     }
@@ -3007,7 +3021,7 @@ pub const WebsocketProvider = struct {
                     }
 
                     if (parsed.value.object.getKey("params") != null) {
-                        self.sub_channel.put(self.provider.io, parsed);
+                        try self.sub_channel.putOneUncancelable(self.provider.io, parsed);
                         continue;
                     }
 
@@ -3046,7 +3060,7 @@ pub const WebsocketProvider = struct {
     /// Only call this if you are sure that the channel has messages
     /// because this will block until a message is able to be fetched.
     pub fn getCurrentSubscriptionEvent(self: *WebsocketProvider) JsonParsed(Value) {
-        return self.sub_channel.get(self.provider.io);
+        return self.sub_channel.getOneUncancelable(self.provider.io) catch unreachable;
     }
 
     /// Writes message to websocket server and parses the reponse from it.
@@ -3243,12 +3257,13 @@ pub const IpcProvider = struct {
     onError: ?*const fn (args: []const u8) anyerror!void,
     /// The chains config
     provider: Provider,
-    /// Channel used to communicate between threads on subscription events.
-    sub_channel: Channel(JsonParsed(Value)),
+    /// Queue used to communicate between tasks on subscription events.
+    sub_channel: SubscriptionQueue,
+    sub_channel_buffer: []JsonParsed(Value),
     /// Channel used to communicate between threads on rpc events.
     rpc_channel: Stack(JsonParsed(Value)),
-    /// The thread used if the readLoop is allocated in a seperate thread.
-    thread: ?std.Thread,
+    /// The async read loop scheduled on the provider's `std.Io`.
+    read_loop: ?Io.Future(void),
 
     /// Populates the WebSocketHandler pointer.
     /// Starts the connection in a seperate process.
@@ -3257,6 +3272,9 @@ pub const IpcProvider = struct {
             return error.InvalidEndpointConfig;
 
         const path = opts.network_config.endpoint.path;
+
+        const sub_channel_buffer = try opts.allocator.alloc(JsonParsed(Value), subscription_queue_capacity);
+        errdefer opts.allocator.free(sub_channel_buffer);
 
         const unix = try Io.net.UnixAddress.init(path);
         const socket_stream = try unix.connect(opts.io);
@@ -3271,32 +3289,42 @@ pub const IpcProvider = struct {
                 },
             },
             .ipc_reader = try .init(opts.allocator, opts.io, socket_stream),
-            .thread = null,
+            .read_loop = null,
             .onClose = opts.onClose,
             .onError = opts.onError,
             .onEvent = opts.onEvent,
             .rpc_channel = Stack(JsonParsed(Value)).init(opts.allocator, null),
-            .sub_channel = Channel(JsonParsed(Value)).init(opts.allocator),
+            .sub_channel = .init(sub_channel_buffer),
+            .sub_channel_buffer = sub_channel_buffer,
         };
     }
 
     /// If you are using the subscription channel this operation can take time
     /// as it will need to cleanup each node.
     pub fn deinit(self: *IpcProvider) void {
+        self.ipc_reader.deinit();
+        self.sub_channel.close(self.provider.io);
+
+        if (self.read_loop) |*read_loop| {
+            read_loop.cancel(self.provider.io);
+            self.read_loop = null;
+        }
+
         // There may be lingering memory from the json parsed data
         // in the channels so we must clean then up.
-        while (self.sub_channel.getOrNull(self.provider.io)) |node|
-            node.deinit();
+        var sub_buffer: [1]JsonParsed(Value) = undefined;
+        while (true) {
+            const count = self.sub_channel.get(self.provider.io, &sub_buffer, 0) catch break;
+            if (count == 0) break;
+
+            sub_buffer[0].deinit();
+        }
 
         while (self.rpc_channel.popOrNull(self.provider.io)) |node|
             node.deinit();
 
-        self.sub_channel.deinit();
         self.rpc_channel.deinit();
-        self.ipc_reader.deinit();
-
-        if (self.thread) |thread|
-            thread.join();
+        self.allocator.free(self.sub_channel_buffer);
 
         self.ipc_reader.connection.destroyConnection(self.allocator);
     }
@@ -3318,7 +3346,7 @@ pub const IpcProvider = struct {
     /// Parses a subscription event `Value` into `T`.
     /// Usefull for events that currently zabi doesn't have custom support.
     pub fn parseSubscriptionEvent(self: *IpcProvider, comptime T: type) !RPCResponse(EthereumSubscribeResponse(T)) {
-        const event = self.sub_channel.get(self.provider.io);
+        const event = self.sub_channel.getOneUncancelable(self.provider.io) catch unreachable;
         errdefer event.deinit();
 
         const parsed = try std.json.parseFromValueLeaky(
@@ -3331,16 +3359,14 @@ pub const IpcProvider = struct {
         return RPCResponse(EthereumSubscribeResponse(T)).fromJson(event.arena, parsed);
     }
 
-    /// Instanciates the read loop in a seperate thread.
-    ///
-    /// Will not work in single threaded mode.
+    /// Instanciates the read loop using the provider's `std.Io`.
     pub fn readLoopSeperateThread(self: *IpcProvider) !void {
-        self.thread = try std.Thread.spawn(.{}, readLoopOwned, .{self});
+        self.read_loop = try self.provider.io.concurrent(readLoopOwned, .{self});
     }
 
-    /// ReadLoop used mainly to run in seperate threads.
-    pub fn readLoopOwned(self: *IpcProvider) !void {
-        return self.readLoop() catch |err| {
+    /// ReadLoop used by the async task.
+    pub fn readLoopOwned(self: *IpcProvider) void {
+        self.readLoop() catch |err| {
             provider_log.debug("Read loop reported error: {s}", .{@errorName(err)});
         };
     }
@@ -3362,7 +3388,7 @@ pub const IpcProvider = struct {
                 onEvent(parsed) catch return error.UnexpectedError;
 
             if (parsed.value.object.getKey("params") != null) {
-                self.sub_channel.put(self.provider.io, parsed);
+                try self.sub_channel.putOneUncancelable(self.provider.io, parsed);
                 continue;
             }
 
@@ -3391,7 +3417,7 @@ pub const IpcProvider = struct {
     /// Only call this if you are sure that the channel has messages
     /// because this will block until a message is able to be fetched.
     pub fn getCurrentSubscriptionEvent(self: *IpcProvider) JsonParsed(Value) {
-        return self.sub_channel.get(self.provider.io);
+        return self.sub_channel.getOneUncancelable(self.provider.io) catch unreachable;
     }
 
     /// Writes message to websocket server and parses the reponse from it.

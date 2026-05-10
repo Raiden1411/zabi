@@ -32,9 +32,13 @@ const Runner = struct {
 
     /// Connect to the anvil instance an reset it.
     pub fn resetAnvilInstance(self: *Self, allocator: Allocator, env: *std.process.Environ.Map) !void {
-        startAnvilInstances(allocator, env) catch {
-            var writer = &self.color_stream.writer;
+        var writer = &self.color_stream.writer;
+        self.color_stream.setNextColor(.yellow);
+        try writer.writeAll("warning: ");
+        self.color_stream.setNextColor(.bold);
+        try writer.writeAll("Resetting anvil fork before tests\n");
 
+        startAnvilInstances(allocator, env) catch {
             self.color_stream.setNextColor(.yellow);
             try writer.writeAll("warning: ");
             self.color_stream.setNextColor(.bold);
@@ -44,7 +48,11 @@ const Runner = struct {
             try writer.writeAll("warning: ");
             self.color_stream.setNextColor(.bold);
             try writer.writeAll("Test will run but client tests might fail\n\n");
+            return;
         };
+
+        self.color_stream.setNextColor(.green);
+        try writer.writeAll("Anvil fork reset complete\n\n");
     }
     /// Writes the test module name.
     pub fn writeModuleName(self: *Self, module: []const u8) ColorWriterStream.Error!void {

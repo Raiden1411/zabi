@@ -221,7 +221,7 @@ pub fn main(init: std.process.Init.Minimal) !void {
             else => {
                 try runner.writeFail(elapsed);
                 if (@errorReturnTrace()) |trace|
-                    std.debug.dumpStackTrace(trace);
+                    std.debug.dumpErrorReturnTrace(trace);
             },
         }
 

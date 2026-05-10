@@ -253,7 +253,8 @@ test "Decoded Tuples" {
 }
 
 test "Decoded Pointer" {
-    const big = try encodeRlp(testing.allocator, &std.math.maxInt(u64));
+    const max: u64 = std.math.maxInt(u64);
+    const big = try encodeRlp(testing.allocator, &max);
     defer testing.allocator.free(big);
     const decoded_big = try decodeRlp(*u64, testing.allocator, big);
     defer testing.allocator.destroy(decoded_big);

@@ -287,7 +287,7 @@ pub const Connection = struct {
         pub fn destroy(plain: *Plain, allocator: Allocator) void {
             const base: [*]align(@alignOf(Plain)) u8 = @ptrCast(plain);
 
-            allocator.free(base[0..allocation_length]);
+            allocator.free(@as([]align(@alignOf(Plain)) u8, base[0..allocation_length]));
         }
     };
 };

@@ -4,13 +4,13 @@ const tx_types = @import("transaction.zig");
 const types = @import("ethereum.zig");
 
 const Address = types.Address;
-const AddressHashMap = std.AutoArrayHashMap(Address, PoolTransactionByNonce);
-const InspectAddressHashMap = std.AutoArrayHashMap(Address, InspectPoolTransactionByNonce);
+const AddressHashMap = std.AutoArrayHashMapUnmanaged(Address, PoolTransactionByNonce);
+const InspectAddressHashMap = std.AutoArrayHashMapUnmanaged(Address, InspectPoolTransactionByNonce);
 const Allocator = std.mem.Allocator;
 const ConvertToEnum = meta.utils.ConvertToEnum;
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
-const PoolPendingTransactionHashMap = std.AutoArrayHashMap(u64, Transaction);
-const InspectPoolPendingTransactionHashMap = std.AutoArrayHashMap(u64, []const u8);
+const PoolPendingTransactionHashMap = std.AutoArrayHashMapUnmanaged(u64, Transaction);
+const InspectPoolPendingTransactionHashMap = std.AutoArrayHashMapUnmanaged(u64, []const u8);
 const ParseError = std.json.ParseError;
 const ParseFromValueError = std.json.ParseFromValueError;
 const ParseOptions = std.json.ParseOptions;
@@ -110,7 +110,7 @@ pub const Subpool = struct {
         source: anytype,
         options: ParseOptions,
     ) ParseError(@TypeOf(source.*))!Subpool {
-        var result = AddressHashMap.init(allocator);
+        var result: AddressHashMap = .empty;
 
         const parsed = try Value.jsonParse(allocator, source, options);
 
@@ -123,7 +123,7 @@ pub const Subpool = struct {
 
             const tx_parse = try std.json.parseFromValueLeaky(PoolTransactionByNonce, allocator, field.value_ptr.*, options);
 
-            try result.put(addr, tx_parse);
+            try result.put(allocator, addr, tx_parse);
         }
 
         return .{ .address = result };
@@ -174,7 +174,7 @@ pub const Subpool = struct {
         source: Value,
         options: ParseOptions,
     ) ParseFromValueError!Subpool {
-        var result = AddressHashMap.init(allocator);
+        var result: AddressHashMap = .empty;
         var iter = source.object.iterator();
 
         while (iter.next()) |field| {
@@ -184,7 +184,7 @@ pub const Subpool = struct {
 
             const tx_parse = try std.json.parseFromValueLeaky(PoolTransactionByNonce, allocator, field.value_ptr.*, options);
 
-            try result.put(addr, tx_parse);
+            try result.put(allocator, addr, tx_parse);
         }
 
         return .{ .address = result };
@@ -200,7 +200,7 @@ pub const InspectSubpool = struct {
         source: anytype,
         options: ParseOptions,
     ) ParseError(@TypeOf(source.*))!InspectSubpool {
-        var result = InspectAddressHashMap.init(allocator);
+        var result: InspectAddressHashMap = .empty;
 
         const parsed = try Value.jsonParse(allocator, source, options);
 
@@ -213,7 +213,7 @@ pub const InspectSubpool = struct {
 
             const tx_parse = try std.json.parseFromValueLeaky(InspectPoolTransactionByNonce, allocator, field.value_ptr.*, options);
 
-            try result.put(addr, tx_parse);
+            try result.put(allocator, addr, tx_parse);
         }
 
         return .{ .address = result };
@@ -264,7 +264,7 @@ pub const InspectSubpool = struct {
         source: Value,
         options: ParseOptions,
     ) ParseFromValueError!InspectSubpool {
-        var result = InspectAddressHashMap.init(allocator);
+        var result: InspectAddressHashMap = .empty;
         var iter = source.object.iterator();
 
         while (iter.next()) |field| {
@@ -274,7 +274,7 @@ pub const InspectSubpool = struct {
 
             const tx_parse = try std.json.parseFromValueLeaky(InspectPoolTransactionByNonce, allocator, field.value_ptr.*, options);
 
-            try result.put(addr, tx_parse);
+            try result.put(allocator, addr, tx_parse);
         }
 
         return .{ .address = result };
@@ -290,7 +290,7 @@ pub const InspectPoolTransactionByNonce = struct {
         source: anytype,
         options: ParseOptions,
     ) ParseError(@TypeOf(source.*))!InspectPoolTransactionByNonce {
-        var result = InspectPoolPendingTransactionHashMap.init(allocator);
+        var result: InspectPoolPendingTransactionHashMap = .empty;
 
         const parsed = try Value.jsonParse(allocator, source, options);
 
@@ -303,7 +303,7 @@ pub const InspectPoolTransactionByNonce = struct {
             if (field.value_ptr.* != .string)
                 return error.UnexpectedToken;
 
-            try result.put(key_num, field.value_ptr.string);
+            try result.put(allocator, key_num, field.value_ptr.string);
         }
 
         return .{ .nonce = result };
@@ -317,7 +317,7 @@ pub const InspectPoolTransactionByNonce = struct {
     ) ParseFromValueError!InspectPoolTransactionByNonce {
         _ = options;
 
-        var result = InspectPoolPendingTransactionHashMap.init(allocator);
+        var result: InspectPoolPendingTransactionHashMap = .empty;
         var iter = source.object.iterator();
 
         while (iter.next()) |field| {
@@ -327,7 +327,7 @@ pub const InspectPoolTransactionByNonce = struct {
             if (field.value_ptr.* != .string)
                 return error.UnexpectedToken;
 
-            try result.put(key_num, field.value_ptr.string);
+            try result.put(allocator, key_num, field.value_ptr.string);
         }
 
         return .{ .nonce = result };
@@ -362,7 +362,7 @@ pub const PoolTransactionByNonce = struct {
         source: anytype,
         options: ParseOptions,
     ) ParseError(@TypeOf(source.*))!PoolTransactionByNonce {
-        var result = PoolPendingTransactionHashMap.init(allocator);
+        var result: PoolPendingTransactionHashMap = .empty;
 
         const parsed = try Value.jsonParse(allocator, source, options);
 
@@ -374,7 +374,7 @@ pub const PoolTransactionByNonce = struct {
 
             const tx_parse = try std.json.parseFromValueLeaky(Transaction, allocator, field.value_ptr.*, options);
 
-            try result.put(key_num, tx_parse);
+            try result.put(allocator, key_num, tx_parse);
         }
 
         return .{ .nonce = result };
@@ -386,7 +386,7 @@ pub const PoolTransactionByNonce = struct {
         source: Value,
         options: ParseOptions,
     ) ParseFromValueError!PoolTransactionByNonce {
-        var result = PoolPendingTransactionHashMap.init(allocator);
+        var result: PoolPendingTransactionHashMap = .empty;
         var iter = source.object.iterator();
 
         while (iter.next()) |field| {
@@ -395,7 +395,7 @@ pub const PoolTransactionByNonce = struct {
 
             const tx_parse = try std.json.parseFromValueLeaky(Transaction, allocator, field.value_ptr.*, options);
 
-            try result.put(key_num, tx_parse);
+            try result.put(allocator, key_num, tx_parse);
         }
 
         return .{ .nonce = result };

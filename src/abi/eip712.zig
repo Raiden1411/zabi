@@ -484,10 +484,10 @@ pub fn encodeType(
 ) !void {
     const info = @typeInfo(@TypeOf(types_fields));
 
-    var result = std.StringArrayHashMap(void).init(allocator);
-    defer result.deinit();
+    var result: std.StringArrayHashMapUnmanaged(void) = .empty;
+    defer result.deinit(allocator);
 
-    try findTypeDependencies(types_fields, primary_type, &result);
+    try findTypeDependencies(allocator, types_fields, primary_type, &result);
 
     try writer.writeAll(primary_type);
     try writer.writeByte('(');
@@ -540,9 +540,10 @@ pub fn encodeType(
 }
 /// Finds the main type child type and recursivly checks their children as well.
 pub fn findTypeDependencies(
+    allocator: Allocator,
     comptime types_fields: anytype,
     comptime primary_type: []const u8,
-    result: *std.StringArrayHashMap(void),
+    result: *std.StringArrayHashMapUnmanaged(void),
 ) Allocator.Error!void {
     if (result.getKey(primary_type) != null)
         return;
@@ -551,11 +552,11 @@ pub fn findTypeDependencies(
 
     inline for (info.@"struct".fields) |field| {
         if (std.mem.eql(u8, field.name, primary_type)) {
-            try result.put(primary_type, {});
+            try result.put(allocator, primary_type, {});
             const messages = @field(types_fields, field.name);
 
             inline for (messages) |message| {
-                try findTypeDependencies(types_fields, message.type, result);
+                try findTypeDependencies(allocator, types_fields, message.type, result);
             }
         }
     } else return;

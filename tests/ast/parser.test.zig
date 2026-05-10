@@ -2348,9 +2348,9 @@ fn buildParser(source: [:0]const u8, tokens: *Ast.TokenList, parser: *Parser) !v
         .token_index = 0,
         .token_tags = tokens.items(.tag),
         .token_starts = tokens.items(.start),
-        .nodes = .{},
-        .errors = .{},
-        .scratch = .{},
-        .extra_data = .{},
+        .nodes = .empty,
+        .errors = .empty,
+        .scratch = .empty,
+        .extra_data = .empty,
     };
 }

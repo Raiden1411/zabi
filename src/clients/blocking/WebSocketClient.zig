@@ -291,8 +291,9 @@ pub const Connection = struct {
 
             @memcpy(hostname, host.bytes);
 
-            var bundle: CertificateBundle = .{};
+            var bundle: CertificateBundle = .empty;
             defer bundle.deinit(allocator);
+            var bundle_lock: Io.RwLock = .init;
 
             const time = Io.Clock.real.now(io);
             try bundle.rescan(allocator, io, time);
@@ -310,7 +311,12 @@ pub const Connection = struct {
                     &tls.connection.stream_writer.interface,
                     .{
                         .host = .{ .explicit = hostname },
-                        .ca = .{ .bundle = bundle },
+                        .ca = .{ .bundle = .{
+                            .gpa = allocator,
+                            .io = io,
+                            .lock = &bundle_lock,
+                            .bundle = &bundle,
+                        } },
                         .ssl_key_log = null,
                         .read_buffer = read_buffer,
                         .write_buffer = write_buffer,
@@ -318,7 +324,7 @@ pub const Connection = struct {
                         // the content length which is used to detect truncation attacks.
                         .allow_truncation_attacks = true,
                         .entropy = &entropy,
-                        .realtime_now_seconds = time.toSeconds(),
+                        .realtime_now = time,
                     },
                 ),
             };

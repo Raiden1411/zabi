@@ -1789,7 +1789,7 @@ test "CALL to precompile 0x03 executes RIPEMD160" {
     defer result.deinit(testing.allocator);
 
     // Derive expected output through the same address-dispatched precompile entrypoint.
-    var expected_output = try evm_mod.precompiles.executePrecompile(
+    const expected_output = try evm_mod.precompiles.executePrecompile(
         testing.allocator,
         .LATEST,
         precompile_address,

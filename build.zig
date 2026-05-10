@@ -2,15 +2,15 @@ const env_parser = @import("src/utils/env_load.zig");
 const std = @import("std");
 const builtin = @import("builtin");
 
-const min_zig_string = "0.16.0-dev.1859+212968c57";
+const zig_version_string = "0.16.0";
 
 /// Build zabi modules and test runners.
 pub fn build(b: *std.Build) void {
     comptime {
         const current_zig = builtin.zig_version;
-        const min_zig = std.SemanticVersion.parse(min_zig_string) catch unreachable;
-        if (current_zig.order(min_zig) == .lt) {
-            @compileError(std.fmt.comptimePrint("Your Zig version v{} does not meet the minimum build requirement of v{}", .{ current_zig, min_zig }));
+        const required_zig = std.SemanticVersion.parse(zig_version_string) catch unreachable;
+        if (current_zig.order(required_zig) != .eq) {
+            @compileError(std.fmt.comptimePrint("zabi is pinned to Zig v{}; found v{}", .{ required_zig, current_zig }));
         }
     }
 

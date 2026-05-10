@@ -907,7 +907,6 @@ pub const EncodePacked = struct {
         self: *EncodePacked,
         value: anytype,
     ) Errors![]u8 {
-        try self.list.ensureUnusedCapacity(@sizeOf(@TypeOf(value)));
         try self.encodePackedValue(value);
 
         return self.list.toOwnedSlice();

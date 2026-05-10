@@ -23,11 +23,11 @@ Zabi aims to add support for interacting with ethereum or any compatible EVM bas
 
 
 ### Zig Versions
-Zabi will follow the master branch of ziglang as best as possible.
+Zabi is pinned to Zig `0.16.0`. The build script rejects other Zig versions so that the standard library APIs used by zabi stay reproducible across local development, CI, and downstream consumers.
 
 
 ### Installing Zig
-You can install the latest version of zig [here](https://ziglang.org/download/) or you can also use a version manager like [zvm](https://www.zvm.app/guides/install-zvm/) to manage your zig version.
+Install Zig `0.16.0` from the [Zig download page](https://ziglang.org/download/) or use a version manager like [zvm](https://www.zvm.app/guides/install-zvm/).
 
 
 ### Integration
@@ -48,10 +48,10 @@ zig fetch --save https://github.com/Raiden1411/zabi/archive/VERSION_NUMBER.tar.g
 zig fetch --save git+https://github.com/Raiden1411/zabi.git#LATEST_COMMIT
 ```
 
-To install zabi with the latest zig version you can install it like so
+Install zabi with the branch or tag that matches Zig `0.16.0`:
 
 ```bash
-zig fetch --save git+https://github.com/Raiden1411/zabi.git#zig_version_0.14.0
+zig fetch --save git+https://github.com/Raiden1411/zabi.git#zig_version_0.16.0
 ```
 
 Then in your `build.zig` file add the following to the `exe` section for the executable where you wish to have `zabi` available.

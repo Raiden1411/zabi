@@ -77,7 +77,7 @@ pub fn AbiEventParameterDataToPrimative(comptime param: AbiEventParameter) type 
                     fields_attr[i] = .{
                         .default_value_ptr = null,
                         .@"comptime" = false,
-                        .@"align" = if (@sizeOf(FieldType) > 0) @alignOf(FieldType) else 0,
+                        .@"align" = null,
                     };
                 }
 
@@ -219,7 +219,7 @@ pub fn AbiParameterToPrimative(comptime param: AbiParameter) type {
                     fields_attr[i] = .{
                         .default_value_ptr = null,
                         .@"comptime" = false,
-                        .@"align" = if (@sizeOf(FieldType) > 0) @alignOf(FieldType) else 0,
+                        .@"align" = null,
                     };
                 }
 

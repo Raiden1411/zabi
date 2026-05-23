@@ -86,7 +86,8 @@ pub const Eip7702TransactionEnvelope = struct {
         source: anytype,
         options: ParseOptions,
     ) ParseError(@TypeOf(source.*))!@This() {
-        return meta.json.jsonParse(@This(), allocator, source, options);
+        const json_value = try Value.jsonParse(allocator, source, options);
+        return jsonParseFromValue(allocator, json_value, options);
     }
 
     pub fn jsonParseFromValue(
@@ -123,7 +124,8 @@ pub const CancunTransactionEnvelope = struct {
         source: anytype,
         options: ParseOptions,
     ) ParseError(@TypeOf(source.*))!@This() {
-        return meta.json.jsonParse(@This(), allocator, source, options);
+        const json_value = try Value.jsonParse(allocator, source, options);
+        return jsonParseFromValue(allocator, json_value, options);
     }
 
     pub fn jsonParseFromValue(
@@ -285,7 +287,8 @@ pub const AuthorizationPayload = struct {
         source: anytype,
         options: ParseOptions,
     ) ParseError(@TypeOf(source.*))!@This() {
-        return meta.json.jsonParse(@This(), allocator, source, options);
+        const json_value = try Value.jsonParse(allocator, source, options);
+        return jsonParseFromValue(allocator, json_value, options);
     }
 
     pub fn jsonParseFromValue(
@@ -293,6 +296,47 @@ pub const AuthorizationPayload = struct {
         source: Value,
         options: ParseOptions,
     ) ParseFromValueError!@This() {
+        const JsonAuthorizationPayload = struct {
+            chainId: u64,
+            address: Address,
+            nonce: u64,
+            yParity: u8,
+            r: u256,
+            s: u256,
+
+            pub fn jsonParse(
+                child_allocator: Allocator,
+                child_source: anytype,
+                child_options: ParseOptions,
+            ) ParseError(@TypeOf(child_source.*))!@This() {
+                return meta.json.jsonParse(@This(), child_allocator, child_source, child_options);
+            }
+
+            pub fn jsonParseFromValue(
+                child_allocator: Allocator,
+                child_source: Value,
+                child_options: ParseOptions,
+            ) ParseFromValueError!@This() {
+                return meta.json.jsonParseFromValue(@This(), child_allocator, child_source, child_options);
+            }
+        };
+
+        if (source != .object)
+            return error.UnexpectedToken;
+
+        if (source.object.get("chainId") != null or source.object.get("yParity") != null) {
+            const payload = try std.json.parseFromValueLeaky(JsonAuthorizationPayload, allocator, source, options);
+
+            return .{
+                .chain_id = payload.chainId,
+                .address = payload.address,
+                .nonce = payload.nonce,
+                .y_parity = payload.yParity,
+                .r = payload.r,
+                .s = payload.s,
+            };
+        }
+
         return meta.json.jsonParseFromValue(@This(), allocator, source, options);
     }
 
@@ -566,7 +610,7 @@ pub const LondonPendingTransaction = struct {
     /// Represented as values instead of the hash because
     /// a valid signature is not guaranteed to be 32 bits
     s: u256,
-    type: TransactionTypes,
+    type: TransactionTypes = .london,
     accessList: []const AccessList,
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
@@ -616,7 +660,7 @@ pub const LegacyPendingTransaction = struct {
     /// Represented as values instead of the hash because
     /// a valid signature is not guaranteed to be 32 bits
     s: u256,
-    type: TransactionTypes,
+    type: TransactionTypes = .legacy,
     chainId: ?usize = null,
 
     pub fn jsonParse(
@@ -717,7 +761,7 @@ pub const CancunTransaction = struct {
     s: u256,
     sourceHash: ?Hash = null,
     isSystemTx: ?bool = null,
-    type: TransactionTypes,
+    type: TransactionTypes = .cancun,
     accessList: []const AccessList,
     blobVersionedHashes: []const Hash,
     maxFeePerBlobGas: Gwei,
@@ -771,8 +815,59 @@ pub const LondonTransaction = struct {
     s: u256,
     sourceHash: ?Hash = null,
     isSystemTx: ?bool = null,
-    type: TransactionTypes,
+    type: TransactionTypes = .london,
     accessList: []const AccessList,
+    maxPriorityFeePerGas: Gwei,
+    maxFeePerGas: Gwei,
+    chainId: usize,
+    yParity: ?u1 = null,
+
+    pub fn jsonParse(
+        allocator: Allocator,
+        source: anytype,
+        options: ParseOptions,
+    ) ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(
+        allocator: Allocator,
+        source: Value,
+        options: ParseOptions,
+    ) ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+
+    pub fn jsonStringify(
+        self: @This(),
+        writer_stream: anytype,
+    ) @TypeOf(writer_stream.*).Error!void {
+        return meta.json.jsonStringify(@This(), self, writer_stream);
+    }
+};
+/// The EIP-7702 representation of a transaction.
+pub const Eip7702Transaction = struct {
+    hash: Hash,
+    nonce: u64,
+    blockHash: ?Hash,
+    blockNumber: ?u64,
+    transactionIndex: ?u64,
+    from: Address,
+    to: ?Address,
+    value: Wei,
+    gasPrice: Gwei,
+    gas: Gwei,
+    input: Hex,
+    v: u4,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    r: u256,
+    /// Represented as values instead of the hash because
+    /// a valid signature is not guaranteed to be 32 bits
+    s: u256,
+    type: TransactionTypes = .eip7702,
+    accessList: []const AccessList,
+    authorizationList: ?[]const AuthorizationPayload = null,
     maxPriorityFeePerGas: Gwei,
     maxFeePerGas: Gwei,
     chainId: usize,
@@ -823,7 +918,7 @@ pub const BerlinTransaction = struct {
     s: u256,
     sourceHash: ?Hash = null,
     isSystemTx: ?bool = null,
-    type: TransactionTypes,
+    type: TransactionTypes = .berlin,
     accessList: []const AccessList,
     chainId: usize,
     yParity: ?u1 = null,
@@ -910,6 +1005,8 @@ pub const Transaction = union(enum) {
     london: LondonTransaction,
     /// Cancun hardfork transactions.
     cancun: CancunTransaction,
+    /// EIP-7702 transaction objects.
+    eip7702: Eip7702Transaction,
     /// L2 transaction objects
     l2_transaction: L2Transaction,
     /// L2 Deposit transaction
@@ -921,7 +1018,7 @@ pub const Transaction = union(enum) {
         options: ParseOptions,
     ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
-        return try jsonParseFromValue(allocator, json_value, options);
+        return jsonParseFromValue(allocator, json_value, options);
     }
 
     pub fn jsonParseFromValue(
@@ -940,6 +1037,9 @@ pub const Transaction = union(enum) {
         if (source.object.get("l1Timestamp") != null)
             return @unionInit(@This(), "l2_transaction", try std.json.parseFromValueLeaky(L2Transaction, allocator, source, options));
 
+        if (tx_type == .null)
+            return @unionInit(@This(), "legacy", try std.json.parseFromValueLeaky(LegacyTransaction, allocator, source, options));
+
         if (tx_type != .string)
             return error.UnexpectedToken;
 
@@ -951,6 +1051,7 @@ pub const Transaction = union(enum) {
             .berlin => return @unionInit(@This(), "berlin", try std.json.parseFromValueLeaky(BerlinTransaction, allocator, source, options)),
             .london => return @unionInit(@This(), "london", try std.json.parseFromValueLeaky(LondonTransaction, allocator, source, options)),
             .cancun => return @unionInit(@This(), "cancun", try std.json.parseFromValueLeaky(CancunTransaction, allocator, source, options)),
+            .eip7702 => return @unionInit(@This(), "eip7702", try std.json.parseFromValueLeaky(Eip7702Transaction, allocator, source, options)),
             .deposit => return @unionInit(@This(), "deposit", try std.json.parseFromValueLeaky(DepositTransactionSigned, allocator, source, options)),
             else => return error.UnexpectedToken,
         }
@@ -961,7 +1062,7 @@ pub const Transaction = union(enum) {
         stream: anytype,
     ) @TypeOf(stream.*).Error!void {
         switch (self) {
-            inline else => |value| try stream.write(value),
+            inline else => |value| try meta.json.innerStringify(value, stream),
         }
     }
 };
@@ -1200,7 +1301,7 @@ pub const TransactionReceipt = union(enum) {
         options: ParseOptions,
     ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
-        return try jsonParseFromValue(allocator, json_value, options);
+        return jsonParseFromValue(allocator, json_value, options);
     }
 
     pub fn jsonParseFromValue(
@@ -1401,8 +1502,8 @@ pub const DepositTransactionSigned = struct {
     /// Represented as values instead of the hash because
     /// a valid signature is not guaranteed to be 32 bits
     s: u256,
-    type: TransactionTypes,
-    sourceHash: Hex,
+    type: TransactionTypes = .deposit,
+    sourceHash: Hash,
     mint: ?u256 = null,
     isSystemTx: ?bool = null,
     depositReceiptVersion: ?u64 = null,

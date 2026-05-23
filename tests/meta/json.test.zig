@@ -2,6 +2,28 @@ const generator = @import("zabi").utils.generator;
 const std = @import("std");
 const testing = std.testing;
 const types = @import("zabi").types;
+const meta = @import("zabi").meta;
+
+const ParseTest = struct {
+    fixed: [2]u8,
+    number: u8,
+
+    pub fn jsonParse(
+        allocator: std.mem.Allocator,
+        source: anytype,
+        options: std.json.ParseOptions,
+    ) std.json.ParseError(@TypeOf(source.*))!@This() {
+        return meta.json.jsonParse(@This(), allocator, source, options);
+    }
+
+    pub fn jsonParseFromValue(
+        allocator: std.mem.Allocator,
+        source: std.json.Value,
+        options: std.json.ParseOptions,
+    ) std.json.ParseFromValueError!@This() {
+        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
+    }
+};
 
 test "Parse/Stringify Json" {
     {
@@ -447,6 +469,67 @@ test "Parse/Stringify Json" {
     }
 }
 
+test "Json Parse duplicate use first" {
+    const parsed = try std.json.parseFromSlice(
+        ParseTest,
+        testing.allocator,
+        \\{"fixed":"0x0102","number":"0x1","number":"0x2"}
+    ,
+        .{ .duplicate_field_behavior = .use_first },
+    );
+    defer parsed.deinit();
+
+    try testing.expectEqual(@as(u8, 1), parsed.value.number);
+}
+
+test "Json Parse fixed array length mismatch" {
+    try testing.expectError(
+        error.LengthMismatch,
+        std.json.parseFromSlice(
+            ParseTest,
+            testing.allocator,
+            \\{"fixed":[1],"number":"0x1"}
+        ,
+            .{},
+        ),
+    );
+
+    try testing.expectError(
+        error.LengthMismatch,
+        std.json.parseFromSlice(
+            ParseTest,
+            testing.allocator,
+            \\{"fixed":[1,2,3],"number":"0x1"}
+        ,
+            .{},
+        ),
+    );
+}
+
+test "Json Parse block transactions reject mixed arrays" {
+    try testing.expectError(
+        error.UnexpectedToken,
+        std.json.parseFromSlice(
+            types.block.BlockTransactions,
+            testing.allocator,
+            \\["0x0000000000000000000000000000000000000000000000000000000000000000",{}]
+        ,
+            .{},
+        ),
+    );
+
+    try testing.expectError(
+        error.UnexpectedToken,
+        std.json.parseFromSlice(
+            types.block.BlockTransactions,
+            testing.allocator,
+            \\[{},"0x0000000000000000000000000000000000000000000000000000000000000000"]
+        ,
+            .{},
+        ),
+    );
+}
+
 test "Json Parse Transactions" {
     {
         const gen = try generator.generateRandomData(types.transactions.TransactionEnvelope, testing.allocator, 0, .{ .slice_size = 20 });
@@ -471,6 +554,27 @@ test "Json Parse Transactions" {
         defer parsed.deinit();
 
         try testing.expectEqualDeep(gen.generated, parsed.value);
+    }
+    {
+        const slice =
+            \\{
+            \\  "chainId": "0x1",
+            \\  "address": "0x0000000000000000000000000000000000000001",
+            \\  "nonce": "0x2",
+            \\  "yParity": "0x1",
+            \\  "r": "0x3",
+            \\  "s": "0x4"
+            \\}
+        ;
+
+        const parsed = try std.json.parseFromSlice(types.transactions.AuthorizationPayload, testing.allocator, slice, .{});
+        defer parsed.deinit();
+
+        try testing.expectEqual(@as(u64, 1), parsed.value.chain_id);
+        try testing.expectEqual(@as(u64, 2), parsed.value.nonce);
+        try testing.expectEqual(@as(u8, 1), parsed.value.y_parity);
+        try testing.expectEqual(@as(u256, 3), parsed.value.r);
+        try testing.expectEqual(@as(u256, 4), parsed.value.s);
     }
     {
         const gen = try generator.generateRandomData(types.transactions.Eip7702TransactionEnvelope, testing.allocator, 0, .{ .slice_size = 20 });

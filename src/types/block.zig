@@ -201,7 +201,7 @@ pub const BlockTransactions = union(enum) {
         options: ParseOptions,
     ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
-        return try jsonParseFromValue(allocator, json_value, options);
+        return jsonParseFromValue(allocator, json_value, options);
     }
 
     pub fn jsonParseFromValue(
@@ -215,12 +215,15 @@ pub const BlockTransactions = union(enum) {
         if (source.array.items.len == 0)
             return @unionInit(@This(), "hashes", try allocator.alloc(Hash, 0));
 
-        const last = source.array.getLast();
+        const first = source.array.items[0];
 
-        switch (last) {
+        switch (first) {
             .string => {
                 const arr = try allocator.alloc(Hash, source.array.items.len);
                 for (source.array.items, arr) |item, *res| {
+                    if (item != .string)
+                        return error.UnexpectedToken;
+
                     if (!utils.isHash(item.string))
                         return error.InvalidCharacter;
 
@@ -231,7 +234,14 @@ pub const BlockTransactions = union(enum) {
 
                 return @unionInit(@This(), "hashes", arr);
             },
-            .object => return @unionInit(@This(), "objects", try std.json.parseFromValueLeaky([]const Transaction, allocator, source, options)),
+            .object => {
+                for (source.array.items) |item| {
+                    if (item != .object)
+                        return error.UnexpectedToken;
+                }
+
+                return @unionInit(@This(), "objects", try std.json.parseFromValueLeaky([]const Transaction, allocator, source, options));
+            },
             else => return error.UnexpectedToken,
         }
     }
@@ -364,7 +374,7 @@ pub const Block = union(enum) {
         options: ParseOptions,
     ) ParseError(@TypeOf(source.*))!@This() {
         const json_value = try Value.jsonParse(allocator, source, options);
-        return try jsonParseFromValue(allocator, json_value, options);
+        return jsonParseFromValue(allocator, json_value, options);
     }
 
     pub fn jsonParseFromValue(

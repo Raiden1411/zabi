@@ -7,6 +7,20 @@ const test_clients = @import("../constants.zig");
 const Anvil = @import("zabi").clients.Anvil;
 const HttpProvider = client.Provider.HttpProvider;
 
+fn resetAnvilFork(env_name: []const u8) !void {
+    var environ_map = try std.testing.io_instance.environ.process_environ.createMap(std.heap.page_allocator);
+    defer environ_map.deinit();
+
+    const fork_url = environ_map.get(env_name) orelse return error.MissingEnvVariable;
+
+    var anvil: Anvil = undefined;
+    defer anvil.deinit();
+
+    anvil.initClient(.{ .allocator = testing.allocator, .io = std.testing.io });
+
+    try anvil.reset(.{ .forking = .{ .jsonRpcUrl = fork_url } });
+}
+
 test "GetL2HashFromL1DepositInfo" {
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
@@ -144,17 +158,7 @@ test "Errors" {
 }
 
 test "getSecondsUntilNextGame" {
-    var environ_map = try std.testing.io_instance.environ.process_environ.createMap(std.heap.page_allocator);
-    defer environ_map.deinit();
-
-    const sepolia = environ_map.get("ANVIL_FORK_URL_SEPOLIA") orelse return error.MissingEnvVariable;
-
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    anvil.initClient(.{ .allocator = testing.allocator, .io = std.testing.io });
-
-    try anvil.reset(.{ .forking = .{ .jsonRpcUrl = sepolia } });
+    try resetAnvilFork("ANVIL_FORK_URL_SEPOLIA");
 
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
@@ -172,6 +176,8 @@ test "getSecondsUntilNextGame" {
 }
 
 test "Portal Version" {
+    try resetAnvilFork("ANVIL_FORK_URL_SEPOLIA");
+
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
         .io = std.testing.io,
@@ -185,6 +191,8 @@ test "Portal Version" {
 }
 
 test "Get Games" {
+    try resetAnvilFork("ANVIL_FORK_URL_SEPOLIA");
+
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
         .io = std.testing.io,
@@ -193,7 +201,7 @@ test "Get Games" {
     defer op.deinit();
 
     const games = try op.provider.getGames(testing.allocator, 5, 69);
-    testing.allocator.free(games);
+    defer testing.allocator.free(games);
 
     try testing.expectEqual(games.len, 5);
 }

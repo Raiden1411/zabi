@@ -130,7 +130,7 @@ pub fn generateRandomDataLeaky(comptime T: type, allocator: Allocator, seed: u64
                 const default = convertDefaultValueType(field);
 
                 if (default) |default_value| {
-                    if (opts.use_default_values) {
+                    if (opts.use_default_values or comptime isTransactionTypeField(field)) {
                         @field(result, field.name) = default_value;
                     } else {
                         // Gets a new seed foreach element.
@@ -270,4 +270,9 @@ fn convertDefaultValueType(comptime field: std.builtin.Type.StructField) ?field.
         @as(*const field.type, @ptrCast(@alignCast(opaque_value))).*
     else
         null;
+}
+
+fn isTransactionTypeField(comptime field: std.builtin.Type.StructField) bool {
+    return std.mem.eql(u8, field.name, "type") and
+        std.mem.endsWith(u8, @typeName(field.type), ".TransactionTypes");
 }

@@ -55,7 +55,7 @@ pub fn jsonParseFromValue(
                         .@"error" => return error.DuplicateField,
                         .use_last => {},
                         .use_first => {
-                            _ = try innerParseValueRequest(field.type, allocator, source, options);
+                            _ = try innerParseValueRequest(field.type, allocator, token.value_ptr.*, options);
 
                             break;
                         },
@@ -146,7 +146,10 @@ pub fn innerParseValueRequest(
     switch (info) {
         .bool => {
             switch (source) {
-                .string => |val| return try std.fmt.parseInt(u1, val, 0) != 0,
+                .string => |val| {
+                    const parsed = try std.fmt.parseInt(u1, val, 0);
+                    return parsed != 0;
+                },
                 else => return std.json.innerParseFromValue(T, allocator, source, options),
             }
         },
@@ -179,7 +182,10 @@ pub fn innerParseValueRequest(
         .optional => |opt_info| {
             switch (source) {
                 .null => return null,
-                else => return try innerParseValueRequest(opt_info.child, allocator, source, options),
+                else => {
+                    const parsed = try innerParseValueRequest(opt_info.child, allocator, source, options);
+                    return parsed;
+                },
             }
         },
         .@"enum" => |enum_info| {
@@ -196,6 +202,9 @@ pub fn innerParseValueRequest(
         .array => |arr_info| {
             switch (source) {
                 .array => |arr| {
+                    if (arr.items.len != arr_info.len)
+                        return error.LengthMismatch;
+
                     var result: T = undefined;
                     for (arr.items, 0..) |item, i| {
                         result[i] = try innerParseValueRequest(arr_info.child, allocator, item, options);

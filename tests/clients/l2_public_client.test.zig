@@ -125,7 +125,7 @@ test "EstimateTotalFees" {
     });
     defer op.deinit();
 
-    const fee = try op.provider.estimateL1Gas(testing.allocator, .{
+    const fee = try op.provider.estimateTotalFees(testing.allocator, .{
         .to = try utils.addressToBytes("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
         .gas = 21000,
         .maxFeePerGas = try utils.parseGwei(10),

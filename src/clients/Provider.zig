@@ -378,17 +378,12 @@ pub fn estimateMaxFeePerGas(self: *Provider) !RPCResponse(u64) {
 /// Estimates the L1 + Provider fees to execute a transaction on L2
 pub fn estimateTotalFees(
     self: *Provider,
+    gpa: Allocator,
     london_envelope: LondonTransactionEnvelope,
 ) !u256 {
-    const l1_gas_fee = try self.estimateL1GasFee(london_envelope);
+    const l1_gas_fee = try self.estimateL1GasFee(gpa, london_envelope);
 
-    const l2_gas = try self.estimateGas(.{ .london = .{
-        .to = london_envelope.to,
-        .data = london_envelope.data,
-        .maxFeePerGas = london_envelope.maxFeePerGas,
-        .maxPriorityFeePerGas = london_envelope.maxPriorityFeePerGas,
-        .value = london_envelope.value,
-    } }, .{});
+    const l2_gas = try self.estimateGas(londonEnvelopeToEstimateCall(london_envelope), .{});
     defer l2_gas.deinit();
 
     const gas_price = try self.getGasPrice();
@@ -405,16 +400,18 @@ pub fn estimateTotalGas(
 ) !u256 {
     const l1_gas_fee = try self.estimateL1GasFee(gpa, london_envelope);
 
-    const l2_gas = try self.estimateGas(.{ .london = .{
-        .to = london_envelope.to,
-        .data = london_envelope.data,
-        .maxFeePerGas = london_envelope.maxFeePerGas,
-        .maxPriorityFeePerGas = london_envelope.maxPriorityFeePerGas,
-        .value = london_envelope.value,
-    } }, .{});
+    const l2_gas = try self.estimateGas(londonEnvelopeToEstimateCall(london_envelope), .{});
     defer l2_gas.deinit();
 
     return l1_gas_fee + l2_gas.response;
+}
+
+fn londonEnvelopeToEstimateCall(london_envelope: LondonTransactionEnvelope) EthCall {
+    return .{ .london = .{
+        .to = london_envelope.to,
+        .data = london_envelope.data,
+        .value = london_envelope.value,
+    } };
 }
 
 /// Returns historical gas information, allowing you to track trends over time.

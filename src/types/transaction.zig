@@ -596,6 +596,7 @@ pub const LondonPendingTransaction = struct {
     nonce: u64,
     blockHash: ?Hash,
     blockNumber: ?u64,
+    blockTimestamp: ?u64 = null,
     transactionIndex: ?u64,
     from: Address,
     to: ?Address,
@@ -646,6 +647,7 @@ pub const LegacyPendingTransaction = struct {
     nonce: u64,
     blockHash: ?Hash,
     blockNumber: ?u64,
+    blockTimestamp: ?u64 = null,
     transactionIndex: ?u64,
     from: Address,
     to: ?Address,
@@ -692,6 +694,7 @@ pub const L2Transaction = struct {
     nonce: u64,
     blockHash: ?Hash,
     blockNumber: ?u64,
+    blockTimestamp: ?u64 = null,
     transactionIndex: ?u64,
     from: Address,
     to: ?Address,
@@ -745,6 +748,7 @@ pub const CancunTransaction = struct {
     nonce: u64,
     blockHash: ?Hash,
     blockNumber: ?u64,
+    blockTimestamp: ?u64 = null,
     transactionIndex: ?u64,
     from: Address,
     to: ?Address,
@@ -799,6 +803,7 @@ pub const LondonTransaction = struct {
     nonce: u64,
     blockHash: ?Hash,
     blockNumber: ?u64,
+    blockTimestamp: ?u64 = null,
     transactionIndex: ?u64,
     from: Address,
     to: ?Address,
@@ -851,6 +856,7 @@ pub const Eip7702Transaction = struct {
     nonce: u64,
     blockHash: ?Hash,
     blockNumber: ?u64,
+    blockTimestamp: ?u64 = null,
     transactionIndex: ?u64,
     from: Address,
     to: ?Address,
@@ -902,6 +908,7 @@ pub const BerlinTransaction = struct {
     nonce: u64,
     blockHash: ?Hash,
     blockNumber: ?u64,
+    blockTimestamp: ?u64 = null,
     transactionIndex: ?u64,
     from: Address,
     to: ?Address,
@@ -1072,6 +1079,7 @@ pub const LegacyReceipt = struct {
     transactionIndex: u64,
     blockHash: Hash,
     blockNumber: ?u64,
+    blockTimestamp: ?u64 = null,
     from: Address,
     to: ?Address,
     cumulativeGasUsed: Gwei,
@@ -1080,7 +1088,8 @@ pub const LegacyReceipt = struct {
     contractAddress: ?Address,
     logs: Logs,
     logsBloom: Hex,
-    blobGasPrice: ?u64 = null,
+    blobGasPrice: ?u256 = null,
+    blobGasUsed: ?u256 = null,
     type: ?TransactionTypes = null,
     root: ?Hex = null,
     status: ?bool = null,
@@ -1115,11 +1124,12 @@ pub const CancunReceipt = struct {
     transactionIndex: u64,
     blockHash: Hash,
     blockNumber: ?u64,
+    blockTimestamp: ?u64 = null,
     from: Address,
     to: ?Address,
     cumulativeGasUsed: Gwei,
     effectiveGasPrice: Gwei,
-    blobGasPrice: Gwei,
+    blobGasPrice: u256,
     blobGasUsed: Gwei,
     gasUsed: Gwei,
     contractAddress: ?Address,
@@ -1159,6 +1169,7 @@ pub const OpstackReceipt = struct {
     transactionIndex: u64,
     blockHash: Hash,
     blockNumber: ?u64,
+    blockTimestamp: ?u64 = null,
     from: Address,
     to: ?Address,
     gasUsed: Gwei,
@@ -1205,6 +1216,7 @@ pub const DepositReceipt = struct {
     transactionIndex: u64,
     blockHash: Hash,
     blockNumber: ?u64,
+    blockTimestamp: ?u64 = null,
     from: Address,
     to: ?Address,
     cumulativeGasUsed: Gwei,
@@ -1248,6 +1260,7 @@ pub const ArbitrumReceipt = struct {
     transactionHash: Hash,
     blockHash: Hash,
     blockNumber: ?u64,
+    blockTimestamp: ?u64 = null,
     logsBloom: Hex,
     l1BlockNumber: Wei,
     contractAddress: ?Address,
@@ -1312,17 +1325,20 @@ pub const TransactionReceipt = union(enum) {
         if (source != .object)
             return error.UnexpectedToken;
 
-        if (source.object.get("blobGasUsed") != null)
+        if (try receiptTypeIs(source, .cancun))
             return @unionInit(@This(), "cancun", try std.json.parseFromValueLeaky(CancunReceipt, allocator, source, options));
 
-        if (source.object.get("l1GasUsed") != null)
+        if (jsonFieldIsNonNull(source, "l1GasUsed"))
             return @unionInit(@This(), "op_receipt", try std.json.parseFromValueLeaky(OpstackReceipt, allocator, source, options));
 
-        if (source.object.get("gasUsedForL1") != null)
+        if (jsonFieldIsNonNull(source, "gasUsedForL1"))
             return @unionInit(@This(), "arbitrum_receipt", try std.json.parseFromValueLeaky(ArbitrumReceipt, allocator, source, options));
 
         if (source.object.get("depositNonce") != null)
             return @unionInit(@This(), "deposit_receipt", try std.json.parseFromValueLeaky(DepositReceipt, allocator, source, options));
+
+        if (jsonFieldIsNonNull(source, "blobGasUsed"))
+            return @unionInit(@This(), "cancun", try std.json.parseFromValueLeaky(CancunReceipt, allocator, source, options));
 
         return @unionInit(@This(), "legacy", try std.json.parseFromValueLeaky(LegacyReceipt, allocator, source, options));
     }
@@ -1336,6 +1352,25 @@ pub const TransactionReceipt = union(enum) {
         }
     }
 };
+
+fn jsonFieldIsNonNull(source: Value, comptime field_name: []const u8) bool {
+    const value = source.object.get(field_name) orelse return false;
+    return value != .null;
+}
+
+fn receiptTypeIs(source: Value, expected: TransactionTypes) ParseFromValueError!bool {
+    const tx_type = source.object.get("type") orelse return false;
+    if (tx_type == .null) return false;
+
+    const parsed = switch (tx_type) {
+        .string => |value| std.meta.stringToEnum(TransactionTypes, value) orelse
+            (std.enums.fromInt(TransactionTypes, try std.fmt.parseInt(u8, value, 0)) orelse return error.UnexpectedToken),
+        .integer => |value| std.enums.fromInt(TransactionTypes, std.math.cast(u8, value) orelse return error.UnexpectedToken) orelse return error.UnexpectedToken,
+        else => return error.UnexpectedToken,
+    };
+
+    return parsed == expected;
+}
 /// The representation of an `eth_call` struct.
 pub const EthCall = union(enum) {
     legacy: LegacyEthCall,
@@ -1488,6 +1523,7 @@ pub const DepositTransactionSigned = struct {
     nonce: u64,
     blockHash: ?Hash,
     blockNumber: ?u64,
+    blockTimestamp: ?u64 = null,
     transactionIndex: ?u64,
     from: Address,
     to: ?Address,

@@ -463,7 +463,10 @@ test "GetFilter" {
         defer client.deinit();
         try client.readLoopSeperateThread();
 
-        const filter = try client.provider.getFilterOrLogChanges(0, .eth_getFilterChanges);
+        const filter_id = try client.provider.newLogFilter(.{ .address = [_]u8{0xff} ** 20 }, .latest);
+        defer filter_id.deinit();
+
+        const filter = try client.provider.getFilterOrLogChanges(filter_id.response, .eth_getFilterChanges);
         defer filter.deinit();
 
         try testing.expectEqual(filter.response.len, 0);
@@ -481,7 +484,10 @@ test "GetFilter" {
         defer client.deinit();
         try client.readLoopSeperateThread();
 
-        const filter = try client.provider.getFilterOrLogChanges(0, .eth_getFilterLogs);
+        const filter_id = try client.provider.newLogFilter(.{ .address = [_]u8{0xff} ** 20 }, .latest);
+        defer filter_id.deinit();
+
+        const filter = try client.provider.getFilterOrLogChanges(filter_id.response, .eth_getFilterLogs);
         defer filter.deinit();
 
         try testing.expectEqual(filter.response.len, 0);

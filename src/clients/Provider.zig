@@ -2404,13 +2404,15 @@ pub fn waitForTransactionReceiptType(
             const number: ?u64 = switch (tx_receipt.response) {
                 inline else => |all| all.blockNumber,
             };
+            if (confirmations == 0)
+                break;
             // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
             if (valid_confirmations > confirmations and (number != null or block_number - number.? + 1 < confirmations)) {
                 receipt = tx_receipt;
                 break;
             } else {
                 valid_confirmations += 1;
-                try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
+                try self.io.sleep(.fromMilliseconds(@intCast(self.network_config.pooling_interval)), .real);
                 continue;
             }
         }
@@ -2419,7 +2421,7 @@ pub fn waitForTransactionReceiptType(
             tx = self.getTransactionByHash(tx_hash) catch |err| switch (err) {
                 // If it fails we keep trying
                 error.TransactionNotFound => {
-                    try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
+                    try self.io.sleep(.fromMilliseconds(@intCast(self.network_config.pooling_interval)), .real);
                     continue;
                 },
                 else => return err,
@@ -2445,14 +2447,14 @@ pub fn waitForTransactionReceiptType(
 
                 const block_transactions = switch (current_block.response) {
                     inline else => |blocks| if (blocks.transactions) |block_txs| block_txs else {
-                        try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
+                        try self.io.sleep(.fromMilliseconds(@intCast(self.network_config.pooling_interval)), .real);
                         continue;
                     },
                 };
 
                 const pending_transaction = switch (block_transactions) {
                     .hashes => {
-                        try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
+                        try self.io.sleep(.fromMilliseconds(@intCast(self.network_config.pooling_interval)), .real);
                         continue;
                     },
                     .objects => |tx_objects| tx_objects,
@@ -2494,12 +2496,14 @@ pub fn waitForTransactionReceiptType(
                     const number: ?u64 = switch (valid_receipt) {
                         inline else => |all| all.blockNumber,
                     };
+                    if (confirmations == 0)
+                        break;
                     // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
                     if (valid_confirmations > confirmations and (number != null or block_number - number.? + 1 < confirmations))
                         break;
                 }
 
-                try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
+                try self.io.sleep(.fromMilliseconds(@intCast(self.network_config.pooling_interval)), .real);
                 continue;
             },
             else => return err,
@@ -2509,12 +2513,14 @@ pub fn waitForTransactionReceiptType(
         const number: ?u64 = switch (valid_receipt) {
             inline else => |all| all.blockNumber,
         };
+        if (confirmations == 0)
+            break;
         // If it has enough confirmations we break out of the loop and return. Otherwise it keep pooling
         if (valid_confirmations > confirmations and (number != null or block_number - number.? + 1 < confirmations)) {
             break;
         } else {
             valid_confirmations += 1;
-            try self.io.sleep(.fromSeconds(@intCast(std.time.ns_per_ms * self.network_config.pooling_interval)), .real);
+            try self.io.sleep(.fromMilliseconds(@intCast(self.network_config.pooling_interval)), .real);
             continue;
         }
     }

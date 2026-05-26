@@ -24,6 +24,8 @@ const Token = std.json.Token;
 const Value = std.json.Value;
 const Wei = types.Wei;
 
+const Json = meta.json.JsonParseStringify;
+
 /// Tuple representing an encoded envelope for the Berlin hardfork.
 pub const BerlinEnvelope = StructToTupleType(BerlinTransactionEnvelope);
 /// Tuple representing an encoded envelope for the Berlin hardfork with the signature.
@@ -1095,28 +1097,10 @@ pub const LegacyReceipt = struct {
     status: ?bool = null,
     deposit_nonce: ?usize = null,
 
-    pub fn jsonParse(
-        allocator: Allocator,
-        source: anytype,
-        options: ParseOptions,
-    ) ParseError(@TypeOf(source.*))!@This() {
-        return meta.json.jsonParse(@This(), allocator, source, options);
-    }
-
-    pub fn jsonParseFromValue(
-        allocator: Allocator,
-        source: Value,
-        options: ParseOptions,
-    ) ParseFromValueError!@This() {
-        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
-    }
-
-    pub fn jsonStringify(
-        self: @This(),
-        writer_stream: anytype,
-    ) @TypeOf(writer_stream.*).Error!void {
-        return meta.json.jsonStringify(@This(), self, writer_stream);
-    }
+    const json = Json(@This());
+    pub const jsonParse = json.parse;
+    pub const jsonParseFromValue = json.parseFromValue;
+    pub const jsonStringify = json.stringify;
 };
 /// Cancun transaction receipt representation
 pub const CancunReceipt = struct {
@@ -1140,28 +1124,10 @@ pub const CancunReceipt = struct {
     status: ?bool = null,
     deposit_nonce: ?usize = null,
 
-    pub fn jsonParse(
-        allocator: Allocator,
-        source: anytype,
-        options: ParseOptions,
-    ) ParseError(@TypeOf(source.*))!@This() {
-        return meta.json.jsonParse(@This(), allocator, source, options);
-    }
-
-    pub fn jsonParseFromValue(
-        allocator: Allocator,
-        source: Value,
-        options: ParseOptions,
-    ) ParseFromValueError!@This() {
-        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
-    }
-
-    pub fn jsonStringify(
-        self: @This(),
-        writer_stream: anytype,
-    ) @TypeOf(writer_stream.*).Error!void {
-        return meta.json.jsonStringify(@This(), self, writer_stream);
-    }
+    const json = Json(@This());
+    pub const jsonParse = json.parse;
+    pub const jsonParseFromValue = json.parseFromValue;
+    pub const jsonStringify = json.stringify;
 };
 /// L2 transaction receipt representation
 pub const OpstackReceipt = struct {
@@ -1187,28 +1153,10 @@ pub const OpstackReceipt = struct {
     l1FeeScalar: ?f64 = null,
     root: ?Hex = null,
 
-    pub fn jsonParse(
-        allocator: Allocator,
-        source: anytype,
-        options: ParseOptions,
-    ) ParseError(@TypeOf(source.*))!@This() {
-        return meta.json.jsonParse(@This(), allocator, source, options);
-    }
-
-    pub fn jsonParseFromValue(
-        allocator: Allocator,
-        source: Value,
-        options: ParseOptions,
-    ) ParseFromValueError!@This() {
-        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
-    }
-
-    pub fn jsonStringify(
-        self: @This(),
-        writer_stream: anytype,
-    ) @TypeOf(writer_stream.*).Error!void {
-        return meta.json.jsonStringify(@This(), self, writer_stream);
-    }
+    const json = Json(@This());
+    pub const jsonParse = json.parse;
+    pub const jsonParseFromValue = json.parseFromValue;
+    pub const jsonStringify = json.stringify;
 };
 /// L2 Deposit transaction receipt representation
 pub const DepositReceipt = struct {
@@ -1232,28 +1180,10 @@ pub const DepositReceipt = struct {
     depositNonceVersion: ?u64 = null,
     root: ?Hex = null,
 
-    pub fn jsonParse(
-        allocator: Allocator,
-        source: anytype,
-        options: ParseOptions,
-    ) ParseError(@TypeOf(source.*))!@This() {
-        return meta.json.jsonParse(@This(), allocator, source, options);
-    }
-
-    pub fn jsonParseFromValue(
-        allocator: Allocator,
-        source: Value,
-        options: ParseOptions,
-    ) ParseFromValueError!@This() {
-        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
-    }
-
-    pub fn jsonStringify(
-        self: @This(),
-        writer_stream: anytype,
-    ) @TypeOf(writer_stream.*).Error!void {
-        return meta.json.jsonStringify(@This(), self, writer_stream);
-    }
+    const json = Json(@This());
+    pub const jsonParse = json.parse;
+    pub const jsonParseFromValue = json.parseFromValue;
+    pub const jsonStringify = json.stringify;
 };
 /// Arbitrum transaction receipt representation
 pub const ArbitrumReceipt = struct {
@@ -1277,28 +1207,10 @@ pub const ArbitrumReceipt = struct {
     status: ?bool = null,
     deposit_nonce: ?usize = null,
 
-    pub fn jsonParse(
-        allocator: Allocator,
-        source: anytype,
-        options: ParseOptions,
-    ) ParseError(@TypeOf(source.*))!@This() {
-        return meta.json.jsonParse(@This(), allocator, source, options);
-    }
-
-    pub fn jsonParseFromValue(
-        allocator: Allocator,
-        source: Value,
-        options: ParseOptions,
-    ) ParseFromValueError!@This() {
-        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
-    }
-
-    pub fn jsonStringify(
-        self: @This(),
-        writer_stream: anytype,
-    ) @TypeOf(writer_stream.*).Error!void {
-        return meta.json.jsonStringify(@This(), self, writer_stream);
-    }
+    const json = Json(@This());
+    pub const jsonParse = json.parse;
+    pub const jsonParseFromValue = json.parseFromValue;
+    pub const jsonStringify = json.stringify;
 };
 /// All possible transaction receipts
 pub const TransactionReceipt = union(enum) {
@@ -1325,19 +1237,16 @@ pub const TransactionReceipt = union(enum) {
         if (source != .object)
             return error.UnexpectedToken;
 
-        if (try receiptTypeIs(source, .cancun))
-            return @unionInit(@This(), "cancun", try std.json.parseFromValueLeaky(CancunReceipt, allocator, source, options));
-
-        if (jsonFieldIsNonNull(source, "l1GasUsed"))
+        if (receiptHasOpFields(source))
             return @unionInit(@This(), "op_receipt", try std.json.parseFromValueLeaky(OpstackReceipt, allocator, source, options));
 
-        if (jsonFieldIsNonNull(source, "gasUsedForL1"))
+        if (receiptHasArbitrumFields(source))
             return @unionInit(@This(), "arbitrum_receipt", try std.json.parseFromValueLeaky(ArbitrumReceipt, allocator, source, options));
 
-        if (source.object.get("depositNonce") != null)
+        if (receiptHasDepositFields(source))
             return @unionInit(@This(), "deposit_receipt", try std.json.parseFromValueLeaky(DepositReceipt, allocator, source, options));
 
-        if (jsonFieldIsNonNull(source, "blobGasUsed"))
+        if (receiptHasBlobFields(source))
             return @unionInit(@This(), "cancun", try std.json.parseFromValueLeaky(CancunReceipt, allocator, source, options));
 
         return @unionInit(@This(), "legacy", try std.json.parseFromValueLeaky(LegacyReceipt, allocator, source, options));
@@ -1353,23 +1262,29 @@ pub const TransactionReceipt = union(enum) {
     }
 };
 
-fn jsonFieldIsNonNull(source: Value, comptime field_name: []const u8) bool {
-    const value = source.object.get(field_name) orelse return false;
-    return value != .null;
+fn receiptHasOpFields(source: Value) bool {
+    return meta.json.jsonObjectFieldIsNonNull(source, "l1GasUsed") or
+        meta.json.jsonObjectFieldIsNonNull(source, "l1GasPrice") or
+        meta.json.jsonObjectFieldIsNonNull(source, "l1Fee") or
+        meta.json.jsonObjectFieldIsNonNull(source, "l1FeeScalar");
+}
+
+fn receiptHasArbitrumFields(source: Value) bool {
+    return meta.json.jsonObjectFieldIsNonNull(source, "gasUsedForL1") or
+        meta.json.jsonObjectFieldIsNonNull(source, "l1BlockNumber");
+}
+
+fn receiptHasDepositFields(source: Value) bool {
+    return meta.json.jsonObjectHasField(source, "depositNonce") or
+        meta.json.jsonObjectHasField(source, "depositNonceVersion");
+}
+
+fn receiptHasBlobFields(source: Value) bool {
+    return meta.json.jsonObjectFieldIsNonNull(source, "blobGasUsed");
 }
 
 fn receiptTypeIs(source: Value, expected: TransactionTypes) ParseFromValueError!bool {
-    const tx_type = source.object.get("type") orelse return false;
-    if (tx_type == .null) return false;
-
-    const parsed = switch (tx_type) {
-        .string => |value| std.meta.stringToEnum(TransactionTypes, value) orelse
-            (std.enums.fromInt(TransactionTypes, try std.fmt.parseInt(u8, value, 0)) orelse return error.UnexpectedToken),
-        .integer => |value| std.enums.fromInt(TransactionTypes, std.math.cast(u8, value) orelse return error.UnexpectedToken) orelse return error.UnexpectedToken,
-        else => return error.UnexpectedToken,
-    };
-
-    return parsed == expected;
+    return meta.json.jsonObjectEnumFieldIs(TransactionTypes, source, "type", expected);
 }
 /// The representation of an `eth_call` struct.
 pub const EthCall = union(enum) {

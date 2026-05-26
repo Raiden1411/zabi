@@ -13,6 +13,80 @@ const ParseOptions = std.json.ParseOptions;
 const Token = std.json.Token;
 const Value = std.json.Value;
 
+pub fn JsonParseStringify(comptime T: type) type {
+    return struct {
+        pub fn parse(
+            allocator: Allocator,
+            source: anytype,
+            options: ParseOptions,
+        ) ParseError(@TypeOf(source.*))!T {
+            return jsonParse(T, allocator, source, options);
+        }
+
+        pub fn parseFromValue(
+            allocator: Allocator,
+            source: Value,
+            options: ParseOptions,
+        ) ParseFromValueError!T {
+            return jsonParseFromValue(T, allocator, source, options);
+        }
+
+        pub fn stringify(
+            self: T,
+            writer_stream: anytype,
+        ) @TypeOf(writer_stream.*).Error!void {
+            return jsonStringify(T, self, writer_stream);
+        }
+    };
+}
+
+pub fn jsonObjectField(source: Value, comptime field_name: []const u8) ?Value {
+    if (source != .object)
+        return null;
+
+    return source.object.get(field_name);
+}
+
+pub fn jsonObjectHasField(source: Value, comptime field_name: []const u8) bool {
+    return jsonObjectField(source, field_name) != null;
+}
+
+pub fn jsonObjectFieldIsNonNull(source: Value, comptime field_name: []const u8) bool {
+    const value = jsonObjectField(source, field_name) orelse return false;
+    return value != .null;
+}
+
+pub fn jsonObjectEnumFieldIs(
+    comptime T: type,
+    source: Value,
+    comptime field_name: []const u8,
+    expected: T,
+) ParseFromValueError!bool {
+    const value = jsonObjectField(source, field_name) orelse return false;
+    if (value == .null) return false;
+
+    const parsed = try jsonValueToEnum(T, value);
+    return parsed == expected;
+}
+
+pub fn jsonValueToEnum(comptime T: type, source: Value) ParseFromValueError!T {
+    const enum_info = @typeInfo(T).@"enum";
+
+    return switch (source) {
+        .string, .number_string => |value| blk: {
+            if (std.meta.stringToEnum(T, value)) |result| break :blk result;
+
+            const enum_number = std.fmt.parseInt(enum_info.tag_type, value, 0) catch return error.UnexpectedToken;
+            break :blk std.enums.fromInt(T, enum_number) orelse return error.UnexpectedToken;
+        },
+        .integer => |value| blk: {
+            const enum_number = std.math.cast(enum_info.tag_type, value) orelse return error.UnexpectedToken;
+            break :blk std.enums.fromInt(T, enum_number) orelse return error.UnexpectedToken;
+        },
+        else => return error.UnexpectedToken,
+    };
+}
+
 /// Custom jsonParse that is mostly used to enable
 /// the ability to parse hex string values into native `int` types,
 /// since parsing hex values is not part of the JSON RFC we need to rely on
@@ -146,9 +220,11 @@ pub fn innerParseValueRequest(
     switch (info) {
         .bool => {
             switch (source) {
-                .string => |val| {
-                    const parsed = try std.fmt.parseInt(u1, val, 0);
-                    return parsed != 0;
+                .string, .number_string => |value| {
+                    if (std.mem.eql(u8, value, "0x0")) return false;
+                    if (std.mem.eql(u8, value, "0x1")) return true;
+
+                    return error.UnexpectedToken;
                 },
                 else => return std.json.innerParseFromValue(T, allocator, source, options),
             }
@@ -159,16 +235,12 @@ pub fn innerParseValueRequest(
             switch (source) {
                 .number_string, .string => |str| {
                     if (std.mem.eql(u8, str, "0x"))
-                        return 0;
+                        return error.UnexpectedToken;
 
                     return std.fmt.parseInt(T, str, 0);
                 },
                 .float => |f| {
-                    if (@round(f) != f) return error.InvalidNumber;
-                    if (f > utils.floatFromInt(@TypeOf(f), std.math.maxInt(T))) return error.Overflow;
-                    if (f < utils.floatFromInt(@TypeOf(f), std.math.minInt(T))) return error.Overflow;
-
-                    return utils.intFromFloat(T, f);
+                    return utils.tryIntFromFloat(T, f);
                 },
                 .integer => |i| {
                     if (i > std.math.maxInt(T)) return error.Overflow;
@@ -218,19 +290,25 @@ pub fn innerParseValueRequest(
 
                     var result: T = undefined;
 
-                    const slice = if (std.mem.startsWith(u8, str, "0x")) str[2..] else str[0..];
-                    if (std.fmt.hexToBytes(&result, slice)) |_| {
-                        if (arr_info.len != slice.len / 2)
-                            return error.LengthMismatch;
+                    if (std.mem.startsWith(u8, str, "0x")) {
+                        const slice = str[2..];
+                        if (slice.len & 1 != 0)
+                            return error.InvalidCharacter;
 
-                        return result;
-                    } else |_| {
-                        if (slice.len != result.len)
+                        if (std.fmt.hexToBytes(&result, slice)) |_| {
+                            if (arr_info.len != slice.len / 2)
+                                return error.LengthMismatch;
+
+                            return result;
+                        } else |_| return error.UnexpectedToken;
+                    } else {
+                        const slice = str[0..];
+                        if (arr_info.len != slice.len)
                             return error.LengthMismatch;
 
                         @memcpy(result[0..], slice[0..]);
+                        return result;
                     }
-                    return result;
                 },
                 else => return std.json.innerParseFromValue(T, allocator, source, options),
             }
@@ -258,6 +336,9 @@ pub fn innerParseValueRequest(
 
                             if (ptr_info.is_const)
                                 return str;
+
+                            if (!std.mem.startsWith(u8, str, "0x"))
+                                return error.UnexpectedToken;
 
                             if (str.len & 1 != 0)
                                 return error.InvalidCharacter;

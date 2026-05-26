@@ -20,6 +20,8 @@ const Transaction = transactions.Transaction;
 const Value = std.json.Value;
 const Wei = types.Wei;
 
+const Json = meta.json.JsonParseStringify;
+
 /// Block tag used for RPC requests.
 pub const BlockTag = enum {
     latest,
@@ -63,28 +65,10 @@ pub const Withdrawal = struct {
     address: Address,
     amount: Wei,
 
-    pub fn jsonParse(
-        allocator: Allocator,
-        source: anytype,
-        options: ParseOptions,
-    ) ParseError(@TypeOf(source.*))!@This() {
-        return meta.json.jsonParse(@This(), allocator, source, options);
-    }
-
-    pub fn jsonParseFromValue(
-        allocator: Allocator,
-        source: Value,
-        options: ParseOptions,
-    ) ParseFromValueError!@This() {
-        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
-    }
-
-    pub fn jsonStringify(
-        self: @This(),
-        writer_stream: anytype,
-    ) @TypeOf(writer_stream.*).Error!void {
-        return meta.json.jsonStringify(@This(), self, writer_stream);
-    }
+    const json = Json(@This());
+    pub const jsonParse = json.parse;
+    pub const jsonParseFromValue = json.parseFromValue;
+    pub const jsonStringify = json.stringify;
 };
 /// The most common block that can be found before the
 /// ethereum merge. Doesn't contain the `withdrawals` or
@@ -385,13 +369,13 @@ pub const Block = union(enum) {
         if (source != .object)
             return error.UnexpectedToken;
 
-        if (source.object.get("blobGasUsed") != null)
+        if (blockHasBlobFields(source))
             return @unionInit(@This(), "cancun", try std.json.parseFromValueLeaky(BlobBlock, allocator, source, options));
 
-        if (source.object.get("withdrawals") != null)
+        if (blockHasBeaconFields(source))
             return @unionInit(@This(), "beacon", try std.json.parseFromValueLeaky(BeaconBlock, allocator, source, options));
 
-        if (source.object.get("l1BlockNumber") != null)
+        if (blockHasArbitrumFields(source))
             return @unionInit(@This(), "arbitrum", try std.json.parseFromValueLeaky(ArbitrumBlock, allocator, source, options));
 
         return @unionInit(@This(), "legacy", try std.json.parseFromValueLeaky(LegacyBlock, allocator, source, options));
@@ -406,3 +390,22 @@ pub const Block = union(enum) {
         }
     }
 };
+
+fn blockHasBlobFields(source: Value) bool {
+    return meta.json.jsonObjectHasField(source, "blobGasUsed") or
+        meta.json.jsonObjectHasField(source, "excessBlobGas") or
+        meta.json.jsonObjectHasField(source, "parentBeaconBlockRoot") or
+        meta.json.jsonObjectHasField(source, "requestsRoot") or
+        meta.json.jsonObjectHasField(source, "requestsHash");
+}
+
+fn blockHasBeaconFields(source: Value) bool {
+    return meta.json.jsonObjectHasField(source, "withdrawals") or
+        meta.json.jsonObjectHasField(source, "withdrawalsRoot");
+}
+
+fn blockHasArbitrumFields(source: Value) bool {
+    return meta.json.jsonObjectHasField(source, "l1BlockNumber") or
+        meta.json.jsonObjectHasField(source, "sendCount") or
+        meta.json.jsonObjectHasField(source, "sendRoot");
+}

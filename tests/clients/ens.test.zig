@@ -1,31 +1,20 @@
 const std = @import("std");
 const test_clients = @import("../constants.zig");
+const test_utils = @import("test_utils.zig");
 const testing = std.testing;
 const utils = @import("zabi").utils.utils;
 
 const HttpProvider = @import("zabi").clients.Provider.HttpProvider;
-const Anvil = @import("zabi").clients.Anvil;
+
+fn resetMainnetFork() !void {
+    try test_utils.resetAnvilFork(.{
+        .env_name = "ANVIL_FORK_URL",
+        .block_number = 19062632,
+    });
+}
 
 test "Reset Anvil" {
-    var environ_map = try std.testing.io_instance.environ.process_environ.createMap(std.heap.page_allocator);
-    defer environ_map.deinit();
-
-    const mainnet = environ_map.get("ANVIL_FORK_URL") orelse return error.MissingEnvVariable;
-
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    anvil.initClient(.{
-        .allocator = testing.allocator,
-        .io = std.testing.io,
-    });
-
-    try anvil.reset(.{
-        .forking = .{
-            .jsonRpcUrl = mainnet,
-            .blockNumber = 19062632,
-        },
-    });
+    try resetMainnetFork();
 }
 
 test "ENS Text" {

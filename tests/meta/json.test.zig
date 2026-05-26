@@ -8,21 +8,37 @@ const ParseTest = struct {
     fixed: [2]u8,
     number: u8,
 
-    pub fn jsonParse(
-        allocator: std.mem.Allocator,
-        source: anytype,
-        options: std.json.ParseOptions,
-    ) std.json.ParseError(@TypeOf(source.*))!@This() {
-        return meta.json.jsonParse(@This(), allocator, source, options);
-    }
+    const json = meta.json.JsonParseStringify(@This());
+    pub const jsonParse = json.parse;
+    pub const jsonParseFromValue = json.parseFromValue;
+    pub const jsonStringify = json.stringify;
+};
 
-    pub fn jsonParseFromValue(
-        allocator: std.mem.Allocator,
-        source: std.json.Value,
-        options: std.json.ParseOptions,
-    ) std.json.ParseFromValueError!@This() {
-        return meta.json.jsonParseFromValue(@This(), allocator, source, options);
-    }
+const SignedParseTest = struct {
+    number: i8,
+
+    const json = meta.json.JsonParseStringify(@This());
+    pub const jsonParse = json.parse;
+    pub const jsonParseFromValue = json.parseFromValue;
+    pub const jsonStringify = json.stringify;
+};
+
+const BoolParseTest = struct {
+    value: bool,
+
+    const json = meta.json.JsonParseStringify(@This());
+    pub const jsonParse = json.parse;
+    pub const jsonParseFromValue = json.parseFromValue;
+    pub const jsonStringify = json.stringify;
+};
+
+const BytesParseTest = struct {
+    data: []u8,
+
+    const json = meta.json.JsonParseStringify(@This());
+    pub const jsonParse = json.parse;
+    pub const jsonParseFromValue = json.parseFromValue;
+    pub const jsonStringify = json.stringify;
 };
 
 test "Parse/Stringify Json" {
@@ -506,6 +522,134 @@ test "Json Parse fixed array length mismatch" {
     );
 }
 
+test "Json Parse rejects invalid hex integer" {
+    try testing.expectError(
+        error.InvalidCharacter,
+        std.json.parseFromSlice(
+            ParseTest,
+            testing.allocator,
+            \\{"fixed":"0x0102","number":"0xz"}
+        ,
+            .{},
+        ),
+    );
+}
+
+test "Json Parse rejects empty hex integer" {
+    try testing.expectError(
+        error.UnexpectedToken,
+        std.json.parseFromSlice(
+            ParseTest,
+            testing.allocator,
+            \\{"fixed":"0x0102","number":"0x"}
+        ,
+            .{},
+        ),
+    );
+}
+
+test "Json Parse rejects odd length hex bytes" {
+    try testing.expectError(
+        error.InvalidCharacter,
+        std.json.parseFromSlice(
+            ParseTest,
+            testing.allocator,
+            \\{"fixed":"0x123","number":"0x1"}
+        ,
+            .{},
+        ),
+    );
+
+    try testing.expectError(
+        error.InvalidCharacter,
+        std.json.parseFromSlice(
+            BytesParseTest,
+            testing.allocator,
+            \\{"data":"0x123"}
+        ,
+            .{},
+        ),
+    );
+}
+
+test "Json Parse permits empty hex bytes" {
+    const parsed = try std.json.parseFromSlice(
+        BytesParseTest,
+        testing.allocator,
+        \\{"data":"0x"}
+    ,
+        .{},
+    );
+    defer parsed.deinit();
+
+    try testing.expectEqual(@as(usize, 0), parsed.value.data.len);
+}
+
+test "Json Parse signed integer strings" {
+    const parsed = try std.json.parseFromSlice(
+        SignedParseTest,
+        testing.allocator,
+        \\{"number":"-1"}
+    ,
+        .{},
+    );
+    defer parsed.deinit();
+
+    try testing.expectEqual(@as(i8, -1), parsed.value.number);
+}
+
+test "Json Parse rejects integer overflow" {
+    try testing.expectError(
+        error.Overflow,
+        std.json.parseFromSlice(
+            ParseTest,
+            testing.allocator,
+            \\{"fixed":"0x0102","number":"0x100"}
+        ,
+            .{},
+        ),
+    );
+}
+
+test "Json Parse rejects bool strings" {
+    try testing.expectError(
+        error.UnexpectedToken,
+        std.json.parseFromSlice(
+            BoolParseTest,
+            testing.allocator,
+            \\{"value":"1"}
+        ,
+            .{},
+        ),
+    );
+}
+
+test "Json Parse rejects duplicate fields by default" {
+    try testing.expectError(
+        error.DuplicateField,
+        std.json.parseFromSlice(
+            ParseTest,
+            testing.allocator,
+            \\{"fixed":"0x0102","number":"0x1","number":"0x2"}
+        ,
+            .{},
+        ),
+    );
+}
+
+test "Json Parse rejects unknown fields by default" {
+    try testing.expectError(
+        error.UnknownField,
+        std.json.parseFromSlice(
+            ParseTest,
+            testing.allocator,
+            \\{"fixed":"0x0102","number":"0x1","extra":"0x2"}
+        ,
+            .{},
+        ),
+    );
+}
+
 test "Json Parse block transactions reject mixed arrays" {
     try testing.expectError(
         error.UnexpectedToken,
@@ -528,6 +672,41 @@ test "Json Parse block transactions reject mixed arrays" {
             .{},
         ),
     );
+}
+
+test "Json Parse receipt with blob gas price only stays legacy" {
+    const parsed = try std.json.parseFromSlice(
+        types.transactions.TransactionReceipt,
+        testing.allocator,
+        \\{
+        \\  "transactionHash":"0x0000000000000000000000000000000000000000000000000000000000000001",
+        \\  "transactionIndex":"0x0",
+        \\  "blockHash":"0x0000000000000000000000000000000000000000000000000000000000000002",
+        \\  "blockNumber":"0x1",
+        \\  "from":"0x0000000000000000000000000000000000000003",
+        \\  "to":"0x0000000000000000000000000000000000000004",
+        \\  "cumulativeGasUsed":"0x5208",
+        \\  "effectiveGasPrice":"0x1",
+        \\  "gasUsed":"0x5208",
+        \\  "contractAddress":null,
+        \\  "logs":[],
+        \\  "logsBloom":"0x",
+        \\  "blobGasPrice":"0x1",
+        \\  "type":"0x2",
+        \\  "status":"0x1"
+        \\}
+    ,
+        .{},
+    );
+    defer parsed.deinit();
+
+    switch (parsed.value) {
+        .legacy => |receipt| {
+            try testing.expectEqual(@as(?u256, 1), receipt.blobGasPrice);
+            try testing.expectEqual(@as(?u256, null), receipt.blobGasUsed);
+        },
+        else => return error.UnexpectedUnionTag,
+    }
 }
 
 test "Json Parse Transactions" {
@@ -733,8 +912,12 @@ test "Json Parse Transactions" {
         try testing.expectEqualDeep(gen.generated, parsed.value);
     }
     {
-        const gen = try generator.generateRandomData(types.transactions.LegacyReceipt, testing.allocator, 0, .{ .slice_size = 20 });
+        var gen = try generator.generateRandomData(types.transactions.LegacyReceipt, testing.allocator, 0, .{ .slice_size = 20 });
         defer gen.deinit();
+
+        gen.generated.blobGasPrice = null;
+        gen.generated.blobGasUsed = null;
+        gen.generated.type = .legacy;
 
         const as_slice = try std.json.Stringify.valueAlloc(testing.allocator, gen.generated, .{});
         defer testing.allocator.free(as_slice);
@@ -853,8 +1036,12 @@ test "Json Parse Transactions" {
         try testing.expectEqualDeep(gen.generated, parsed.value);
     }
     {
-        const gen = try generator.generateRandomData(types.transactions.LegacyReceipt, testing.allocator, 0, .{ .slice_size = 20 });
+        var gen = try generator.generateRandomData(types.transactions.LegacyReceipt, testing.allocator, 0, .{ .slice_size = 20 });
         defer gen.deinit();
+
+        gen.generated.blobGasPrice = null;
+        gen.generated.blobGasUsed = null;
+        gen.generated.type = .legacy;
 
         const as_slice = try std.json.Stringify.valueAlloc(testing.allocator, gen.generated, .{});
         defer testing.allocator.free(as_slice);

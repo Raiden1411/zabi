@@ -41,7 +41,7 @@ pub const JsonReader = struct {
     }
 
     pub const NextError = Reader.Error || Scanner.Error || Allocator.Error;
-    pub const SkipError = JsonReader.NextError;
+    pub const SkipError = JsonReader.NextError || error{UnexpectedToken};
     pub const AllocError = JsonReader.NextError || error{ValueTooLong};
     pub const PeekError = Reader.Error || Scanner.Error;
 
@@ -82,7 +82,7 @@ pub const JsonReader = struct {
             .false,
             .null,
             .end_of_document,
-            => return try self.next(),
+            => return self.next(),
         }
     }
 
@@ -123,7 +123,7 @@ pub const JsonReader = struct {
 
                         .number, .string => break,
 
-                        else => unreachable,
+                        else => return error.UnexpectedToken,
                     }
                 }
             },
@@ -131,7 +131,7 @@ pub const JsonReader = struct {
                 _ = try self.next();
             },
 
-            .object_end, .array_end, .end_of_document => unreachable, // Attempt to skip a non-value token.
+            .object_end, .array_end, .end_of_document => return error.UnexpectedToken,
         }
     }
 

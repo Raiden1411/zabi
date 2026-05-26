@@ -115,6 +115,8 @@ pub const ExecutionError = error{
     ExcessBlobGasNotSet,
     /// Error path for cases of a computed address matches the precompiled addresses.
     ComputedPrecompiledAddress,
+    /// Precompile execution was requested for a non-precompile address.
+    InvalidPrecompileAddress,
 } || Interpreter.InterpreterRunErrors || RlpEncoder.Error || ValidationErrors || JournaledState.CreateAccountErrors;
 
 allocator: Allocator,

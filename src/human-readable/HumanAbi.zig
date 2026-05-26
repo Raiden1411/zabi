@@ -24,7 +24,7 @@ const Parser = @import("Parser.zig");
 const StateMutability = zabi_abi.abitypes.StateMutability;
 
 /// Set of errors when converting to the abi
-pub const HumanAbiErrors = ParamErrors || Allocator.Error || error{ NoSpaceLeft, MissingTypeDeclaration };
+pub const HumanAbiErrors = ParamErrors || Allocator.Error || error{ NoSpaceLeft, MissingTypeDeclaration, UnexpectedNode };
 
 /// Set of erros when generating the ABI
 pub const Errors = HumanAbiErrors || Parser.ParserErrors || error{ UnexpectedMutability, UnexpectedNode };
@@ -533,7 +533,7 @@ pub fn toAbiParameter(
                 .components = components,
             };
         },
-        else => unreachable, // Invalid Node.
+        else => return error.UnexpectedNode,
     }
 }
 /// Generates a `[]const AbiParameter` or in other words generates the tuple components.
@@ -658,7 +658,7 @@ pub fn toAbiEventParameter(
                 .components = components,
             };
         },
-        else => unreachable, // Invalid Node.
+        else => return error.UnexpectedNode,
     }
 }
 /// Generates a `AbiParameter` from a `error_var_decl` or a `struct_field`.
@@ -752,7 +752,7 @@ pub fn toAbiParameterFromDecl(
                 .components = components,
             };
         },
-        else => unreachable, // Invalid Node.
+        else => return error.UnexpectedNode,
     }
 }
 /// Generates a `AbiFallback` from a `fallback_proto_multi`.

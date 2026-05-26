@@ -92,9 +92,9 @@ pub inline fn calculateCostPerMemoryWord(length: u64, multiple: u64) ?u64 {
 }
 
 /// Calculates the cost of using the `CREATE` opcode.
-/// **PANICS** if the gas cost overflows
-pub inline fn calculateCreateCost(length: u64) u64 {
-    return calculateCostPerMemoryWord(length, constants.INITCODE_WORD_COST) orelse @panic("Init contract code cost overflow");
+/// Returns null in case of overflow.
+pub inline fn calculateCreateCost(length: u64) ?u64 {
+    return calculateCostPerMemoryWord(length, constants.INITCODE_WORD_COST);
 }
 
 /// Calculates the cost of using the `CREATE2` opcode.

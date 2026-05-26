@@ -2670,7 +2670,7 @@ fn sendBlockNumberRequest(
     const response = try self.vtable.sendRpcRequest(self, buf_writter.buffered());
     errdefer response.deinit();
 
-    return self.parseRPCEvent(usize, response);
+    return self.parseRPCEventWithMethod(usize, response, method);
 }
 
 // Sends specific block_hash requests.
@@ -2693,7 +2693,7 @@ fn sendBlockHashRequest(
     const response = try self.vtable.sendRpcRequest(self, buf_writter.buffered());
     errdefer response.deinit();
 
-    return self.parseRPCEvent(usize, response);
+    return self.parseRPCEventWithMethod(usize, response, method);
 }
 
 // Sends request specific for addresses.
@@ -2729,7 +2729,7 @@ fn sendAddressRequest(
     const response = try self.vtable.sendRpcRequest(self, buf_writter.buffered());
     errdefer response.deinit();
 
-    return self.parseRPCEvent(T, response);
+    return self.parseRPCEventWithMethod(T, response, method);
 }
 
 // Sends requests where the params are empty.
@@ -2752,7 +2752,7 @@ fn sendBasicRequest(
     const response = try self.vtable.sendRpcRequest(self, buf_writter.buffered());
     errdefer response.deinit();
 
-    return self.parseRPCEvent(T, response);
+    return self.parseRPCEventWithMethod(T, response, method);
 }
 
 // Sends eth_call request
@@ -2789,7 +2789,7 @@ fn sendEthCallRequest(
     const response = try self.vtable.sendRpcRequest(self, buf_writter.buffered());
     errdefer response.deinit();
 
-    return self.parseRPCEvent(T, response);
+    return self.parseRPCEventWithMethod(T, response, method);
 }
 
 fn parseRPCEvent(
@@ -2797,17 +2797,25 @@ fn parseRPCEvent(
     comptime T: type,
     response: JsonParsed(Value),
 ) !RPCResponse(T) {
+    return self.parseRPCEventWithMethod(T, response, null);
+}
+
+fn parseRPCEventWithMethod(
+    self: *Provider,
+    comptime T: type,
+    response: JsonParsed(Value),
+    method: ?EthereumRpcMethods,
+) !RPCResponse(T) {
     _ = self;
-    const parsed = std.json.parseFromValueLeaky(EthereumResponse(T), response.arena.allocator(), response.value, .{}) catch
+    const parsed = std.json.parseFromValueLeaky(EthereumResponse(T), response.arena.allocator(), response.value, .{}) catch |err| {
+        logRPCParseFailure(method, err);
         return error.UnexpectedErrorFound;
+    };
 
     switch (parsed) {
         .success => |res| return RPCResponse(T).fromJson(response.arena, res.result),
         .@"error" => |res| {
-            provider_log.debug("RPC error response: {s}", .{res.@"error".message});
-
-            if (res.@"error".data) |data|
-                provider_log.debug("RPC error data response: {s}", .{data});
+            logRPCError(method, res.@"error");
 
             switch (res.@"error".code) {
                 .ContractErrorCode => return error.EvmFailedToExecute,
@@ -2833,6 +2841,34 @@ fn parseRPCEvent(
             }
         },
     }
+}
+
+fn logRPCParseFailure(method: ?EthereumRpcMethods, err: anyerror) void {
+    if (method) |rpc_method| {
+        provider_log.err("Failed to parse RPC response for {s}: {s}", .{ @tagName(rpc_method), @errorName(err) });
+    } else {
+        provider_log.err("Failed to parse RPC response: {s}", .{@errorName(err)});
+    }
+}
+
+fn logRPCError(method: ?EthereumRpcMethods, rpc_error: ErrorResponse) void {
+    if (method) |rpc_method| {
+        provider_log.err("RPC {s} failed with {s} ({d}): {s}", .{
+            @tagName(rpc_method),
+            @tagName(rpc_error.code),
+            @intFromEnum(rpc_error.code),
+            rpc_error.message,
+        });
+    } else {
+        provider_log.err("RPC request failed with {s} ({d}): {s}", .{
+            @tagName(rpc_error.code),
+            @intFromEnum(rpc_error.code),
+            rpc_error.message,
+        });
+    }
+
+    if (rpc_error.data) |data|
+        provider_log.err("RPC error data: {s}", .{data});
 }
 
 pub const WebsocketProvider = struct {
@@ -2956,7 +2992,7 @@ pub const WebsocketProvider = struct {
     /// Parses a subscription event `Value` into `T`.
     /// Usefull for events that currently zabi doesn't have custom support.
     pub fn parseSubscriptionEvent(self: *WebsocketProvider, comptime T: type) !RPCResponse(EthereumSubscribeResponse(T)) {
-        const event = self.sub_channel.getOneUncancelable(self.provider.io) catch unreachable;
+        const event = try self.sub_channel.getOneUncancelable(self.provider.io);
         errdefer event.deinit();
 
         const parsed = try std.json.parseFromValueLeaky(
@@ -3062,8 +3098,8 @@ pub const WebsocketProvider = struct {
     ///
     /// Only call this if you are sure that the channel has messages
     /// because this will block until a message is able to be fetched.
-    pub fn getCurrentSubscriptionEvent(self: *WebsocketProvider) JsonParsed(Value) {
-        return self.sub_channel.getOneUncancelable(self.provider.io) catch unreachable;
+    pub fn getCurrentSubscriptionEvent(self: *WebsocketProvider) !JsonParsed(Value) {
+        return self.sub_channel.getOneUncancelable(self.provider.io);
     }
 
     /// Writes message to websocket server and parses the reponse from it.
@@ -3349,7 +3385,7 @@ pub const IpcProvider = struct {
     /// Parses a subscription event `Value` into `T`.
     /// Usefull for events that currently zabi doesn't have custom support.
     pub fn parseSubscriptionEvent(self: *IpcProvider, comptime T: type) !RPCResponse(EthereumSubscribeResponse(T)) {
-        const event = self.sub_channel.getOneUncancelable(self.provider.io) catch unreachable;
+        const event = try self.sub_channel.getOneUncancelable(self.provider.io);
         errdefer event.deinit();
 
         const parsed = try std.json.parseFromValueLeaky(
@@ -3419,8 +3455,8 @@ pub const IpcProvider = struct {
     ///
     /// Only call this if you are sure that the channel has messages
     /// because this will block until a message is able to be fetched.
-    pub fn getCurrentSubscriptionEvent(self: *IpcProvider) JsonParsed(Value) {
-        return self.sub_channel.getOneUncancelable(self.provider.io) catch unreachable;
+    pub fn getCurrentSubscriptionEvent(self: *IpcProvider) !JsonParsed(Value) {
+        return self.sub_channel.getOneUncancelable(self.provider.io);
     }
 
     /// Writes message to websocket server and parses the reponse from it.

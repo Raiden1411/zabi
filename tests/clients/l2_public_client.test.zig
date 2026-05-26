@@ -1,25 +1,21 @@
 const client = @import("zabi").clients;
 const std = @import("std");
 const test_clients = @import("../constants.zig");
+const test_utils = @import("test_utils.zig");
 const testing = std.testing;
 const utils = @import("zabi").utils.utils;
 
-const Anvil = @import("zabi").clients.Anvil;
 const HttpProvider = client.Provider.HttpProvider;
 
+fn resetOpSepoliaFork() !void {
+    try test_utils.resetAnvilFork(.{ .env_name = "ANVIL_FORK_URL_OP_SEPOLIA" });
+}
+
+test "Reset OP Sepolia Anvil Fork" {
+    try resetOpSepoliaFork();
+}
+
 test "GetWithdrawMessages" {
-    var environ_map = try std.testing.io_instance.environ.process_environ.createMap(std.heap.page_allocator);
-    defer environ_map.deinit();
-
-    const op_sepolia = environ_map.get("ANVIL_FORK_URL_OP_SEPOLIA") orelse return error.MissingEnvVariable;
-
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    anvil.initClient(.{ .allocator = testing.allocator, .io = std.testing.io });
-
-    try anvil.reset(.{ .forking = .{ .jsonRpcUrl = op_sepolia } });
-
     if (true) return error.SkipZigTest;
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,

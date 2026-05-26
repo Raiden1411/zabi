@@ -66,8 +66,8 @@ pub fn executePrecompile(
     address: Address,
     input: []const u8,
     gas_limit: u64,
-) Allocator.Error!PrecompileResult {
-    const id = PrecompileId.fromAddress(spec, address) orelse unreachable;
+) (Allocator.Error || error{InvalidPrecompileAddress})!PrecompileResult {
+    const id = PrecompileId.fromAddress(spec, address) orelse return error.InvalidPrecompileAddress;
 
     switch (id) {
         .modexp => {

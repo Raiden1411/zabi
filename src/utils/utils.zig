@@ -259,6 +259,38 @@ pub fn calcultateBlobGasPrice(excess_gas: u64) u128 {
 
 /// Converts a float type to the provided int type.
 /// This doesn't error on aarch64 for the llvm backend
+pub fn tryIntFromFloat(comptime T: type, float: anytype) error{ InvalidNumber, Overflow }!T {
+    const Float = switch (@typeInfo(@TypeOf(float))) {
+        else => @TypeOf(float),
+        .comptime_float => f128,
+    };
+    const value: Float = @floatCast(float);
+    const type_info = @typeInfo(T);
+
+    if (std.math.isNan(value))
+        return error.InvalidNumber;
+
+    if (std.math.isInf(value))
+        return error.Overflow;
+
+    if (@round(value) != value)
+        return error.InvalidNumber;
+
+    if (value > floatFromInt(Float, std.math.maxInt(T)))
+        return error.Overflow;
+
+    if (type_info.int.signedness == .unsigned) {
+        if (value < 0)
+            return error.Overflow;
+    } else if (value < floatFromInt(Float, std.math.minInt(T))) {
+        return error.Overflow;
+    }
+
+    return intFromFloat(T, value);
+}
+
+/// Converts a float type to the provided int type.
+/// This doesn't error on aarch64 for the llvm backend
 pub fn intFromFloat(comptime T: type, float: anytype) T {
     const Float = switch (@typeInfo(@TypeOf(float))) {
         else => @TypeOf(float),

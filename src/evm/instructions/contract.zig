@@ -126,7 +126,7 @@ pub inline fn createInstruction(self: *Interpreter, is_create_2: bool) (error{ I
                 return;
             }
 
-            const cost = gas.calculateCreateCost(len);
+            const cost = gas.calculateCreateCost(len) orelse return error.GasOverflow;
             try self.gas_tracker.updateTracker(cost);
         }
 

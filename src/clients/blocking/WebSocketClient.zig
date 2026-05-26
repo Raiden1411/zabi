@@ -368,6 +368,8 @@ pub fn connect(
     uri: Uri,
 ) !WebsocketClient {
     const scheme = Protocol.fromScheme(uri.scheme) orelse return error.UnsupportedSchema;
+    if (disable_tls and scheme == .tls)
+        return error.TlsDisabled;
 
     const port: u16 = uri.port orelse switch (scheme) {
         .plain => 80,

@@ -3,22 +3,12 @@ const std = @import("std");
 const testing = std.testing;
 const utils = @import("zabi").utils.utils;
 const test_clients = @import("../constants.zig");
+const test_utils = @import("test_utils.zig");
 
-const Anvil = @import("zabi").clients.Anvil;
 const HttpProvider = client.Provider.HttpProvider;
 
 fn resetAnvilFork(env_name: []const u8) !void {
-    var environ_map = try std.testing.io_instance.environ.process_environ.createMap(std.heap.page_allocator);
-    defer environ_map.deinit();
-
-    const fork_url = environ_map.get(env_name) orelse return error.MissingEnvVariable;
-
-    var anvil: Anvil = undefined;
-    defer anvil.deinit();
-
-    anvil.initClient(.{ .allocator = testing.allocator, .io = std.testing.io });
-
-    try anvil.reset(.{ .forking = .{ .jsonRpcUrl = fork_url } });
+    try test_utils.resetAnvilFork(.{ .env_name = env_name });
 }
 
 test "GetL2HashFromL1DepositInfo" {
@@ -105,6 +95,7 @@ test "GetTransactionDepositEvents" {
 
 test "GetProvenWithdrawals" {
     if (true) return error.SkipZigTest;
+
     const uri = try std.Uri.parse("http://localhost:6969/");
 
     var op = try HttpProvider.init(.{
@@ -124,6 +115,7 @@ test "GetProvenWithdrawals" {
 
 test "GetFinalizedWithdrawals" {
     if (true) return error.SkipZigTest;
+
     const uri = try std.Uri.parse("http://localhost:6969/");
 
     var op = try HttpProvider.init(.{
@@ -157,9 +149,11 @@ test "Errors" {
     try testing.expectError(error.InvalidWithdrawalHash, op.provider.getSecondsToFinalize(testing.allocator, try utils.hashToBytes("0xe94031c3174788c3fee7216465c50bb2b72e7a1963f5af807b3768da10827f5c")));
 }
 
-test "getSecondsUntilNextGame" {
+test "Reset Sepolia Anvil Fork" {
     try resetAnvilFork("ANVIL_FORK_URL_SEPOLIA");
+}
 
+test "getSecondsUntilNextGame" {
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
         .io = std.testing.io,
@@ -176,8 +170,6 @@ test "getSecondsUntilNextGame" {
 }
 
 test "Portal Version" {
-    try resetAnvilFork("ANVIL_FORK_URL_SEPOLIA");
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
         .io = std.testing.io,
@@ -191,8 +183,6 @@ test "Portal Version" {
 }
 
 test "Get Games" {
-    try resetAnvilFork("ANVIL_FORK_URL_SEPOLIA");
-
     var op = try HttpProvider.init(.{
         .allocator = testing.allocator,
         .io = std.testing.io,

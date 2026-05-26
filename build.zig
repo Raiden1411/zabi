@@ -251,30 +251,6 @@ fn buildTestOrCoverage(
             loadVariables(b, env_file_path, run_lib_unit_tests);
     }
 
-    // Builds and runs the main tests of zabi for CI.
-    {
-        const lib_unit_tests_mod = b.createModule(.{
-            .root_source_file = b.path("tests/root.zig"),
-            .target = target,
-            .optimize = optimize,
-        });
-        const lib_unit_tests = b.addTest(.{
-            .name = "zabi-tests",
-            .root_module = lib_unit_tests_mod,
-            .filters = test_filter,
-        });
-        lib_unit_tests.root_module.addImport("zabi", module);
-        addDependencies(b, lib_unit_tests.root_module, target, optimize);
-
-        var run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
-
-        const test_step = b.step("test-ci", "Run unit tests");
-        test_step.dependOn(&run_lib_unit_tests.step);
-
-        if (load_variables)
-            loadVariables(b, env_file_path, run_lib_unit_tests);
-    }
-
     // Build and run coverage test runner if `zig build coverage` was ran
     {
         const coverage_lib_tests_mod = b.createModule(.{

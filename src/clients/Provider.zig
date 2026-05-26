@@ -383,13 +383,10 @@ pub fn estimateTotalFees(
 ) !u256 {
     const l1_gas_fee = try self.estimateL1GasFee(gpa, london_envelope);
 
-    const l2_gas = try self.estimateGas(londonEnvelopeToEstimateCall(london_envelope), .{});
-    defer l2_gas.deinit();
-
     const gas_price = try self.getGasPrice();
     defer gas_price.deinit();
 
-    return l1_gas_fee + l2_gas.response * gas_price.response;
+    return l1_gas_fee + london_envelope.gas * gas_price.response;
 }
 
 /// Estimates the L1 + L2 gas to execute a transaction on L2
@@ -398,20 +395,9 @@ pub fn estimateTotalGas(
     gpa: Allocator,
     london_envelope: LondonTransactionEnvelope,
 ) !u256 {
-    const l1_gas_fee = try self.estimateL1GasFee(gpa, london_envelope);
+    const l1_gas = try self.estimateL1Gas(gpa, london_envelope);
 
-    const l2_gas = try self.estimateGas(londonEnvelopeToEstimateCall(london_envelope), .{});
-    defer l2_gas.deinit();
-
-    return l1_gas_fee + l2_gas.response;
-}
-
-fn londonEnvelopeToEstimateCall(london_envelope: LondonTransactionEnvelope) EthCall {
-    return .{ .london = .{
-        .to = london_envelope.to,
-        .data = london_envelope.data,
-        .value = london_envelope.value,
-    } };
+    return l1_gas + london_envelope.gas;
 }
 
 /// Returns historical gas information, allowing you to track trends over time.
